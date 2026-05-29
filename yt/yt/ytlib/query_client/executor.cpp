@@ -734,6 +734,14 @@ private:
 
         int splitCount = std::ssize(groupedDataSplits);
 
+        // Track all subquery statistics futures so we can collect all
+        // TabletServantIsNotActive errors and group them into one.
+        std::vector<TFuture<void>> subqueryStatisticsFutures;
+
+        // Keep holders so that the query is not terminated prematurely
+        // and we can collect errors from all subqueries.
+        auto subplanHolders = New<TSubplanFutureHolders>();
+
         auto evaluateBottom = [
             &,
             bottomQueryPattern = bottomQueryPattern,
@@ -756,7 +764,7 @@ private:
                 options.MaxSubqueries,
                 options.MinRowCountPerSubquery);
 
-            return Delegate(
+            auto result = Delegate(
                 bottomQuery,
                 externalCGInfo,
                 options,
@@ -764,6 +772,10 @@ private:
                 std::move(dataSources),
                 prefetchedJoinRowsets,
                 address);
+
+            subqueryStatisticsFutures.push_back(result.Statistics.As<void>());
+
+            return result;
         };
 
         auto getEvaluateTop = [&] (TConstFrontQueryPtr frontQuery) {
@@ -787,81 +799,119 @@ private:
             };
         };
 
-        TQueryStatistics statistics;
+        try {
+            TQueryStatistics statistics;
 
-        auto scanOrder = query->GetScanOrder(options.AllowUnorderedGroupByWithLimit);
-        if (options.EnableParallelizeUnorderedGroupBy &&
-            scanOrder == EScanOrder::Unordered &&
-            query->GroupClause &&
-            query->GroupClause->CommonPrefixWithPrimaryKey == 0 &&
-            !query->UseDisjointGroupBy)
-        {
-            if (splitCount == 0) {
-                WaitForFast(writer->Close())
-                    .ThrowOnError();
-                return {};
-            }
-            auto [middleQuery, newFrontQuery] = GetGroupingQueriesForParallelization(frontQuery);
-            auto evaluateMiddle = [&, middleQuery] (
-                const ISchemafulUnversionedReaderPtr& reader,
-                TFuture<TFeatureFlags> responseFeatureFlags)
+            auto scanOrder = query->GetScanOrder(options.AllowUnorderedGroupByWithLimit);
+            if (options.EnableParallelizeUnorderedGroupBy &&
+                scanOrder == EScanOrder::Unordered &&
+                query->GroupClause &&
+                query->GroupClause->CommonPrefixWithPrimaryKey == 0 &&
+                !query->UseDisjointGroupBy)
             {
-                YT_LOG_DEBUG("Evaluating middle query (MiddleQueryId: %v)", middleQuery->Id);
+                if (splitCount == 0) {
+                    WaitForFast(writer->Close())
+                        .ThrowOnError();
+                    return {};
+                }
+                auto [middleQuery, newFrontQuery] = GetGroupingQueriesForParallelization(frontQuery);
+                auto evaluateMiddle = [&, middleQuery] (
+                    const ISchemafulUnversionedReaderPtr& reader,
+                    TFuture<TFeatureFlags> responseFeatureFlags)
+                {
+                    YT_LOG_DEBUG("Evaluating middle query (MiddleQueryId: %v)", middleQuery->Id);
 
-                TEvaluateResult middleResult;
-                auto pipe = CreateSchemafulPipe(MemoryChunkProvider_);
-                middleResult.Reader = pipe->GetReader();
+                    TEvaluateResult middleResult;
+                    auto pipe = CreateSchemafulPipe(MemoryChunkProvider_);
+                    middleResult.Reader = pipe->GetReader();
 
-                middleResult.Statistics = BIND(&IEvaluator::Run, Evaluator_)
-                    .AsyncVia(GetCurrentInvoker())
-                    .Run(
-                        middleQuery,
-                        reader,
-                        pipe->GetWriter(),
-                        /*joinProfilerRegistry*/ {},
-                        functionGenerators,
-                        aggregateGenerators,
-                        sdk,
-                        MemoryChunkProvider_,
-                        options,
-                        requestFeatureFlags,
-                        std::move(responseFeatureFlags))
-                    .AsUnique()
-                    .Apply(BIND([pipe] (TErrorOr<TQueryStatistics>&& errorOrStatistics) {
-                        if (!errorOrStatistics.IsOK()) {
-                            pipe->Fail(errorOrStatistics);
-                        }
-                        return errorOrStatistics;
-                    }));
+                    middleResult.Statistics = BIND(&IEvaluator::Run, Evaluator_)
+                        .AsyncVia(GetCurrentInvoker())
+                        .Run(
+                            middleQuery,
+                            reader,
+                            pipe->GetWriter(),
+                            /*joinProfilerRegistry*/ {},
+                            functionGenerators,
+                            aggregateGenerators,
+                            sdk,
+                            MemoryChunkProvider_,
+                            options,
+                            requestFeatureFlags,
+                            std::move(responseFeatureFlags))
+                        .AsUnique()
+                        .Apply(BIND([pipe] (TErrorOr<TQueryStatistics>&& errorOrStatistics) {
+                            if (!errorOrStatistics.IsOK()) {
+                                pipe->Fail(errorOrStatistics);
+                            }
+                            return errorOrStatistics;
+                        }));
 
-                return middleResult;
-            };
-            statistics = CoordinateAndExecuteWithShuffle(
-                splitCount,
-                query->GroupClause->GroupItems.size(),
-                evaluateBottom,
-                evaluateMiddle,
-                getEvaluateTop(newFrontQuery),
-                MemoryChunkProvider_);
-        } else {
-            statistics = CoordinateAndExecute(
-                scanOrder,
-                query->IsPrefetching(),
-                splitCount,
-                query->Offset,
-                query->Limit,
-                options.AdaptiveOrderedSchemafulReader,
-                evaluateBottom,
-                getEvaluateTop(frontQuery));
+                    return middleResult;
+                };
+                statistics = CoordinateAndExecuteWithShuffle(
+                    splitCount,
+                    query->GroupClause->GroupItems.size(),
+                    evaluateBottom,
+                    evaluateMiddle,
+                    getEvaluateTop(newFrontQuery),
+                    MemoryChunkProvider_);
+            } else {
+                statistics = CoordinateAndExecute(
+                    scanOrder,
+                    query->IsPrefetching(),
+                    splitCount,
+                    query->Offset,
+                    query->Limit,
+                    options.AdaptiveOrderedSchemafulReader,
+                    evaluateBottom,
+                    getEvaluateTop(frontQuery),
+                    subplanHolders);
+            }
+
+            if (TQueryStatistics::IsDepthAggregate(options.StatisticsAggregation)) {
+                auto aggregated = TQueryStatistics();
+                aggregated.Merge(statistics);
+                return aggregated;
+            }
+
+            return statistics;
+        } catch (const TErrorException& ex) {
+            if (!ex.Error().FindMatching(NTabletClient::EErrorCode::TabletServantIsNotActive)) {
+                throw;
+            }
+
+            // Wait for all subquery futures to settle and collect all
+            // TabletServantIsNotActive errors to throw as a single combined error.
+            // However, try not to introduce excessive delays.
+            Y_UNUSED(WaitFor(AllSet(subqueryStatisticsFutures)
+                .WithTimeout(Connection_->GetConfig()->CumulativeSelectRowsFailedResponseWaitTime)));
+
+            std::vector<TError> servantNotActiveErrors;
+            for (auto& future : subqueryStatisticsFutures) {
+                if (!future.IsSet()) {
+                    continue;
+                }
+
+                const auto& result = future.GetOrCrash();
+                if (!result.IsOK() &&
+                    result.FindMatching(NTabletClient::EErrorCode::TabletServantIsNotActive))
+                {
+                    servantNotActiveErrors.push_back(result);
+                }
+            }
+
+            if (!servantNotActiveErrors.empty()) {
+                if (servantNotActiveErrors.size() == 1) {
+                    servantNotActiveErrors[0].ThrowOnError();
+                } else {
+                    THROW_ERROR_EXCEPTION("Some select subrequests failed because tablet servants are not active")
+                        << servantNotActiveErrors;
+                }
+            }
+
+            throw;
         }
-
-        if (TQueryStatistics::IsDepthAggregate(options.StatisticsAggregation)) {
-            auto aggregated = TQueryStatistics();
-            aggregated.Merge(statistics);
-            return aggregated;
-        }
-
-        return statistics;
     }
 
     TEvaluateResult Delegate(

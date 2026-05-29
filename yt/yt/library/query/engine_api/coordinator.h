@@ -13,6 +13,16 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TSubplanFutureHolders)
+
+struct TSubplanFutureHolders final
+    : public std::vector<TFutureHolder<TQueryStatistics>> // Use TFutureHolder to prevent leaking subqueries.
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TSubplanFutureHolders)
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const TConstQueryPtr& query);
 
 TSharedRange<TRowRange> GetPrunedRanges(
@@ -73,7 +83,8 @@ TQueryStatistics CoordinateAndExecute(
     i64 limit,
     bool useAdaptiveOrderedSchemafulReader,
     TSubQueryEvaluator evaluateSubQuery,
-    TTopQueryEvaluator evaluateTopQuery);
+    TTopQueryEvaluator evaluateTopQuery,
+    TSubplanFutureHoldersPtr subplanHolders = nullptr);
 
 TQueryStatistics CoordinateAndExecuteWithShuffle(
     int splitCount,

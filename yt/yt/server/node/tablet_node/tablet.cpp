@@ -394,7 +394,7 @@ void TTabletSnapshot::ValidateMountRevision(NHydra::TRevision mountRevision)
     }
 }
 
-void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirectory)
+TError TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirectory)
 {
     const auto& smoothMovementData = TabletRuntimeData->SmoothMovementData;
 
@@ -410,9 +410,9 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
         if (!siblingCellId || !siblingMountRevision) {
             // This may happen if movement finishes concurrently with the request.
             if (smoothMovementData.IsActiveServant.load()) {
-                return;
+                return {};
             } else {
-                THROW_ERROR error;
+                return error;
             }
         }
 
@@ -430,13 +430,16 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
                     LoggingTag);
             }
 
-            THROW_ERROR error
+            return error
                 << TErrorAttribute("redirection_hint", hint);
         } else if (smoothMovementData.TargetActivationFuture) {
             YT_LOG_DEBUG("Started waiting for target servant activation future (%v)",
                 LoggingTag);
-            WaitFor(smoothMovementData.TargetActivationFuture)
-                .ThrowOnError();
+            if (auto activationError = WaitFor(smoothMovementData.TargetActivationFuture);
+                !activationError.IsOK())
+            {
+                return activationError;
+            }
             YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
                 LoggingTag);
 
@@ -449,9 +452,11 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
         }
 
         if (!smoothMovementData.IsActiveServant.load()) {
-            THROW_ERROR error;
+            return error;
         }
     }
+
+    return {};
 }
 
 void TTabletSnapshot::MaybeReplyWithReshardRedirectionHint()

@@ -265,6 +265,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         // COMPAT(babenko)
         .Alias("query_timeout")
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("cumulative_select_rows_failed_response_wait_time", &TThis::CumulativeSelectRowsFailedResponseWaitTime)
+        .Default(TDuration::MilliSeconds(500));
     registrar.Parameter("select_rows_response_codec", &TThis::SelectRowsResponseCodec)
         // COMPAT(babenko)
         .Alias("query_response_codec")

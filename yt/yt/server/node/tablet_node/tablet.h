@@ -354,7 +354,8 @@ struct TTabletSnapshot
 
     void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(NHydra::TRevision mountRevision);
-    void ValidateServantIsActive(const NHiveClient::ICellDirectoryPtr& cellDirectory);
+    [[nodiscard]]
+    TError ValidateServantIsActive(const NHiveClient::ICellDirectoryPtr& cellDirectory);
     void MaybeReplyWithReshardRedirectionHint();
     void WaitOnLocks(TTimestamp timestamp) const;
 };

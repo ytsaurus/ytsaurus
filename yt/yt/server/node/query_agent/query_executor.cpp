@@ -489,16 +489,26 @@ public:
     TQueryStatistics Execute(TServiceProfilerGuard& profilerGuard)
     {
         bool firstTablet = true;
+        std::vector<TError> servantNotActiveErrors;
         for (const auto& source : DataSources_) {
             auto type = TypeFromId(source.ObjectId);
             switch (type) {
                 case EObjectType::Tablet:
-                    TabletSnapshots_.ValidateAndRegisterTabletSnapshot(
-                        source.ObjectId,
-                        source.CellId,
-                        source.MountRevision,
-                        QueryOptions_.TimestampRange.Timestamp,
-                        QueryOptions_.SuppressAccessTracking);
+                    try {
+                        TabletSnapshots_.ValidateAndRegisterTabletSnapshot(
+                            source.ObjectId,
+                            source.CellId,
+                            source.MountRevision,
+                            QueryOptions_.TimestampRange.Timestamp,
+                            QueryOptions_.SuppressAccessTracking);
+                    } catch (const TErrorException& ex) {
+                        if (ex.Error().FindMatching(NTabletClient::EErrorCode::TabletServantIsNotActive)) {
+                            servantNotActiveErrors.push_back(ex.Error());
+                            continue;
+                        }
+
+                        throw;
+                    }
 
                     if (firstTablet) {
                         firstTablet = false;
@@ -515,6 +525,15 @@ public:
                 default:
                     THROW_ERROR_EXCEPTION("Unsupported data source type %Qlv",
                         type);
+            }
+        }
+
+        if (!servantNotActiveErrors.empty()) {
+            if (servantNotActiveErrors.size() == 1) {
+                servantNotActiveErrors[0].ThrowOnError();
+            } else {
+                THROW_ERROR_EXCEPTION("Some tablet servants are not active")
+                    << servantNotActiveErrors;
             }
         }
 

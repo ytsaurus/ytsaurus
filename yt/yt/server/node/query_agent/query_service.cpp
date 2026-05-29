@@ -599,6 +599,29 @@ private:
         Bootstrap_->GetInThrottler(EWorkloadCategory::UserInteractive)->Acquire(
             request->ByteSizeLong());
 
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        std::vector<TError> servantNotActiveErrors;
+        for (int index = 0; index < tabletCount; ++index) {
+            auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
+            auto cellId = FromProto<TCellId>(request->cell_ids(index));
+            auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revisions(index));
+            auto snapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
+            if (auto error = snapshot->ValidateServantIsActive(Bootstrap_->GetClient()->GetNativeConnection()->GetCellDirectory());
+                !error.IsOK())
+            {
+                servantNotActiveErrors.push_back(std::move(error));
+            }
+        }
+
+        if (!servantNotActiveErrors.empty()) {
+            if (servantNotActiveErrors.size() == 1) {
+                servantNotActiveErrors[0].ThrowOnError();
+            } else {
+                THROW_ERROR_EXCEPTION("Some tablet servants are not active")
+                    << servantNotActiveErrors;
+            }
+        }
+
         auto lookupSession = CreateLookupSession(
             inMemoryMode,
             tabletCount,
