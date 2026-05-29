@@ -13,5 +13,12 @@ PEERDIR(
 END()
 
 RECURSE(
+    factory
     nv
 )
+
+IF (NOT OPENSOURCE)
+    RECURSE(
+        mx
+    )
+ENDIF()

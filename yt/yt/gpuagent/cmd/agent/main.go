@@ -18,16 +18,17 @@ import (
 	"go.ytsaurus.tech/library/go/core/log/zap/asynczap"
 	"go.ytsaurus.tech/yt/go/ytlog/selfrotate"
 	"go.ytsaurus.tech/yt/yt/gpuagent/internal/agent"
-	"go.ytsaurus.tech/yt/yt/gpuagent/internal/agent/nv"
+	"go.ytsaurus.tech/yt/yt/gpuagent/internal/agent/factory"
 	"go.ytsaurus.tech/yt/yt/gpuagent/internal/pb"
 )
 
 type args struct {
-	unixSocket string
-	tcpPort    int
-	logfile    string
-	loglevel   zapcore.Level
-	debug      bool
+	unixSocket  string
+	tcpPort     int
+	logfile     string
+	loglevel    zapcore.Level
+	debug       bool
+	gpuProvider factory.ProviderType
 }
 
 func parseArgs() (*args, error) {
@@ -36,6 +37,7 @@ func parseArgs() (*args, error) {
 	logfileVar := flag.String("logfile", "gpuagent.log", "Log file")
 	loglevelVar := flag.String("loglevel", "info", "Log level")
 	debugVar := flag.Bool("debug", false, "")
+	gpuProviderVar := flag.String("gpu-provider", factory.ProviderTypeDefault, factory.ProviderTypeUsage)
 
 	flag.Parse()
 
@@ -54,15 +56,20 @@ func parseArgs() (*args, error) {
 		return nil, fmt.Errorf("Invalid log level")
 	}
 
+	provider := factory.ProviderType(*gpuProviderVar)
+	if err := factory.ValidateProviderType(provider); err != nil {
+		return nil, err
+	}
+
 	if hasUnixSocket {
 		socket, ok := strings.CutPrefix(*unixSocketVar, "unix://")
 		if !ok {
 			return nil, fmt.Errorf("Invalid unix socket path, should be `unix:///path/to/socket`")
 		}
-		return &args{unixSocket: socket, logfile: *logfileVar, loglevel: loglevel, debug: *debugVar}, nil
+		return &args{unixSocket: socket, logfile: *logfileVar, loglevel: loglevel, debug: *debugVar, gpuProvider: provider}, nil
 	}
 
-	return &args{tcpPort: *tcpPortVar, logfile: *logfileVar, loglevel: loglevel, debug: *debugVar}, nil
+	return &args{tcpPort: *tcpPortVar, logfile: *logfileVar, loglevel: loglevel, debug: *debugVar, gpuProvider: provider}, nil
 }
 
 func createLogger(a *args) (l *logzap.Logger, stop func(), err error) {
@@ -94,11 +101,8 @@ func createLogger(a *args) (l *logzap.Logger, stop func(), err error) {
 	return &logzap.Logger{L: zl}, stop, err
 }
 
-func createGPUProvider(args *args, l *logzap.Logger) (agent.GPUProvider, error) {
-	if args.debug {
-		return agent.NewDummyGPUProvider(l)
-	}
-	return nv.New(l)
+func createGPUProvider(a *args, l *logzap.Logger) (agent.GPUProvider, error) {
+	return factory.NewGPUProvider(a.gpuProvider, a.debug, l)
 }
 
 func main() {
