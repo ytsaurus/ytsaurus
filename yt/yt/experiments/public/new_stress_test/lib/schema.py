@@ -181,11 +181,15 @@ class TCompressibleString(TString):
 ################################################################################
 
 class Column():
-    def __init__(self, ttype, name, sort_order=None, aggregate=None, max_inline_hunk_size=None):
+    def __init__(self, ttype, name, sort_order=None, aggregate=None, required=None, max_inline_hunk_size=None):
         self.type = ttype
         self.name = name
         self.sort_order = sort_order
         self.aggregate = aggregate
+        if ttype is TAny:
+            self.required = False
+        else:
+            self.required = required
         if self.type.is_string_like() and random.randint(0, 1) or self.type == TCompressibleString:
             self.max_inline_hunk_size = max_inline_hunk_size
         else:
@@ -196,6 +200,8 @@ class Column():
             y["sort_order"] = self.sort_order
         if self.aggregate:
             y["aggregate"] = self.aggregate
+        if self.required:
+            y["required"] = self.required
         if self.max_inline_hunk_size is not None:
             y["max_inline_hunk_size"] = self.max_inline_hunk_size
         return y
@@ -249,8 +255,9 @@ class Schema():
                 return None
 
         return Schema(
-            [Column(t, n, "ascending") for (t,n) in zip(key_columns, key_names)],
-            [Column(t, n, None, aggr(t), max_inline_hunk_size) for (t,n) in zip(data_columns, data_names)],
+            [Column(t, n, "ascending", required=random.choice((False, True))) for (t,n) in zip(key_columns, key_names)],
+            [Column(t, n, None, aggr(t), required=random.choice((False, True)), max_inline_hunk_size=max_inline_hunk_size)
+                for (t, n) in zip(data_columns, data_names)],
             1 if mode == "stateless_write" else 0.95)
 
     @staticmethod
@@ -307,7 +314,7 @@ class Schema():
         if column is None:
             type = random.choice(KEY_TYPES)
             name = f"k{len(self.key_columns)}"
-            column = Column(type, name, "ascending")
+            column = Column(type, name, "ascending", required=False)
         self.key_columns.append(column)
         self.columns = self.key_columns + self.data_columns
         return column
@@ -364,7 +371,7 @@ class Schema():
         return self.generate_row_from_schema(self.columns)
     def generate_row_from_schema(self, columns):
         while True:
-            result = {c.name: c.generate_value() for c in columns if random.random() < self.appearance_probability}
+            result = {c.name: c.generate_value() for c in columns if c.required or random.random() < self.appearance_probability}
             if len(result) > 0:
                 return result
 
