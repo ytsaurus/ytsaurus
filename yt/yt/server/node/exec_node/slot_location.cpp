@@ -678,7 +678,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
             if (!transferError.IsOK()) {
                 YT_LOG_INFO(
                     transferError,
-                    "Couldn't copy file to sandbox "
+                    "Error copying file to sandbox "
                     "(JobId: %v, ArtifactName: %v, SandboxKind: %v)",
                     jobId,
                     artifactName,
