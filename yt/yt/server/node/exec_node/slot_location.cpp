@@ -168,6 +168,8 @@ TSlotLocation::TSlotLocation(
         .WithTag("device_name", Config_->DeviceName)
         .WithTag("disk_family", Config_->DiskFamily)
         .AddProducer("", MakeCopyMetricBuffer_);
+
+    Bootstrap_->SubscribePopulateAlerts(BIND(&TSlotLocation::PopulateAlerts, MakeWeak(this)));
 }
 
 void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& config)
@@ -332,8 +334,6 @@ TFuture<void> TSlotLocation::Initialize()
         HealthChecker_->SubscribeFailed(BIND(&TSlotLocation::Disable, MakeWeak(this))
             .Via(HeavyInvoker_));
         HealthChecker_->Start();
-
-        Bootstrap_->SubscribePopulateAlerts(BIND(&TSlotLocation::PopulateAlerts, MakeWeak(this)));
     })
     .AsyncVia(HeavyInvoker_)
     .Run();
