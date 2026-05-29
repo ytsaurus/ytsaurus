@@ -99,6 +99,12 @@ def get_dynamic_master_config():
                 "validation_full_heartbeat_splay": 200,
                 "validate_sequoia_replicas": True,
             },
+
+            "sequoia_chunk_replicas": {
+                "batch_incremental_heartbeat": True,
+                "batch_incremental_heartbeat_period": 300,
+                "max_requests_in_incremental_heartbeat_batch": 5,
+            }
         },
 
         "node_tracker": {

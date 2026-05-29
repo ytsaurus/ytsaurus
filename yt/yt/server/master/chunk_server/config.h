@@ -537,6 +537,11 @@ struct TDynamicSequoiaChunkReplicasConfig
     bool StoreSequoiaReplicasOnMaster;
     bool ProcessRemovedSequoiaReplicasOnMaster;
 
+    bool BatchIncrementalHeartbeat;
+    TDuration BatchIncrementalHeartbeatPeriod;
+    int MaxRequestsInIncrementalHeartbeatBatch;
+    int MaxReplicasInIncrementalHeartbeatBatch;
+
     bool EnableChunkPurgatory;
 
     bool EnableSequoiaChunkRefresh;

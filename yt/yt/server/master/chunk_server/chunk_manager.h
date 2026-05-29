@@ -373,11 +373,11 @@ struct IChunkManager
         const std::vector<TChunkLocationUuid>& reportedLocationUuids) = 0;
     virtual void FinalizeDataNodeFullHeartbeatSession(TNode* node) noexcept = 0;
 
-    virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifySequoiaReplicas(
+    virtual TFuture<void> ModifySequoiaReplicas(
         NSequoiaClient::ESequoiaTransactionType transactionType,
         std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request) = 0;
 
-    virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ReplaceSequoiaLocationReplicas(
+    virtual TFuture<void> ReplaceSequoiaLocationReplicas(
         NSequoiaClient::ESequoiaTransactionType transactionType,
         std::unique_ptr<NDataNodeTrackerClient::NProto::TReqReplaceLocationReplicas> request) = 0;
 

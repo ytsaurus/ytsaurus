@@ -23,7 +23,13 @@ struct TSequoiaReplicaModificationProfile
 struct ISequoiaReplicasModifier
     : public TRefCounted
 {
-    virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifyReplicas() = 0;
+    virtual void AddRequest(
+        std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request) = 0;
+
+    virtual void AddRequest(
+        std::unique_ptr<NDataNodeTrackerClient::NProto::TReqReplaceLocationReplicas> request) = 0;
+
+    virtual TFuture<void> ModifyReplicas() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaReplicasModifier)
@@ -31,14 +37,6 @@ DEFINE_REFCOUNTED_TYPE(ISequoiaReplicasModifier)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISequoiaReplicasModifierPtr CreateSequoiaReplicasModifier(
-    std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request,
-    TSequoiaReplicaModificationProfile& modificationProfile,
-    NSequoiaClient::ESequoiaTransactionType,
-    NCellMaster::TBootstrap* bootstrap,
-    const TDynamicChunkManagerConfigPtr& config);
-
-ISequoiaReplicasModifierPtr CreateSequoiaLocationReplicasReplacer(
-    std::unique_ptr<NDataNodeTrackerClient::NProto::TReqReplaceLocationReplicas> request,
     TSequoiaReplicaModificationProfile& modificationProfile,
     NSequoiaClient::ESequoiaTransactionType,
     NCellMaster::TBootstrap* bootstrap,

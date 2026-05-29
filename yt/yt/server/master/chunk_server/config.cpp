@@ -453,6 +453,22 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(5000)
         .DontSerializeDefault();
 
+    registrar.Parameter("batch_incremental_heartbeat", &TThis::BatchIncrementalHeartbeat)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("batch_incremental_heartbeat_period", &TThis::BatchIncrementalHeartbeatPeriod)
+        .Default(TDuration::Seconds(1))
+        .DontSerializeDefault();
+
+    registrar.Parameter("max_requests_in_incremental_heartbeat_batch", &TThis::MaxRequestsInIncrementalHeartbeatBatch)
+        .Default(100)
+        .DontSerializeDefault();
+
+    registrar.Parameter("max_replicas_in_incremental_heartbeat_batch", &TThis::MaxReplicasInIncrementalHeartbeatBatch)
+        .Default(30000)
+        .DontSerializeDefault();
+
     registrar.Parameter("replicas_percentage", &TThis::ReplicasPercentage)
         .Default(0)
         .InRange(0, 100);

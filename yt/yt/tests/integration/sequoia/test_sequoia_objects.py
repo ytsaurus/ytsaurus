@@ -629,6 +629,34 @@ class TestSequoiaReplicas(YTEnvSetup):
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
 
 
+class TestSequoiaReplicasNonBatchHeartbeats(TestSequoiaReplicas):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_TEST_PARTITIONS = 4
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            # Making sure we do not use it for replicas.
+            "enable": False
+        },
+        "chunk_manager": {
+            "replica_approve_timeout": 5000,
+            # COMPAT(grphil): We keep sequoia store configs in compat format to test config migrations
+            "sequoia_chunk_replicas": {
+                "replicas_percentage": 100,
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "fetch_replicas_from_sequoia": True,
+                "validate_sequoia_replicas_fetch": True,
+                "batch_chunk_confirmation": True,
+                "batch_incremental_heartbeat": False,
+            },
+            "data_node_tracker": {
+                "enable_location_indexes_in_data_node_heartbeats": True
+            }
+        }
+    }
+
+
 class TestOnlySequoiaReplicas(TestSequoiaReplicas):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 4
