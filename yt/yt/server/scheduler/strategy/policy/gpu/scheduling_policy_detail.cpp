@@ -16,6 +16,12 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Allocation group name assigned to assignments reconstructed during operation revival,
+//! when the original group name is not available.
+static const std::string RevivedAllocationGroupName = "revived";
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::optional<std::string> GetNodeModule(
     const std::optional<std::string>& nodeDataCenter,
     const std::optional<std::string>& nodeInfinibandCluster,
@@ -112,6 +118,7 @@ void TSchedulingPolicy::RegisterNode(TNodeId nodeId, const std::string& nodeAddr
     auto node = EmplaceOrCrash(Nodes_, nodeId, New<TNode>(nodeId, nodeAddress))->second;
 
     ReviveNodeState(node);
+    RevivePendingAllocations(node);
 
     YT_LOG_DEBUG("Node registered (NodeId: %v, NodeAddress: %v)",
         nodeId,
@@ -206,10 +213,12 @@ void TSchedulingPolicy::UnregisterOperation(const TPoolTreeOperationElement* ele
     auto it = GetIteratorOrCrash(DisabledOperations_, element->GetOperationId());
     const auto& operation = it->second;
 
-    PreemptAllOperationAssignments(
-        operation,
-        EAllocationPreemptionReason::OperationUnregistered,
-        "Node unregistered");
+    // NB(yaishenka): DisableOperation(true) removes all assignments before UnregisterOperation.
+    // However, if DisableOperation(false) was called (e.g. controller agent failure) and the
+    // operation was never re-enabled, Reviving assignments may remain.
+    for (const auto& assignment : GetItems(operation->Assignments())) {
+        RemoveAssignment(assignment);
+    }
 
     DisabledOperations_.erase(it);
 
@@ -265,10 +274,20 @@ void TSchedulingPolicy::EnableOperation(const TPoolTreeOperationElement* element
 
     operation->SetEnabled(true);
 
+    // Strip any Reviving assignment that wasn't rescued by
+    // RegisterAllocationsFromRevivedOperation (e.g. revival path didn't run because no
+    // snapshot was loaded, or only some of the operation's allocations were in the snapshot).
+    for (const auto& assignment : GetItems(operation->Assignments())) {
+        YT_VERIFY(!IsAssignmentPreliminary(assignment));
+        if (assignment->Reviving) {
+            RemoveAssignment(assignment);
+        }
+    }
+
     YT_LOG_DEBUG("Operation enabled (OperationId: %v)", operation->GetId());
 }
 
-void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, bool /*markAsNonAlive*/)
+void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -285,22 +304,102 @@ void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, boo
 
     operation->SetEnabled(false);
 
-    // NB(severovv): We remove disabled all operation assignments during dry-run to
-    // avoid preempting them during allocation plan update and crashing the scheduler
-    for (const auto& assignment : GetItems(operation->Assignments())) {
-        if (IsAssignmentPreliminary(assignment)) {
-            RemoveAssignment(assignment);
+    if (markAsNonAlive) {
+        // NB(yaishenka): Do not preempt - allocations are already aborted by strategy.
+        RemoveAllOperationAssignments(operation);
+    } else {
+        // NB(yaishenka): Remove preliminary assignments (no allocation ever ran — nothing to revive).
+        // Preserve non-preliminary assignments for potential revival, marking them so the
+        // planner ignores them until the operation is re-enabled.
+        for (const auto& assignment : GetItems(operation->Assignments())) {
+            if (IsAssignmentPreliminary(assignment)) {
+                RemoveAssignment(assignment);
+            } else {
+                assignment->Reviving = true;
+            }
         }
     }
 
-    YT_LOG_DEBUG("Operation disabled (OperationId: %v)", operation->GetId());
+    DropPendingAllocationsForOperation(operation);
+    operation->RemoveAllAllocations();
+    element->ReleaseResources(markAsNonAlive);
+
+    YT_LOG_DEBUG("Operation disabled (OperationId: %v, MarkAsNonAlive: %v)",
+        operation->GetId(),
+        markAsNonAlive);
 }
 
-// TODO(YT-27592): Implement this in YT-27592.
 void TSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
-    TPoolTreeOperationElement* /*element*/,
-    std::vector<TAllocationPtr> /*allocations*/) const
-{ }
+    TPoolTreeOperationElement* element,
+    std::vector<TAllocationPtr> allocations)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    auto operation = GetOrCrash(DisabledOperations_, element->GetOperationId());
+
+    for (const auto& allocation : allocations) {
+        ReviveAllocation(element, operation, allocation);
+    }
+}
+
+void TSchedulingPolicy::ReviveAllocation(
+    TPoolTreeOperationElement* element,
+    const TOperationPtr& operation,
+    const TAllocationPtr& allocation)
+{
+    auto allocationId = allocation->GetId();
+    auto nodeId = allocation->GetRevivalNodeId();
+    const auto& resourceUsage = allocation->ResourceUsage();
+
+    element->IncreaseHierarchicalResourceUsage(resourceUsage);
+
+    auto node = GetOrDefault(Nodes_, nodeId);
+
+    if (!node) {
+        auto allocationState = New<TAllocationState>(
+            allocationId,
+            nodeId,
+            /*assignment*/ TWeakPtr<TAssignment>{},
+            resourceUsage);
+        operation->AddOrphanAllocation(allocationState);
+        EmplaceOrCrash(PendingRevivedAllocations_[nodeId], allocationId, MakeWeak(operation));
+
+        YT_LOG_DEBUG("Allocation revived as orphan (OperationId: %v, AllocationId: %v, NodeId: %v)",
+            operation->GetId(),
+            allocationId,
+            nodeId);
+        return;
+    }
+
+    TJobResourcesWithQuota assignmentResources(resourceUsage);
+    assignmentResources.DiskQuota() = allocation->DiskQuota();
+
+    if (auto assignment = GetOrDefault(operation->AllocationIdToAssignment(), allocationId)) {
+        YT_VERIFY(assignment->Reviving);
+        YT_VERIFY(assignment->Node == node.Get());
+
+        assignment->Reviving = false;
+        auto allocationState = New<TAllocationState>(allocationId, nodeId, assignment, resourceUsage);
+        operation->AddRevivedAllocation(allocationState, assignment);
+    } else {
+        auto newAssignment = New<TAssignment>(
+            /*allocationGroupName*/ RevivedAllocationGroupName,
+            assignmentResources,
+            operation.Get(),
+            node.Get());
+        operation->AddAssignment(newAssignment);
+        node->AddAssignment(newAssignment);
+
+        auto allocationState = New<TAllocationState>(allocationId, nodeId, newAssignment, resourceUsage);
+        newAssignment->AddAllocation(allocationState);
+    }
+
+    YT_LOG_DEBUG(
+        "Allocation revived (OperationId: %v, AllocationId: %v, NodeId: %v)",
+        operation->GetId(),
+        allocationId,
+        nodeId);
+}
 
 TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
     const TPoolTreeSnapshotPtr& treeSnapshot,
@@ -616,6 +715,13 @@ void TSchedulingPolicy::PreemptAllOperationAssignments(
     }
 }
 
+void TSchedulingPolicy::RemoveAllOperationAssignments(const TOperationPtr& operation)
+{
+    for (const auto& assignment : GetItems(operation->Assignments())) {
+        RemoveAssignment(assignment, true);
+    }
+}
+
 void TSchedulingPolicy::PreemptAssignment(
     const TAssignmentPtr& assignment,
     EAllocationPreemptionReason preemptionReason,
@@ -664,6 +770,80 @@ void TSchedulingPolicy::ReviveOperationState(TOperationPtr operation)
         "(OperationId: %v, SchedulingModule: %v)",
         operation->GetId(),
         operation->SchedulingModule());
+}
+
+void TSchedulingPolicy::RevivePendingAllocations(const TNodePtr& node)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    auto pendingIt = PendingRevivedAllocations_.find(node->GetId());
+    if (pendingIt == PendingRevivedAllocations_.end()) {
+        return;
+    }
+
+    const auto& [_, pendingAllocations] = *pendingIt;
+
+    for (const auto& [allocationId, operationWeak] : pendingAllocations) {
+        auto operation = operationWeak.Lock();
+        if (!operation) {
+            YT_LOG_WARNING(
+                "Pending revived allocation references expired operation, skipping "
+                "(AllocationId: %v, NodeId: %v)",
+                allocationId,
+                node->GetId());
+            continue;
+        }
+
+        auto orphan = GetOrDefault(operation->AllocationIdToAllocationState(), allocationId);
+        if (!orphan) {
+            YT_LOG_WARNING(
+                "Pending revived allocation has no orphan allocation, skipping "
+                "(OperationId: %v, AllocationId: %v, NodeId: %v)",
+                operation->GetId(),
+                allocationId,
+                node->GetId());
+            continue;
+        }
+
+        YT_VERIFY(orphan->Assignment() == nullptr);
+
+        auto currentUsage = orphan->ResourceUsage();
+
+        // DiskQuota is not considered with non-preliminary assignments.
+        auto assignment = New<TAssignment>(
+            /*allocationGroupName*/ RevivedAllocationGroupName,
+            TJobResourcesWithQuota(currentUsage),
+            operation.Get(),
+            node.Get());
+        operation->AddAssignment(assignment);
+        node->AddAssignment(assignment);
+
+        orphan->SetAssignment(MakeWeak(assignment));
+        assignment->AddAllocation(orphan);
+
+        YT_LOG_DEBUG(
+            "Pending revived allocation adopted "
+            "(OperationId: %v, AllocationId: %v, NodeId: %v)",
+            operation->GetId(),
+            allocationId,
+            node->GetId());
+    }
+
+    PendingRevivedAllocations_.erase(pendingIt);
+}
+
+void TSchedulingPolicy::DropPendingAllocationsForOperation(const TOperationPtr& operation)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    for (const auto& [allocationId, allocationState] : operation->AllocationIdToAllocationState()) {
+        if (allocationState->Assignment() != nullptr) {
+            // Not an orphan.
+            continue;
+        }
+
+        RemovePendingRevivedAllocation(allocationState->GetNodeId(), allocationId);
+    }
 }
 
 //! Returns false if Now > InitializationFromPersistentStateDeadline_ and drops persistentState
@@ -823,6 +1003,8 @@ void TSchedulingPolicy::ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatis
 
 TLogger TSchedulingPolicy::GetNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor)
 {
+    YT_VERIFY(nodeDescriptor);
+
     return Logger.WithTag(
         "NodeId: %v, NodeAddress: %v",
         nodeDescriptor->Id,
@@ -1018,7 +1200,10 @@ void TSchedulingPolicy::ScheduleAllocations(
 
             RemoveAssignment(assignment, /*strict*/ false);
 
-            operationElement->DecreaseHierarchicalResourceUsagePrecommit(precommittedResources);
+            // NB(yaishenka): Operation can be disabled while we wait for CA to schedule allocation.
+            if (operation->IsEnabled()) {
+                operationElement->DecreaseHierarchicalResourceUsagePrecommit(precommittedResources);
+            }
 
             nodeShardInvoker->Invoke(BIND(
                 &TPoolTreeOperationElement::OnScheduleAllocationFailed,
@@ -1037,6 +1222,7 @@ void TSchedulingPolicy::ScheduleAllocations(
         auto allocationId = scheduleAllocationResult->StartDescriptor->Id;
         auto allocation = New<TAllocationState>(
             allocationId,
+            node->GetId(),
             assignment,
             assignment->ResourceUsage);
         assignment->AddAllocation(allocation);
@@ -1293,7 +1479,6 @@ TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
 
     auto allocation = GetOrDefault(operation->AllocationIdToAllocationState(), allocationUpdate.AllocationId);
 
-    // TODO(YT-27592): We need to check if allocation is reviving here.
     if (!allocation) {
         YT_LOG_DEBUG(
             "Found unexpected allocation, aborting it (OperationId: %v, AllocationId: %v)",
@@ -1349,7 +1534,9 @@ TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
         assignment->PreemptibleProgressStartTime = allocationUpdate.PreemptibleProgressStartTime;
     }
 
-    if (Dominates(assignment->Node->AssignedResourceUsage(), assignment->Node->Descriptor()->ResourceLimits)) {
+    if (assignment->Node->Descriptor() &&
+        Dominates(assignment->Node->AssignedResourceUsage(), assignment->Node->Descriptor()->ResourceLimits))
+    {
         YT_LOG_DEBUG(
             "Preempting assignment with resource overcommit "
             "(OperationId: %v, AllocationId: %v, AllocationResources: %v)",
@@ -1383,6 +1570,8 @@ TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessFinishedAllocation(
 
     operation->RemoveAllocation(allocationUpdate.AllocationId);
     element->IncreaseHierarchicalResourceUsage(-allocation->ResourceUsage());
+
+    RemovePendingRevivedAllocation(allocation->GetNodeId(), allocation->GetId());
 
     if (assignment) {
         RemoveAssignment(assignment);
@@ -1457,6 +1646,22 @@ void TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode(TNodeId nodeId,
         node->AssignedResourceUsage());
 }
 
+void TSchedulingPolicy::RemovePendingRevivedAllocation(TNodeId nodeId, TAllocationId allocationId)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    auto it = PendingRevivedAllocations_.find(nodeId);
+    if (it == PendingRevivedAllocations_.end()) {
+        return;
+    }
+
+    auto& [_, allocations] = *it;
+    allocations.erase(allocationId);
+    if (allocations.empty()) {
+        PendingRevivedAllocations_.erase(it);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNoopSchedulingPolicy::TNoopSchedulingPolicy(const std::string& treeId)
@@ -1502,7 +1707,7 @@ void TNoopSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* /*elemen
 
 void TNoopSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
     TPoolTreeOperationElement* /*element*/,
-    std::vector<TAllocationPtr> /*allocations*/) const
+    std::vector<TAllocationPtr> /*allocations*/)
 { }
 
 TProcessAllocationUpdateResult TNoopSchedulingPolicy::ProcessAllocationUpdate(

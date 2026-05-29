@@ -3,14 +3,18 @@ from yt_scheduler_helpers import (
 )
 
 from yt_commands import (
-    get, wait
+    get, wait, exists
 )
 
 import builtins
 
 
+def gpu_scheduler_orchid_operation_path(operation_id, tree="gpu"):
+    return scheduler_new_orchid_pool_tree_path(tree) + f"/gpu_assignment_plan/operations/{operation_id}"
+
+
 def get_operation_from_gpu_policy_orchid(operation, tree="gpu"):
-    return get(scheduler_new_orchid_pool_tree_path(tree) + f"/gpu_assignment_plan/operations/{operation.id}")
+    return get(gpu_scheduler_orchid_operation_path(operation.id, tree=tree))
 
 
 def get_node_from_gpu_policy_orchid(node, tree="gpu"):
@@ -35,10 +39,11 @@ def wait_for_operations_in_gpu_policy_orchid(operation_count, tree="gpu"):
 
 
 def wait_for_assignments_in_gpu_policy_orchid(operation, assignment_count, tree="gpu", exactly=False):
+    wait(lambda: exists(gpu_scheduler_orchid_operation_path(operation.id, tree=tree) + "/assignments"))
     if exactly:
-        wait(lambda: len(get(scheduler_new_orchid_pool_tree_path(tree) + f"/gpu_assignment_plan/operations/{operation.id}/assignments")) == assignment_count)
+        wait(lambda: len(get(gpu_scheduler_orchid_operation_path(operation.id, tree=tree) + "/assignments")) == assignment_count)
     else:
-        wait(lambda: len(get(scheduler_new_orchid_pool_tree_path(tree) + f"/gpu_assignment_plan/operations/{operation.id}/assignments")) >= assignment_count)
+        wait(lambda: len(get(gpu_scheduler_orchid_operation_path(operation.id, tree=tree) + "/assignments")) >= assignment_count)
 
 
 def check_operation_from_gpu_policy_orchid(operation, is_gang, group_name, allocation_count, min_needed_gpu_per_allocation, assigned_gpu_usage, assignment_count, enabled=None, scheduling_module=None):
@@ -66,5 +71,5 @@ def check_gpu_allocations_from_gpu_policy_orchid(allocations, expected_allocatio
 
 
 def wait_for_gpu_allocations_empty_in_gpu_policy_orchid(operation, tree="gpu"):
-    path = scheduler_new_orchid_pool_tree_path(tree) + f"/gpu_assignment_plan/operations/{operation.id}/allocations"
+    path = gpu_scheduler_orchid_operation_path(operation.id, tree=tree) + "/allocations"
     wait(lambda: get(path, default=None) in (None, {}))

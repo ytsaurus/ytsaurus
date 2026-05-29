@@ -65,6 +65,19 @@ void Serialize(const TAssignment& assignment, NYson::IYsonConsumer* consumer)
             .Item("preemptible").Value(assignment.Preemptible)
             .Item("allocation_id").Value(assignment.AllocationId)
             .Item("preemptible_progress_start_time").Value(assignment.PreemptibleProgressStartTime)
+            .Item("reviving").Value(assignment.Reviving)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TPreemptionInfo& preemptionInfo, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("reason").Value(preemptionInfo.Reason)
+            .Item("description").Value(preemptionInfo.Description)
+            .Item("preempted_for_operation_id").Value(preemptionInfo.PreemptedForOperationId)
         .EndMap();
 }
 
@@ -72,11 +85,14 @@ void Serialize(const TAssignment& assignment, NYson::IYsonConsumer* consumer)
 
 TAllocationState::TAllocationState(
     TAllocationId id,
+    NNodeTrackerClient::TNodeId nodeId,
     TWeakPtr<TAssignment> assignment,
     const TJobResources& resourceUsage)
     : Id_(id)
+    , NodeId_(nodeId)
     , Assignment_(std::move(assignment))
     , ResourceUsage_(resourceUsage)
+    , CreationTime_(TInstant::Now())
 { }
 
 TJobResources TAllocationState::UpdateResourceUsage(const TJobResources& newUsage)
@@ -93,14 +109,11 @@ TJobResources TAllocationState::UpdateResourceUsage(const TJobResources& newUsag
     return delta;
 }
 
-void Serialize(const TPreemptionInfo& preemptionInfo, NYson::IYsonConsumer* consumer)
+void TAllocationState::SetAssignment(TWeakPtr<TAssignment> assignment)
 {
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("reason").Value(preemptionInfo.Reason)
-            .Item("description").Value(preemptionInfo.Description)
-            .Item("preempted_for_operation_id").Value(preemptionInfo.PreemptedForOperationId)
-        .EndMap();
+    YT_VERIFY(Assignment_ == nullptr);
+
+    Assignment_ = std::move(assignment);
 }
 
 void Serialize(const TAllocationState& allocation, NYson::IYsonConsumer* consumer)
@@ -110,6 +123,7 @@ void Serialize(const TAllocationState& allocation, NYson::IYsonConsumer* consume
             .Item("allocation_id").Value(allocation.GetId())
             .Item("resource_usage").Value(allocation.ResourceUsage())
             .OptionalItem("preemption_info", allocation.PreemptionInfo())
+            .Item("creation_time").Value(allocation.GetCreationTime())
         .EndMap();
 }
 
@@ -248,12 +262,34 @@ void TOperation::AddAllocation(const TAllocationStatePtr& allocation, const TAss
     --GetOrCrash(EmptyAssignmentCountPerGroup_, assignment->AllocationGroupName);
     EmplaceOrCrash(AllocationIdToAssignment_, allocationId, assignment);
 
-    EmplaceOrCrash(AllocationIdToAllocationState_, allocation->GetId(), std::move(allocation));
+    auto [it, inserted] = AllocationIdToAllocationState_.try_emplace(allocationId, allocation);
+    YT_VERIFY(inserted || it->second == allocation);
+}
+
+void TOperation::AddOrphanAllocation(const TAllocationStatePtr& allocation)
+{
+    YT_VERIFY(allocation->Assignment() == nullptr);
+    EmplaceOrCrash(AllocationIdToAllocationState_, allocation->GetId(), allocation);
+}
+
+void TOperation::AddRevivedAllocation(
+    const TAllocationStatePtr& allocation,
+    const TAssignmentPtr& assignment)
+{
+    YT_VERIFY(Assignments_.contains(assignment));
+    YT_VERIFY(assignment->AllocationId == allocation->GetId());
+    YT_VERIFY(GetOrCrash(AllocationIdToAssignment_, *assignment->AllocationId) == assignment);
+    EmplaceOrCrash(AllocationIdToAllocationState_, allocation->GetId(), allocation);
 }
 
 void TOperation::RemoveAllocation(TAllocationId allocationId)
 {
     EraseOrCrash(AllocationIdToAllocationState_, allocationId);
+}
+
+void TOperation::RemoveAllAllocations()
+{
+    AllocationIdToAllocationState_.clear();
 }
 
 int TOperation::DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& groupedNeededResources) const
@@ -283,7 +319,6 @@ void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer)
             .Item("preemptible").Value(operation.IsPreemptible())
             .Item("starving").Value(operation.IsStarving())
             .Item("scheduling_module").Value(operation.SchedulingModule())
-            // TODO(yaishenka): Think about what else to expose here.
             .Item("allocations").Value(operation.AllocationIdToAllocationState())
         .EndMap();
 }

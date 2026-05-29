@@ -367,6 +367,9 @@ void TTreeTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("delay_inside_pool_permissions_validation", &TThis::DelayInsidePoolPermissionsValidation)
         .Default();
 
+    registrar.Parameter("delay_inside_process_allocation_updates", &TThis::DelayInsideProcessAllocationUpdates)
+        .Default();
+
     registrar.Parameter("resource_tree_initialize_resource_usage_delay", &TThis::ResourceTreeInitializeResourceUsageDelay)
         .Default();
     registrar.Parameter("resource_tree_release_resource_random_delay", &TThis::ResourceTreeReleaseResourcesRandomDelay)
@@ -920,6 +923,8 @@ void TTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("finish_operation_transition_delay", &TThis::FinishOperationTransitionDelay)
         .Default();
     registrar.Parameter("node_heartbeat_processing_delay", &TThis::NodeHeartbeatProcessingDelay)
+        .Default();
+    registrar.Parameter("handle_nodes_attributes_delay", &TThis::HandleNodesAttributesDelay)
         .Default();
     registrar.Parameter("operation_node_creation_delay", &TThis::OperationNodeCreationDelay)
         .Default();
