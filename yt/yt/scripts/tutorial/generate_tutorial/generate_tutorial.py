@@ -76,7 +76,7 @@ ARCHIVE_NAME = "data.tar.zst"
 SCHEMA_NOMENCLATURE = yson.to_yson_type(
     [
         {"name": "id", "type": "int64", "sort_order": "ascending"},
-        {"name": "name", "type": "string"},
+        {"name": "name", "type": "utf8"},
         {"name": "is_rx", "type": "boolean"},
         {"name": "first_appeared", "type": "timestamp"},
         {"name": "meta_data", "type": "any"},
@@ -96,12 +96,12 @@ SCHEMA_PRICES = [
 SCHEMA_ORDERS = [
     {"name": "date", "type": "date"},
     {"name": "nomenclature_id", "type": "int64"},
-    {"name": "order_uuid", "type": "string"},
+    {"name": "order_uuid", "type": "utf8"},
     {"name": "quantity", "type": "int64"},
     {"name": "order_meta", "type": "any"},
 ]
 
-SCHEMA_TUTORIAL_QUERY_ID = [{"name": "query_id", "type": "string", "required": True}]
+SCHEMA_TUTORIAL_QUERY_ID = [{"name": "query_id", "type": "utf8", "required": True}]
 
 
 def upload_files_to_map(
