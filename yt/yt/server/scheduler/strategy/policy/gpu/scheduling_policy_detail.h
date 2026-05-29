@@ -103,7 +103,7 @@ public:
 
     void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,
-        std::vector<TAllocationPtr> allocations) const override;
+        std::vector<TAllocationPtr> allocations) override;
 
     TProcessAllocationUpdateResult ProcessAllocationUpdate(
         const TPoolTreeSnapshotPtr& treeSnapshot,
@@ -165,6 +165,10 @@ private:
     TOperationMap EnabledOperations_;
     TOperationMap DisabledOperations_;
 
+    using TPendingRevivedAllocations =
+        TCompactFlatMap<TAllocationId, TWeakPtr<TOperation>, MaxNodeGpuCount>;
+    THashMap<TNodeId, TPendingRevivedAllocations> PendingRevivedAllocations_;
+
     TInstant InitializationFromPersistentStateDeadline_;
     TPersistentStatePtr InitialPersistentState_ = New<TPersistentState>();
     TPersistentStatePtr PersistentState_;
@@ -193,6 +197,8 @@ private:
         EAllocationPreemptionReason preemptionReason,
         const std::string& preemptionDescription);
 
+    void RemoveAllOperationAssignments(const TOperationPtr& operation);
+
     void PreemptAssignment(
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
@@ -203,6 +209,14 @@ private:
     void ReviveNodeState(const TNodePtr& node);
 
     void ReviveOperationState(TOperationPtr operation);
+
+    void ReviveAllocation(
+        TPoolTreeOperationElement* element,
+        const TOperationPtr& operation,
+        const TAllocationPtr& allocation);
+
+    void RevivePendingAllocations(const TNodePtr& node);
+    void DropPendingAllocationsForOperation(const TOperationPtr& operation);
 
     //! Returns false if Now > InitializationFromPersistentStateDeadline_ and drops persistentState
     //! Returns false if InitialPersistentState_ is empty
@@ -265,6 +279,8 @@ private:
 
     void DoBuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const;
     void DoBuildSchedulingAttributesStringForNode(TNodeId nodeId, TStringBuilderBase* builder) const;
+
+    void RemovePendingRevivedAllocation(TNodeId nodeId, TAllocationId allocationId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulingPolicy)
@@ -315,7 +331,7 @@ public:
 
     void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,
-        std::vector<TAllocationPtr> allocations) const override;
+        std::vector<TAllocationPtr> allocations) override;
 
     TProcessAllocationUpdateResult ProcessAllocationUpdate(
         const TPoolTreeSnapshotPtr& treeSnapshot,

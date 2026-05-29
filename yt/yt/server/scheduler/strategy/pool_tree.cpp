@@ -2773,6 +2773,8 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
+        MaybeDelay(Config_->TestingOptions->DelayInsideProcessAllocationUpdates);
+
         for (const auto& allocationUpdate : allocationUpdates) {
             auto updateResult = ProcessAllocationUpdate(treeSnapshot, allocationUpdate);
 

@@ -320,6 +320,8 @@ struct TTreeTestingOptions
 
     TDelayConfigPtr DelayInsidePoolPermissionsValidation;
 
+    TDelayConfigPtr DelayInsideProcessAllocationUpdates;
+
     std::optional<TDuration> ResourceTreeInitializeResourceUsageDelay;
     std::optional<TDuration> ResourceTreeReleaseResourcesRandomDelay;
     std::optional<TDuration> ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay;
@@ -683,6 +685,9 @@ struct TTestingOptions
 
     // Testing option that enables sleeping after node state checking.
     TDelayConfigPtr NodeHeartbeatProcessingDelay;
+
+    // Testing option that enables sleeping before handle nodes attributes.
+    TDelayConfigPtr HandleNodesAttributesDelay;
 
     // Testing option that enables sleeping right before creation of operation node.
     TDelayConfigPtr OperationNodeCreationDelay;

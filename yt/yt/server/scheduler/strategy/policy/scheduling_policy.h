@@ -95,7 +95,7 @@ struct ISchedulingPolicy
     //! Thread affinity: Control.
     virtual void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,
-        std::vector<TAllocationPtr> allocations) const = 0;
+        std::vector<TAllocationPtr> allocations) = 0;
 
     //! Thread affinity: Any.
     virtual TProcessAllocationUpdateResult ProcessAllocationUpdate(
