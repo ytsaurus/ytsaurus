@@ -806,6 +806,7 @@ struct TYtConfig
 
     int WorkerThreadCount;
     int FetcherThreadCount;
+    int TaskPullerThreadCount;
 
     std::optional<int> CpuLimit;
 

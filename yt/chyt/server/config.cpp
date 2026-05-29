@@ -653,6 +653,9 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("fetcher_thread_count", &TThis::FetcherThreadCount)
         .Default(8);
 
+    registrar.Parameter("task_puller_thread_count", &TThis::TaskPullerThreadCount)
+        .Default(4);
+
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .Default();
 
