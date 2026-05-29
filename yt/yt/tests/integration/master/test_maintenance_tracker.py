@@ -99,7 +99,7 @@ class TestMaintenanceTracker(YTEnvSetup):
         try:
             node = ls("//sys/cluster_nodes")[0]
             for flag in self._KIND_TO_FLAG.values():
-                with raises_yt_error("deprecated"):
+                with raises_yt_error("Node attribute .* is deprecated"):
                     set(f"//sys/cluster_nodes/{node}/@{flag}", True)
         finally:
             set("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", False)

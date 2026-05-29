@@ -15,7 +15,7 @@ from yt_commands import (
     execute_batch, get_batch_error,
     vanilla, run_test_vanilla, run_sleeping_vanilla, update_scheduler_config, abort_job,
     update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option,
-    print_debug, map)
+    print_debug, map, raises_yt_error)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path,
@@ -25,8 +25,6 @@ from yt_scheduler_helpers import (
 from yt_helpers import profiler_factory, read_structured_log, wait_and_get_controller_incarnation, write_log_barrier
 
 from yt.test_helpers import are_almost_equal
-
-from yt.common import YtError
 
 import yt.yson as yson
 
@@ -512,7 +510,7 @@ class TestSchedulingSegments(YTEnvSetup):
             == "default"
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             run_sleeping_vanilla(
                 spec={
                     "pool": "small_gpu",
@@ -911,17 +909,17 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_invalid_config(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Data center name cannot be empty"):
             set("//sys/pool_trees/default/@config/scheduling_segments/data_centers", ["SAS", "VLA", ""])
-        with pytest.raises(YtError):
+        with raises_yt_error("Data center name cannot be empty"):
             set("//sys/pool_trees/default/@config/scheduling_segments/data_centers", ["SAS", "VLA", ""])
-        with pytest.raises(YtError):
+        with raises_yt_error(".* has invalid type: expected .*, actual .*"):
             set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"default": "-3.0"})
-        with pytest.raises(YtError):
+        with raises_yt_error(".* has invalid type: expected .*, actual .*"):
             set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"default": {"SAS": "3.0"}})
-        with pytest.raises(YtError):
+        with raises_yt_error(".* has invalid type: expected .*, actual .*"):
             set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"large_gpu": {"VLA": "3.0"}})
-        with pytest.raises(YtError):
+        with raises_yt_error("Error setting builtin attribute"):
             set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"large_gpu": {"SAS": "-3.0"}})
 
     @authors("eshcherbin")
@@ -1295,7 +1293,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
     @authors("ignat")
     def test_missing_specified_module(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Segment modules .* are not found in the tree"):
             run_sleeping_vanilla(
                 spec={"pool": "large_gpu", "scheduling_segment_modules": ["UNKNOWN"]},
                 task_patch={"gpu_limit": 8, "enable_gpu_layers": False},

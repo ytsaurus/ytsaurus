@@ -62,7 +62,7 @@ class TestControllerTransactions(YTEnvSetup):
         sleep(1)
         try_write(val=10)
 
-        with raises_yt_error("has changed between taking input and output locks"):
+        with raises_yt_error("Table .* has changed between taking input and output locks"):
             op.track()
 
     @authors("coteeq")

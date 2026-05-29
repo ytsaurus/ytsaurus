@@ -120,10 +120,10 @@ class TestChaos(ChaosTestBase):
                 "name": "chaos_bundle",
             }
         }
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* is not found"):
             execute_command("create", params)
         params["attributes"]["chaos_options"] = {"peers": [{"remote": False}]}
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* is not found"):
             execute_command("create", params)
         params["attributes"]["options"] = {
             "peer_count": 1,
@@ -139,7 +139,7 @@ class TestChaos(ChaosTestBase):
         cell_id = generate_chaos_cell_id()
         sync_create_chaos_cell("c", cell_id, self.get_cluster_names())
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             sync_create_chaos_cell("c", cell_id, self.get_cluster_names())
 
     @authors("babenko")
@@ -153,13 +153,13 @@ class TestChaos(ChaosTestBase):
         cell_id_parts[0], cell_id_parts[1] = cell_id_parts[1], cell_id_parts[0]
         another_cell_id = "-".join(cell_id_parts)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cell with tag .* already exists|Malformed chaos cell id"):
             sync_create_chaos_cell("c", another_cell_id, self.get_cluster_names())
 
     @authors("babenko")
     def test_create_chaos_cell_with_malformed_id(self):
         self._create_chaos_cell_bundle()
-        with pytest.raises(YtError):
+        with raises_yt_error("Malformed chaos cell id"):
             sync_create_chaos_cell("c", "abcdabcd-fedcfedc-4204b1-12345678", self.get_cluster_names())
 
     @authors("savrus")
@@ -1264,11 +1264,11 @@ class TestChaos(ChaosTestBase):
                 attributes["replication_card_id"] = card_id
             create("chaos_replicated_table", path, authenticated_user="u", attributes=attributes)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             _create("//tmp/crt", card_id)
 
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             _create("//tmp/crt")
 
         set("//sys/chaos_cell_bundles/c/@acl/end", make_ace("allow", "u", "use"))
@@ -1805,7 +1805,7 @@ class TestChaos(ChaosTestBase):
         commit_transaction(tx1)
         commit_transaction(tx2)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Row lock conflict due to concurrent write"):
             commit_transaction(tx3)
 
         assert lookup_rows("//tmp/crt", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
@@ -1818,7 +1818,7 @@ class TestChaos(ChaosTestBase):
 
         commit_transaction(tx2)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Row lock conflict due to concurrent write"):
             commit_transaction(tx1)
 
         tx1 = start_transaction(type="tablet")
@@ -1829,7 +1829,7 @@ class TestChaos(ChaosTestBase):
 
         commit_transaction(tx1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Write failed due to concurrent read lock"):
             commit_transaction(tx2)
 
         tx1 = start_transaction(type="tablet")
@@ -1852,7 +1852,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/crt", [{"key": 2, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
 
         commit_transaction(tx1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Row lock conflict due to concurrent shared write|Write failed due to concurrent shared write lock"):
             commit_transaction(tx2)
         commit_transaction(tx3)
 
@@ -3066,7 +3066,7 @@ class TestChaos(ChaosTestBase):
             ]
         )
         self._prepare_replica_tables(replicas, replica_ids, mount_tables=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Ordered dynamic table bound for chaos replication should have"):
             sync_mount_table("//tmp/t")
 
         alter_table("//tmp/t", schema=[
@@ -3076,12 +3076,12 @@ class TestChaos(ChaosTestBase):
         ])
         sync_mount_table("//tmp/t")
 
-        with raises_yt_error("Invalid input row for chaos ordered table //tmp/t: \"$tablet_index\" column is not provided"):
+        with raises_yt_error("Invalid input row for chaos ordered table .*: \"$tablet_index\" column is not provided"):
             insert_rows("//tmp/t", [{"key": 0, "value": str(0)}])
 
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@commit_ordering", "weak")
-        with pytest.raises(YtError):
+        with raises_yt_error("Ordered dynamic table bound for chaos replication should have"):
             sync_mount_table("//tmp/t")
 
     @authors("savrus")
@@ -3114,7 +3114,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values)
 
         def _try_trim_rows():
-            with raises_yt_error("trim tablet since some replicas may not be replicated up to this point"):
+            with raises_yt_error("Could not trim tablet since some replicas may not be replicated up to this point"):
                 trim_rows("//tmp/t", 0, 1)
 
         wait(lambda: select_rows("key, value from [//tmp/t]") == data_values[:1])
@@ -4767,7 +4767,7 @@ class TestChaos(ChaosTestBase):
             select_rows(f"* from [{left_path}] {hint} join [{right_path}] {hint} using key, value")
 
             if left_mode == "async" or right_mode == "async":
-                with raises_yt_error(yt_error_codes.NoInSyncReplicas):
+                with raises_yt_error(code=yt_error_codes.NoInSyncReplicas):
                     select_rows(f"* from [{left_path}] join [{right_path}] using key, value")
 
         map_in_parallel(select_and_check, product(("sync", "async"), ("sync", "async"), ("chaos", "regular"), ("chaos", "regular")))
@@ -5233,9 +5233,9 @@ class TestChaosRpcProxy(TestChaos):
 
         # TODO(savrus): Remove first wrapper after defaulting enable_read_from_async_replicas to False in tests.
         with self.RpcProxyDynamicConfig("/cluster_connection/enable_read_from_async_replicas", False):
-            with raises_yt_error("No cluster contains in-sync replicas for table //tmp/crt"):
+            with raises_yt_error("No cluster contains in-sync replicas"):
                 select_rows("* from [//tmp/crt]", timestamp=timestamp)
-            with raises_yt_error("No working in-sync replicas found for table //tmp/crt"):
+            with raises_yt_error("No working in-sync replicas found for table .*"):
                 lookup_rows("//tmp/crt", keys, timestamp=timestamp)
 
             with self.RpcProxyDynamicConfig("/cluster_connection/enable_read_from_async_replicas", True):
@@ -5243,9 +5243,9 @@ class TestChaosRpcProxy(TestChaos):
                 assert lookup_rows("//tmp/crt", keys, timestamp=timestamp) == rows
 
                 with self.RpcProxyDynamicConfig("/cluster_connection/banned_in_sync_replica_clusters", ["remote_0"]):
-                    with raises_yt_error("No cluster contains in-sync replicas for table //tmp/crt"):
+                    with raises_yt_error("No cluster contains in-sync replicas"):
                         select_rows("* from [//tmp/crt]", timestamp=timestamp)
-                    with raises_yt_error("No working in-sync replicas found for table //tmp/crt"):
+                    with raises_yt_error("No working in-sync replicas found for table .*"):
                         lookup_rows("//tmp/crt", keys, timestamp=timestamp)
 
     @authors("osidorkin")
@@ -5794,13 +5794,13 @@ class TestChaosMetaCluster(ChaosTestBase):
     def test_metadata_cell_ids_use(self):
         [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing GUID"):
             set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", ["surely not guid"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No chaos cell with id .*"):
             set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", ["1-2-3-4"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected .* or less metadata cells ids"):
             set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [alpha_cell, beta_cell, alpha_cell])
 
         # use the same bundle and area as were created in _create_dedicated_areas_and_cells
@@ -5813,7 +5813,7 @@ class TestChaosMetaCluster(ChaosTestBase):
             peer_cluster_names=alpha_peer_cluster_names
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Metadata cells should be siblings"):
             set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [beta_cell, another_alpha_cell])
 
         set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [alpha_cell])
@@ -5891,7 +5891,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         values = [{"key": 1, "value": "0"}]
         insert_rows("//tmp/t", values, tx=tx)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Shortcut for chaos lease is not found"):
             commit_transaction(tx)
 
     @authors("gryzlov-ad")
@@ -5984,7 +5984,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         while invalid_cell_id in [alpha_cell, beta_cell]:
             invalid_cell_id = generate_chaos_cell_id()
 
-        with raises_yt_error("No cell with tag"):
+        with raises_yt_error("No cell with tag .*"):
             create_chaos_lease(invalid_cell_id)
 
         lease_id = create_chaos_lease(alpha_cell)
@@ -5992,13 +5992,13 @@ class TestChaosMetaCluster(ChaosTestBase):
         def corrupt_id(original_id):
             return original_id[:-1] + "a" if original_id[-1] != "a" else original_id[:-1] + "b"
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             create_chaos_lease(alpha_cell, attributes={"parent_id": corrupt_id(lease_id)})
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             ping_chaos_lease(corrupt_id(lease_id))
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             remove(f"#{corrupt_id(lease_id)}")
 
     @authors("gryzlov-ad")
@@ -6068,7 +6068,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         assert get_chaos_lease_manager_state(alpha_cell) == "enabled"
         assert get_chaos_lease_manager_state(beta_cell) == "disabled"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Chaos cell is not enabled"):
             create_chaos_lease(beta_cell)
 
         def check_suspend(enabled_cell, disabled_cell):
@@ -6089,7 +6089,7 @@ class TestChaosMetaCluster(ChaosTestBase):
                 ping_chaos_lease(lease_id)
 
             for lease_id in lease_ids:
-                with pytest.raises(YtError):
+                with raises_yt_error("Node .* has no child with key .*"):
                     get_chaos_lease_from_orchid(disabled_cell, lease_id)
 
             resume_chaos_cells([disabled_cell])
@@ -6107,7 +6107,7 @@ class TestChaosMetaCluster(ChaosTestBase):
             remove(f"#{lease_ids[0]}")
 
             for lease_id in lease_ids:
-                with pytest.raises(YtError):
+                with raises_yt_error("Node .* has no child with key .*"):
                     get_chaos_lease_from_orchid(enabled_cell, lease_id)
 
                 retry_enabled_cell(lambda: get(f"#{lease_id}"))
@@ -6210,7 +6210,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         suspended_path = f"{orchids_paths[alpha_cell]}/chaos_manager/internal/suspended"
         wait(lambda: get(suspended_path, driver=remote_driver1))
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Chaos cell .* is suspended"):
             create_replication_card(chaos_cell_id=alpha_cell)
         create_replication_card(chaos_cell_id=alpha_cell, attributes={'bypass_suspended': True})
 
@@ -6275,7 +6275,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         area_id = get("#{0}/@area_id".format(cells[0]), driver=drivers[-2])
         with self.CellsDisabled(clusters=cluster_names[-2:-1], area_ids=[area_id]):
             remove("#{0}".format(card_id))
-            with pytest.raises(YtError):
+            with raises_yt_error("Request retries failed"):
                 exists("#{0}".format(card_id))
 
         wait_for_chaos_cell(cells[0], cluster_names[-2:-1])
@@ -6509,7 +6509,7 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
         assert cell_id1 in replication_card["coordinators"]
 
         # Trying to remove an alive coordinator
-        with pytest.raises(YtError):
+        with raises_yt_error("Trying to forsake an alive coordinator"):
             execute_command(
                 "forsake_chaos_coordinator",
                 parameters={

@@ -19,7 +19,7 @@ from yt_commands import (
     start_transaction,
 )
 
-from yt.common import YtResponseError, YtError
+from yt.common import YtResponseError
 import yt.packages.requests as requests
 import yt.yson as yson
 import yt_error_codes
@@ -2534,7 +2534,7 @@ class TestHttpProxyDiscovery(YTEnvSetup):
 
     @authors("nadya73")
     def test_invalid_address_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             discover_proxies(type_="http", driver=self.driver, address_type="invalid")
 
     @authors("nadya73")
@@ -2632,7 +2632,7 @@ class TestHttpProxyDiscoveryBalancers(YTEnvSetup):
 
     @authors("nadya73")
     def test_invalid_address_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             discover_proxies(type_="http", driver=self.driver, address_type="invalid")
 
     @authors("nadya73")

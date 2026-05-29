@@ -7,12 +7,10 @@ from yt_commands import (
     interrupt_job, update_nodes_dynamic_config, set_nodes_banned,
     abort_job, run_sleeping_vanilla, set_node_banned, extract_statistic_v2,
     get_allocation_id_from_job_id, alter_table, write_file, print_debug,
-    wait_no_assert, get_driver, read_table,
+    wait_no_assert, get_driver, read_table, raises_yt_error,
 )
 
 from yt_helpers import JobCountProfiler, profiler_factory, is_uring_supported, is_uring_disabled
-
-from yt.common import YtError
 
 from yt import yson
 
@@ -1170,7 +1168,7 @@ class TestFreeUserJobsMemoryWatermark(YTEnvSetup):
 
     @authors("pogorelov")
     def test_node_send_limits_to_scheduler_considering_watermark(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no nodes with enough resources to schedule an allocation"):
             run_test_vanilla("sleep 0.1", track=True, job_count=1, task_patch={
                 "memory_limit": 300 * 10 ** 6,
                 "user_job_memory_digest_lower_bound": 1.0,

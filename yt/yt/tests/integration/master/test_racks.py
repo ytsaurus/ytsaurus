@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait, create, ls, get, set, remove, create_rack,
     remove_rack, write_file,
     read_journal, write_journal, wait_until_sealed,
-    get_singular_chunk_id, set_node_decommissioned, get_nodes, get_racks)
+    get_singular_chunk_id, set_node_decommissioned, get_nodes, get_racks, raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -87,13 +87,13 @@ class TestRacks(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_empty_name_fail(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Rack name cannot be empty"):
             create_rack("")
 
     @authors("babenko", "ignat")
     def test_duplicate_name_fail(self):
         create_rack("r")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_rack("r")
 
     @authors("babenko", "ignat")
@@ -110,7 +110,7 @@ class TestRacks(YTEnvSetup):
     def test_rename_fail(self):
         create_rack("r1")
         create_rack("r2")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             set("//sys/racks/r1/@name", "r2")
 
     @authors("babenko", "ignat")
@@ -143,7 +143,7 @@ class TestRacks(YTEnvSetup):
     @authors("babenko")
     def test_assign_fail(self):
         n = get_nodes()[0]
-        with pytest.raises(YtError):
+        with raises_yt_error("No such rack .*"):
             self._set_rack(n, "r")
 
     @authors("babenko", "ignat")
@@ -352,7 +352,7 @@ class TestRacks(YTEnvSetup):
     def test_rack_count_limit(self):
         for i in range(255):
             create_rack("r" + str(i))
-        with pytest.raises(YtError):
+        with raises_yt_error("Rack count limit"):
             create_rack("too_many")
 
     @authors("shakurov")

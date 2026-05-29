@@ -1,11 +1,9 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import authors, create, get, read_table, write_table, erase
+from yt_commands import authors, create, get, raises_yt_error, read_table, write_table, erase
 
 from yt_type_helpers import make_schema
 
-from yt.common import YtError
-
-import pytest
+import pytest  # noqa: F401
 
 
 ##################################################################
@@ -63,7 +61,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         assert read_table(self.table) == [self.v[3]]
         assert get(self.table + "/@chunk_count") == 1
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Erase operation does not support tables with multiple ranges"):
             erase(self.table + "[#1:#2,#3:#4]")
 
     # test combine when actually no data is removed
@@ -87,7 +85,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         create("table", "//tmp/table")
         write_table("//tmp/table", {"v": 42})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid read range"):
             erase("//tmp/table[:42]")
 
     @authors("ignat")
@@ -95,13 +93,13 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         create("table", "//tmp/table")
         write_table("//tmp/table", {"v": 42})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Erase operation does not support column filtering"):
             erase("//tmp/table{v}")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Erase operation does not support column filtering"):
             erase("//tmp/table{non_v}")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Erase operation does not support column filtering"):
             erase("//tmp/table{}")
 
     def _prepare_medium_chunks(self):

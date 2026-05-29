@@ -11,7 +11,7 @@ from yt_commands import (
     raises_yt_error, write_file, print_debug,
 )
 
-from yt.common import YtError, update
+from yt.common import update
 
 import pytest
 
@@ -403,7 +403,7 @@ class TestDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
         write_table("//tmp/in", [{"foo": "bar"}])
         create("table", "//tmp/out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown medium .*"):
             map(
                 command="cat; echo $(pwd) >&2",
                 in_="//tmp/in",
@@ -650,7 +650,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
             )
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown medium .*"):
             start_op(2, "ssd", track=True)
 
         set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 3.0)
@@ -1131,7 +1131,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
             )
 
         # Check that account is obligatory for ssd medium
-        with pytest.raises(YtError):
+        with raises_yt_error("Account must be specified for disk request with given medium"):
             start_op("ssd", None, 1024 * 1024, track=True)
 
         start_op("ssd", "my_account", 1024 * 1024, track=True, sleep_seconds=1)
@@ -1142,7 +1142,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
         set("#{}/@resource_usage".format(lease_id), {"disk_space_per_medium": {"ssd": 1024}})
 
         # Check that operation failed due to lack of space.
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             start_op("ssd", "my_account", 1024 * 1024, track=True)
 
         abort_transaction(tx)
@@ -1151,7 +1151,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
         wait(lambda: op.get_running_jobs())
 
         # Check that second operation failed due to lack of space.
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             start_op("ssd", "my_account", 768 * 1024, track=True)
 
     @authors("ignat")
@@ -1187,7 +1187,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
             )
 
         # Check that account is obligatory for ssd medium
-        with pytest.raises(YtError):
+        with raises_yt_error("Account must be specified for disk request with given medium"):
             start_op("ssd", None, 1024 * 1024, track=True)
 
         start_op("ssd", "my_account", 1024 * 1024, track=True, sleep_seconds=1)

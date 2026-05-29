@@ -18,7 +18,6 @@ from yt_type_helpers import (
 from yt_dynamic_tables_base import map_in_parallel
 
 from yt.test_helpers import assert_items_equal
-from yt.common import YtError
 import yt.yson as yson
 
 import pytest
@@ -219,7 +218,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"a": "b"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Dynamic store read is not supported for user files but it is enabled for user file"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -251,7 +250,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Requested timestamp is out of range for table"):
             map(
                 in_="<timestamp=%s>//tmp/t" % MinTimestamp,
                 out="//tmp/t_out",
@@ -260,7 +259,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         insert_rows("//tmp/t", rows)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Requested timestamp is out of range for table"):
             map(
                 in_="<timestamp=%s>//tmp/t" % generate_timestamp(),
                 out="//tmp/t_out",
@@ -1225,7 +1224,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
         self._insert_chunk(first_value=0, tablet_index=0)
         self._insert_chunk(first_value=4, tablet_index=1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("In ordered dynamic tables row index selector can only be .*"):
             self._run_map_operation("<ranges=[{exact={row_index=0}}]>")
 
         self._run_map_operation(
@@ -1273,7 +1272,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
         sync_mount_table("//tmp/sorted_t")
         insert_rows("//tmp/sorted_t", [{"key": 1, "value": str(2)}])
         sync_unmount_table("//tmp/sorted_t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Tablet index selectors are only supported for ordered"):
             self._run_map_operation("<ranges=[{exact={tablet_index=0}}]>", input_table_name="//tmp/sorted_t")
 
     @authors("akozhikhov")

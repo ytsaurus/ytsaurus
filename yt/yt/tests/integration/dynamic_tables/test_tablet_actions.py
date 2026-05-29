@@ -145,7 +145,7 @@ class TestTabletActions(TabletActionsBase):
                 authenticated_user="u",
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             _create_action()
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", ["use"]))
         _create_action()
@@ -334,7 +334,7 @@ class TestTabletActions(TabletActionsBase):
             })
             return create("tablet_action", "", attributes=attributes)
 
-        with raises_yt_error("cells cannot be specified with inplace reshard"):
+        with raises_yt_error("Destination cells cannot be specified with inplace reshard"):
             _create_action(
                 cell_ids=[cells[0]],
                 tablet_ids=[tablet_ids[0], tablet_ids[1]],
@@ -357,10 +357,10 @@ class TestTabletActions(TabletActionsBase):
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t", target_cell_ids=cells)
 
-        with raises_yt_error("must belong to the same cell"):
+        with raises_yt_error("All tablets must belong to the same cell"):
             _create_action(tablet_ids=[tablet_ids[0], tablet_ids[1]], tablet_count=2)
 
-        with raises_yt_error("can not be set together with"):
+        with raises_yt_error("\"inplace_reshard\" can not be set together with move action"):
             _create_action(kind="move", tablet_ids=[tablet_ids[0], tablet_ids[1]])
 
     @authors("atalmenev")
@@ -1549,9 +1549,9 @@ class TabletBalancerBase(TabletActionsBase):
         assert get("//tmp/t/@max_tablet_size") == 3
         assert get("//tmp/t/@desired_tablet_count") == 4
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be less than or equal to .*"):
             set("//tmp/t/@min_tablet_size", 5)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be less than or equal to .*"):
             set("//tmp/t/@tablet_balancer_config/min_tablet_size", 5)
 
         remove("//tmp/t/@min_tablet_size")
@@ -1583,11 +1583,11 @@ class TabletBalancerBase(TabletActionsBase):
 
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
         sync_mount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             sync_balance_tablet_cells("b", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             sync_balance_tablet_cells("b", ["//tmp/t"], authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             sync_reshard_table_automatic("//tmp/t", authenticated_user="u")
 
         # Remove `deny` ACE.
@@ -1603,13 +1603,13 @@ class TabletBalancerBase(TabletActionsBase):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", dynamic=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be dynamic"):
             sync_reshard_table_automatic("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* is not a tablet owner"):
             sync_reshard_table_automatic("/")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             sync_balance_tablet_cells("nonexisting_bundle")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be dynamic"):
             sync_balance_tablet_cells("default", ["//tmp/t"])
 
     @authors("ifsmirnov")
@@ -1619,7 +1619,7 @@ class TabletBalancerBase(TabletActionsBase):
         self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
         sync_mount_table("//tmp/t")
         sync_balance_tablet_cells("b")
-        with pytest.raises(YtError):
+        with raises_yt_error("All tables must be from the tablet cell bundle"):
             sync_balance_tablet_cells("b", ["//tmp/t"])
 
     @authors("ifsmirnov")
@@ -1695,14 +1695,14 @@ class TabletBalancerBase(TabletActionsBase):
 
         check_balancer_is_active(True)
         if not self.ENABLE_STANDALONE_TABLET_BALANCER:
-            with pytest.raises(YtError):
+            with raises_yt_error("tablet_balancer_schedule cannot be empty in master config"):
                 self._set_default_schedule_formula("")
 
-            with pytest.raises(YtError):
+            with raises_yt_error("Invalid variable .* in time formula"):
                 self._set_default_schedule_formula("wrong_variable")
             check_balancer_is_active(True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid variable .* in time formula"):
             set(local_config, "wrong_variable")
 
         set(local_config, "")

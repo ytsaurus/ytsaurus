@@ -10,8 +10,6 @@ from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type, make_column, make_sorted_column)
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
-
 import pytest
 import math
 
@@ -319,7 +317,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         create("table", "//tmp/t_out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to initialize sort operation"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -327,7 +325,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
                 spec={"max_input_data_weight": 5},
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Too many data slices in shuffle pool"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -339,7 +337,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Too many shuffle jobs"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -351,7 +349,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Too many data slices in merge pools"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -450,7 +448,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         create("table", "//tmp/t_out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Key weight is too large"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -494,7 +492,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         create("table", "//tmp/t_out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Foreign tables are not supported"):
             sort(in_="<foreign=true>//tmp/t_in", out="//tmp/t_out", sort_by="key")
 
     @authors("psushin")
@@ -552,7 +550,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"sort_by\" option should be set in Sort operations"):
             sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by=[])
 
     @authors("ignat")
@@ -573,7 +571,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         write_table("//tmp/t_in", {"foo": "bar"})
         write_table("//tmp/t_out", {"hello": "world"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("sort_by is different from output table key columns"):
             sort(in_="//tmp/t_in", out="<append=true>//tmp/t_out", sort_by="foo")
 
     @authors("ermolovd")
@@ -605,7 +603,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         write_table("<append=%true>//tmp/t_in", [{"field": None}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="field")
 
     @authors("dakovalkov")
@@ -664,7 +662,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         write_table("//tmp/t_in", old_row)
         write_table("//tmp/t_out", new_row)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("sort_by is different from output table key columns"):
             sort(
                 in_="//tmp/t_in",
                 out="<append=true>//tmp/t_out",
@@ -698,7 +696,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         else:
             write_table("//tmp/t_out", {"key": 3, "subkey": 3})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("sort_by is different from output table key columns"):
             sort(
                 in_="//tmp/t_in",
                 out="<append=true>//tmp/t_out",
@@ -728,7 +726,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         write_table("//tmp/out", {"key": 1})
 
         for in_table in ["//tmp/in_0", "//tmp/in_2"]:
-            with pytest.raises(YtError):
+            with raises_yt_error("sort_by is different from output table key columns"):
                 sort(
                     in_=in_table,
                     out="<append=true>//tmp/out",
@@ -944,7 +942,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             authenticated_user="test_user",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -957,7 +955,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("User .* has been denied .* access to intermediate account .*"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -1249,7 +1247,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         assert get("//tmp/output_weak/@schema_mode") == "weak"
         assert get("//tmp/output_weak/@sorted")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No column with name .*"):
             sort(in_="//tmp/input_weak", out="//tmp/output_strict", sort_by=sort_by)
 
         # input loose
@@ -1263,7 +1261,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         assert get("//tmp/output_weak/@schema_mode") == "strong"
         assert get("//tmp/output_weak/@sorted")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             sort(in_="//tmp/input_loose", out="//tmp/output_strict", sort_by=sort_by)
 
     @authors("savrus")
@@ -1344,7 +1342,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
         assert get("//tmp/input/@sorted_by") == ["key"]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             sort(in_="//tmp/input", out="//tmp/output", sort_by="key")
 
     @authors("ermolovd")
@@ -1384,7 +1382,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         sort_by = [{"name": "index", "sort_order": sort_order}]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             sort(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -1447,7 +1445,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             [{"key": 1, "value": "foo"} for i in range(2)],
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate key"):
             sort(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -1460,7 +1458,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         for i in range(2):
             write_table("<append=%true; sorted_by=[key]>//tmp/input", {"key": 1, "value": "foo"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate key"):
             sort(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -1640,7 +1638,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             write_table("//tmp/t2", {"k2": i})
 
         for schema_inference_mode in ("auto", "from_output"):
-            with pytest.raises(YtError):
+            with raises_yt_error("Column .* is not found in strict schema"):
                 # sort table with weak schema into table with computed column
                 sort(
                     in_="//tmp/t2",
@@ -1713,7 +1711,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         create("table", "//tmp/input1", attributes={"schema": schema})
         write_table("//tmp/input1", [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Undefined reference .*"):
             sort(
                 in_="//tmp/input1{expr,value}",
                 out="//tmp/output",
@@ -1726,7 +1724,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         create("table", "//tmp/input2", attributes={"schema": schema})
         write_table("//tmp/input2", [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Column .* expression mismatch|has different expressions in input and output"):
             sort(
                 in_="//tmp/input2",
                 out="//tmp/output",
@@ -1877,7 +1875,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"sort_by\" option should be set in Sort operations"):
             sort(in_="//tmp/t1", out="//tmp/t2", spec={"input_query": "a where a > 0"})
 
     @authors("gritukan")
@@ -1907,7 +1905,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         rows = [{"key": "%02d" % i, "value": i} for i in range(50)]
         write_table("//tmp/t1", rows)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys should form a strictly increasing sequence"):
             sort(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1965,7 +1963,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         create("table", "//tmp/out")
         write_table("//tmp/in", [{"x": 1}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Column .* is not found in strict schema"):
             sort(in_="//tmp/in", out="//tmp/out", sort_by="foo")
 
     @authors("gritukan")

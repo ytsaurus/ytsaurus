@@ -72,7 +72,7 @@ class TestMetrics(YTEnvSetup):
         assert state_time_metric.get({"state": "Failing"}) is None
 
         q2 = start_query("mock", "fail")
-        with raises_yt_error("failed"):
+        with raises_yt_error("Query .* failed"):
             q2.track()
         wait(lambda: state_time_metric.get({"state": "Failing"}) is not None)
         assert state_time_metric.get({"state": "Completing"}) is None
@@ -91,17 +91,17 @@ class TestQueriesMock(YTEnvSetup):
     @authors("max42")
     def test_fail(self, query_tracker):
         q = start_query("mock", "fail")
-        with raises_yt_error("failed"):
+        with raises_yt_error("Query .* failed"):
             q.track()
         assert q.get_state() == "failed"
 
         q = start_query("mock", "fail_by_exception")
-        with raises_yt_error("failed"):
+        with raises_yt_error("Query .* failed"):
             q.track()
         assert q.get_state() == "failed"
 
         q = start_query("mock", "fail_after", settings={"duration": 3000})
-        with raises_yt_error("failed"):
+        with raises_yt_error("Query .* failed"):
             q.track()
         assert q.get_state() == "failed"
 
@@ -110,7 +110,7 @@ class TestQueriesMock(YTEnvSetup):
         q = start_query("mock", "run_forever")
         wait(lambda: q.get_state() == "running")
         q.abort()
-        with raises_yt_error("aborted"):
+        with raises_yt_error("Query .* aborted"):
             q.track()
         assert q.get_state() == "aborted"
 
@@ -468,7 +468,7 @@ class TestQueryTrackerQueryRestart(YTEnvSetup):
         guid = self._insert_query("aborting", error, is_abort=True)
 
         query = Query(guid)
-        with raises_yt_error("aborted"):
+        with raises_yt_error("Query .* aborted"):
             query.track()
 
     @authors("mpereskokova")
@@ -476,7 +476,7 @@ class TestQueryTrackerQueryRestart(YTEnvSetup):
         guid = self._insert_query("failing")
 
         query = Query(guid)
-        with raises_yt_error("failed"):
+        with raises_yt_error("Query .* failed"):
             query.track()
 
     @authors("mpereskokova")
@@ -518,9 +518,9 @@ class TestAccessControl(YTEnvSetup):
         q_u2 = start_query("mock", "u2", authenticated_user="u2")
         q_u1.get(authenticated_user="u1")
         q_u2.get(authenticated_user="u2")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.get(authenticated_user="u2")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u2.get(authenticated_user="u1")
 
     @authors("krock21")
@@ -538,7 +538,7 @@ class TestAccessControl(YTEnvSetup):
                 ]
             })
         q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco1")
-        with raises_yt_error(ResolveErrorCode):
+        with raises_yt_error(code=ResolveErrorCode):
             start_query("mock", "run_forever", authenticated_user="u2", access_control_object="aco2")
         q_u1.get(authenticated_user="u2")
 
@@ -581,7 +581,7 @@ class TestAccessControl(YTEnvSetup):
             })
         q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco_get")
         q_u1.get(authenticated_user="u2")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.get(authenticated_user="u3")
 
     @authors("krock21")
@@ -629,7 +629,7 @@ class TestAccessControl(YTEnvSetup):
             })
         q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco_abort")
         wait(lambda: q_u1.get_state() == "running")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.abort(authenticated_user="u3")
         q_u1.abort(authenticated_user="u2")
 
@@ -657,7 +657,7 @@ class TestAccessControl(YTEnvSetup):
         })
         q_u1.track()
         q_u1.get_result(0, authenticated_user="u2")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.get_result(0, authenticated_user="u3")
 
     @authors("krock21")
@@ -684,7 +684,7 @@ class TestAccessControl(YTEnvSetup):
         })
         q_u1.track()
         q_u1.read_result(0, authenticated_user="u2")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.read_result(0, authenticated_user="u3")
 
     @authors("krock21")
@@ -705,7 +705,7 @@ class TestAccessControl(YTEnvSetup):
             })
         q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco_alter")
         q_u1.alter(authenticated_user="u2", annotations={"qwe": "asd"})
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.alter(authenticated_user="u3", annotations={"qwe2": "asd3"})
 
     @authors("krock21", "mpereskokova")
@@ -742,23 +742,23 @@ class TestAccessControl(YTEnvSetup):
         q_u1.alter(authenticated_user="u1", access_control_object="aco_alter_aco")
 
         q_u1.alter(authenticated_user="u2", annotations={"qwe": "asd"}, access_control_object="nobody")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.alter(authenticated_user="u2", annotations={"qwe": "asd"}, access_control_object="aco_alter_aco")
 
         q_u1.alter(authenticated_user="u1", access_control_object="aco_alter_aco")
 
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.alter(authenticated_user="u3", access_control_object="nobody")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.alter(authenticated_user="u3", access_control_object="aco_alter_aco")
 
         q_u1.alter(authenticated_user="u1", access_control_object="aco_alter_aco_u3")
 
         q_u1.alter(authenticated_user="u3", access_control_object="aco_alter_aco")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q_u1.alter(authenticated_user="u3", access_control_object="aco_alter_aco_u3")
 
-        with raises_yt_error(ResolveErrorCode):
+        with raises_yt_error(code=ResolveErrorCode):
             q_u1.alter(authenticated_user="u1", access_control_object="nonexistent_aco")
 
     @authors("mpereskokova")
@@ -932,7 +932,7 @@ class TestSecrets(YTEnvSetup):
         assert q1_info["secrets"] == secrets
 
         q2 = start_query("mock", "fail", secrets=secrets)
-        with raises_yt_error("failed"):
+        with raises_yt_error("Query .* failed"):
             q2.track()
         q2_info = q2.get()
         assert q2_info["secrets"] == secrets
@@ -1012,17 +1012,17 @@ class TestMultipleAccessControl(YTEnvSetup):
             })
 
         q = start_query("mock", "run_forever", authenticated_user="u2", access_control_object="nobody")
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q.get(authenticated_user="u1")
 
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q.alter(authenticated_user="u1", access_control_objects=["aco", "nobody"])
         q.alter(authenticated_user="u2", access_control_objects=["aco", "nobody"])
 
         q.get(authenticated_user="u1")
 
         q.alter(authenticated_user="u2", access_control_objects=[])
-        with raises_yt_error(AuthorizationErrorCode):
+        with raises_yt_error(code=AuthorizationErrorCode):
             q.get(authenticated_user="u1")
 
     @authors("mpereskokova")
@@ -1159,9 +1159,9 @@ class TestTutorials(YTEnvSetup):
         u2q3 = start_query("mock", "complete_after", settings={"duration": 1000}, annotations={"is_tutorial": False}, authenticated_user="u2", access_control_objects=["nobody"])
         u2q4 = start_query("mock", "complete_after", settings={"duration": 1000}, annotations={"is_tutorial": False}, authenticated_user="u2", access_control_objects=["everyone"])
 
-        with raises_yt_error("superuser"):
+        with raises_yt_error("Non-superusers can't create tutorial queries"):
             start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u2", access_control_objects=["nobody"])
-        with raises_yt_error("superuser"):
+        with raises_yt_error("Non-superusers can't create tutorial queries"):
             start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u2", access_control_objects=["everyone"])
 
         def check_tutorial_queries():
@@ -1191,7 +1191,7 @@ class TestTutorials(YTEnvSetup):
         create_user("u2")
         add_member("u1_superuser", "superusers")
 
-        with raises_yt_error(""):
+        with raises_yt_error("Tutorials should be in draft state"):
             start_query("mock", "complete_after", annotations={"is_tutorial": True}, settings={"duration": 1000}, authenticated_user="u1_superuser", access_control_objects=["everyone"])
 
         from_tutorial_to_ordinary = start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u1_superuser", access_control_objects=["everyone"])
@@ -1214,7 +1214,7 @@ class TestTutorials(YTEnvSetup):
         from_ordinary_to_tutorial.get()
         with raises_yt_error("Tutorials should be in draft state"):
             ordinary_not_tutorial.alter(annotations={"is_tutorial": True}, authenticated_user="u1_superuser")
-        with raises_yt_error("superuser"):
+        with raises_yt_error("Non-superusers can't change tutorial flag"):
             ordinary_not_superuser.alter(annotations={"is_tutorial": True}, authenticated_user="u2")
 
         # check that there are no tutorials in common search
@@ -1541,7 +1541,7 @@ class TestTTL(YTEnvSetup):
 
         expect_queries([q1], list_queries())
         q1.get()
-        with raises_yt_error(""):
+        with raises_yt_error("Query .* is not found"):
             q0.get()
 
 

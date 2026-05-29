@@ -12,7 +12,7 @@ from yt_commands import (
 
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.common import uuid_hash_pair
-from yt.common import parts_to_uuid, YtError
+from yt.common import parts_to_uuid
 from yt_gpu_layers_helpers import GpuCheckBase
 import yt.yson as yson
 
@@ -348,7 +348,7 @@ class TestGetJobInput(YTEnvSetup):
                 "max_failed_job_count": 1,
             },
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         job_ids = os.listdir(self._tmpdir)
@@ -390,7 +390,7 @@ class TestGetJobInput(YTEnvSetup):
         assert op_id == op.id
         job_id = parts_to_uuid(id_lo=rows[0]["job_id_lo"], id_hi=rows[0]["job_id_hi"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error occurred while parsing YSON"):
             get_job_input(job_id)
 
     @authors("ermolovd")
@@ -427,7 +427,7 @@ class TestGetJobInput(YTEnvSetup):
             with open(input_file, "rb") as inf:
                 actual_input = inf.read()
             assert actual_input
-            with pytest.raises(YtError):
+            with raises_yt_error("No such chunk .*"):
                 get_job_input(job_id)
 
     @authors("ermolovd")
@@ -459,7 +459,7 @@ class TestGetJobInput(YTEnvSetup):
             with open(input_file, "rb") as inf:
                 actual_input = inf.read()
             assert actual_input
-            with pytest.raises(YtError):
+            with raises_yt_error("Failed to parse job spec fetched from operation archive"):
                 get_job_input(job_id, job_spec_source="archive")
 
     @authors("ermolovd")
@@ -567,7 +567,7 @@ class TestGetJobInput(YTEnvSetup):
         if successful_jobs:
             op.track()
         else:
-            with pytest.raises(YtError):
+            with raises_yt_error("Failed jobs limit exceeded"):
                 op.track()
 
         job_ids = os.listdir(self._tmpdir)
@@ -862,7 +862,7 @@ class TestGetJobStderr(YTEnvSetup):
 
             # We should use 'wait' since job can be still in prepare phase in the opinion of the node.
             wait(lambda: retry(lambda: get_job_stderr(op.id, job_id, authenticated_user="u")) == b"STDERR-OUTPUT\n")
-            with pytest.raises(YtError):
+            with raises_yt_error("Operation access denied"):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
 
             update_op_parameters(
@@ -968,7 +968,7 @@ class TestGetJobSpec(YTEnvSetup):
         job_id = jobs[0]
 
         get_job_spec(job_id, authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation access denied"):
             get_job_spec(job_id, authenticated_user="v")
 
 

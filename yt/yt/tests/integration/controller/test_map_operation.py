@@ -208,7 +208,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("file", file1)
         write_file(file1, b"}}}}};\n")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unexpected .* while parsing node"):
             map(
                 in_="//tmp/t_input",
                 out=["//tmp/t_output1", "//tmp/t_output2"],
@@ -344,7 +344,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                                     {"name": "value", "type": "string"}]
         create("table", "//tmp/t2", attributes=attributes)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Output table .* is not sorted: job outputs have overlapping key ranges"):
             map(
                 in_="//tmp/t1",
                 out=out_table,
@@ -374,7 +374,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                                     {"name": "value", "type": "string"}]
         create("table", "//tmp/t2", attributes=attributes)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort order violation"):
             map(
                 in_="//tmp/t1",
                 out=out_table,
@@ -633,7 +633,7 @@ print(row + table_index)
 
         write_table("//tmp/t_in", {"cool": "stuff"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no nodes with enough resources to schedule an allocation|No online node can satisfy the resource demand"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -665,7 +665,7 @@ print(row + table_index)
         )
 
         if throw_on_failure:
-            with pytest.raises(YtError):
+            with raises_yt_error("Failed jobs limit exceeded"):
                 op.track()
         else:
             op.track()
@@ -937,7 +937,7 @@ print(row + table_index)
         create("table", "//tmp/input")
         create("table", "//tmp/out_1")
         create("table", "//tmp/out_2")
-        with pytest.raises(YtError):
+        with raises_yt_error("Only one output table with row_count_limit is supported"):
             map(
                 in_="//tmp/input",
                 out=[
@@ -951,7 +951,7 @@ print(row + table_index)
     def test_negative_row_count_limit(self):
         create("table", "//tmp/input")
         create("table", "//tmp/output")
-        with pytest.raises(YtError):
+        with raises_yt_error("Row count limit should be non-negative"):
             map(
                 in_="//tmp/input",
                 out=[
@@ -1005,7 +1005,7 @@ print(row + table_index)
 
         write_table("//tmp/input", {"key": "1", "value": "foo"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             map(in_="//tmp/input", out="//tmp/output", command="cat")
 
     @authors("dakovalkov")
@@ -1031,7 +1031,7 @@ print(row + table_index)
         create("table", "//tmp/tout")
         write_table("//tmp/tin", [{"a": 42}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error renaming columns"):
             map(in_="<rename_columns={a=b}>//tmp/tin", out="//tmp/tout", command="cat")
 
     @authors("dakovalkov")
@@ -1051,7 +1051,7 @@ print(row + table_index)
         create("table", "//tmp/tout")
         write_table("//tmp/tin", [{"a": 42, "b": 34}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error renaming columns"):
             map(in_="<rename_columns={a=b}>//tmp/tin", out="//tmp/tout", command="cat")
 
     @authors("dakovalkov")
@@ -1064,7 +1064,7 @@ print(row + table_index)
         # Set weak schema
         sort(in_="//tmp/tin", out="//tmp/tin", sort_by="a")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate .* column in unversioned row"):
             map(in_="<rename_columns={a=b}>//tmp/tin", out="//tmp/tout", command="cat")
 
     @authors("dakovalkov")
@@ -1078,17 +1078,17 @@ print(row + table_index)
         )
         create("table", "//tmp/tout")
         write_table("//tmp/tin", [{"a": 42}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Error renaming columns"):
             map(
                 in_='<rename_columns={a="$wrong_name"}>//tmp/tin',
                 out="//tmp/tout",
                 command="cat",
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error renaming columns"):
             map(in_='<rename_columns={a=""}>//tmp/tin', out="//tmp/tout", command="cat")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error renaming columns"):
             map(
                 in_="<rename_columns={a=" + "b" * 1000 + "}>//tmp/tin",
                 out="//tmp/tout",
@@ -1344,7 +1344,7 @@ print(row + table_index)
             spec={"max_data_size_per_job": 1},
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Maximum allowed data weight per job exceeds the limit"):
             op.track()
 
     @authors("psushin")
@@ -2191,7 +2191,7 @@ print(json.dumps(input))
         )
         write_table("//tmp/t", [{"key": 1}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("YPath attribute \"partially_sorted\" can be set only for dynamic tables"):
             map(in_="//tmp/t", out="<partially_sorted=%true>//tmp/t", command="cat")
 
     @authors("gritukan")
@@ -2378,7 +2378,7 @@ print(json.dumps(input))
         create("table", "//tmp/t_input")
         write_table("//tmp/t_input", [{"a": "b"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
@@ -2397,7 +2397,7 @@ print(json.dumps(input))
         assert exists("//tmp/stderr_table")
         assert exists("//tmp/core_table")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/t_input",
                 out="<create=true>//tmp/t_output1",
@@ -2447,7 +2447,7 @@ print(json.dumps(input))
                 command="cat",
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/in",
                 out='<create={}>//tmp/out2',
@@ -2882,7 +2882,7 @@ print(json.dumps(input))
 
         assert read_table("//tmp/t_out_as_file") == [{"secret": "public_value"}]
 
-        with raises_yt_error("permission for column \"secret\" of node //tmp/t_in is denied"):
+        with raises_yt_error("Access denied for user .* permission for column .* of node .* is denied for .* by ACE at node .*"):
             run_with_file({
                 "rename_columns": {
                     "secret": "public",
@@ -3702,7 +3702,7 @@ print('{hello=world}')
 
         row = '{int64=3u; uint64=42; boolean="false"; double=18; any={}; extra=qwe}'
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/s",
                 out="//tmp/t",

@@ -279,7 +279,7 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_create_and_remove(self):
         create("map_node", "//tmp/some_node")
         remove("//tmp/some_node")
-        with raises_yt_error("Node //tmp has no child with key \"some_node\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             get("//tmp/some_node")
         assert ls("//tmp") == []
 
@@ -463,7 +463,7 @@ class TestSequoiaInternals(YTEnvSetup):
     @authors("danilalexeev")
     def test_create_recursive_fail(self):
         create("map_node", "//tmp/some_node")
-        with raises_yt_error("Node //tmp has no child with key \"a\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             create("map_node", "//tmp/a/b")
 
     @authors("danilalexeev")
@@ -507,7 +507,7 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_set_map_force(self):
         create("map_node", "//tmp/m/m", recursive=True)
         node_id = get("//tmp/m/@id")
-        with raises_yt_error("\"set\" command without \"force\" flag is forbidden; use \"create\" instead"):
+        with raises_yt_error("\"set\" command without \"force\" flag is forbidden"):
             set("//tmp/m", {"a": 0})
         set("//tmp/m", {"a": 0}, force=True)
         assert ls("//tmp/m") == ["a"]
@@ -535,7 +535,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_escaped_symbols(self):
-        with raises_yt_error("Unexpected token \"{\" of type Left-brace"):
+        with raises_yt_error("Unexpected token .*"):
             create("map_node", "//tmp/special@&*[{symbols")
         path = r"//tmp/special\\\/\@\&\*\[\{symbols"
         create("map_node", path + "/m", recursive=True)
@@ -546,7 +546,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_sequoia_map_node_explicit_creation_is_forbidden(self):
-        with raises_yt_error("is internal type and should not be used directly"):
+        with raises_yt_error(".* is internal type and should not be used directly; use .* instead"):
             create("sequoia_map_node", "//tmp/m")
 
     @authors("danilalexeev")
@@ -801,7 +801,7 @@ class TestSequoiaInternals(YTEnvSetup):
         create("table", "//tmp/t1", attributes={"account": "a"})
         wait(lambda: get("//sys/accounts/a/@resource_usage/node_count") > 0)
 
-        with raises_yt_error("Cannot remove an account \"a\" because its usage is not zero") as err:
+        with raises_yt_error("Cannot remove an account .* because its usage is not zero") as err:
             remove_account("a", sync=False)
         assert len(err) == 1
         assert err[0].message.find("Received response with error") != -1
@@ -1307,7 +1307,7 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         for table in DESCRIPTORS.get_group("transaction_tables"):
             clear_table_in_ground(table)
 
-        with raises_yt_error("No such transaction"):
+        with raises_yt_error("No such transaction .*"):
             # "transactions" table is empty so there is no active transactions
             # from Sequoia point of view.
             commit_transaction(t4)
@@ -2554,22 +2554,22 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
         assert read_table("//tmp/s/tab") == a
         assert read_table("//tmp/s/tab", tx=tx1) == a + b + c
 
-        with raises_yt_error("by concurrent"):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             remove("//tmp/s/tab")
 
         remove("//tmp/s/tab", tx=tx1)
 
         assert read_table("//tmp/s/tab") == a
 
-        with raises_yt_error("no child with key \"tab\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             read_table("//tmp/s/tab", tx=tx1)
 
         commit_transaction(tx1)
 
-        with raises_yt_error("no child with key \"tab\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             read_table("//tmp/s/tab")
 
-        with raises_yt_error("No such"):
+        with raises_yt_error("No such object .*"):
             read_table(f"#{tab_id}")
 
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
@@ -2632,7 +2632,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
         tx = start_transaction()
 
         set("//tmp/t/@my_attribute", 123, tx=tx)
-        with raises_yt_error("Attribute \"my_attribute\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/t/@my_attribute")
 
         assert get("//tmp/t/@my_attribute", tx=tx) == 123
@@ -2645,7 +2645,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
         if finish_tx is commit_transaction:
             assert get("//tmp/t/@my_attribute") == 123
         else:
-            with raises_yt_error("Attribute \"my_attribute\" is not found"):
+            with raises_yt_error("Attribute .* is not found"):
                 get("//tmp/t/@my_attribute")
 
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
@@ -2911,7 +2911,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             child_node_source + child_node_destination,
             tx_mapping)
 
-        with raises_yt_error("Node //tmp/scion/e already exists"):
+        with raises_yt_error("Node .* already exists"):
             do_copy("//tmp/scion/a", "//tmp/scion/e", tx=tx2)
 
         do_copy("//tmp/scion/a", "//tmp/scion/e", tx=tx2, force=True)

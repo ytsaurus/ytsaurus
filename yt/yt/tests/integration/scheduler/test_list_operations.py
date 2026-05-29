@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, wait_no_assert, set_branch, create, ls, get, set, create_user,
+    authors, raises_yt_error, wait, wait_no_assert, set_branch, create, ls, get, set, create_user,
     create_group, create_pool, create_pool_tree,
     make_ace, add_member, insert_rows, select_rows, write_table, start_op,
     list_operations, clean_operations, sync_create_cells, sync_mount_table,
@@ -11,7 +11,7 @@ import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.common import YT_DATETIME_FORMAT_STRING, uuid_to_parts, YtError
 
-import pytest
+import pytest  # noqa: F401
 
 from datetime import datetime
 
@@ -225,7 +225,7 @@ class _TestListOperationsBase(ListOperationsSetup):
     @authors("omgronny")
     def test_invalid_arguments(self):
         # Should fail when limit is invalid.
-        with pytest.raises(YtError):
+        with raises_yt_error("Requested result limit (.*) exceeds maximum allowed limit (.*)"):
             list_operations(
                 include_archive=self.include_archive,
                 from_time=self.op1.before_start_time,
@@ -234,7 +234,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             )
 
         # Should fail when cursor_time is out of range (before |from_time|).
-        with pytest.raises(YtError):
+        with raises_yt_error("Time cursor .* is out of range .*"):
             list_operations(
                 include_archive=self.include_archive,
                 from_time=self.op2.before_start_time,
@@ -243,7 +243,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             )
 
         # Should fail when cursor_time is out of range (after |to_time|).
-        with pytest.raises(YtError):
+        with raises_yt_error("Time cursor .* is out of range .*"):
             list_operations(
                 include_archive=self.include_archive,
                 from_time=self.op1.before_start_time,
@@ -916,7 +916,7 @@ class _TestListOperationsBase(ListOperationsSetup):
 
         # Missing subject.
         access = {"permissions": ["read", "manage"]}
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             list_operations(
                 include_archive=self.include_archive,
                 from_time=self.op1.before_start_time,
@@ -927,7 +927,7 @@ class _TestListOperationsBase(ListOperationsSetup):
 
         # Missing permissions.
         access = {"subject": "user1"}
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             list_operations(
                 include_archive=self.include_archive,
                 from_time=self.op1.before_start_time,
@@ -937,7 +937,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             )
 
         access = {"subject": "unknown_subject", "permissions": ["read", "manage"]}
-        with pytest.raises(YtError):
+        with raises_yt_error("Unrecognized subject .*"):
             list_operations(
                 include_archive=self.include_archive,
                 from_time=self.op1.before_start_time,
@@ -947,7 +947,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             )
 
         access = {"subject": "user1", "permissions": ["unknown_permission"]}
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             list_operations(
                 include_archive=self.include_archive,
                 from_time=self.op1.before_start_time,
@@ -1066,9 +1066,9 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
 
     @authors("omgronny")
     def test_time_range_missing(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             list_operations(include_archive=True, to_time=self.op5.after_start_time)
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             list_operations(include_archive=True, from_time=self.op1.before_start_time)
 
 

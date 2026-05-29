@@ -102,7 +102,7 @@ class TestNodeTracker(YTEnvSetup):
     @authors("babenko")
     def test_resource_limits_overrides_validation(self):
         node = ls("//sys/cluster_nodes")[0]
-        with raises_yt_error("Attribute \"resource_limits_overrides\" cannot be removed "):
+        with raises_yt_error("Attribute .* cannot be removed"):
             remove("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node))
 
     @authors("cherepashka")
@@ -151,7 +151,7 @@ class TestNodeTracker(YTEnvSetup):
     @authors("babenko")
     def test_user_tags_validation(self):
         node = ls("//sys/cluster_nodes")[0]
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot parse"):
             set("//sys/cluster_nodes/{0}/@user_tags".format(node), 123)
 
     @authors("babenko")
@@ -196,7 +196,7 @@ class TestNodeTracker(YTEnvSetup):
     @authors("babenko", "shakurov")
     def test_create_cluster_node(self):
         kwargs = {"type": "cluster_node"}
-        with raises_yt_error("cannot be created explicitly"):
+        with raises_yt_error(".* of type .* cannot be created explicitly"):
             execute_command("create", kwargs)
 
     @authors("gritukan")

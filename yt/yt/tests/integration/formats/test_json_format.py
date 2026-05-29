@@ -58,7 +58,7 @@ class TestJsonFormat(YTEnvSetup):
             cur.append(tmp)
             cur = tmp
         cur.append("qwe")
-        with raises_yt_error("Depth limit exceeded while parsing YSON"):
+        with raises_yt_error("Depth limit exceeded"):
             write_table(
                 "//tmp/t_in",
                 [

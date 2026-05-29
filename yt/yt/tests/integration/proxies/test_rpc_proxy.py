@@ -335,7 +335,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
 
         query = "* from [//path/to/table]"
         user_tag = "example_user"
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             select_rows(query, user_tag=user_tag)
 
         b2 = self._write_log_barrier()
@@ -362,7 +362,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
         })
         time.sleep(0.5)
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             select_rows(query)
 
         b2 = self._write_log_barrier()
@@ -375,7 +375,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
         })
         time.sleep(0.5)
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             select_rows(query)
 
         b3 = self._write_log_barrier()
@@ -445,7 +445,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
         query = "* from [//path/to/some/table]"
         b0 = self._write_log_barrier()
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             select_rows(query)
 
         b1 = self._write_log_barrier()
@@ -456,7 +456,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
             })
             time.sleep(0.5)
 
-            with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
                 select_rows(query)
         finally:
             set("//sys/rpc_proxies/@config", {})
@@ -527,7 +527,7 @@ class TestRpcProxyDiscovery(YTEnvSetup):
 
     @authors("verytable")
     def test_invalid_address_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             discover_proxies(type_="rpc", driver=self.driver, address_type="invalid")
 
     @authors("verytable")
@@ -618,7 +618,7 @@ class TestRpcProxyDiscoveryBalancers(YTEnvSetup):
 
     @authors("nadya73")
     def test_invalid_address_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             discover_proxies(type_="rpc", driver=self.driver, address_type="invalid")
 
     @authors("nadya73")
@@ -951,7 +951,7 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
         create_user("u")
         set("//sys/users/u/@request_queue_size_limit", 0)
         start = time.time()
-        with pytest.raises(YtError):
+        with raises_yt_error("Request retries failed"):
             create("map_node", "//tmp/test", authenticated_user="u")
         end = time.time()
         assert end - start >= 1.4
@@ -979,7 +979,7 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
         set_node_banned(nodes[0], True)
         try:
             start = time.time()
-            with pytest.raises(YtError):
+            with raises_yt_error("Not enough data nodes available to write chunk"):
                 write_file("//tmp/file", b"dabacaba")
             end = time.time()
             assert end - start < 1.4
@@ -1207,7 +1207,7 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
         set("//tmp/a/@account", "max")
 
         self._set_account_chunk_count_limit("max", 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over chunk count limit"):
             copy("//tmp/t", "//tmp/a/t")
         assert not exists("//tmp/a/t")
         copy("//tmp/t", "//tmp/a/t", pessimistic_quota_check=False)
@@ -1223,7 +1223,7 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
         set("//tmp/a/@account", "max")
 
         set_account_disk_space_limit("max", 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             copy("//tmp/t", "//tmp/a/t")
         assert not exists("//tmp/a/t")
         copy("//tmp/t", "//tmp/a/t", pessimistic_quota_check=False)
@@ -1235,7 +1235,7 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
         sync_mount_table("//tmp/t")
         create_user("a")
         set("//sys/users/a/@banned", True)
-        with pytest.raises(YtError):
+        with raises_yt_error("User .* is banned on cluster .*"):
             explain_query("1 from [//tmp/t]", authenticated_user="a")
         set("//sys/users/a/@banned", False)
         time.sleep(0.5)

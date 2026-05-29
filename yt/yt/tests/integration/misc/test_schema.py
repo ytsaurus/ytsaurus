@@ -153,7 +153,7 @@ class TypeTester(object):
         self._helper.write(path, value)
 
     def check_bad_value(self, logical_type, value):
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             self.check_good_value(logical_type, value)
 
     def check_conversion_error(self, logical_type, value):
@@ -178,7 +178,7 @@ class SingleColumnTable(object):
         tx_write_table(self.path, [{"column": value}], input_format=POSITIONAL_YSON)
 
     def check_bad_value(self, value):
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             self.check_good_value(value)
 
 
@@ -282,13 +282,13 @@ class TestComplexTypes(YTEnvSetup):
             path="//tmp/test_3",
         )
 
-        with raises_yt_error("Struct field name \"a\" is used twice"):
+        with raises_yt_error("Struct field name .* is used twice"):
             SingleColumnTable(
                 type_constructor([("a", "int64"), ("b", "int64"), ("a", "int64")]),
                 optimize_for,
             )
 
-        with raises_yt_error("Struct field stable name \"stable_a\" is used twice"):
+        with raises_yt_error("Struct field stable name .* is used twice"):
             SingleColumnTable(
                 type_constructor([
                     ("a", "stable_a", "int64"),
@@ -314,13 +314,13 @@ class TestComplexTypes(YTEnvSetup):
             path="//tmp/test_2",
         )
 
-        with raises_yt_error("Removed field stable name \"b\" is used twice"):
+        with raises_yt_error("Removed field stable name .* is used twice"):
             SingleColumnTable(
                 struct_type([("a", "int64")], removed_field_stable_names=["b", "c", "b"]),
                 optimize_for,
             )
 
-        with raises_yt_error("Removed field stable name \"stable_a\" cannot be used as a stable name"):
+        with raises_yt_error("Removed field stable name .* cannot be used as a stable name"):
             SingleColumnTable(
                 struct_type([("a", "stable_a", "int64")], removed_field_stable_names=["stable_a"]),
                 optimize_for,
@@ -460,7 +460,7 @@ class TestComplexTypes(YTEnvSetup):
 
         # no exception
         tx_write_table("//tmp/table", [{}, {"column": None}])
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": 0}])
 
         with raises_yt_error("Null type cannot be required"):
@@ -498,7 +498,7 @@ class TestComplexTypes(YTEnvSetup):
         )
         tx_write_table("//tmp/table", [{"column": []}, {"column": [None]}])
         tx_write_table("//tmp/table", [{"column": []}, {"column": [None, None]}])
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": [0]}])
 
         create(
@@ -509,10 +509,10 @@ class TestComplexTypes(YTEnvSetup):
         )
         tx_write_table("//tmp/table", [{"column": None}, {"column": [None]}])
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": []}])
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": []}])
 
     @authors("ermolovd")
@@ -547,7 +547,7 @@ class TestComplexTypes(YTEnvSetup):
         )
 
         def check_bad(value):
-            with raises_yt_error(yt_error_codes.SchemaViolation):
+            with raises_yt_error(code=yt_error_codes.SchemaViolation):
                 tx_write_table(
                     "//tmp/table",
                     [
@@ -1011,7 +1011,7 @@ class TestComplexTypesMisc(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("option enable_merge_schemas_during_schema_infer is disabled"):
+        with raises_yt_error("Cannot infer output schema from input in strong schema mode, because the option enable_merge_schemas_during_schema_infer is disabled"):
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],
                 out="//tmp/output",
@@ -1061,7 +1061,7 @@ class TestComplexTypesMisc(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("option enable_merge_schemas_during_schema_infer is disabled"):
+        with raises_yt_error("Cannot infer output schema from input in strong schema mode, because the option enable_merge_schemas_during_schema_infer is disabled"):
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],
                 out="//tmp/output",
@@ -1293,7 +1293,7 @@ class TestLogicalType(YTEnvSetup):
             create("table", "//tmp/test-alter-table", attributes={"schema": schema_before})
             # Make table nonempty, since empty table allows any alter
             tx_write_table("//tmp/test-alter-table", [{}])
-            with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+            with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
                 alter_table("//tmp/test-alter-table", schema=schema_after)
 
         for (source_type, bad_destination_type_list) in [
@@ -1355,11 +1355,11 @@ class TestRequiredOption(YTEnvSetup):
         )
 
         tx_write_table("//tmp/required_table", [{"value": "foo"}])
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/required_table", [{"value": 100500}])
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/required_table", [{"value": None}])
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/required_table", [{}])
 
     @authors("ermolovd")
@@ -1415,7 +1415,7 @@ class TestRequiredOption(YTEnvSetup):
             },
         )
         tx_write_table(table, [{"column": None}])
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table(
                 table,
                 schema=[
@@ -1470,7 +1470,7 @@ class TestRequiredOption(YTEnvSetup):
         )
         tx_write_table(table, [{"column1": "foo"}])
 
-        with raises_yt_error("Cannot insert a new required column "):
+        with raises_yt_error("Cannot insert a new required column"):
             alter_table(
                 table,
                 schema=[
@@ -1552,7 +1552,7 @@ class TestRequiredOption(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("option enable_merge_schemas_during_schema_infer is disabled"):
+        with raises_yt_error("Cannot infer output schema from input in strong schema mode, because the option enable_merge_schemas_during_schema_infer is disabled"):
             # Schemas are incompatible
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],
@@ -1598,7 +1598,7 @@ class TestRequiredOption(YTEnvSetup):
         # Old column cannot become required
         bad_schema = [i.copy() for i in schema]
         bad_schema[3]["required"] = True
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema)
 
         # Removing 'required' attribute is OK
@@ -1731,11 +1731,11 @@ class TestSchemaObjects(TestSchemaDeduplication):
         assert get("//tmp/table3/@schema") == schema
 
         # Invalid @schema_id only.
-        with raises_yt_error("No such schema"):
+        with raises_yt_error("No such schema .*"):
             create("table", "//tmp/table4", attributes={"schema_id": "a-b-c-d"})
 
         # @schema and invalid @schema_id.
-        with raises_yt_error("No such schema"):
+        with raises_yt_error("No such schema .*"):
             create("table", "//tmp/table5", attributes={"schema_id": "a-b-c-d", "schema": schema})
 
         other_schema = make_schema([make_column("some_column", "int8")], unique_keys=False, strict=True)
@@ -1833,11 +1833,11 @@ class TestSchemaObjects(TestSchemaDeduplication):
         schema = get("//tmp/schema_holder/@schema")
         assert get("#{}".format(schema_id)) == schema
         assert get("#{}/@value".format(schema_id)) == schema
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             set("#{}/@value".format(schema_id), self._get_schema(True))
-        with pytest.raises(YtError):
+        with raises_yt_error(".* method is not supported"):
             set("#{}".format(schema_id), self._get_schema(True))
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* cannot be removed"):
             remove("#{}/@value".format(schema_id))
 
     @authors("h0pless")
@@ -1897,7 +1897,7 @@ class TestSchemaValidation(YTEnvSetup):
             remove("//tmp/t")
 
         def check_not_comparable(type):
-            with raises_yt_error("Key column cannot be of"):
+            with raises_yt_error("Key column cannot be of .* type"):
                 check_comparable(type)
 
         for t in [
@@ -1963,7 +1963,7 @@ class TestSchemaValidation(YTEnvSetup):
             create("table", "//tmp/t", attributes={"schema": schema})
             remove("//tmp/t")
 
-        with raises_yt_error("empty"):
+        with raises_yt_error("Column name cannot be empty"):
             schema = make_schema([make_column("a", "int64", stable_name="")])
             check_schema(schema)
 
@@ -1988,7 +1988,7 @@ class TestErrorCodes(YTEnvSetup):
         create("table", "//tmp/t", attributes={"schema": schema, "dynamic": True})
 
         sync_mount_table("//tmp/t")
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             insert_rows("//tmp/t", [{"baz": 1}])
         sync_unmount_table("//tmp/t")
 
@@ -1997,7 +1997,7 @@ class TestErrorCodes(YTEnvSetup):
 
         create("table", "//tmp/t", attributes={"schema": schema})
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/t", [{"foo": -1}])
 
 
@@ -2100,7 +2100,7 @@ class AlterTableSetup(YTEnvSetup):
         # Check that table is still readable after alter.
         self.check_table_readable(old_schema, dynamic)
 
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table(self._TABLE_PATH, schema=old_schema)
 
     def check_bad_alter_type(self, old_type_v3, new_type_v3, dynamic=False):
@@ -2111,7 +2111,7 @@ class AlterTableSetup(YTEnvSetup):
         new_schema = self._create_test_schema_with_type(new_type_v3)
         self.prepare_table(old_schema, dynamic=dynamic)
 
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table(self._TABLE_PATH, schema=new_schema)
 
     def check_bad_both_ways_alter_type(self, lhs_type_v3, rhs_type_v3, dynamic=False):
@@ -2415,14 +2415,14 @@ class TestSchemaDepthLimit(YTEnvSetup):
         })
 
         bad_schema = self._create_schema(self.SCHEMA_DEPTH_LIMIT + 1)
-        with raises_yt_error("depth limit"):
+        with raises_yt_error("Logical type exceeds depth limit during parsing"):
             create("table", "//tmp/t2", force=True, attributes={
                 "schema": bad_schema,
             })
 
         bad_schema = self._create_schema(self.VERY_LARGE_DEPTH)
         # No crash here.
-        with raises_yt_error("depth limit"):
+        with raises_yt_error("Logical type exceeds depth limit during parsing"):
             create("table", "//tmp/t3", force=True, attributes={
                 "schema": bad_schema,
             })
@@ -3123,7 +3123,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("b", "string"),
             make_column("cc", "bool", stable_name="c"),
         ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("c"))
-        with raises_yt_error("Duplicate column stable name \"c\""):
+        with raises_yt_error("Duplicate column stable name"):
             alter_table(self._TABLE_PATH, schema=schema6, verbose=True)
 
     @authors("orlovorlov")
@@ -3156,7 +3156,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("a", "int64", sort_order="ascending"),
             make_column("c", "bool"),
         ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("bb"))
-        with raises_yt_error("Column \"bb\" (stable name \"b\") is missing in strict schema"):
+        with raises_yt_error("Column .* is missing in strict schema"):
             alter_table(self._TABLE_PATH, schema=schema3, verbose=True)
 
         schema4 = make_schema([
@@ -3195,7 +3195,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("c", "bool"),
             make_column("b", "string"),
         ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("b"))
-        with raises_yt_error("Duplicate column stable name \"b\""):
+        with raises_yt_error("Duplicate column stable name"):
             alter_table(self._TABLE_PATH, schema=schema3, verbose=True)
 
         schema4 = make_schema([
@@ -3231,7 +3231,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("d", "int64"),
         ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("b"))
 
-        with raises_yt_error("Key column \"b\" may not be deleted"):
+        with raises_yt_error("Key column .* may not be deleted"):
             alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
 
     @authors("orlovorlov")

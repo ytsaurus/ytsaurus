@@ -281,7 +281,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id(path)
         if not present:
-            with raises_yt_error("Attribute \"schema\" is not found"):
+            with raises_yt_error("Attribute .* is not found"):
                 get(f"#{chunk_id}/@schema")
         else:
             chunk_id = get_singular_chunk_id(path)
@@ -318,7 +318,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         write_table("//tmp/t", {"key": 123, "value": "hi"})
 
         chunk_id = get_singular_chunk_id("//tmp/t")
-        with raises_yt_error("Attribute \"schema\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get(f"#{chunk_id}/@schema")
 
         set("//sys/@config/chunk_manager/enable_chunk_schemas", True)

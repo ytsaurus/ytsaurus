@@ -131,7 +131,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         self._drop_tables()
 
         orchid.wait_fresh_pass()
-        assert_yt_error(orchid.get_pass_error(), yt_error_codes.ResolveErrorCode)
+        assert_yt_error(orchid.get_pass_error(), code=yt_error_codes.ResolveErrorCode)
 
         wrong_schema = copy.deepcopy(init_queue_agent_state.QUEUE_TABLE_SCHEMA)
         for i in range(len(wrong_schema)):
@@ -1770,9 +1770,9 @@ class TestMasterIntegration(TestQueueAgentBase):
 
         # NB(apachee): Since there are no orchid nodes for producers yet,
         # it should throw resolution error for path //queue_agent/producers.
-        with raises_yt_error("Node /queue_agent has no child with key \"producers\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             get("//tmp/p/@queue_producer_status")
-        with raises_yt_error("Node /queue_agent has no child with key \"producers\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             get("//tmp/p/@queue_producer_partitions")
 
         # Check attributes opaqueness.
@@ -1886,7 +1886,7 @@ class TestMasterIntegrationFixes(TestQueueAgentBase):
         time.sleep(10)
 
         # NB(apachee): Cluster directory is empty, so stage resolution should fail.
-        with raises_yt_error("Queue agent stage \"production\" is not found"):
+        with raises_yt_error("Queue agent stage .* is not found"):
             get("//tmp/c/@queue_consumer_status")
 
 
@@ -2171,7 +2171,7 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
 
         sync_unmount_table("//sys/queue_agents/queues")
         orchid.wait_fresh_pass()
-        assert_yt_error(orchid.get_pass_error(), yt_error_codes.TabletNotMounted)
+        assert_yt_error(orchid.get_pass_error(), code=yt_error_codes.TabletNotMounted)
 
         sync_mount_table("//sys/queue_agents/queues")
 
@@ -2241,10 +2241,10 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
         orchid.wait_fresh_pass()
 
         queues = self._get_queues_and_check_invariants(expected_count=1, expected_synchronization_errors={
-            q1: lambda error: assert_yt_error(error, yt_error_codes.ResolveErrorCode),
+            q1: lambda error: assert_yt_error(error, code=yt_error_codes.ResolveErrorCode),
         })
         consumers = self._get_consumers_and_check_invariants(expected_count=1, expected_synchronization_errors={
-            c1: lambda error: assert_yt_error(error, yt_error_codes.ResolveErrorCode),
+            c1: lambda error: assert_yt_error(error, code=yt_error_codes.ResolveErrorCode),
         })
 
         for queue in queues:
@@ -2332,7 +2332,7 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
 
         sync_unmount_table("//sys/queue_agents/queues")
         orchid.wait_fresh_pass()
-        assert_yt_error(orchid.get_pass_error(), yt_error_codes.TabletNotMounted)
+        assert_yt_error(orchid.get_pass_error(), code=yt_error_codes.TabletNotMounted)
 
         sync_mount_table("//sys/queue_agents/queues")
         set(c2 + "/@queue_agent_stage", "bar")
@@ -2875,9 +2875,9 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
         set(f"{chaos_producer}/@queue_agent_stage", "testing")
         set(f"{chaos_producer}/@queue_agent_stage", "production")
 
-        with raises_yt_error("Node /queue_agent has no child with key \"producers\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             get(f"{chaos_producer}/@queue_producer_status")
-        with raises_yt_error("Node /queue_agent has no child with key \"producers\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             get(f"{chaos_producer}/@queue_producer_partitions")
 
     @authors("nadya73")

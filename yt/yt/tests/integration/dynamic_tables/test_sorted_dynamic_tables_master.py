@@ -15,7 +15,6 @@ from yt_commands import (
 from yt_type_helpers import make_schema
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
 import yt.yson as yson
 
 import pytest
@@ -72,7 +71,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         assert_items_equal(actual, rows)
 
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot read from tablet .*"):
             lookup_rows("//tmp/t", keys)
 
         sync_mount_table("//tmp/t")
@@ -98,7 +97,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
         sync_freeze_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* .* has no mounted tablets"):
             insert_rows("//tmp/t", [{"key": 0}])
         sync_unfreeze_table("//tmp/t")
         sync_unmount_table("//tmp/t")
@@ -149,7 +148,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         sync_freeze_table("//tmp/t")
         assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
         assert select_rows("* from [//tmp/t]") == rows
-        with pytest.raises(YtError):
+        with raises_yt_error(".* .* has no mounted tablets"):
             insert_rows("//tmp/t", rows)
 
     @authors("savrus")
@@ -165,7 +164,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
             ],
         )
         assert not get("//tmp/t/@schema/@unique_keys")
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             alter_table("//tmp/t", dynamic=True)
 
     @parametrize_external
@@ -271,11 +270,11 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
 
     @authors("babenko")
     def test_set_pivot_keys_upon_construction_fail(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Tablet count must be positive"):
             self._create_simple_table("//tmp/t", pivot_keys=[])
-        with pytest.raises(YtError):
+        with raises_yt_error("First pivot key must be empty"):
             self._create_simple_table("//tmp/t", pivot_keys=[[10], [20]])
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys must be strictly increasing"):
             self._create_simple_table("//tmp/t", pivot_keys=[[], [1], [1]])
 
     @authors("babenko")
@@ -285,7 +284,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
 
     @authors("savrus")
     def test_create_table_with_invalid_schema(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             create(
                 "table",
                 "//tmp/t",
@@ -482,7 +481,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
     def test_copy_failure(self):
         self._prepare_copy()
         sync_mount_table("//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy dynamic table"):
             copy("//tmp/t1", "//tmp/t2")
 
     @authors("babenko")
@@ -605,33 +604,33 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         sync_reshard_table("//tmp/t", [[], [100]])
         assert self._get_pivot_keys("//tmp/t") == [[], [100]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys must be strictly increasing"):
             reshard_table("//tmp/t", [[], []])
         assert self._get_pivot_keys("//tmp/t") == [[], [100]]
 
         sync_reshard_table("//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("First pivot key must match that of the first tablet"):
             reshard_table("//tmp/t", [[101]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("First tablet index .* is out of range"):
             reshard_table("//tmp/t", [[300]], first_tablet_index=3, last_tablet_index=3)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Last pivot key must be strictly less than that of the tablet which follows the resharded range"):
             reshard_table("//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
         sync_reshard_table("//tmp/t", [[100], [150], [200]], first_tablet_index=1, last_tablet_index=2)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys must be strictly increasing"):
             reshard_table("//tmp/t", [[100], [100]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Mismatched type of column"):
             reshard_table("//tmp/t", [[], [100, 200]])
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
@@ -641,7 +640,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [100], [200], [300]])
         sync_mount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot reshard table since tablet .* is not unmounted"):
             reshard_table(
                 "//tmp/t",
                 [[100], [250], [300]],
@@ -870,7 +869,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         # valid schema can be set for an empty table without any checks.
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t",
                 schema=[
@@ -878,7 +877,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t",
                 schema=[
@@ -886,7 +885,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t",
                 schema=[
@@ -899,7 +898,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t1")
         insert_rows("//tmp/t1", [{"key1": 1, "value": "test"}])
         sync_unmount_table("//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t1",
                 schema=[
@@ -908,7 +907,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t1",
                 schema=[
@@ -922,7 +921,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t1",
                 schema=[
@@ -936,7 +935,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t1",
                 schema=[
@@ -962,9 +961,9 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
             "//tmp/t2",
             attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             alter_table("//tmp/t2", dynamic=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table(
                 "//tmp/t2",
                 schema=[
@@ -972,7 +971,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                     {"name": "value", "type": "string"},
                 ],
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             alter_table("//tmp/t2", dynamic=True)
 
     @authors("gritukan")
@@ -1047,10 +1046,10 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
         sync_unmount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table("//tmp/t", schema=bad_schema_1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             alter_table("//tmp/t", schema=bad_schema_2)
 
         alter_table("//tmp/t", schema=new_schema)
@@ -1062,7 +1061,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         ]
         sync_unmount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table("//tmp/t", schema=old_schema)
 
 

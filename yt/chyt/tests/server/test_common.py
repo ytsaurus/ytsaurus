@@ -91,7 +91,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 assert root + "/t12" in shown_tables_like_t1
                 shown_tables_like_t1.remove(root + "/t12")
 
-        with raises_yt_error(UserJobFailed):
+        with raises_yt_error(code=UserJobFailed):
             with Clique(
                     1,
                     config_patch={
@@ -113,16 +113,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch={"yt": {
             "subquery": {"max_data_weight_per_subquery": column_weight - 1}
         }}) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select a from "//tmp/t"')
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select b from "//tmp/t"')
 
         with Clique(1, config_patch={"yt": {
             "subquery": {"max_data_weight_per_subquery": column_weight + 1}
         }}) as clique:
             assert clique.make_query('select a from "//tmp/t"') == [{"a": "2012-12-12 20:00:00"}]
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select a, b from "//tmp/t"')
 
         with Clique(1, config_patch={
@@ -133,9 +133,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 },
             },
         }) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 assert clique.make_query('select a from "//tmp/t"') == [{"a": "2012-12-12 20:00:00"}]
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select a, b from "//tmp/t"')
 
     @authors("evgenstf", "dakovalkov")
@@ -437,10 +437,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 ],
             )
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * from "//tmp/t1"', user="user_with_denied_column")
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select a from "//tmp/t1"', user="user_with_denied_column")
 
             assert clique.make_query('select b from "//tmp/t1"', user="user_with_denied_column") == [{"b": "value2"}]
@@ -455,9 +455,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 ],
             )
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * from "//tmp/t2"', user="user_with_allowed_one_column")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select a from "//tmp/t2"', user="user_with_allowed_one_column")
             assert clique.make_query('select b from "//tmp/t2"', user="user_with_allowed_one_column") == [
                 {"b": "value2"}
@@ -730,7 +730,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch={"yt": {"subquery": {"max_data_weight_per_subquery": 1}}}) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select CAST(a as datetime) from "//tmp/t"')
 
     @authors("evgenstf")
@@ -788,7 +788,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 write_table("<append=%true>//tmp/t", [{"a": 2 * i}, {"a": 2 * i + 1}])
 
             assert abs(clique.make_query('select avg(a) from "//tmp/t"')[0]["avg(a)"] - 4.5) < 1e-6
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select avg(b) from "//tmp/t"')
 
             assert abs(clique.make_query('select avg(a) from "//tmp/t[#2:#9]"')[0]["avg(a)"] - 5.0) < 1e-6
@@ -896,7 +896,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             remove("//tmp/t")
             time.sleep(0.5)
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('describe "//tmp/t"')
 
             create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "int64"}]})
@@ -1338,7 +1338,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             time.sleep(2.5)
 
-            with raises_yt_error(InstanceUnavailableCode):
+            with raises_yt_error(code=InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
             clique.op.resume()
@@ -1366,7 +1366,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             self._signal_instance(pid, signal.SIGINT)
             time.sleep(1)
-            with raises_yt_error(InstanceUnavailableCode):
+            with raises_yt_error(code=InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
             clique.op.resume()
@@ -1452,13 +1452,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 {func: yson.dumps(value3, yson_format="text").decode()},
                 {func: None},
             ]
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select ConvertYson('{key=[1;2]}', NULL)")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select ConvertYson('{key=[1;2]}', 'xxx')")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select ConvertYson('{{{{', 'binary')")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select ConvertYson(1, 'text')")
 
     @authors("dakovalkov")
@@ -1546,7 +1546,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Table doesn't exist.
             assert clique.make_query('exists table "//tmp/t123456"') == [{"result": 0}]
             # Not a table.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('exists table "//sys"')
 
     @authors("dakovalkov", "buyval01")
@@ -1669,7 +1669,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             query = "insert into `//tmp/t`({}) values ({})"
 
             def expect_error(type, value):
-                with raises_yt_error(QueryFailedError):
+                with raises_yt_error(code=QueryFailedError):
                     clique.make_query(query.format(type, value))
                     # auxilary asserts if something went wrong to see what was inserted
                     rows = read_table("//tmp/t")
@@ -2192,7 +2192,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch=patch) as clique:
             assert clique.make_query("select 1 as a") == [{"a": 1}]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select 1 as a", headers={"User-Agent": "banned_user_agent"})
 
     @authors("dakovalkov")
@@ -2232,7 +2232,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch=patch) as clique:
             assert clique.make_query("select 1 as a") == [{"a": 1}]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select 1 as a", headers={"User-Agent": "some_user_agent"})
 
     @authors("dakovalkov")
@@ -2268,7 +2268,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 "buffer_size": 1024 ** 2,
             }
             # NB: Should fail since buffer_size is exceeded and temporary data disk space limit is 1 byte.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query(query.format(1000 * 1000), settings=settings, verbose=False)
 
     @authors("dakovalkov")
@@ -2442,7 +2442,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Table2 should be invisible.
             assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "table1"}]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('SELECT 1 FROM my_db."subdir/table2"')
 
     @authors("dakovalkov")

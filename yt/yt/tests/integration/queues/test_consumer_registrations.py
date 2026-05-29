@@ -1061,10 +1061,10 @@ class TestDataApiSingleCluster(TestDataApiBase):
             pull_consumer("//tmp/c", "//tmp/q", partition_index=1, offset=None)
 
         register_queue_consumer("abc://tmp/q", "//tmp/c", vital=False)
-        with raises_yt_error("Queue cluster"):
+        with raises_yt_error("Queue cluster .* was not found for path .*"):
             pull_consumer("//tmp/c", "abc://tmp/q", partition_index=0, offset=None)
 
-        with raises_yt_error("Queue cluster"):
+        with raises_yt_error("Queue cluster .* was not found for path .*"):
             pull_consumer("//tmp/c", "abc://tmp/q", partition_index=0, offset=0)
 
     @authors("achulkov2", "nadya73")
@@ -1109,7 +1109,7 @@ class TestDataApiSingleCluster(TestDataApiBase):
 
         insert_rows("//tmp/q1", [{"data": "foo"}] * 6)
 
-        with raises_yt_error("is not registered for queue"):
+        with raises_yt_error("Consumer .* is not registered for queue .*"):
             advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=None, new_offset=3, client_side=False)
 
         register_queue_consumer("//tmp/q1", "//tmp/c", vital=False)
@@ -1128,7 +1128,7 @@ class TestDataApiSingleCluster(TestDataApiBase):
             assert meta['cumulative_data_weight'] == 60
             assert 'offset_timestamp' in meta
 
-        with raises_yt_error(yt_error_codes.ConsumerOffsetConflict):
+        with raises_yt_error(code=yt_error_codes.ConsumerOffsetConflict):
             advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=4, new_offset=5, client_side=False)
 
         advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=3, new_offset=5, client_side=False)
@@ -1342,7 +1342,7 @@ class TestDataApiMultiCluster(TestDataApiBase):
 
         insert_rows(queue_replicated_table, [{"data": "foo"}] * 6)
 
-        with raises_yt_error("is not registered for queue"):
+        with raises_yt_error("Consumer .* is not registered for queue .*"):
             advance_consumer("//tmp/c", queue_replicated_table_with_cluster, partition_index=0, old_offset=None, new_offset=3, client_side=False, driver=driver_remote_0)
 
         register_queue_consumer(queue_replicated_table_with_cluster, "remote_0://tmp/c", vital=True)
@@ -1406,7 +1406,7 @@ class TestDataApiMultiCluster(TestDataApiBase):
 
             return True
 
-        wait(lambda: check(queues[0], consumers[0], ctx=raises_yt_error("has no assigned peers")))
+        wait(lambda: check(queues[0], consumers[0], ctx=raises_yt_error("Cell .* has no assigned peers")))
 
         _enable_tablet_cell(get_driver(cluster="remote_0"))
 
@@ -1414,7 +1414,7 @@ class TestDataApiMultiCluster(TestDataApiBase):
 
         _disable_tablet_cell(get_driver(cluster="remote_0"))
 
-        wait(lambda: check(queues[2], consumers[2], ctx=raises_yt_error("has no assigned peers")))
+        wait(lambda: check(queues[2], consumers[2], ctx=raises_yt_error("Cell .* has no assigned peers")))
 
         _enable_tablet_cell(get_driver(cluster="remote_1"))
 

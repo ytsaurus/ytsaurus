@@ -72,7 +72,7 @@ class TestQueriesQL(YTEnvSetup):
     def test_query_error(self, query_tracker):
         settings = {"cluster": "primary"}
         q = start_query("ql", "* from [//tmp/t]", settings=settings)
-        with raises_yt_error("failed"):
+        with raises_yt_error("Query .* failed"):
             q.track()
         assert q.get_state() == "failed"
 

@@ -213,7 +213,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         create("table", "//tmp/out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Column filter for input table .* must include key column"):
             # All reduce by columns must be included in column filter.
             reduce(
                 in_="//tmp/in1{key}",
@@ -386,7 +386,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         write_table("//tmp/t1", [{"a": 42, "b": 1}])
         write_table("//tmp/t2", [{"a2": 43, "b2": 3}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot rename columns in table with teleport"):
             reduce(
                 in_=["//tmp/t1", "<teleport=%true;rename_columns={a2=a;b2=b}>//tmp/t2"],
                 out="<teleport=%true>//tmp/tout",
@@ -600,7 +600,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             reduce(
                 in_=[
                     "<teleport=true>//tmp/in1",
@@ -718,7 +718,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate sort column name"):
             reduce(
                 in_="//tmp/in",
                 out="//tmp/out",
@@ -732,7 +732,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", {"foo": "bar"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is not sorted"):
             reduce(in_="//tmp/in", out="//tmp/out", command="cat")
 
     @authors("panin", "klyachin")
@@ -741,7 +741,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", {"key": "1", "subkey": "2"}, sorted_by=["key", "subkey"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is sorted by columns .* that are not compatible with the requested columns .*"):
             reduce(in_="//tmp/in", out="//tmp/out", command="cat", reduce_by="subkey")
 
     @authors("gritukan")
@@ -752,7 +752,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", {"key": "1"}, sorted_by=["key"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is sorted by columns .* that are not compatible with the requested columns .*"):
             reduce(
                 in_="//tmp/in",
                 out="//tmp/out",
@@ -1408,7 +1408,7 @@ echo {v = 2} >&7
     def test_reduce_with_foreign_invalid_reduce_by(self):
         self._prepare_join_tables()
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Join sort columns are not compatible with reduce sort"):
             reduce(
                 in_=["<foreign=true>//tmp/urls", "//tmp/fresh_urls"],
                 out=["//tmp/output"],
@@ -1621,7 +1621,7 @@ echo {v = 2} >&7
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
         assert get("//tmp/input/@sorted_by") == ["key"]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             reduce(in_="//tmp/input", out="//tmp/output", reduce_by="key", command="cat")
 
     @authors("babenko", "klyachin")
@@ -1656,7 +1656,7 @@ echo {v = 2} >&7
                 "max_failed_job_count": 1,
             },
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
     @authors("savrus")
@@ -1991,7 +1991,7 @@ echo {v = 2} >&7
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is not sorted"):
             reduce(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -2121,7 +2121,7 @@ echo {v = 2} >&7
         create("table", "//tmp/t2")
         for i in range(1, 13):
             write_table("<append=%true>//tmp/t1", {"key": "%02d" % i, "value": i})
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys should form a strictly increasing sequence"):
             reduce(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -2129,7 +2129,7 @@ echo {v = 2} >&7
                 reduce_by=["key"],
                 spec={"pivot_keys": [["10"], ["05"]]},
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Chunk teleportation is not supported when pivot keys are specified"):
             reduce(
                 in_="<teleport=%true>//tmp/t1",
                 out="//tmp/t2",
@@ -2313,7 +2313,7 @@ echo {v = 2} >&7
         write_table("//tmp/t1", [{"key": 1}])
         write_table("//tmp/t2", [{"key": "1"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns have different types in input tables"):
             reduce(
                 in_=["//tmp/t1", "//tmp/t2"],
                 out=["//tmp/out"],
@@ -2426,7 +2426,7 @@ echo {v = 2} >&7
         write_table("//tmp/t2", [{"key": 1}])
         write_table("//tmp/t3", [{"key": "1"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns have different types in input tables"):
             reduce(
                 in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
                 out=["//tmp/out"],
@@ -2510,7 +2510,7 @@ echo {v = 2} >&7
         write_table("//tmp/t2", [{"key": 1, "subkey": "3"}])
         write_table("//tmp/t3", [{"key": 1, "subkey": 4}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns have different types in input tables"):
             reduce(
                 in_=["//tmp/t1", "//tmp/t2", "<foreign=%true>//tmp/t3"],
                 out=["//tmp/out"],
@@ -2726,7 +2726,7 @@ echo {v = 2} >&7
         else:
             assert read_table("//tmp/out") == [{"k1": "1", "k2": str(i)} for i in range(4, 0, -1)]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is sorted by columns .* that are not compatible with the requested columns .*"):
             reduce(
                 in_=["//tmp/in1", "//tmp/in2", "<foreign=true>//tmp/f"],
                 out="//tmp/out",
@@ -3240,7 +3240,7 @@ for line in sys.stdin:
         try:
             set_nodes_banned(table_nodes, True)
 
-            with raises_yt_error("is unavailable"):
+            with raises_yt_error("Input chunk .* is unavailable"):
                 op.track()
         finally:
             set_nodes_banned(table_nodes, False)

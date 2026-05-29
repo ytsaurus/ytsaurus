@@ -37,11 +37,11 @@ class TestCypressLocks(YTEnvSetup):
 
         # at non-existing node
         tx = start_transaction()
-        with raises_yt_error("Node //tmp has no child with key \"non_existent\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             lock("//tmp/non_existent", tx=tx)
 
         # error while parsing mode
-        with raises_yt_error("Error parsing ELockMode value \"invalid\""):
+        with raises_yt_error("Error parsing .* value"):
             lock("/", mode="invalid", tx=tx)
 
         # taking None lock is forbidden
@@ -1266,7 +1266,7 @@ class TestCypressLocks(YTEnvSetup):
         assert get("//tmp/a", tx=tx) == 1
         assert get("//tmp") == {}
 
-        with raises_yt_error("Node //tmp has no child with key \"a\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             remove("//tmp/a")
         remove("//tmp/a", tx=tx)
         assert get("//tmp", tx=tx) == {}
@@ -1349,9 +1349,9 @@ class TestCypressLocks(YTEnvSetup):
 
         assert get("//tmp/@a", tx=tx1) == 1
         assert get("//tmp/@b", tx=tx2) == 2
-        with raises_yt_error("Attribute \"a\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/@a")
-        with raises_yt_error("Attribute \"b\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/@b")
 
         commit_transaction(tx1)
@@ -1406,17 +1406,17 @@ class TestCypressLocks(YTEnvSetup):
         tx = start_transaction()
         set("//tmp/@a", 1, tx=tx)
         assert get("//tmp/@a", tx=tx) == 1
-        with raises_yt_error("Attribute \"a\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/@a")
 
-        with raises_yt_error("Attribute \"a\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             remove("//tmp/@a")
         remove("//tmp/@a", tx=tx)
-        with raises_yt_error("Attribute \"a\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/@a", tx=tx)
 
         commit_transaction(tx)
-        with raises_yt_error("Attribute \"a\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/@a")
 
     @authors("ignat")

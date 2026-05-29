@@ -180,7 +180,7 @@ class TestUpdateProtocol(TestUpdateProtocolBase):
                 with Restarter(self.Env, restart_services):
                     pass
 
-            with raises_yt_error("max_failed_job_count"):
+            with raises_yt_error("Failed jobs limit exceeded"):
                 op.track()
 
             assert op.get_job_count("failed"), op.get_job_count("aborted") == (1, 1)
@@ -287,7 +287,7 @@ class TestUpdateProtocol(TestUpdateProtocolBase):
 
         op.wait_for_state("running")
 
-        with raises_yt_error("Failed to validate"):
+        with raises_yt_error("Failed to validate patch"):
             patch_op_spec(op.id, patches=[make_patch("/max_failed_job_count", 1)])
 
         # Wait for possible failure.
@@ -330,12 +330,12 @@ class TestUpdateProtocolControllerCrashes(TestUpdateProtocolBase):
 
         op.wait_for_state("running")
 
-        with raises_yt_error("Failed to apply"):
+        with raises_yt_error("Failed to apply patch"):
             patch_op_spec(op.id, patches=[make_patch("/max_failed_job_count", 3)])
 
         # NB: This is kinda happy path: controller "promised" that it will fail operation without
         # the help from scheduler.
-        with raises_yt_error("Exception thrown in operation controller that led to operation failure"):
+        with raises_yt_error("Exception thrown in operation controller"):
             op.track()
 
     @authors("coteeq")

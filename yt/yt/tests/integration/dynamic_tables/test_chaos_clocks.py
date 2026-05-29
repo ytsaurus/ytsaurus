@@ -256,7 +256,7 @@ class TestChaosClockRpcProxy(ChaosClockBase):
         with pytest.raises(YtError, match="Transaction origin clock source differs from coordinator clock source"):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unable to generate timestamps"):
             generate_timestamp()
 
     @authors("savrus")

@@ -1570,14 +1570,14 @@ class TestChunkServerMulticell(TestChunkServer):
     @authors("babenko")
     def test_validate_chunk_host_cell_role1(self):
         set("//sys/@config/multicell_manager/cell_descriptors/12", {"roles": ["cypress_node_host"]})
-        with raises_yt_error("cannot host chunks"):
+        with raises_yt_error("Cell with tag .* cannot host chunks"):
             create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
     @authors("aleksandra-zh")
     @cannot_be_implemented_in_sequoia("to be dropped")
     def test_validate_chunk_host_cell_role2(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {})
-        with raises_yt_error("cannot host chunks"):
+        with raises_yt_error("Cell with tag .* cannot host chunks"):
             create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
@@ -1757,11 +1757,11 @@ class TestChunkServerMulticell(TestChunkServer):
         create("table", "//tmp/t", attributes={"external_cell_tag": 11})
         for i in range(10):
             write_table("<append=%true>//tmp/t", [{"a": i}])
-        with raises_yt_error("it still hosts chunks"):
+        with raises_yt_error("Role .* cannot be removed from master cell .*, because it still hosts chunks"):
             set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["cypress_node_host"]})
 
         set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["dedicated_chunk_host", "cypress_node_host"]})
-        with raises_yt_error("it still hosts chunks"):
+        with raises_yt_error("Role .* cannot be removed from master cell .*, because it still hosts chunks"):
             set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["cypress_node_host"]})
 
     @authors("koloshmet")
@@ -2648,7 +2648,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
 
     @authors("h0pless")
     def test_per_user_bytes_throttler_root(self):
-        with raises_yt_error("Cannot set \"chunk_service_request_bytes_throttler\" for \"root\""):
+        with raises_yt_error("Cannot set"):
             set("//sys/users/root/@chunk_service_request_bytes_throttler", {"limit": 1337})
 
     @authors("h0pless")

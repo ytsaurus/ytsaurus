@@ -430,7 +430,7 @@ class TestGetJob(_TestGetJobCommon):
 
     @authors("omgronny")
     def test_not_found(self):
-        with raises_yt_error(yt_error_codes.NoSuchOperation):
+        with raises_yt_error(code=yt_error_codes.NoSuchOperation):
             get_job("1-2-3-4", "5-6-7-8")
 
         op = run_test_vanilla(
@@ -439,7 +439,7 @@ class TestGetJob(_TestGetJobCommon):
         )
         (job_id,) = wait_breakpoint()
 
-        with raises_yt_error(yt_error_codes.NoSuchJob):
+        with raises_yt_error(code=yt_error_codes.NoSuchJob):
             get_job(op.id, "5-6-7-8")
 
         release_breakpoint()
@@ -459,7 +459,7 @@ class TestGetJob(_TestGetJobCommon):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        with raises_yt_error(yt_error_codes.UncertainOperationControllerState):
+        with raises_yt_error(code=yt_error_codes.UncertainOperationControllerState):
             get_job(op.id, job_id)
 
         job_info = retry(lambda: get_job(op.id, job_id))

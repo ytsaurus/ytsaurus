@@ -833,7 +833,7 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             Decimal("3.14"),
             Decimal("-2.71"),
         ]
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             write_table(
                 "//tmp/table",
                 self._encode_row(self._encode_optional(None)),

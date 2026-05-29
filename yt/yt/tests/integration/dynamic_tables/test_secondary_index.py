@@ -329,7 +329,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         if self.NUM_REMOTE_CLUSTERS:
             create_table_collocation(table_paths=["//tmp/table", "//tmp/secondary"])
         id = create_secondary_index("//tmp/table", "//tmp/secondary", "full_sync", authenticated_user="index_user")
-        with raises_yt_error(yt_error_codes.AuthorizationErrorCode):
+        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
             set(f"#{id}/@table_to_index_correspondence", "bijective", authenticated_user="index_user")
         set("//tmp/table/@acl", [make_ace("allow", "index_user", ["write"])])
         set(f"#{id}/@table_to_index_correspondence", "bijective", authenticated_user="index_user")
@@ -477,9 +477,9 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
     def test_copy_with_abandonment(self):
         self._create_basic_tables()
 
-        with raises_yt_error("Cannot copy table"):
+        with raises_yt_error("Cannot copy table .*"):
             copy("//tmp/table", "//tmp/table_copy")
-        with raises_yt_error("Cannot copy table"):
+        with raises_yt_error("Cannot copy table .*"):
             copy("//tmp/secondary", "//tmp/secondary_copy")
 
         copy("//tmp/table", "//tmp/table_copy", allow_secondary_index_abandonment=True)
@@ -512,7 +512,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         assert get("//tmp/table/@secondary_indices")[secondary_index_id]["evaluated_columns_schema"][0]["expression"] \
             == evaluated_columns_schema[0]["expression"]
 
-        with raises_yt_error("Columns collision"):
+        with raises_yt_error("Columns collision on .*"):
             self._add_index("secondary_2", schema=index_schema, evaluated_columns_schema=[{
                 "name": "eva01",
                 "type": "int64", "expression":
@@ -576,9 +576,9 @@ class TestSecondaryIndexPortal(TestSecondaryIndexBase):
     def test_forbid_move_beyond_portal(self):
         self._create_basic_tables()
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
-        with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):
+        with raises_yt_error("Cannot cross-cell copy"):
             copy("//tmp/table", "//tmp/p/table")
-        with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):
+        with raises_yt_error("Cannot cross-cell copy"):
             copy("//tmp/secondary", "//tmp/p/secondary")
 
     @authors("sabdenovch")
@@ -1183,7 +1183,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         )
 
         # Conflict within write itself.
-        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+        with raises_yt_error(code=yt_error_codes.UniqueIndexConflict):
             self._insert_rows([
                 {"keyA": 1, "keyB": "yyy", "valueB": True},
                 {"keyA": 2, "keyB": "yyy", "valueB": True},
@@ -1200,7 +1200,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"valueB": True, "keyA": 0, "keyB": "xxx"},
         ])
         # Existing True has different key - conflict.
-        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+        with raises_yt_error(code=yt_error_codes.UniqueIndexConflict):
             self._insert_rows([
                 {"keyA": 2, "keyB": "yyy", "valueB": True},
             ])
@@ -1245,7 +1245,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"valueA": 222, "keyB": "yyy", "keyA": 0},
         ])
         # Conflict with existing row.
-        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+        with raises_yt_error(code=yt_error_codes.UniqueIndexConflict):
             self._insert_rows([
                 {"keyA": 3, "keyB": "yyy", "valueA": 111},
             ])
@@ -1303,7 +1303,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         )
 
         # Both rows satisfy predicate, but there is a conflict.
-        with raises_yt_error(yt_error_codes.UniqueIndexConflict):
+        with raises_yt_error(code=yt_error_codes.UniqueIndexConflict):
             self._insert_rows([
                 {"keyA": 1, "valueA": 200, "valueB": True},
                 {"keyA": 2, "valueA": 200, "valueB": True},
@@ -1442,9 +1442,9 @@ class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestS
         _ = self._create_table("//tmp/secondary", INDEX_ON_VALUE_SCHEMA)
         index_id, collocation_id = self._create_secondary_index()
 
-        with raises_yt_error("Cannot remove table //tmp/table from collocation"):
+        with raises_yt_error("Cannot remove table .* from collocation"):
             remove("//tmp/table/@replication_collocation_id")
-        with raises_yt_error("Cannot remove table //tmp/secondary from collocation"):
+        with raises_yt_error("Cannot remove table .* from collocation"):
             remove("//tmp/secondary/@replication_collocation_id")
         with raises_yt_error("Cannot remove collocation"):
             remove(f"#{collocation_id}")
@@ -1552,7 +1552,7 @@ class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestS
 
         remove("//tmp/index_table", driver=self.REPLICA_DRIVER)
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             select_rows("* from [//tmp/table] with index [//tmp/index_table] I")
 
 

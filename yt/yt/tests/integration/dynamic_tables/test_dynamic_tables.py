@@ -500,7 +500,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         set("//sys/tablet_cells/{}/@peer_count".format(cell_id), 2)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Peer count for cell"):
             set("//sys/tablet_cells/{}/@peer_count".format(cell_id), 1)
 
         wait_for_cells([cell_id])
@@ -627,13 +627,13 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("At least one non-key column must be specified"):
             insert_rows("//tmp/t", [{"key": 1}], update=True)
 
         assert len(select_rows("* from [//tmp/t]")) == 0
 
         insert_rows("//tmp/t", [{"key": 1, "value": "x"}])
-        with pytest.raises(YtError):
+        with raises_yt_error("At least one non-key column must be specified"):
             insert_rows("//tmp/t", [{"key": 1}], update=True)
 
         assert len(select_rows("* from [//tmp/t]")) == 1
@@ -641,12 +641,12 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     @authors("kiselyovp")
     def test_get_table_pivot_keys(self):
         create("file", "//tmp/f")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* method is not supported"):
             get_table_pivot_keys("//tmp/f")
 
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
-        with pytest.raises(YtError):
+        with raises_yt_error(".* is not dynamic"):
             get_table_pivot_keys("//tmp/t")
         remove("//tmp/t")
 
@@ -654,7 +654,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         self._create_ordered_table("//tmp/t")
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 1, "value": "abacaba"}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Table .* is not sorted"):
             get_table_pivot_keys("//tmp/t")
         remove("//tmp/t")
 
@@ -1006,7 +1006,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         self._create_sorted_table("//tmp/t1")
         sync_mount_table("//tmp/t1")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy dynamic table"):
             copy("//tmp/t1", "//tmp/t2")
 
     @authors("savrus", "babenko")
@@ -1016,7 +1016,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         self._create_sorted_table("//tmp/t1")
         sync_mount_table("//tmp/t1", freeze=freeze)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot move dynamic table"):
             move("//tmp/t1", "//tmp/t2")
 
     @authors("babenko")
@@ -1076,7 +1076,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         tablet_ids_a = get_tablet_ids("//tmp/x/a")
         tablet_ids_b = get_tablet_ids("//tmp/x/b")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot move dynamic table"):
             move("//tmp/x", "//tmp/y")
 
         assert get("//tmp/x/a/@dynamic")
@@ -1142,7 +1142,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("babenko")
     def test_tablet_cell_create_permission(self):
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_tablet_cell(authenticated_user="u")
         set("//sys/schemas/tablet_cell/@acl/end", make_ace("allow", "u", "create"))
         id = create_tablet_cell(authenticated_user="u")
@@ -1165,7 +1165,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_create_tablet_cell_with_broken_acl(self, domain):
         create_user("u")
         acl = [make_ace("allow", "unknown_user", "read")]
-        with pytest.raises(YtError):
+        with raises_yt_error("Some subjects mentioned in ACL are missing"):
             create_tablet_cell_bundle("b", attributes={"options": {domain: acl}})
 
         acl = [make_ace("allow", "u", "read")]
@@ -1177,7 +1177,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("babenko")
     def test_tablet_cell_bundle_create_permission(self):
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_tablet_cell_bundle("b", authenticated_user="u")
         set(
             "//sys/schemas/tablet_cell_bundle/@acl/end",
@@ -1191,7 +1191,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         create_tablet_cell_bundle("b")
         cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get(
                 "//sys/tablet_cells/{}/changelogs".format(cell_id),
                 authenticated_user="u",
@@ -1227,7 +1227,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("savrus")
     def test_bundle_creation_fails(self):
-        with raises_yt_error("Missing required parameter /slug"):
+        with raises_yt_error("Missing required parameter"):
             execute_command("create", {
                 "type": "tablet_cell_bundle",
                 "attributes": {
@@ -1241,18 +1241,18 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_validate_dynamic_attr(self):
         create("table", "//tmp/t")
         assert not get("//tmp/t/@dynamic")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot mount a static table"):
             mount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot unmount a static table"):
             unmount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot remount a static table"):
             remount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot reshard a static table"):
             reshard_table("//tmp/t", [[]])
 
     @authors("babenko")
     def test_dynamic_table_schema_validation(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Column name cannot be empty"):
             create(
                 "table",
                 "//tmp/t",
@@ -1262,15 +1262,15 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("savrus")
     def test_mount_map_node_failure(self):
         sync_create_cells(1)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* is not a tablet owner"):
             mount_table("//tmp")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* is not a tablet owner"):
             unmount_table("//tmp")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* is not a tablet owner"):
             freeze_table("//tmp")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* is not a tablet owner"):
             unfreeze_table("//tmp")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* is not a tablet owner"):
             reshard_table("//tmp", [[]])
 
     @authors("babenko")
@@ -1279,13 +1279,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         self._create_sorted_table("//tmp/t")
         create_user("u")
         set("//tmp/t/@acl/end", make_ace("deny", "u", "mount"))
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             mount_table("//tmp/t", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             unmount_table("//tmp/t", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remount_table("//tmp/t", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             reshard_table("//tmp/t", [[]], authenticated_user="u")
 
     @authors("babenko", "levysotsky")
@@ -1308,7 +1308,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", authenticated_user="u")
         set("//tmp/t/@acl/end", make_ace("allow", "u", "mount"))
         sync_mount_table("//tmp/t", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             sync_unmount_table("//tmp/t", force=True, authenticated_user="u")
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "administer"))
         sync_unmount_table("//tmp/t", force=True, authenticated_user="u")
@@ -1324,13 +1324,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_mount_table("//tmp/t", authenticated_user="u")
 
         set("//sys/tablet_cell_bundles/b/@acl", [make_ace("deny", "u", "use")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             sync_unmount_table("//tmp/t", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             sync_freeze_table("//tmp/t", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             sync_unfreeze_table("//tmp/t", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remount_table("//tmp/t", authenticated_user="u")
 
         set("//sys/tablet_cell_bundles/b/@acl", [make_ace("allow", "u", "use")])
@@ -1356,7 +1356,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         create_user("looser212")
         set("//sys/tablet_cell_bundles/bundle212/@acl/end", make_ace("allow", "looser212", "use"))
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(config_path, bundle_controller_config, authenticated_user="looser212")
 
         assert bundle_controller_config == get(config_path, authenticated_user="looser212")
@@ -1402,13 +1402,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("babenko")
     def test_cell_bundle_name_validation(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Cell bundle name cannot be empty"):
             create_tablet_cell_bundle("")
 
     @authors("babenko")
     def test_cell_bundle_name_create_uniqueness_validation(self):
         create_tablet_cell_bundle("b")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_tablet_cell_bundle("b")
 
     @authors("babenko")
@@ -1421,7 +1421,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_cell_bundle_rename_uniqueness_validation(self):
         create_tablet_cell_bundle("b1")
         create_tablet_cell_bundle("b2")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             set("//sys/tablet_cell_bundles/b1/@name", "b2")
 
     @authors("babenko")
@@ -1439,7 +1439,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("babenko")
     def test_table_with_custom_cell_bundle_name_validation(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("No such tablet cell bundle .*"):
             create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"})
 
     @authors("babenko")
@@ -1465,7 +1465,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         copy("//tmp/t", "//tmp/t2", authenticated_user="u")
         set("//tmp/t/@acl/end", make_ace("allow", "u", "mount"))
         # mount requires use
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             mount_table("//tmp/t", authenticated_user="u")
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "use"))
         mount_table("//tmp/t", authenticated_user="u")
@@ -1481,7 +1481,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 False,
                 authenticated_user="u",
             )
-            with pytest.raises(YtError):
+            with raises_yt_error("Access denied"):
                 set(
                     "//sys/tablet_cell_bundles/b/@node_tag_filter",
                     "b",
@@ -1505,15 +1505,15 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         self._create_sorted_table("//tmp/t")
         tx = start_transaction()
         lock("//tmp/t", mode="exclusive", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             mount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             unmount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             reshard_table("//tmp/t", [[], [1]])
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             freeze_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             unfreeze_table("//tmp/t")
 
     @authors("babenko")
@@ -1521,17 +1521,17 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change storage parameters since"):
             set("//tmp/t/@vital", False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change storage parameters since"):
             set("//tmp/t/@replication_factor", 2)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change storage parameters since"):
             set("//tmp/t/@media", {"default": {"replication_factor": 2}})
 
     @authors("savrus")
     def test_cell_bundle_node_tag_filter(self):
         node = list(get("//sys/cluster_nodes"))[0]
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid character .* in variable"):
             set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["custom!"])
         set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["custom"])
         set("//sys/tablet_cell_bundles/default/@node_tag_filter", "!custom")
@@ -1567,7 +1567,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             assert get("//sys/tablet_cell_bundles/default/@areas/{0}/id".format(name)) == area_id
             assert get("//sys/tablet_cell_bundles/default/@areas/{0}/cell_count".format(name)) == 1
             assert get("//sys/tablet_cell_bundles/default/@area_nodes/{0}".format(name)) == [node]
-            with pytest.raises(YtError):
+            with raises_yt_error("Cannot remove area .* since it has .* cell(s)"):
                 remove("#{0}".format(area_id))
 
         def _get_peer(cell):
@@ -1617,13 +1617,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("savrus")
     def test_invalid_area(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("No such cell bundle .*"):
             create_area("custom", cell_bundle_id="0-1-2-3")
 
-        with pytest.raises(YtError):
-            create_area("custom", cell_bundle_id=get("//sys/tablet_cell_bundles/default/id"), cell_bundle="default")
+        with raises_yt_error("Both \"cell_bundle_id\" and \"cell_bundle\" cannot be specified"):
+            create_area("custom", cell_bundle_id=get("//sys/tablet_cell_bundles/default/@id"), cell_bundle="default")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("When specifying \"cell_bundle\" it is required to specify \"cellar_type\""):
             create_area("custom", cell_bundle="default")
 
     @authors("savrus")
@@ -1751,11 +1751,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert options["changelog_account"] == "tmp"
 
         remove("//sys/schemas/tablet_cell_bundle/@options")
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             set("//sys/tablet_cell_bundles/default/@options", {})
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing attribute|Attribute .* is not found"):
             create_tablet_cell_bundle("invalid", initialize_options=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing attribute|Attribute .* is not found"):
             create_tablet_cell_bundle("invalid", initialize_options=False, attributes={"options": {}})
 
     @authors("akozhikhov")
@@ -1813,9 +1813,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         create_tablet_cell_bundle("custom")
 
         assert "account" not in ls("//sys/accounts")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such account .*"):
             set("//sys/tablet_cell_bundles/custom/@options/changelog_account", "account")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such account .*"):
             set("//sys/tablet_cell_bundles/custom/@options/snapshot_account", "account")
 
         create_user("user")
@@ -1826,13 +1826,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         create_account("account")
 
         assert "account" not in get("//sys/users/user/@usable_accounts")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(
                 "//sys/tablet_cell_bundles/custom/@options/changelog_account",
                 "account",
                 authenticated_user="user",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(
                 "//sys/tablet_cell_bundles/custom/@options/snapshot_account",
                 "account",
@@ -1872,7 +1872,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         def _get_cell_acl(cell_id):
             return get("//sys/tablet_cells/{}/{}s/@acl".format(cell_id, target))
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             _set_acl()
         for cell_id in cell_ids:
             assert _get_cell_acl(cell_id) == []
@@ -1889,9 +1889,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("savrus")
     def test_bundle_bad_options(self):
         sync_create_cells(1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change peer count"):
             set("//sys/tablet_cell_bundles/default/@options/peer_count", 2)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change peer independency"):
             set("//sys/tablet_cell_bundles/default/@options/independent_peers", True)
 
     @authors("savrus")
@@ -2198,17 +2198,17 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_reshard_table("//tmp/t", [[], [1], [2]])
 
         # At most one of `cell_id` and `target_cell_ids` must be set.
-        with pytest.raises(YtError):
+        with raises_yt_error("At most one of .* must be specified"):
             sync_mount_table("//tmp/t", cell_id=cells[0], target_cell_ids=cells[:3])
 
         # `target_cell_ids` must not contain invalid cell ids.
-        with pytest.raises(YtError):
+        with raises_yt_error("No such tablet cell .*"):
             sync_mount_table("//tmp/t", target_cell_ids=[cells[0], cells[1], "1-2-3-4"])
 
         # `target_cell_ids` must be of corresponding size.
-        with pytest.raises(YtError):
+        with raises_yt_error("\"target_cell_ids\" must either be empty or contain exactly .* entries"):
             sync_mount_table("//tmp/t", target_cell_ids=cells[:2])
-        with pytest.raises(YtError):
+        with raises_yt_error("\"target_cell_ids\" must either be empty or contain exactly .* entries"):
             sync_mount_table(
                 "//tmp/t",
                 first_tablet_index=0,
@@ -2217,7 +2217,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             )
 
         # Target cells may not be decommissioned.
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot mount tablet into cell"):
             sync_mount_table(
                 "//tmp/t",
                 first_tablet_index=0,
@@ -2316,11 +2316,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             == "decommissioning_on_node"
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* .* has no mounted tablets"):
             insert_rows("//tmp/t", rows2)
 
         self._create_sorted_table("//tmp/t2", tablet_cell_bundle="b")
-        with pytest.raises(YtError):
+        with raises_yt_error("No healthy tablet cells in bundle .*"):
             mount_table("//tmp/t2")
 
         assert get("#{0}/@tablet_cell_life_stage".format(cell)) == "decommissioning_on_node"
@@ -2784,7 +2784,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         alter_table("//tmp/t", dynamic=True, schema=schema)
         assert get("//tmp/t/@dynamic")
         table_reader_options = {"sampling_mode": "block", "sampling_rate": 0.5}
-        with pytest.raises(YtError):
+        with raises_yt_error("Block sampling is not yet supported for sorted dynamic tables"):
             read_table("//tmp/t", table_reader=table_reader_options)
 
     @pytest.mark.parametrize("optimize_for, chunk_format", [
@@ -2830,9 +2830,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_unmount_table("//tmp/t1")
 
         key_schema = _create_key_schema(MAX_KEY_COLUMN_COUNT + 1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Too many key columns"):
             alter_table("//tmp/t1", schema=key_schema + value_schema)
-        with pytest.raises(YtError):
+        with raises_yt_error("Too many key columns"):
             self._create_sorted_table("//tmp/t2", schema=key_schema + value_schema)
 
     @authors("akozhikhov")
@@ -3034,13 +3034,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         self._create_ordered_table("//tmp/t")
         mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change storage parameters"):
             set("//tmp/t/@account", "test_account")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change table .* mode"):
             set("//tmp/t/@atomicity", "none")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change table .* mode"):
             set("//tmp/t/@commit_ordering", "weak")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change table .* mode"):
             set("//tmp/t/@in_memory_mode", "compressed")
 
     @authors("ifsmirnov")
@@ -3336,7 +3336,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         suspend_tablet_cells([cell_id])
         wait(lambda: get(f"#{cell_id}/@suspended"))
-        with raises_yt_error("is decommissioned"):
+        with raises_yt_error("Tablet cell is decommissioned"):
             insert_rows("//tmp/t", [{"key": 1, "value": "y"}])
 
         resume_tablet_cells([cell_id])
@@ -3713,7 +3713,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
 
-        with raises_yt_error("too large block size"):
+        with raises_yt_error("Cannot mount tablet .* since it has chunks with too large block size"):
             sync_mount_table("//tmp/t", authenticated_user="user")
 
         if not self.is_multicell():
@@ -3726,7 +3726,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         if not self.is_multicell():
             wait(lambda: user_counter.get_delta() == 3)
 
-        with raises_yt_error("too large block size"):
+        with raises_yt_error("Cannot mount tablet .* since it has chunks with too large block size"):
             sync_mount_table("//tmp/t")
 
         set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", False)
@@ -3734,7 +3734,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//tmp/t/@max_unversioned_block_size", 100 * KB)
         set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1 * KB)
 
-        with raises_yt_error("too large chunks"):
+        with raises_yt_error("Cannot mount tablet .* since it has too large chunks"):
             sync_mount_table("//tmp/t", authenticated_user="user")
 
         if not self.is_multicell():
@@ -3747,7 +3747,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         if not self.is_multicell():
             wait(lambda: user_counter.get_delta() == 5)
 
-        with raises_yt_error("too large chunks"):
+        with raises_yt_error("Cannot mount tablet .* since it has too large chunks"):
             sync_mount_table("//tmp/t")
 
         set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", False)
@@ -3807,7 +3807,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
 
-        with raises_yt_error("too large row or value size"):
+        with raises_yt_error("Cannot mount tablet .* since chunk .* has too large row or value size"):
             sync_mount_table("//tmp/t")
 
     @authors("dave11ar")
@@ -4001,9 +4001,9 @@ class TestDynamicTablesAvailability(DynamicTablesBase):
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}], authenticated_user="u")
         set("//sys/@config/enable_safe_mode", True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}], authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             trim_rows("//tmp/t", 0, 1, authenticated_user="u")
         assert select_rows("key, value from [//tmp/t]", authenticated_user="u") == [{"key": 0, "value": "0"}]
         set("//sys/@config/enable_safe_mode", False)
@@ -4117,7 +4117,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")
         create_tablet_cell_bundle("b")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change tablet cell bundle"):
             set("//tmp/t/@tablet_cell_bundle", "b")
 
     @authors("ermolovd")

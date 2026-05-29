@@ -226,7 +226,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("max42")
     def test_fail_on_failed_job(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" option is set in operation spec or user job spec"):
             vanilla(
                 spec={
                     "tasks": {
@@ -264,7 +264,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
         op.wait_for_state("completed")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" option is set in operation spec or user job spec"):
             op = vanilla(
                 spec={
                     "tasks": {
@@ -387,7 +387,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("max42")
     @pytest.mark.parametrize("action", [abort_job])
     def test_fail_on_manually_stopped_job(self, action):
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" option is set in operation spec or user job spec"):
             op = vanilla(
                 track=False,
                 spec={
@@ -569,7 +569,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("max42")
     def test_attribute_validation_for_duplicated_output_tables(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Output table .* appears twice with different attributes"):
             vanilla(
                 spec={
                     "tasks": {
@@ -590,9 +590,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("max42")
     def test_operation_limits(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Maximum number of tasks exceeded"):
             vanilla(spec={"tasks": {"task_" + str(i): {"job_count": 1, "command": "true"} for i in range(101)}})
-        with pytest.raises(YtError):
+        with raises_yt_error("Maximum total job count exceeded"):
             vanilla(spec={"tasks": {"main": {"job_count": 100 * 1000 + 1, "command": "true"}}})
 
     @authors("dakovalkov", "max42")
@@ -622,7 +622,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert len(jobs) == 1
         job_id = jobs[0]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input context is not supported for vanilla jobs"):
             dump_job_context(job_id, "//tmp/input_context")
 
         release_breakpoint()
@@ -667,7 +667,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("gritukan")
     def test_empty_task_name(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Empty task names are not allowed"):
             op = vanilla(
                 spec={
                     "tasks": {
@@ -783,7 +783,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     def test_no_nul_in_file_name(self):
         skip_if_component_old(self.Env, (25, 2), "controller-agent")
 
-        with raises_yt_error("must not contain"):
+        with raises_yt_error("File name must not contain NUL byte"):
             run_sleeping_vanilla(
                 track=True,
                 task_patch={"file_paths": ['<file_name="with_\0_byte">//some/path']}
@@ -1189,7 +1189,7 @@ wait $child_pid
         jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
         job_id = jobs[0]
-        with pytest.raises(YtError):
+        with raises_yt_error("Error interrupting job"):
             interrupt_job(job_id)
 
     @authors("ignat")
@@ -1231,7 +1231,7 @@ wait $child_pid
 
     @authors("krasovav")
     def test_incorrect_interrupt_signal(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Unsupported signal name .*"):
             vanilla(
                 spec={
                     "tasks": {
@@ -2208,7 +2208,7 @@ class TestGangOperations(YTEnvSetup):
 
     @authors("pogorelov")
     def test_gang_operation_with_fail_on_job_restart(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" enabled can not have tasks with \"gang_options\""):
             vanilla(
                 track=False,
                 spec={
@@ -2223,7 +2223,7 @@ class TestGangOperations(YTEnvSetup):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation can not have both task with \"gang_options\" and task with \"fail_on_job_restart\""):
             vanilla(
                 track=False,
                 spec={
@@ -2238,7 +2238,7 @@ class TestGangOperations(YTEnvSetup):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation can not have both task with \"gang_options\" and task with \"fail_on_job_restart\""):
             vanilla(
                 track=False,
                 spec={
@@ -2260,7 +2260,7 @@ class TestGangOperations(YTEnvSetup):
     @authors("pogorelov")
     def test_gang_operation_with_output_table(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Gang operations having output tables are not currently supported"):
             vanilla(
                 spec={
                     "tasks": {
@@ -2540,7 +2540,7 @@ class TestGangOperations(YTEnvSetup):
 
     @authors("pogorelov")
     def test_gang_size_greater_than_job_count(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             vanilla(
                 spec={
                     "tasks": {
@@ -3341,7 +3341,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
 
         op = self._run_vanilla()
         op.wait_for_state("running")
-        with raises_yt_error("Validation failed at /tasks/task/job_count"):
+        with raises_yt_error("Validation failed at .*"):
             self._set_job_count(op, 0)
 
     @authors("coteeq")

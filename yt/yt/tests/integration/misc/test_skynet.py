@@ -3,11 +3,10 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, create, get, set, locate_skynet_share, read_table,
     write_table, map,
-    merge, get_singular_chunk_id)
+    merge, get_singular_chunk_id, raises_yt_error)
 
 from yt_type_helpers import make_schema
 
-from yt.common import YtError
 import yt.packages.requests as requests
 
 import hashlib
@@ -233,7 +232,7 @@ class TestSkynetIntegration(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing .* column"):
             write_table("//tmp/table", [{}])
 
     @authors("prime")

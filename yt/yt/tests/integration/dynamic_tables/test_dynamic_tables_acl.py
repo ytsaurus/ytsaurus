@@ -4,7 +4,7 @@ from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 from yt_commands import (
     authors, get, set, exists, create_user, make_ace, insert_rows,
     select_rows, lookup_rows,
-    delete_rows, trim_rows, sync_create_cells, sync_mount_table, create, read_table, sync_flush_table)
+    delete_rows, trim_rows, sync_create_cells, sync_mount_table, create, read_table, sync_flush_table, raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -92,7 +92,7 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
         self._prepare_denied("read", "//tmp/t2")
         insert_rows("//tmp/t1", [{"key": 1, "value": "test1"}])
         insert_rows("//tmp/t2", [{"key": 1, "value": "test2"}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             select_rows(
                 "t1.key as key, t1.value as value1, t2.value as value2 "
                 "from [//tmp/t1] as t1 join [//tmp/t2] as t2 on t1.key = t2.key",
@@ -102,7 +102,7 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     @authors("babenko")
     def test_select_denied(self):
         self._prepare_denied("read")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             select_rows("* from [//tmp/t]", authenticated_user="u")
 
     @authors("babenko")
@@ -117,25 +117,25 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     def test_lookup_denied(self):
         self._prepare_denied("read")
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             lookup_rows("//tmp/t", [{"key": 1}], authenticated_user="u")
 
     @authors("babenko")
     def test_columnar_lookup_denied(self):
         self._prepare_columnar()
         insert_rows("//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             lookup_rows("//tmp/t", [{"key": 1}], authenticated_user="u1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             lookup_rows("//tmp/t", [{"key": 2}], authenticated_user="u1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             lookup_rows(
                 "//tmp/t",
                 [{"key": 1}],
                 column_names=["value1"],
                 authenticated_user="u1",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             lookup_rows(
                 "//tmp/t",
                 [{"key": 1}],
@@ -170,11 +170,11 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     def test_columnar_select_denied(self):
         self._prepare_columnar()
         insert_rows("//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             select_rows("* from [//tmp/t]", authenticated_user="u1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             select_rows("value1 from [//tmp/t]", authenticated_user="u1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             select_rows("value2 from [//tmp/t]", authenticated_user="u2")
 
     @authors("babenko")
@@ -199,7 +199,7 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     @authors("babenko")
     def test_insert_denied(self):
         self._prepare_denied("write")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             insert_rows("//tmp/t", [{"key": 1, "value": "test"}], authenticated_user="u")
 
     @authors("babenko")
@@ -214,7 +214,7 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     @authors("babenko")
     def test_delete_denied(self):
         self._prepare_denied("write")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             delete_rows("//tmp/t", [{"key": 1}], authenticated_user="u")
 
     @authors("ponasenko-rs")
@@ -337,7 +337,7 @@ class TestOrderedDynamicTablesAcl(TestOrderedDynamicTablesBase):
     @authors("babenko")
     def test_select_denied(self):
         self._prepare_denied("read")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             select_rows("* from [//tmp/t]", authenticated_user="u")
 
     @authors("babenko")
@@ -350,7 +350,7 @@ class TestOrderedDynamicTablesAcl(TestOrderedDynamicTablesBase):
     @authors("babenko")
     def test_insert_denied(self):
         self._prepare_denied("write")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             insert_rows("//tmp/t", [{"a": 1}], authenticated_user="u")
 
     @authors("babenko")
@@ -365,7 +365,7 @@ class TestOrderedDynamicTablesAcl(TestOrderedDynamicTablesBase):
     def test_trim_denied(self):
         self._prepare_denied("write")
         insert_rows("//tmp/t", [{"a": 1}, {"a": 2}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             trim_rows("//tmp/t", 0, 1, authenticated_user="u")
 
 

@@ -39,7 +39,7 @@ class TestResponseKeeper(YTEnvSetup):
             create("table", "//tmp/t", mutation_id=mutation_id)
 
         # Denined by response keeper.
-        with raises_yt_error("Duplicate request is not marked"):
+        with raises_yt_error("Duplicate request is not marked as \"retry\""):
             create("table", "//tmp/t", mutation_id=mutation_id)
 
         # Replied from response keeper.
@@ -117,7 +117,7 @@ class TestSequoiaResponseKeeper(YTEnvSetup):
         table_id = create("table", "//tmp/t", mutation_id=mutation_id)
 
         # Denined by Sequoia response keeper.
-        with raises_yt_error("Duplicate request is not marked"):
+        with raises_yt_error("Duplicate request is not marked as \"retry\""):
             create("table", "//tmp/t", mutation_id=mutation_id)
 
         # Responded by Sequoia response keeper.
@@ -129,7 +129,7 @@ class TestSequoiaResponseKeeper(YTEnvSetup):
     def test_error_is_not_kept(self):
         create("map_node", "//tmp/t")
         mutation_id = generate_uuid()
-        with raises_yt_error("Attribute \"unexisting_attr\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             remove("//tmp/t/@unexisting_attr", mutation_id=mutation_id)
         assert not lookup_rows_in_ground(
             DESCRIPTORS.response_keeper.get_default_path(),

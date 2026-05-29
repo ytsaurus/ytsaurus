@@ -225,7 +225,7 @@ class TestQueriesChyt(ClickHouseTestBase):
                 authenticated_user="u1",
             )
 
-            with raises_yt_error(AuthorizationErrorCode):
+            with raises_yt_error(code=AuthorizationErrorCode):
                 query.track()
 
     @authors("mpereskokova")

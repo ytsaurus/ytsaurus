@@ -5,15 +5,14 @@ from yt_commands import (
     create, create_table, get, set, remove, exists, start_transaction, lock, unlock,
     lookup_rows, write_table,
     map, list_operations, get_operation_cypress_path, sync_create_cells, clean_operations, run_test_vanilla,
-    update_scheduler_config, print_debug)
+    update_scheduler_config, print_debug, raises_yt_error)
 
 import yt.environment.init_operations_archive as init_operations_archive
 
-from yt.common import uuid_to_parts, YT_DATETIME_FORMAT_STRING, YtError, YtResponseError
+from yt.common import uuid_to_parts, YT_DATETIME_FORMAT_STRING, YtResponseError
 
 from yt_helpers import profiler_factory
 
-import pytest
 from flaky import flaky
 
 from datetime import datetime, timedelta
@@ -29,7 +28,7 @@ CLEANER_CONFIG = "//sys/scheduler/config/operations_cleaner"
 
 def _try_track(op, expect_fail=False):
     if expect_fail:
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
     else:
         try:

@@ -739,7 +739,7 @@ class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
         create("table", "//tmp/out")
 
         # expected error: Duplicate key column name "a"
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate sort column name"):
             join_reduce(in_="//tmp/in", out="//tmp/out", command="cat", join_by=["a", "b", "a"])
 
     @authors("klyachin")
@@ -754,7 +754,7 @@ class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
         create("table", "//tmp/out")
 
         # expected error: Input table //tmp/in1 is not sorted
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is not sorted"):
             join_reduce(
                 in_=["//tmp/in1", "<foreign=true>//tmp/in2"],
                 out="//tmp/out",
@@ -774,7 +774,7 @@ class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
         create("table", "//tmp/out")
 
         # expected error: Key columns do not match
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is sorted by columns .* that are not compatible with the requested columns .*"):
             join_reduce(
                 in_=["//tmp/in1", "<foreign=true>//tmp/in2"],
                 out="//tmp/out",
@@ -791,7 +791,7 @@ class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
         create("table", "//tmp/in2")
         write_table("//tmp/in2", {"foo": "bar"}, sorted_by=["foo"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             join_reduce(
                 in_=["//tmp/in1", "<foreign=true>//tmp/in2"],
                 out="//tmp/out",
@@ -806,7 +806,7 @@ class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
         write_table("//tmp/in", {"key": "1", "subkey": "2"}, sorted_by=["key", "subkey"])
 
         # expected error: Input table is sorted by columns that are not compatible with the requested columns"
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is sorted by columns .* that are not compatible with the requested columns .*"):
             join_reduce(
                 in_=["//tmp/in", "<foreign=true>//tmp/in"],
                 out="//tmp/out",
@@ -1345,7 +1345,7 @@ echo {v = 2} >&7
                 "max_failed_job_count": 1,
             },
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
     @authors("savrus")
@@ -1982,7 +1982,7 @@ class TestMaxTotalSliceCount(YTEnvSetup):
         )
 
         create("table", "//tmp/t_out")
-        with raises_yt_error(yt_error_codes.DataSliceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.DataSliceLimitExceeded):
             join_reduce(
                 in_=["//tmp/t_primary", "<foreign=true>//tmp/t_foreign"],
                 out="//tmp/t_out",

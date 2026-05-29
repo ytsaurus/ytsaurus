@@ -270,10 +270,10 @@ class TestKafkaProxy(KafkaProxyBase):
         set(f"{queue_path}/@inherit_acl", False)
         set(f"{consumer_path}/@inherit_acl", False)
 
-        with raises_yt_error("permission"):
+        with raises_yt_error("Access denied"):
             pull_queue(queue_path, authenticated_user=username, partition_index=0, offset=0)
 
-        with raises_yt_error("permission"):
+        with raises_yt_error("Access denied"):
             pull_consumer(consumer_path, queue_path, authenticated_user=username, partition_index=0, offset=0)
 
         set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read"]))
@@ -307,10 +307,10 @@ class TestKafkaProxy(KafkaProxyBase):
         set(f"{queue_path}/@inherit_acl", False)
         set(f"{consumer_path}/@inherit_acl", False)
 
-        with raises_yt_error("permission"):
+        with raises_yt_error("Access denied"):
             pull_queue(queue_path, authenticated_user=username, partition_index=0, offset=0)
 
-        with raises_yt_error("permission"):
+        with raises_yt_error("Access denied"):
             pull_consumer(consumer_path, queue_path, authenticated_user=username, partition_index=0, offset=0)
 
         set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read"]))

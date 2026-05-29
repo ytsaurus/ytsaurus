@@ -535,7 +535,7 @@ class TestProducerApiReplicatedTable(TestQueueAgentBase, ReplicatedObjectBase):
         with raises_yt_error(code=yt_error_codes.InvalidRowSequenceNumbers):
             push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=0)
 
-        with raises_yt_error("has no synchronous replicas"):
+        with raises_yt_error("Table .* has no synchronous replicas and \"require_sync_replica\" option is set"):
             push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0)
 
         push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0, require_sync_replica=False)

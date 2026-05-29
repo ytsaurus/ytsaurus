@@ -20,6 +20,7 @@ MisconfiguredPartitions = 318
 InvalidTableChunkFormat = 328
 ResolveErrorCode = 500
 MaxKeyLengthViolation = 505
+MalformedReadRequest = 722
 InvalidInputChunk = 733
 UnsupportedChunkFeature = 734
 LocationMediumIsMisconfigured = 753

@@ -32,9 +32,9 @@ class TestMasterLeaderSwitch(YTEnvSetup):
     @authors("babenko")
     def test_invalid_params(self):
         cell_id = get("//sys/@cell_id")
-        with raises_yt_error("is not a valid cell id"):
+        with raises_yt_error(".* is not a valid cell id"):
             switch_leader("1-2-3-4", get_active_primary_master_follower_address(self))
-        with raises_yt_error("resolve failed for"):
+        with raises_yt_error("Could not contact DNS servers"):
             switch_leader(cell_id, "foo.bar:9012")
         with raises_yt_error("Invalid peer state"):
             switch_leader(cell_id, get_active_primary_master_leader_address(self))
