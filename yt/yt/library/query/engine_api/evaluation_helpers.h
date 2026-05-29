@@ -2,7 +2,7 @@
 
 #include "expression_context.h"
 #include "position_independent_value.h"
-#include "join_profiler.h"
+#include <yt/yt/library/query/base/join_profiler.h>
 
 #include <yt/yt/library/web_assembly/api/data_transfer.h>
 #include <yt/yt/library/web_assembly/api/function.h>

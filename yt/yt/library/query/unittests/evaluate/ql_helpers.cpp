@@ -107,11 +107,11 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    const std::vector<IJoinProfilerPtr>& joinProfilers)
+    TJoinProfilerRegistry joinProfilerRegistry)
 {
-    Profile(query, id, variables, joinProfilers, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
+    Profile(query, id, variables, joinProfilerRegistry, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
     if (EnableWebAssemblyInUnitTests()) {
-        Profile(query, id, variables, joinProfilers, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
+        Profile(query, id, variables, joinProfilerRegistry, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
     }
 }
 

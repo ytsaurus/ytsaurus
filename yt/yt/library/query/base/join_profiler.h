@@ -55,7 +55,20 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
     TGetPrefetchJoinDataSource getPrefetchJoinDataSource,
     IMemoryChunkProviderPtr memoryChunkProvider,
     bool useOrderByInJoinSubqueries,
+    bool allowHeavyRangeInferenceInJoins,
     NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJoinProfilerRegistry
+{
+public:
+    IJoinProfilerPtr GetJoinProfilerOrThrow(size_t index) const;
+    void InsertJoinProfilerOrThrow(size_t index, IJoinProfilerPtr profiler);
+
+private:
+    THashMap<size_t, IJoinProfilerPtr> Profilers_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

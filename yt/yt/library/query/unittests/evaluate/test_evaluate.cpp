@@ -97,7 +97,7 @@ TQueryStatistics DoExecuteQuery(
     TConstQueryPtr query,
     IUnversionedRowsetWriterPtr writer,
     const TQueryOptions& options,
-    const std::vector<IJoinProfilerPtr>& joinProfilers)
+    const TJoinProfilerRegistry& joinProfilerRegistry)
 {
     std::vector<TOwningRow> owningSourceRows;
     for (const auto& row : source) {
@@ -154,7 +154,7 @@ TQueryStatistics DoExecuteQuery(
         query,
         readerMock,
         writer,
-        joinProfilers,
+        joinProfilerRegistry,
         functionProfilers,
         aggregateProfilers,
         NWebAssembly::GetBuiltinSdk(),
@@ -636,11 +636,12 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
                 fragment.Query,
                 writer,
                 options,
-                /*joinProfilers*/ {});
+                /*joinProfilerRegistry*/ {});
     };
 
-    std::vector<IJoinProfilerPtr> joinProfilers;
-    for (const auto& joinClause : primaryQuery->JoinClauses) {
+    TJoinProfilerRegistry joinProfilerRegistry;
+    for (int joinIndex = 0; joinIndex < std::ssize(primaryQuery->JoinClauses); ++joinIndex) {
+        const auto& joinClause = primaryQuery->JoinClauses[joinIndex];
         auto getPrefetchJoinDataSource = [=] () -> std::optional<TDataSource> {
             // This callback is usually dependent on the structure of tablets.
             // Thus, in tests we resort to returning a universal range.
@@ -665,13 +666,14 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
             }
         };
 
-        joinProfilers.push_back(CreateJoinSubqueryProfiler(
+        joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
             joinClause,
             std::move(executePlan),
             std::move(consumeSubqueryStatistics),
             std::move(getPrefetchJoinDataSource),
             GetDefaultMemoryChunkProvider(),
-            /*useOrderByInJoinSubqueries=*/ true,
+            /*useOrderByInJoinSubqueries*/ true,
+            /*allowHeavyRangeInferenceInJoins*/ false,
             Logger()));
     }
 
@@ -689,7 +691,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
             primaryQuery,
             writer,
             options,
-            joinProfilers);
+            joinProfilerRegistry);
 
         resultStatistics.AddInnerStatistics(std::move(aggregatedStatistics));
 
@@ -780,7 +782,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
             bottomQuery,
             readerMock,
             pipe->GetWriter(),
-            /*joinProfilers*/ {},
+            /*joinProfilerRegistry*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
             NWebAssembly::GetBuiltinSdk(),
@@ -804,7 +806,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         frontQuery,
         frontReader,
         writer,
-        /*joinProfilers*/ {},
+        /*joinProfilerRegistry*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),
@@ -875,7 +877,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
         query,
         readerMock,
         pipe->GetWriter(),
-        /*joinProfilers*/ {},
+        /*joinProfilerRegistry*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),
@@ -923,7 +925,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNode(
         query,
         reader,
         pipe->GetWriter(),
-        /*joinProfilers*/ {},
+        /*joinProfilerRegistry*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),
@@ -968,7 +970,7 @@ TSharedRange<TUnversionedRow> TQueryEvaluateTest::RunOnCoordinator(
         frontQuery,
         reader,
         writer,
-        /*joinProfilers*/ {},
+        /*joinProfilerRegistry*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),

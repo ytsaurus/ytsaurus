@@ -101,7 +101,7 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    const std::vector<IJoinProfilerPtr>& joinProfilers);
+    TJoinProfilerRegistry joinProfilerRegistry = {});
 
 void ProfileForBothExecutionBackends(
     const TConstExpressionPtr& expr,

@@ -25,6 +25,7 @@ SRCS(
     public.cpp
     push_down_group_by.cpp
     query.cpp
+    join_profiler.cpp
     query_common.cpp
     query_helpers.cpp
     query_preparer.cpp

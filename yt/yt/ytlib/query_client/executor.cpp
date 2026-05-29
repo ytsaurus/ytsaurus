@@ -22,6 +22,10 @@
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
 
+#include <yt/yt/library/query/engine/query_engine_config.h>
+
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
 #include <yt/yt/client/query_client/query_statistics.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -630,10 +634,19 @@ private:
 
         auto subqueryResults = New<TMpscStack<TQueryStatistics>>();
 
-        std::vector<IJoinProfilerPtr> joinProfilers;
+        auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+        auto queryEngineConfig = singletonsConfig
+            ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>()
+            : nullptr;
+        auto allowHeavyRangeInferenceInJoins = queryEngineConfig
+            ? queryEngineConfig->AllowHeavyRangeInferenceInJoins.value_or(false)
+            : false;
+
+        TJoinProfilerRegistry joinProfilerRegistry;
         for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
-            joinProfilers.push_back(CreateJoinSubqueryProfiler(
-                query->JoinClauses[joinIndex],
+            const auto& joinClause = query->JoinClauses[joinIndex];
+            joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
+                joinClause,
                 executePlanCallback,
                 [subqueryResults] (TQueryStatistics statistics) mutable {
                     subqueryResults->Enqueue(std::move(statistics));
@@ -641,6 +654,7 @@ private:
                 [] { return std::nullopt; },
                 MemoryChunkProvider_,
                 options.UseOrderByInJoinSubqueries,
+                allowHeavyRangeInferenceInJoins,
                 Logger));
         }
 
@@ -648,7 +662,7 @@ private:
             query,
             reader,
             writer,
-            std::move(joinProfilers),
+            joinProfilerRegistry,
             functionGenerators,
             aggregateGenerators,
             sdk,
@@ -744,7 +758,7 @@ private:
                     std::move(frontQuery),
                     std::move(reader),
                     writer,
-                    /*joinProfilers*/ {},
+                    /*joinProfilerRegistry*/ {},
                     functionGenerators,
                     aggregateGenerators,
                     sdk,

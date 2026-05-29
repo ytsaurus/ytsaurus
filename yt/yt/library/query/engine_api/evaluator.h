@@ -1,7 +1,7 @@
 #pragma once
 
 #include "builtin_function_profiler.h"
-#include "join_profiler.h"
+#include <yt/yt/library/query/base/join_profiler.h>
 #include "public.h"
 
 #include <yt/yt/library/query/base/callbacks.h>
@@ -21,7 +21,7 @@ struct IEvaluator
         const TConstBaseQueryPtr& query,
         const ISchemafulUnversionedReaderPtr& reader,
         const IUnversionedRowsetWriterPtr& writer,
-        const std::vector<IJoinProfilerPtr>& joinProfilers,
+        const TJoinProfilerRegistry& joinProfilerRegistry,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const NWebAssembly::TModuleBytecode& sdk,

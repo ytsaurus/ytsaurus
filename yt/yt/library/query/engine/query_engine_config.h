@@ -41,6 +41,7 @@ struct TQueryEngineDynamicConfig
     std::optional<NCodegen::EOptimizationLevel> OptimizationLevel;
     std::optional<bool> AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse;
     std::optional<int> TruncatedQueryLengthForTracing;
+    std::optional<bool> AllowHeavyRangeInferenceInJoins;
 
     REGISTER_YSON_STRUCT(TQueryEngineDynamicConfig);
 

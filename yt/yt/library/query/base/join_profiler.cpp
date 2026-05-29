@@ -116,6 +116,7 @@ public:
         TGetPrefetchJoinDataSource getPrefetchJoinDataSource,
         IMemoryChunkProviderPtr memoryChunkProvider,
         bool useOrderByInJoinSubqueries,
+        bool allowHeavyRangeInferenceInJoins,
         TLogger logger)
         : JoinClause_(std::move(joinClause))
         , ExecutePlan_(std::move(executeForeign))
@@ -123,6 +124,7 @@ public:
         , GetPrefetchJoinDataSource_(std::move(getPrefetchJoinDataSource))
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
         , UseOrderByInJoinSubqueries_(useOrderByInJoinSubqueries)
+        , AllowHeavyRangeInferenceInJoins_(allowHeavyRangeInferenceInJoins)
         , Logger(std::move(logger))
     { }
 
@@ -186,7 +188,6 @@ public:
                 }
             }));
 
-
         return pipe->GetReader();
     }
 
@@ -197,6 +198,7 @@ private:
     const TGetPrefetchJoinDataSource GetPrefetchJoinDataSource_;
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
     const bool UseOrderByInJoinSubqueries_;
+    const bool AllowHeavyRangeInferenceInJoins_;
 
     const TLogger Logger;
 
@@ -255,7 +257,12 @@ private:
             if (JoinClause_->Schema.Original->HasComputedColumns() &&
                 AllComputedColumnsEvaluated(*JoinClause_))
             {
-                newQuery->ForceLightRangeInference = true;
+                if (AllowHeavyRangeInferenceInJoins_) {
+                    YT_LOG_DEBUG("Using heavy range inference in join subquery");
+                } else {
+                    newQuery->ForceLightRangeInference = true;
+                    YT_LOG_DEBUG("Using light range inference in join subquery");
+                }
             }
 
             if (foreignKeyPrefix > 0) {
@@ -377,6 +384,7 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
     TGetPrefetchJoinDataSource getPrefetchJoinDataSource,
     IMemoryChunkProviderPtr memoryChunkProvider,
     bool useOrderByInJoinSubqueries,
+    bool allowHeavyRangeInferenceInJoins,
     TLogger logger)
 {
     return New<TJoinSubqueryProfiler>(
@@ -386,7 +394,23 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
         std::move(getPrefetchJoinDataSource),
         std::move(memoryChunkProvider),
         useOrderByInJoinSubqueries,
+        allowHeavyRangeInferenceInJoins,
         std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJoinProfilerPtr TJoinProfilerRegistry::GetJoinProfilerOrThrow(size_t index) const
+{
+    auto it = Profilers_.find(index);
+    THROW_ERROR_EXCEPTION_IF(it == Profilers_.end(), "Join profiler not found for index %v", index);
+    return it->second;
+}
+
+void TJoinProfilerRegistry::InsertJoinProfilerOrThrow(size_t index, IJoinProfilerPtr profiler)
+{
+    auto [it, inserted] = Profilers_.emplace(index, std::move(profiler));
+    THROW_ERROR_EXCEPTION_IF(!inserted, "Join profiler already exists for index %v", index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

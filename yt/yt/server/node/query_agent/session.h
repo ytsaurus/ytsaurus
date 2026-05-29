@@ -10,7 +10,7 @@
 
 #include <yt/yt/library/query/distributed/public.h>
 
-#include <yt/yt/library/query/engine_api/join_profiler.h>
+#include <yt/yt/library/query/base/join_profiler.h>
 
 #include <yt/yt/client/table_client/unversioned_reader.h>
 
