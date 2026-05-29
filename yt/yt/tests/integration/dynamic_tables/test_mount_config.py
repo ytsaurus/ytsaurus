@@ -394,6 +394,30 @@ class TestMountConfig(DynamicTablesBase):
             with raises_yt_error(error):
                 create("table", "//tmp/q", attributes={"mount_config": {field: value}})
 
+    @authors("ifsmirnov")
+    def test_patch_applies_after_node_restart(self):
+        cell_id = sync_create_cells(1)[0]
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        set("//sys/@config/tablet_manager/mount_config_template_patch", {
+            "min_data_ttl": 100,
+        })
+        wait(lambda: get(f"#{tablet_id}/orchid/config/min_data_ttl") == 100)
+
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "invalid")
+        wait(lambda: get(f"#{cell_id}/@health") == "failed")
+
+        set("//sys/@config/tablet_manager/mount_config_template_patch", {
+            "min_data_ttl": 200,
+        })
+
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "")
+        wait(lambda: get(f"#{cell_id}/@health") == "good")
+
+        wait(lambda: get(f"#{tablet_id}/orchid/config/min_data_ttl") == 200)
+
 ##################################################################
 
 

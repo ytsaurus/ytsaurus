@@ -335,7 +335,7 @@ public:
         BackupManager_->Initialize();
 
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
-        tableConfigManager->SubscribeBeforeConfigChanged(TableDynamicConfigChangedCallback_);
+        tableConfigManager->SubscribeAfterConfigChanged(TableDynamicConfigChangedCallback_);
 
         Bootstrap_->SubscribeTabletNodeConfigChanged(DynamicConfigChangedCallback_);
         OnDynamicConfigChanged(
@@ -346,25 +346,7 @@ public:
     void Finalize() override
     {
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
-        tableConfigManager->UnsubscribeBeforeConfigChanged(TableDynamicConfigChangedCallback_);
-    }
-
-    void OnStartLeading() override
-    {
-        TTabletAutomatonPart::OnStartLeading();
-
-        const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
-        if (tableConfigManager->IsConfigLoaded()) {
-            OnTableDynamicConfigChanged(nullptr, tableConfigManager->GetConfig());
-        }
-
-        auto storeCompactorConfig = GetDynamicConfig()->StoreCompactor;
-        for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
-            CompactionHintFetchers_[storeKind]->Start(
-                // NB(dave11ar): Do not take epoch automaton invoker from Slot_, it might be initialized later.
-                EpochAutomatonInvoker_,
-                storeCompactorConfig->CompactionHintFetchers[storeKind]);
-        }
+        tableConfigManager->UnsubscribeAfterConfigChanged(TableDynamicConfigChangedCallback_);
     }
 
     void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt) override
@@ -1042,7 +1024,7 @@ private:
 
     const NLsm::TStoreCompactionHintArray<TCompactionHintFetcherPtr> CompactionHintFetchers_;
 
-    const TCallback<void(TClusterTableConfigPatchSetPtr, TClusterTableConfigPatchSetPtr)> TableDynamicConfigChangedCallback_ =
+    const TCallback<void(TClusterTableConfigPatchSetPtr)> TableDynamicConfigChangedCallback_ =
         BIND(&TTabletManager::OnTableDynamicConfigChanged, MakeWeak(this));
 
     const TCallback<void(TTabletNodeDynamicConfigPtr, TTabletNodeDynamicConfigPtr)> DynamicConfigChangedCallback_ =
@@ -1174,6 +1156,14 @@ private:
 
         TTabletAutomatonPart::OnLeaderRecoveryComplete();
 
+        auto storeCompactorConfig = GetDynamicConfig()->StoreCompactor;
+        for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
+            CompactionHintFetchers_[storeKind]->Start(
+                // NB(dave11ar): Do not take epoch automaton invoker from Slot_, it might be initialized later.
+                EpochAutomatonInvoker_,
+                storeCompactorConfig->CompactionHintFetchers[storeKind]);
+        }
+
         StartEpoch();
     }
 
@@ -1182,6 +1172,31 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnLeaderActive();
+
+        // Serialize executions of OnTableDynamicConfigChanged via control invoker
+        // to avoid reordering.
+        Bootstrap_->GetControlInvoker()->Invoke(BIND(
+            [
+                tableConfigManager = Bootstrap_->GetTableDynamicConfigManager(),
+                weakThis = MakeWeak(this),
+                automatonInvoker = Slot_->GetAutomatonInvoker()
+            ] {
+                if (!tableConfigManager->IsConfigLoaded()) {
+                    return;
+                }
+
+                // OnTableDynamicConfigChanged schedules a callback via
+                // guarded automaton invoker. It will not execute anything
+                // until OnLeaderActive finishes execution, so we introduce
+                // a barrier.
+                WaitFor(BIND([] {}).AsyncVia(automatonInvoker).Run())
+                    .ThrowOnError();
+
+                if (auto this_ = weakThis.Lock()) {
+                    this_->OnTableDynamicConfigChanged(/*oldConfig*/ nullptr);
+                }
+            }
+        ));
 
         for (auto [tabletId, tablet] : TabletMap_) {
             CheckIfTabletFullyUnlocked(tablet);
@@ -5671,16 +5686,14 @@ private:
         return Bootstrap_->GetTabletNodeDynamicConfig();
     }
 
-    void OnTableDynamicConfigChanged(
-        const TClusterTableConfigPatchSetPtr& /*oldConfig*/,
-        const TClusterTableConfigPatchSetPtr& newConfig)
+    void OnTableDynamicConfigChanged(const TClusterTableConfigPatchSetPtr& /*oldConfig*/)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         Slot_->GetGuardedAutomatonInvoker()->Invoke(BIND(
             &TTabletManager::DoTableDynamicConfigChanged,
             MakeWeak(this),
-            newConfig));
+            Bootstrap_->GetTableDynamicConfigManager()->GetConfig()));
     }
 
     void OnDynamicConfigChanged(
