@@ -501,6 +501,21 @@ class TestArtifactReuseInAllocationOfGangOperation(TestArtifactReuseInAllocation
 
         current_incarnation = get(op.get_orchid_path() + "/controller/operation_incarnation")
 
+        def _peer_cache_miss_size():
+            try:
+                stats = op.get_job_statistics(first_incarnation_reused_job_id)
+            except Exception:
+                return None
+            return (
+                stats
+                .get("exec_agent", {})
+                .get("artifacts", {})
+                .get("cache_miss_artifacts_size", {})
+                .get("sum")
+            )
+
+        wait(lambda: (_peer_cache_miss_size() or 0) > 0)
+
         abort_job(first_job_id)
 
         wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
