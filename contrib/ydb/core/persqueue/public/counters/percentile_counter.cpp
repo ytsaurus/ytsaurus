@@ -1,8 +1,8 @@
 #include "percentile_counter.h"
 
-#include <contrib/ydb/library/persqueue/topic_parser/topic_parser.h>
 #include <contrib/ydb/core/base/counters.h>
 #include <contrib/ydb/library/actors/core/log.h>
+#include <contrib/ydb/library/persqueue/topic_parser/topic_parser.h>
 
 namespace NKikimr {
 
@@ -291,5 +291,6 @@ TVector<std::pair<double, ui64>> TMultiBucketCounter::GetValues(bool allowZeroes
     return result;
 }
 
-} // NPQ
-} // NKikimr
+} // namespace NKikimr::NPQ
+
+} // namespace NKikimr

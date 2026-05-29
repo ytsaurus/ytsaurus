@@ -52,19 +52,22 @@ TFsPath ResolveUnixXdgDir(const char* overrideEnv, const char* xdgEnv, const TSt
 
 TFsPath GetStateDir() {
 #if defined(_win32_)
-    TFsPath dir = ResolveWindowsDir("YDB_STATE_DIR", "LOCALAPPDATA", {"ydb", "State"});
+    return ResolveWindowsDir("YDB_STATE_DIR", "LOCALAPPDATA", {"ydb", "State"});
 #else
-    TFsPath dir = ResolveUnixXdgDir("YDB_STATE_DIR", "XDG_STATE_HOME", "/.local/state");
+    return ResolveUnixXdgDir("YDB_STATE_DIR", "XDG_STATE_HOME", "/.local/state");
 #endif
-    return dir;
 }
 
 } // anonymous namespace
 
-TFsPath GetAiHistoryFile() {
+std::optional<TString> GetAiHistoryFile() {
+    if (TryGetEnv("YDB_CLI_AI_DISABLE_HISTORY").Defined()) {
+        return std::nullopt;
+    }
+
     TFsPath stateDir = GetStateDir();
     TFsPath target = stateDir.Child("ai_history");
-    return target;
+    return target.GetPath();
 }
 
 } // namespace NYdb::NConsoleClient::NLocalPaths

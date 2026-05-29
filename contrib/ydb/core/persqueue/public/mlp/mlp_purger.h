@@ -7,7 +7,6 @@
 #include <contrib/ydb/core/persqueue/events/internal.h>
 #include <contrib/ydb/core/persqueue/public/describer/describer.h>
 #include <contrib/ydb/core/util/backoff.h>
-
 #include <contrib/ydb/library/actors/core/events.h>
 
 namespace NKikimr::NPQ::NMLP {

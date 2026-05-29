@@ -9,6 +9,7 @@
 #include <contrib/ydb/core/tx/columnshard/counters/indexation.h>
 #include <contrib/ydb/core/tx/tiering/manager.h>
 #include <contrib/ydb/core/wrappers/abstract.h>
+
 namespace NKikimr::NOlap::NBlobOperations::NTier {
 
 class TOperator: public IBlobsStorageOperator {

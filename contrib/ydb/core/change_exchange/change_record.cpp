@@ -1,6 +1,6 @@
 #include "change_record.h"
 
-#include <contrib/ydb/library/aclib/aclib.h>
+#include <contrib/ydb/library/aclib/user_context.h>
 
 #include <util/stream/str.h>
 

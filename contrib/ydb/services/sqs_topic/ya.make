@@ -43,6 +43,7 @@ PEERDIR(
     contrib/ydb/services/ydb
     contrib/ydb/core/persqueue/public/describer
     contrib/ydb/core/persqueue/public/mlp
+    contrib/ydb/core/persqueue/public/schema
     contrib/ydb/core/ymq/attributes
     contrib/ydb/core/ymq/base
     contrib/ydb/core/ymq/error

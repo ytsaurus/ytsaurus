@@ -2,7 +2,6 @@
 
 #include <contrib/ydb/core/grpc_services/base/base.h>
 #include <contrib/ydb/core/tx/replication/ydb_proxy/ydb_proxy.h>
-
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 
 namespace NKikimr::NReplication {

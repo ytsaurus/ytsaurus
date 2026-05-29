@@ -57,7 +57,8 @@ TVector<TExprNode::TPtr> TPhysicalQueryBuilder::BuildPhysicalStageGraph() {
                 stageInputArgs = StageArgs.at(id);
             }
 
-            stage = BuildDqPhyStage(stageInputConnections, stageInputArgs, Stages.at(id), NYql::NDq::TDqStageSettings().New().BuildNode(ctx, StagePos.at(id)),
+            auto stageGUID = Graph.StageGUIDs.at(id);
+            stage = BuildDqPhyStage(stageInputConnections, stageInputArgs, Stages.at(id), NYql::NDq::TDqStageSettings().New(stageGUID).BuildNode(ctx, StagePos.at(id)),
                                     ctx, StagePos.at(id));
             phyStages.emplace_back(stage);
             YQL_CLOG(TRACE, CoreDq) << "Added stage " << stage->UniqueId();
@@ -80,6 +81,7 @@ TVector<TExprNode::TPtr> TPhysicalQueryBuilder::BuildPhysicalStageGraph() {
                     .Done().Ptr();
                     // clang-format on
                     stage = ctx.ReplaceNode(std::move(stage), read.Ref(), newRead);
+                    phyStages.back() = stage;
                 }
             }
         }
@@ -154,11 +156,18 @@ TExprNode::TPtr TPhysicalQueryBuilder::GetFinalStage(const TExprNode::TPtr& stag
     auto& ctx = RBOCtx.ExprCtx;
     TExprNode::TPtr finalStage;
     bool needFinalUnionStage = false;
-    // Final stage, which is input for DqCnResult, should have only one 1 task.
-    for (const auto& input : TDqPhyStage(stage).Inputs()) {
-        if (!IsSingleTaskConnection(input)) {
-            needFinalUnionStage = true;
-            break;
+
+    const auto inputs = TDqPhyStage(stage).Inputs();
+    // If no inputs - need a final stage.
+    if (inputs.Empty()) {
+        needFinalUnionStage = true;
+    } else {
+        // Final stage, which is input for DqCnResult, should have only one 1 task.
+        for (const auto& input : TDqPhyStage(stage).Inputs()) {
+            if (!IsSingleTaskConnection(input)) {
+                needFinalUnionStage = true;
+                break;
+            }
         }
     }
 
@@ -353,12 +362,15 @@ TKqpPhyQuerySettings TPhysicalQueryBuilder::GetPhysicalQuerySettings() const {
             querySettings.Type = EPhysicalQueryType::GenericQuery;
             break;
         }
+        case EKikimrQueryType::Scan: {
+            querySettings.Type = EPhysicalQueryType::Scan;
+            break;
+        }
         default: {
             // Should fallback to old pipeline.
             YQL_ENSURE(false, "Unsupported query type for NEW RBO " << kqpCtx.QueryCtx->Type);
         }
     }
-
     return querySettings;
 }
 
@@ -372,6 +384,10 @@ TKqpPhyTxSettings TPhysicalQueryBuilder::GetPhysicalTxSettings() const {
         }
         case EKikimrQueryType::Query: {
             txSettings.Type = EPhysicalTxType::Generic;
+            break;
+        }
+        case EKikimrQueryType::Scan: {
+            txSettings.Type = EPhysicalTxType::Scan;
             break;
         }
         default: {

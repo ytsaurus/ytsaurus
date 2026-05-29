@@ -2,6 +2,7 @@
 #include "upload_rows_common_impl.h"
 
 #include <contrib/ydb/core/tx/tx_proxy/proxy.h>
+#include <contrib/ydb/library/aclib/user_context.h>
 
 namespace NKikimr {
 namespace NTxProxy {

@@ -10,6 +10,7 @@ PEERDIR(
     contrib/ydb/core/formats/arrow
     contrib/ydb/core/tx/columnshard/engines/storage/indexes/portions
     contrib/ydb/core/formats/arrow/accessor/abstract
+    contrib/ydb/core/tx/columnshard/engines/storage/indexes/min_max/misc
 )
 
 END()

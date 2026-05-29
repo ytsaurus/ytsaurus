@@ -7,6 +7,8 @@
 #include <contrib/ydb/core/tx/tx_proxy/upload_rows_common_impl.h>
 #include <contrib/ydb/core/ydb_convert/ydb_convert.h>
 
+#include <contrib/ydb/library/aclib/user_context.h>
+
 #include <yql/essentials/public/udf/udf_types.h>
 #include <yql/essentials/minikql/dom/yson.h>
 #include <yql/essentials/minikql/dom/json.h>

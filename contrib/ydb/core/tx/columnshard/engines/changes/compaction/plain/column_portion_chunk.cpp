@@ -1,9 +1,10 @@
 #include "column_portion_chunk.h"
 
 #include <contrib/ydb/core/formats/arrow/accessor/plain/accessor.h>
-#include <contrib/ydb/library/formats/arrow/validation/validation.h>
 #include <contrib/ydb/core/tx/columnshard/engines/changes/counters/general.h>
 #include <contrib/ydb/core/tx/columnshard/engines/storage/chunks/column.h>
+
+#include <contrib/ydb/library/formats/arrow/validation/validation.h>
 
 namespace NKikimr::NOlap::NCompaction {
 

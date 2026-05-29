@@ -1,9 +1,9 @@
 #pragma once
 
-#include <contrib/ydb/core/tablet/tablet_counters.h>
-#include <contrib/ydb/core/protos/table_stats.pb.h>
 #include <contrib/ydb/core/protos/counters_columnshard.pb.h>
 #include <contrib/ydb/core/protos/counters_datashard.pb.h>
+#include <contrib/ydb/core/protos/table_stats.pb.h>
+#include <contrib/ydb/core/tablet/tablet_counters.h>
 #include <contrib/ydb/core/tx/columnshard/engines/column_engine.h>
 
 namespace NKikimr::NColumnShard {
@@ -14,7 +14,8 @@ private:
 
 public:
     TTabletCountersHandle(TTabletCountersBase& stats)
-        : TabletCounters(stats) {
+        : TabletCounters(stats)
+    {
     }
 
     void SetCounter(NColumnShard::ESimpleCounters counter, ui64 num) const {
@@ -126,4 +127,4 @@ public:
     }
 };
 
-}
+}   // namespace NKikimr::NColumnShard

@@ -5,6 +5,7 @@
 #include <contrib/ydb/core/ymq/actor/error.h>
 #include <contrib/ydb/core/ymq/actor/proxy_actor.h>
 #include <contrib/ydb/core/ymq/actor/serviceid.h>
+#include <contrib/ydb/public/sdk/cpp/src/client/types/core_facility/simple_core_facility.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/iam/iam.h>
 #include <contrib/ydb/library/aclib/aclib.h>
 #include <contrib/ydb/library/folder_service/events.h>
@@ -553,7 +554,8 @@ void TMultiAuthFactory::Initialize(
     }
 
     IsYandexCloudMode_ = true;
-    CredentialsProvider_ = CreateCredentialsProviderFactory(config)->CreateProvider();
+    CoreFacility_ = NYdb::CreateSimpleCoreFacility();
+    CredentialsProvider_ = CreateCredentialsProviderFactory(config)->CreateProvider(CoreFacility_);
 
     const auto& rootCAPath = appData.AuthConfig.GetPathToRootCA();
 

@@ -14,6 +14,7 @@
 #include <contrib/ydb/core/scheme/scheme_tablecell.h>
 #include <contrib/ydb/core/tablet/tablet_counters_protobuf.h>
 #include <contrib/ydb/core/tx/long_tx_service/public/events.h>
+#include <contrib/ydb/library/aclib/user_context.h>
 #include <contrib/ydb/library/actors/core/monotonic_provider.h>
 #include <contrib/ydb/library/formats/arrow/size_calcer.h>
 
@@ -896,7 +897,7 @@ ui64 TDataShard::GetNextChangeRecordLockOffset(ui64 lockId) {
     return it->second.Changes.back().LockOffset + 1;
 }
 
-void TDataShard::FillUserCtxColumns(NACLib::TUserContext::TPtr userCtx, TString& userSID, TString& userTraceId) {
+void TDataShard::FillUserCtxColumns(TIntrusivePtr<NACLib::TUserContext> userCtx, TString& userSID, TString& userTraceId) {
     if (userCtx != nullptr) {
         userSID = userCtx->GetUserSID();
         if (userCtx->GetUserTraceId()) {

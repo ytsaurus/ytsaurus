@@ -34,9 +34,11 @@ namespace {
     TDDiskActor::TDDiskActor(TVDiskConfig::TBaseInfo&& baseInfo, TIntrusivePtr<TBlobStorageGroupInfo> info,
             TPersistentBufferFormat&& pbFormat, TDDiskConfig&& ddiskConfig,
             TIntrusivePtr<NMonitoring::TDynamicCounters> counters, const std::vector<ui32>& initPersistentBufferChunks,
-            TIntrusivePtr<TPDiskParams> pDiskParams, NPDisk::TDiskFormatPtr diskFormat, TFileHandle&& diskFd)
+            ui64 persistentBufferUniqueId, TIntrusivePtr<TPDiskParams> pDiskParams, NPDisk::TDiskFormatPtr diskFormat,
+            TFileHandle&& diskFd)
         : TDDiskActor(std::move(baseInfo), std::move(info), std::move(pbFormat), std::move(ddiskConfig), counters, true)
     {
+        PersistentBufferUniqueId = persistentBufferUniqueId;
         PDiskParams = pDiskParams;
         DiskFormat = std::move(diskFormat);
         DiskFd = std::move(diskFd);
@@ -59,7 +61,8 @@ namespace {
         : BaseInfo(std::move(baseInfo))
         , Config(std::move(ddiskConfig))
         , Info(std::move(info))
-        , CountersBase(GetServiceCounters(counters, "ddisks"))
+        , CountersParent(std::move(counters))
+        , CountersBase(GetServiceCounters(CountersParent, "ddisks"))
         , IsPersistentBufferActor(isPersistentBufferActor)
         , PersistentBufferFormat(std::move(pbFormat))
     {
@@ -184,6 +187,7 @@ namespace {
             StartRestorePersistentBuffer();
         } else {
             Become(&TThis::StateFuncDDisk);
+            RegisterMonPage();
             InitPDiskInterface();
         }
     }
@@ -265,6 +269,8 @@ namespace {
 
             IgnoreFunc(NNodeWhiteboard::TEvWhiteboard::TEvVDiskStateUpdate)
 
+            hFunc(NMon::TEvHttpInfo, Handle)
+
             hFunc(TEvents::TEvWakeup, HandleWakeup);
             cFunc(TEvents::TSystem::Poison, PassAway)
         )
@@ -308,6 +314,43 @@ namespace {
                 break;
             }
         )
+    }
+
+    STFUNC(TDDiskActor::StateFuncTerminate) {
+        // Mirrors VDisk's PDISK_TERMINATE_STATE_FUNC_DEF: ignore everything except poison.
+        // Reaching this state means PDisk's session for our owner is gone (INVALID_ROUND etc).
+        // The owning environment (warden in production, test scaffolding in tests) is expected
+        // to send TEvPoison and start a replacement DDisk actor with a fresh OwnerRound.
+        switch (ev->GetTypeRewrite()) {
+            cFunc(TEvents::TSystem::Poison, PassAway)
+            default:
+                break;
+        }
+    }
+
+    bool TDDiskActor::CheckPDiskReply(NKikimrProto::EReplyStatus status,
+            const TString& errorReason, TStringBuf source) {
+        switch (status) {
+        case NKikimrProto::OK:
+            return true;
+        case NKikimrProto::ERROR:
+        case NKikimrProto::INVALID_OWNER:
+        case NKikimrProto::INVALID_ROUND:
+        case NKikimrProto::CORRUPTED:
+        case NKikimrProto::OUT_OF_SPACE:
+            STLOG(PRI_NOTICE, BS_DDISK, BSDD44,
+                "TDDiskActor: PDisk session lost, switching to terminate state",
+                (DDiskId, DDiskId),
+                (Source, source),
+                (Status, NKikimrProto::EReplyStatus_Name(status)),
+                (ErrorReason, errorReason));
+            Become(&TThis::StateFuncTerminate);
+            return false;
+        default:
+            Y_ABORT("Unexpected PDisk status %s in %.*s: %s",
+                NKikimrProto::EReplyStatus_Name(status).c_str(),
+                static_cast<int>(source.size()), source.data(), errorReason.c_str());
+        }
     }
 
     void TDDiskActor::PassAway() {

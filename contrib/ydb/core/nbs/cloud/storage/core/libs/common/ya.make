@@ -7,7 +7,9 @@ SRCS(
     block_buffer.cpp
     block_data_ref.cpp
     context.cpp
+    error_utils.cpp
     error.cpp
+    format.cpp
     guarded_sglist.cpp
     helpers.cpp
     page_size.cpp
@@ -18,12 +20,13 @@ SRCS(
     sglist.cpp
     startable.cpp
     thread.cpp
-    timer.cpp
     timer_test.cpp
+    timer.cpp
 )
 
 PEERDIR(
     contrib/ydb/core/nbs/cloud/storage/core/protos
+    contrib/ydb/core/protos
 
     contrib/ydb/library/actors/prof
 

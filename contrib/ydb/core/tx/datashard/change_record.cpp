@@ -4,6 +4,8 @@
 #include <contrib/ydb/core/protos/change_exchange.pb.h>
 #include <contrib/ydb/core/protos/tx_datashard.pb.h>
 
+#include <contrib/ydb/library/aclib/user_context.h>
+
 namespace NKikimr::NDataShard {
 
 static void ParseBody(google::protobuf::Message& proto, const TString& body) {

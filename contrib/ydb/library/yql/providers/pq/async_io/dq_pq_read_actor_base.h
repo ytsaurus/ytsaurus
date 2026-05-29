@@ -1,7 +1,7 @@
 #pragma once
 
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_async_io.h>
-#include <contrib/ydb/library/yql/dq/actors/compute/dq_source_watermark_tracker.h>
+#include <contrib/ydb/library/yql/dq/runtime/streaming/dq_source_watermark_tracker.h>
 #include <contrib/ydb/library/yql/providers/pq/common/pq_partition_key.h>
 #include <contrib/ydb/library/yql/providers/pq/proto/dq_io.pb.h>
 #include <contrib/ydb/library/yql/providers/pq/proto/dq_task_params.pb.h>

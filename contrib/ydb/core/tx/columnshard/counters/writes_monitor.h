@@ -2,8 +2,9 @@
 
 #include <contrib/ydb/core/protos/counters_columnshard.pb.h>
 #include <contrib/ydb/core/tablet/tablet_counters.h>
-#include <contrib/ydb/library/accessor/accessor.h>
 #include <contrib/ydb/core/tx/columnshard/overload_manager/overload_manager_service.h>
+
+#include <contrib/ydb/library/accessor/accessor.h>
 
 namespace NKikimr::NColumnShard {
 
@@ -16,7 +17,8 @@ private:
 
 public:
     TWritesMonitor(TTabletCountersBase& stats)
-        : Stats(stats) {
+        : Stats(stats)
+    {
     }
 
     ~TWritesMonitor() {
@@ -35,4 +37,4 @@ private:
     }
 };
 
-}
+}   // namespace NKikimr::NColumnShard

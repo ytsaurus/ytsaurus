@@ -92,7 +92,8 @@ PEERDIR(
     contrib/ydb/core/protos
     contrib/ydb/core/public_http
     contrib/ydb/core/quoter
-    contrib/ydb/core/retro_tracing_impl
+    contrib/ydb/core/retro_tracing_impl/distributed_collector
+    contrib/ydb/core/retro_tracing_impl/spans
     contrib/ydb/core/scheme
     contrib/ydb/core/scheme_types
     contrib/ydb/core/security

@@ -1,8 +1,8 @@
 #pragma once
 #include <contrib/ydb/core/tx/columnshard/engines/scheme/indexes/abstract/constructor.h>
+#include <contrib/ydb/core/tx/columnshard/engines/storage/indexes/helper/index_defaults.h>
 #include <contrib/ydb/core/tx/columnshard/engines/storage/indexes/portions/extractor/abstract.h>
 #include <contrib/ydb/core/tx/columnshard/engines/storage/indexes/skip_index/constructor.h>
-#include <contrib/ydb/core/tx/columnshard/engines/storage/indexes/helper/index_defaults.h>
 
 namespace NKikimr::NOlap::NIndexes::NCategoriesBloom {
 
