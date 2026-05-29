@@ -309,14 +309,16 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ConsistentReplicaPlacementHash_);
 
     if (auto miscExt = ChunkMeta_->FindExtension<TMiscExt>()) {
-        YT_VERIFY(IsConfirmed());
+        // NB: For hunk chunks can still be not confirmed because we create meta when the chunk is referenced via hunk refs.
 
         // COMPAT(akozhikhov)
-        if (context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul &&
-            IsHunkChunkFormat(GetChunkFormat()))
-        {
-            miscExt->set_data_weight(0);
-            miscExt->set_uncompressed_data_size(0);
+        if (context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul) {
+            YT_VERIFY(IsConfirmed());
+
+            if (IsHunkChunkFormat(GetChunkFormat())) {
+                miscExt->set_data_weight(0);
+                miscExt->set_uncompressed_data_size(0);
+            }
         }
 
         OnMiscExtUpdated(*miscExt);
