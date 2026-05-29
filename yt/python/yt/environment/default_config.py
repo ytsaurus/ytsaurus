@@ -110,6 +110,9 @@ def get_dynamic_master_config():
                 "max_unsuccessful_global_sequoia_chunk_refresh_iterations": 1000,
                 "enable_location_refresh": True,
                 "location_refresh_period": 100,
+                "batch_incremental_heartbeat": True,
+                "batch_incremental_heartbeat_period": 300,
+                "max_requests_in_incremental_heartbeat_batch": 5,
             }
         },
 

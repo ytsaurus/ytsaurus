@@ -29,6 +29,7 @@ message TReqModifyReplicas
     repeated NChunkClient.NProto.TChunkAddInfo added_chunks = 2;
     repeated NChunkClient.NProto.TChunkRemoveInfo removed_chunks = 3;
 
+    // TODO(grphil): Remove in 26.1
     repeated NYT.NProto.TGuid dead_chunk_ids = 5;
 
     required bool caused_by_node_disposal = 6 [default = false];
@@ -41,6 +42,13 @@ message TReqModifyReplicas
 message TRspModifyReplicas
 {
     optional TChunkReplicaAnnouncements replica_announcements = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqModifyReplicasBatch
+{
+    repeated TReqModifyReplicas requests = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
