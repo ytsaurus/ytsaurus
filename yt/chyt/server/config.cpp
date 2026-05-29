@@ -752,7 +752,7 @@ void TMemoryConfig::Register(TRegistrar registrar)
     registrar.Parameter("reader", &TThis::Reader)
         .Default();
     registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
-        .Default();
+        .Default(64_MB);
     registrar.Parameter("uncompressed_block_cache", &TThis::UncompressedBlockCache)
         .Default();
     registrar.Parameter("compressed_block_cache", &TThis::CompressedBlockCache)
