@@ -9,6 +9,7 @@ from yt_dashboards.cypress_proxies import build_cypress_proxies
 from yt_dashboards.artemis import (
     build_local_artemis, build_bundle_artemis, build_global_artemis, build_local_artemis_container)
 from yt_dashboards.scheduler_internal import build_scheduler_internal
+from yt_dashboards.scheduler_gpu import build_scheduler_gpu
 from yt_dashboards.scheduler_pool import build_scheduler_pool
 from yt_dashboards.scheduler_operation import build_scheduler_operation
 from yt_dashboards.jobs_monitor import build_jobs_monitor
@@ -69,6 +70,15 @@ dashboards = {
     },
     "scheduler-internal": {
         "func": build_scheduler_internal,
+        "monitoring": {
+            "args": [True, "monitoring"],
+        },
+        "grafana": {
+            "args": [False, "grafana"],
+        },
+    },
+    "scheduler-gpu": {
+        "func": build_scheduler_gpu,
         "monitoring": {
             "args": [True, "monitoring"],
         },
