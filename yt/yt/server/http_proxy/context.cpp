@@ -1147,7 +1147,7 @@ void TContext::DispatchUnauthorized(const TString& scope, const TString& message
 void TContext::DispatchUnavailable(const TError& error)
 {
     Response_->SetStatus(EStatusCode::ServiceUnavailable);
-    // This header is header is probably useless, but we keep it for compatibility.
+    // This header is probably useless, but we keep it for compatibility.
     Response_->GetHeaders()->Set("Retry-After", "60");
     ReplyError(error);
 }

@@ -1881,7 +1881,7 @@ struct TSimpleOperationSpecBase
     //! smaller or significantly larger in some cases.
     std::optional<i64> DataWeightPerJob;
 
-    //! Recomendation for job input compressed data size.
+    //! Recommendation for job input compressed data size.
     std::optional<i64> CompressedDataSizePerJob;
 
     std::optional<int> JobCount;
