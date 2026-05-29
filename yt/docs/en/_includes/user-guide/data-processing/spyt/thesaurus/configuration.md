@@ -2,7 +2,6 @@
 
 This section contains a list of configuration parameters that can be passed when launching Spark tasks. This is done by specifying additional parameters via the `--conf` option of basic Spark commands, such as `spark-submit` and `spark-shell`, as well as {{product-name}} wrappers for them, such as `spark-submit-yt` and `spark-shell-yt`.
 
-
 ## Basic options { #main }
 
 Most of the options are available starting with version 1.23.0, unless otherwise specified.
@@ -30,16 +29,17 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.yt.read.ytPartitioning.enabled` | `true` | Use table partitioning by {{product-name}}. | 1.72.0 |
 | `spark.yt.read.ytPartitioning.compressedSize.enabled` | `false` | Enable data partitioning when reading by the compressed size of the table. | 2.9.1 |
 | `spark.yt.read.planOptimization.enabled` | `false` | Optimize aggregations and joins on sorted input data. |
+| `spark.yt.read.countOptimization.enabled` | `true` | Use metadata for count() operations. |
 | `spark.yt.read.keyPartitioningSortedTables.enabled` | `true` | Use sorted table partitioning by key, required to optimize plans. |
 | `spark.yt.read.keyPartitioningSortedTables.unionLimit` | `1` | Maximum number of partition joins when switching from reading by index to reading by key. |
 | `spark.yt.read.transactional` | `true` | Use snapshot lock for reading if transaction is not specified. It is recommended to turn this option off when reading immutable data to improve reading performance. | 2.6.0 |
+| `spark.yt.read.listParentDirectories` | `true` | Batch read of attributes from parent directories when reading by a list of tables. Helps when reading a large number of tables from a single parent directory. | 2.7.5 |
 | `spark.yt.read.ytDistributedReading.enabled` | `false` | Use distributed API for reading data from {{product-name}}. This method reduces the number of requests to the {{product-name}} master when reading data, but is not yet compatible with the `spark.yt.read.planOptimization.enabled` option. | 2.8.0 |
 | `spark.yt.write.distributed.enabled` | `false` | Use distributed API for writing data to {{product-name}}. This method reduces the number of requests to the {{product-name}} master when writing data, but is only applicable to working with static tables. | 2.8.0 |
 | `spark.yt.read.ytOmitInaccessibleRows.enabled` | `true` | Skip inaccessible rows instead of throwing an error. | 2.9.0 |
 | `spark.yt.read.ytOmitInaccessibleColumns.enabled` | `true` | Skip inaccessible columns instead of throwing an error. | 2.9.0 |
 
 ## Options for launching tasks directly { #direct-submit }
-
 
 | **Parameter** | **Default value** | **Description** | **Starting with version** |
 | ------------ | ------------------------- | ------------ | ------------------ |
@@ -78,9 +78,7 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.ytsaurus.shuffle.enabled` | false | Use the [{{product-name}} Shuffle service](../../../../../user-guide/data-processing/spyt/shuffle.md). | 2.7.2 |
 | `spark.ytsaurus.executor.state.poll.interval` | 20s | The period for checking the state of the operation with executors. If the operation is in a final status, the driver will be stopped. | 2.8.0 |
 
-
 ## Configuration options for the {{product-name}} Shuffle service { #shuffle }
-
 | **Parameter** | **Default value** | **Description** | **Starting with version** |
 | ------------ | ------------------------- | ------------ | ------------------ |
 | `spark.ytsaurus.shuffle.transaction.timeout` | 5m | Timeout for the transaction processing shuffle chunk writes. In regular operation mode, the transaction is periodically pinged by the driver, and the timeout sets the time between the last ping and transaction rollback with chunk deletion. | 2.7.0 |
@@ -95,7 +93,5 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 
 ## Options for running tasks in an internal cluster { #spark-submit-yt-conf }
 
-
 To run tasks in an internal cluster, use the `spark-submit-yt` wrapper. Its parameters match those of the `spark-submit` command from the Spark distribution, with the following exception:
-
 - Instead of `--master`, you should use the parameters `--proxy` and `--discovery-path`. They determine which {{product-name}} cluster will be used to run computations and which internal Spark cluster on that {{product-name}} cluster the task will be sent to, respectively.
