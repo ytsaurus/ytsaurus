@@ -314,7 +314,7 @@ private:
                 protoSubject->set_name(ToProto(subject->GetName()));
                 ToProto(protoSubject->mutable_aliases(), subject->Aliases());
                 for (auto group : subject->RecursiveMemberOf()) {
-                    ToProto(protoSubject->add_recursve_memeber_of(), group->GetName());
+                    ToProto(protoSubject->add_recursive_member_of(), group->GetName());
                 }
             };
 

@@ -132,7 +132,7 @@ class YtClient(ClientState):
 
         Caution: if you use this class then do not use directly methods \\*_transaction.
 
-        :param bool acquire: commit/abort transaction in exit from with. By default False if new transaction is not started else True and false values are not allowed.
+        :param bool acquire: commit/abort transaction on exit from with. By default False if new transaction is not started, else True; false values are not allowed in the latter case.
         :param bool ping: ping transaction in separate thread. By default True if acquire is also True else False.
 
         .. seealso:: `transactions in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/transactions>`_

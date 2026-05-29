@@ -9,7 +9,7 @@ message TSubjectDescriptor
     required NYT.NProto.TGuid subject_id = 1;
     required string name = 2;
     repeated string aliases = 3;
-    repeated string recursve_memeber_of = 4;
+    repeated string recursive_member_of = 4;
 }
 
 message TUserDescriptor

@@ -20,7 +20,7 @@ void FromProto(TSubjectDescriptor* subjectDescriptor, const NObjectClient::NProt
     FromProto(&subjectDescriptor->SubjectId, proto.subject_id());
     subjectDescriptor->Name = proto.name();
     subjectDescriptor->Aliases = FromProto<THashSet<std::string>>(proto.aliases());
-    subjectDescriptor->RecursiveMemberOf = FromProto<THashSet<std::string>>(proto.recursve_memeber_of());
+    subjectDescriptor->RecursiveMemberOf = FromProto<THashSet<std::string>>(proto.recursive_member_of());
 }
 
 void FromProto(TUserDescriptor* userDescriptor, const NObjectClient::NProto::TUserDescriptor& proto)
