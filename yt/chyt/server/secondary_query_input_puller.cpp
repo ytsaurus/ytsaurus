@@ -25,7 +25,7 @@ TSecondaryQueryReadTaskPuller::TSecondaryQueryReadTaskPuller(
     DB::ReadTaskCallback nextTaskCallback)
     : NextTaskCallback_(std::move(nextTaskCallback))
     , QueryContext_(queryContext)
-    , Invoker_(QueryContext_->Host->GetClickHouseFetcherInvoker())
+    , Invoker_(QueryContext_->Host->GetClickHouseTaskPullerInvoker())
 { }
 
 void TSecondaryQueryReadTaskPuller::RegisterOperand(int operandIndex, std::vector<TSecondaryQueryReadDescriptors>&& initialTasks)

@@ -89,6 +89,9 @@ public:
     //! Cf. clickhouse_invoker.h
     const IInvokerPtr& GetClickHouseFetcherInvoker() const;
 
+    //! Separate thread pool for secondary query read task pulling.
+    const IInvokerPtr& GetClickHouseTaskPullerInvoker() const;
+
     NApi::NNative::IClientPtr GetRootClient() const;
     NApi::NNative::IClientPtr CreateClient(const TString& user) const;
 
