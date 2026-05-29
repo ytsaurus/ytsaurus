@@ -290,7 +290,8 @@ TFuture<void> TSlotManager::InitializeEnvironment()
                 Format("slot%v", locationIndex),
                 jobEnvironment->CreateJobDirectoryManager(locationConfig->Path, locationIndex),
                 SlotCount_,
-                BIND_NO_PROPAGATE(&IJobEnvironment::GetUserId, jobEnvironment));
+                BIND_NO_PROPAGATE(&IJobEnvironment::GetUserId, jobEnvironment),
+                VolumeManager_.Acquire());
 
             auto guard = WriterGuard(LocationsLock_);
             Locations_.push_back(std::move(newLocation));
