@@ -1675,11 +1675,8 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
         jobSummary->FinishTime = now;
 
         UpdateJobletFromSummary(*jobSummary, joblet);
-        LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
-            .Item("reason").Value(abortReason)
-            .DoIf(jobSummary->Error.has_value(), [&] (TFluentMap fluent) {
-                fluent.Item("error").Value(jobSummary->Error);
-            });
+        LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
+            .Item("reason").Value(abortReason);
         UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
 
         GetJobProfiler()->ProfileAbortedJob(*joblet, *jobSummary);
@@ -3436,7 +3433,7 @@ bool TOperationControllerBase::OnJobCompleted(
         UpdateActualHistogram(*jobSummary);
 
         if (joblet->ShouldLogFinishedEvent()) {
-            LogFinishedJobFluently(ELogEventType::JobCompleted, joblet);
+            LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
         }
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
@@ -3568,8 +3565,7 @@ bool TOperationControllerBase::OnJobFailed(
 
         UpdateJobletFromSummary(*jobSummary, joblet);
 
-        LogFinishedJobFluently(ELogEventType::JobFailed, joblet)
-            .Item("error").Value(error);
+        LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary);
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
         UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
@@ -3717,11 +3713,8 @@ bool TOperationControllerBase::OnJobAborted(
 
         if (wasScheduled) {
             if (joblet->ShouldLogFinishedEvent()) {
-                LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
+                LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
                     .Item("reason").Value(abortReason)
-                    .DoIf(error.has_value(), [&] (TFluentMap fluent) {
-                        fluent.Item("error").Value(error);
-                    })
                     .DoIf(jobSummary->PreemptedFor.has_value(), [&] (TFluentMap fluent) {
                         fluent.Item("preempted_for").Value(jobSummary->PreemptedFor);
                     });
@@ -4153,7 +4146,8 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
     ELogEventType eventType,
-    const TJobletPtr& joblet)
+    const TJobletPtr& joblet,
+    const TJobSummary& jobSummary)
 {
     auto statistics = joblet->BuildCombinedStatistics();
     // Table rows cannot have top-level attributes, so we drop statistics timestamp here.
@@ -4184,6 +4178,13 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         })
         .Do([&] (TFluentMap fluent) {
             EnrichJobInfo(fluent, joblet);
+        })
+        .OptionalItem("error", jobSummary.Error)
+        .DoIf(jobSummary.Result && jobSummary.GetJobResult().HasExtension(TJobResultExt::job_result_ext), [&] (TFluentMap fluent) {
+            const auto& jobResultExt = jobSummary.GetJobResultExt();
+            if (jobResultExt.core_infos_size() > 0) {
+                fluent.Item("core_infos").Value(jobResultExt.core_infos());
+            }
         });
 }
 
