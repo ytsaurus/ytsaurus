@@ -212,6 +212,7 @@ DEFINE_ENUM(EMasterReign,
     ((PersistLastCellAggregatedStateReliability_25_4)               (3161))  // aleksandra-zh
     ((FixEffectiveAclForScion_25_4)                                 (3162))  // danilalexeev
     ((FixPerCellLimitsReplicationOnSecondary_25_4)                  (3163))  // cherepashka
+    ((InferrumUdfs_25_4)                                            (3164))  // babenko
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
