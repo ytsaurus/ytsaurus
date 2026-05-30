@@ -426,12 +426,10 @@ func (c *Config) GetIPVersion() IPVersion {
 	if c.IPVersion != IPVersionAny {
 		return c.IPVersion
 	}
-	forceV4 := parseEnvBool("YT_FORCE_IPV4")
-	forceV6 := parseEnvBool("YT_FORCE_IPV6")
-	if forceV4 {
+	if parseEnvBool("YT_FORCE_IPV4") {
 		return IPVersionV4
 	}
-	if forceV6 {
+	if parseEnvBool("YT_FORCE_IPV6") {
 		return IPVersionV6
 	}
 	return c.IPVersion
