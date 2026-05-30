@@ -1402,6 +1402,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
     THashSet<std::string> currentBundles;
     std::vector<std::string> newBundles;
     for (const auto& bundle : bundleList->GetChildren()) {
+        // TODO(babenko): migrate to std::string
         auto name = TString(bundle->AsString()->GetValue());
 
         if (DryRunConfig_->IsDryRun && DryRunConfig_->Bundle != name) {
