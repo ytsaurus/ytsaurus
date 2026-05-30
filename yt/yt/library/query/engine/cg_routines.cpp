@@ -12,6 +12,8 @@
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/private.h>
 
+#include <yt/yt/library/query/engine/cg_routines/inferrum.h>
+
 #include <yt/yt/library/query/engine/time/dates.h>
 
 #include <yt/yt/library/query/engine_api/position_independent_value.h>
@@ -4669,6 +4671,8 @@ REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
 REGISTER_ROUTINE(HyperLogLogGetFingerprint);
 REGISTER_ROUTINE(StoredReplicaSetMerge);
 REGISTER_ROUTINE(StoredReplicaSetFinalize);
+REGISTER_ROUTINE(InferrumKVCacheReplicaSetMerge);
+REGISTER_ROUTINE(InferrumKVCacheReplicaSetFinalize);
 REGISTER_ROUTINE(LastSeenReplicaSetMerge);
 REGISTER_ROUTINE(HasPermissions);
 REGISTER_ROUTINE(YsonLength);

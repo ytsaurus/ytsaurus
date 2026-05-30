@@ -11,6 +11,7 @@ SRCS(
     cg_helpers.cpp
     cg_ir_builder.cpp
     cg_routines.cpp
+    cg_routines/inferrum.cpp
     GLOBAL column_evaluator.cpp
     GLOBAL expression_evaluator.cpp
     GLOBAL coordinator.cpp
@@ -181,6 +182,16 @@ LLVM_BC(
         _yt_stored_replica_set_update
         _yt_stored_replica_set_merge
         _yt_stored_replica_set_finalize
+)
+
+LLVM_BC(
+    udf/inferrum_kv_cache_replica_set.cpp
+    NAME inferrum_kv_cache_replica_set
+    SYMBOLS
+        _inferrum_kv_cache_replica_set_init
+        _inferrum_kv_cache_replica_set_update
+        _inferrum_kv_cache_replica_set_merge
+        _inferrum_kv_cache_replica_set_finalize
 )
 
 LLVM_BC(
@@ -464,3 +475,7 @@ LLVM_BC(
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    cg_routines/unittests
+)

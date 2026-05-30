@@ -525,6 +525,15 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::UnversionedValue);
 
     builder->RegisterAggregate(
+        "_inferrum_kv_cache_replica_set",
+        {},
+        {EValueType::Any},
+        EValueType::Any,
+        EValueType::Any,
+        "inferrum_kv_cache_replica_set",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
         "_yt_last_seen_replica_set",
         {},
         {EValueType::Any},
