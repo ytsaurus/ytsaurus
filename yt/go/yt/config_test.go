@@ -203,12 +203,28 @@ func TestGetIPVersion(t *testing.T) {
 		wantNet   string
 	}{
 		{
-			name:      "env ipv6 overrides config ipv4",
+			name:      "config ipv4 ignores env ipv6",
 			ipVersion: IPVersionV4,
 			envIPv4:   "",
 			envIPv6:   "true",
+			want:      IPVersionV4,
+			wantNet:   "tcp4",
+		},
+		{
+			name:      "config ipv6 ignores env ipv4",
+			ipVersion: IPVersionV6,
+			envIPv4:   "true",
+			envIPv6:   "",
 			want:      IPVersionV6,
 			wantNet:   "tcp6",
+		},
+		{
+			name:      "config ipv4 ignores both env",
+			ipVersion: IPVersionV4,
+			envIPv4:   "true",
+			envIPv6:   "true",
+			want:      IPVersionV4,
+			wantNet:   "tcp4",
 		},
 		{
 			name:      "env force ipv4",

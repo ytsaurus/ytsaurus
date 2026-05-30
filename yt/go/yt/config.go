@@ -196,7 +196,7 @@ type Config struct {
 	//     only when HTTPClient is unset; a user-provided HTTPClient is responsible
 	//     for configuring its own transport.
 	//
-	// Config value can be overridden by YT_FORCE_IPV4 and YT_FORCE_IPV6 environment variables.
+	// YT_FORCE_IPV4 and YT_FORCE_IPV6 environment variables can be used, but non Any config value takes priority.
 	IPVersion IPVersion
 
 	// HTTPClient allows to override default http.Client.
@@ -423,15 +423,15 @@ func parseEnvBool(name string) bool {
 }
 
 func (c *Config) GetIPVersion() IPVersion {
-	force4 := parseEnvBool("YT_FORCE_IPV4")
-	force6 := parseEnvBool("YT_FORCE_IPV6")
-	if force4 && force6 {
+	if c.IPVersion != IPVersionAny {
+		return c.IPVersion
+	}
+	forceV4 := parseEnvBool("YT_FORCE_IPV4")
+	forceV6 := parseEnvBool("YT_FORCE_IPV6")
+	if forceV4 {
 		return IPVersionV4
 	}
-	if force4 {
-		return IPVersionV4
-	}
-	if force6 {
+	if forceV6 {
 		return IPVersionV6
 	}
 	return c.IPVersion
