@@ -9,6 +9,10 @@
 #include <util/generic/algorithm.h>
 #include <util/string/builder.h>
 
+#include <atomic>
+#include <thread>
+#include <vector>
+
 using namespace NYT;
 using namespace NYT::NTesting;
 
@@ -368,6 +372,55 @@ TEST(TabletClient, TestAggregateInsert)
     {
         auto result = client->LookupRows(tablePath, {TNode()("key", "one")});
         EXPECT_EQ(result, std::vector<TNode>{TNode()("key", "one")("value", 5)});
+    }
+
+    client->UnmountTable(tablePath);
+    WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
+}
+
+TEST(TabletClient, TestSharedWriteLockType)
+{
+    SKIP_IF_RPC();
+
+    TTabletFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    const TString tablePath = workingDir + "/test-shared-write-lock-type";
+    CreateTestAggregatingTable(client, tablePath);
+    client->MountTable(tablePath);
+    WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
+
+    constexpr int ThreadCount = 8;
+    constexpr int InsertsPerThread = 50;
+
+    std::atomic<int> errorCount{0};
+    std::vector<std::thread> threads;
+    threads.reserve(ThreadCount);
+    for (int t = 0; t < ThreadCount; ++t) {
+        threads.emplace_back([&] {
+            for (int i = 0; i < InsertsPerThread; ++i) {
+                try {
+                    client->InsertRows(
+                        tablePath,
+                        {TNode()("key", "shared")("value", 1)},
+                        TInsertRowsOptions()
+                            .Aggregate(true)
+                            .LockType(ELockType::SharedWrite));
+                } catch (const TErrorResponse&) {
+                    errorCount.fetch_add(1);
+                }
+            }
+        });
+    }
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    EXPECT_EQ(errorCount.load(), 0);
+    {
+        auto result = client->LookupRows(tablePath, {TNode()("key", "shared")});
+        EXPECT_EQ(result, std::vector<TNode>{
+            TNode()("key", "shared")("value", ThreadCount * InsertsPerThread)});
     }
 
     client->UnmountTable(tablePath);
