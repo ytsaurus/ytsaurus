@@ -9,7 +9,7 @@ using namespace NYTree;
 void TChaosResidencyCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("use_has_chaos_object", &TThis::UseHasChaosObject)
-        .Default(false);
+        .Default(true);
 }
 
 void TChaosResidencyCacheConfig::ApplyDynamicInplace(const TChaosResidencyCacheDynamicConfigPtr& dynamicConfig)
