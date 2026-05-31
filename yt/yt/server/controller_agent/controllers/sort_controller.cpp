@@ -3337,7 +3337,7 @@ private:
         if ((table->Dynamic || table->TableUploadOptions.UpdateMode == EUpdateMode::Append) &&
             table->TableUploadOptions.TableSchema->GetSortColumns() != Spec_->SortBy)
         {
-            THROW_ERROR_EXCEPTION("sort_by is different from output table key columns")
+            THROW_ERROR_EXCEPTION("\"sort_by\" is different from output table key columns")
                 << TErrorAttribute("output_table_path", Spec_->OutputTablePath)
                 << TErrorAttribute("output_table_sort_columns", table->TableUploadOptions.TableSchema->GetSortColumns())
                 << TErrorAttribute("sort_by", Spec_->SortBy);

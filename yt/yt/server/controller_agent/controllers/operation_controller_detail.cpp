@@ -11189,8 +11189,8 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
                     } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION(
                             NTableClient::EErrorCode::IncompatibleSchemas,
-                            "Cannot infer output schema from input in strong schema mode, "
-                            "tables have incompatible schemas")
+                            "Cannot infer output schema from input in strong schema mode "
+                            "since tables have incompatible schemas")
                             << ex;
                     }
                     canonizedResultSchema = resultSchema
@@ -11199,8 +11199,8 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
                 } else {
                     THROW_ERROR_EXCEPTION(
                         NTableClient::EErrorCode::IncompatibleSchemas,
-                        "Cannot infer output schema from input in strong schema mode, "
-                        "because the option enable_merge_schemas_during_schema_infer is disabled")
+                        "Cannot infer output schema from input in strong schema mode since "
+                        "\"enable_merge_schemas_during_schema_infer\" is %%false")
                         << TErrorAttribute("lhs_schema", InputManager_->GetInputTables()[0]->Schema)
                         << TErrorAttribute("rhs_schema", table->Schema);
                 }
@@ -11727,7 +11727,7 @@ void TOperationControllerBase::RegisterOutputTables(const std::vector<TRichYPath
         auto rowCountLimit = table->Path.GetRowCountLimit();
         if (rowCountLimit) {
             if (RowCountLimitTableIndex_) {
-                THROW_ERROR_EXCEPTION("Only one output table with row_count_limit is supported");
+                THROW_ERROR_EXCEPTION("Only one output table with \"row_count_limit\" is supported");
             }
             RowCountLimitTableIndex_ = table->TableIndex;
             RowCountLimit_ = *rowCountLimit;

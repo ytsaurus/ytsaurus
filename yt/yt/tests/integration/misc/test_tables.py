@@ -396,7 +396,7 @@ class TestTables(YTEnvSetup):
         wait_until_unlocked("//tmp/table")
 
         # check duplicate ids
-        with raises_yt_error("Duplicate .* column"):
+        with raises_yt_error("Duplicate column .*"):
             write_table("//tmp/table", b"{a=version1; a=version2}", is_raw=True)
         wait_until_unlocked("//tmp/table")
 

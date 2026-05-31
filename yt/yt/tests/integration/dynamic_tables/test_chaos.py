@@ -153,13 +153,13 @@ class TestChaos(ChaosTestBase):
         cell_id_parts[0], cell_id_parts[1] = cell_id_parts[1], cell_id_parts[0]
         another_cell_id = "-".join(cell_id_parts)
 
-        with raises_yt_error("Cell with tag .* already exists|Malformed chaos cell id"):
+        with raises_yt_error("Cell with tag .* already exists|Malformed chaos cell id .*"):
             sync_create_chaos_cell("c", another_cell_id, self.get_cluster_names())
 
     @authors("babenko")
     def test_create_chaos_cell_with_malformed_id(self):
         self._create_chaos_cell_bundle()
-        with raises_yt_error("Malformed chaos cell id"):
+        with raises_yt_error("Malformed chaos cell id .*"):
             sync_create_chaos_cell("c", "abcdabcd-fedcfedc-4204b1-12345678", self.get_cluster_names())
 
     @authors("savrus")

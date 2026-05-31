@@ -2191,7 +2191,7 @@ class TestGangOperations(YTEnvSetup):
 
     @authors("faucct", "pogorelov")
     def test_gang_operation_with_collective_options(self):
-        with pytest.raises(YtError, match='Operation with "collective_options" can not have tasks with "gang_options"'):
+        with pytest.raises(YtError, match='Operation with "collective_options" cannot have tasks with "gang_options"'):
             vanilla(
                 track=False,
                 spec={
@@ -2208,7 +2208,7 @@ class TestGangOperations(YTEnvSetup):
 
     @authors("pogorelov")
     def test_gang_operation_with_fail_on_job_restart(self):
-        with raises_yt_error("\"fail_on_job_restart\" enabled can not have tasks with \"gang_options\""):
+        with raises_yt_error("\"fail_on_job_restart\" enabled cannot have tasks with \"gang_options\""):
             vanilla(
                 track=False,
                 spec={
@@ -2223,7 +2223,7 @@ class TestGangOperations(YTEnvSetup):
                 },
             )
 
-        with raises_yt_error("Operation can not have both task with \"gang_options\" and task with \"fail_on_job_restart\""):
+        with raises_yt_error("Operation cannot have both task with \"gang_options\" and task with \"fail_on_job_restart\""):
             vanilla(
                 track=False,
                 spec={
@@ -2238,7 +2238,7 @@ class TestGangOperations(YTEnvSetup):
                 },
             )
 
-        with raises_yt_error("Operation can not have both task with \"gang_options\" and task with \"fail_on_job_restart\""):
+        with raises_yt_error("Operation cannot have both task with \"gang_options\" and task with \"fail_on_job_restart\""):
             vanilla(
                 track=False,
                 spec={

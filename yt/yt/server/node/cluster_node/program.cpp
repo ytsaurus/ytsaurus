@@ -171,7 +171,7 @@ private:
         }
 
         if (IsDumpSnapshotMode() && IsReplayChangelogsMode()) {
-            THROW_ERROR_EXCEPTION("Option 'replay-changelogs' can not be used with 'dump-snapshot'");
+            THROW_ERROR_EXCEPTION("Option 'replay-changelogs' cannot be used with 'dump-snapshot'");
         }
 
         if (IsBuildSnapshotMode() && !IsReplayChangelogsMode() && !IsValidateSnapshotMode()) {

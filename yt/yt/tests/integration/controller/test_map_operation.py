@@ -937,7 +937,7 @@ print(row + table_index)
         create("table", "//tmp/input")
         create("table", "//tmp/out_1")
         create("table", "//tmp/out_2")
-        with raises_yt_error("Only one output table with row_count_limit is supported"):
+        with raises_yt_error("Only one output table with \"row_count_limit\" is supported"):
             map(
                 in_="//tmp/input",
                 out=[
@@ -1064,7 +1064,7 @@ print(row + table_index)
         # Set weak schema
         sort(in_="//tmp/tin", out="//tmp/tin", sort_by="a")
 
-        with raises_yt_error("Duplicate .* column in unversioned row"):
+        with raises_yt_error("Duplicate column .* in unversioned row"):
             map(in_="<rename_columns={a=b}>//tmp/tin", out="//tmp/tout", command="cat")
 
     @authors("dakovalkov")

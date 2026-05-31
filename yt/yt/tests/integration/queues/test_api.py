@@ -194,12 +194,12 @@ class TestQueueApi(TestQueueAgentBase):
         register_queue_consumer(queue_ref, multi_consumer_ref, vital=False)
         register_queue_consumer(queue_ref, single_consumer_ref_with_name, vital=False)
 
-        with raises_yt_error("Queue consumer name is required for multi consumer schema"):
+        with raises_yt_error("Queue consumer name is required for multi-consumer schema"):
             pull_consumer(multi_consumer_ref, str(queue_ref), partition_index=0)
         with raises_yt_error("Queue consumer name is not supported for consumer schema"):
             pull_consumer(single_consumer_ref_with_name, str(queue_ref), partition_index=0)
 
-        with raises_yt_error("Queue consumer name is required for multi consumer schema"):
+        with raises_yt_error("Queue consumer name is required for multi-consumer schema"):
             advance_consumer_partitions(queue_ref, multi_consumer_ref, {0: 1})
         with raises_yt_error("Queue consumer name is not supported for consumer schema"):
             advance_consumer_partitions(queue_ref, single_consumer_ref_with_name, {0: 1})

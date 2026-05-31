@@ -360,7 +360,7 @@ class TestTabletActions(TabletActionsBase):
         with raises_yt_error("All tablets must belong to the same cell"):
             _create_action(tablet_ids=[tablet_ids[0], tablet_ids[1]], tablet_count=2)
 
-        with raises_yt_error("\"inplace_reshard\" can not be set together with move action"):
+        with raises_yt_error("\"inplace_reshard\" cannot be set together with move action"):
             _create_action(kind="move", tablet_ids=[tablet_ids[0], tablet_ids[1]])
 
     @authors("atalmenev")
@@ -1695,7 +1695,7 @@ class TabletBalancerBase(TabletActionsBase):
 
         check_balancer_is_active(True)
         if not self.ENABLE_STANDALONE_TABLET_BALANCER:
-            with raises_yt_error("tablet_balancer_schedule cannot be empty in master config"):
+            with raises_yt_error("\"tablet_balancer_schedule\" cannot be empty in master config"):
                 self._set_default_schedule_formula("")
 
             with raises_yt_error("Invalid variable .* in time formula"):

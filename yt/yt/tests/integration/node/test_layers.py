@@ -2670,7 +2670,7 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
-        with raises_yt_error("(Nbd|NBD) server is not present"):
+        with raises_yt_error("NBD server is not present"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",

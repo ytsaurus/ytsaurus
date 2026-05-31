@@ -307,7 +307,7 @@ void TJobFSSecretary::CheckConfiguration(bool hasNbdServer) const
     if (SandboxNbdRootVolumeData_ && !hasNbdServer) {
         THROW_ERROR_EXCEPTION(
             NExecNode::EErrorCode::NbdServerDisabledOnNode,
-            "Nbd server disabled on this node but job requested nbd volume");
+            "NBD server disabled on this node but job requested nbd volume");
     }
 }
 

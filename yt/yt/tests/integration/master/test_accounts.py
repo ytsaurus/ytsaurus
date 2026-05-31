@@ -2798,9 +2798,9 @@ class TestAccountTree(AccountsTestSuiteBase):
         create("map_node", "//tmp/metrika")
         with raises_yt_error("Nonversioned map objects do not support cloning"):
             copy("//sys/account_tree/metrika", "//sys/account_tree/market")
-        with raises_yt_error("Cannot copy or move an object of type \"MapNode\", expected type \"Account\""):
+        with raises_yt_error("Cannot copy or move an object of type \"map_node\", expected type \"account\""):
             move("//tmp/metrika", "//sys/account_tree/metrika/node")
-        with raises_yt_error("Cannot copy or move an object of type \"MapNode\", expected type \"Account\""):
+        with raises_yt_error("Cannot copy or move an object of type \"map_node\", expected type \"account\""):
             move("//tmp/metrika", "//sys/account_tree/node")
         with raises_yt_error(".* has unexpected suffix .*"):
             move("//sys/account_tree/metrika", "//tmp/metrika/account")

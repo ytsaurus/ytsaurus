@@ -90,7 +90,7 @@ TUnversionedValue MakeUnversionedValue(
 {
     if (const auto* stringPayloadPtr = std::get_if<TStringBuf>(&payload)) {
         THROW_ERROR_EXCEPTION_UNLESS(valueType == EValueType::String,
-            "Values of type %Qlv can not be parsed from TStringBuf payload",
+            "Values of type %Qlv cannot be parsed from TStringBuf payload",
             valueType);
         return MakeUnversionedStringValue(*stringPayloadPtr);
     }
@@ -99,7 +99,7 @@ TUnversionedValue MakeUnversionedValue(
     auto ysonPayloadBuf = ysonPayload.AsStringBuf();
     if (!ysonPayloadBuf) {
         THROW_ERROR_EXCEPTION_UNLESS(valueType == EValueType::Any,
-            "Values of type %Qlv can not be parsed from empty payload",
+            "Values of type %Qlv cannot be parsed from empty payload",
             valueType);
         return MakeUnversionedAnyValue(ysonPayloadBuf);
     }

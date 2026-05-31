@@ -1437,7 +1437,7 @@ void TChunkOwnerNodeProxy::SetReplication(
     // Hunk primary medium index is nullable and requires additional validation.
     if constexpr (IsHunk) {
         if (!node->GetHunkPrimaryMediumIndex()) {
-            THROW_ERROR_EXCEPTION("Cannot modify %v since %v is not set, consider setting it first",
+            THROW_ERROR_EXCEPTION("Cannot modify %Qv since %Qv is not set, consider setting it first",
                 EInternedAttributeKey::HunkMedia.Unintern(),
                 EInternedAttributeKey::HunkPrimaryMedium.Unintern());
         }

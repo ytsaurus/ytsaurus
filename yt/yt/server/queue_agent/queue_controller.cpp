@@ -1176,7 +1176,7 @@ private:
     TErrorOr<THashMap<std::string, TQueueExportProgressPtr>> GetQueueExportsProgressOrError() const
     {
         if (!Leading_) {
-            return TError("Following queue controller can't track exports progress");
+            return TError("Following queue controller cannot track exports progress");
         }
 
         auto guard = ReaderGuard(QueueExportsLock_);

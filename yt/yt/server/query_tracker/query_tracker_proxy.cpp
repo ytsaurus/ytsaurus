@@ -411,10 +411,10 @@ void TQueryTrackerProxy::StartQuery(
         if (annotationsMap->GetChildValueOrDefault("is_tutorial", false)) {
             if (!GetUserSubjects(user, StateClient_).contains(SuperusersGroupName)) {
                 YT_LOG_DEBUG("Attempt to create a tutorial failed. User is not a superuser (User: %v)", user);
-                THROW_ERROR_EXCEPTION("Non-superusers can't create tutorial queries. To create one contact your cluster administrator.");
+                THROW_ERROR_EXCEPTION("Non-superusers cannot create tutorial queries. To create one contact your cluster administrator");
             }
             if (!options.Draft) {
-                THROW_ERROR_EXCEPTION("Tutorials should be in draft state.");
+                THROW_ERROR_EXCEPTION("Tutorials should be in draft state");
             }
 
             isTutorial = true;
@@ -832,10 +832,10 @@ void TQueryTrackerProxy::AlterQuery(
         auto annotationsMap = options.Annotations->AsMap();
         if (annotationsMap->GetChildValueOrDefault("is_tutorial", false) != isTutorial) {
             if (!GetUserSubjects(user, StateClient_).contains(SuperusersGroupName)) {
-                THROW_ERROR_EXCEPTION("Non-superusers can't change tutorial flag. To change one contact your cluster administrator.");
+                THROW_ERROR_EXCEPTION("Non-superusers cannot change tutorial flag. To change one contact your cluster administrator");
             }
             if (*query.State != EQueryState::Draft) {
-                THROW_ERROR_EXCEPTION("Tutorials should be in draft state.");
+                THROW_ERROR_EXCEPTION("Tutorials should be in draft state");
             }
 
             isTutorialChanged = true;

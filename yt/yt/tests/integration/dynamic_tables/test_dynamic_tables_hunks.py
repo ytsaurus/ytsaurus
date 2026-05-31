@@ -3289,7 +3289,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         init_node("//tmp/t1", hunk_primary_medium=self.NON_DEFAULT_MEDIUM_1)
         assert get("//tmp/t1/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
 
-        with raises_yt_error("Cannot modify hunk_media since hunk_primary_medium is not set"):
+        with raises_yt_error("Cannot modify \"hunk_media\" since \"hunk_primary_medium\" is not set"):
             init_node("//tmp/t2", hunk_media={"default": {"replication_factor": 5, "data_parts_only": False}})
 
         with raises_yt_error("Cannot remove primary medium"):
@@ -3550,7 +3550,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
 
         sync_unmount_table("//tmp/q")
 
-        with raises_yt_error("Cannot modify hunk_media since hunk_primary_medium is not set"):
+        with raises_yt_error("Cannot modify \"hunk_media\" since \"hunk_primary_medium\" is not set"):
             set("//tmp/q/@hunk_media", media)
 
         set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
