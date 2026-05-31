@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: cachetools
-Version: 7.1.1
+Version: 7.1.2
 Summary: Extensible memoizing collections and decorators
 Author-email: Thomas Kemmer <tkemmer@computer.org>
 Maintainer-email: Thomas Kemmer <tkemmer@computer.org>
@@ -46,18 +46,9 @@ cachetools
    :target: https://codecov.io/gh/tkem/cachetools
    :alt: Test coverage
 
-.. image:: https://img.shields.io/librariesio/sourcerank/pypi/cachetools
-   :target: https://libraries.io/pypi/cachetools
-   :alt: Libraries.io SourceRank
-
 .. image:: https://img.shields.io/github/license/tkem/cachetools
    :target: https://raw.github.com/tkem/cachetools/master/LICENSE
    :alt: License
-
-.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
-   :target: https://github.com/psf/black
-   :alt: Code style: black
-
 
 This module provides various memoizing collections and decorators,
 including variants of the Python Standard Library's `@lru_cache`_
