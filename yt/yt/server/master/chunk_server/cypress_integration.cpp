@@ -565,23 +565,27 @@ private:
 
             void Invoke(const IYPathServiceContextPtr& context) override
             {
-                Invoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
-                    try {
-                        if (!Map_->CheckChunkFilter(EphemeralChunk_)) {
-                            if (context->GetMethod() == "Exists") {
-                                TNonexistingService::Get()->Invoke(context);
-                                return;
+                GuardedInvoke(Invoker_,
+                    BIND([=, this, this_ = MakeStrong(this)] {
+                        try {
+                            if (!Map_->CheckChunkFilter(EphemeralChunk_)) {
+                                if (context->GetMethod() == "Exists") {
+                                    TNonexistingService::Get()->Invoke(context);
+                                    return;
+                                }
+                                THROW_ERROR_EXCEPTION(
+                                    NYTree::EErrorCode::ResolveError,
+                                    "Chunk %v does not satisfy filtering criterion",
+                                    ChunkId_);
                             }
-                            THROW_ERROR_EXCEPTION(
-                                NYTree::EErrorCode::ResolveError,
-                                "Chunk %v does not satisfy filtering criterion",
-                                ChunkId_);
+                            Underlying_->Invoke(context);
+                        } catch (const std::exception& ex) {
+                            context->Reply(ex);
                         }
-                        Underlying_->Invoke(context);
-                    } catch (const std::exception& ex) {
-                        context->Reply(ex);
-                    }
-                }));
+                    }),
+                    BIND([=] {
+                        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Hydra peer is not active");
+                    }));
             }
 
             TResolveResult Resolve(
@@ -616,7 +620,7 @@ private:
 
         auto readInvoker = Bootstrap_
             ->GetObjectService()
-            ->CreateLocalReadInvoker(NRpc::GetCurrentAuthenticationIdentity().User);
+            ->CreateEpochLocalReadInvoker(NRpc::GetCurrentAuthenticationIdentity().User);
 
         // Protect from possible epoch switch rendering |RequireLeader| check above useless.
         auto epochInvoker = Bootstrap_

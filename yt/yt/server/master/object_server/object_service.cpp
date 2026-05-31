@@ -250,9 +250,17 @@ public:
         return Cache_;
     }
 
-    IInvokerPtr CreateLocalReadInvoker(const std::string& user) override
+    IInvokerPtr CreateLocalReadInvoker(const std::string& user)
     {
         return New<TLocalReadInvoker>(LocalReadScheduler_, user);
+    }
+
+    IInvokerPtr CreateEpochLocalReadInvoker(const std::string& user) override
+    {
+        auto localReadInvoker = CreateLocalReadInvoker(user);
+        return Bootstrap_
+            ->GetHydraFacade()
+            ->CreateEpochInvoker(std::move(localReadInvoker));
     }
 
     IInvokerPtr GetLocalReadOffloadInvoker() override
@@ -2163,6 +2171,10 @@ private:
             auto onRemoteTransactionReplicated = [weakThis = MakeWeak(this), subrequest] (const TError& error) {
                 auto this_ = weakThis.Lock();
                 if (!this_) {
+                    return;
+                }
+
+                if (this_->InterruptIfCanceled()) {
                     return;
                 }
 
