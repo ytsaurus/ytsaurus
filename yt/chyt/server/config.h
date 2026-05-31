@@ -436,6 +436,8 @@ public:
 
     TConversionSettingsPtr Conversion;
 
+    TCompositeSettingsPtr Composite;
+
     TDynamicTableSettingsPtr DynamicTable;
 
     TTestingSettingsPtr Testing;
