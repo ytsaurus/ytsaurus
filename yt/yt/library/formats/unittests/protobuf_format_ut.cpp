@@ -797,7 +797,7 @@ TEST(TProtobufFormatTest, TestConfigParsing)
 
     EXPECT_THROW_WITH_SUBSTRING(
         ParseAndValidateConfig(repeatedEmbeddedConfig),
-        R"(type "embedded_message" can not be repeated)");
+        R"(type "embedded_message" cannot be repeated)");
 
     auto multipleOtherColumnsConfig = BuildYsonNodeFluently()
         .BeginMap()

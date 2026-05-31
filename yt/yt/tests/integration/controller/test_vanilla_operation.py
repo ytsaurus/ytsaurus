@@ -2194,7 +2194,7 @@ class TestGangOperations(YTEnvSetup):
 
     @authors("faucct", "pogorelov")
     def test_gang_operation_with_collective_options(self):
-        with pytest.raises(YtError, match='Operation with "collective_options" can not have tasks with "gang_options"'):
+        with pytest.raises(YtError, match='Operation with "collective_options" cannot have tasks with "gang_options"'):
             vanilla(
                 track=False,
                 spec={

@@ -1810,7 +1810,7 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TVanillaTaskSpec* spec) {
         if (spec->GangOptions && spec->RestartCompletedJobs) {
             THROW_ERROR_EXCEPTION(
-                "\"gang_options\" and \"restart_completed_jobs\" can not be turned on both");
+                "\"gang_options\" and \"restart_completed_jobs\" cannot be turned on both");
         }
 
         if (spec->GangOptions && spec->GangOptions->Size && *spec->GangOptions->Size > spec->JobCount) {
@@ -2695,18 +2695,18 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
         if (taskWithGangOptionsName && collectiveTaskName) {
             THROW_ERROR_EXCEPTION(
-                "Operation with \"collective_options\" can not have tasks with \"gang_options\"")
+                "Operation with \"collective_options\" cannot have tasks with \"gang_options\"")
                 << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
         }
         if (taskWithGangOptionsName && spec->FailOnJobRestart) {
             THROW_ERROR_EXCEPTION(
-                "Operation with \"fail_on_job_restart\" enabled can not have tasks with \"gang_options\"")
+                "Operation with \"fail_on_job_restart\" enabled cannot have tasks with \"gang_options\"")
                 << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
         }
 
         if (taskWithGangOptionsName && taskWithFailOnJobRestartName) {
             THROW_ERROR_EXCEPTION(
-                "Operation can not have both task with \"gang_options\" and task with \"fail_on_job_restart\"")
+                "Operation cannot have both task with \"gang_options\" and task with \"fail_on_job_restart\"")
                 << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName)
                 << TErrorAttribute("task_with_fail_on_job_restart_name", taskWithFailOnJobRestartName);
         }

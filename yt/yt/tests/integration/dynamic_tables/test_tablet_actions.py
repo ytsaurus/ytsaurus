@@ -360,7 +360,7 @@ class TestTabletActions(TabletActionsBase):
         with raises_yt_error("must belong to the same cell"):
             _create_action(tablet_ids=[tablet_ids[0], tablet_ids[1]], tablet_count=2)
 
-        with raises_yt_error("can not be set together with"):
+        with raises_yt_error("cannot be set together with"):
             _create_action(kind="move", tablet_ids=[tablet_ids[0], tablet_ids[1]])
 
     @authors("atalmenev")
