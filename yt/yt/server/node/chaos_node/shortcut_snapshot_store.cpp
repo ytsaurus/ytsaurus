@@ -15,7 +15,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int ConcurrentHashBucketCount = 256;
+inline static constexpr int ConcurrentHashBucketCount = 256;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +82,7 @@ private:
         YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
     };
 
-    std::vector<TBucket> Buckets_{ConcurrentHashBucketCount};
+    std::array<TBucket, ConcurrentHashBucketCount> Buckets_;
 
     TBucket* GetBucket(TChaosObjectId replicationCardId)
     {
