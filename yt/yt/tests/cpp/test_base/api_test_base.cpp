@@ -87,7 +87,6 @@ void TApiTestBase::SetUpTestCase()
         config->GetChildOrThrow("writers")->AsMap()->AddChild("stderr", ConvertToNode(stderrConfig));
 
         auto ruleConfig = New<NLogging::TRuleConfig>();
-        ruleConfig->IncludeCategories = {"CppTests"};
         ruleConfig->Writers = {"stderr"};
         config
             ->GetChildOrThrow("rules")
@@ -99,19 +98,20 @@ void TApiTestBase::SetUpTestCase()
 
     {
         const auto* testSuite = ::testing::UnitTest::GetInstance()->current_test_suite();
-        YT_LOG_INFO("Set Up Test (SuiteName: %v)",
+        YT_LOG_INFO("Testcase setup (SuiteName: %v)",
             testSuite->name());
     }
 
     Client_ = CreateClient(NRpc::RootUserName);
-    ClusterName_ = ConvertTo<std::string>(WaitFor(Client_->GetNode("//sys/@cluster_name")).ValueOrThrow());
+    ClusterName_ = ConvertTo<std::string>(WaitFor(Client_->GetNode("//sys/@cluster_name"))
+        .ValueOrThrow());
 }
 
 void TApiTestBase::TearDownTestCase()
 {
     {
         const auto* testSuite = ::testing::UnitTest::GetInstance()->current_test_suite();
-        YT_LOG_INFO("Tear Down Test (SuiteName: %v)",
+        YT_LOG_INFO("Testcase teardown (SuiteName: %v)",
             testSuite->name());
     }
 
