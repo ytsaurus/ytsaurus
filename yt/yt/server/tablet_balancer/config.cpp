@@ -2,6 +2,7 @@
 #include "private.h"
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
+#include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
@@ -10,7 +11,6 @@
 namespace NYT::NTabletBalancer {
 
 const TTimeFormula DefaultTabletBalancerSchedule = MakeTimeFormula("minutes % 5 == 0");
-const TString DefaultParameterizedMetricFormula = "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])";
 const TString StatisticsTableDefaultPath = "//sys/tablet_balancer/performance_counters";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,7 +57,8 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(0.0)
         .GreaterThanOrEqual(0);
     registrar.Parameter("default_parameterized_metric", &TThis::DefaultParameterizedMetric)
-        .Default(DefaultParameterizedMetricFormula)
+        // TODO(navasardianna): change TString in the config to std::string.
+        .Default(static_cast<TString>(DefaultParameterizedMetricFormula))
         .NonEmpty();
     registrar.Parameter("parameterized_factors", &TThis::ParameterizedFactors)
         .DefaultCtor([] {
