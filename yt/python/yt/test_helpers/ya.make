@@ -10,11 +10,12 @@ ELSE()
 
         __init__.py
         authors.py
-        multidaemon.py
         cleanup.py
+        errors.py
         filter_by_category.py
         fork_class.py
         job_events.py
+        multidaemon.py
         profiler.py
         set_timeouts.py
     )
