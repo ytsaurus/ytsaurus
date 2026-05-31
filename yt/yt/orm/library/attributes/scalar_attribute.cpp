@@ -477,8 +477,9 @@ class TComparisonVisitor final
     friend class TProtoVisitor<const std::pair<const Message*, const Message*>&, TComparisonVisitor>;
 
 public:
-    explicit TComparisonVisitor(bool compareAbsentAsDefault)
+    TComparisonVisitor(bool compareAbsentAsDefault, bool lhsAbsentEqualsRhsDefault)
         : CompareAbsentAsDefault_(compareAbsentAsDefault)
+        , LhsAbsentEqualsRhsDefault_(lhsAbsentEqualsRhsDefault)
     {
         SetAllowAsterisk(true);
         SetVisitEverythingAfterPath(true);
@@ -703,19 +704,26 @@ protected:
                     : nullptr);
                     VisitMessage(next, EVisitReason::Manual);
             } else {
-                if (!CompareAbsentAsDefault_) {
+                if (!CompareAbsentAsDefault_ && !LhsAbsentEqualsRhsDefault_) {
                     // One present, one missing.
                     NotEqual();
                     return;
                 }
+
+                bool lhsHasField = TTraits::TSubTraits::IsSingularFieldPresent(
+                    message.first, fieldDescriptor).Value();
+
+                if (LhsAbsentEqualsRhsDefault_ && lhsHasField) {
+                    // Asymmetric mode: lhs present, rhs absent is a real change.
+                    NotEqual();
+                    return;
+                }
+
                 const auto* defaultMessage = TTraits::TSubTraits::GetDefaultMessage(
                     message.first,
                     fieldDescriptor->containing_type());
 
-                const auto* messageWithPresentField =
-                    TTraits::TSubTraits::IsSingularFieldPresent(message.first, fieldDescriptor).Value()
-                    ? message.first
-                    : message.second;
+                const auto* messageWithPresentField = lhsHasField ? message.first : message.second;
                 YT_VERIFY(defaultMessage);
                 YT_VERIFY(messageWithPresentField);
 
@@ -731,6 +739,7 @@ protected:
 
 private:
     bool CompareAbsentAsDefault_;
+    bool LhsAbsentEqualsRhsDefault_;
 
     bool AreFieldsEquivalent(const Message* lhs, const Message* rhs, const FieldDescriptor* field)
     {
@@ -757,6 +766,9 @@ bool AreProtoMessagesEqual(
     if (options.MessageDifferencer) {
         return options.MessageDifferencer->Compare(lhs, rhs);
     }
+    if (options.LhsAbsentEqualsRhsDefault) {
+        return AreProtoMessagesEqualByPath(lhs, rhs, /*path*/ "", options);
+    }
     if (options.CompareAbsentAsDefault) {
         return MessageDifferencer::Equivalent(lhs, rhs);
     } else {
@@ -773,7 +785,7 @@ bool AreProtoMessagesEqualByPath(
     THROW_ERROR_EXCEPTION_IF(options.MessageDifferencer,
         "Message differencer is not supported for comparing scalar attributes by path");
 
-    TComparisonVisitor visitor(options.CompareAbsentAsDefault);
+    TComparisonVisitor visitor(options.CompareAbsentAsDefault, options.LhsAbsentEqualsRhsDefault);
     visitor.Visit(std::pair(&lhs, &rhs), path);
     return visitor.IsEqual();
 }

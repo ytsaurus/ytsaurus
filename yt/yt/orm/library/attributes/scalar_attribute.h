@@ -52,7 +52,10 @@ void SetProtobufFieldByPath(
 struct TComparisonOptions
 {
     NProtoBuf::MessageDifferencer* MessageDifferencer = nullptr;
+
     bool CompareAbsentAsDefault = false;
+    // Asymmetric comparison of default values.
+    bool LhsAbsentEqualsRhsDefault = false;
 };
 
 template <class T>
