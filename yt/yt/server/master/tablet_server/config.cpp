@@ -25,7 +25,7 @@ void TTabletBalancerMasterConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->TabletBalancerSchedule.IsEmpty()) {
-            THROW_ERROR_EXCEPTION("tablet_balancer_schedule cannot be empty in master config");
+            THROW_ERROR_EXCEPTION("\"tablet_balancer_schedule\" cannot be empty in master config");
         }
     });
 }

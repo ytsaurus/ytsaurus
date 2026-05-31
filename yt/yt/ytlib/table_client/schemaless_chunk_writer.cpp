@@ -1308,7 +1308,7 @@ private:
             auto& idMark = IdValidationMarks_[id];
             if (idMark == mark) {
                 auto name = NameTable_->GetNameOrThrow(id);
-                THROW_ERROR_EXCEPTION("Duplicate %Qv column in unversioned row", name)
+                THROW_ERROR_EXCEPTION("Duplicate column %Qv in unversioned row", name)
                     << TErrorAttribute("id", id);
             }
             idMark = mark;
@@ -2334,7 +2334,7 @@ TTableSchemaPtr GetChunkSchema(
     if (chunkSchema->IsUniqueKeys() && !chunkSchema->IsSorted()) {
         THROW_ERROR_EXCEPTION(
             NTableClient::EErrorCode::InvalidSchemaValue,
-            "Non-sorted schema can't have unique keys requirement");
+            "Non-sorted schema cannot have unique keys requirement");
     }
 
     return chunkSchema;

@@ -768,7 +768,7 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
 
     auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
     if (!nbdConfig || !nbdConfig->Enabled || !nbdConfig->ReadWriteEnabled) {
-        auto error = TError("RW Nbd disks are disabled")
+        auto error = TError("RW NBD disks are disabled")
             << TErrorAttribute("device_id", options.DeviceId)
             << TErrorAttribute("job_id", options.JobId)
             << TErrorAttribute("size", options.Size);

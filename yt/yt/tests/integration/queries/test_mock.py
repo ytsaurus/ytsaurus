@@ -1159,9 +1159,9 @@ class TestTutorials(YTEnvSetup):
         u2q3 = start_query("mock", "complete_after", settings={"duration": 1000}, annotations={"is_tutorial": False}, authenticated_user="u2", access_control_objects=["nobody"])
         u2q4 = start_query("mock", "complete_after", settings={"duration": 1000}, annotations={"is_tutorial": False}, authenticated_user="u2", access_control_objects=["everyone"])
 
-        with raises_yt_error("Non-superusers can't create tutorial queries"):
+        with raises_yt_error("Non-superusers cannot create tutorial queries"):
             start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u2", access_control_objects=["nobody"])
-        with raises_yt_error("Non-superusers can't create tutorial queries"):
+        with raises_yt_error("Non-superusers cannot create tutorial queries"):
             start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u2", access_control_objects=["everyone"])
 
         def check_tutorial_queries():
@@ -1214,7 +1214,7 @@ class TestTutorials(YTEnvSetup):
         from_ordinary_to_tutorial.get()
         with raises_yt_error("Tutorials should be in draft state"):
             ordinary_not_tutorial.alter(annotations={"is_tutorial": True}, authenticated_user="u1_superuser")
-        with raises_yt_error("Non-superusers can't change tutorial flag"):
+        with raises_yt_error("Non-superusers cannot change tutorial flag"):
             ordinary_not_superuser.alter(annotations={"is_tutorial": True}, authenticated_user="u2")
 
         # check that there are no tutorials in common search

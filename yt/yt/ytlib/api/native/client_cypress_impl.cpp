@@ -2604,7 +2604,7 @@ void TClient::DoInternalizeNode(
     const TYPath& /*path*/,
     const TInternalizeNodeOptions& /*options*/)
 {
-    THROW_ERROR_EXCEPTION("Node internalization is deprecated and is no longer possible.");
+    THROW_ERROR_EXCEPTION("Node internalization is deprecated and is no longer possible");
 }
 
 TObjectId TClient::DoCreateObject(

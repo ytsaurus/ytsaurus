@@ -493,14 +493,14 @@ public:
         if (read == 0) {
             return std::nullopt;
         } else if (read < sizeof(rowSize)) {
-            THROW_ERROR_EXCEPTION("corrupted lenval: can't read row length");
+            THROW_ERROR_EXCEPTION("corrupted lenval: cannot read row length");
         }
         switch (rowSize) {
             case LenvalTableIndexMarker: {
                 ui32 tableIndex;
                 read = Input_->Load(&tableIndex, sizeof(tableIndex));
                 if (read != sizeof(tableIndex)) {
-                    THROW_ERROR_EXCEPTION("corrupted lenval: can't read table index");
+                    THROW_ERROR_EXCEPTION("corrupted lenval: cannot read table index");
                 }
                 CurrentTableIndex_ = tableIndex;
                 return Next();
@@ -509,7 +509,7 @@ public:
                 ui64 tabletIndex;
                 read = Input_->Load(&tabletIndex, sizeof(tabletIndex));
                 if (read != sizeof(tabletIndex)) {
-                    THROW_ERROR_EXCEPTION("corrupted lenval: can't read tablet index");
+                    THROW_ERROR_EXCEPTION("corrupted lenval: cannot read tablet index");
                 }
                 CurrentTabletIndex_ = tabletIndex;
                 return Next();
@@ -797,7 +797,7 @@ TEST(TProtobufFormatTest, TestConfigParsing)
 
     EXPECT_THROW_WITH_SUBSTRING(
         ParseAndValidateConfig(repeatedEmbeddedConfig),
-        R"(type "embedded_message" can not be repeated)");
+        R"(type "embedded_message" cannot be repeated)");
 
     auto multipleOtherColumnsConfig = BuildYsonNodeFluently()
         .BeginMap()

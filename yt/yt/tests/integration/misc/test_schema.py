@@ -1011,7 +1011,7 @@ class TestComplexTypesMisc(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("Cannot infer output schema from input in strong schema mode, because the option enable_merge_schemas_during_schema_infer is disabled"):
+        with raises_yt_error("Cannot infer output schema from input"):
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],
                 out="//tmp/output",
@@ -1061,7 +1061,7 @@ class TestComplexTypesMisc(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("Cannot infer output schema from input in strong schema mode, because the option enable_merge_schemas_during_schema_infer is disabled"):
+        with raises_yt_error("Cannot infer output schema from input"):
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],
                 out="//tmp/output",
@@ -1552,7 +1552,7 @@ class TestRequiredOption(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("Cannot infer output schema from input in strong schema mode, because the option enable_merge_schemas_during_schema_infer is disabled"):
+        with raises_yt_error("Cannot infer output schema from input"):
             # Schemas are incompatible
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],

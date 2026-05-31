@@ -550,7 +550,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        with raises_yt_error("\"sort_by\" option should be set in Sort operations"):
+        # COMPAT(babenko)
+        with raises_yt_error("\"sort_by\" .*"):
             sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by=[])
 
     @authors("ignat")
@@ -571,7 +572,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         write_table("//tmp/t_in", {"foo": "bar"})
         write_table("//tmp/t_out", {"hello": "world"})
 
-        with raises_yt_error("sort_by is different from output table key columns"):
+        # COMPAT(babenko)
+        with raises_yt_error(".*sort_by.* is different from output table key columns"):
             sort(in_="//tmp/t_in", out="<append=true>//tmp/t_out", sort_by="foo")
 
     @authors("ermolovd")
@@ -662,7 +664,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         write_table("//tmp/t_in", old_row)
         write_table("//tmp/t_out", new_row)
 
-        with raises_yt_error("sort_by is different from output table key columns"):
+        # COMPAT(babenko)
+        with raises_yt_error(".*sort_by.* is different from output table key columns"):
             sort(
                 in_="//tmp/t_in",
                 out="<append=true>//tmp/t_out",
@@ -696,7 +699,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         else:
             write_table("//tmp/t_out", {"key": 3, "subkey": 3})
 
-        with raises_yt_error("sort_by is different from output table key columns"):
+        # COMPAT(babenko)
+        with raises_yt_error(".*sort_by.* is different from output table key columns"):
             sort(
                 in_="//tmp/t_in",
                 out="<append=true>//tmp/t_out",
@@ -726,7 +730,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         write_table("//tmp/out", {"key": 1})
 
         for in_table in ["//tmp/in_0", "//tmp/in_2"]:
-            with raises_yt_error("sort_by is different from output table key columns"):
+            # COMPAT(babenko)
+            with raises_yt_error(".*sort_by.* is different from output table key columns"):
                 sort(
                     in_=in_table,
                     out="<append=true>//tmp/out",
@@ -1875,7 +1880,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
-        with raises_yt_error("\"sort_by\" option should be set in Sort operations"):
+        # COMPAT(babenko)
+        with raises_yt_error("\"sort_by\" .*"):
             sort(in_="//tmp/t1", out="//tmp/t2", spec={"input_query": "a where a > 0"})
 
     @authors("gritukan")

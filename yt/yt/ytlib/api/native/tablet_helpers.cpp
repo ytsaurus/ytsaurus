@@ -167,7 +167,7 @@ void ValidateTabletMounted(const TTableMountInfoPtr& tableInfo, const TTabletInf
     if (state != ETabletState::Mounted) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::TabletNotMounted,
-            "Tablet %v of table %v is in %Qlv state, expected: %Qlv",
+            "Tablet %v of table %v is in %Qlv state while %Qlv expected",
             tabletInfo->TabletId,
             tableInfo->Path,
             state,

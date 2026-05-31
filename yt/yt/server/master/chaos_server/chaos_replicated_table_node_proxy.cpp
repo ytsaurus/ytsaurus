@@ -768,8 +768,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         bool isValidConsumerSchema = !effectiveSchema->IsEmpty() && effectiveSchema->IsSorted();
         if (!isValidConsumerSchema) {
             THROW_ERROR_EXCEPTION(
-                "Chaos replicated table object cannot be both a queue and a consumer.\
-                To transform consumer into queue set \"treat_as_queue_consumer\" attribute into False first");
+                "Chaos replicated table object cannot be both a queue and a consumer; "
+                "to transform consumer into queue set \"treat_as_queue_consumer\" attribute to %%false first");
         }
     }
 
@@ -777,8 +777,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         bool isValidProducerSchema = !effectiveSchema->IsEmpty() && effectiveSchema->IsSorted();
         if (!isValidProducerSchema) {
             THROW_ERROR_EXCEPTION(
-                "Chaos replicated table object cannot be both a queue and a producer.\
-                To transform producer into queue set \"treat_as_queue_producer\" attribute into False first");
+                "Chaos replicated table object cannot be both a queue and a producer; "
+                "to transform producer into queue set \"treat_as_queue_producer\" attribute to %%false first");
         }
     }
 

@@ -1163,9 +1163,9 @@ class TestBulkInsert(DynamicTablesBase):
         sync_mount_table("//tmp/t_output")
         self._create_simple_dynamic_table("//tmp/t_input", schema=schema, dynamic=False)
 
-        with raises_yt_error("sort_by is different from output table key columns"):
+        with raises_yt_error("\"sort_by\" is different from output table key columns"):
             sort(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", sort_by=["k1"])
-        with raises_yt_error("sort_by is different from output table key columns"):
+        with raises_yt_error("\"sort_by\" is different from output table key columns"):
             sort(
                 in_="//tmp/t_input",
                 out="<append=%true>//tmp/t_output",

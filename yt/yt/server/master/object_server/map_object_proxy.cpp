@@ -782,7 +782,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
     auto* impl = TBase::GetThisImpl();
     auto* sourceObject = ResolvePathToNonversionedObject(sourcePath);
     if (sourceObject->GetType() != TBase::GetObject()->GetType()) {
-        THROW_ERROR_EXCEPTION("Cannot copy or move an object of type %Qv, expected type %Qv",
+        THROW_ERROR_EXCEPTION("Cannot copy or move an object of type %Qlv, expected type %Qlv",
             sourceObject->GetType(),
             impl->GetType());
     }

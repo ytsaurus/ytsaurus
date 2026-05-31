@@ -295,7 +295,7 @@ private:
         }
 
         if (filteredQueueAgents.empty()) {
-            THROW_ERROR_EXCEPTION("All active instances are banned, leading host can't be chosen, skipping pass");
+            THROW_ERROR_EXCEPTION("All active instances are banned, leading host cannot be chosen, skipping pass");
         }
 
         if (filteredQueueAgents[0].Id != MemberClient_->GetId()) {

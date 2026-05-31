@@ -815,7 +815,8 @@ void TPoolTreeCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpda
                 updateSchedulableCounters(child);
             }
         }
-    } else { // Fifo pool, MaxSchedulableElementCountInFifoPool specified.
+    } else {
+        // FIFO pool, MaxSchedulableElementCountInFifoPool specified.
         std::vector<TPoolTreeOperationElement*> sortedChildren;
         for (const auto& child : EnabledChildren_) {
             YT_VERIFY(child->IsOperation());

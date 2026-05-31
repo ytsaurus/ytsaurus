@@ -180,7 +180,7 @@ private:
         }
 
         if ((IsDumpSnapshotMode() || IsExportSnapshotMode()) && IsReplayChangelogsMode()) {
-            THROW_ERROR_EXCEPTION("Option 'replay-changelogs' can not be used with 'dump-snapshot', 'export-snapshot'");
+            THROW_ERROR_EXCEPTION("Option 'replay-changelogs' cannot be used with 'dump-snapshot', 'export-snapshot'");
         }
 
         if (IsBuildSnapshotMode() && !IsReplayChangelogsMode() && !IsValidateSnapshotMode()) {

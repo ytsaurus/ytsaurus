@@ -2583,11 +2583,11 @@ class TestEphemeralPools(YTEnvSetup):
     @authors("renadeen")
     def test_fifo_pool_cannot_create_ephemeral_subpools(self):
         create_pool("fifo_pool", attributes={"mode": "fifo"})
-        with raises_yt_error("Fifo pool cannot create ephemeral subpools"):
+        with raises_yt_error("FIFO pool cannot create ephemeral subpools"):
             set("//sys/pools/fifo_pool/@create_ephemeral_subpools", True)
 
         create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
-        with raises_yt_error("Fifo pool cannot create ephemeral subpools"):
+        with raises_yt_error("FIFO pool cannot create ephemeral subpools"):
             set("//sys/pools/ephemeral_hub/@mode", "fifo")
 
     @authors("renadeen")

@@ -1197,7 +1197,7 @@ public:
         for (auto& table : InputManager_->GetInputTables()) {
             if (table->Path.GetForeign()) {
                 if (table->Path.GetTeleport()) {
-                    THROW_ERROR_EXCEPTION("Foreign table can not be specified as teleport")
+                    THROW_ERROR_EXCEPTION("Foreign table cannot be specified as teleport")
                         << TErrorAttribute("path", table->Path);
                 }
                 ++foreignInputCount;
@@ -1324,7 +1324,7 @@ public:
             }
 
             if (Spec_->ReduceBy.empty()) {
-                THROW_ERROR_EXCEPTION("Reduce by can not be empty when key guarantee is enabled")
+                THROW_ERROR_EXCEPTION("Reduce by cannot be empty when key guarantee is enabled")
                     << TErrorAttribute("operation_type", OperationType_);
             }
 
