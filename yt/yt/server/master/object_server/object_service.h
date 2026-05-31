@@ -16,7 +16,7 @@ struct IObjectService
     : public virtual NRpc::IService
 {
     virtual NObjectClient::TObjectServiceCachePtr GetCache() = 0;
-    virtual IInvokerPtr CreateLocalReadInvoker(const std::string& user) = 0;
+    virtual IInvokerPtr CreateEpochLocalReadInvoker(const std::string& user) = 0;
     virtual IInvokerPtr GetLocalReadOffloadInvoker() = 0;
 
     //! Throws TLeaderFallbackException at followers.
