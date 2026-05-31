@@ -429,6 +429,7 @@ protected:
         const TClientChunkReadOptions& /*tabletChunkReadOptions*/,
         const std::optional<std::string>& /*profilingUser*/,
         TRowBufferPtr /*rowBuffer*/,
+        const IInvokerPtr& /*invoker*/,
         NLogging::TLogger /*logger*/)
         : TRowAdapter(std::move(adapter))
         , Timestamp_(timestampRange.Timestamp)
@@ -492,6 +493,7 @@ protected:
         const TClientChunkReadOptions& chunkReadOptions,
         const std::optional<std::string>& profilingUser,
         TRowBufferPtr rowBuffer,
+        const IInvokerPtr& /*invoker*/,
         NLogging::TLogger logger)
         : TRowAdapter(std::move(adapter))
         , TabletId_(tabletSnapshot->TabletId)
@@ -956,6 +958,7 @@ protected:
         const TClientChunkReadOptions& chunkReadOptions,
         const std::optional<std::string>& profilingUser,
         TRowBufferPtr rowBuffer,
+        const IInvokerPtr& invoker,
         const NLogging::TLogger Logger)
         : TBasePipeline(
             std::move(adapter),
@@ -965,9 +968,11 @@ protected:
             chunkReadOptions,
             profilingUser,
             rowBuffer,
+            invoker,
             Logger)
         , Schema_(tabletSnapshot->PhysicalSchema)
         , ColumnFilter_(columnMappingInfo.GetColumnFilter())
+        , Invoker_(invoker)
         , RowBuffer_(std::move(rowBuffer))
         , ChunkFragmentReader_(tabletSnapshot->ChunkFragmentReader)
         , DictionaryCompressionFactory_(tabletSnapshot->DictionaryCompressionFactory)
@@ -995,7 +1000,6 @@ protected:
     {
         auto sharedRows = MakeSharedRange(std::move(HunkEncodedRows_), std::move(RowBuffer_));
 
-        // Being rigorous we should wrap the callback into AsyncVia but that does not matter in practice.
         return DecodeHunks(std::move(sharedRows))
             // NB: Owner captures this by strong ref.
             .Apply(BIND([this, timer, owner = std::move(owner)] (const TSharedRange<TMutableRow>& rows) {
@@ -1004,7 +1008,8 @@ protected:
                 }
 
                 return TBasePipeline::PostprocessTabletLookup(owner, timer);
-            }));
+            })
+            .AsyncVia(Invoker_));
     }
 
 private:
@@ -1012,6 +1017,7 @@ private:
 
     const TTableSchemaPtr Schema_;
     const TColumnFilter ColumnFilter_;
+    const IInvokerPtr Invoker_;
 
     TRowBufferPtr RowBuffer_;
 
@@ -1911,6 +1917,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
         tabletChunkReadOptions,
         lookupSession->ProfilingUser_,
         std::move(rowBuffer),
+        lookupSession->Invoker_,
         lookupSession->Logger)
     , Invoker_(lookupSession->Invoker_)
     , TabletSnapshot_(std::move(tabletSnapshot))
@@ -1972,6 +1979,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
         chunkReadOptions,
         profilingUser,
         std::move(rowBuffer),
+        invoker,
         logger)
     , Invoker_(std::move(invoker))
     , TabletSnapshot_(std::move(tabletSnapshot))
