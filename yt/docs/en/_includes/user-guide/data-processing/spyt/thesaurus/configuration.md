@@ -39,6 +39,8 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.yt.read.ytOmitInaccessibleRows.enabled` | `true` | Skip inaccessible rows instead of throwing an error. | 2.9.0 |
 | `spark.yt.read.ytOmitInaccessibleColumns.enabled` | `true` | Skip inaccessible columns instead of throwing an error. | 2.9.0 |
 
+{wide-content title="Basic options"}
+
 ## Options for launching tasks directly { #direct-submit }
 
 | **Parameter** | **Default value** | **Description** | **Starting with version** |
@@ -78,6 +80,8 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.ytsaurus.shuffle.enabled` | false | Use the [{{product-name}} Shuffle service](../../../../../user-guide/data-processing/spyt/shuffle.md). | 2.7.2 |
 | `spark.ytsaurus.executor.state.poll.interval` | 20s | The period for checking the state of the operation with executors. If the operation is in a final status, the driver will be stopped. | 2.8.0 |
 
+{wide-content title="Options for launching tasks directly"}
+
 ## Configuration options for the {{product-name}} Shuffle service { #shuffle }
 | **Parameter** | **Default value** | **Description** | **Starting with version** |
 | ------------ | ------------------------- | ------------ | ------------------ |
@@ -91,7 +95,20 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.ytsaurus.shuffle.write.config` | - | Additional parameters for writing shuffle data in {{product-name}} in [YSON](../../../../../user-guide/storage/yson.md) format. Matches the [TableWriter](../../../../../user-guide/storage/io-configuration.md#table_writer) configuration. | 2.7.0 |
 | `spark.ytsaurus.shuffle.read.config` | - | Additional parameters for reading shuffle data in {{product-name}} in [YSON](../../../../../user-guide/storage/yson.md) format. Matches the [TableReader](../../../../../user-guide/storage/io-configuration.md#table_reader) configuration. | 2.7.0 |
 
+{wide-content title="Configuration options for the {{product-name}} Shuffle service"}
+
+
+## Options for configuring the Spark Connect server { #spyt-connect }
+| **Parameter** | **Default value** | **Description** | **Starting with version** |
+| ------------ | ------------------------- | ------------ | ------------------ |
+| `spark.ytsaurus.connect.idle.timeout` | 10m | Waiting time since the last request is completed till the Spark Connect server is shut down. | 2.8.0 |
+| `spark.ytsaurus.connect.token.refresh.period` | - | Pinging interval of the temporary token used to execute requests via Spark Connect. Used only together with Query Tracker. | 2.8.0 |
+
+
+{wide-content title="Options for configuring the Spark Connect server"}
+
 ## Options for running tasks in an internal cluster { #spark-submit-yt-conf }
+
 
 To run tasks in an internal cluster, use the `spark-submit-yt` wrapper. Its parameters match those of the `spark-submit` command from the Spark distribution, with the following exception:
 - Instead of `--master`, you should use the parameters `--proxy` and `--discovery-path`. They determine which {{product-name}} cluster will be used to run computations and which internal Spark cluster on that {{product-name}} cluster the task will be sent to, respectively.
