@@ -11,8 +11,8 @@ class ListDir(YTToolBase):
                 name="list_dir",
                 description="""
 A tool for getting content of node or directory on YT cluster
-Results has metadata (attributes) for each node: type (file, table, map_node), account, creation_time, row_count.
-Output, by default, must be in table format, sorted by node name and shows only node name and creation time.
+Results has metadata (attributes) for each node: type (file, table, map_node), account, creation_time, modification_time, row_count.
+Output, by default, must be in table format, sorted by node name and shows only node name and creation time and modification time.
 """
             ),
             [
@@ -41,6 +41,7 @@ The path to the directory must start from `//` and cannot start from: {}
                 directory,
                 attributes=[
                     "creation_time",
+                    "modification_time",
                     "account",
                     "type",
                     "row_count",
