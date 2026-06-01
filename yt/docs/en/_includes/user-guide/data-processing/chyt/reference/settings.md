@@ -85,3 +85,5 @@ As usual, many of the settings include certain optimizations that are enabled by
    - `allow_empty_schema_intersection` [`%false`]: Allows combining multiple tables if they have no common columns.
 
    - `max_tables` [250]: The maximum number of tables that can be combined for reading. If this limit is exceeded, the query will end with an error.
+
+- `omit_inaccessible_rows` [`%false`] — Allows to read tables with [row-level ACLs](../../../../../user-guide/storage/row-level-security.md).
