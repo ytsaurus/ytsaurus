@@ -316,12 +316,18 @@ TTableSchemaPtr BuildLowCardinalitySchema(TStorageContext* storageContext, TTabl
     }
 
     std::vector<TColumnSchema> modifiedColumns = columns;
+    std::vector<std::string> lowCardinalityColumnNames;
     for (const auto& [columnIndex, isLowCardinality] : Enumerate(mask)) {
         if (isLowCardinality) {
             auto lcLogicalType = TaggedLogicalType(LowCardinalityTag, modifiedColumns[columnIndex].LogicalType());
             modifiedColumns[columnIndex].SetLogicalType(std::move(lcLogicalType));
+            lowCardinalityColumnNames.push_back(modifiedColumns[columnIndex].Name());
         }
     }
+
+    storageContext->QueryContext->SetRuntimeVariable(
+        "low_cardinality_columns",
+        std::move(lowCardinalityColumnNames));
 
     return New<TTableSchema>(
         std::move(modifiedColumns),
