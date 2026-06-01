@@ -17,6 +17,8 @@ struct TPersistentOperationState
 {
     std::optional<std::string> SchedulingModule;
 
+    std::optional<TNetworkPriority> NetworkPriority;
+
     REGISTER_YSON_STRUCT_LITE(TPersistentOperationState);
 
     static void Register(TRegistrar registrar);
