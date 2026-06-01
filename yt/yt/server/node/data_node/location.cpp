@@ -357,11 +357,11 @@ double TChunkLocation::GetFairShareWorkloadCategoryWeight(EWorkloadCategory cate
     return config->FairShareWorkloadCategoryWeights[category].value_or(DefaultFairShareWorkloadCategoryWeights[category]);
 }
 
-THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
+TChunkLocationConfigPtr TChunkLocation::GetRuntimeConfig() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return RuntimeConfig_.AcquireHazard();
+    return RuntimeConfig_.Acquire();
 }
 
 double TChunkLocation::GetMemoryLimitFractionForStartingNewSessions() const
