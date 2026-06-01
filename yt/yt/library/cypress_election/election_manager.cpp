@@ -93,6 +93,13 @@ public:
             .Run();
     }
 
+    NPrerequisiteClient::TPrerequisiteId GetPrerequisiteId() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return PrerequisiteTransactionId_.Load();
+    }
+
     TTransactionId GetPrerequisiteTransactionId() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
