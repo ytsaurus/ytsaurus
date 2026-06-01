@@ -458,6 +458,12 @@ public:
         for (const auto& column : extraColumns) {
             NameTable_->RegisterNameOrThrow(column.Name());
         }
+
+        static const std::vector<TColumnSchema> QueueSystemColumns = {
+            TColumnSchema("$timestamp", ESimpleLogicalValueType::Uint64),
+            TColumnSchema("$cumulative_data_weight", ESimpleLogicalValueType::Int64),
+        };
+        TableCreationSchema_ = ExtendSchema(Schema_, QueueSystemColumns);
     }
 
     static constexpr auto Name = "SystemLogTableExporter";
@@ -477,7 +483,7 @@ public:
         while (true) {
             auto [currentVersion, schema, tabletCount, mounted] = GetLatestTableInfo();
 
-            if (currentVersion == -1 || schema != Schema_ || tabletCount != Config_->CreateTableTabletCount) {
+            if (currentVersion == -1 || schema != TableCreationSchema_ || tabletCount != Config_->CreateTableTabletCount) {
                 ++currentVersion;
                 CreateVersionedTable(currentVersion);
                 mounted = MountVersionedTable(currentVersion);
@@ -547,6 +553,7 @@ private:
     const IInvokerPtr Invoker_;
     const TConversionSettingsPtr ConversionSettings_;
     TTableSchema Schema_;
+    TTableSchema TableCreationSchema_;
     TNameTablePtr NameTable_;
     const std::shared_ptr<const std::vector<int>> ColumnIndexToId_;
     const TLogger Logger;
@@ -619,7 +626,7 @@ private:
         auto attributes = ConvertToAttributes(Config_->CreateTableAttributes);
         attributes->Set("atomicity", NTransactionClient::EAtomicity::None);
         attributes->Set("dynamic", true);
-        attributes->Set("schema", Schema_);
+        attributes->Set("schema", TableCreationSchema_);
         attributes->Set("tablet_count", Config_->CreateTableTabletCount);
 
         options = {};
