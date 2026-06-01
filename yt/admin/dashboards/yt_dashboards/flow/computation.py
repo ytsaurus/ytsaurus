@@ -420,7 +420,7 @@ class ComputationCellGenerator:
                     description="Lag = now() - EventTimestamp, measured at output (per emitted message).")
                 .cell(
                     "Sink event lag (p90 per sink)",
-                    lag_p90("yt.flow.worker.computation.event_lag.sink.lag", sink_alias, "sink_id"),
+                    lag_p90("yt.flow.worker.computation.sink.event_lag.lag", sink_alias, "sink_id"),
                     description="Lag = now() - EventTimestamp, measured at sink (per-destination ack callback). For async sinks (e.g. logbroker) the ack arrives after the epoch commit.")
                 .cell("", EmptyCell())
         )
