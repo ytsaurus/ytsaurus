@@ -867,7 +867,9 @@ public:
     void UpdateUnflushedTimestamp() const;
 
     void AdvancePersistentConflictHorizonTimestamp(TTimestamp timestamp);
-    void AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp);
+    void AdvanceTransientConflictHorizonTimestamp(
+        TTimestamp timestamp,
+        std::optional<NHydra::TRevision> expectedMountRevision);
     // Advances the transient timestamp up to the persistent one.
     void ResetTransientConflictHorizonTimestamp();
 

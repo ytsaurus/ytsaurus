@@ -1462,7 +1462,7 @@ private:
         YT_LOG_INFO("Tablet mounted (%v, MountRevision: %x, Keys: %v .. %v, "
             "StoreCount: %v, HunkChunkCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
             "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v, SchemaId: %v, "
-            "MasterAvenueEndpointId: %v, SerializationType: %v)",
+            "MasterAvenueEndpointId: %v, SerializationType: %v, ConflictHorizonTimestamp: %v)",
             tablet->GetLoggingTag(),
             mountRevision,
             pivotKey,
@@ -1479,7 +1479,8 @@ private:
             retainedTimestamp,
             schemaId,
             masterAvenueEndpointId,
-            serializationType);
+            serializationType,
+            conflictHorizonTimestamp);
 
         for (const auto& descriptor : replicaDescriptors) {
             AddTableReplica(tablet, descriptor);
@@ -2669,14 +2670,16 @@ private:
 
         YT_LOG_INFO("Tablet stores update prepared "
             "(%v, TransactionId: %v, StoreIdsToAdd: %v, HunkChunkIdsToAdd: %v, StoreIdsToRemove: %v, HunkChunkIdsToRemove: %v, "
-            "UpdateReason: %v)",
+            "UpdateReason: %v, ConflictHorizonTimestamp: %v, UnleashedBackingStoreId: %v)",
             tablet->GetLoggingTag(),
             transaction->GetId(),
             storeIdsToAdd,
             hunkChunkIdsToAdd,
             storeIdsToRemove,
             hunkChunkIdsToRemove,
-            updateReason);
+            updateReason,
+            FromProto<TTimestamp>(request->conflict_horizon_timestamp()),
+            FromProto<TStoreId>(request->unleashed_backing_store_id()));
     }
 
     void HydraPrepareAndCommitBoggleHunkTabletStoreLock(
@@ -3251,7 +3254,9 @@ private:
                         tablet->AdvancePersistentConflictHorizonTimestamp(storeTimestamp);
 
                         if (!backingStoreId) {
-                            tablet->AdvanceTransientConflictHorizonTimestamp(storeTimestamp);
+                            tablet->AdvanceTransientConflictHorizonTimestamp(
+                                storeTimestamp,
+                                /*expectedMountRevision*/ std::nullopt);
                         }
                     }
                 }
@@ -3300,7 +3305,8 @@ private:
                     ETabletReign::AddConflictHorizon)
                 {
                     tablet->AdvanceTransientConflictHorizonTimestamp(
-                        FromProto<TTimestamp>(request->conflict_horizon_timestamp()));
+                        FromProto<TTimestamp>(request->conflict_horizon_timestamp()),
+                        /*expectedMountRevision*/ std::nullopt);
                 }
             }
         }
@@ -5020,7 +5026,11 @@ private:
         TDelayedExecutor::Submit(
             // NB: Submit the callback via the regular automaton invoker, not the epoch one since
             // we need the store to be released even if the epoch ends.
-            BIND(&TTabletManager::ReleaseBackingStoreWeak, MakeWeak(this), MakeWeak(store))
+            BIND(
+                &TTabletManager::ReleaseBackingStoreWeak,
+                MakeWeak(this),
+                MakeWeak(store),
+                tablet->GetMountRevision())
                 .Via(Slot_->GetAutomatonInvoker()),
             tablet->GetSettings().MountConfig->BackingStoreRetentionTime);
     }
@@ -5036,12 +5046,15 @@ private:
                 &TTabletManager::ReleaseUnleashedBackingStoreWeak,
                 MakeWeak(this),
                 tablet->GetId(),
-                backingStore->GetId())
+                backingStore->GetId(),
+                tablet->GetMountRevision())
                 .Via(Slot_->GetEpochAutomatonInvoker()),
             tablet->GetSettings().MountConfig->BackingStoreRetentionTime);
     }
 
-    void ReleaseBackingStoreWeak(const TWeakPtr<IChunkStore>& storeWeak)
+    void ReleaseBackingStoreWeak(
+        const TWeakPtr<IChunkStore>& storeWeak,
+        TRevision expectedMountRevision)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -5049,12 +5062,15 @@ private:
             ReleaseBackingStore(store);
 
             if (auto* tablet = FindTablet(store->GetTabletId())) {
-                tablet->AdvanceTransientConflictHorizonTimestamp(store->GetMaxTimestamp());
+                tablet->AdvanceTransientConflictHorizonTimestamp(store->GetMaxTimestamp(), expectedMountRevision);
             }
         }
     }
 
-    void ReleaseUnleashedBackingStoreWeak(TTabletId tabletId, TDynamicStoreId backingStoreToRemoveId)
+    void ReleaseUnleashedBackingStoreWeak(
+        TTabletId tabletId,
+        TDynamicStoreId backingStoreToRemoveId,
+        TRevision expectedMountRevision)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -5066,7 +5082,7 @@ private:
         // It is possible that at this point this tablet is a recreated c++ object after unmount and mount.
         // Sorted store manager is ready for this.
         // TODO(ponasenko-rs): Use TTablet::CancelableContext_ to simplify interface.
-        tablet->GetStoreManager()->AsSorted()->ReleaseUnleashedBackingStore(backingStoreToRemoveId);
+        tablet->GetStoreManager()->AsSorted()->ReleaseUnleashedBackingStore(backingStoreToRemoveId, expectedMountRevision);
     }
 
     void ValidateMemoryLimit(const std::optional<std::string>& poolTag) override

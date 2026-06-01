@@ -3383,7 +3383,7 @@ private:
 
             YT_LOG_DEBUG("Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
                 "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v, "
-                "NodeEndpointId: %v)",
+                "NodeEndpointId: %v, ConflictHorizonTimestamp: %v)",
                 table->GetId(),
                 tablet->GetId(),
                 cell->GetId(),
@@ -3392,7 +3392,8 @@ private:
                 table->GetCommitOrdering(),
                 freeze,
                 table->GetUpstreamReplicaId(),
-                tablet->GetNodeEndpointId());
+                tablet->GetNodeEndpointId(),
+                tablet->GetConflictHorizonTimestamp());
 
             if (!tablet->IsMountedWithAvenue()) {
                 ++NonAvenueTabletCount_;
