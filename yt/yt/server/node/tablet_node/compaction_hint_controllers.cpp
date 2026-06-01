@@ -38,10 +38,9 @@ TCompactionHintConfigChange::TCompactionHintConfigChange(
             break;
 
         case NLsm::EStoreCompactionHintKind::VersionedRowDigest:
-            OldEnable_ = oldConfig->CompactionHints->RowDigest->EnableNonAggregates && oldConfig->RowMergerType != ERowMergerType::Watermark;
-            NewEnable_ = newConfig->CompactionHints->RowDigest->EnableNonAggregates && newConfig->RowMergerType != ERowMergerType::Watermark;
-            ConfigChanged_ = !static_cast<TRetentionConfig*>(oldConfig.Get())->IsEqual(*static_cast<TRetentionConfig*>(newConfig.Get())) ||
-                !oldConfig->CompactionHints->RowDigest->AreCompactionSettingsEqual(newConfig->CompactionHints->RowDigest);
+            OldEnable_ = IsNonAggregateRowDigestEnabled(oldConfig);
+            NewEnable_ = IsNonAggregateRowDigestEnabled(newConfig);
+            ConfigChanged_ = IsConfigChanged(oldConfig, newConfig, &TCompactionHintsConfig::RowDigest);
             break;
 
         default:
@@ -57,17 +56,15 @@ TCompactionHintConfigChange::TCompactionHintConfigChange(
 {
     switch (kind) {
         case NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest:
-            OldEnable_ = oldConfig->CompactionHints->RowDigest->EnableAggregates && oldConfig->RowMergerType != ERowMergerType::Watermark;
-            NewEnable_ = newConfig->CompactionHints->RowDigest->EnableAggregates && newConfig->RowMergerType != ERowMergerType::Watermark;
-            ConfigChanged_ = !static_cast<TRetentionConfig*>(oldConfig.Get())->IsEqual(*static_cast<TRetentionConfig*>(newConfig.Get())) ||
-                !oldConfig->CompactionHints->RowDigest->AreCompactionSettingsEqual(newConfig->CompactionHints->RowDigest);
+            OldEnable_ = IsAggregateRowDigestEnabled(oldConfig);
+            NewEnable_ = IsAggregateRowDigestEnabled(newConfig);
+            ConfigChanged_ = IsConfigChanged(oldConfig, newConfig, &TCompactionHintsConfig::RowDigest);
             break;
 
         case NLsm::EPartitionCompactionHintKind::MinHashDigest:
-            OldEnable_ = oldConfig->CompactionHints->MinHashDigest->Enable && oldConfig->RowMergerType != ERowMergerType::Watermark;
-            NewEnable_ = newConfig->CompactionHints->MinHashDigest->Enable && newConfig->RowMergerType != ERowMergerType::Watermark;
-            ConfigChanged_ = !static_cast<TRetentionConfig*>(oldConfig.Get())->IsEqual(*static_cast<TRetentionConfig*>(newConfig.Get())) ||
-                !oldConfig->CompactionHints->MinHashDigest->AreCompactionSettingsEqual(newConfig->CompactionHints->MinHashDigest);
+            OldEnable_ = IsMinHashDigestEnabled(oldConfig);
+            NewEnable_ = IsMinHashDigestEnabled(newConfig);
+            ConfigChanged_ = IsConfigChanged(oldConfig, newConfig, &TCompactionHintsConfig::MinHashDigest);
             break;
 
         default:
@@ -82,6 +79,42 @@ TCompactionHintConfigChange TCompactionHintConfigChange::AsOnlyEnableConfigChang
     ConfigChanged_ = false;
 
     return *this;
+}
+
+bool TCompactionHintConfigChange::IsNonAggregateRowDigestEnabled(const TTableMountConfigPtr& config)
+{
+    return config->CompactionHints->RowDigest->EnableNonAggregates &&
+        config->RowMergerType != ERowMergerType::Watermark;
+}
+
+bool TCompactionHintConfigChange::IsAggregateRowDigestEnabled(const TTableMountConfigPtr& config)
+{
+    return config->CompactionHints->RowDigest->EnableAggregates &&
+        config->RowMergerType != ERowMergerType::Watermark;
+}
+
+bool TCompactionHintConfigChange::IsMinHashDigestEnabled(const TTableMountConfigPtr& config)
+{
+    return config->CompactionHints->MinHashDigest->Enable &&
+        config->RowMergerType != ERowMergerType::Watermark &&
+        // TODO(dave11ar): YT-28364.
+        config->InMemoryMode == EInMemoryMode::None;
+}
+
+template <class TCompactionHintConfig>
+bool TCompactionHintConfigChange::IsConfigChanged(
+    const TTableMountConfigPtr& oldConfig,
+    const TTableMountConfigPtr& newConfig,
+    TCompactionHintConfig TCompactionHintsConfig::* compactionHintField)
+{
+    auto* oldRetentionConfig = static_cast<TRetentionConfig*>(oldConfig.Get());
+    auto* newRetentionConfig = static_cast<TRetentionConfig*>(newConfig.Get());
+
+    const auto& oldCompactionHint = (*oldConfig->CompactionHints).*compactionHintField;
+    const auto& newCompactionHint = (*newConfig->CompactionHints).*compactionHintField;
+
+    return !oldRetentionConfig->IsEqual(*newRetentionConfig) ||
+        !oldCompactionHint->AreCompactionSettingsEqual(newCompactionHint);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,8 +166,6 @@ bool DefinitelyHasNoHint(
 
     switch (kind) {
         case NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest:
-            return tableSchema->HasTtlColumn();
-
         case NLsm::EPartitionCompactionHintKind::MinHashDigest:
             return tableSchema->HasTtlColumn();
 
