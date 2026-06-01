@@ -138,6 +138,11 @@ public:
     //! These properties can be changed during assignment plan update.
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::string>, SchedulingModule);
 
+    //! Computed from the operation's node-share on its bound module via
+    //! TGpuSchedulingPolicyConfig::ModuleShareToNetworkPriority.
+    //! Set only for full-host module-bound operations; reset together with SchedulingModule_.
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TNetworkPriority>, NetworkPriority);
+
     // Used only for full-host module-bound operations.
     DEFINE_BYREF_RW_PROPERTY(std::optional<TInstant>, WaitingForModuleBindingSince);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TInstant>, WaitingForAssignmentsSince);
@@ -199,6 +204,8 @@ public:
     //! Operation may be not bound to any module but have running assignments (e.g. if operation briefly became preemptible).
     //! When choosing a module for such operation, we will either choose this module or preempt all assignments in it.
     std::optional<std::string> GetUsedSchedulingModule() const;
+
+    void ResetSchedulingModule();
 
     bool IsZeroAssignedUsage() const;
 

@@ -129,6 +129,10 @@ private:
     void EvictOperationFromSchedulingModule(const TOperationPtr& operation, const std::string& preemptionDescription);
     bool BindFullHostOperationToModule(const TOperationPtr& operation, bool priorityModuleBinding);
 
+    //! Recomputes |operation->NetworkPriority()| based on the operation's node-share on its bound module.
+    //! Must be called only for full-host module-bound operations with a non-null SchedulingModule().
+    void UpdateNetworkPriority(const TOperationPtr& operation);
+
     std::optional<NDetail::TOperationModuleBindingOutcome> ConsiderModuleForFullHostOperation(
         const TOperationPtr& operation,
         const std::string& module,

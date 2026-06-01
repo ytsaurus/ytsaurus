@@ -5,6 +5,7 @@
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
@@ -184,7 +185,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
 
         // Preemptible operation cannot be bound to a module.
         if (operation->IsPreemptible()) {
-            operation->SchedulingModule().reset();
+            operation->ResetSchedulingModule();
             continue;
         }
 
@@ -394,7 +395,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::EvictOperationFromSchedulingMod
     auto& moduleState = GetOrCrash(ModuleStates_, operation->SchedulingModule().value());
     moduleState.RemoveFullHostBoundOperation(operation);
 
-    operation->SchedulingModule().reset();
+    operation->ResetSchedulingModule();
 
     PreemptAllOperationAssignments(
         operation,
@@ -499,7 +500,26 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
     auto& moduleState = GetOrCrash(ModuleStates_, bestModule);
     moduleState.AddFullHostBoundOperation(operation.Get());
 
+    UpdateNetworkPriority(operation);
+
     return true;
+}
+
+void TGpuAllocationAssignmentPlanUpdateExecutor::UpdateNetworkPriority(const TOperationPtr& operation)
+{
+    YT_VERIFY(operation->SchedulingModule());
+
+    const auto& moduleState = GetOrCrash(ModuleStates_, *operation->SchedulingModule());
+    const int nodeCount = moduleState.GetNodeCount();
+    if (nodeCount <= 0) {
+        operation->NetworkPriority().reset();
+        return;
+    }
+
+    // NB(yaishenka): GetInitialNeededAllocationCount is the canonical "node footprint on a module"
+    // signal in this policy — see BindFullHostOperationToModule and FindOperationsToEvict.
+    const auto share = static_cast<double>(operation->GetInitialNeededAllocationCount()) / nodeCount;
+    operation->NetworkPriority() = ComputeNetworkPriority(share, Config_->ModuleShareToNetworkPriority);
 }
 
 std::optional<NDetail::TOperationModuleBindingOutcome> TGpuAllocationAssignmentPlanUpdateExecutor::ConsiderModuleForFullHostOperation(

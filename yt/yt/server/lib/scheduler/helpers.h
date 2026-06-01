@@ -28,6 +28,19 @@ void ValidateGpuSchedulingModuleName(TStringBuf name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Returns the priority of the largest table entry whose `ModuleShare <= share`.
+//! Returns `std::nullopt` if the table is empty or `share` is below the smallest entry.
+//! The table is expected to be sorted by ascending `ModuleShare` (enforced by config postprocessors).
+std::optional<TNetworkPriority> ComputeNetworkPriority(
+    double share,
+    const std::vector<TModuleShareAndNetworkPriority>& table);
+
+//! Throws if `table` is not strictly ascending by `ModuleShare`.
+void ValidateModuleShareToNetworkPriority(
+    const std::vector<TModuleShareAndNetworkPriority>& table);
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(eshcherbin): Use for all testing delays.
 //! Used for testing purposes.
 void Delay(TDuration delay, EDelayType delayType = EDelayType::Async);
