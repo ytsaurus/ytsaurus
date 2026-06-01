@@ -15,7 +15,11 @@ ENV(YT_DEBUG_TAKEN_PORT=1)
 
 SET(NO_STRIP yes)
 
-INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
+IF (NOT OPENSOURCE)
+    INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
+ELSE()
+    YT_SPEC(yt/yt/tests/integration/spec_os.yson)
+ENDIF()
 
 IF (NOT OPENSOURCE)
     ENV(YT_DISABLE_MULTIDAEMON=true)
