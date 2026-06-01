@@ -508,6 +508,7 @@ SRCS(
     table_client/schemaful_chunk_reader.cpp
     table_client/schemaful_concatenating_reader.cpp
     table_client/schemaful_reader_adapter.cpp
+    table_client/schemaful_translating_reader_adapter.cpp
     table_client/schemaless_block_reader.cpp
     table_client/schemaless_block_writer.cpp
     table_client/schemaless_buffered_table_writer.cpp
