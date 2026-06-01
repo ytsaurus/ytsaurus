@@ -74,7 +74,7 @@ jobs:
           cd ytsaurus
 
           BUILD_FLAGS="--test-prepare --bazel-remote-store --bazel-remote-put"
-          BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
+          BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_STABLE_BAZEL_HOST }}"
           BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}"
           BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
           BUILD_FLAGS="${BUILD_FLAGS} ${{ matrix.build_flags }}"
