@@ -6,6 +6,12 @@ access_log_export_path: //sys/admin/logs/export/master-access
 work_path: //sys/admin/yt-microservices/raw_master_access_log_processing
 max_input_tables: 2
 processings:
+  5min:
+    output_path: //sys/admin/logs/export/master-access-parsed/stream/5min
+    interval: 5m
+    table_format: "2006-01-02T15:04:05"
+    cutoff_time: 15m
+    expiration_timeout: 24h
   30min:
     output_path: //sys/admin/logs/export/master-access-parsed/30min
     interval: 30m

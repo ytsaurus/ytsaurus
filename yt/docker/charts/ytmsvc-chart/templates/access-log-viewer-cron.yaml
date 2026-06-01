@@ -29,8 +29,8 @@ spec:
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
           containers:
-          {{- range list "30min" "1d" }}
-            - name: {{ $.Chart.Name }}-{{ $.Values.cluster.name | replace "_" "-" }}-{{ . }}
+          {{- range list "30min" "1d" "stream/5min" }}
+            - name: {{ $.Chart.Name }}-{{ $.Values.cluster.name | replace "_" "-" }}-{{ . | replace "/" "-" }}
               securityContext:
                 {{- toYaml $.Values.securityContext | nindent 16 }}
               image: {{ include "ytmsvc.image" (dict "image" $.Values.microservices.accessLogViewer.image "root" $) }}
@@ -64,6 +64,9 @@ spec:
                 {{- end }}
                 - "--users-to-ignore"
                 - "table_mount_informer"
+                {{- if $.Values.microservices.accessLogViewer.preprocessing.config.rewrite }}
+                - "--rewrite"
+                {{- end }}
               env:
                 - name: YT_PROXY
                   value: {{ $.Values.cluster.name | quote }}

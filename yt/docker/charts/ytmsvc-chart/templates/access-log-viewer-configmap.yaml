@@ -16,6 +16,18 @@ data:
     work_path: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.workPath }}
     max_input_tables: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.maxInputTables }}
     processings:
+      5min:
+        output_path: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.accessLogExportPath }}-parsed/stream/5min
+        interval: 5m
+        table_format: "2006-01-02T15:04:05"
+        cutoff_time: 0
+        {{- with .Values.microservices.accessLogViewer.rawLogPreprocessing.config.processings }}
+        {{- with (index . "5min") }}
+        {{- if .expirationTimeout }}
+        expiration_timeout: {{ .expirationTimeout }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
       30min:
         output_path: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.accessLogExportPath }}-parsed/30min
         interval: 30m

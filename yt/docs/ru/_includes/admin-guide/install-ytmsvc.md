@@ -126,14 +126,16 @@ yt create map_node //sys/admin/yt-microservices/resource_usage
 Создайте директории для распаршенных access-логов мастера:
 
 ```bash
-yt create map_node //sys/admin/logs/export/master-access-parsed/1d --recursive
+yt create map_node //sys/admin/logs/export/master-access-parsed/stream/5min --recursive
 yt create map_node //sys/admin/logs/export/master-access-parsed/30min
+yt create map_node //sys/admin/logs/export/master-access-parsed/1d
 ```
 
 Создайте рабочие директории временных файлов для микросервисов:
 
 ```bash
-yt create map_node //sys/admin/yt-microservices/tmp/access_log_viewer/30min --recursive
+yt create map_node //sys/admin/yt-microservices/tmp/access_log_viewer/stream/5min --recursive
+yt create map_node //sys/admin/yt-microservices/tmp/access_log_viewer/30min
 yt create map_node //sys/admin/yt-microservices/tmp/access_log_viewer/1d
 yt create map_node //sys/admin/yt-microservices/tmp/id_to_path_updater
 ```
@@ -520,6 +522,8 @@ yt set //sys/@ui_config/ui_settings/access_log_base_path '"http://ytsaurus-msvc-
           maxInputTables: 16
           # Настройки для каждого типа обработки логов
           processings:
+            5min:
+              expirationTimeout: 24h
             30min:
               # Таймаут истечения срока хранения для выходных таблиц.
               # Если не указан, таймаут не устанавливается.
