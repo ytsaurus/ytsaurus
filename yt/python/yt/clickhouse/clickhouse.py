@@ -113,9 +113,6 @@ def prepare_configs(instance_count,
             },
             "max_server_memory_usage": memory_config["max_server_memory_usage"]
         },
-        "profile_manager": {
-            "global_tags": {"operation_alias": operation_alias[1:]} if operation_alias is not None else {},
-        },
         "cluster_connection": {
             "block_cache": {
                 "uncompressed_data": {
@@ -154,15 +151,9 @@ def prepare_configs(instance_count,
     for patch in (clickhouse_config_cypress_base, clickhouse_config_base, clickhouse_config, cluster_connection_patch):
         update_inplace(resulting_clickhouse_config, patch)
 
-    log_tailer_config_base = {
-        "profile_manager": {
-            "global_tags": {"operation_alias": operation_alias[1:]} if operation_alias is not None else {},
-        }
-    }
-
     log_tailer_config_cypress_base = get(cypress_log_tailer_config_path, client=client) if cypress_log_tailer_config_path else None
     resulting_log_tailer_config = {}
-    for patch in (log_tailer_config_cypress_base, log_tailer_config_base, cluster_connection_patch):
+    for patch in (log_tailer_config_cypress_base, cluster_connection_patch):
         update_inplace(resulting_log_tailer_config, patch)
 
     return {
