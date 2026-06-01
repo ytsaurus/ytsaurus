@@ -168,24 +168,6 @@ using NTabletNode::TTabletSnapshotPtr;
 
 namespace {
 
-void MarkMountCacheInvalidationExhausted(TError* error)
-{
-    auto isMountCacheRetryableCode = [] (TErrorCode code) {
-        return std::find(
-            TableMountCacheRetryableCodes.begin(),
-            TableMountCacheRetryableCodes.end(),
-            code) != TableMountCacheRetryableCodes.end();
-    };
-
-    if (error->Attributes().Contains("tablet_id") && isMountCacheRetryableCode(error->GetCode())) {
-        (*error) <<= TErrorAttribute("mount_cache_invalidation_exhausted", true);
-    }
-
-    for (auto& innerError : *error->MutableInnerErrors()) {
-        MarkMountCacheInvalidationExhausted(&innerError);
-    }
-}
-
 std::pair<NTableClient::TColumnFilter, TTimestampReadOptions> GetColumnFilter(
     const NTableClient::TTableSchema& desiredSchema,
     const NTableClient::TTableSchema& tabletSchema)
@@ -1027,38 +1009,25 @@ private:
             ColumnEvaluatorCache_,
             Evaluator_,
             client->GetChannelFactory(),
-            FunctionImplCache_);
+            FunctionImplCache_,
+            /*retryOnMetadataCacheInconsistency*/ true);
 
         return [
             options = GetJoinSubqueryOptions(queryOptions),
             this,
             this_ = MakeStrong(this),
-            connection = client->GetNativeConnection(),
             remoteExecutor
         ] (TPlanFragment fragment, IUnversionedRowsetWriterPtr writer) {
-            try {
-                return NApi::NNative::CallAndRetryIfMetadataCacheIsInconsistent(
-                    connection,
-                    /*profilingInfo*/ nullptr,
-                    Logger,
-                    [=, this] {
-                        return BIND(
-                            &IExecutor::Execute,
-                            remoteExecutor,
-                            fragment,
-                            ExternalCGInfo_,
-                            writer,
-                            options,
-                            RequestFeatureFlags_)
-                            .AsyncVia(Invoker_)
-                            .Run();
-                    });
-            } catch (const TErrorException& ex) {
-                auto error = ex.Error();
-                // Avoid cascading retries on upper levels of execution.
-                MarkMountCacheInvalidationExhausted(&error);
-                return MakeFuture<TQueryStatistics>(error);
-            }
+            return BIND(
+                &IExecutor::Execute,
+                remoteExecutor,
+                fragment,
+                ExternalCGInfo_,
+                writer,
+                options,
+                RequestFeatureFlags_)
+                .AsyncVia(Invoker_)
+                .Run();
         };
     }
 
