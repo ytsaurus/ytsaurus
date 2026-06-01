@@ -448,14 +448,6 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		"cpu_limit":          r.InstanceCPU,
 		"memory":             r.InstanceMemory.memoryConfig(),
 		"cluster_connection": c.cachedClusterConnection,
-		// TODO(dakovalkov): "profile_manager" is a compat for older CHYT versions.
-		// Remove it when all cliques are 2.09+
-		"profile_manager": map[string]any{
-			"global_tags": map[string]any{
-				"operation_alias": oplet.Alias(),
-				"cookie":          "$YT_JOB_COOKIE",
-			},
-		},
 		"solomon_exporter": map[string]any{
 			// NOTE(dakovalkov): override host, otherwise metric count will bloat.
 			"host": "",
