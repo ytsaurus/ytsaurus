@@ -147,7 +147,7 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
             result.push_back(std::move(attributeValue));
             continue;
         }
-        auto [before, after] = split.value();
+        auto [before, after] = *split;
         attributesToExpand[before].push_back(TAttributeValue{
             .Path = NYPath::TYPath{after},
             .Value = std::move(attributeValue.Value),

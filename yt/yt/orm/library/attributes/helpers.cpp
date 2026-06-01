@@ -1046,7 +1046,7 @@ const EnumValueDescriptor* LookupEnumValue(
             {
                 return enumValueDescriptor;
             }
-            if (decoded.has_value() && enumValueDescriptor->name() == decoded.value()) {
+            if (decoded.has_value() && enumValueDescriptor->name() == *decoded) {
                 return enumValueDescriptor;
             }
             if (enumValueDescriptor->name() == value) {
