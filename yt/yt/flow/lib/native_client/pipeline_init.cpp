@@ -305,6 +305,7 @@ TNodeId CreatePipelineNode(
         for (const auto& [tableName, tableAttributes] : GetTables()) {
             TCreateNodeOptions createOptions;
             createOptions.Attributes = tableAttributes;
+            createOptions.IgnoreExisting = options.IgnoreExisting;
             createTableFutures.push_back(
                 transaction->CreateNode(getTablePath(tableName), EObjectType::Table, createOptions)
                 .AsVoid());
