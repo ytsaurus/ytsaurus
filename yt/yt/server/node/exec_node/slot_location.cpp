@@ -5,7 +5,6 @@
 #include "private.h"
 #include "slot_manager.h"
 #include "volume.h"
-#include "volume_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -131,8 +130,7 @@ TSlotLocation::TSlotLocation(
     const std::string& id,
     IJobDirectoryManagerPtr jobDirectoryManager,
     int slotCount,
-    std::function<int(int)> slotIndexToUserId,
-    IVolumeManagerPtr volumeManager)
+    std::function<int(int)> slotIndexToUserId)
     : TDiskLocation(config, id, ExecNodeLogger())
     , Config_(std::move(config))
     , Bootstrap_(bootstrap)
@@ -140,7 +138,6 @@ TSlotLocation::TSlotLocation(
     , SlotManagerDynamicConfig_(Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager)
     , JobDirectoryManager_(std::move(jobDirectoryManager))
     , SlotCount_(slotCount)
-    , VolumeManager_(std::move(volumeManager))
     , SlotIndexToUserId_(slotIndexToUserId)
     , HeavyLocationQueue_(New<TActionQueue>(Format("HeavyIO:%v", id)))
     , LightLocationQueue_(New<TActionQueue>(Format("LightIO:%v", id)))
@@ -324,8 +321,6 @@ void TSlotLocation::DoInitialize()
     ValidateMinimumSpace();
 
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-        RemoveVolumesFromPortoPlace(slotIndex);
-        RemoveLayersFromPortoPlace(slotIndex);
         BuildSlotRootDirectory(slotIndex);
     }
 
@@ -1425,88 +1420,6 @@ void TSlotLocation::BuildSlotRootDirectory(int slotIndex)
         .Run();
     WaitFor(future)
         .ThrowOnError();
-}
-
-void TSlotLocation::RemoveVolumesFromPortoPlace(int slotIndex)
-{
-    auto portoPlacePath = GetSandboxPath(slotIndex, ESandboxKind::PortoPlace);
-
-    if (!VolumeManager_) {
-        YT_LOG_DEBUG(
-            "Volume manager is not available, skipping porto place cleanup (PortoPlace: %v)",
-            portoPlacePath);
-        return;
-    }
-
-    if (!NFS::Exists(portoPlacePath)) {
-        YT_LOG_DEBUG(
-            "Porto place directory does not exist, skipping volume cleanup (PortoPlace: %v)",
-            portoPlacePath);
-        return;
-    }
-
-    auto timeout = SlotManagerDynamicConfig_.Acquire()->RemoveVolumesFromPortoPlaceTimeout;
-
-    YT_LOG_DEBUG(
-        "Cleaning up volumes from porto place (PortoPlace: %v, Timeout: %v)",
-        portoPlacePath,
-        timeout);
-
-    auto removeVolumesResult = WaitFor(VolumeManager_->RemoveVolumes(portoPlacePath, timeout));
-    if (!removeVolumesResult.IsOK()) {
-        auto error = TError("Failed to remove volumes from porto place")
-            << TErrorAttribute("porto_place", portoPlacePath)
-            << removeVolumesResult;
-        YT_LOG_ERROR(error);
-        // It would be nice to disable just this particular slot index, not the whole slot.
-        Disable(error);
-        THROW_ERROR error;
-    }
-
-    YT_LOG_DEBUG(
-        "Cleaned up volumes from porto place (PortoPlace: %v)",
-        portoPlacePath);
-}
-
-void TSlotLocation::RemoveLayersFromPortoPlace(int slotIndex)
-{
-    auto portoPlacePath = GetSandboxPath(slotIndex, ESandboxKind::PortoPlace);
-
-    if (!VolumeManager_) {
-        YT_LOG_DEBUG(
-            "Volume manager is not available, skipping porto place layer cleanup (PortoPlace: %v)",
-            portoPlacePath);
-        return;
-    }
-
-    if (!NFS::Exists(portoPlacePath)) {
-        YT_LOG_DEBUG(
-            "Porto place directory does not exist, skipping layer cleanup (PortoPlace: %v)",
-            portoPlacePath);
-        return;
-    }
-
-    auto timeout = SlotManagerDynamicConfig_.Acquire()->RemoveLayersFromPortoPlaceTimeout;
-
-    YT_LOG_DEBUG(
-        "Cleaning up layers from porto place (PortoPlace: %v, Timeout: %v)",
-        portoPlacePath,
-        timeout);
-
-    auto removeLayersResult = WaitFor(VolumeManager_->RemoveLayers(portoPlacePath, timeout));
-    if (!removeLayersResult.IsOK()) {
-        auto error = TError("Failed to remove layers from porto place")
-            << TErrorAttribute("porto_place", portoPlacePath)
-            << removeLayersResult;
-        YT_LOG_ERROR(error);
-        // It would be nice to disable just this particular slot index, not the whole slot.
-        Disable(error);
-        THROW_ERROR error;
-    }
-
-    YT_LOG_DEBUG(
-        "Cleaned up layers from porto place (PortoPlace: %v)",
-        portoPlacePath);
 }
 
 TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
