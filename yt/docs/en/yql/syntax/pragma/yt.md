@@ -1210,5 +1210,13 @@ Sets the maximum number of columnar groups per intermediate query table. If the 
 
 Sets the `"force_job_size_adjuster"` option in the operation settings.
 
+## yt.OmitInaccessibleRows
+
+| Value type | Default value | Static/<br/>dynamic |
+| --- | --- | --- |
+| Flag | false | Static |
+
+Allows to read tables which have [row-level ACLs]({{yt-docs-root}}/user-guide/storage/row-level-security) set.
+
 
 [*eph-pool]: A pool that is present in the specification but doesn't have an explicit node in Cypress.
