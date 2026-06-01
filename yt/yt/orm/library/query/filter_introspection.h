@@ -36,7 +36,7 @@ struct TOptionalLiteralValueWrapper
     std::optional<T> TryMoveAs()
     {
         if (Value) {
-            if (auto* typedValue = std::get_if<T>(&Value.value())) {
+            if (auto* typedValue = std::get_if<T>(&*Value)) {
                 return std::move(*typedValue);
             }
         }
