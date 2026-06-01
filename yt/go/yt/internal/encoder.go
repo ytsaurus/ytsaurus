@@ -705,6 +705,76 @@ func (e *Encoder) WriteTable(
 	return e.InvokeWriteRow(ctx, call)
 }
 
+var _ yt.DistributedWriteClient = (*Encoder)(nil)
+
+func (e *Encoder) StartDistributedWriteSession(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.StartDistributedWriteSessionOptions,
+) (result yt.DistributedWriteSessionWithCookies, err error) {
+	call := e.newCall(NewStartDistributedWriteSessionParams(path, options))
+	err = e.do(ctx, call, StartDistributedWriteSessionResultDecoder(&result))
+	return
+}
+
+func (e *Encoder) PingDistributedWriteSession(
+	ctx context.Context,
+	session yt.DistributedWriteSession,
+	options *yt.PingDistributedWriteSessionOptions,
+) (err error) {
+	call := e.newCall(NewPingDistributedWriteSessionParams(session, options))
+	return e.do(ctx, call, noopResultDecoder)
+}
+
+func (e *Encoder) FinishDistributedWriteSession(
+	ctx context.Context,
+	session yt.DistributedWriteSession,
+	results []yt.WriteFragmentResult,
+	options *yt.FinishDistributedWriteSessionOptions,
+) (err error) {
+	call := e.newCall(NewFinishDistributedWriteSessionParams(session, results, options))
+	return e.do(ctx, call, noopResultDecoder)
+}
+
+func (e *Encoder) WriteTableFragment(
+	ctx context.Context,
+	cookie yt.WriteFragmentCookie,
+	options *yt.TableFragmentWriterOptions,
+) (w yt.TableFragmentWriter, err error) {
+	call := e.newCall(NewWriteTableFragmentParams(cookie, options))
+	call.WriteRspChan = make(chan *CallResult, 1)
+
+	rowWriter, err := e.InvokeWriteRow(ctx, call)
+	if err != nil {
+		return nil, err
+	}
+	return &tableFragmentWriter{TableWriter: rowWriter, rspChan: call.WriteRspChan}, nil
+}
+
+// tableFragmentWriter adapts a low-level row writer to yt.TableFragmentWriter,
+// capturing the signed fragment result returned by the server after Commit.
+type tableFragmentWriter struct {
+	yt.TableWriter
+
+	rspChan chan *CallResult
+	result  yt.WriteFragmentResult
+}
+
+func (w *tableFragmentWriter) Commit() error {
+	if err := w.TableWriter.Commit(); err != nil {
+		return err
+	}
+	res, ok := <-w.rspChan
+	if !ok || res == nil {
+		return xerrors.New("write_table_fragment: server did not return a fragment result")
+	}
+	return WriteTableFragmentResultDecoder(&w.result)(res)
+}
+
+func (w *tableFragmentWriter) Result() yt.WriteFragmentResult {
+	return w.result
+}
+
 func (e *Encoder) ReadTable(
 	ctx context.Context,
 	path ypath.YPath,

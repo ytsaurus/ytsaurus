@@ -11,6 +11,8 @@ ENDIF()
 ENV(YT_STUFF_MAX_START_RETRIES=10)
 
 IF (NOT OPENSOURCE)
+    # signature_components are required by distributed_write_test.go (signed write cookies).
+    SET(YT_PROXY_CONFIG {signature_components={validation={cypress_key_reader={}};generation={cypress_key_writer={};generator={};key_rotator={}}}})
     INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_operations_archive.inc)
 ENDIF()
 
@@ -25,6 +27,7 @@ GO_TEST_SRCS(
     cypress_client_test.go
     cypress_test.go
     discovery_client_test.go
+    distributed_write_test.go
     error_injection_test.go
     error_test.go
     files_test.go

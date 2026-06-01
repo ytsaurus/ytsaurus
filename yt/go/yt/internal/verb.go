@@ -22,6 +22,11 @@ const (
 	VerbWriteTable Verb = "write_table"
 	VerbReadTable  Verb = "read_table"
 
+	VerbStartDistributedWriteSession  Verb = "start_distributed_write_session"
+	VerbPingDistributedWriteSession   Verb = "ping_distributed_write_session"
+	VerbFinishDistributedWriteSession Verb = "finish_distributed_write_session"
+	VerbWriteTableFragment            Verb = "write_table_fragment"
+
 	VerbListOperations      Verb = "list_operations"
 	VerbStartOperation      Verb = "start_operation"
 	VerbGetOperation        Verb = "get_operation"
@@ -84,7 +89,7 @@ const (
 
 func (v Verb) hasInput() bool {
 	switch v {
-	case VerbSet, VerbMultisetAttributes, VerbWriteFile, VerbWriteTable:
+	case VerbSet, VerbMultisetAttributes, VerbWriteFile, VerbWriteTable, VerbWriteTableFragment:
 		return true
 
 	case VerbInsertRows, VerbDeleteRows, VerbLookupRows, VerbLockRows, VerbPushQueueProducer:
@@ -99,7 +104,7 @@ func (v Verb) hasInput() bool {
 
 func (v Verb) IsHeavy() bool {
 	switch v {
-	case VerbReadFile, VerbWriteFile, VerbReadTable, VerbWriteTable:
+	case VerbReadFile, VerbWriteFile, VerbReadTable, VerbWriteTable, VerbWriteTableFragment:
 		return true
 
 	case VerbLocateSkynetShare:

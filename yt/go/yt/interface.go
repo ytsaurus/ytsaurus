@@ -1943,6 +1943,7 @@ type Client interface {
 	CypressClient
 	FileClient
 	TableClient
+	DistributedWriteClient
 
 	// BeginTx creates new tx.
 	//
@@ -2011,4 +2012,112 @@ type Client interface {
 	//
 	// All transactions tracked by this client are aborted.
 	Stop()
+}
+
+// Distributed write session API.
+//
+// Distributed write lets several participants write fragments of a single table in
+// parallel and then commit them within one session. See
+// https://ytsaurus.tech/docs/en/api/commands#start_distributed_write_session
+//
+// The coordinator calls StartDistributedWriteSession to obtain a session and a set of
+// cookies. Each participant uses WriteTableFragment with a single cookie to stream its
+// rows and obtains a WriteFragmentResult. The coordinator collects all results and calls
+// FinishDistributedWriteSession. While the session is alive it must be kept pinged via
+// PingDistributedWriteSession (which pings the session main transaction).
+
+// DistributedWriteSession is an opaque signed descriptor of a distributed write session.
+type DistributedWriteSession struct {
+	Header    string `yson:"header"`
+	Signature []byte `yson:"signature"`
+	Payload   []byte `yson:"payload"`
+}
+
+// WriteFragmentCookie is an opaque signed token that authorizes a single participant to
+// write one table fragment within a session.
+type WriteFragmentCookie struct {
+	Header    string `yson:"header"`
+	Signature []byte `yson:"signature"`
+	Payload   []byte `yson:"payload"`
+}
+
+// WriteFragmentResult is an opaque signed result of a single WriteTableFragment call.
+// All results must be passed to FinishDistributedWriteSession.
+type WriteFragmentResult struct {
+	Header    string `yson:"header"`
+	Signature []byte `yson:"signature"`
+	Payload   []byte `yson:"payload"`
+}
+
+// DistributedWriteSessionWithCookies is the result of StartDistributedWriteSession.
+type DistributedWriteSessionWithCookies struct {
+	Session DistributedWriteSession `yson:"session"`
+	Cookies []WriteFragmentCookie   `yson:"cookies"`
+}
+
+type StartDistributedWriteSessionOptions struct {
+	// CookieCount is the number of participant cookies to generate.
+	CookieCount *int `http:"cookie_count,omitnil"`
+	// SessionTimeout is how long the session lives without a ping (akin to a transaction timeout).
+	SessionTimeout *yson.Duration `http:"session_timeout,omitnil"`
+
+	*TransactionOptions
+}
+
+type PingDistributedWriteSessionOptions struct{}
+
+type FinishDistributedWriteSessionOptions struct{}
+
+type TableFragmentWriterOptions struct {
+	TableWriter any `http:"table_writer"`
+
+	MaxRowBufferSize *int64 `http:"max_row_buffer_size,omitnil"`
+}
+
+// TableFragmentWriter writes the rows of a single table fragment within a distributed
+// write session.
+//
+// After a successful Commit, Result returns the signed fragment result that must be
+// handed back to the coordinator for FinishDistributedWriteSession.
+type TableFragmentWriter interface {
+	TableWriter
+
+	// Result returns the signed write fragment result. It is valid only after Commit returns successfully.
+	Result() WriteFragmentResult
+}
+
+// DistributedWriteClient provides the distributed table write API.
+type DistributedWriteClient interface {
+	// http:verb:"start_distributed_write_session"
+	// http:params:"path"
+	StartDistributedWriteSession(
+		ctx context.Context,
+		path ypath.YPath,
+		options *StartDistributedWriteSessionOptions,
+	) (result DistributedWriteSessionWithCookies, err error)
+
+	// http:verb:"ping_distributed_write_session"
+	// http:params:"session"
+	PingDistributedWriteSession(
+		ctx context.Context,
+		session DistributedWriteSession,
+		options *PingDistributedWriteSessionOptions,
+	) (err error)
+
+	// http:verb:"finish_distributed_write_session"
+	// http:params:"session","results"
+	FinishDistributedWriteSession(
+		ctx context.Context,
+		session DistributedWriteSession,
+		results []WriteFragmentResult,
+		options *FinishDistributedWriteSessionOptions,
+	) (err error)
+
+	// http:verb:"write_table_fragment"
+	// http:params:"cookie"
+	WriteTableFragment(
+		ctx context.Context,
+		cookie WriteFragmentCookie,
+		options *TableFragmentWriterOptions,
+	) (w TableFragmentWriter, err error)
 }
