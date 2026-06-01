@@ -337,7 +337,7 @@ private:
     friend class TPendingIOGuard;
     friend class TLockedChunkGuard;
 
-    TAtomicPtr<TChunkLocationConfig, /*EnableAcquireHazard*/ true> RuntimeConfig_;
+    TAtomicIntrusivePtr<TChunkLocationConfig> RuntimeConfig_;
 
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
@@ -371,7 +371,7 @@ private:
 
     bool ShouldAlwaysThrottle() const;
 
-    THazardPtr<TChunkLocationConfig> GetRuntimeConfig() const;
+    TChunkLocationConfigPtr GetRuntimeConfig() const;
 
     void DoCheckProbePutBlocksRequests();
     bool ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const;
@@ -493,7 +493,7 @@ private:
     const TIntrusivePtr<TIOStatisticsProvider> IOStatisticsProvider_;
 
     // NB: Shadows TChunkLocation::RuntimeConfig_ which has a narrower type.
-    TAtomicPtr<TStoreLocationConfig, /*AcquireHazard*/ true> RuntimeConfig_;
+    TAtomicIntrusivePtr<TStoreLocationConfig> RuntimeConfig_;
 
     static TJournalManagerConfigPtr BuildJournalManagerConfig(
         const TDataNodeConfigPtr& dataNodeConfig,
