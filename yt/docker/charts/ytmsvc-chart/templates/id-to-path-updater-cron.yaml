@@ -46,6 +46,10 @@ spec:
               - {{ .Values.cluster.name | quote }}
               - "--input-directory"
               - {{ .Values.microservices.idToPathUpdater.config.inputTablesSource | quote }}
+              {{- if .Values.microservices.idToPathUpdater.config.maxInputTables }}
+              - "--max-input-tables"
+              - {{ .Values.microservices.idToPathUpdater.config.maxInputTables | quote }}
+              {{- end }}
             env:
               - name: YT_PROXY
                 value: {{ .Values.cluster.proxy | quote }}

@@ -20,7 +20,7 @@ data:
         output_path: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.accessLogExportPath }}-parsed/stream/5min
         interval: 5m
         table_format: "2006-01-02T15:04:05"
-        cutoff_time: 0
+        cutoff_time: 30s
         {{- with .Values.microservices.accessLogViewer.rawLogPreprocessing.config.processings }}
         {{- with (index . "5min") }}
         {{- if .expirationTimeout }}
