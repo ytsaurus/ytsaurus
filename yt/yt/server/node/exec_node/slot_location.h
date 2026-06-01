@@ -37,8 +37,7 @@ public:
         const std::string& id,
         IJobDirectoryManagerPtr jobDirectoryManager,
         int slotCount,
-        std::function<int(int)> slotIndexToUserId,
-        IVolumeManagerPtr volumeManager = nullptr);
+        std::function<int(int)> slotIndexToUserId);
 
     TFuture<void> Initialize();
 
@@ -147,12 +146,6 @@ public:
     //! Get path to slot location (not to slot location of a particular index).
     std::string GetPath() const;
 
-    //! Remove volumes from porto place for a specific slot.
-    void RemoveVolumesFromPortoPlace(int slotIndex);
-
-    //! Remove layers from porto place for a specific slot.
-    void RemoveLayersFromPortoPlace(int slotIndex);
-
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;
@@ -160,7 +153,6 @@ private:
     TAtomicIntrusivePtr<TSlotManagerDynamicConfig> SlotManagerDynamicConfig_;
     const IJobDirectoryManagerPtr JobDirectoryManager_;
     const int SlotCount_;
-    const IVolumeManagerPtr VolumeManager_;
 
     const std::function<int(int)> SlotIndexToUserId_;
 
