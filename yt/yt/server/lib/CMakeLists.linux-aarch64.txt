@@ -63,6 +63,7 @@ add_subdirectory(shuffle_server)
 add_subdirectory(alert_manager)
 add_subdirectory(component_state_checker)
 add_subdirectory(s3)
+add_subdirectory(chaos_election)
 
 add_library(ytserver INTERFACE)
 

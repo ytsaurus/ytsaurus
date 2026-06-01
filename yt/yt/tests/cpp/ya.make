@@ -2,6 +2,7 @@ RECURSE(
     library
     test_base
     test_chaos_lease
+    test_chaos_election
     test_chunk_scraper
     test_chunk_sealing
     test_cluster_directory

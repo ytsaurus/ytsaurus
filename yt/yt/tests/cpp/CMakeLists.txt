@@ -15,6 +15,7 @@
 add_subdirectory(library)
 add_subdirectory(test_base)
 add_subdirectory(test_chaos_lease)
+add_subdirectory(test_chaos_election)
 add_subdirectory(test_chunk_scraper)
 add_subdirectory(test_chunk_sealing)
 add_subdirectory(test_cluster_directory)

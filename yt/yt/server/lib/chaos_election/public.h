@@ -1,0 +1,14 @@
+#pragma once
+
+#include <yt/yt/core/misc/public.h>
+
+namespace NYT::NChaosElection {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TChaosElectionManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosElectionManagerOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NChaosElection
