@@ -81,10 +81,16 @@ public:
 
         TransitionState(EControllerState::Created, EControllerState::Starting);
 
+        // NB: StartRemoteSession blocks in WaitFor (inside AllocateWriteTargets; see
+        // the TODO there). Without AsyncVia it would run inline in the CreateChunk
+        // future handler and suspend whoever called Set on that future, which is why
+        // context switches in future handlers are forbidden. May be removed once the
+        // TODO is resolved.
         return CreateChunk()
             .Apply(BIND(
                 &TDistributedChunkSessionController::StartRemoteSession,
-                MakeStrong(this)))
+                MakeStrong(this))
+                .AsyncVia(Invoker_))
             .Apply(BIND(
                 &TDistributedChunkSessionController::InitializePingExecutor,
                 MakeStrong(this)))
