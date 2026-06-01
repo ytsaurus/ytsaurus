@@ -1,7 +1,5 @@
 IF (YT_TEAMCITY)
     YT_SPEC(yt/yt/tests/integration/spec_teamcity.yson)
-ELSIF (OPENSOURCE)
-    YT_SPEC(yt/yt/tests/integration/spec_os.yson)
 ELSE()
     YT_SPEC(yt/yt/tests/integration/spec.yson)
 ENDIF()
