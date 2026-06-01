@@ -363,9 +363,10 @@ private:
             auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
 
             if (auto it = existingReplicaStates.find(chunkIdWithIndex); it != existingReplicaStates.end()) {
-                existingReplicaStates.erase(chunkIdWithIndex);
+                auto replicaState = it->second;
+                existingReplicaStates.erase(it);
 
-                if (it->second == GetAddedChunkReplicaState(chunkIdWithIndex.Id, chunkInfo)) {
+                if (replicaState == GetAddedChunkReplicaState(chunkIdWithIndex.Id, chunkInfo)) {
                     continue;
                 }
                 // Replicas with changed states should be processed the same way as added replicas.
