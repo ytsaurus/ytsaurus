@@ -238,39 +238,44 @@ private:
             return;
         }
 
-        while (auto batch = Reader_->Read(ReadOptions_)) {
-            if (batch->IsEmpty()) {
-                YT_LOG_DEBUG("Waiting for rows from ordered store (TabletId: %v, RowIndex: %v)",
-                    TabletSnapshot_->TabletId,
-                    RowIndex_ + ReadRowCount_);
+        try {
+            while (auto batch = Reader_->Read(ReadOptions_)) {
+                if (batch->IsEmpty()) {
+                    YT_LOG_DEBUG("Waiting for rows from ordered store (TabletId: %v, RowIndex: %v)",
+                        TabletSnapshot_->TabletId,
+                        RowIndex_ + ReadRowCount_);
 
-                Reader_->GetReadyEvent().Subscribe(BIND(
-                    &TFetchRowsSession::DoRun,
-                    MakeStrong(this))
-                    .Via(Invoker_));
+                    Reader_->GetReadyEvent().Subscribe(BIND(
+                        &TFetchRowsSession::DoRun,
+                        MakeStrong(this))
+                        .Via(Invoker_));
 
-                return;
+                    return;
+                }
+
+                auto rows = batch->MaterializeRows();
+
+                ReadRowCount_ += std::ssize(rows);
+                LeftRowCount_ -= std::ssize(rows);
+
+                i64 currentReadDataWeight = Writer_.GetRowsetDataWeight(rows);
+                ReadDataWeight_ += currentReadDataWeight;
+                LeftDataWeight_ -= currentReadDataWeight;
+
+                Writer_.WriteRowset(rows);
+
+                if (LeftRowCount_ <= 0 ||
+                    LeftDataWeight_ <= 0 ||
+                    ReadDataWeight_ >= MaxPullQueueResponseDataWeight_)
+                {
+                    break;
+                }
+
+                UpdateReadOptions();
             }
-
-            auto rows = batch->MaterializeRows();
-
-            ReadRowCount_ += std::ssize(rows);
-            LeftRowCount_ -= std::ssize(rows);
-
-            i64 currentReadDataWeight = Writer_.GetRowsetDataWeight(rows);
-            ReadDataWeight_ += currentReadDataWeight;
-            LeftDataWeight_ -= currentReadDataWeight;
-
-            Writer_.WriteRowset(rows);
-
-            if (LeftRowCount_ <= 0 ||
-                LeftDataWeight_ <= 0 ||
-                ReadDataWeight_ >= MaxPullQueueResponseDataWeight_)
-            {
-                break;
-            }
-
-            UpdateReadOptions();
+        } catch (std::exception& ex) {
+            FinalizeSession(TError(ex));
+            return;
         }
 
         auto rowsetFuture = Writer_.Postprocess(Invoker_);
