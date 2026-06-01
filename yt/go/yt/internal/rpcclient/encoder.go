@@ -524,6 +524,41 @@ func (e *Encoder) ReadTable(
 	return nil, xerrors.New("implement me")
 }
 
+var _ yt.DistributedWriteClient = (*client)(nil)
+
+func (e *Encoder) StartDistributedWriteSession(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.StartDistributedWriteSessionOptions,
+) (result yt.DistributedWriteSessionWithCookies, err error) {
+	return yt.DistributedWriteSessionWithCookies{}, xerrors.New("implement me")
+}
+
+func (e *Encoder) PingDistributedWriteSession(
+	ctx context.Context,
+	session yt.DistributedWriteSession,
+	options *yt.PingDistributedWriteSessionOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (e *Encoder) FinishDistributedWriteSession(
+	ctx context.Context,
+	session yt.DistributedWriteSession,
+	results []yt.WriteFragmentResult,
+	options *yt.FinishDistributedWriteSessionOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (e *Encoder) WriteTableFragment(
+	ctx context.Context,
+	cookie yt.WriteFragmentCookie,
+	options *yt.TableFragmentWriterOptions,
+) (w yt.TableFragmentWriter, err error) {
+	return nil, xerrors.New("implement me")
+}
+
 var _ yt.TabletClient = (*client)(nil)
 
 func (e *Encoder) SelectRows(
