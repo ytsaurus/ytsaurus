@@ -293,6 +293,8 @@ struct ICypressManager
 
     virtual void ValidateNoExternalizedNodesOnRemovedMasters(const NObjectClient::TCellTagSet& removedMasterCellTags) const = 0;
 
+    virtual void DestroyNodeBeingCreated(TVersionedNodeId versionedNodeId) = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(TCypressNode*), NodeCreated);
 };
 

@@ -99,4 +99,13 @@ message TReqSetTableSchemas
 
     repeated TSetTableSchema subrequests = 1;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqDestroyForeignNodeBeingCreated
+{
+    optional NYT.NProto.TGuid node_id = 1;
+    optional NYT.NProto.TGuid transaction_id = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
