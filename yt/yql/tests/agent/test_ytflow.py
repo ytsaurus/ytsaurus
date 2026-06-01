@@ -843,7 +843,7 @@ select * from $stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_select_star_logbroker_write(self, query_tracker, yql_agent, run_query, logbroker_client):
+    def test_select_star_read_lb_write_lb(self, query_tracker, yql_agent, run_query, logbroker_client):
         input_topic_path = logbroker_client.create_topic()
         self._write_logbroker_topic(input_topic_path, ["AB", "CD", "EF"], logbroker_client)
 
@@ -855,6 +855,29 @@ select * from logbroker.`{input_topic_path}`;
 """)
 
         self._assert_logbroker_topic_content(out_topic_path, ["AB", "CD", "EF"], logbroker_client)
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    def test_select_star_read_lb_write_yt(self, query_tracker, yql_agent, run_query, logbroker_client):
+        input_topic_path = logbroker_client.create_topic()
+        self._write_logbroker_topic(input_topic_path, ["AB", "CD", "EF"], logbroker_client)
+
+        out_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "Data", "type": "string"},
+            ]),
+        ))
+
+        run_query(f"""
+insert into `{out_table_path}`
+select * from logbroker.`{input_topic_path}`;
+""")
+
+        self._assert_yt_table_content(out_table_path, [
+            {"Data": "AB"},
+            {"Data": "CD"},
+            {"Data": "EF"}
+        ])
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
