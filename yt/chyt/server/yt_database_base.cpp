@@ -342,7 +342,7 @@ DB::StoragePtr TYtDatabaseBase::DoGetYtTable(DB::ContextPtr context, TQueryConte
             queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
-        return CreateStorageDistributor(context, std::move(tables), storageId);
+        return CreateStorageDistributor(context, std::move(tables), std::move(storageId));
     } catch (const TErrorException& ex) {
         if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
             return nullptr;

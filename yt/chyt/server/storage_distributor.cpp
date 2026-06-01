@@ -1684,15 +1684,11 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageDistributor(
+DB::StoragePtr CreateStorageDistributorImpl(
     DB::ContextPtr context,
     std::vector<TTablePtr> tables,
     DB::StorageID storageId)
 {
-    if (tables.empty()) {
-        THROW_ERROR_EXCEPTION("No tables to read from");
-    }
-
     auto* queryContext = GetQueryContext(context);
 
     const auto& Logger = queryContext->Logger;
@@ -1714,6 +1710,29 @@ DB::StoragePtr CreateStorageDistributor(
     storage->startup();
 
     return storage;
+}
+
+DB::StoragePtr CreateStorageDistributor(
+    DB::ContextPtr context,
+    std::vector<TTablePtr> tables,
+    DB::StorageID storageId)
+{
+    if (tables.empty()) {
+        THROW_ERROR_EXCEPTION("No tables to read from");
+    }
+    return CreateStorageDistributorImpl(context, std::move(tables), std::move(storageId));
+}
+
+DB::StoragePtr CreateStorageDistributor(
+    DB::ContextPtr context,
+    std::vector<TTablePtr> tables)
+{
+    if (tables.empty()) {
+        THROW_ERROR_EXCEPTION("No tables to read from");
+    }
+
+    DB::StorageID storageId{"YT", BuildStorageName(tables)};
+    return CreateStorageDistributorImpl(context, std::move(tables), std::move(storageId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
