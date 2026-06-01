@@ -39,6 +39,8 @@
 | `spark.yt.read.ytOmitInaccessibleRows.enabled` | `true` | Пропускать строки, к которым нет доступа, вместо ошибки | 2.9.0 |
 | `spark.yt.read.ytOmitInaccessibleColumns.enabled` | `true` | Пропускать колонки, к которым нет доступа, вместо ошибки | 2.9.0 |
 
+{wide-content title="Основные опции"}
+
 ## Опции для запуска задач напрямую { #direct-submit }
 
 | **Параметр** | **Значение по умолчанию** | **Описание** | **С какой версии** |
@@ -78,6 +80,7 @@
 | `spark.ytsaurus.shuffle.enabled` | false | Использовать [{{product-name}} Shuffle сервис](../../../../../user-guide/data-processing/spyt/shuffle.md) | 2.7.2 |
 | `spark.ytsaurus.executor.state.poll.interval` | 20s | Период проверки состояния операции с экзекьюторами. Если эта операция находится в финальном статусе то драйвер будет остановлен | 2.8.0 |
 
+{wide-content title="Опции для запуска задач напрямую"}
 
 ## Опции для конфигурации {{product-name}} Shuffle сервиса { #shuffle }
 
@@ -93,6 +96,7 @@
 | `spark.ytsaurus.shuffle.write.config` | - | Дополнительные параметры записи shuffle данных в {{product-name}} в [YSON](../../../../../user-guide/storage/yson.md) формате. Соответствует конфигурации [TableWriter](../../../../../user-guide/storage/io-configuration.md#table_writer) | 2.7.0 |
 | `spark.ytsaurus.shuffle.read.config` | - | Дополнительные параметры чтения shuffle данных в {{product-name}} в [YSON](../../../../../user-guide/storage/yson.md) формате. Соответствует конфигурации [TableReader](../../../../../user-guide/storage/io-configuration.md#table_reader) | 2.7.0 |
 
+{wide-content title="Опции для конфигурации {{product-name}} Shuffle сервиса"}
 
 ## Опции для конфигурации Spark Connect сервера { #spyt-connect }
 
@@ -100,6 +104,8 @@
 | ------------ | ------------------------- | ------------ | ------------------ |
 | `spark.ytsaurus.connect.idle.timeout` | 10m | Время ожидания после завершения выполнения последнего запроса до остановки сервера Spark Connect | 2.8.0 |
 | `spark.ytsaurus.connect.token.refresh.period` | - | Периодичность пингования временного токена, используемого для выполнения запросов через Spark Connect. Используется только в связке с Query Tracker | 2.8.0 |
+
+{wide-content title="Опции для конфигурации Spark Connect сервера"}
 
 ## Опции для запуска задач во внутреннем кластере { #spark-submit-yt-conf }
 
