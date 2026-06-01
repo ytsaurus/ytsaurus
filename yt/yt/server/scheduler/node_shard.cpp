@@ -938,6 +938,8 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
     auto now = TInstant::Now();
 
+    MaybeDelay(Config_->TestingOptions->HandleNodesAttributesDelay);
+
     if (HasOngoingNodesAttributesUpdate_) {
         auto error = TError("Node shard is handling nodes attributes update for too long, skipping new update");
         YT_LOG_WARNING(error);

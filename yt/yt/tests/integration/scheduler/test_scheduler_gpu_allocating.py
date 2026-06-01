@@ -5,12 +5,15 @@ import yt.yson as yson
 
 from yt_env_setup import (
     YTEnvSetup,
+    Restarter,
+    CONTROLLER_AGENTS_SERVICE,
+    SCHEDULERS_SERVICE,
 )
 
 from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
     update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
-    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters,
+    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters, update_controller_agent_config,
 )
 
 from yt_scheduler_helpers import (
@@ -1060,6 +1063,45 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
 
+    @authors("yaishenka")
+    def test_abort_after_controller_agent_failure(self):
+        # Scenario: operation has running GPU allocations, controller agent fails
+        # (DisableOperation(false) -> assignments preserved with Reviving=true),
+        # then the operation is aborted before revival (UnregisterOperation called without
+        # a prior EnableOperation). Without the fix, YT_VERIFY(Assignments().empty())
+        # in UnregisterOperation crashes the scheduler.
+
+        def get_agent_states():
+            return [agent_info["state"]
+                    for agent_info in get("//sys/scheduler/orchid/scheduler/controller_agents").values()]
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 1)
+
+        wait_for_operations_in_gpu_policy_orchid(operation_count=1)
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+
+        # Ensure assignment is non-preliminary — it must have a live GPU allocation object.
+        # Only non-preliminary assignments get Reviving=true after DisableOperation(false).
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            # Wait until the scheduler has processed the disconnect: DisableOperation(false) has
+            # run, preserving non-preliminary assignments with Reviving=true.
+            wait(lambda: all(state == "unregistered" for state in get_agent_states()))
+            # Abort without waiting for revival. UnregisterOperation is triggered with
+            # non-empty Reviving assignments still in DisabledOperations_.
+            op.abort()
+
+        wait(lambda: op.get_state() == "aborted")
+
+        # Verify the scheduler survived — would time out if YT_VERIFY crashed the process.
+        wait_operation_unregistered(op.id)
+
 
 ##################################################################
 
@@ -1548,3 +1590,663 @@ class TestSchedulingLimits(AllocatingGpuSchedulingPolicyBaseConfig):
         wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=2, exactly=True)
         wait(lambda: len(op.get_running_jobs()) == 1)
         wait(lambda: get(op.get_path() + "/controller_orchid/progress/jobs/aborted/non_scheduled/scheduling_resource_overcommit", 0) == 1)
+
+
+##################################################################
+
+class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "controller_agent_connector": {
+                    "heartbeat_executor": {
+                        "period": 500,
+                    },
+                },
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8
+                },
+            },
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
+            },
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+        }
+    }
+
+    DATA_CENTER = "SAS"
+    RACK = "SAS1"
+
+    def setup_method(self, method):
+        super(TestAllocationGpuSchedulingPolicyRevival, self).setup_method(method)
+
+        update_pool_tree_config("default", {"node_tag_filter": "!gpu"})
+        create_pool_tree("gpu", config={
+            "node_tag_filter": "gpu",
+            "main_resource": "gpu",
+            "gpu_scheduling_policy": {
+                "mode": "allocating",
+                "plan_update_period": 100,
+                "module_type": "data_center",
+                "modules": [self.DATA_CENTER],
+                "full_host_aggressive_preemption_timeout": 1000,
+                "initialization_timeout": 1000
+            },
+            "preemptive_scheduling_backoff": 0,
+            "fair_share_starvation_timeout": 100,
+            "fair_share_starvation_tolerance": 0.95,
+            "preemption_satisfaction_threshold": 0.99,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+            "policy_kind": "gpu",
+        })
+
+        set("//sys/pool_trees/@default_tree", "gpu")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/default_pool_tree", default=None) == "gpu")
+
+        create_data_center(self.DATA_CENTER)
+        create_rack(self.RACK)
+        set("//sys/racks/{}/@data_center".format(self.RACK), self.DATA_CENTER)
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/{}/@rack".format(node), self.RACK)
+            set("//sys/cluster_nodes/{}/@user_tags".format(node), ["gpu"])
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == self.DATA_CENTER)
+
+        wait(lambda: get(scheduler_new_orchid_pool_tree_path("gpu") + "/node_count") == self.NUM_NODES)
+
+    @authors("yaishenka")
+    def test_revival_rescues_reviving_assignment(self):
+        # Scenario: operation with a running GPU allocation, controller agent restarts.
+        # DisableOperation(false) preserves the non-preliminary assignment with
+        # Reviving=true and clears AllocationIdToAllocationState_. When CA reconnects,
+        # the operation is revived from snapshot, RegisterAllocationsFromRevivedOperation runs
+        # Case A: the surviving assignment is rescued (Reviving cleared, fresh
+        # TAllocationState reattached, original AllocationGroupName preserved).
+
+        def get_agent_states():
+            return [agent_info["state"]
+                    for agent_info in get("//sys/scheduler/orchid/scheduler/controller_agents").values()]
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        original_assignment = operation["assignments"][0]
+        original_allocation_id = list(operation["allocations"].keys())[0]
+        original_node_address = original_assignment["node_address"]
+        original_group_name = original_assignment["allocation_group_name"]
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            wait(lambda: all(state == "unregistered" for state in get_agent_states()))
+            # Inside: assignment still present with Reviving=true, allocations cleared.
+            wait(lambda: not get_operation_from_gpu_policy_orchid(op)["enabled"])
+            wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 0)
+            wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["assignments"]) == 1)
+            assert get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]["reviving"]
+
+        # CA reconnects, scheduler revives the operation from snapshot.
+        # RegisterAllocationsFromRevivedOperation runs Case A: the surviving assignment is rescued.
+        wait(lambda: get_operation_from_gpu_policy_orchid(op)["enabled"])
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        assert len(operation["assignments"]) == 1
+        rescued = operation["assignments"][0]
+        # Case A invariant: original group name preserved (not "revived").
+        assert rescued["allocation_group_name"] == original_group_name
+        assert rescued["node_address"] == original_node_address
+        assert rescued["allocation_id"] == original_allocation_id
+
+        # The TAllocationState has been reattached to the same allocation id.
+        assert original_allocation_id in operation["allocations"]
+        assert operation["allocations"][original_allocation_id]["resource_usage"]["gpu"] == 1
+
+        op.abort()
+        wait_operation_unregistered(op.id)
+
+    @authors("yaishenka")
+    def test_revival_after_scheduler_restart(self):
+        # Scenario: operation with a running GPU allocation, scheduler restarts. Operation is
+        # revived from snapshot. The GPU policy state is fresh (no prior assignments), so
+        # RegisterAllocationsFromRevivedOperation runs Case B: synthesizes a fresh
+        # non-preliminary assignment via the standard preliminary->realized flow, with
+        # allocation_group_name set to "revived" (placeholder, since the controller->scheduler
+        # revival protocol doesn't currently propagate the original task name).
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        original_assignment = operation["assignments"][0]
+        original_allocation_id = list(operation["allocations"].keys())[0]
+        original_node_address = original_assignment["node_address"]
+        assert not original_assignment["reviving"]
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        # Scheduler comes back, revives operation from snapshot.
+        # RegisterAllocationsFromRevivedOperation runs Case B (fresh GPU policy state).
+        wait(lambda: get_operation_from_gpu_policy_orchid(op)["enabled"])
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+        wait(lambda: len(get_operation_gpu_assignments_from_gpu_policy_orchid(op)) == 1)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        revived = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
+        # Case B invariant: synthesized assignment uses placeholder group name and is not flagged.
+        assert revived["allocation_group_name"] == "revived"
+        assert revived["node_address"] == original_node_address
+        assert revived["allocation_id"] == original_allocation_id
+        assert not revived["reviving"]
+
+        # The TAllocationState has been recreated and bound to the same allocation id.
+        assert original_allocation_id in operation["allocations"]
+        assert operation["allocations"][original_allocation_id]["resource_usage"]["gpu"] == 1
+
+        op.abort()
+        wait_operation_unregistered(op.id)
+
+    @authors("yaishenka")
+    def test_remove_orphan_adoption_on_allocation_finished(self):
+        # Scenario: scheduler restarts with revival deferred via
+        # `delay_inside_register_allocations_from_revived_operation`. While the delay is
+        # pending we ban the target node. With `node_registration_timeout` /
+        # `node_heartbeat_timeout` lowered, the registration lease expires and the scheduler
+        # unregisters the node from the GPU policy's Nodes_. When revival fires, Case C
+        # kicks in: AddOrphanAllocation parks the TAllocationState (empty weak_ptr) in
+        # operation->AllocationIdToAllocationState_ and PendingRevivedAllocations_ records it.
+        #
+        # When the node is unbanned, the previously-running allocation is reported finished
+        # (it was aborted when the node went down). DoProcessFinishedAllocation runs and
+        # (a) RemoveAllocation erases the orphan TAllocationState,
+        # (b) IncreaseHierarchicalResourceUsage(-usage) balances the bump from ReviveAllocation,
+        # (c) the pending-map scrub block erases the PendingRevivedAllocations_ entry.
+        # The operation is back to a clean state, the controller schedules a brand-new
+        # allocation through the regular scheduling flow (not Case A/B), and the test
+        # verifies the new assignment uses a non-"revived" group name and a different
+        # allocation_id - confirming no orphan leaked into the new cycle.
+
+        update_scheduler_config("node_registration_timeout", 1000)
+        update_scheduler_config("node_heartbeat_timeout", 1000)
+        update_scheduler_config("node_reconnection_timeout", 1000)
+
+        nodes = list(ls("//sys/cluster_nodes"))
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            spec={
+                "testing": {
+                    "delay_inside_register_allocations_from_revived_operation": 5000
+                },
+                "scheduling_tag_filter": nodes[0],
+            },
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        target_node = operation["assignments"][0]["node_address"]
+        original_allocation_id = list(operation["allocations"].keys())[0]
+
+        op.wait_for_fresh_snapshot()
+
+        update_pool_tree_config_option("gpu", "testing_options", {
+            "delay_inside_process_allocation_updates": {
+                "duration": 10000,
+                "type": "async",
+            },
+        })
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        set_node_banned(target_node, True, wait_for_master=True, wait_for_scheduler=True)
+
+        wait(lambda: original_allocation_id in get_operation_from_gpu_policy_orchid(op).get("allocations", {}))
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=0, exactly=True)
+
+        update_pool_tree_config_option("gpu", "testing_options", {
+            "delay_inside_process_allocation_updates": {
+                "duration": 0,
+                "type": "sync",
+            },
+        })
+
+        update_scheduler_config("node_registration_timeout", 30000)
+        update_scheduler_config("node_heartbeat_timeout", 30000)
+        update_scheduler_config("node_reconnection_timeout", 30000)
+
+        wait(lambda: original_allocation_id not in get_operation_from_gpu_policy_orchid(op).get("allocations", {}))
+
+        set_node_banned(target_node, False, wait_for_master=True, wait_for_scheduler=True)
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/grouped_needed_resources", default=None) == {})
+
+        # Node re-register. Allocation finished (because it was aborted when node goes offline). Planning new one.
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        new_assignment = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
+        assert new_assignment["allocation_group_name"] != "revived"
+        assert new_assignment["allocation_id"] != original_allocation_id
+        assert not new_assignment["reviving"]
+
+        assert original_allocation_id not in operation["allocations"]
+
+        op.abort()
+        wait_operation_unregistered(op.id)
+
+    @authors("yaishenka")
+    def test_partial_revival_strips_unrescued_assignments(self):
+        # Scenario: an operation has 2 running GPU allocations on different nodes. One of
+        # them is preempted via a node ban so only the surviving allocation lands in the
+        # snapshot. The ban is then lifted and the preempted job re-allocates with a new
+        # id - but no new snapshot is taken before the CA restart. On CA reconnect,
+        # revival rescues only the snapshotted allocation (Case A); the other assignment,
+        # marked Reviving=true by the CA disconnect, is not in the revival list
+        # and is stripped by EnableOperation (Part 1 Step 5).
+
+        update_scheduler_config("node_registration_timeout", 1000)
+        update_scheduler_config("node_heartbeat_timeout", 1000)
+        update_scheduler_config("node_reconnection_timeout", 1000)
+
+        def get_agent_states():
+            return [agent_info["state"]
+                    for agent_info in get("//sys/scheduler/orchid/scheduler/controller_agents").values()]
+
+        nodes = list(ls("//sys/cluster_nodes"))
+
+        # gpu_limit=6 forces each job to use >half of a node's 8 GPUs, so the two jobs
+        # have to land on different nodes. (gpu_limit=8 would trip the full-host
+        # module-bound path; gpu_limit<=4 would let both jobs share one node.)
+        op = run_sleeping_vanilla(
+            job_count=2,
+            task_patch={"gpu_limit": 6, "enable_gpu_layers": False},
+            spec={"scheduling_tag_filter": f"{nodes[0]}|{nodes[1]}"},
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=2, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 2)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        nodes_used = sorted({a["node_address"] for a in operation["assignments"]})
+        assert len(nodes_used) == 2
+        survivor_node, doomed_node = nodes_used
+
+        # Ban the doomed node; its allocation gets preempted, leaving 1 running allocation.
+        set_node_banned(doomed_node, True, wait_for_master=True, wait_for_scheduler=True)
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        surviving_assignment = operation["assignments"][0]
+        snapshotted_allocation_id = surviving_assignment["allocation_id"]
+        original_group_name = surviving_assignment["allocation_group_name"]
+        assert surviving_assignment["node_address"] == survivor_node
+
+        op.wait_for_fresh_snapshot()
+
+        # Bump snapshot_period high so no further snapshot lands before the CA restart.
+        update_controller_agent_config("snapshot_period", 600000)
+
+        # Unban; the preempted job re-allocates with a new id (not in the snapshot).
+        set_node_banned(doomed_node, False, wait_for_master=True, wait_for_scheduler=True)
+        update_scheduler_config("node_registration_timeout", 10000)
+        update_scheduler_config("node_heartbeat_timeout", 10000)
+        update_scheduler_config("node_reconnection_timeout", 10000)
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=2, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 2)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        all_allocation_ids = builtins.set(operation["allocations"].keys())
+        assert snapshotted_allocation_id in all_allocation_ids
+        late_allocation_id = (all_allocation_ids - {snapshotted_allocation_id}).pop()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            wait(lambda: all(state == "unregistered" for state in get_agent_states()))
+            # Both assignments survive with Reviving=true; allocations cleared.
+            wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 0)
+            assignments = get_operation_gpu_assignments_from_gpu_policy_orchid(op)
+            assert len(assignments) == 2
+            assert all(a["reviving"] for a in assignments)
+
+        # CA reconnects. Revival rescues snapshotted_allocation_id only (Case A).
+        # EnableOperation strips the late_allocation_id assignment.
+        wait(lambda: get_operation_from_gpu_policy_orchid(op)["enabled"])
+        wait(lambda: snapshotted_allocation_id in get_operation_from_gpu_policy_orchid(op).get("allocations", {}))
+        wait(lambda: late_allocation_id not in get_operation_from_gpu_policy_orchid(op).get("allocations", {}))
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        rescued = next(
+            a for a in operation["assignments"]
+            if a["allocation_id"] == snapshotted_allocation_id
+        )
+        assert rescued["allocation_group_name"] == original_group_name
+        assert not rescued["reviving"]
+        # Don't assert total assignment count; CA may schedule a fresh replacement for the
+        # stripped allocation through the regular flow, which would re-add an assignment
+        # with the original task group name (not "revived") and a brand-new allocation id
+        # (different from both snapshotted_allocation_id and late_allocation_id).
+
+        op.abort()
+        wait_operation_unregistered(op.id)
+
+    @authors("yaishenka")
+    def test_no_revival_strips_reviving_assignments(self):
+        # Scenario: an operation has a running GPU allocation. We disable snapshot loading
+        # on the controller agent, then restart it. On reconnect the CA falls into the
+        # Materialize branch (scheduler.cpp:1307 - !RevivedFromSnapshot, since snapshot
+        # loading is disabled), so RegisterAllocationsFromRevivedOperation is NOT called.
+        # The Reviving=true assignment left on the GPU policy must be stripped
+        # by EnableOperation (Part 1 Step 5) so the operation can start fresh without
+        # retaining a stale assignment.
+
+        def get_agent_states():
+            return [agent_info["state"]
+                    for agent_info in get("//sys/scheduler/orchid/scheduler/controller_agents").values()]
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        pre_restart_allocation_id = list(operation["allocations"].keys())[0]
+
+        # Disable snapshot loading; a snapshot may exist but the CA won't load it on restart.
+        update_controller_agent_config("enable_snapshot_loading", False)
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            wait(lambda: all(state == "unregistered" for state in get_agent_states()))
+
+        # CA reconnects without loading any snapshot. RegisterAllocationsFromRevivedOperation
+        # is not called. EnableOperation strips the Reviving assignment.
+        wait(lambda: pre_restart_allocation_id not in get_operation_from_gpu_policy_orchid(op).get("allocations", {}))
+
+        # Eventually the CA schedules a fresh allocation through the regular flow.
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        new_assignment = operation["assignments"][0]
+        assert new_assignment["allocation_group_name"] != "revived"
+        assert new_assignment["allocation_id"] != pre_restart_allocation_id
+        assert not new_assignment["reviving"]
+
+        op.abort()
+        wait_operation_unregistered(op.id)
+
+    @authors("yaishenka")
+    def test_revival_after_policy_switch_to_classic(self):
+        # Reversed scenario from test_revival_after_policy_switch_to_allocating: start
+        # under the GPU allocating policy, switch the tree to policy_kind="classic" and
+        # restart the scheduler. The classic (fair-share) policy takes over; the operation
+        # continues running with its original allocation. This validates that switching
+        # OUT of the GPU policy doesn't leave stale state behind that would prevent the
+        # classic policy from picking up running operations on revival.
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        job_id = list(op.get_running_jobs())[0]
+        pre_switch_allocation_id = get_allocation_id_from_job_id(job_id)
+        pre_switch_node_address = get(op.get_path() + f"/controller_orchid/running_jobs/{job_id}/address")
+
+        op.wait_for_fresh_snapshot()
+
+        # Switch the pool tree's policy to classic. The gpu_scheduling_policy block stays
+        # in config but is ignored by the classic policy. Takes effect on scheduler restart.
+        update_pool_tree_config_option("gpu", "policy_kind", "classic")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        # Scheduler is back with the classic policy. The GPU policy orchid no longer
+        # exists for this tree, and the operation continues running with its original
+        # allocation.
+        assert not exists(scheduler_new_orchid_pool_tree_path("gpu") + "/gpu_assignment_plan")
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        new_job_id = list(op.get_running_jobs())[0]
+        assert get_allocation_id_from_job_id(new_job_id) == pre_switch_allocation_id
+        assert get(op.get_path() + f"/controller_orchid/running_jobs/{new_job_id}/address") == pre_switch_node_address
+
+        op.abort()
+        wait(lambda: not exists(scheduler_orchid_operation_path(op.id, tree="gpu")))
+
+    @authors("yaishenka")
+    def test_adopt_orphaned_allocation_after_node_registration(self):
+        # Scenario: scheduler restarts while node registration is artificially delayed
+        # (via handle_nodes_attributes_delay + node_heartbeat_processing_delay). Revival
+        # fires before the node re-registers in the GPU policy, so ReviveAllocation falls
+        # into Case C: AddOrphanAllocation parks the TAllocationState (null Assignment_)
+        # in operation->AllocationIdToAllocationState_ and PendingRevivedAllocations_ records
+        # the (nodeId, allocationId) pair. Once the delays are cleared the node re-registers,
+        # RevivePendingAllocations creates a "revived" assignment and links the orphan
+        # TAllocationState to it via SetAssignment. The test verifies that the allocation
+        # appears in the orchid with creation_time earlier than its assignment's
+        # creation_time — confirming it went through the orphan path (the allocation
+        # state was created before the revived assignment) — and that the job is
+        # running normally afterwards.
+        update_scheduler_config("node_registration_timeout", 100000)
+        update_scheduler_config("node_heartbeat_timeout", 100000)
+        update_scheduler_config("node_reconnection_timeout", 100000)
+
+        nodes = list(ls("//sys/cluster_nodes"))
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            spec={
+                "scheduling_tag_filter": nodes[0]
+            },
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        original_allocation_id = list(operation["allocations"].keys())[0]
+
+        op.wait_for_fresh_snapshot()
+
+        update_scheduler_config("nodes_attributes_update_period", 3000)
+        update_scheduler_config("testing_options/handle_nodes_attributes_delay", {
+            "duration": 3000,
+            "type": "async",
+        })
+        update_scheduler_config("testing_options/node_heartbeat_processing_delay", {
+            "duration": 3000,
+            "type": "async",
+        })
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        update_scheduler_config("nodes_attributes_update_period", 100)
+        update_scheduler_config("testing_options/handle_nodes_attributes_delay", {
+            "duration": 0,
+            "type": "sync",
+        })
+        update_scheduler_config("testing_options/node_heartbeat_processing_delay", {
+            "duration": 0,
+            "type": "sync",
+        })
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: original_allocation_id in get_operation_from_gpu_policy_orchid(op).get("allocations", {}))
+        operation = get_operation_from_gpu_policy_orchid(op)
+        allocation = operation["allocations"][original_allocation_id]
+        assignment = operation["assignments"][0]
+        # Orphan allocation is parked first; the revived assignment that adopts it
+        # is created later — so the allocation predates its assignment.
+        assert allocation["creation_time"] < assignment["creation_time"]
+
+##################################################################
+
+
+class TestAllocationGpuSchedulingPolicyRevivalOnPolicySwitch(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = AllocatingGpuSchedulingPolicyBaseConfig.DELTA_SCHEDULER_CONFIG
+    DELTA_DYNAMIC_NODE_CONFIG = AllocatingGpuSchedulingPolicyBaseConfig.DELTA_DYNAMIC_NODE_CONFIG
+    DELTA_NODE_CONFIG = AllocatingGpuSchedulingPolicyBaseConfig.DELTA_NODE_CONFIG
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "snapshot_writer": {
+                "upload_replication_factor": 1,
+                "min_upload_replication_factor": 1,
+            },
+        }
+    }
+
+    DATA_CENTER = AllocatingGpuSchedulingPolicyBaseConfig.DATA_CENTER
+    RACK = AllocatingGpuSchedulingPolicyBaseConfig.RACK
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        update_pool_tree_config("default", {"node_tag_filter": "!gpu"})
+        # Boot the tree with the classic policy. NB: gpu_scheduling_policy is intentionally
+        # absent here; the test will add it before restarting the scheduler.
+        create_pool_tree("gpu", config={
+            "node_tag_filter": "gpu",
+            "main_resource": "gpu",
+            "preemptive_scheduling_backoff": 0,
+            "fair_share_starvation_timeout": 100,
+            "fair_share_starvation_tolerance": 0.95,
+            "preemption_satisfaction_threshold": 0.99,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+            "policy_kind": "classic",
+        })
+
+        set("//sys/pool_trees/@default_tree", "gpu")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/default_pool_tree", default=None) == "gpu")
+
+        create_data_center(self.DATA_CENTER)
+        create_rack(self.RACK)
+        set(f"//sys/racks/{self.RACK}/@data_center", self.DATA_CENTER)
+        for node in ls("//sys/cluster_nodes"):
+            set(f"//sys/cluster_nodes/{node}/@rack", self.RACK)
+            set(f"//sys/cluster_nodes/{node}/@user_tags", ["gpu"])
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == self.DATA_CENTER)
+
+    @authors("yaishenka")
+    def test_revival_after_policy_switch_to_allocating(self):
+        # Scenario: a pool tree is initially configured with policy_kind="classic" (the
+        # fair-share scheduling policy). An operation runs with a GPU allocation. We then
+        # switch the tree's policy_kind to "gpu" and add the gpu_scheduling_policy block;
+        # this only takes effect on scheduler restart because SchedulingPolicy_ is built
+        # once in TPoolTree's constructor (pool_tree.cpp:305). After the scheduler restart,
+        # the GPU policy revives the operation from snapshot via Case B in
+        # RegisterAllocationsFromRevivedOperation: no prior GPU-policy-side assignment
+        # exists, so a fresh non-preliminary assignment is synthesized via the standard
+        # preliminary->realized flow with allocation_group_name == "revived" and the
+        # original allocation_id reattached.
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+
+        # Wait for the allocation to actually run under the classic policy.
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        job_id = list(op.get_running_jobs())[0]
+        pre_switch_allocation_id = get_allocation_id_from_job_id(job_id)
+        pre_switch_node_address = get(op.get_path() + f"/controller_orchid/running_jobs/{job_id}/address")
+
+        op.wait_for_fresh_snapshot()
+
+        # Switch the pool tree to the GPU allocating policy. This config update has no
+        # effect until the scheduler restarts and rebuilds TPoolTree.
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy", {
+            "mode": "allocating",
+            "plan_update_period": 100,
+            "module_type": "data_center",
+            "modules": [self.DATA_CENTER],
+            "full_host_aggressive_preemption_timeout": 1000,
+        })
+        update_pool_tree_config_option("gpu", "policy_kind", "gpu")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        # Scheduler is back with the GPU policy. RegisterAllocationsFromRevivedOperation
+        # runs Case B for the snapshotted allocation - no prior assignment, fresh GPU
+        # policy state, so it synthesizes a "revived" assignment.
+        wait(lambda: get_operation_from_gpu_policy_orchid(op)["enabled"])
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        revived = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
+        assert revived["allocation_group_name"] == "revived"
+        assert revived["allocation_id"] == pre_switch_allocation_id
+        assert revived["node_address"] == pre_switch_node_address
+        assert not revived["reviving"]
+
+        assert pre_switch_allocation_id in operation["allocations"]
+        assert operation["allocations"][pre_switch_allocation_id]["resource_usage"]["gpu"] == 1
+
+        op.abort()
+        wait_operation_unregistered(op.id)
+
+##################################################################

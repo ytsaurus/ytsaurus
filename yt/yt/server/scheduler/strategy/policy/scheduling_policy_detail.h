@@ -590,7 +590,7 @@ public:
 
     void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,
-        std::vector<TAllocationPtr> allocations) const override;
+        std::vector<TAllocationPtr> allocations) override;
     TProcessAllocationUpdateResult ProcessAllocationUpdate(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         TPoolTreeOperationElement* element,

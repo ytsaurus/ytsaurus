@@ -2768,7 +2768,7 @@ void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, boo
 
 void TSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
     TPoolTreeOperationElement* element,
-    std::vector<TAllocationPtr> allocations) const
+    std::vector<TAllocationPtr> allocations)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 

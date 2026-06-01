@@ -34,6 +34,10 @@ struct TAssignment final
 
     TJobResourcesWithQuota ResourceUsage;
     bool Preemptible = false;
+
+    // Marks assignment with allocation waiting for revival.
+    bool Reviving = false;
+
     std::optional<TAllocationId> AllocationId;
     std::optional<TInstant> PreemptibleProgressStartTime;
 
@@ -70,18 +74,24 @@ class TAllocationState final
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TAllocationId, Id);
+    DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, NodeId);
     DEFINE_BYREF_RO_PROPERTY(TWeakPtr<TAssignment>, Assignment);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TPreemptionInfo>, PreemptionInfo);
 
+    DEFINE_BYVAL_RO_PROPERTY(TInstant, CreationTime);
+
 public:
     TAllocationState(
         TAllocationId id,
+        NNodeTrackerClient::TNodeId nodeId,
         TWeakPtr<TAssignment> assignment,
         const TJobResources& resourceUsage);
 
     // Updates ResourceUsage, returns delta.
     TJobResources UpdateResourceUsage(const TJobResources& newUsage);
+
+    void SetAssignment(TWeakPtr<TAssignment> assignment);
 };
 
 void Serialize(const TAllocationState& allocation, NYson::IYsonConsumer* consumer);
@@ -165,7 +175,23 @@ public:
     void AddAssignment(const TAssignmentPtr& assignment);
 
     void AddAllocation(const TAllocationStatePtr& allocation, const TAssignmentPtr& assignment);
+
+    //! Inserts a TAllocationState that has no assignment yet (orphan, awaiting node registration).
+    //! Does not touch Assignments_, AllocationIdToAssignment_, EmptyAssignmentCountPerGroup_,
+    //! or AssignedResourceUsage_.
+    void AddOrphanAllocation(const TAllocationStatePtr& allocation);
+
+    //! Reattaches a TAllocationState to a non-preliminary assignment that was preserved across
+    //! DisableOperation(markAsNonAlive=false). The assignment's AllocationId entry must already
+    //! be present in AllocationIdToAssignment_.
+    void AddRevivedAllocation(
+        const TAllocationStatePtr& allocation,
+        const TAssignmentPtr& assignment);
+
     void RemoveAllocation(TAllocationId allocationId);
+
+    //! Deletes all allocation objects. Assignments kept.
+    void RemoveAllAllocations();
 
     void SetPreemptible(bool preemptible);
 
