@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/scheduler/strategy/policy/pool_tree_snapshot_state.h>
 
+#include <yt/yt/server/scheduler/common/exec_node.h>
+
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
@@ -1311,6 +1313,14 @@ void TSchedulingPolicy::ScheduleAllocations(
             assignment->ResourceUsage);
         assignment->AddAllocation(allocation);
 
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AllocationScheduled)
+            .Item("operation_id").Value(operationElement->GetOperationId())
+            .Item("allocation_id").Value(allocationId)
+            .Item("node_address").Value(node->Address())
+            .Item("allocation_group_name").Value(assignment->AllocationGroupName)
+            .Item("resource_usage").Value(allocation->ResourceUsage())
+            .Item("preemptible").Value(assignment->Preemptible);
+
         operationElement->CommitHierarchicalResourceUsage(
             allocation->ResourceUsage(),
             allocation->ResourceUsage());
@@ -1398,6 +1408,16 @@ bool TSchedulingPolicy::PreemptAllocation(
         allocation,
         element->GetEffectiveAllocationPreemptionTimeout(),
         preemptionReason);
+
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AllocationPreempted)
+        .Item("operation_id").Value(element->GetOperationId())
+        .Item("allocation_id").Value(allocation->GetId())
+        .Item("node_address").Value(allocation->GetNode()->GetDefaultAddress())
+        .Item("reason").Value(preemptionReason)
+        .Item("preempted_usage").Value(-usageToPreempt)
+        .DoIf(allocationState != nullptr, [&] (auto fluent) {
+            fluent.OptionalItem("preemption_info", allocationState->PreemptionInfo());
+        });
 
     return true;
 }
