@@ -281,7 +281,7 @@ private:
             ITimestampProviderPtr coordinatorTimestampProvider,
             TClusterTag coordinatorClockClusterTag,
             const std::vector<ITransactionParticipantProviderPtr>& providers,
-            const NLogging::TLogger logger)
+            const NLogging::TLogger& logger)
             : CellId_(cellId)
             , Config_(std::move(config))
             , CoordinatorTimestampProvider_(std::move(coordinatorTimestampProvider))
