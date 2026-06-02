@@ -16,6 +16,8 @@ struct ISequoiaConnection
     virtual void Reconfigure(NApi::NNative::TSequoiaConnectionConfigPtr config) = 0;
 
     virtual ISequoiaClientPtr CreateClient(const NRpc::TAuthenticationIdentity& authenticationIdentity) = 0;
+
+    virtual TInstant GetLastReconfigurationTime() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaConnection)

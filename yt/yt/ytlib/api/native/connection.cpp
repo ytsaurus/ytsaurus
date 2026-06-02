@@ -1511,15 +1511,18 @@ private:
 
     void SetupSequoiaConnectionSynchronization()
     {
-        ClusterDirectory_->SubscribeOnClusterUpdated(BIND_NO_PROPAGATE(
-            &TConnection::MaybeReconfigureSequoiaConnection,
-            MakeWeak(this)));
+        ClusterDirectory_->SubscribeOnClusterUpdated(
+            BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (const std::string& clusterName, INodePtr /*config*/) {
+                if (auto strongThis = weakThis.Lock()) {
+                    strongThis->MaybeReconfigureSequoiaConnection(clusterName);
+                }
+            }));
+        ClusterDirectory_->SubscribeOnClusterUnregistered(
+            BIND_NO_PROPAGATE(&TConnection::MaybeReconfigureSequoiaConnection, MakeWeak(this)));
     }
 
-    void MaybeReconfigureSequoiaConnection(const std::string& clusterName, INodePtr /*config*/)
+    void MaybeReconfigureSequoiaConnection(const std::string& updatedClusterName)
     {
-        Y_UNUSED(clusterName);
-
         // Sequoia transaction uses cell directory in 2 different places:
         // 1) Ground client uses cell directory associated with Ground cluster
         //    connection to send rows to tablet cells;
@@ -1538,7 +1541,7 @@ private:
         // cells.
 
         if (auto sequoiaConnectionConfig = Config_.Acquire()->SequoiaConnection) {
-            if (sequoiaConnectionConfig->GroundClusterName == clusterName) {
+            if (sequoiaConnectionConfig->GroundClusterName == updatedClusterName) {
                 SequoiaConnection_->Reconfigure(sequoiaConnectionConfig);
             }
         }

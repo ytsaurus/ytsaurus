@@ -23,7 +23,7 @@ from yt.sequoia_tools import DESCRIPTORS
 
 from yt_helpers import profiler_factory
 
-from yt.common import YtError
+from yt.common import YT_DATETIME_FORMAT_STRING
 
 import yt.yson as yson
 
@@ -33,7 +33,7 @@ from flaky import flaky
 import builtins
 from collections import namedtuple
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import itertools
 from random import randint
 from time import sleep
@@ -813,40 +813,38 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_ground_connection_synchronization(self):
+        sequoia_connection_reconfiguration_time_paths = [
+            f"//sys/cypress_proxies/{cp}/orchid/sequoia_connection_reconfiguration_time"
+            for cp in ls("//sys/cypress_proxies")
+        ]
+
+        driver = None
+        if self.DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG.get("object_service", {}).get("allow_bypass_master_resolve", False):
+            driver = create_cypress_proxy_bypass_driver(self.Env.configs["driver"])
+
+        now = datetime.now(timezone.utc).strftime(YT_DATETIME_FORMAT_STRING)
+
         clusters = get("//sys/clusters")
         remove("//sys/clusters/primary_ground")
 
-        num = 0
+        for p in sequoia_connection_reconfiguration_time_paths:
+            wait(lambda: get(p, driver=driver) > now)
 
-        def sequoia_broken():
-            nonlocal num
-            try:
-                create("map_node", f"//tmp/m{num}")
-                num += 1
-                return False
-            except YtError as error:
-                return error.contains_code(yt_error_codes.UnknownCell)
+        with raises_yt_error() as error:
+            create("map_node", "//tmp/m")
 
-        wait(sequoia_broken)
+        assert 'Cannot find cluster with name "primary_ground"' in str(error) \
+            or error.contains_code(yt_error_codes.UnknownCell)
 
-        if self.DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG.get("object_service", {}).get("allow_bypass_master_resolve", False):
-            cypress_proxy_bypass_driver = create_cypress_proxy_bypass_driver(self.Env.configs["driver"])
-            set("//sys/clusters", clusters, driver=cypress_proxy_bypass_driver)
-        else:
-            set("//sys/clusters", clusters)
+        now = datetime.now(timezone.utc).strftime(YT_DATETIME_FORMAT_STRING)
 
-        def sequoia_works():
-            nonlocal num
-            try:
-                create("map_node", f"//tmp/m{num}")
-                num += 1
-                return True
-            except YtError as error:
-                if error.contains_code(yt_error_codes.UnknownCell):
-                    return False
-                raise
+        set("//sys/clusters", clusters, driver=driver)
 
-        wait(sequoia_works)
+        for p in sequoia_connection_reconfiguration_time_paths:
+            wait(lambda: get(p, driver=driver) > now)
+
+        # Should not fail.
+        create("map_node", "//tmp/m")
 
         remove("//tmp/*")
         assert not ls("//tmp")

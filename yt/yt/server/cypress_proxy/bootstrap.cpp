@@ -32,6 +32,7 @@
 
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/public.h>
 #include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
@@ -315,6 +316,19 @@ private:
             OrchidRoot_,
             "/ground_reign",
             ConvertToNode(GetCurrentGroundReign()));
+
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/sequoia_connection_reconfiguration_time",
+            CreateVirtualNode(IYPathService::FromProducer(
+                BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (NYson::IYsonConsumer* consumer) {
+                    if (auto strongThis = weakThis.Lock()) {
+                        BuildYsonFluently(consumer)
+                            .Value(GetSequoiaConnection()->GetLastReconfigurationTime());
+                    } else {
+                        consumer->OnEntity();
+                    }
+                }))));
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
