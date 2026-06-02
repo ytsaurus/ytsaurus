@@ -145,6 +145,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_dynamic_table_optimize_for", &TThis::DefaultDynamicTableOptimizeFor)
         .Default(NTableClient::EOptimizeFor::Scan);
 
+    registrar.Parameter("ignore_rootstock_absence_on_scion_removal", &TThis::IgnoreRootstockAbsenceOnScionRemoval)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
             config->DefaultJournalErasureCodec,
