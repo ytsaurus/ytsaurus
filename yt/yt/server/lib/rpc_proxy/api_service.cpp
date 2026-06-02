@@ -79,6 +79,7 @@
 #include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -7875,6 +7876,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartShuffle)
             }
             if (request->has_replication_factor()) {
                 options.ReplicationFactor = request->replication_factor();
+            }
+            options.UsePushBasedShuffle = request->use_push_based_shuffle();
+            if (request->has_schema()) {
+                FromProto(&options.Schema, request->schema());
             }
             return client->StartShuffle(
                 request->account(),

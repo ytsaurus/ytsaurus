@@ -17,6 +17,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, StartShuffle);
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, FetchChunks);
+    DEFINE_RPC_PROXY_METHOD(NProto, RegisterMapper);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetPartitionWriteSession);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
