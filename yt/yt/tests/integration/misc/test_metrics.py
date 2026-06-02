@@ -173,6 +173,9 @@ class TestPortoMetrics(MetricsTestBase):
             "porto/network/tx_drops",
             "porto/network/tx_packets",
             "porto/network/tx_limit",
+            "porto/network/softlimit/bytes_forced_to_fb",
+            "porto/network/softlimit/bytes_untouched",
+            "porto/network/softlimit/packets_above_guarantee",
 
             "porto/volume/count",
 
@@ -200,6 +203,9 @@ class TestPortoMetrics(MetricsTestBase):
             "porto/network/tx_drops",
             "porto/network/tx_packets",
             "porto/network/tx_limit",
+            "porto/network/softlimit/bytes_forced_to_fb",
+            "porto/network/softlimit/bytes_untouched",
+            "porto/network/softlimit/packets_above_guarantee",
 
             "porto/volume/count",
 

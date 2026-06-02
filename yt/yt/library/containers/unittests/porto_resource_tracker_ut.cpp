@@ -116,6 +116,9 @@ void AssertGauges(const std::vector<std::tuple<std::string, TTagList, double>>& 
         "/network/tx_drops",
         "/network/tx_packets",
         "/network/tx_limit",
+        "/network/softlimit/bytes_forced_to_fb",
+        "/network/softlimit/bytes_untouched",
+        "/network/softlimit/packets_above_guarantee",
     };
 
     static const THashSet<std::string> mayBeEmpty{
@@ -139,7 +142,10 @@ void AssertGauges(const std::vector<std::tuple<std::string, TTagList, double>>& 
         "/network/tx_bytes",
         "/network/tx_drops",
         "/network/tx_packets",
-        "/network/tx_limit"
+        "/network/tx_limit",
+        "/network/softlimit/bytes_forced_to_fb",
+        "/network/softlimit/bytes_untouched",
+        "/network/softlimit/packets_above_guarantee",
     };
 
     for (const auto& [name, tags, value] : gauges) {
