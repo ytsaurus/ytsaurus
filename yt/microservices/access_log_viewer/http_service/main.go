@@ -361,7 +361,7 @@ func GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, 
 		r.Post("/info", ytmsvc.FormatResponse(GetInfoHandler()))
 		r.Post("/whoami", ytmsvc.FormatResponse(GetWhoamiHandler(authorizer)))
 		r.Post("/{call:served(-|_)clusters}", ytmsvc.FormatResponse(GetServedClustersHandler()))
-		r.Post("/{call:access(-|_)log}", ytmsvc.FormatResponse(GetAccessLogHandler(chytCluster, chytAlias, snapshotRoot, authorizer, logsTimezone, ytTokenEnvVariable)))
+		r.Post("/{call:access(-|_)log}", ytmsvc.FormatResponse(GetAccessLogHandler(chytCluster, chytAlias, snapshotRoot, authorizer, ytTokenEnvVariable, logsTimezone)))
 		r.Post("/chquery", ytmsvc.FormatResponse(GetClickHouseQueryHandler(snapshotRoot, logsTimezone, authorizer)))
 		r.Post("/{call:qt(-|_)access(-|_)log}", ytmsvc.FormatResponse(GetQueryTrackerHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone, authorizer)))
 		r.Post("/{call:visible(-|_)time(-|_)range}", ytmsvc.FormatResponse(GetVisibleTimeRangeHandler(chytCluster, chytAlias, snapshotRoot)))
