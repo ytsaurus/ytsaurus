@@ -2244,10 +2244,10 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
         },
     }
 
-    def _prepare_test(self, path, failure_probability=0.2):
+    def _prepare_test(self, path, failure_probability=0.2, retry_count=3):
         set("//sys/rpc_proxies/@config", {
             "cluster_connection": {
-                "local_tablet_write_retry_count": 3,
+                "local_tablet_write_retry_count": retry_count,
             },
         })
 
@@ -2263,7 +2263,7 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
 
         def config_updated():
             config = get(f"//sys/rpc_proxies/{proxy_name}/orchid/dynamic_config_manager/effective_config")
-            return config["cluster_connection"]["local_tablet_write_retry_count"] == 3
+            return config["cluster_connection"]["local_tablet_write_retry_count"] == retry_count
         wait(config_updated)
 
         cell_ids = sync_create_cells(cell_count=4)
@@ -2309,7 +2309,7 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
     @authors("alexelexa")
     def test_first_batch_write_retries(self):
         path = "//tmp/simple"
-        cell_ids = self._prepare_test(path, failure_probability=0.2)
+        cell_ids = self._prepare_test(path, failure_probability=0.2, retry_count=10)
         peers = defaultdict(list)
         for cell_id in cell_ids:
             peer = get(f"//sys/tablet_cells/{cell_id}/@peers/0/address")
