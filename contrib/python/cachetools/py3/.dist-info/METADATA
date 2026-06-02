@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: cachetools
-Version: 7.1.2
+Version: 7.1.3
 Summary: Extensible memoizing collections and decorators
 Author-email: Thomas Kemmer <tkemmer@computer.org>
 Maintainer-email: Thomas Kemmer <tkemmer@computer.org>
