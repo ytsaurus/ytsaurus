@@ -667,14 +667,29 @@ TErrorOr<TLocationMemoryGuard> TChunkLocation::TryAcquireLocationMemory(
 
     YT_ASSERT(delta >= 0);
 
-    if (GetUsedMemory(useLegacyUsedMemory, direction) + delta > GetWriteMemoryLimit()) {
-        return TError(NChunkClient::EErrorCode::WriteThrottlingActive,
-            "Location memory of category %Qlv exceeds memory limit",
-            EMemoryCategory::PendingDiskWrite);
+    if (direction == EIODirection::Write) {
+        if (GetUsedMemory(useLegacyUsedMemory, direction) + delta > GetWriteMemoryLimit()) {
+            return TError(NChunkClient::EErrorCode::WriteThrottlingActive,
+                "Location memory of category %Qlv exceeds memory limit",
+                EMemoryCategory::PendingDiskWrite);
+        }
     }
 
-    const auto& memoryTracker = GetWriteMemoryTracker();
-    auto memoryGuardOrError = TMemoryUsageTrackerGuard::TryAcquire(memoryTracker, delta);
+    IMemoryUsageTrackerPtr memoryTracker;
+    switch (direction) {
+        case EIODirection::Read:
+            memoryTracker = GetReadMemoryTracker();
+            break;
+
+        case EIODirection::Write:
+            memoryTracker = GetWriteMemoryTracker();
+            break;
+
+        default:
+            YT_ABORT();
+    }
+
+    auto memoryGuardOrError = TMemoryUsageTrackerGuard::TryAcquire(std::move(memoryTracker), delta);
 
     if (memoryGuardOrError.IsOK()) {
         return AcquireLocationMemory(
@@ -683,10 +698,15 @@ TErrorOr<TLocationMemoryGuard> TChunkLocation::TryAcquireLocationMemory(
             direction,
             workloadDescriptor,
             delta);
-    } else {
+    }
+
+    if (direction == EIODirection::Write) {
         return TError(NChunkClient::EErrorCode::WriteThrottlingActive,
             "Location memory of category %Qlv exceeds memory limit",
-            EMemoryCategory::PendingDiskWrite);
+            EMemoryCategory::PendingDiskWrite)
+            << memoryGuardOrError;
+    } else {
+        return TError(memoryGuardOrError);
     }
 }
 

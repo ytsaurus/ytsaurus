@@ -65,7 +65,7 @@ private:
 
         auto changelogDispatcher = CreateFileChangelogDispatcher(
             ioEngine,
-            /*memoryUsageTracker*/ nullptr,
+            /*indexMemoryUsageTracker*/ nullptr,
             changelogDispatcherConfig,
             "Dispatcher");
 

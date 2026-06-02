@@ -42,6 +42,9 @@ struct TUnbufferedFileChangelogHeaderTag
 struct TUnbufferedFileChangelogRecordHeadersTag
 { };
 
+struct TUnbufferedFileChangelogRecordRangeTag
+{ };
+
 struct TUnbufferedFileChangelogWipeTag
 { };
 
@@ -161,7 +164,8 @@ public:
                         std::max(guessedRecordReadSize, Config_->RecoveryBufferSize),
                         dataFileLength - currentDataOffset);
 
-                    YT_LOG_DEBUG("Recovering records (CurrentRecordIndex: %v, CurrentDataOffset: %v, DataFileLength: %v, GuessedRecordReadSize: %v, BlockSize: %v)",
+                    YT_LOG_DEBUG("Recovering records "
+                        "(CurrentRecordIndex: %v, CurrentDataOffset: %v, DataFileLength: %v, GuessedRecordReadSize: %v, BlockSize: %v)",
                         currentRecordIndex,
                         currentDataOffset,
                         dataFileLength,
@@ -365,7 +369,8 @@ public:
             if (withIndex) {
                 Index_->SyncFlush();
                 indexFlushed = true;
-            } else if (AppendedDataSizeSinceLastIndexFlush_ >= Config_->IndexFlushSize &&  Index_->CanFlush())
+            } else if (AppendedDataSizeSinceLastIndexFlush_ >= Config_->IndexFlushSize &&
+                Index_->CanFlush())
             {
                 Index_->AsyncFlush();
                 indexFlushed = true;
@@ -555,7 +560,6 @@ private:
             EWorkloadCategory::UserBatch);
     }
 
-
     void Cleanup()
     {
         Open_ = false;
@@ -703,7 +707,8 @@ private:
             std::vector<TSharedRef> buffers;
             buffers.reserve(records.size() * 3);
 
-            auto headersBuffer = TSharedMutableRef::Allocate<TUnbufferedFileChangelogRecordHeadersTag>(records.size() * sizeof(TRecordHeader));
+            auto headersBuffer = TSharedMutableRef::Allocate<TUnbufferedFileChangelogRecordHeadersTag>(
+                records.size() * sizeof(TRecordHeader));
             auto* currentHeader = reinterpret_cast<TRecordHeader*>(headersBuffer.Begin());
 
             for (int index = 0; index < std::ssize(records); ++index) {
@@ -713,7 +718,9 @@ private:
                     AlignUpSpace<i64>(std::ssize(record), ChangelogQWordAlignment);
 
                 i64 pagePaddingSize = index == std::ssize(records) - 1
-                    ? AlignUpSpace<i64>(currentFileOffset + sizeof(TRecordHeader) + std::ssize(record) + qwordPaddingSize, ChangelogPageAlignment)
+                    ? AlignUpSpace<i64>(
+                        currentFileOffset + sizeof(TRecordHeader) + std::ssize(record) + qwordPaddingSize,
+                        ChangelogPageAlignment)
                     : 0;
                 YT_VERIFY(pagePaddingSize <= std::numeric_limits<i16>::max());
 
@@ -958,7 +965,7 @@ private:
                 {{.Handle = DataFileHandle_, .Offset = range.first, .Size = range.second - range.first}},
                 // TODO(babenko): better workload category?
                 EWorkloadCategory::UserBatch,
-                GetRefCountedTypeCookie<TUnbufferedFileChangelogHeaderTag>()))
+                GetRefCountedTypeCookie<TUnbufferedFileChangelogRecordRangeTag>()))
             .ValueOrThrow()
             .OutputBuffers[0];
 

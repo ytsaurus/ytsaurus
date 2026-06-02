@@ -351,12 +351,12 @@ class TFileChangelogDispatcher
 public:
     TFileChangelogDispatcher(
         NIO::IIOEnginePtr ioEngine,
-        IMemoryUsageTrackerPtr memoryUsageTracker,
+        IMemoryUsageTrackerPtr indexMemoryUsageTracker,
         TFileChangelogDispatcherConfigPtr config,
         std::string threadName,
         TProfiler profiler)
         : IOEngine_(std::move(ioEngine))
-        , MemoryUsageTracker_(std::move(memoryUsageTracker))
+        , IndexMemoryUsageTracker_(std::move(indexMemoryUsageTracker))
         , ProcessQueuesCallback_(BIND(&TFileChangelogDispatcher::ProcessQueues, MakeWeak(this)))
         , ActionQueue_(New<TActionQueue>(std::move(threadName)))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
@@ -495,7 +495,7 @@ public:
 
 private:
     const NIO::IIOEnginePtr IOEngine_;
-    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
+    const IMemoryUsageTrackerPtr IndexMemoryUsageTracker_;
     const TClosure ProcessQueuesCallback_;
 
     const TActionQueuePtr ActionQueue_;
@@ -555,15 +555,11 @@ private:
         int maxRecords,
         i64 maxBytes)
     {
-        auto memoryGuard = TMemoryUsageTrackerGuard::Acquire(MemoryUsageTracker_, maxBytes);
         auto records = queue->Read(firstRecordId, maxRecords, maxBytes);
-
-        for (auto& record : records) {
-            record = TrackMemory(MemoryUsageTracker_, std::move(record));
-        }
 
         ChangelogReadRecordCountGauge_.Update(records.size());
         ChangelogReadSizeGauge_.Update(GetByteSize(records));
+
         return records;
     }
 
@@ -603,7 +599,7 @@ private:
         const TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config)
     {
-        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, MemoryUsageTracker_, path, config);
+        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, IndexMemoryUsageTracker_, path, config);
         unbufferedChangelog->Create(meta);
         return CreateFileChangelog(id, this, config, unbufferedChangelog);
     }
@@ -613,7 +609,7 @@ private:
         const std::string& path,
         const TFileChangelogConfigPtr& config)
     {
-        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, MemoryUsageTracker_, path, config);
+        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, IndexMemoryUsageTracker_, path, config);
         unbufferedChangelog->Open();
         return CreateFileChangelog(id, this, config, unbufferedChangelog);
     }
@@ -621,10 +617,11 @@ private:
     TFuture<void> DoFlushChangelogs()
     {
         std::vector<TFuture<void>> flushResults;
+        flushResults.reserve(Queues_.size());
         for (const auto& queue : Queues_) {
             flushResults.push_back(queue->AsyncFlush());
         }
-        return AllSucceeded(flushResults);
+        return AllSucceeded(std::move(flushResults));
     }
 };
 
@@ -644,9 +641,9 @@ public:
         : Id_(id)
         , Dispatcher_(std::move(dispatcher))
         , Config_(std::move(config))
-        , Queue_(Dispatcher_->CreateQueue(unbufferedChangelog))
-        , RecordCount_(unbufferedChangelog->GetRecordCount())
-        , DataSize_(unbufferedChangelog->GetDataSize())
+        , Queue_(Dispatcher_->CreateQueue(std::move(unbufferedChangelog)))
+        , RecordCount_(Queue_->GetChangelog()->GetRecordCount())
+        , DataSize_(Queue_->GetChangelog()->GetDataSize())
     {
         Dispatcher_->RegisterQueue(Queue_);
     }
@@ -773,14 +770,14 @@ IFileChangelogPtr CreateFileChangelog(
 
 IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NIO::IIOEnginePtr ioEngine,
-    IMemoryUsageTrackerPtr memoryUsageTracker,
+    IMemoryUsageTrackerPtr indexMemoryUsageTracker,
     TFileChangelogDispatcherConfigPtr config,
     std::string threadName,
     TProfiler profiler)
 {
     return New<TFileChangelogDispatcher>(
         std::move(ioEngine),
-        std::move(memoryUsageTracker),
+        std::move(indexMemoryUsageTracker),
         std::move(config),
         std::move(threadName),
         std::move(profiler));
