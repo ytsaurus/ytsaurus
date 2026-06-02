@@ -59,6 +59,9 @@ const std::vector<EStatField> InstanceStatFields{
     EStatField::NetRxPackets,
     EStatField::NetRxDrops,
     EStatField::NetRxLimit,
+    EStatField::NetSoftLimitBytesForcedToFb,
+    EStatField::NetSoftLimitBytesUntouched,
+    EStatField::NetSoftLimitPacketsAboveGuarantee,
 
     EStatField::VolumeCounts,
 

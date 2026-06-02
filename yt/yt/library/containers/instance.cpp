@@ -148,10 +148,10 @@ static const std::function<i64(const std::string&)> GetIOStatExtractor(const std
     };
 }
 
-static const std::function<i64(const std::string&)> GetStatByKeyExtractor(const std::string& statKey)
+static const std::function<i64(const std::string&)> GetStatByKeyExtractor(const std::string& statKey, const std::string& terminator = "\n")
 {
-    return [statKey] (const std::string& in) {
-        return Extract(in, statKey);
+    return [statKey, terminator] (const std::string& in) {
+        return Extract(in, statKey, terminator);
     };
 }
 
@@ -199,6 +199,12 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::IOOpsLimit, {"io_ops_limit", GetIOStatExtractor()}},
     {EStatField::IOTotalTime, {"io_time", GetIOStatExtractor()}},
     {EStatField::IOWaitTime, {"io_wait", GetIOStatExtractor()}},
+
+    // Example of net_limit_soft_stat:
+    //   BytesForcedToFB: 0; BytesUntouched: 0; ConnectionMarks: 0; ConnectionUnmarks: 0; PacketsAboveGuarantee: 0; PacketsForcedToFB: 0; PacketsUntouched: 0
+    {EStatField::NetSoftLimitBytesForcedToFb, {"net_limit_soft_stat", GetStatByKeyExtractor("BytesForcedToFb:", ";")}},
+    {EStatField::NetSoftLimitBytesUntouched, {"net_limit_soft_stat", GetStatByKeyExtractor("BytesUntouched:", ";")}},
+    {EStatField::NetSoftLimitPacketsAboveGuarantee, {"net_limit_soft_stat", GetStatByKeyExtractor("PacketsAboveGuarantee:", ";")}},
 };
 
 const THashMap<EStatField, TPortoStatRule> PortoNetworkStatRules = {

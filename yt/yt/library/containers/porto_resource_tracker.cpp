@@ -229,6 +229,10 @@ TNetworkStatistics TPortoResourceTracker::ExtractNetworkStatistics(const TResour
         .RxPackets = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetRxPackets),
         .RxDrops = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetRxDrops),
         .RxLimit = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetRxLimit),
+
+        .SoftLimitBytesForcedToFb = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetSoftLimitBytesForcedToFb),
+        .SoftLimitBytesUntouched = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetSoftLimitBytesUntouched),
+        .SoftLimitPacketsAboveGuarantee = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetSoftLimitPacketsAboveGuarantee),
     };
 }
 
@@ -435,7 +439,11 @@ static bool IsCumulativeStatistics(EStatField statistic)
         statistic == EStatField::NetTxDrops ||
         statistic == EStatField::NetRxBytes ||
         statistic == EStatField::NetRxPackets ||
-        statistic == EStatField::NetRxDrops;
+        statistic == EStatField::NetRxDrops ||
+
+        statistic == EStatField::NetSoftLimitBytesForcedToFb ||
+        statistic == EStatField::NetSoftLimitBytesUntouched ||
+        statistic == EStatField::NetSoftLimitPacketsAboveGuarantee;
 }
 
 void TPortoResourceTracker::ReCalculateResourceUsage(const TResourceUsage& newResourceUsage) const
@@ -514,7 +522,9 @@ TPortoResourceProfiler::TPortoResourceProfiler(
         BIND(&TPortoResourceProfiler::DoUpdateBuffer, MakeWeak(this)),
         ResourceUsageUpdatePeriod))
 {
-    profiler.AddProducer("", MakeStrong(this));
+    profiler
+        .WithSparse()
+        .AddProducer("", MakeStrong(this));
 }
 
 void TPortoResourceProfiler::InitializeRefCounted()
@@ -837,6 +847,22 @@ void TPortoResourceProfiler::WriteNetworkMetrics(
         writer,
         "/network/tx_limit",
         totalStatistics.NetworkStatistics.TxLimit);
+
+    WriteCumulativeGaugeIfOk(
+        writer,
+        "/network/softlimit/bytes_forced_to_fb",
+        totalStatistics.NetworkStatistics.SoftLimitBytesForcedToFb,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(
+        writer,
+        "/network/softlimit/bytes_untouched",
+        totalStatistics.NetworkStatistics.SoftLimitBytesUntouched,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(
+        writer,
+        "/network/softlimit/packets_above_guarantee",
+        totalStatistics.NetworkStatistics.SoftLimitPacketsAboveGuarantee,
+        timeDeltaUsec);
 }
 
 void TPortoResourceProfiler::DoUpdateBuffer()

@@ -130,6 +130,9 @@ DEFINE_ENUM(EStatField,
     (NetRxPackets)
     (NetRxDrops)
     (NetRxLimit)
+    (NetSoftLimitBytesForcedToFb)
+    (NetSoftLimitBytesUntouched)
+    (NetSoftLimitPacketsAboveGuarantee)
 
     // Volumes
     (VolumeCounts)

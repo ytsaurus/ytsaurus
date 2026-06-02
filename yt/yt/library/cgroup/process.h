@@ -107,6 +107,10 @@ public:
         TErrorOr<i64> RxPackets;
         TErrorOr<i64> RxDrops;
         TErrorOr<i64> RxLimit;
+
+        TErrorOr<i64> SoftLimitBytesForcedToFb;
+        TErrorOr<i64> SoftLimitBytesUntouched;
+        TErrorOr<i64> SoftLimitPacketsAboveGuarantee;
     };
 };
 
