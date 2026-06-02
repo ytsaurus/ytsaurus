@@ -4,6 +4,7 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -34,6 +35,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache_detail.h>
 
 #include <yt/yt/client/table_client/pipe.h>
 #include <yt/yt/client/table_client/row_batch.h>
@@ -84,6 +86,24 @@ using NHiveClient::TConstCellDescriptorPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+void MarkMountCacheInvalidationExhausted(TError* error)
+{
+    auto isMountCacheRetryableCode = [] (TErrorCode code) {
+        return std::find(
+            TableMountCacheRetryableCodes.begin(),
+            TableMountCacheRetryableCodes.end(),
+            code) != TableMountCacheRetryableCodes.end();
+    };
+
+    if (error->Attributes().Contains("tablet_id") && isMountCacheRetryableCode(error->GetCode())) {
+        (*error) <<= TErrorAttribute("mount_cache_invalidation_exhausted", true);
+    }
+
+    for (auto& innerError : *error->MutableInnerErrors()) {
+        MarkMountCacheInvalidationExhausted(&innerError);
+    }
+}
 
 bool ValidateSchema(const TTableSchema& original, const TTableSchema& query)
 {
@@ -422,7 +442,8 @@ public:
         IColumnEvaluatorCachePtr columnEvaluatorCache,
         IEvaluatorPtr evaluator,
         INodeChannelFactoryPtr nodeChannelFactory,
-        TFunctionImplCachePtr functionImplCache)
+        TFunctionImplCachePtr functionImplCache,
+        bool retryOnMetadataCacheInconsistency)
         : MemoryChunkProvider_(std::move(memoryChunkProvider))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , Connection_(std::move(connection))
@@ -430,6 +451,7 @@ public:
         , Evaluator_(std::move(evaluator))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
         , FunctionImplCache_(std::move(functionImplCache))
+        , RetryOnMetadataCacheInconsistency_(retryOnMetadataCacheInconsistency)
     { }
 
     TQueryStatistics Execute(
@@ -485,8 +507,36 @@ private:
     const IEvaluatorPtr Evaluator_;
     const INodeChannelFactoryPtr NodeChannelFactory_;
     const TFunctionImplCachePtr FunctionImplCache_;
+    const bool RetryOnMetadataCacheInconsistency_;
 
     TQueryStatistics Execute(
+        const TConstQueryPtr& query,
+        const TConstExternalCGInfoPtr& externalCGInfo,
+        const TDataSource& dataSource,
+        const IUnversionedRowsetWriterPtr& writer,
+        const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags)
+    {
+        if (RetryOnMetadataCacheInconsistency_) {
+            try {
+                return NApi::NNative::CallAndRetryIfMetadataCacheIsInconsistent(
+                    Connection_,
+                    /*profilingInfo*/ nullptr,
+                    MakeQueryLogger(query),
+                    [&] {
+                        return DoExecute(query, externalCGInfo, dataSource, writer, options, requestFeatureFlags);
+                    });
+            } catch (const TErrorException& ex) {
+                auto error = ex.Error();
+                // Avoid cascading retries on upper levels of execution.
+                MarkMountCacheInvalidationExhausted(&error);
+                THROW_ERROR error;
+            }
+        }
+        return DoExecute(query, externalCGInfo, dataSource, writer, options, requestFeatureFlags);
+    }
+
+    TQueryStatistics DoExecute(
         const TConstQueryPtr& query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TDataSource& dataSource,
@@ -1265,7 +1315,8 @@ IExecutorPtr CreateQueryExecutor(
     IColumnEvaluatorCachePtr columnEvaluatorCache,
     IEvaluatorPtr evaluator,
     INodeChannelFactoryPtr nodeChannelFactory,
-    TFunctionImplCachePtr functionImplCache)
+    TFunctionImplCachePtr functionImplCache,
+    bool retryOnMetadataCacheInconsistency)
 {
     return New<TQueryExecutor>(
         std::move(memoryChunkProvider),
@@ -1274,7 +1325,8 @@ IExecutorPtr CreateQueryExecutor(
         std::move(columnEvaluatorCache),
         std::move(evaluator),
         std::move(nodeChannelFactory),
-        std::move(functionImplCache));
+        std::move(functionImplCache),
+        retryOnMetadataCacheInconsistency);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
