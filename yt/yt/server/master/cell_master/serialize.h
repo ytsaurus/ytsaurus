@@ -205,6 +205,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixStuckTransactionAbortForBannedUsers_26_1)                  (3251))  // kvk1920
     ((DeadSequoiaReplicasRemovalHydraReignCheck)                    (3252))  // grphil
     ((InferrumUdfs_26_1)                                            (3253))  // babenko
+    ((SendTabletOriginatorsWhenMountTable_26_1)                     (3254))  // dave11ar
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

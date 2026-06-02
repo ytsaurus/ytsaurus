@@ -3309,6 +3309,8 @@ private:
                 reqReplicatable.set_custom_runtime_data(ToProto(customRuntimeData));
             }
 
+            ToProto(reqReplicatable.mutable_originator_tablets(), tablet->OriginatorTablets());
+
             req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
             req.set_freeze(freeze);
             req.set_use_retained_preloaded_chunks(useRetainedPreloadedChunks);
