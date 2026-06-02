@@ -660,7 +660,7 @@ private:
                 YT_LOG_ALERT("Ignoring rootstock absence on scion removal (RootstockNodeId: %v)",
                     nodeId);
 
-                DoLog(*request, ELogStage::Prepared);
+                DoLog(*request, ELogStage::Prepared, sequoiaTransaction->GetId());
                 return;
             }
         } else {
@@ -706,7 +706,7 @@ private:
             YT_LOG_ALERT("Ignoring rootstock absence on scion removal (RootstockNodeId: %v)",
                 nodeId);
 
-            DoLog(*request, ELogStage::Committed);
+            DoLog(*request, ELogStage::Committed, sequoiaTransaction->GetId());
             return;
         }
 
