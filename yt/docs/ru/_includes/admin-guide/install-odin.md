@@ -75,7 +75,7 @@ webservice:
 
 По умолчанию, будет запускаться Init Job, создающая нужные таблицы для хранения состояния. Отключить ее запуск можно, указав `config.odin.db.initialize: false`.
 
-Odin умеет отдавать метрики в формате Prometheus. Сервисы для мониторинга создаются по умолчанию (отключить можно, указав `metrics.enable`). По умолчанию ServiceMonitor не создается, но можно его включить, указав `metrics.serviceMonitor.enable`. Подробнее про настройку сбора метрик можно почитать в разделе [Мониторинг](../../admin-guide/monitoring.md).
+Odin умеет отдавать метрики в формате Prometheus. По умолчанию создаются сервисы, на которых публикуются метрики (отключить можно, указав `metrics.enable: false`), и `ServiceMonitor`, по которому Prometheus Operator автоматически собирает эти метрики (отключить можно, указав `metrics.serviceMonitor.enable: false`). Список метрик и проверок Odin приведён в разделе [Мониторинг](../../admin-guide/monitoring.md). Помимо сбора метрик, чарт умеет генерировать на их основе правила алертинга (`PrometheusRule`) — см. раздел [Алертинг (Prometheus)](#alerting).
 
 
 ## Установка Helm‑чарта
@@ -156,6 +156,104 @@ operations_snapshots:
 ```
 
 Здесь проверка попадёт в конфигурацию, но сам запуск будет отключен внутри Odin.
+
+## Алертинг (Prometheus) {#alerting}
+
+Помимо сбора метрик, начиная с версии 0.0.10, чарт умеет создавать ресурс `PrometheusRule` (требуется установленный [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator)) с правилами алертинга, построенными на основе метрик проверок Odin. По умолчанию эта возможность отключена (`rule.enable: false`). Для её работы необходимо, чтобы был включён сбор метрик (`metrics.enable: true`).
+
+#### Включение
+
+```yaml
+rule:
+  enable: true
+  # Метки, по которым Prometheus Operator подхватывает правило.
+  labels:
+    release: kube-prom
+    yt_alerts: "true"
+  # Имя группы правил.
+  groupName: odin.checks
+```
+
+#### Какие алерты генерируются
+
+Для каждой включённой проверки создаётся до трёх алертов на основе её состояния:
+
+- `OdinCheck<Name>Failed` — проверка завершилась с ошибкой (состояние `0`, `2` или `3`);
+- `OdinCheck<Name>Partial` — проверка частично доступна (состояние `0.5`);
+- `OdinCheck<Name>Absent` — метрика проверки отсутствует. Создаётся отдельно для каждого кластера из `config.odin.clusters`.
+
+#### Настройка по умолчанию (`rule.defaults`)
+
+Параметры всех алертов задаются в секции `rule.defaults`. Ниже приведены значения по умолчанию:
+
+```yaml
+rule:
+  defaults:
+    # Время, в течение которого условие должно выполняться, прежде чем алерт сработает.
+    failureFor: 5m   # для алертов *Failed
+    partialFor: 5m   # для алертов *Partial
+    absentFor: 3m    # для алертов *Absent
+    # Уровень важности (метка severity у алерта).
+    severityFail: critical
+    severityPartial: warning
+    severityAbsent: warning
+    # Дополнительные метки, добавляемые ко всем алертам.
+    extraLabels: {}
+    # Шаблоны заголовка (summary) и описания (description) алертов.
+    summaryFail: 'Odin check "{{ .displayName }}" failed on cluster {{`{{ $labels.cluster }}`}}'
+    summaryPartial: 'Odin check "{{ .displayName }}" is partially available on cluster {{`{{ $labels.cluster }}`}}'
+    summaryAbsent: 'Odin is not reporting check "{{ .displayName }}" on cluster {{ .cluster }}'
+    descriptionFail: |
+      yt_odin_{{ .name }} state is {{`{{ $value }}`}} on cluster {{`{{ $labels.cluster }}`}}.
+    descriptionPartial: |
+      yt_odin_{{ .name }} state is 0.5 on cluster {{`{{ $labels.cluster }}`}}.
+    descriptionAbsent: |
+      No samples for yt_odin_{{ .name }}{cluster="{{ .cluster }}"}.
+```
+
+В шаблонах `summary*` / `description*` доступны переменные чарта:
+
+- `{{ .name }}` — техническое имя проверки (например, `scheduler`);
+- `{{ .displayName }}` — отображаемое имя проверки (`displayName`);
+- `{{ .cluster }}` — имя кластера (доступно только в шаблонах `*Absent`).
+
+Конструкции вида `{{`{{ $labels.cluster }}`}}` и `{{`{{ $value }}`}}` экранируются и попадают в итоговый `PrometheusRule` как есть — их во время алертинга подставляет уже сам Prometheus.
+
+#### Переопределение для конкретной проверки (`<check>.alert`)
+
+Любой параметр из `rule.defaults` можно переопределить в блоке `alert` конкретной проверки, а также полностью или частично отключить её алерты:
+
+```yaml
+config:
+  checks:
+    scheduler:
+      displayName: Scheduler
+      enable: true
+      alert:
+        # Переопределение значений по умолчанию для этой проверки.
+        failureFor: 1m
+        partialFor: 1m
+        absentFor: 5m
+        severityFail: critical
+        severityPartial: warning
+        severityAbsent: warning
+        extraLabels: {}
+        # Переопределение шаблонов текстов (необязательно).
+        summaryFail: "Scheduler is down on {{`{{ $labels.cluster }}`}}"
+        # аналогично summaryPartial / summaryAbsent / descriptionFail / descriptionPartial / descriptionAbsent.
+    lost_vital_chunks:
+      displayName: Lost Vital Chunks
+      enable: true
+      alert:
+        failureFor: 1m
+        # Флаги отключения отдельных алертов:
+        disable: false          # true — отключить все алерты проверки
+        disableFail: false      # true — не создавать алерт *Failed
+        disablePartial: false   # true — не создавать алерт *Partial
+        disableAbsent: true     # true — не создавать алерты *Absent
+```
+
+Значения из блока `config.checks.<check>.alert` имеют приоритет над `rule.defaults`. Полный перечень параметров и их значения по умолчанию смотрите в [`values.yaml`](https://github.com/ytsaurus/ytsaurus/blob/main/yt/docker/charts/odin-chart/values.yaml).
 
 ## Обновление и удаление
 
