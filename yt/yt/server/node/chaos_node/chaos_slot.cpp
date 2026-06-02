@@ -3,8 +3,6 @@
 #include "automaton.h"
 #include "bootstrap.h"
 #include "private.h"
-#include "serialize.h"
-#include "slot_manager.h"
 #include "chaos_manager.h"
 #include "chaos_lease_manager.h"
 #include "chaos_node_service.h"
@@ -46,13 +44,14 @@ namespace NYT::NChaosNode {
 
 using namespace NCellarAgent;
 using namespace NCellarClient;
+using namespace NChaosClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
-using namespace NChaosClient;
+using namespace NProfiling;
 using namespace NTabletServer;
 using namespace NTransactionClient;
 using namespace NTransactionSupervisor;
@@ -73,9 +72,11 @@ public:
     TChaosSlot(
         int slotIndex,
         TChaosNodeConfigPtr config,
-        IBootstrap* bootstrap)
-        : THood(Format("ChaosSlot/%v", slotIndex))
+        IBootstrap* bootstrap,
+        TRegistry profiler)
+        : THood(Format("ChaosSlot/%v", slotIndex), profiler.GetRegistry())
         , Config_(config)
+        , Profiler_(std::move(profiler))
         , ShortcutSnapshotStore_(CreateShortcutSnapshotStore())
         , Bootstrap_(bootstrap)
         , SnapshotQueue_(New<TActionQueue>(
@@ -355,11 +356,11 @@ public:
             ->AddChild("replicated_table_tracker", ReplicatedTableTracker_->GetOrchidService());
     }
 
-    NProfiling::TRegistry GetProfiler() override
+    TRegistry GetProfiler() override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return ChaosNodeProfiler;
+        return Profiler_;
     }
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const override
@@ -447,6 +448,7 @@ public:
 
 private:
     const TChaosNodeConfigPtr Config_;
+    const TRegistry Profiler_;
     const IShortcutSnapshotStorePtr ShortcutSnapshotStore_;
 
     IBootstrap* const Bootstrap_;
@@ -458,7 +460,6 @@ private:
 
     TCellDescriptor CellDescriptor_;
 
-    const NProfiling::TTagIdList ProfilingTagIds_;
 
     IChaosManagerPtr ChaosManager_;
     IChaosLeaseManagerPtr ChaosLeaseManager_;
@@ -506,12 +507,14 @@ private:
 IChaosSlotPtr CreateChaosSlot(
     int slotIndex,
     TChaosNodeConfigPtr config,
-    IBootstrap* bootstrap)
+    IBootstrap* bootstrap,
+    const std::string& cellBundleName)
 {
     return New<TChaosSlot>(
         slotIndex,
         config,
-        bootstrap);
+        bootstrap,
+        ChaosNodeProfiler.WithTag("chaos_cell_bundle", cellBundleName));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,6 @@
 #include "cellar.h"
 
 #include "bootstrap_proxy.h"
-#include "cellar_manager.h"
 #include "occupant.h"
 #include "occupier.h"
 #include "public.h"
@@ -119,7 +118,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         int index = GetFreeOccupantIndex();
-        auto occupier = CreateOccupier(index);
+        auto occupier = CreateOccupier(index, createInfo);
 
         auto occupant = CreateCellarOccupant(index, Config_->Occupant, Bootstrap_, createInfo, occupier);
         Occupants_[index] = occupant;
@@ -305,7 +304,7 @@ private:
         THROW_ERROR_EXCEPTION("Cellar %Qlv is full", Type_);
     }
 
-    ICellarOccupierPtr CreateOccupier(int index)
+    ICellarOccupierPtr CreateOccupier(int index, const TCreateCellSlotInfo& createInfo)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -316,7 +315,7 @@ private:
             THROW_ERROR_EXCEPTION("No provider at cellar %Qlv", Type_);
         }
 
-        return OccupierProvider_->CreateCellarOccupier(index);
+        return OccupierProvider_->CreateCellarOccupier(index, createInfo);
     }
 
     void SetCellarSize(int cellarSize)
