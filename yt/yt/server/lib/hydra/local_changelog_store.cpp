@@ -314,7 +314,7 @@ public:
         , Config_(std::move(config))
         , Dispatcher_(CreateFileChangelogDispatcher(
             IOEngine_,
-            /*memoryUsageTracker*/ nullptr,
+            /*indexMemoryUsageTracker*/ nullptr,
             Config_,
             threadName,
             profiler))

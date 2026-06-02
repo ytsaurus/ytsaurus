@@ -448,9 +448,24 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
     auto session = New<TReadBlockRangeSession>();
     try {
         StartReadSession(session, options);
+
         session->FirstBlockIndex = firstBlockIndex;
         session->BlockCount = blockCount;
+
         session->Promise = NewPromise<std::vector<TBlock>>();
+        session->Promise.OnCanceled(BIND([weakSession = MakeWeak(session)] (const TError& error) {
+            auto session = weakSession.Lock();
+            if (!session) {
+                return;
+            }
+
+            auto wrappedError = TError(NYT::EErrorCode::Canceled, "ReadBlockRange session canceled")
+                << error;
+            if (auto changelogReadFuture = session->ChangelogReadFuture.Load()) {
+                changelogReadFuture.Cancel(wrappedError);
+            }
+            session->Promise.TrySet(wrappedError);
+        }));
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TBlock>>(ex);
     }
@@ -484,27 +499,83 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         TWallTimer timer;
 
+        auto readBytesLimit = Context_->DataNodeConfig->MaxBytesPerRead;
+
+        // NB: For recovery we do not enforce any limits to favor it over other workloads.
+        TLocationMemoryGuard locationMemoryGuard;
+        if (session->Options.WorkloadDescriptor.Category == EWorkloadCategory::SystemTabletRecovery) {
+            auto memoryGuard = TMemoryUsageTrackerGuard::Acquire(
+                Location_->GetReadMemoryTracker(),
+                readBytesLimit);
+
+            locationMemoryGuard = Location_->AcquireLocationMemory(
+                /*useLegacyUsedMemory*/ false,
+                std::move(memoryGuard),
+                EIODirection::Read,
+                session->Options.WorkloadDescriptor,
+                readBytesLimit);
+        } else {
+            auto memoryGuardOrError = Location_->TryAcquireLocationMemory(
+                /*useLegacyUsedMemory*/ false,
+                EIODirection::Read,
+                session->Options.WorkloadDescriptor,
+                readBytesLimit);
+            if (!memoryGuardOrError.IsOK()) {
+                Location_->ReportThrottledRead();
+                auto error = TError("Read session aborted due to memory pressure");
+                YT_LOG_DEBUG(error);
+
+                session->Promise.TrySet(std::move(error));
+                return;
+            }
+
+            locationMemoryGuard = std::move(memoryGuardOrError.Value());
+        }
+
+        if (session->Promise.IsSet()) {
+            YT_LOG_DEBUG("Will not start reading journal chunk blocks because the session is already set "
+                "(ChunkId: %v)",
+                Id_);
+            return;
+        }
+
         auto blocksFuture = changelog->Read(
             firstBlockIndex,
             std::min(blockCount, Context_->DataNodeConfig->MaxBlocksPerRead),
-            Context_->DataNodeConfig->MaxBytesPerRead);
-        auto blocksOrError = WaitFor(blocksFuture);
+            readBytesLimit);
+        session->ChangelogReadFuture.Store(blocksFuture.As<void>());
+
+        auto blocksOrError = WaitFor(std::move(blocksFuture));
         if (!blocksOrError.IsOK()) {
             auto error = TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error reading journal chunk %v",
                 Id_)
                 << blocksOrError;
-            if (!blocksOrError.FindMatching(NHydra::EErrorCode::InvalidChangelogState)) {
+            if (!blocksOrError.FindMatching(NHydra::EErrorCode::InvalidChangelogState) &&
+                !blocksOrError.FindMatching(NYT::EErrorCode::Canceled))
+            {
                 Location_->ScheduleDisable(error);
             }
             THROW_ERROR error;
         }
 
-        auto readTime = timer.GetElapsedTime();
-        const auto& blocks = blocksOrError.Value();
+        auto blocks = std::move(blocksOrError.Value());
         int blocksRead = std::ssize(blocks);
         i64 bytesRead = GetByteSize(blocks);
+
+        for (auto& block : blocks) {
+            block = TrackMemory(session->Options.MemoryUsageTracker, std::move(block), true);
+        }
+
+        if (bytesRead > readBytesLimit) {
+            locationMemoryGuard.IncreaseSize(bytesRead - readBytesLimit);
+        } else if (bytesRead < readBytesLimit) {
+            locationMemoryGuard.DecreaseSize(readBytesLimit - bytesRead);
+        }
+
+        auto readTime = timer.GetElapsedTime();
+
         session->Options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(bytesRead, std::memory_order::relaxed);
         // TODO(ngc224): propagate proper value in YT-23540
         session->Options.ChunkReaderStatistics->DataIORequests.fetch_add(1, std::memory_order::relaxed);
@@ -528,7 +599,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         ProfileReadBlockSetLatency(session);
 
-        session->Promise.Set(TBlock::Wrap(blocks));
+        session->Promise.Set(TBlock::Wrap(std::move(blocks)));
     } catch (const std::exception& ex) {
         session->Promise.Set(TError(ex));
     }
