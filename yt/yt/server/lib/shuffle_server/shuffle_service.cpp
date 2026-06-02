@@ -7,8 +7,13 @@
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/yt/client/api/shuffle_client.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -19,7 +24,9 @@ namespace NYT::NShuffleServer {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NDistributedChunkSessionClient;
 using namespace NLogging;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NShuffleClient;
@@ -49,6 +56,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartShuffle));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterChunks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchChunks));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterMapper));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPartitionWriteSession));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, StartShuffle)
@@ -56,19 +65,51 @@ public:
         auto parentTransactionId = FromProto<TTransactionId>(request->parent_transaction_id());
         int partitionCount = request->partition_count();
         const auto& account = request->account();
+        bool usePushBasedShuffle = request->use_push_based_shuffle();
+
+        auto medium = request->has_medium()
+            ? request->medium()
+            : DefaultStoreMediumName;
+        int replicationFactor = request->has_replication_factor()
+            ? request->replication_factor()
+            : DefaultIntermediateDataReplicationFactor;
+
+        TTableSchemaPtr schema;
+        if (request->has_schema()) {
+            FromProto(&schema, request->schema());
+        }
 
         context->SetRequestInfo(
-            "ParentTransaction: %v, Account: %v, PartitionCount: %v",
+            "ParentTransaction: %v, Account: %v, PartitionCount: %v, Medium: %v, ReplicationFactor: %v, UsePushBasedShuffle: %v",
             parentTransactionId,
             account,
-            partitionCount);
+            partitionCount,
+            medium,
+            replicationFactor,
+            usePushBasedShuffle);
 
         THROW_ERROR_EXCEPTION_IF(
             parentTransactionId.IsEmpty(),
             "Parent transaction id is null");
 
+        THROW_ERROR_EXCEPTION_IF(
+            usePushBasedShuffle && !schema,
+            "Push-based shuffle requires a schema");
+
+        // Push-based readers reconstruct column names solely from the schema, so a
+        // column outside it cannot round-trip. The schema must therefore be strict.
+        THROW_ERROR_EXCEPTION_IF(
+            usePushBasedShuffle && !schema->IsStrict(),
+            "Push-based shuffle requires a strict schema");
+
         auto transactionId = WaitFor(
-            ShuffleManager_->StartShuffle(request->partition_count(), parentTransactionId))
+            ShuffleManager_->StartShuffle(
+                partitionCount,
+                parentTransactionId,
+                usePushBasedShuffle,
+                account,
+                medium,
+                replicationFactor))
             .ValueOrThrow();
 
         auto shuffleHandle = New<TShuffleHandle>();
@@ -76,12 +117,10 @@ public:
         shuffleHandle->CoordinatorAddress = LocalServerAddress_;
         shuffleHandle->Account = account;
         shuffleHandle->PartitionCount = partitionCount;
-        shuffleHandle->ReplicationFactor = request->has_replication_factor()
-            ? request->replication_factor()
-            : DefaultIntermediateDataReplicationFactor;
-        shuffleHandle->Medium = request->has_medium()
-            ? request->medium()
-            : DefaultStoreMediumName;
+        shuffleHandle->ReplicationFactor = replicationFactor;
+        shuffleHandle->Medium = std::move(medium);
+        shuffleHandle->UsePushBasedShuffle = usePushBasedShuffle;
+        shuffleHandle->Schema = std::move(schema);
 
         response->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
 
@@ -108,11 +147,14 @@ public:
             writerIndex,
             overwriteExistingWriterData);
 
+        auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
+            .ValueOrThrow();
+        auto pullController = ToPullBasedOrThrow(controller);
+
         auto chunks = FromProto<std::vector<TInputChunkPtr>>(request->chunk_specs());
 
-        WaitFor(ShuffleManager_->RegisterChunks(
-            shuffleHandle->TransactionId,
-            chunks,
+        WaitFor(pullController->RegisterChunks(
+            std::move(chunks),
             writerIndex,
             overwriteExistingWriterData))
             .ThrowOnError();
@@ -153,15 +195,28 @@ public:
             request->partition_index(),
             writerIndexRange);
 
-        auto chunks = WaitFor(ShuffleManager_->FetchChunks(
-            shuffleHandle->TransactionId,
-            request->partition_index(),
-            writerIndexRange))
+        auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
             .ValueOrThrow();
 
-        for (const auto& chunk : chunks) {
-            auto* protoChunk = response->add_chunk_specs();
-            ToProto(protoChunk, chunk, TComparator(), EDataSourceType::UnversionedTable);
+        if (auto pushController = DynamicPointerCast<IPushBasedShuffleController>(controller)) {
+            auto fetchResult = WaitFor(pushController->FetchChunks(request->partition_index(), writerIndexRange))
+                .ValueOrThrow();
+            for (const auto& info : fetchResult.Chunks) {
+                auto* protoChunk = response->add_chunk_specs();
+                ToProto(protoChunk->mutable_chunk_id(), info.ChunkId);
+                ToProto(protoChunk->mutable_replicas(), info.Replicas);
+            }
+            for (i32 mapperId : fetchResult.ValidMapperIds) {
+                response->add_valid_mapper_ids(mapperId);
+            }
+        } else {
+            auto pullController = ToPullBasedOrThrow(controller);
+            auto chunkSlices = WaitFor(pullController->FetchChunks(request->partition_index(), writerIndexRange))
+                .ValueOrThrow();
+            for (const auto& chunkSlice : chunkSlices) {
+                auto* protoChunk = response->add_chunk_specs();
+                ToProto(protoChunk, chunkSlice, TComparator(), EDataSourceType::UnversionedTable);
+            }
         }
 
         context->SetResponseInfo("ChunkCount: %v", response->chunk_specs_size());
@@ -169,9 +224,80 @@ public:
         context->Reply();
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, RegisterMapper)
+    {
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+
+        auto writerIndex = request->has_writer_index()
+            ? std::optional<int>(request->writer_index())
+            : std::nullopt;
+        bool overwrite = request->overwrite_existing_writer_data();
+
+        context->SetRequestInfo(
+            "ShuffleHandle: %v, WriterIndex: %v, OverwriteExistingWriterData: %v",
+            shuffleHandle,
+            writerIndex,
+            overwrite);
+
+        auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
+            .ValueOrThrow();
+        auto pushController = ToPushBasedOrThrow(controller);
+
+        i32 mapperId = WaitFor(pushController->RegisterMapper(writerIndex, overwrite))
+            .ValueOrThrow();
+
+        response->set_mapper_id(mapperId);
+        context->SetResponseInfo("MapperId: %v", mapperId);
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, GetPartitionWriteSession)
+    {
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+        int partitionIndex = request->partition_index();
+
+        std::optional<NChunkClient::TSessionId> excludedSessionId;
+        if (request->has_excluded_session_id()) {
+            excludedSessionId = FromProto<NChunkClient::TSessionId>(request->excluded_session_id());
+        }
+
+        context->SetRequestInfo(
+            "ShuffleHandle: %v, PartitionIndex: %v, ExcludedSessionId: %v",
+            shuffleHandle,
+            partitionIndex,
+            excludedSessionId);
+
+        auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
+            .ValueOrThrow();
+        auto pushController = ToPushBasedOrThrow(controller);
+
+        auto sessionDescriptor = WaitFor(pushController->GetPartitionWriteSession(partitionIndex, excludedSessionId))
+            .ValueOrThrow();
+
+        ToProto(response->mutable_session_id(), sessionDescriptor.SessionId);
+        ToProto(response->mutable_sequencer_node(), sessionDescriptor.SequencerNode);
+
+        context->SetResponseInfo("SessionId: %v", sessionDescriptor.SessionId);
+        context->Reply();
+    }
+
 private:
     const std::string LocalServerAddress_;
     const IShuffleManagerPtr ShuffleManager_;
+
+    static IPullBasedShuffleControllerPtr ToPullBasedOrThrow(const IShuffleControllerPtr& controller)
+    {
+        auto pullController = DynamicPointerCast<IPullBasedShuffleController>(controller);
+        THROW_ERROR_EXCEPTION_IF(!pullController, "This operation is only supported for pull-based shuffles");
+        return pullController;
+    }
+
+    static IPushBasedShuffleControllerPtr ToPushBasedOrThrow(const IShuffleControllerPtr& controller)
+    {
+        auto pushController = DynamicPointerCast<IPushBasedShuffleController>(controller);
+        THROW_ERROR_EXCEPTION_IF(!pushController, "This operation is only supported for push-based shuffles");
+        return pushController;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
