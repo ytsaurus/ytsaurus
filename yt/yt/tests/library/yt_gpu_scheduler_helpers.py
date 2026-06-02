@@ -6,7 +6,12 @@ from yt_commands import (
     get, wait, exists
 )
 
+from yt_helpers import read_structured_log
+
 import builtins
+
+
+GPU_STRUCTURED_LOG_CATEGORY = "SchedulerGpuStructuredLog"
 
 
 def gpu_scheduler_orchid_operation_path(operation_id, tree="gpu"):
@@ -73,3 +78,117 @@ def check_gpu_allocations_from_gpu_policy_orchid(allocations, expected_allocatio
 def wait_for_gpu_allocations_empty_in_gpu_policy_orchid(operation, tree="gpu"):
     path = gpu_scheduler_orchid_operation_path(operation.id, tree=tree) + "/allocations"
     wait(lambda: get(path, default=None) in (None, {}))
+
+
+def read_gpu_events(scheduler_log_file, from_barrier, to_barrier=None, event_type=None, op=None, allocation_id=None, predicate=None):
+    """Read GPU structured-log events between two barriers and filter them.
+
+    Args:
+        scheduler_log_file: path to scheduler-0.json.log (caller resolves it).
+        from_barrier: start barrier id obtained from write_log_barrier.
+        to_barrier: optional end barrier id. If None, reads to EOF.
+        event_type: optional event_type filter (e.g. "allocation_preempted").
+        op: optional operation (object with .id) or operation id string;
+            matches event["operation_id"].
+        allocation_id: optional allocation_id to match.
+        predicate: optional callable invoked on the event dict; included only
+            if it returns truthy.
+
+    Returns:
+        List of matching event dicts, in log order.
+    """
+    op_id = op.id if op is not None and hasattr(op, "id") else op
+
+    def row_filter(event):
+        if event.get("category") != GPU_STRUCTURED_LOG_CATEGORY:
+            return False
+        if event_type is not None and event.get("event_type") != event_type:
+            return False
+        if op_id is not None and event.get("operation_id") != op_id:
+            return False
+        if allocation_id is not None and event.get("allocation_id") != allocation_id:
+            return False
+        if predicate is not None and not predicate(event):
+            return False
+        return True
+
+    return read_structured_log(
+        scheduler_log_file,
+        from_barrier=from_barrier,
+        to_barrier=to_barrier,
+        row_filter=row_filter,
+    )
+
+
+def wait_for_gpu_event(scheduler_log_file, from_barrier, event_type, **kwargs):
+    """Wait until a matching GPU structured event appears. Returns the first match."""
+    holder = {}
+
+    def check():
+        events = read_gpu_events(scheduler_log_file, from_barrier, event_type=event_type, **kwargs)
+        if events:
+            holder["event"] = events[0]
+            return True
+        return False
+
+    wait(check)
+    return holder["event"]
+
+
+def wait_for_allocation_preempted(scheduler_log_file, from_barrier, op, reason, count=1):
+    """Wait until at least |count| AllocationPreempted events appear for |op| with |reason|.
+
+    Returns the list of matching events.
+    """
+    holder = {}
+
+    def predicate(event):
+        return event.get("reason") == reason
+
+    def check():
+        events = read_gpu_events(
+            scheduler_log_file,
+            from_barrier,
+            event_type="allocation_preempted",
+            op=op,
+            predicate=predicate,
+        )
+        if len(events) >= count:
+            holder["events"] = events
+            return True
+        return False
+
+    wait(check)
+    return holder["events"]
+
+
+def wait_for_assignment_preempted_preliminary(scheduler_log_file, from_barrier, op, reason):
+    """Wait for an AssignmentPreempted event for |op| with |reason| where the
+    underlying assignment was preliminary (no allocation_id on the assignment).
+
+    Returns the matching event.
+    """
+    holder = {}
+
+    def predicate(event):
+        if event.get("reason") != reason:
+            return False
+        assignment = event.get("assignment", {}) or {}
+        if assignment.get("operation_id") != (op.id if hasattr(op, "id") else op):
+            return False
+        return not assignment.get("allocation_id")
+
+    def check():
+        events = read_gpu_events(
+            scheduler_log_file,
+            from_barrier,
+            event_type="assignment_preempted",
+            predicate=predicate,
+        )
+        if events:
+            holder["event"] = events[0]
+            return True
+        return False
+
+    wait(check)
+    return holder["event"]
