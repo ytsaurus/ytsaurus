@@ -629,3 +629,7 @@ items:
   - name: Выступления на мероприятиях, публикации и семинары
     when: audience == "public"
     href: other/video-posts.md
+  - name: Черновики
+    items:
+      - name: О черновиках (draft-0)
+        href: draft/draft-0.md
