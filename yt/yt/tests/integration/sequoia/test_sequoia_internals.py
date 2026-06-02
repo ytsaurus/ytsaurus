@@ -6,7 +6,7 @@ from yt_commands import (
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction, wait, lock,
     execute_batch, make_batch_request, get_batch_output, print_debug, make_ace,
-    create_account, remove_account, create_cypress_proxy_bypass_driver,
+    create_cypress_proxy_bypass_driver, create_tablet_cell_bundle, remove_tablet_cell_bundle,
 )
 
 from yt_sequoia_helpers import (
@@ -796,20 +796,24 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("shakurov")
     def test_transaction_commit_failure_error_stripping_in_sequoia_session(self):
-        create_account("a")
+        create_tablet_cell_bundle("b")
+        create("map_node", "//tmp/p1")
+        create("map_node", "//tmp/p2")
 
-        create("table", "//tmp/t1", attributes={"account": "a"})
-        wait(lambda: get("//sys/accounts/a/@resource_usage/node_count") > 0)
+        create("table", "//tmp/p1/t", attributes={"tablet_cell_bundle": "b"})
 
-        with raises_yt_error("Cannot remove an account .* because its usage is not zero") as err:
-            remove_account("a", sync=False)
+        remove_tablet_cell_bundle("b")
+        wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") in ["removal_started", "removal_pre_committed"])
+
+        with raises_yt_error("Tablet cell bundle .* cannot be used") as err:
+            copy("//tmp/p1/t", "//tmp/p2/t")
         assert len(err) == 1
         assert err[0].message.find("Received response with error") != -1
         err = err[0]
         assert len(err.inner_errors) == 1
         print_debug(err.inner_errors[0])
         # Not using contains_code here - we're checking the outermost error.
-        assert err.inner_errors[0]["code"] == yt_error_codes.Generic
+        assert err.inner_errors[0]["code"] == yt_error_codes.InactiveObjectLifeStage
 
     @authors("kvk1920")
     def test_ground_connection_synchronization(self):
