@@ -98,6 +98,8 @@ struct TDynamicCypressManagerConfig
     NTableClient::EOptimizeFor DefaultOptimizeFor;
     NTableClient::EOptimizeFor DefaultDynamicTableOptimizeFor;
 
+    bool IgnoreRootstockAbsenceOnScionRemoval;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);
