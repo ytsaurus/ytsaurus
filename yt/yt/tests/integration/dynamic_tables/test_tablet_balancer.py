@@ -741,7 +741,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         other_trigger = "node" if trigger_by == "cell" else "cell"
         self._apply_dynamic_config_patch({
-            f"parameterized_{other_trigger}_deviation_threshold": 0.
+            f"parameterized_{other_trigger}_deviation_threshold": 0.3
         })
 
         sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(1, 20)])
