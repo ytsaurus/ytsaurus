@@ -1041,6 +1041,7 @@ protected:
     // Validate that ESchemaInferenceMode::Auto is used when output table is dynamic.
     void ValidateSchemaInferenceMode(NScheduler::ESchemaInferenceMode schemaInferenceMode) const;
     void ValidateOutputSchemaComputedColumnsCompatibility() const;
+    void ValidateNoHunkKeyColumns() const;
 
     void BuildPrepareAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
