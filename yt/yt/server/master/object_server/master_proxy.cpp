@@ -46,6 +46,8 @@
 
 #include <yt/yt/core/rpc/message.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -721,6 +723,8 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto objectId : objectIds) {
             // It's impossible to clear response without wiping the whole context, so it has to be created anew for each node.
+            // Child trace context prevents tag collision on #NTracing::AnnotateTraceContext.
+            NTracing::TChildTraceContextGuard traceGuard("VectorizedRead:Subrequest");
             auto subcontext = CreateYPathContext(templateRequest, Logger());
 
             if (auto* object = objectManager->FindObject(objectId); IsObjectAlive(object)) {
