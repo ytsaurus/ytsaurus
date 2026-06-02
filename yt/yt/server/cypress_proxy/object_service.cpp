@@ -1146,6 +1146,10 @@ private:
     // - the ground update queues across all master cells.
     void MaybeSyncWithMaster(bool hasSequoiaFallbackRequests) const
     {
+        const auto& userDirectorySynchronizer = Owner_->Bootstrap_->GetUserDirectorySynchronizer();
+        WaitForFast(userDirectorySynchronizer->RecentSync())
+            .ThrowOnError();
+
         const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
         if (!config->EnableUserDirectoryPerRequestSync &&
             !config->EnableGroundUpdateQueuesSync)
@@ -1161,7 +1165,6 @@ private:
 
         std::vector<TFuture<void>> futures;
         if (config->EnableUserDirectoryPerRequestSync) {
-            const auto& userDirectorySynchronizer = Owner_->Bootstrap_->GetUserDirectorySynchronizer();
             futures.push_back(userDirectorySynchronizer->NextSync(true));
         }
         if (config->EnableGroundUpdateQueuesSync &&
