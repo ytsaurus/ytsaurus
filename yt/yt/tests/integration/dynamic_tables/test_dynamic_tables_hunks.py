@@ -2764,7 +2764,6 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
 
     @authors("akozhikhov")
-    @pytest.mark.skip(reason="YT-28311")
     def test_unmount_after_aborted_write_tx(self):
         update_nodes_dynamic_config({
             "tablet_node": {
@@ -2784,9 +2783,13 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         # NB: Some row count larger than max_rows_per_write_request.
         rows = [{"key": 0, "value": "a" * 100} for i in range(3000)]
-        for _ in range(3):
+        insert_count = 0
+        iter_count = 0
+        while iter_count < 3 and insert_count < 1:
+            iter_count += 1
             try:
                 self._insert_rows_with_hunk_storage("//tmp/t", rows)
+                insert_count += 1
             except Exception:
                 pass
 
@@ -2797,6 +2800,10 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert len(hunk_chunk_ids) == 1
         hunk_chunk_id = list(hunk_chunk_ids)[0]
         wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows * insert_count)
 
     @authors("akozhikhov")
     def test_remove_cell_with_mounted_hunk_storage_1(self):
