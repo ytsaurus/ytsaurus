@@ -60,7 +60,7 @@ private:
     {
         if (!NTransactionSupervisor::IsInTransactionAction()) {
             // COMPAT(h0pless): Remove once all issues with rootstock creation will be ironed out.
-            YT_LOG_ALERT("An attempt to create a rootstock was made outside of transaction action, request was redirected to Sequoia (RootstockId: %v)",
+            YT_LOG_ALERT("An attempt to create a rootstock was made outside of transaction action, request was redirected to Sequoia (RootstockNodeId: %v)",
                 id);
 
             THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
