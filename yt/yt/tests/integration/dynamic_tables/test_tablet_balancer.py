@@ -957,7 +957,8 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             ("double([/statistics/uncompressed_data_size])", 273)
         ],
     )
-    def test_reactive_balancing(self, parameterized_balancing_metric, desired_tablet_metric):
+    @pytest.mark.parametrize("use_tablet_balancer_config", [False, True])
+    def test_reactive_balancing(self, parameterized_balancing_metric, desired_tablet_metric, use_tablet_balancer_config):
         sync_create_cells(2)
 
         # Disable balancing via schedule.
@@ -1006,10 +1007,18 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         assert get(f"{table}/@tablet_count") == 1
         assert len(get(f"{table}/@chunk_ids")) == chunk_count
 
-        set(f"{table}/@mount_config/overload_reactive_balancing", {
-            "metric": parameterized_balancing_metric,
-            "limit": desired_tablet_metric + 0.1,
-        })
+        reactive_balancing_config = {
+            "enable": True
+        }
+
+        # Legacy mode.
+        if not use_tablet_balancer_config:
+            reactive_balancing_config.update({
+                "metric": parameterized_balancing_metric,
+                "limit": 1.9 * desired_tablet_metric
+            })
+
+        set(f"{table}/@mount_config/overload_reactive_balancing", reactive_balancing_config)
         remount_table(table)
 
         update_nodes_dynamic_config({
@@ -1026,6 +1035,25 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         })
 
         wait(lambda: get(f"{table}/@tablet_count") == 4)
+
+    @authors("navasardianna")
+    def test_incorrect_reactive_balancing_settings(self):
+        sync_create_cells(1)
+
+        self._set_default_metric("incorrect_metric")
+
+        table = "//tmp/t"
+        self._create_sorted_table(
+            table,
+            tablet_balancer_config={
+                "enable_auto_reshard": True,
+                "desired_tablet_metric": 1,
+            })
+
+        set(f"{table}/@mount_config/overload_reactive_balancing", {"enable": True})
+        remount_table(table)
+
+        sleep(5)
 
     @authors("navasardianna")
     def test_tablet_balancer_config_at_node(self):

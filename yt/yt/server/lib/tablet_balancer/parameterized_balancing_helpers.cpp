@@ -34,6 +34,10 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const std::string DefaultParameterizedMetricFormula = "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])";
+
+////////////////////////////////////////////////////////////////////////////////
+
 const std::vector<TString> ParameterizedBalancingAttributes = {
     "/statistics",
     "/performance_counters"

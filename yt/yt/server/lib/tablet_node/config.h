@@ -144,17 +144,18 @@ struct TGradualCompactionConfig
 
 // TODO(dave11ar): This is a temporary interface that will be replaced by a more general solution.
 struct TOverloadReactiveBalancingConfig
-    : public NYTree::TYsonStruct
+    : public NYTree::TYsonStructLite
 {
-    std::string Metric;
-    double Limit;
+    bool Enable;
 
-    REGISTER_YSON_STRUCT(TOverloadReactiveBalancingConfig);
+    // Legacy mode. Use actual tablet balancer configs to set metric and limit.
+    std::optional<std::string> Metric;
+    std::optional<double> Limit;
+
+    REGISTER_YSON_STRUCT_LITE(TOverloadReactiveBalancingConfig);
 
     static void Register(TRegistrar registrar);
 };
-
-DEFINE_REFCOUNTED_TYPE(TOverloadReactiveBalancingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -389,7 +390,7 @@ struct TCustomTableMountConfig
 
     i64 MaxEdenDataSizeForSplitting;
 
-    TOverloadReactiveBalancingConfigPtr OverloadReactiveBalancing;
+    TOverloadReactiveBalancingConfig OverloadReactiveBalancing;
 
     bool ValidateRowIndexInChaosReplication;
 

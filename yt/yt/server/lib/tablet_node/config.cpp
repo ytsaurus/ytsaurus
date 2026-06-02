@@ -139,9 +139,14 @@ void TGradualCompactionConfig::Register(TRegistrar registrar)
 
 void TOverloadReactiveBalancingConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("metric", &TThis::Metric);
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("metric", &TThis::Metric)
+        .Optional();
     registrar.Parameter("limit", &TThis::Limit)
-        .GreaterThanOrEqual(0);
+        .GreaterThanOrEqual(0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -536,7 +541,7 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(500_MB);
 
     registrar.Parameter("overload_reactive_balancing", &TThis::OverloadReactiveBalancing)
-        .Optional();
+        .Default();
 
     registrar.Parameter("validate_row_index_in_chaos_replication", &TThis::ValidateRowIndexInChaosReplication)
         .Default(false);
