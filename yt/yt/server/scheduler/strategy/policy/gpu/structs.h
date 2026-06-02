@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "pool_tree_snapshot_state.h"
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -92,6 +93,8 @@ public:
     TJobResources UpdateResourceUsage(const TJobResources& newUsage);
 
     void SetAssignment(TWeakPtr<TAssignment> assignment);
+
+    TAllocationSnapshotState BuildSnapshotInfo(TOperationId operationId) const;
 };
 
 void Serialize(const TAllocationState& allocation, NYson::IYsonConsumer* consumer);
@@ -209,6 +212,8 @@ public:
 
     bool IsZeroAssignedUsage() const;
 
+    TOperationSnapshotState BuildSnapshotInfo() const;
+
 private:
     friend struct TAssignment;
 
@@ -264,6 +269,8 @@ public:
 
     void PreemptAllocation(TAllocationId allocationId);
     void RemovePreemptedAllocation(TAllocationId allocationId);
+
+    TNodeSnapshotState BuildSnapshotInfo() const;
 
 private:
     friend struct TAssignment;
