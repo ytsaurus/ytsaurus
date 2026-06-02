@@ -168,6 +168,36 @@ public:
         return TAddressMap{{NNodeTrackerClient::DefaultNetworkName, LocalAddress_}};
     }
 
+    void ExecuteBalancerIteration(TDryRunConfigPtr config) override
+    {
+        DoInitialize();
+
+        YT_LOG_INFO("Dry run iteration started (DryRun: %v, CreateTabletActions: %v, Bundle: %v, Groups: %v, Mode: %v)",
+            config->IsDryRun,
+            config->CreateTabletActions,
+            config->Bundle,
+            config->Groups,
+            config->Mode);
+
+        {
+            YT_LOG_INFO("Loading dynamic config for the first time");
+            auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Unexpected failure while waiting for the first dynamic config loaded");
+            YT_LOG_INFO("Dynamic config loaded");
+        }
+
+        WaitFor(
+            BIND(&ITabletBalancer::ExecuteBalancerIteration, TabletBalancer_, config, GetDynamicConfigForDryRun(config))
+                .AsyncVia(GetControlInvoker())
+                .Run())
+            .ThrowOnError();
+
+        YT_LOG_INFO("Dry run iteration finished");
+    }
+
 private:
     const TTabletBalancerBootstrapConfigPtr Config_;
     const INodePtr ConfigNode_;
@@ -344,6 +374,35 @@ private:
                 YT_LOG_DEBUG(error, "Error updating Cypress node");
             }
         }
+    }
+
+    TTabletBalancerDynamicConfigPtr GetDynamicConfigForDryRun(const TDryRunConfigPtr& dryRunConfig) const
+    {
+        auto dynamicConfig = DynamicConfigManager_->GetConfig();
+
+        dynamicConfig->Enable = true;
+
+        dynamicConfig->BundleStateProvider = New<TBundleStateProviderConfig>();
+        dynamicConfig->ClusterStateProvider = New<TClusterStateProviderConfig>();
+
+        dynamicConfig->ActionManager->CreateActionBatchSizeLimit = 500;
+        dynamicConfig->ActionManager->TabletActionPollingPeriod = TDuration::Seconds(3);
+
+        dynamicConfig->ParameterizedTimeoutOnStart = TDuration{};
+        dynamicConfig->ParameterizedTimeout = TDuration{};
+
+        dynamicConfig->MaxActionsPerGroup = 10000;
+        dynamicConfig->MaxActionsPerReshardType = 10000;
+
+        // Effectively infinite.
+        dynamicConfig->MaxUnhealthyBundlesOnReplicaCluster = 1000;
+
+        // Reduce impact on the actual instance running in the cluster.
+        dynamicConfig->MasterRequestThrottler->Limit.value() /= 2;
+
+        dynamicConfig->PickReshardPivotKeys &= dryRunConfig->CreateTabletActions;
+
+        return dynamicConfig;
     }
 };
 

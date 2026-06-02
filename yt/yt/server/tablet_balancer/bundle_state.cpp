@@ -1575,7 +1575,7 @@ void TBundleState::BuildNewState(
     YT_LOG_DEBUG("Finished fetching basic table attributes (NewTableCount: %v)", tableInfos.size());
 
     for (auto& [tableId, tableInfo] : tableInfos) {
-        YT_LOG_DEBUG_UNLESS(!isFirstIteration,
+        YT_LOG_DEBUG_UNLESS(isFirstIteration,
             "New table has been found (TableId: %v, TablePath: %v)",
             tableId,
             tableInfo->Path);
