@@ -388,7 +388,10 @@ private:
 
     void ReallocateLookupCacheMemory(TTablet* tablet)
     {
-        const auto& rowCache = tablet->GetRowCache();
+        auto rowCache = tablet->GetRowCache();
+        if (!rowCache) {
+            return;
+        }
 
         try {
             auto reallocateResult = BIND(&TRowCache::ReallocateItems, rowCache, Logger())
