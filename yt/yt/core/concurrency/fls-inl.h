@@ -104,11 +104,6 @@ Y_FORCE_INLINE T* TFlsSlot<T>::GetOrCreate() const
     return static_cast<T*>(cookie);
 }
 
-template <class T>
-Y_FORCE_INLINE T* TFlsSlot<T>::TryGet() const
-{
-    return static_cast<T*>(GetCurrentFls()->Get(Index_));
-}
 
 template <class T>
 T* TFlsSlot<T>::Create() const
@@ -119,7 +114,29 @@ T* TFlsSlot<T>::Create() const
 }
 
 template <class T>
-const T* TFlsSlot<T>::Get(const TFls& fls) const
+Y_FORCE_INLINE T* TFlsSlot<T>::TryGet()
+{
+    auto* fls = TryGetCurrentFls();
+    if (!fls) {
+        return nullptr;
+    }
+    return TryGet(*fls);
+}
+
+template <class T>
+Y_FORCE_INLINE const T* TFlsSlot<T>::TryGet() const
+{
+    return const_cast<TFlsSlot*>(this)->TryGet();
+}
+
+template <class T>
+Y_FORCE_INLINE T* TFlsSlot<T>::TryGet(TFls& fls) const
+{
+    return static_cast<T*>(fls.Get(Index_));
+}
+
+template <class T>
+Y_FORCE_INLINE const T* TFlsSlot<T>::TryGet(const TFls& fls) const
 {
     return static_cast<const T*>(fls.Get(Index_));
 }
