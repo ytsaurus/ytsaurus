@@ -1005,6 +1005,7 @@ protected:
             if (IsFinal()) {
                 // Somehow we failed resuming a lost stripe in a sink. No comments.
                 TTask::OnStripeRegistrationFailed(error, cookie, stripe, descriptor);
+                return;
             }
             Controller_->SortedMergeTask_->AbortAllActiveJoblets(error, *stripe->GetInputChunkPoolIndex());
             // TODO(max42): maybe moving chunk mapping outside of the pool was not that great idea.
@@ -4494,7 +4495,7 @@ private:
         PartitionJobIOConfig_ = CloneYsonStruct(Spec_->PartitionJobIO);
         PartitionJobIOConfig_->TableReader->SamplingRate = std::nullopt;
 
-        IntermediateSortJobIOConfig_ = Spec_->SortJobIO;
+        IntermediateSortJobIOConfig_ = CloneYsonStruct(Spec_->SortJobIO);
 
         // Partition reduce: writer like in merge and reader like in sort.
         FinalSortJobIOConfig_ = CloneYsonStruct(Spec_->MergeJobIO);

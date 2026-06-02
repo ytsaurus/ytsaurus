@@ -361,7 +361,7 @@ protected:
     i64 GetUnavailableInputChunkCount() const override
     {
         if (UnavailableChunksWatcher_ && State_ == EControllerState::Preparing) {
-            UnavailableChunksWatcher_->GetUnavailableChunkCount();
+            return UnavailableChunksWatcher_->GetUnavailableChunkCount();
         }
 
         return TOperationControllerBase::GetUnavailableInputChunkCount();

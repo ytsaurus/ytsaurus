@@ -236,8 +236,9 @@ public:
 
     void UpdateInputPrimaryCompressedDataSize(i64 primaryInputCompressedDataSize) override
     {
-        YT_LOG_DEBUG("Job size constraints primary input compressed data size updated (OldInputCompressedDataSize: %v, NewInputCompressedDataSize: %v)",
-            InputCompressedDataSize_,
+        YT_LOG_DEBUG(
+            "Job size constraints primary input compressed data size updated (OldPrimaryInputCompressedDataSize: %v, NewPrimaryInputCompressedDataSize: %v)",
+            PrimaryInputCompressedDataSize_,
             primaryInputCompressedDataSize);
         PrimaryInputCompressedDataSize_ = primaryInputCompressedDataSize;
     }

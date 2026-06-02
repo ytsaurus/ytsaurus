@@ -886,7 +886,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     bool restarted = it != LostJobCookieMap_.end() && it->first.first == joblet->OutputCookie;
 
     auto lostIntermediateChunk = LostIntermediateChunkCookieMap_.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
-    bool lostIntermediateChunkIsKnown = lostIntermediateChunk != LostIntermediateChunkCookieMap_.end() && it->first.first == joblet->OutputCookie;
+    bool lostIntermediateChunkIsKnown = lostIntermediateChunk != LostIntermediateChunkCookieMap_.end() && lostIntermediateChunk->first.first == joblet->OutputCookie;
 
     auto accountBuildingJobSpec = BIND(&ITaskHost::AccountBuildingJobSpecDelta, MakeWeak(TaskHost_));
     accountBuildingJobSpec.Run(+1, +sliceCount);

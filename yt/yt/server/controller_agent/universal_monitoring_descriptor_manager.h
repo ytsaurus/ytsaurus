@@ -34,7 +34,7 @@ private:
     int Size_ = 0;
     int MaxSize_ = -1;
     int NotAcquiredMonitoringDescriptorsCount_ = 0;
-    THashMap<TOperationId, int> OperationIdToCountOfAcqiredMonitor_;
+    THashMap<TOperationId, int> OperationIdToCountOfAcquiredMonitor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

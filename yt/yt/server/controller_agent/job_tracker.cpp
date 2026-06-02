@@ -2775,12 +2775,16 @@ void TJobTracker::DoReleaseJobs(
     for (const auto& [nodeId, allocationIdToJobsToRelease] : grouppedJobsToRelease) {
         auto* nodeInfo = FindNodeInfo(nodeId);
         if (!nodeInfo) {
+            int releasedJobCount = 0;
+            for (const auto& [_, jobsToRelease] : allocationIdToJobsToRelease) {
+                releasedJobCount += std::ssize(jobsToRelease);
+            }
             YT_LOG_DEBUG(
                 "Skip jobs to release for node that is not connected (OperationId: %v, NodeId: %v, NodeAddress: %v, ReleasedJobCount: %v)",
                 operationId,
                 nodeId,
                 GetNodeAddressForLogging(nodeId),
-                std::size(jobs));
+                releasedJobCount);
             continue;
         }
 
