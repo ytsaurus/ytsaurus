@@ -3384,6 +3384,8 @@ private:
             default:
                 YT_ABORT();
         }
+
+        ValidateNoHunkKeyColumns();
     }
 
     void InitIntermediateSchemas() override
