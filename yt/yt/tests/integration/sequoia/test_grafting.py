@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, get, set, exists, copy, move, link, remove, wait,
     start_transaction, commit_transaction, abort_all_transactions,
-    raises_yt_error, create_user, ls, lock,
+    raises_yt_error, create_user, ls, lock, multicell_sleep,
 )
 
 from yt_sequoia_helpers import (
@@ -136,6 +136,25 @@ class TestGrafting(YTEnvSetup):
         tx = start_transaction()
         with raises_yt_error("Rootstock cannot be removed under transaction"):
             remove("//tmp/sequoia", tx=tx)
+
+    @authors("kvk1920")
+    def test_scion_leak(self):
+        set("//sys/@config/cell_master/logging/suppressed_messages", ["Ignoring rootstock absence"])
+        multicell_sleep()
+
+        create("rootstock", "//tmp/sequoia")
+        tree = {"a": {"b": {}}, "c": 123, "d": "str"}
+        set("//tmp/sequoia", tree, force=True)
+        scion_id = get("//tmp/sequoia/@id")
+        d_id = get("//tmp/sequoia/d/@id")
+        create("map_node", "//tmp/sequoia&", force=True)
+        set("//sys/@config/cypress_manager/ignore_rootstock_absence_on_scion_removal", True)
+        remove(f"#{scion_id}")
+        assert not exists(f"#{d_id}")
+        create("rootstock", "//tmp/sequoia", force=True)
+        set("//tmp/sequoia", tree, force=True)
+        assert get("//tmp/sequoia") == tree
+        assert get("//tmp/sequoia&/@type") == "rootstock"
 
 
 ##################################################################

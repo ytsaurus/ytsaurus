@@ -647,8 +647,22 @@ private:
 
         DoLog(*request, ELogStage::Preparing);
 
+        const auto& config = Bootstrap_->GetDynamicConfig()->CypressManager;
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
+        TCypressNode* trunkNode = nullptr;
+        if (TypeFromId(nodeId) == EObjectType::Rootstock && config->IgnoreRootstockAbsenceOnScionRemoval) {
+            trunkNode = cypressManager->FindNode(TVersionedNodeId(nodeId));
+            if (!trunkNode) {
+                YT_LOG_ALERT("Ignoring rootstock absence on scion removal (RootstockNodeId: %v)",
+                    nodeId);
+
+                DoLog(*request, ELogStage::Prepared);
+                return;
+            }
+        } else {
+            trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
+        }
         VerifySequoiaNode(trunkNode);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -680,6 +694,19 @@ private:
         DoLog(*request, ELogStage::Committing);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+        const auto& config = Bootstrap_->GetDynamicConfig()->CypressManager;
+        if (config->IgnoreRootstockAbsenceOnScionRemoval &&
+            TypeFromId(nodeId) == EObjectType::Rootstock &&
+            !cypressManager->FindNode(TVersionedNodeId(nodeId)))
+        {
+            YT_LOG_ALERT("Ignoring rootstock absence on scion removal (RootstockNodeId: %v)",
+                nodeId);
+
+            DoLog(*request, ELogStage::Committed);
+            return;
+        }
+
         auto* trunkNode = cypressManager->GetNode(TVersionedObjectId(nodeId));
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
@@ -703,13 +730,13 @@ private:
                     "Attempted to remove rootstock that is already detached from a parent, ignored "
                     "(RootstockNodeId: %v)",
                     nodeId);
+
                 return;
             }
             auto parentProxy = cypressManager->GetNodeProxy(parentNode);
             parentProxy->AsMap()->RemoveChild(cypressManager->GetNodeProxy(trunkNode));
             return;
         }
-
 
         auto* node = trunkNode;
         // NB: lock is already checked in prepare. Nobody cannot lock this node
