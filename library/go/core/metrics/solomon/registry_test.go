@@ -16,6 +16,11 @@ import (
 )
 
 func TestRegistry_Gather(t *testing.T) {
+	counter := NewCounter("myprefix.mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}))
+	gauge := NewGauge("myprefix.mygauge", 14.89, WithTags(map[string]string{"shimba": "boomba"}))
+	timer := NewTimer("myprefix.mytimer", 1456*time.Millisecond, WithTags(map[string]string{"looken": "tooken"}))
+	hist := NewHistogram("myprefix.myhistogram", []float64{1, 2, 3}, []int64{1, 2, 1}, 1, WithTags(map[string]string{"chicken": "cooken"}))
+
 	r := &Registry{
 		separator:     ".",
 		prefix:        "myprefix",
@@ -23,28 +28,10 @@ func TestRegistry_Gather(t *testing.T) {
 		subregistries: make(map[string]*Registry),
 		metrics: func() *sync.Map {
 			metrics := map[string]Metric{
-				"myprefix.mycounter": &Counter{
-					name:  "myprefix.mycounter",
-					tags:  map[string]string{"ololo": "trololo"},
-					value: *atomic.NewInt64(42),
-				},
-				"myprefix.mygauge": &Gauge{
-					name:  "myprefix.mygauge",
-					tags:  map[string]string{"shimba": "boomba"},
-					value: *atomic.NewFloat64(14.89),
-				},
-				"myprefix.mytimer": &Timer{
-					name:  "myprefix.mytimer",
-					tags:  map[string]string{"looken": "tooken"},
-					value: *atomic.NewDuration(1456 * time.Millisecond),
-				},
-				"myprefix.myhistogram": &Histogram{
-					name:         "myprefix.myhistogram",
-					tags:         map[string]string{"chicken": "cooken"},
-					bucketBounds: []float64{1, 2, 3},
-					bucketValues: []int64{1, 2, 1},
-					infValue:     *atomic.NewInt64(1),
-				},
+				"myprefix.mycounter":   &counter,
+				"myprefix.mygauge":     &gauge,
+				"myprefix.mytimer":     &timer,
+				"myprefix.myhistogram": &hist,
 			}
 
 			sm := new(sync.Map)
@@ -60,13 +47,13 @@ func TestRegistry_Gather(t *testing.T) {
 	assert.NoError(t, err)
 
 	expected := &Metrics{}
-	r.metrics.Range(func(_, s interface{}) bool {
+	r.metrics.Range(func(_, s any) bool {
 		expected.metrics = append(expected.metrics, s.(Metric))
 		return true
 	})
 
 	opts := cmp.Options{
-		cmp.AllowUnexported(Metrics{}, Counter{}, Gauge{}, Timer{}, Histogram{}),
+		cmp.AllowUnexported(Metrics{}, baseMetric{}, Counter{}, Gauge{}, Timer{}, Histogram{}),
 		cmpopts.IgnoreUnexported(sync.Mutex{}, atomic.Duration{}, atomic.Int64{}, atomic.Float64{}),
 		// this will sort both slices for latest tests as well
 		cmpopts.SortSlices(func(x, y Metric) bool {

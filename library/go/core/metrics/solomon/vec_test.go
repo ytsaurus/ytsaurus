@@ -20,7 +20,7 @@ func TestVec(t *testing.T) {
 	testCases := []struct {
 		name         string
 		args         args
-		expectedType interface{}
+		expectedType any
 		expectLabels []string
 	}{
 		{

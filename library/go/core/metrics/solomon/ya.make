@@ -1,6 +1,7 @@
 GO_LIBRARY()
 
 SRCS(
+    base.go
     converter.go
     counter.go
     func_counter.go

@@ -17,7 +17,7 @@ func (r Registry) Gather() (*Metrics, error) {
 	metrics := make([]Metric, 0)
 
 	var err error
-	r.metrics.Range(func(_, v interface{}) bool {
+	r.metrics.Range(func(_, v any) bool {
 		if s, ok := v.(Metric); ok {
 			metrics = append(metrics, s.Snapshot())
 			return true
@@ -121,7 +121,7 @@ type Metric interface {
 //	Rated(cntvec)
 //
 // For additional info: https://m.yandex-team.ru/docs/concepts/data-model#rate
-func Rated(s interface{}) interface{} {
+func Rated(s any) any {
 	switch st := s.(type) {
 	case *Counter:
 		st.metricType = typeRated
@@ -142,7 +142,7 @@ func Rated(s interface{}) interface{} {
 }
 
 // MemOnly marks given Solomon metric as mem-only.
-func MemOnly(m interface{}) interface{} {
+func MemOnly(m any) any {
 	if iface, ok := m.(interface{ setMemOnly() }); ok {
 		iface.setMemOnly()
 	}
