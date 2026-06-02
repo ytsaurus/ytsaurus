@@ -33,6 +33,7 @@ target_link_libraries(cpp-integration-test-reader PUBLIC
   cpp-testing-gtest_main
   tests-cpp-test_base
   yt-yt-ytlib
+  library-query-engine
   yt-core-test_framework
 )
 

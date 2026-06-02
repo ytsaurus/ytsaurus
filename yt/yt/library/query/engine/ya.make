@@ -27,7 +27,6 @@ SRCS(
     web_assembly_caller.cpp
     web_assembly_data_transfer.cpp
     web_assembly_type_builder.cpp
-    GLOBAL query_engine_config.cpp  # TODO(dtorilov): Fix static initializer and remove this GLOBAL.
     GLOBAL query_evaluator.cpp
 )
 

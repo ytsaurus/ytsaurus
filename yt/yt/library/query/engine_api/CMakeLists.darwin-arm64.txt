@@ -37,6 +37,7 @@ target_link_libraries(library-query-engine_api PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
+  yt-library-codegen_api
   library-web_assembly-api
   library-query-misc
   library-query-proto
@@ -49,6 +50,7 @@ target_link_libraries(library-query-engine_api PUBLIC
 target_sources(library-query-engine_api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/append_function_implementation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/builtin_function_profiler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/cg_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/column_evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/coordinator.cpp
@@ -63,5 +65,46 @@ target_sources(library-query-engine_api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/range_inferrer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/shuffling_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/top_collector.cpp
+)
+
+
+add_global_library_for(library-query-engine_api.global
+  library-query-engine_api)
+
+
+target_compile_options(library-query-engine_api.global PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
+)
+
+target_include_directories(library-query-engine_api.global PUBLIC
+  ${PROJECT_BINARY_DIR}/yt
+)
+
+target_include_directories(library-query-engine_api.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
+)
+
+target_link_libraries(library-query-engine_api.global PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  yt-library-codegen_api
+  library-web_assembly-api
+  library-query-misc
+  library-query-proto
+  library-query-base
+  yt-yt-client
+  cpp-yt-memory
+  contrib-libs-sparsehash
+)
+
+target_sources(library-query-engine_api.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/query_engine_config.cpp
 )
 

@@ -2,7 +2,10 @@
 
 #include "cg_cache.h"
 
+#include <yt/yt/library/codegen_api/execution_backend.h>
+
 #include <yt/yt/core/misc/configurable_singleton_decl.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
 

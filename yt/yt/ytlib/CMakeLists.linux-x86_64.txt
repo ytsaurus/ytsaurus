@@ -100,7 +100,6 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-s3
   yt-library-row_merger
   library-query-base
-  library-query-engine
   library-query-engine_api
   library-query-row_comparer_api
   library-query-secondary_index
@@ -1903,7 +1902,6 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-s3
   yt-library-row_merger
   library-query-base
-  library-query-engine
   library-query-engine_api
   library-query-row_comparer_api
   library-query-secondary_index

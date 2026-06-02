@@ -71,6 +71,18 @@ Y_WEAK TQueryStatistics CoordinateAndExecute(
     YT_ABORT();
 }
 
+TQueryStatistics CoordinateAndExecuteWithShuffle(
+    int /*splitCount*/,
+    int /*groupKeyPrefix*/,
+    TSubQueryEvaluator /*evaluateSubQuery*/,
+    TMiddleQueryEvaluator /*evaluateMiddleQuery*/,
+    TTopQueryEvaluator /*evaluateTopQuery*/,
+    const IMemoryChunkProviderPtr& /*memoryChunkProvider*/)
+{
+    // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
+    YT_ABORT();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

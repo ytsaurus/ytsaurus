@@ -843,7 +843,6 @@ PEERDIR(
     yt/yt/library/s3
     yt/yt/library/row_merger
     yt/yt/library/query/base
-    yt/yt/library/query/engine
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
     yt/yt/library/query/secondary_index
