@@ -3,10 +3,11 @@
 #include <yt/yt/library/query/base/join_profiler.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 
-#include <yt/yt/library/query/engine/query_engine_config.h>
+#include <yt/yt/library/query/engine/cg_cache.h>
 
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
+#include <yt/yt/library/query/engine_api/query_engine_config.h>
 
 #include <yt/yt/library/web_assembly/engine/builtins.h>
 

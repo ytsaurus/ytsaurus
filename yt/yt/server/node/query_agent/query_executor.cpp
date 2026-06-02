@@ -77,8 +77,7 @@
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
-
-#include <yt/yt/library/query/engine/query_engine_config.h>
+#include <yt/yt/library/query/engine_api/query_engine_config.h>
 
 #include <yt/yt/core/misc/configurable_singleton_def.h>
 

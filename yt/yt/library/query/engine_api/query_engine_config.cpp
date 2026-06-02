@@ -1,21 +1,11 @@
 #include "query_engine_config.h"
 
-#include <yt/yt/library/query/base/private.h>
-
 #include <yt/yt/core/misc/configurable_singleton_def.h>
 
 namespace NYT::NQueryClient {
 
 using namespace NYson;
 using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
-
-#ifdef YT_VERBOSE_CHANGING_QUERY_ENGINE_CONFIG
-
-constinit const auto Logger = QueryClientLogger;
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +59,7 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 
 void SetupSingletonConfigParameter(TYsonStructParameter<TQueryEngineConfigPtr>& parameter)
 {
@@ -90,18 +80,10 @@ void ConfigureSingleton(const TQueryEngineConfigPtr& config)
 #endif
 }
 
-void ReconfigureSingleton(
+Y_WEAK void ReconfigureSingleton(
     const TQueryEngineConfigPtr& /*config*/,
-    const TQueryEngineDynamicConfigPtr& dynamicConfig)
-{
-    if (dynamicConfig->CodegenCache) {
-        TCodegenCacheSingleton::Reconfigure(dynamicConfig->CodegenCache);
-    }
-
-#ifdef YT_VERBOSE_CHANGING_QUERY_ENGINE_CONFIG
-    YT_LOG_INFO("Reconfigure QueryEngine (Config: %v)", ConvertToYsonString(dynamicConfig, EYsonFormat::Text));
-#endif
-}
+    const TQueryEngineDynamicConfigPtr& /*dynamicConfig*/)
+{ }
 
 YT_DEFINE_RECONFIGURABLE_SINGLETON(
     "query_engine_config",
