@@ -74,9 +74,11 @@ webservice:
 
 By default, an Init Job will run to create the necessary tables for storing state. You can disable it by setting `config.odin.db.initialize: false`.
 
-Odin can expose metrics in Prometheus format. Services for monitoring are created by default (you can disable them by setting `metrics.enable`). By default, a ServiceMonitor is not created, but you can enable it by setting `metrics.serviceMonitor.enable`. For more details, see the [Monitoring](../../admin-guide/monitoring.md) section.
+
+Odin can expose metrics in Prometheus format. By default, services that publish metrics are created (you can disable them by setting `metrics.enable: false`), and a `ServiceMonitor` is created for the Prometheus Operator to automatically collect these metrics (you can disable it by setting `metrics.serviceMonitor.enable: false`). The list of metrics and Odin checks is provided in the [Monitoring](../../admin-guide/monitoring.md) section. In addition to collecting metrics, the chart can generate alerting rules (`PrometheusRule`) based on them — see the [Alerting (Prometheus)](#alerting) section.
 
 ## Installing the Helm Chart
+
 
 ```bash
 helm install odin oci://ghcr.io/ytsaurus/odin-chart \
@@ -109,7 +111,6 @@ The UI must be installed as a Helm chart (see [installation guide](install-ytsau
 
 Specify the Odin web service address in the `values.yaml` file under `.settings.odinBaseUrl`. Example address when Odin is deployed in the `default` namespace and exposed on port 9002 (default):
 `"http://odin-odin-chart-web.default.svc.cluster.local:9002"`.
-
 
 ## Enabling and Disabling Checks
 
@@ -155,6 +156,110 @@ operations_snapshots:
 ```
 
 Here, the check is included in the configuration, but its execution is disabled inside Odin.
+
+## Alerting (Prometheus) {#alerting}
+
+In addition to collecting metrics, starting from version 0.0.10, the chart can create a `PrometheusRule` resource (requires the [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator) to be installed) with alerting rules based on Odin check metrics. By default, this feature is disabled (`rule.enable: false`). To use it, you must enable metric collection (`metrics.enable: true`).
+
+#### Enabling
+
+```yaml
+rule:
+  enable: true
+  # Labels that the Prometheus Operator uses to pick up the rule.
+  labels:
+    release: kube-prom
+    yt_alerts: "true"
+  # Rule group name.
+  groupName: odin.checks
+```
+
+#### Which alerts are generated
+
+For each enabled check, up to three alerts are created based on its status:
+
+- `OdinCheck<Name>Failed` — the check failed (status `0`, `2`, or `3`);
+- `OdinCheck<Name>Partial` — the check is partially available (status `0.5`);
+- `OdinCheck<Name>Absent` — the check metric is missing. Created separately for each cluster in `config.odin.clusters`.
+
+
+#### Default configuration (`rule.defaults`)
+
+
+All alert parameters are set in the `rule.defaults` section. Below are the default values:
+
+
+```yaml
+rule:
+  defaults:
+    # Time the condition must hold before the alert fires.
+    failureFor: 5m   # for *Failed alerts
+    partialFor: 5m   # for *Partial alerts
+    absentFor: 3m    # for *Absent alerts
+    # Severity level (severity label of the alert).
+    severityFail: critical
+    severityPartial: warning
+    severityAbsent: warning
+    # Additional labels added to all alerts.
+    extraLabels: {}
+    # Summary and description templates for alerts.
+    summaryFail: 'Odin check "{{ .displayName }}" failed on cluster {{`{{ $labels.cluster }}`}}'
+    summaryPartial: 'Odin check "{{ .displayName }}" is partially available on cluster {{`{{ $labels.cluster }}`}}'
+    summaryAbsent: 'Odin is not reporting check "{{ .displayName }}" on cluster {{ .cluster }}'
+    descriptionFail: |
+      yt_odin_{{ .name }} state is {{`{{ $value }}`}} on cluster {{`{{ $labels.cluster }}`}}.
+    descriptionPartial: |
+      yt_odin_{{ .name }} state is 0.5 on cluster {{`{{ $labels.cluster }}`}}.
+    descriptionAbsent: |
+      No samples for yt_odin_{{ .name }}{cluster="{{ .cluster }}"}.
+```
+
+Chart variables are available in `summary*` / `description*` templates:
+
+- `{{ .name }}` — technical name of the check (e.g., `scheduler`);
+- `{{ .displayName }}` — display name of the check (`displayName`);
+- `{{ .cluster }}` — cluster name (available only in `*Absent` templates).
+
+Constructs like `{{`{{ $labels.cluster }}`}}` and `{{`{{ $value }}`}}` are escaped and included in the final `PrometheusRule` as‑is — Prometheus substitutes them during alerting.
+
+#### Overriding for a specific check (`<check>.alert`)
+
+
+You can override any parameter from `rule.defaults` in the `alert` block of a specific check, and also fully or partially disable its alerts:
+
+
+```yaml
+config:
+  checks:
+    scheduler:
+      displayName: Scheduler
+      enable: true
+      alert:
+        # Override default values for this check.
+        failureFor: 1m
+        partialFor: 1m
+        absentFor: 5m
+        severityFail: critical
+        severityPartial: warning
+        severityAbsent: warning
+        extraLabels: {}
+        # Override text templates (optional).
+        summaryFail: "Scheduler is down on {{`{{ $labels.cluster }}`}}"
+        # similarly for summaryPartial / summaryAbsent / descriptionFail / descriptionPartial / descriptionAbsent.
+    lost_vital_chunks:
+      displayName: Lost Vital Chunks
+      enable: true
+      alert:
+        failureFor: 1m
+        # Flags to disable individual alerts:
+        disable: false          # true — disable all check alerts
+        disableFail: false      # true — do not create *Failed alert
+        disablePartial: false   # true — do not create *Partial alert
+        disableAbsent: true     # true — do not create *Absent alerts
+```
+
+Values in the `config.checks.<check>.alert` block take precedence over `rule.defaults`. See [`values.yaml`](https://github.com/ytsaurus/ytsaurus/blob/main/yt/docker/charts/odin-chart/values.yaml) for the full list of parameters and their default values.
+
 
 ## Updating and Uninstalling
 
