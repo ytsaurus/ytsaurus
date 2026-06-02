@@ -6,15 +6,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 )
 
 func TestTimer_RecordDuration(t *testing.T) {
-	c := &Timer{
-		name:       "mytimer",
-		metricType: typeGauge,
-		tags:       map[string]string{"ololo": "trololo"},
-	}
+	c := NewTimer("mytimer", 0, WithTags(map[string]string{"ololo": "trololo"}))
 
 	c.RecordDuration(1 * time.Second)
 	assert.Equal(t, 1*time.Second, c.value.Load())
@@ -25,15 +20,9 @@ func TestTimer_RecordDuration(t *testing.T) {
 
 func TestTimerRated_MarshalJSON(t *testing.T) {
 	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-	c := &Timer{
-		name:       "mytimer",
-		metricType: typeRated,
-		tags:       map[string]string{"ololo": "trololo"},
-		value:      *atomic.NewDuration(42 * time.Millisecond),
-		timestamp:  &ts,
-	}
+	c := NewTimer("mytimer", 42*time.Millisecond, WithTags(map[string]string{"ololo": "trololo"}), WithTimestamp(ts), WithRated(true))
 
-	b, err := json.Marshal(c)
+	b, err := json.Marshal(&c)
 	assert.NoError(t, err)
 
 	expected := []byte(`{"type":"RATE","labels":{"ololo":"trololo","sensor":"mytimer"},"value":0.042,"ts":1577836800}`)
@@ -41,16 +30,9 @@ func TestTimerRated_MarshalJSON(t *testing.T) {
 }
 
 func TestNameTagTimer_MarshalJSON(t *testing.T) {
-	c := &Timer{
-		name:       "mytimer",
-		metricType: typeRated,
-		tags:       map[string]string{"ololo": "trololo"},
-		value:      *atomic.NewDuration(42 * time.Millisecond),
+	c := NewTimer("mytimer", 42*time.Millisecond, WithTags(map[string]string{"ololo": "trololo"}), WithUseNameTag(), WithRated(true))
 
-		useNameTag: true,
-	}
-
-	b, err := json.Marshal(c)
+	b, err := json.Marshal(&c)
 	assert.NoError(t, err)
 
 	expected := []byte(`{"type":"RATE","labels":{"name":"mytimer","ololo":"trololo"},"value":0.042}`)

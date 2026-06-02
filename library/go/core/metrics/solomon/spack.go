@@ -28,7 +28,7 @@ type errWriter struct {
 	err error
 }
 
-func (ew *errWriter) binaryWrite(data interface{}) {
+func (ew *errWriter) binaryWrite(data any) {
 	if ew.err != nil {
 		return
 	}

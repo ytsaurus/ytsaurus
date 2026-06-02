@@ -2,7 +2,6 @@ package solomon
 
 import (
 	"encoding/json"
-	"time"
 
 	"go.uber.org/atomic"
 
@@ -16,30 +15,15 @@ var (
 
 // IntGauge tracks single int64 value.
 type IntGauge struct {
-	name       string
-	metricType metricType
-	tags       map[string]string
-	value      atomic.Int64
-	timestamp  *time.Time
+	baseMetric
 
-	useNameTag bool
-	memOnly    bool
+	value atomic.Int64
 }
 
 func NewIntGauge(name string, value int64, opts ...MetricOpt) IntGauge {
-	mOpts := MetricsOpts{}
-	for _, op := range opts {
-		op(&mOpts)
-	}
 	return IntGauge{
-		name:       name,
-		metricType: typeIGauge,
-		tags:       mOpts.tags,
+		baseMetric: newBaseMetric(name, typeIGauge, opts...),
 		value:      *atomic.NewInt64(value),
-		timestamp:  mOpts.timestamp,
-
-		useNameTag: mOpts.useNameTag,
-		memOnly:    mOpts.memOnly,
 	}
 }
 
@@ -51,62 +35,12 @@ func (g *IntGauge) Add(value int64) {
 	g.value.Add(value)
 }
 
-func (g *IntGauge) getID() string {
-	if g.timestamp != nil {
-		return g.name + "(" + g.timestamp.Format(time.RFC3339) + ")"
-	}
-	return g.name
-}
-
-func (g *IntGauge) Name() string {
-	return g.name
-}
-
-func (g *IntGauge) getType() metricType {
-	return g.metricType
-}
-
-func (g *IntGauge) Labels() map[string]string {
-	return g.tags
-}
-
-func (g *IntGauge) Value() interface{} {
+func (g *IntGauge) Value() any {
 	return g.value.Load()
-}
-
-func (g *IntGauge) getTimestamp() *time.Time {
-	return g.timestamp
-}
-
-func (g *IntGauge) getNameTag() string {
-	if g.useNameTag {
-		return "name"
-	} else {
-		return "sensor"
-	}
-}
-
-func (g *IntGauge) isMemOnly() bool {
-	return g.memOnly
-}
-
-func (g *IntGauge) setMemOnly() {
-	g.memOnly = true
 }
 
 // MarshalJSON implements json.Marshaler.
 func (g *IntGauge) MarshalJSON() ([]byte, error) {
-	metricType := g.metricType.String()
-	value := g.value.Load()
-	labels := func() map[string]string {
-		labels := make(map[string]string, len(g.tags)+1)
-		labels[g.getNameTag()] = g.name
-		for k, v := range g.tags {
-			labels[k] = v
-		}
-		return labels
-	}()
-
 	return json.Marshal(struct {
 		Type      string            `json:"type"`
 		Labels    map[string]string `json:"labels"`
@@ -114,9 +48,9 @@ func (g *IntGauge) MarshalJSON() ([]byte, error) {
 		Timestamp *int64            `json:"ts,omitempty"`
 		MemOnly   bool              `json:"memOnly,omitempty"`
 	}{
-		Type:      metricType,
-		Value:     value,
-		Labels:    labels,
+		Type:      g.metricType.String(),
+		Value:     g.value.Load(),
+		Labels:    g.labelsWithName(),
 		Timestamp: tsAsRef(g.timestamp),
 		MemOnly:   g.memOnly,
 	})
@@ -125,13 +59,7 @@ func (g *IntGauge) MarshalJSON() ([]byte, error) {
 // Snapshot returns independent copy of metric.
 func (g *IntGauge) Snapshot() Metric {
 	return &IntGauge{
-		name:       g.name,
-		metricType: g.metricType,
-		tags:       g.tags,
+		baseMetric: g.copy(),
 		value:      *atomic.NewInt64(g.value.Load()),
-		timestamp:  g.timestamp,
-
-		useNameTag: g.useNameTag,
-		memOnly:    g.memOnly,
 	}
 }
