@@ -277,7 +277,7 @@ private:
         }
         req->Attachments().push_back(batch->RequestData);
 
-        if (HunkChunksInfo_) {
+        if (batchIndex == 0 && HunkChunksInfo_) {
             ToProto(req->mutable_hunk_chunks_info(), *HunkChunksInfo_);
         }
 
