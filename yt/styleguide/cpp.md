@@ -771,17 +771,17 @@ for (int chunkIndex = 0; chunkIndex < chunkCount - 1; ++chunkIndex) {
 int lockBalance = 0; // The number of locks acquired minus the number of locks released.
 ```
 
-We often use doxygen-style comments for documenting classes, methods and functions. We almost do not use doxygen-style comments for documenting variables.
+We often use doxygen-style comments for documenting classes, methods and functions. We almost do not use doxygen-style comments for documenting variables. We use `|parameter|` to refer to a parameter in the text. We use `#Function()`, `#TClass`, etc., following the doxygen style.
 
 ```cpp
 // Some real-life examples.
 
 //! Creates an invoker that executes all callbacks in the
-//! context of #underlyingInvoker (possibly in different threads)
+//! context of |underlyingInvoker| (possibly in different threads)
 //! but in a serialized fashion (i.e. all queued callbacks are executed
 //! in the proper order and no two callbacks are executed in parallel).
-//! #invokerName is used as a profiling tag.
-//! #registry is needed for testing purposes only.
+//! |invokerName| is used as a profiling tag.
+//! |registry| is needed for testing purposes only.
 IInvokerPtr CreateSerializedInvoker(
     IInvokerPtr underlyingInvoker,
     const TString& invokerName = "default",
@@ -807,7 +807,7 @@ struct ISuspendableInvoker
 
 struct IThroughputThrottler
 {
-    //! Unconditionally acquires #amount units for utilization.
+    //! Unconditionally acquires |amount| units for utilization.
     //! This request could easily lead to an overdraft.
     /*!
      *  \note Thread affinity: any
