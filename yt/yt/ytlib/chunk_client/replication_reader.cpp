@@ -1030,8 +1030,22 @@ protected:
     // NB: Now we use this method only in case of failed session. First of all because it breaks fifo property
     // of fair throttler and the other one is that we now do not account late hedged responses in DataBytesReceived_.
     // We can accept these problem for rare case of a failed session but not in a regular case.
-    void ReleaseThrottledBytesExcess(const IThroughputThrottlerPtr& throttler, i64 throttledBytes)
+    //
+    // NB: We do not release anything from throttler in case of Timeout or Canceled error, because it does not prevent
+    // data node from sending late response, which will consume the actual net quota anyway.
+    void MaybeReleaseThrottledBytesExcess(
+        const TError& error,
+        const IThroughputThrottlerPtr& throttler,
+        i64 throttledBytes)
     {
+        YT_VERIFY(!error.IsOK());
+
+        if (error.FindMatching(NYT::EErrorCode::Timeout) ||
+            error.FindMatching(NYT::EErrorCode::Canceled))
+        {
+            return;
+        }
+
         if (throttledBytes > DataBytesReceived_) {
             YT_LOG_DEBUG("Releasing excess throttled bytes (ThrottledBytes: %v, ReceivedBytes: %v)",
                 throttledBytes,
@@ -3317,7 +3331,7 @@ private:
             SetReaderFailed();
         }
 
-        ReleaseThrottledBytesExcess(BandwidthThrottler_, DataBytesThrottled_);
+        MaybeReleaseThrottledBytesExcess(error, BandwidthThrottler_, DataBytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -3624,7 +3638,7 @@ private:
             SetReaderFailed();
         }
 
-        ReleaseThrottledBytesExcess(BandwidthThrottler_, DataBytesThrottled_);
+        MaybeReleaseThrottledBytesExcess(error, BandwidthThrottler_, DataBytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -3886,7 +3900,7 @@ private:
             SetReaderFailed();
         }
 
-        ReleaseThrottledBytesExcess(BandwidthThrottler_, DataBytesThrottled_);
+        MaybeReleaseThrottledBytesExcess(error, BandwidthThrottler_, DataBytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -4119,7 +4133,7 @@ private:
             SetReaderFailed();
         }
 
-        ReleaseThrottledBytesExcess(BandwidthThrottler_, DataBytesThrottled_);
+        MaybeReleaseThrottledBytesExcess(error, BandwidthThrottler_, DataBytesThrottled_);
 
         Promise_.TrySet(error);
     }
