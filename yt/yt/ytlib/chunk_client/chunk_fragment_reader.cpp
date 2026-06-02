@@ -1463,8 +1463,16 @@ private:
         return CombinedDataByteThrottler_->Throttle(amount);
     }
 
-    void ReleaseThrottledBytes(i64 throttledBytes)
+    void MaybeReleaseThrottledBytes(const TError& error, i64 throttledBytes)
     {
+        YT_VERIFY(!error.IsOK());
+
+        if (error.FindMatching(NYT::EErrorCode::Timeout) ||
+            error.FindMatching(NYT::EErrorCode::Canceled))
+        {
+            return;
+        }
+
         YT_LOG_DEBUG("Releasing excess throttled bytes (ThrottledBytes: %v)",
             throttledBytes);
 
@@ -1647,7 +1655,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         if (!rspOrError.IsOK()) {
-            ReleaseThrottledBytes(throttledBytes);
+            MaybeReleaseThrottledBytes(rspOrError, throttledBytes);
         } else {
             i64 receivedAttachmentsSize = GetByteSize(rspOrError.Value()->Attachments());
             if (receivedAttachmentsSize > throttledBytes) {
