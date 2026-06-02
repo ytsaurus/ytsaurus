@@ -81,8 +81,12 @@ TInputStatistics TInputStatisticsCollector::FromChunks(const std::vector<TLegacy
 
 TInputStatistics TInputStatisticsCollector::Finish() && noexcept
 {
-    Statistics_.CompressionRatio = static_cast<double>(Statistics_.CompressedDataSize) / Statistics_.DataWeight;
-    Statistics_.DataWeightRatio = static_cast<double>(TotalInputDataWeight_) / Statistics_.UncompressedDataSize;
+    if (Statistics_.DataWeight > 0) {
+        Statistics_.CompressionRatio = static_cast<double>(Statistics_.CompressedDataSize) / Statistics_.DataWeight;
+    }
+    if (Statistics_.UncompressedDataSize > 0) {
+        Statistics_.DataWeightRatio = static_cast<double>(TotalInputDataWeight_) / Statistics_.UncompressedDataSize;
+    }
 
     TotalInputDataWeight_ = 0;
     return std::exchange(Statistics_, TInputStatistics());

@@ -67,6 +67,16 @@ void TDataBalancer::OnExecNodesUpdated(const TExecNodeDescriptorMap& newExecNode
             ActiveNodeTotalIOWeight_ -= GetNodeIOWeight(node);
         }
     }
+
+    for (const auto& [_, descriptor] : newExecNodes) {
+        auto& node = GetOrRegisterNode(descriptor);
+        if (!node.Active) {
+            if (auto weight = GetNodeIOWeight(node); weight > 0) {
+                node.Active = true;
+                ActiveNodeTotalIOWeight_ += weight;
+            }
+        }
+    }
 }
 
 void TDataBalancer::RegisterMetadata(auto&& registrar)
