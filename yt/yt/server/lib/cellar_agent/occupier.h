@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h>
+
 namespace NYT::NCellarAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +55,9 @@ DEFINE_REFCOUNTED_TYPE(ICellarOccupier)
 struct ICellarOccupierProvider
     : public TRefCounted
 {
-    virtual ICellarOccupierPtr CreateCellarOccupier(int index) = 0;
+    virtual ICellarOccupierPtr CreateCellarOccupier(
+        int index,
+        const NCellarNodeTrackerClient::NProto::TCreateCellSlotInfo& createInfo) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellarOccupierProvider)

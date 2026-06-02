@@ -10,6 +10,7 @@
 namespace NYT::NChaosNode {
 
 using namespace NCellarAgent;
+using namespace NCellarNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,9 +25,9 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    ICellarOccupierPtr CreateCellarOccupier(int index) override
+    ICellarOccupierPtr CreateCellarOccupier(int index, const TCreateCellSlotInfo& createInfo) override
     {
-        return CreateChaosSlot(index, Config_, Bootstrap_);
+        return CreateChaosSlot(index, Config_, Bootstrap_, createInfo.cell_bundle());
     }
 
 private:
