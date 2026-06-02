@@ -454,17 +454,68 @@ void TSchedulingPolicy::BuildSchedulingAttributesForNode(TNodeId nodeId, TFluent
 }
 
 void TSchedulingPolicy::BuildSchedulingAttributesStringForOngoingAllocations(
-    const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-    const std::vector<TAllocationPtr>& /*allocations*/,
-    TInstant /*now*/,
-    TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
-{ }
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    const std::vector<TAllocationPtr>& allocations,
+    TInstant now,
+    TDelimitedStringBuilderWrapper& delimitedBuilder) const
+{
+    if (!treeSnapshot) {
+        return;
+    }
+
+    const auto* state = GetPoolTreeSnapshotState(treeSnapshot);
+
+    std::vector<TAllocationId> preemptibleAllocationIds;
+    std::vector<TAllocationId> nonPreemptibleAllocationIds;
+    std::vector<TAllocationId> unknownAllocationIds;
+    for (const auto& allocation : allocations) {
+        auto allocationId = allocation->GetId();
+        auto it = state->AllocationStates().find(allocationId);
+        if (it == state->AllocationStates().end()) {
+            unknownAllocationIds.push_back(allocationId);
+        } else if (it->second.Preemptible) {
+            preemptibleAllocationIds.push_back(allocationId);
+        } else {
+            nonPreemptibleAllocationIds.push_back(allocationId);
+        }
+    }
+
+    delimitedBuilder->AppendFormat(
+        "PreemptibleAllocationIds: %v, NonPreemptibleAllocationIds: %v, "
+        "UnknownAllocationIds: %v, TimeSinceSnapshotSeconds: %v",
+        preemptibleAllocationIds,
+        nonPreemptibleAllocationIds,
+        unknownAllocationIds,
+        (now - state->GetSnapshotTime()).SecondsFloat());
+}
 
 void TSchedulingPolicy::BuildElementLoggingStringAttributes(
-    const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-    const TPoolTreeElement* /*element*/,
-    TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
-{ }
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    const TPoolTreeElement* element,
+    TDelimitedStringBuilderWrapper& delimitedBuilder) const
+{
+    if (!treeSnapshot || element->GetType() != ESchedulerElementType::Operation) {
+        return;
+    }
+
+    const auto* operationElement = static_cast<const TPoolTreeOperationElement*>(element);
+    const auto* state = GetPoolTreeSnapshotState(treeSnapshot);
+    auto it = state->OperationStates().find(operationElement->GetOperationId());
+    if (it == state->OperationStates().end()) {
+        return;
+    }
+
+    const auto& operationState = it->second;
+    delimitedBuilder->AppendFormat(
+        "Preemptible: %v, Starving: %v, Enabled: %v, SchedulingModule: %v, "
+        "RealizedAssignments: %v, PreliminaryAssignments: %v",
+        operationState.Preemptible,
+        operationState.Starving,
+        operationState.Enabled,
+        operationState.SchedulingModule,
+        operationState.RealizedAssignmentCount,
+        operationState.PreliminaryAssignmentCount);
+}
 
 void TSchedulingPolicy::PopulateOrchidService(const TCompositeMapServicePtr& orchidService) const
 {
@@ -512,7 +563,34 @@ void TSchedulingPolicy::PostUpdate(
 
 TPoolTreeSnapshotStatePtr TSchedulingPolicy::CreateSnapshotState(TPostUpdateContextPtr* /*postUpdateContext*/)
 {
-    return New<TPoolTreeSnapshotStateImpl>();
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    TOperationSnapshotStateMap operationStates;
+    operationStates.reserve(EnabledOperations_.size() + DisabledOperations_.size());
+    TAllocationSnapshotStateMap allocationStates;
+
+    auto snapshotOperations = [&] (const TOperationMap& operations) {
+        for (const auto& [operationId, operation] : operations) {
+            for (const auto& [allocationId, allocation] : operation->AllocationIdToAllocationState()) {
+                EmplaceOrCrash(allocationStates, allocationId, allocation->BuildSnapshotInfo(operationId));
+            }
+            EmplaceOrCrash(operationStates, operationId, operation->BuildSnapshotInfo());
+        }
+    };
+    snapshotOperations(EnabledOperations_);
+    snapshotOperations(DisabledOperations_);
+
+    TNodeSnapshotStateMap nodeStates;
+    nodeStates.reserve(Nodes_.size());
+    for (const auto& [nodeId, node] : Nodes_) {
+        EmplaceOrCrash(nodeStates, nodeId, node->BuildSnapshotInfo());
+    }
+
+    return New<TPoolTreeSnapshotStateImpl>(
+        std::move(operationStates),
+        std::move(nodeStates),
+        std::move(allocationStates),
+        TInstant::Now());
 }
 
 void TSchedulingPolicy::OnResourceUsageSnapshotUpdate(

@@ -116,6 +116,20 @@ void TAllocationState::SetAssignment(TWeakPtr<TAssignment> assignment)
     Assignment_ = std::move(assignment);
 }
 
+TAllocationSnapshotState TAllocationState::BuildSnapshotInfo(TOperationId operationId) const
+{
+    TAllocationSnapshotState info{
+        .AllocationId = Id_,
+        .OperationId = operationId,
+        .NodeId = NodeId_,
+        .ResourceUsage = ResourceUsage_,
+    };
+    if (auto assignment = Assignment_.Lock()) {
+        info.Preemptible = assignment->Preemptible;
+    }
+    return info;
+}
+
 void Serialize(const TAllocationState& allocation, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)
@@ -308,6 +322,31 @@ int TOperation::DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& g
     return count;
 }
 
+TOperationSnapshotState TOperation::BuildSnapshotInfo() const
+{
+    TOperationSnapshotState info{
+        .Preemptible = Preemptible_,
+        .Starving = Starving_,
+        .Enabled = Enabled_,
+        .SchedulingModule = SchedulingModule_,
+    };
+
+    for (const auto& assignment : Assignments_) {
+        if (IsAssignmentPreliminary(assignment)) {
+            ++info.PreliminaryAssignmentCount;
+        } else {
+            ++info.RealizedAssignmentCount;
+        }
+    }
+
+    info.AllocationIds.reserve(AllocationIdToAllocationState_.size());
+    for (const auto& [allocationId, _] : AllocationIdToAllocationState_) {
+        info.AllocationIds.push_back(allocationId);
+    }
+
+    return info;
+}
+
 void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)
@@ -432,6 +471,23 @@ void TNode::AddAllocation(const TAllocationStatePtr& allocation, const TAssignme
     YT_VERIFY(Assignments_.contains(assignment));
 
     EmplaceOrCrash(AllocationIdToAssignment_, allocation->GetId(), assignment);
+}
+
+TNodeSnapshotState TNode::BuildSnapshotInfo() const
+{
+    TNodeSnapshotState info{
+        .SchedulingModule = SchedulingModule_,
+        .AssignedResourceUsage = AssignedResourceUsage_,
+        .AllocationsToPreemptCount = static_cast<int>(std::ssize(AllocationsToPreempt_)),
+        .PreemptedAllocationsCount = static_cast<int>(std::ssize(PreemptedAllocations_)),
+    };
+
+    info.AllocationIds.reserve(AllocationIdToAssignment_.size());
+    for (const auto& [allocationId, _] : AllocationIdToAssignment_) {
+        info.AllocationIds.push_back(allocationId);
+    }
+
+    return info;
 }
 
 void Serialize(const TNode& node, NYson::IYsonConsumer* consumer)
