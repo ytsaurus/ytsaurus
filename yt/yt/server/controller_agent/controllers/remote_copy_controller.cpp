@@ -1153,14 +1153,16 @@ private:
     void ValidateConsistency(const THashMap<TChunkId, TChunkId>& mapping, const THashSet<TChunkId>& chunkIds, const TStringBuf& chunkName) const
     {
         if (mapping.size() != chunkIds.size()) {
-            for (const auto& compressionDictionaryId : CompressionDictionaryIds_) {
-                YT_LOG_FATAL_IF(!CompressionDictionaryIdMapping_.contains(compressionDictionaryId),
+            for (const auto& chunkId : chunkIds) {
+                YT_LOG_FATAL_IF(
+                    !mapping.contains(chunkId),
                     "Validate %v consistency failed. Chunk %v was not copied",
                     chunkName,
-                    compressionDictionaryId);
+                    chunkId);
             }
             for (const auto& [oldId, newId] : mapping) {
-                YT_LOG_FATAL_IF(!chunkIds.contains(oldId),
+                YT_LOG_FATAL_IF(
+                    !chunkIds.contains(oldId),
                     "Validate %v consistency failed. Chunk %v should not have been copied as %v",
                     chunkName,
                     oldId,

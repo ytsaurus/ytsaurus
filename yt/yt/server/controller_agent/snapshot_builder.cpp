@@ -85,8 +85,6 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
 
     YT_LOG_INFO("Snapshot builder started");
 
-    std::vector<TOperationId> operationIds;
-
     YT_LOG_INFO("Preparing controllers for suspension");
     std::vector<TFuture<TSnapshotCookie>> onSnapshotStartedFutures;
 
@@ -116,8 +114,6 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
             })
             .AsyncVia(controller->GetCancelableInvoker())
             .Run());
-        operationIds.push_back(operationId);
-
         YT_LOG_INFO("Preparing controller for suspension (OperationId: %v)",
             operationId);
     }
@@ -197,12 +193,13 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
 
     auto uploadFuture = UploadSnapshots()
         .Apply(
-            BIND([operationIds, this, this_ = MakeStrong(this)] (const std::vector<TError>& errors) {
-                for (size_t i = 0; i < errors.size(); ++i) {
-                    const auto& error = errors[i];
+            BIND([this, this_ = MakeStrong(this)] (const std::vector<std::pair<TOperationId, TError>>& results) {
+                for (const auto& [operationId, error] : results) {
                     if (!error.IsOK()) {
-                        YT_LOG_INFO(error, "Failed to build snapshot for operation (OperationId: %v)",
-                            operationIds[i]);
+                        YT_LOG_INFO(
+                            error,
+                            "Failed to build snapshot for operation (OperationId: %v)",
+                            operationId);
                     }
                 }
             }));
@@ -309,9 +306,10 @@ void TSnapshotBuilder::RunChild()
     }
 }
 
-TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
+TFuture<std::vector<std::pair<TOperationId, TError>>> TSnapshotBuilder::UploadSnapshots()
 {
     std::vector<TFuture<void>> snapshotUploadFutures;
+    std::vector<TOperationId> operationIds;
     for (auto& job : Jobs_) {
         auto controller = job->WeakController.Lock();
         if (!job->Suspended || !controller || !controller->IsRunning()) {
@@ -333,8 +331,19 @@ TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
                         << TErrorAttribute("snapshot_index", snapshotIndex))
                 .Run();
         snapshotUploadFutures.push_back(std::move(uploadFuture));
+        operationIds.push_back(operationId);
     }
-    return AllSet(snapshotUploadFutures);
+    return AllSet(std::move(snapshotUploadFutures))
+        .AsUnique()
+        .Apply(BIND([operationIds = std::move(operationIds)] (std::vector<TError>&& errors) {
+            YT_VERIFY(errors.size() == operationIds.size());
+            std::vector<std::pair<TOperationId, TError>> results;
+            results.reserve(errors.size());
+            for (size_t index = 0; index < errors.size(); ++index) {
+                results.emplace_back(operationIds[index], std::move(errors[index]));
+            }
+            return results;
+        }));
 }
 
 void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)

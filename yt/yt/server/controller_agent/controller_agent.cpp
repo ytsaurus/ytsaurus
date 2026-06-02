@@ -718,6 +718,8 @@ public:
             THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
         }
 
+        operation->UpdateJobShellOptions(update->OptionsPerJobShell);
+
         if (update->Acl || update->AcoName || update->SchedulingTagFilter) {
             if (update->Acl) {
                 operation->SetAcl(*update->Acl);
@@ -731,8 +733,6 @@ public:
                     .Run();
             }
         }
-
-        operation->UpdateJobShellOptions(update->OptionsPerJobShell);
 
         return OKFuture;
     }
@@ -1081,7 +1081,7 @@ public:
 
     void EnqueueJobMonitoringAlertUpdate()
     {
-        BIND([&] {
+        BIND([this] {
             auto alert = TError();
             if (JobMonitoringIndexManager_.GetResidualCapacity() == 0) {
                 alert = TError(
@@ -1101,7 +1101,7 @@ public:
 
     void EnqueueGangJobMonitoringAlertUpdate()
     {
-        BIND([&] {
+        BIND([this] {
             auto alert = TError();
             if (GangJobMonitoringDescriptorManager_.GetResidualCapacity() == 0) {
                 alert = TError(
@@ -1540,6 +1540,11 @@ private:
         if (HeartbeatExecutor_) {
             YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
             HeartbeatExecutor_.Reset();
+        }
+
+        if (ScheduleAllocationHeartbeatExecutor_) {
+            YT_UNUSED_FUTURE(ScheduleAllocationHeartbeatExecutor_->Stop());
+            ScheduleAllocationHeartbeatExecutor_.Reset();
         }
 
         MemoryWatchdog_.Reset();

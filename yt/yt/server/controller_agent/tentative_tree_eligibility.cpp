@@ -171,6 +171,9 @@ TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const st
 
     if (tentativeCount < SampleJobCount_) {
         auto it = TreeIdToLastStartJobTime_.find(treeId);
+        if (it == TreeIdToLastStartJobTime_.end()) {
+            return tentativeCount > 0 ? tentativeDurationSum / tentativeCount : TDuration::Zero();
+        }
         tentativeCount += 1;
         tentativeDurationSum += TInstant::Now() - it->second;
         return tentativeDurationSum / tentativeCount;

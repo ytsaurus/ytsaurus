@@ -2511,7 +2511,7 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
 
 void TOperationControllerBase::CommitDebugCompletionTransaction()
 {
-    if (!DebugTransaction_) {
+    if (!DebugCompletionTransaction_) {
         return;
     }
 
@@ -2969,8 +2969,10 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     addChunkTree(chunkTreeId);
                 }
             } else {
-                std::vector<std::vector<TChunkTreeId>> tabletChunks(table->PivotKeys.size());
-                std::vector<THashSet<TChunkId>> tabletHunkChunks(table->PivotKeys.size());
+                YT_VERIFY(!table->TabletChunkListIds.empty());
+                YT_VERIFY(table->PivotKeys.size() == table->TabletChunkListIds.size());
+                std::vector<std::vector<TChunkTreeId>> tabletChunks(table->TabletChunkListIds.size());
+                std::vector<THashSet<TChunkId>> tabletHunkChunks(table->TabletChunkListIds.size());
 
                 auto maxChunkSize = Config_->MaxUnversionedDynamicTableOutputChunkSize;
                 auto maxBlockSize = Config_->MaxUnversionedDynamicTableOutputBlockSize;

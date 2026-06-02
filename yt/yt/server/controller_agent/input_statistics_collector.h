@@ -28,10 +28,10 @@ struct TInputStatistics
     i64 ForeignCompressedDataSize = 0;
 
     // Ratio CompressedDataSize / DataWeight for input data.
-    double CompressionRatio = 0.0;
+    double CompressionRatio = 1.0;
 
     // Ratio TotalDataWeight / UncompressedDataSize for input data.
-    double DataWeightRatio = 0.0;
+    double DataWeightRatio = 1.0;
 
     bool operator==(const TInputStatistics& other) const noexcept = default;
 
