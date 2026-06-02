@@ -1235,7 +1235,7 @@ private:
             .ValueOrThrow();
     }
 
-    TSchedulerInputState GetInputState(const ITransactionPtr& transaction) const
+    TSchedulerInputState GetInputState(const ITransactionPtr& transaction)
     {
         TSchedulerInputState inputState{
             .Config = Config_,
@@ -1243,23 +1243,42 @@ private:
         };
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/zones") {
-            inputState.Zones = CypressList<TZoneInfo>(transaction, GetZonesPath());
+            inputState.Zones = CypressList<TZoneInfo>(transaction, GetZonesPath()).Result;
         }
 
+        std::vector<std::pair<std::string, TError>> unparsedEntries;
         YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_cell_bundles") {
-            inputState.Bundles = CypressList<TBundleInfo>(transaction, TabletCellBundlesPath);
+            auto listResult = CypressList<TBundleInfo>(
+                transaction,
+                TabletCellBundlesPath,
+                /*timeout*/ std::nullopt,
+                /*failOnError*/ false);
+            inputState.Bundles = std::move(listResult.Result);
+            unparsedEntries = std::move(listResult.UnparsedEntries);
         }
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_cell_bundles_state") {
-            inputState.BundleStates = CypressList<TBundleControllerState>(transaction, GetBundlesStatePath());
+            inputState.BundleStates = CypressList<TBundleControllerState>(transaction, GetBundlesStatePath()).Result;
+        }
+
+        for (const auto& [bundle, error] : unparsedEntries) {
+            inputState.BundleStates.erase(bundle);
+
+            YT_LOG_DEBUG(error, "Error parsing bundle configuration: (Bundle: %v)",
+                bundle);
+
+            RegisterAlert({
+                .Id = "invalid_bundle_config",
+                .BundleName = bundle,
+                .Description = "Error parsing bundle configuration: " + error.GetMessage()});
         }
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_nodes") {
-            inputState.TabletNodes = CypressList<TTabletNodeInfo>(transaction, TabletNodesPath);
+            inputState.TabletNodes = CypressList<TTabletNodeInfo>(transaction, TabletNodesPath).Result;
         }
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_cells") {
-            inputState.TabletCells = CypressList<TTabletCellInfo>(transaction, TabletCellsPath);
+            inputState.TabletCells = CypressList<TTabletCellInfo>(transaction, TabletCellsPath).Result;
         }
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/rpc_proxies") {
@@ -1267,7 +1286,7 @@ private:
         }
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/bundle_system_quotas") {
-            inputState.SystemAccounts = CypressList<TSystemAccount>(transaction, BundleSystemQuotasPath);
+            inputState.SystemAccounts = CypressList<TSystemAccount>(transaction, BundleSystemQuotasPath).Result;
         }
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/system_quotas_parent_account") {
@@ -1327,7 +1346,7 @@ private:
             .Config = Config_,
         };
 
-        inputState.TabletCellBundles = CypressList<TBundleInfo>(transaction, TabletCellBundlesPath);
+        inputState.TabletCellBundles = CypressList<TBundleInfo>(transaction, TabletCellBundlesPath).Result;
         inputState.SysConfig = GetSystemConfig(transaction);
 
         const auto& chaosConfig = Config_->ChaosConfig;
@@ -1342,7 +1361,8 @@ private:
                 inputState.ForeignTabletCellBundles.emplace(cluster, CypressList<TBundleInfo>(
                     foreignClient,
                     TabletCellBundlesPath,
-                    dynamicConfig->ForeignClusterRequestTimeout));
+                    dynamicConfig->ForeignClusterRequestTimeout)
+                    .Result);
             } catch (const TErrorException& ex) {
                 if (ex.Error().FindMatching(NYT::EErrorCode::Timeout)) {
                     YT_LOG_WARNING(ex, "Failed to load tablet cell bundles for foreign cluster, will ignore (Cluster: %v)",
@@ -1362,7 +1382,8 @@ private:
                 inputState.ForeignChaosCellBundles.emplace(cluster, CypressList<TChaosBundleInfo>(
                     foreignClient,
                     ChaosCellBundlesPath,
-                    dynamicConfig->ForeignClusterRequestTimeout));
+                    dynamicConfig->ForeignClusterRequestTimeout)
+                    .Result);
             } catch (const TErrorException& ex) {
                 if (ex.Error().FindMatching(NYT::EErrorCode::Timeout)) {
                     YT_LOG_WARNING(ex, "Failed to load chaos cell bundles for foreign cluster, will ignore (Cluster: %v)",
@@ -1379,10 +1400,18 @@ private:
     }
 
     template <class TEntryInfo>
-    static TIndexedEntries<TEntryInfo> CypressList(
+    struct TListResult
+    {
+        TIndexedEntries<TEntryInfo> Result;
+        std::vector<std::pair<std::string, TError>> UnparsedEntries;
+    };
+
+    template <class TEntryInfo>
+    static TListResult<TEntryInfo> CypressList(
         const IClientBasePtr& transaction,
         const TYPath& path,
-        std::optional<TDuration> timeout = {})
+        std::optional<TDuration> timeout = {},
+        bool failOnError = true)
     {
         TListNodeOptions options;
         options.MaxSize = DefaultMaxSize;
@@ -1403,7 +1432,7 @@ private:
                 << TErrorAttribute("path", path);
         }
 
-        TIndexedEntries<TEntryInfo> result;
+        TListResult<TEntryInfo> result;
         for (const auto& entry : entryList->GetChildren()) {
             if (entry->GetType() != ENodeType::String) {
                 THROW_ERROR_EXCEPTION("Unexpected entry type")
@@ -1412,7 +1441,16 @@ private:
                     << TErrorAttribute("actual_type", entry->GetType());
             }
             const auto& name = entry->AsString()->GetValue();
-            result[name] = ConvertTo<TIntrusivePtr<TEntryInfo>>(&entry->Attributes());
+
+            try {
+                result.Result[name] = ConvertTo<TIntrusivePtr<TEntryInfo>>(&entry->Attributes());
+            } catch (const std::exception& ex) {
+                if (failOnError) {
+                    throw;
+                }
+
+                result.UnparsedEntries.push_back({name, ex});
+            }
         }
 
         return result;
