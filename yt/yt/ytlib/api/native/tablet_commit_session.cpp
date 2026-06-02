@@ -433,10 +433,14 @@ private:
         if (!rspOrError.IsOK() &&
             commitContext->BatchIndex == 0 &&
             commitContext->RetryIndex == 0 &&
-            commitContext->LocalRetryIndex < Config_->LocalTabletWriteRetryCount &&
+            Config_->LocalTabletWriteRetryCount > 0 &&
             IsRetryableFirstBatchError(rspOrError))
         {
-            RetrySendingFirstBatch(commitContext, rspOrError);
+            if (commitContext->LocalRetryIndex < Config_->LocalTabletWriteRetryCount) {
+                RetrySendingFirstBatch(commitContext, rspOrError);
+            } else {
+                OnFirstBatchRetryFailed(commitContext, rspOrError, "retry_limit_exceeded");
+            }
             return;
         }
 
@@ -457,6 +461,9 @@ private:
             Client_->GetTableMountCache()->InvalidateOnError(wrappedError, /*forceRetry*/ true);
             commitContext->CommitPromise.Set(wrappedError);
             return;
+        } else if (commitContext->LocalRetryIndex > 0 && commitContext->BatchIndex == 0) {
+            YT_LOG_DEBUG("Successfully retried sending transaction rows of the first batch (RetryIndex: %v)",
+                commitContext->LocalRetryIndex);
         }
 
         auto owner = Transaction_.Lock();
