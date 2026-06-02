@@ -1,5 +1,9 @@
 PY3TEST()
 
+SIZE(MEDIUM)
+
+TIMEOUT(600)
+
 PEERDIR(
     yt/python/yt/mcp/lib
     yt/python/yt/wrapper/testlib
