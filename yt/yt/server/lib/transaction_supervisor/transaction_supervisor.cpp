@@ -1863,14 +1863,6 @@ private:
 
         commit->CommitTimestamps() = commitTimestamps;
 
-        // Even if coordinator is not committing this transaction in strongly
-        // ordered mode, some other cell might be. But Commit call without
-        // ReadyToCommit is still ok, so let's not send more requests than
-        // necessary.
-        auto commitState = stronglyOrderedForCoordinator ? ECommitState::ReadyToCommit : ECommitState::Commit;
-        ChangeCommitPersistentState(commit, commitState);
-        ChangeCommitTransientState(commit, commitState);
-
         if (stronglyOrderedForCoordinator) {
             auto prepareTimestamp = commit->PrepareTimestamp();
             auto commitTimestamp = commitTimestamps.GetTimestamp(CellTagFromId(SelfCellId_));
@@ -1879,13 +1871,54 @@ private:
                 commitTimestamp,
                 SelfClockClusterTag_,
                 /*isCoordinator*/ true,
-                commitState,
+                ECommitState::ReadyToCommit,
                 prepareTimestamp);
             CommitStronglyOrderedTransactions(transactionsToCommit);
-        } else if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Eager ||
-            commit->GetCoordinatorPrepareMode() == ETransactionCoordinatorPrepareMode::Late)
-        {
-            RunCoordinatorCommit(commit);
+
+            // Commit transient state might've changed if transaction failed to prepare
+            // in late prepare mode, or if it was allowed to be committed straight away.
+            // In either of those cases, ReadyToCommit stage is redundant.
+            if (commit->GetTransientState() == ECommitState::GeneratingCommitTimestamps) {
+                ChangeCommitTransientState(commit, ECommitState::ReadyToCommit);
+            } else {
+                // COMPAT(h0pless): StopSendingUnnecessaryRequests. Can be removed once stable.
+                YT_LOG_DEBUG(
+                    "Transient state of a transaction is past %Qv; skipping ReadyToCommit transition "
+                    "(TransactionId: %v, TransientState: %v, PersistentState: %v)",
+                    ECommitState::GeneratingCommitTimestamps,
+                    transactionId,
+                    commit->GetTransientState(),
+                    commit->GetPersistentState());
+            }
+
+            // Technically transient state and persistent state can diverge here, but this
+            // is ok. The only situation when it's possible is if commit in late prepare mode
+            // has failed.
+            if (commit->GetPersistentState() == ECommitState::Prepare) {
+                ChangeCommitPersistentState(commit, ECommitState::ReadyToCommit);
+            } else {
+                // COMPAT(h0pless): StopSendingUnnecessaryRequests. Can be removed once stable.
+                YT_LOG_DEBUG(
+                    "Persistent state of a transaction is past %Qv; skipping ReadyToCommit transition "
+                    "(TransactionId: %v, TransientState: %v, PersistentState: %v)",
+                    ECommitState::Prepare,
+                    transactionId,
+                    commit->GetTransientState(),
+                    commit->GetPersistentState());
+            }
+        } else {
+            // Even if coordinator is not committing this transaction in strongly
+            // ordered mode, some other cell might be. But Commit call without
+            // ReadyToCommit is still ok, so let's not send more requests than
+            // necessary.
+            ChangeCommitPersistentState(commit, ECommitState::Commit);
+            ChangeCommitTransientState(commit, ECommitState::Commit);
+
+            if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Eager ||
+                commit->GetCoordinatorPrepareMode() == ETransactionCoordinatorPrepareMode::Late)
+            {
+                RunCoordinatorCommit(commit);
+            }
         }
     }
 
