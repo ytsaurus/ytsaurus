@@ -513,6 +513,7 @@ struct TStatisticsReporterConfig
     bool Enable;
     int MaxTabletsPerTransaction;
     TDuration ReportBackoffTime;
+    TDuration WriteTimeout;
     NYPath::TYPath TablePath;
 
     NConcurrency::TPeriodicExecutorOptions PeriodicOptions;

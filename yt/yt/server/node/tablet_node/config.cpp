@@ -497,6 +497,8 @@ void TStatisticsReporterConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
     registrar.Parameter("report_backoff_time", &TThis::ReportBackoffTime)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("write_timeout", &TThis::WriteTimeout)
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("table_path", &TThis::TablePath)
         .Default("//sys/tablet_balancer/performance_counters");
 
