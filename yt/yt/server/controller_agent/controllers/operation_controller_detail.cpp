@@ -11331,6 +11331,18 @@ void TOperationControllerBase::ValidateOutputSchemaComputedColumnsCompatibility(
     }
 }
 
+void TOperationControllerBase::ValidateNoHunkKeyColumns() const
+{
+    YT_VERIFY(OutputTables_.size() == 1);
+
+    for (const auto& column : OutputTables_[0]->TableUploadOptions.TableSchema->Columns()) {
+        if (column.SortOrder() && column.MaxInlineHunkSize()) {
+            THROW_ERROR_EXCEPTION("Key column \"%v\" cannot have attribute \"max_inline_hunk_size\"",
+                column.Name());
+        }
+    }
+}
+
 void TOperationControllerBase::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, SnapshotIndex_);

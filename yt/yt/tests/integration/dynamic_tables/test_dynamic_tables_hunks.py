@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows, mount_table,
     lookup_rows, delete_rows, remount_table, build_master_snapshots, get_tablet_leader_address, concatenate,
     write_table, alter_table, read_table, map, merge, sync_reshard_table, sync_create_cells, get_operation,
-    sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect, pull_queue,
+    sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect, pull_queue, sort,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks, remote_copy,
     write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, move, get_tablet_infos,
     get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user, wait_for_tablet_state)
@@ -3124,6 +3124,28 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert get("#{}/@compressed_data_size".format(hunk_chunk_id)) > 4000
         assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 340
         assert get("#{}/@data_weight".format(hunk_chunk_id)) == 260
+
+    @authors("akozhikhov")
+    def test_forbid_sort_op_over_hunk_columns(self):
+        sync_create_cells(1)
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/t")
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        create("table", "//tmp/t2")
+        merge(in_="//tmp/t", out="//tmp/t2", mode="ordered", spec={"force_transform": True, "combine_chunks": True})
+        with raises_yt_error("cannot have attribute \"max_inline_hunk_size\""):
+            sort(in_="//tmp/t2", out="//tmp/t2", sort_by=["key", "value"])
 
 
 ################################################################################
