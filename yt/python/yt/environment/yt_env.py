@@ -1061,13 +1061,13 @@ class YTInstance(object):
 
     def kill_masters_at_cells(self, indexes=None, cell_indexes=None):
         if cell_indexes is None:
-            cell_indexes = [0]
+            cell_indexes = range(self.yt_config.secondary_cell_count + 1)
         for cell_index in cell_indexes:
             name = self._get_master_name("master", cell_index)
             self.kill_service(name, indexes=indexes)
 
     def kill_all_masters(self):
-        self.kill_masters_at_cells(indexes=None, cell_indexes=range(self.yt_config.secondary_cell_count + 1))
+        self.kill_masters_at_cells()
 
     def kill_master_caches(self, indexes=None):
         self.kill_service("master_cache", indexes=indexes)

@@ -27,6 +27,7 @@ AuthorizationErrorCode = 901
 AccountLimitExceeded = 902
 IsAlreadyPresentInGroup = 908
 NoSuchUser = 910
+PrerequisiteCheckFailed = 1000
 InactiveObjectLifeStage = 1001
 InvalidObjectType = 1006
 TmpfsOverflow = 1124

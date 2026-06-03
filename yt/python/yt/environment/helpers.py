@@ -424,7 +424,7 @@ class Restarter(object):
             CONTROLLER_AGENTS_SERVICE: lambda: self.yt_instance.kill_controller_agents(*self.kill_args, **self.kill_kwargs),
             NODES_SERVICE: lambda: self.yt_instance.kill_nodes(*self.kill_args, **self.kill_kwargs),
             CHAOS_NODES_SERVICE: lambda: self.yt_instance.kill_chaos_nodes(*self.kill_args, **self.kill_kwargs),
-            MASTERS_SERVICE: lambda: self.yt_instance.kill_all_masters(*self.kill_args, **self.kill_kwargs),
+            MASTERS_SERVICE: lambda: self.yt_instance.kill_masters_at_cells(*self.kill_args, **self.kill_kwargs),
             MASTER_CACHES_SERVICE: lambda: self.yt_instance.kill_master_caches(*self.kill_args, **self.kill_kwargs),
             QUEUE_AGENTS_SERVICE: lambda: self.yt_instance.kill_queue_agents(*self.kill_args, **self.kill_kwargs),
             RPC_PROXIES_SERVICE: lambda: self.yt_instance.kill_rpc_proxies(*self.kill_args, **self.kill_kwargs),
