@@ -4359,8 +4359,12 @@ class TestChaos(ChaosTestBase):
         wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > ts)
         wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[4]}/replication_lag_timestamp") > ts)
         # Force client to update its caches
-        alter_table_replica(replica_ids[5], enabled=False)
-        self._sync_alter_replica(card_id, replicas, replica_ids, 5, enabled=True)
+        if mode != "async_queue":
+            alter_table_replica(replica_ids[5], enabled=False)
+            self._sync_alter_replica(card_id, replicas, replica_ids, 5, enabled=True)
+        else:
+            alter_table_replica(replica_ids[2], mode="async")
+            self._sync_alter_replica(card_id, replicas, replica_ids, 2, mode="async")
 
         def _filter(rows, schema):
             columns = builtins.set([c["name"] for c in schema])
