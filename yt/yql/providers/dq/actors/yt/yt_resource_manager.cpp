@@ -693,13 +693,23 @@ namespace NYql {
                                         })
                                         .DoIf(Options.YtBackend.HasDiskRequest(), [&] (NYT::TFluentMap fluent) {
                                             auto& diskRequest = Options.YtBackend.GetDiskRequest();
-                                            fluent.Item("disk_request")
-                                                .BeginMap()
-                                                    .DoIf(diskRequest.HasDiskSpace(), [&] (NYT::TFluentMap fluent) { fluent.Item("disk_space").Value(diskRequest.GetDiskSpace()); } )
-                                                    .DoIf(diskRequest.HasInodeCount(), [&] (NYT::TFluentMap fluent) { fluent.Item("inode_count").Value(diskRequest.GetInodeCount()); } )
-                                                    .DoIf(diskRequest.HasAccount(), [&] (NYT::TFluentMap fluent) { fluent.Item("account").Value(diskRequest.GetAccount()); } )
-                                                    .DoIf(diskRequest.HasMediumName(), [&] (NYT::TFluentMap fluent) { fluent.Item("medium_name").Value(diskRequest.GetMediumName()); } )
-                                                .EndMap();
+                                            NYT::TNode diskNode = NYT::TNode::CreateMap();
+                                            if (diskRequest.HasAdditionalSpecYson()) {
+                                                diskNode = NYT::NodeFromYsonString(diskRequest.GetAdditionalSpecYson());
+                                            }
+                                            if (diskRequest.HasDiskSpace()) {
+                                                diskNode["disk_space"] = diskRequest.GetDiskSpace();
+                                            }
+                                            if (diskRequest.HasInodeCount()) {
+                                                diskNode["inode_count"] = diskRequest.GetInodeCount();
+                                            }
+                                            if (diskRequest.HasAccount()) {
+                                                diskNode["account"] = diskRequest.GetAccount();
+                                            }
+                                            if (diskRequest.HasMediumName()) {
+                                                diskNode["medium_name"] = diskRequest.GetMediumName();
+                                            }
+                                            fluent.Item("disk_request").Value(diskNode);
                                         })
                                     .EndMap();
                             })
