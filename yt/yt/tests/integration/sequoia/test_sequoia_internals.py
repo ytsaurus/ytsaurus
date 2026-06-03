@@ -809,7 +809,6 @@ class TestSequoiaInternals(YTEnvSetup):
         assert err[0].message.find("Received response with error") != -1
         err = err[0]
         assert len(err.inner_errors) == 1
-        print_debug(err.inner_errors[0])
         # Not using contains_code here - we're checking the outermost error.
         assert err.inner_errors[0]["code"] == yt_error_codes.Generic
 
@@ -1271,6 +1270,23 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
             else:
                 assert records == []
 
+    @authors("shakurov")
+    def test_prerequisite_transactions_when_tx_coordinator_is_down(self):
+        ptx = start_transaction(timeout=180000)
+
+        create("rootstock", "//tmp/scion")
+        create("map_node", "//tmp/scion/d")
+
+        set("//tmp/scion/d/@foo", "foo", prerequisite_transaction_ids=[ptx])
+
+        with Restarter(self.Env, MASTERS_SERVICE, cell_indexes=[2]):
+            with raises_yt_error("Failed to issue leases for prerequisite transactions") as err:
+                set("//tmp/scion/d/@bar", "bar", prerequisite_transaction_ids=[ptx],
+                    suppress_transaction_coordinator_sync=True,
+                    suppress_strongly_ordered_transaction_barrier=True)
+        assert len(err) == 1
+        assert not err[0].contains_code(yt_error_codes.PrerequisiteCheckFailed)
+
     @authors("kvk1920")
     def test_timeout(self):
         before = datetime.now()
@@ -1377,7 +1393,6 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         assert err[0].message.find("Received response with error") != -1
         err = err[0]
         assert len(err.inner_errors) == 1
-        print_debug(err.inner_errors[0])
         # Not using contains_text here - we're checking the outermost error.
         assert err.inner_errors[0]["message"] == f"Error committing transaction {tx}"
 
