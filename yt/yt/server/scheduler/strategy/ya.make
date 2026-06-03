@@ -29,6 +29,7 @@ SRCS(
     policy/gpu/structs.cpp
     policy/gpu/helpers.cpp
     policy/gpu/persistent_state.cpp
+    policy/gpu/pool_tree_snapshot_state.cpp
 
     policy/helpers.cpp
     policy/operation_shared_state.cpp

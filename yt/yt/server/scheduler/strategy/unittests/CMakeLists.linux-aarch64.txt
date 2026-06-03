@@ -60,6 +60,7 @@ target_sources(unittester-scheduler-strategy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/unittests/assignment_plan_update_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/unittests/packing_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/unittests/pool_tree_element_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/unittests/pool_tree_snapshot_state_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/unittests/scheduling_policy_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/unittests/operation_controller_ut.cpp
 )
