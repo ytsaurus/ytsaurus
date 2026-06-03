@@ -62,6 +62,7 @@ public:
         transactionManager->RegisterTransactionActionHandlers<TReqCreateNode, TCreateNodeActionState>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCreateNode, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitCreateNode, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraAbortCreateNode, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqAttachChild>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAttachChild, Unretained(this)),
@@ -117,7 +118,9 @@ private:
         Committing,
         Committed,
         PreparingCommitting,
-        PreparedCommitted
+        PreparedCommitted,
+        Aborting,
+        Aborted
     };
 
     TBootstrap* const Bootstrap_;
@@ -139,6 +142,10 @@ private:
                 return "Preparing and committing";
             case ELogStage::PreparedCommitted:
                 return "Prepared and committed";
+            case ELogStage::Aborting:
+                return "Aborting";
+            case ELogStage::Aborted:
+                return "Aborted";
         }
     }
 
@@ -349,6 +356,32 @@ private:
         CommitSequoiaNodeCreation(state->Node);
 
         DoLog(*request, ELogStage::Committed, sequoiaTransaction->GetAuthenticationIdentity());
+    }
+
+    void HydraAbortCreateNode(
+        TTransaction* sequoiaTransaction,
+        NProto::TReqCreateNode* request,
+        TCreateNodeActionState* state,
+        const TTransactionAbortOptions& /*options*/)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        DoLog(*request, ELogStage::Aborting, sequoiaTransaction->GetAuthenticationIdentity());
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        if (cypressTransactionId) {
+            // NB: |state| keeps a strong ptr to the branched node, so it must be reset before removal.
+            state->Node.Reset();
+
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            auto versionedId = TVersionedNodeId(nodeId, cypressTransactionId);
+            cypressManager->DestroyNodeBeingCreated(versionedId);
+        }
+
+        DoLog(*request, ELogStage::Aborted, sequoiaTransaction->GetAuthenticationIdentity());
+
     }
 
     void DoLog(const NProto::TReqCreateNode& request, ELogStage logStage, const NRpc::TAuthenticationIdentity& auth)

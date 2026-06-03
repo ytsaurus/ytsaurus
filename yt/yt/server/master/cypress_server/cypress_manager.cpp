@@ -1188,6 +1188,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraCloneForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraLockForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraDestroyForeignNodeBeingCreated, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetTableSchemas, Unretained(this)));
     }
@@ -1845,7 +1846,7 @@ public:
 
         RemoveTransactionNodeLocks(trunkNode, transaction, explicitOnly);
 
-        if (trunkNode->IsExternal() && trunkNode->IsNative()) {
+        if (trunkNode->IsExternal()) {
             PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
         }
 
@@ -2862,6 +2863,11 @@ public:
         }
 
         return it->second;
+    }
+
+    void DestroyNodeBeingCreated(TVersionedNodeId versionedNodeId) override
+    {
+        DoDestroyNodeBeingCreated(versionedNodeId);
     }
 
 private:
@@ -3955,7 +3961,7 @@ private:
                 dontLockForeign);
         }
 
-        if (trunkNode->IsExternal() && trunkNode->IsNative() && !dontLockForeign) {
+        if (trunkNode->IsExternal() && !dontLockForeign) {
             PostLockForeignNodeRequest(lock);
         }
 
@@ -4172,9 +4178,28 @@ private:
 
         TCompactVector<TCypressNode*, 1> lockedNodes{trunkNode};
         TCompactVector<TLock*, 16> locks;
-        locks.reserve(transaction->Locks().size());
-        for (auto lock : transaction->Locks()) {
-            if (lock->GetTrunkNode() == trunkNode) {
+
+        const auto& lockingState = trunkNode->LockingState();
+
+        auto exclusiveLockRange = lockingState.TransactionToExclusiveLocks.equal_range(transaction);
+        for (auto it = exclusiveLockRange.first; it != exclusiveLockRange.second; ++it) {
+            locks.push_back(it->second);
+        }
+
+        auto sharedLockRange = lockingState.TransactionAndKeyToSharedLocks.equal_range(transaction);
+        for (auto it = sharedLockRange.first; it != sharedLockRange.second; ++it) {
+            auto existingLock = get<TLockRawPtr>(*it);
+            locks.push_back(existingLock);
+        }
+
+        auto snapshotLockRange = lockingState.TransactionToSnapshotLocks.equal_range(transaction);
+        for (auto it = snapshotLockRange.first; it != snapshotLockRange.second; ++it) {
+            locks.push_back(it->second);
+        }
+
+        // There's no transaction-to-pending lock map so let's hope linear search is ok because there aren't too many pending locks.
+        for (auto lock : lockingState.PendingLocks) {
+            if (lock->GetTransaction() == transaction) {
                 locks.push_back(lock);
             }
         }
@@ -4362,6 +4387,21 @@ private:
         ToProto(request.mutable_transaction_id(), externalizedTransactionId);
         ToProto(request.mutable_node_id(), trunkNode->GetId());
         request.set_explicit_only(explicitOnly);
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(request, externalCellTag);
+    }
+
+    void PostDestroyForeignNodeBeingCreatedRequest(TCypressNode* trunkNode, TTransaction* transaction)
+    {
+        auto externalCellTag = trunkNode->GetExternalCellTag();
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, {externalCellTag});
+
+        NProto::TReqDestroyForeignNodeBeingCreated request;
+        ToProto(request.mutable_transaction_id(), externalizedTransactionId);
+        ToProto(request.mutable_node_id(), trunkNode->GetId());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, externalCellTag);
@@ -4682,6 +4722,77 @@ private:
         Bootstrap_->GetExpirationTracker()->OnNodeTouched(trunkNode);
     }
 
+    void DoDestroyNodeBeingCreated(TVersionedNodeId versionedNodeId)
+    {
+        auto nodeId = versionedNodeId.ObjectId;
+        auto transactionId = versionedNodeId.TransactionId;
+
+        YT_VERIFY(transactionId);
+
+        auto* currentNode = FindNode(versionedNodeId);
+
+        if (!currentNode) {
+            YT_LOG_ALERT("Trying to destroy branched node, but node does not exist (NodeId: %v, TransactionId: %v)",
+                nodeId,
+                transactionId);
+            return;
+        }
+
+        auto* trunkNode = currentNode->GetTrunkNode();
+
+        YT_VERIFY(trunkNode->IsForeign() || currentNode->MutableSequoiaProperties()->BeingCreated);
+
+        auto* transaction = currentNode->GetTransaction();
+
+        if (!IsObjectAlive(transaction)) {
+            YT_LOG_ALERT("Trying to destroy branched node, but transaction is not alive (NodeId: %v, TransactionId: %v)",
+                nodeId,
+                transactionId);
+            return;
+        }
+
+        for (auto nestedTransaction : transaction->NestedTransactions()) {
+            if (FindNode({nodeId, nestedTransaction->GetId()})) {
+                YT_LOG_ALERT("Cannot destroy branched node because it has deeper branches "
+                    "(NodeId: %v, TargetTransactionId: %v, NestedTransactionId: %v)",
+                    nodeId,
+                    transactionId,
+                    nestedTransaction->GetId());
+                return;
+            }
+        }
+
+        // Trunk should destroy all branches before the native cell sends TReqRemoveObject.
+        if (trunkNode->IsExternal()) {
+            PostDestroyForeignNodeBeingCreatedRequest(trunkNode, transaction);
+        }
+
+        // It's ok to release all locks, because node has just been created.
+        while (currentNode && currentNode != trunkNode) {
+            auto* currentTransaction = currentNode->GetTransaction();
+            auto* originatingNode = currentNode->GetOriginator();
+
+            currentTransaction->BranchedNodes().EraseOrCrash(currentNode);
+            DestroyBranchedNode(currentTransaction, currentNode);
+
+            ForceRemoveAllLocksForNode(currentTransaction, trunkNode);
+
+            currentNode = originatingNode;
+        }
+
+        if (trunkNode->IsNative()) {
+            YT_LOG_ALERT_IF(trunkNode->GetObjectRefCounter(/*flushUnrefs*/ true) > 0,
+                "Trunk node has a non-zero reference counter on native cell after branches have been destroyed (NodeId: %v, RefCounter: %v)",
+                nodeId,
+                trunkNode->GetObjectRefCounter());
+        } else {
+            YT_LOG_ALERT_IF(trunkNode->GetObjectRefCounter(/*flushUnrefs*/ true) != 1,
+                "Trunk node's reference counter is not equal to 1 on foreign cell after branches have been destroyed (NodeId: %v, RefCounter: %v)",
+                nodeId,
+                trunkNode->GetObjectRefCounter());
+        }
+    }
+
     void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) noexcept
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -4958,6 +5069,11 @@ private:
             return;
         }
 
+        if (currentNode->IsExternal()) {
+            YT_LOG_ALERT("Manual node unbranching failed: node is external (NodeId: %v)", versionedId);
+            return;
+        }
+
         auto* transaction = currentNode->GetTransaction();
         if (!transaction) {
             YT_LOG_DEBUG("Manual node unbranching failed: no such transaction (NodeId: %v)", versionedId);
@@ -5033,6 +5149,35 @@ private:
                 tableManager->SetTableSchema(table, expectedSchema);
             }
         }
+    }
+
+    void HydraDestroyForeignNodeBeingCreated(NProto::TReqDestroyForeignNodeBeingCreated* request)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            YT_LOG_ALERT("Failed to find transaction to remove branched node (NodeId: %v, TransactionId: %v)",
+                nodeId,
+                transactionId);
+            return;
+        }
+
+        auto* trunkNode = FindNode(TVersionedObjectId(nodeId));
+        YT_VERIFY(trunkNode->IsForeign());
+
+        if (!IsObjectAlive(trunkNode)) {
+            YT_LOG_ALERT("Failed to find trunk node to remove branched node (NodeId: %v, TransactionId: %v)",
+                nodeId,
+                transactionId);
+            return;
+        }
+
+        DoDestroyNodeBeingCreated(TVersionedNodeId(nodeId, transactionId));
     }
 
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig() const

@@ -5767,5 +5767,33 @@ class TestCypressSequoia(TestCypressMulticell):
         "13": {"roles": ["chunk_host"]},
     }
 
+    @authors("theevilbird")
+    def test_unstaged_nodes_nested_tx(self):
+        create_account("sparrow")
+        create("map_node", "//tmp/d", attributes={"account": "sparrow"})
+        wait(lambda: get("//sys/accounts/sparrow/@resource_usage/node_count") == 1)
+
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        tx3 = start_transaction(tx=tx2)
+
+        lock("//tmp/d", tx=tx1, mode="exclusive")
+
+        with raises_yt_error(f"Cannot take lock for child \"t\" of node //tmp/d since this child is locked by concurrent transaction {tx1}"):
+            create("table", "//tmp/d/t", tx=tx3)
+
+        gc_collect()
+
+        # node_count is 2 because exclusive lock branches node.
+        wait(lambda: get("//sys/accounts/sparrow/@resource_usage/node_count") == 2)
+
+        for tx in [tx2, tx3]:
+            locked_node_ids = get(f"#{tx}/@locked_node_ids")
+            for cell, ids in locked_node_ids.items():
+                assert len(ids) == 0
+
+            branched_node_ids = get(f"#{tx}/@branched_node_ids")
+            for cell, ids in branched_node_ids.items():
+                assert len(ids) == 0
 
 ################################################################################
