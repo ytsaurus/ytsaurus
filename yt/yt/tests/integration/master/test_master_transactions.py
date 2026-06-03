@@ -8,7 +8,7 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, read_table, generate_uuid, make_ace)
+    raises_yt_error, read_table, generate_uuid, make_ace, multicell_sleep)
 
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
@@ -229,6 +229,20 @@ class TestMasterTransactions(YTEnvSetup):
         sleep(3.0)
         assert not exists(f"//sys/transactions/{tx1}")
         assert not exists(f"//sys/transactions/{tx2}")
+
+    @authors("kvk1920")
+    def test_timeout_after_user_banned(self):
+        set("//sys/@config/transaction_manager/fix_stuck_transaction_finish_on_user_ban", True)
+
+        create_user("u")
+        tx = start_transaction(timeout=1000, authenticated_user="u")
+        set("//sys/users/u/@banned", True)
+        multicell_sleep()
+        with raises_yt_error() as error:
+            abort_transaction(tx, authenticated_user="u")
+        assert "Access denied" in str(error) or "is banned on" in str(error)
+        sleep(1.5)
+        assert not exists(f"#{tx}")
 
     @authors("kvk1920")
     def test_deadline(self):
@@ -1056,6 +1070,9 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
 
         wait(lambda: not exists(f"#{tx}"))
         assert get("//tmp/i") == 321
+
+
+##################################################################
 
 
 @pytest.mark.enabled_multidaemon

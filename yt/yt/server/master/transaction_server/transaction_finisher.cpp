@@ -415,10 +415,16 @@ public:
             return;
         }
 
-        if (transaction->GetPersistentState() != ETransactionState::Active ||
-            transaction->GetTransactionLeasesState() != ETransactionLeasesState::Active)
-        {
-            return;
+        if (!Bootstrap_->GetDynamicConfig()->TransactionManager->FixStuckTransactionFinishOnUserBan) {
+            if (transaction->GetPersistentState() != ETransactionState::Active ||
+                transaction->GetTransactionLeasesState() != ETransactionLeasesState::Active)
+            {
+                return;
+            }
+        } else {
+            if (transaction->GetPersistentState() != ETransactionState::Active) {
+                return;
+            }
         }
 
         LeasesRevocationQueue_.Add(transaction, GetDynamicConfig()->Retries);

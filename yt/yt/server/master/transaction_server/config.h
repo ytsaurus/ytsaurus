@@ -117,6 +117,8 @@ struct TDynamicTransactionManagerConfig
 
     bool SkipTxPermissionValidationOnParticipants;
 
+    bool FixStuckTransactionFinishOnUserBan;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);

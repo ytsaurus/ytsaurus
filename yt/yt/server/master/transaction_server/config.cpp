@@ -87,6 +87,10 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("fix_stuck_transaction_finish_on_user_ban", &TThis::FixStuckTransactionFinishOnUserBan)
+        .Default(false)
+        .DontSerializeDefault();
+
     THashMap<EObjectType, THashSet<std::string>> defaultWhitelist;
     defaultWhitelist[EObjectType::UploadTransaction] = {
         "BeginUpload",
