@@ -262,7 +262,7 @@ dashboards:
 
   cypress:
     enabled: true
-    path: "//sys/interface-monitoring"
+    path: "//sys/interface_monitoring"
 
   job:
     backoffLimit: 3
