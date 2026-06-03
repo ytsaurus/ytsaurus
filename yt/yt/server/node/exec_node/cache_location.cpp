@@ -3,6 +3,8 @@
 #include "artifact_cache.h"
 #include "private.h"
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/server/node/data_node/blob_chunk.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/config.h>
@@ -25,6 +27,7 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NCypressClient;
+using namespace NFS;
 using namespace NNode;
 using namespace NObjectClient;
 
@@ -234,12 +237,19 @@ TFuture<void> TCacheLocation::RemoveChunks()
         "Location is disabled; unregistering all the artifacts in it (LocationId: %v)",
         GetId());
 
-    return ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this));
+    return ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this), /*forbidSlruResurrection*/ true);
 }
 
 bool TCacheLocation::ScheduleDisable(const TError& reason)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    if (IsOutOfDiskSpaceError(reason) &&
+        !Bootstrap_->GetDynamicConfigManager()->GetConfig()->ExecNode->ChunkCache->TestDisableOnOutOfDiskSpace)
+    {
+        YT_UNUSED_FUTURE(ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this), /*forbidSlruResurrection*/ false));
+        return true;
+    }
 
     if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
         return false;

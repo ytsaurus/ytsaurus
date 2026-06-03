@@ -258,6 +258,9 @@ void TChunkCacheDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("test_cache_location_disabling", &TThis::TestCacheLocationDisabling)
         .Default(false);
+
+    registrar.Parameter("test_disable_on_out_of_disk_space", &TThis::TestDisableOnOutOfDiskSpace)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
