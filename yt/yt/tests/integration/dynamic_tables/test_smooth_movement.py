@@ -98,6 +98,8 @@ class SmoothMovementBase(DynamicTablesBase):
 
 
 class TestSmoothMovement(SmoothMovementBase):
+    NUM_TEST_PARTITIONS = 3
+
     @authors("ifsmirnov")
     @pytest.mark.parametrize("sorted", [True, False])
     def test_empty_store_rotation_recovery(self, sorted):
