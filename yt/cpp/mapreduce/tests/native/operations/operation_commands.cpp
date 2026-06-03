@@ -744,6 +744,40 @@ TEST(JobCommands, GetJob)
     }
 }
 
+static TString DumpListJobsResult(TStringBuf label, const TListJobsResult& result)
+{
+    TStringBuilder out;
+    out << "ListJobs dump [" << label << "] at " << TInstant::Now().ToStringUpToSeconds()
+        << " ArchiveJobCount=" << result.ArchiveJobCount.GetOrElse(-1)
+        << " ControllerAgentJobCount=" << result.ControllerAgentJobCount.GetOrElse(-1)
+        << " CypressJobCount=" << result.CypressJobCount.GetOrElse(-1)
+        << " Jobs.size()=" << std::ssize(result.Jobs) << "\n";
+    for (ssize_t index = 0; index < std::ssize(result.Jobs); ++index) {
+        const auto& job = result.Jobs[index];
+        out << "  [" << index << "]";
+        out << " Id=";
+        if (job.Id) {
+            out << *job.Id;
+        } else {
+            out << "<none>";
+        }
+        out << " Type=" << (job.Type ? ToString(*job.Type) : TString("<none>"))
+            << " State=" << (job.State ? ToString(*job.State) : TString("<none>"))
+            << " StartTime=" << (job.StartTime ? job.StartTime->ToStringUpToSeconds() : TString("<none>"))
+            << " FinishTime=" << (job.FinishTime ? job.FinishTime->ToStringUpToSeconds() : TString("<none>"))
+            << " StderrSize=" << (job.StderrSize ? ToString(*job.StderrSize) : TString("<none>"))
+            << " HasBriefStatistics=" << (job.BriefStatistics.Defined() ? "true" : "false")
+            << " Address=" << job.Address.GetOrElse("<none>")
+            << " TaskName=" << job.TaskName.GetOrElse("<none>");
+        if (job.Error) {
+            out << " ErrorCode=" << job.Error->GetCode()
+                << " Error=\"" << job.Error->ShortDescription() << "\"";
+        }
+        out << "\n";
+    }
+    return out;
+}
+
 TEST(JobCommands, ListJobs)
 {
     TTestFixture fixture;
@@ -770,36 +804,42 @@ TEST(JobCommands, ListJobs)
         .SortField(EJobSortField::State)
         .SortOrder(ESortOrder::SO_ASCENDING);
 
-    for (const auto& result : {op->ListJobs(options), client->ListJobs(op->GetId(), options)}) {
+    const TVector<std::pair<TString, TListJobsResult>> results = {
+        {"op->ListJobs", op->ListJobs(options)},
+        {"client->ListJobs", client->ListJobs(op->GetId(), options)},
+    };
+    for (const auto& [label, result] : results) {
         // There must be 3 partition_map jobs, the last of which is failed
         // (as EJobState::Failed > EJobState::Completed).
+
+        SCOPED_TRACE(DumpListJobsResult(label, result));
 
         for (size_t index = 0; index < result.Jobs.size(); ++index) {
             const auto& job = result.Jobs[index];
 
-            EXPECT_TRUE(job.StartTime);
-            EXPECT_TRUE(*job.StartTime > beforeStart);
+            ASSERT_TRUE(job.StartTime);
+            ASSERT_TRUE(*job.StartTime > beforeStart);
 
-            EXPECT_TRUE(job.FinishTime);
-            EXPECT_TRUE(*job.FinishTime < afterFinish);
+            ASSERT_TRUE(job.FinishTime);
+            ASSERT_TRUE(*job.FinishTime < afterFinish);
 
-            EXPECT_TRUE(job.Type);
-            EXPECT_EQ(*job.Type, EJobType::PartitionMap);
+            ASSERT_TRUE(job.Type);
+            ASSERT_EQ(*job.Type, EJobType::PartitionMap);
 
-            EXPECT_TRUE(job.State);
+            ASSERT_TRUE(job.State);
 
             if (index == result.Jobs.size() - 1) {
-                EXPECT_EQ(*job.State, EJobState::Failed);
+                ASSERT_EQ(*job.State, EJobState::Failed);
 
-                EXPECT_EQ(job.StderrSize.GetOrElse(0), 0);
+                ASSERT_EQ(job.StderrSize.GetOrElse(0), 0);
 
-                EXPECT_TRUE(job.Error);
-                EXPECT_TRUE(job.Error->ContainsErrorCode(1205));
+                ASSERT_TRUE(job.Error);
+                ASSERT_TRUE(job.Error->ContainsErrorCode(1205));
             } else {
-                EXPECT_EQ(*job.State, EJobState::Completed);
+                ASSERT_EQ(*job.State, EJobState::Completed);
             }
 
-            EXPECT_TRUE(job.BriefStatistics);
+            ASSERT_TRUE(job.BriefStatistics);
         }
     }
 }
