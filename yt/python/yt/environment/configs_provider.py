@@ -1642,8 +1642,6 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
             },
             "grpc_server": grpc_server_config,
             "monitoring_port": next(ports_generator),
-            "yt_alloc_dump_period": 15000,
-            "ref_counted_tracker_dump_period": 15000,
             "enable_authentication": False,
             "api_service": {
                 # COMPAT(babenko): rename to user_access_validator
