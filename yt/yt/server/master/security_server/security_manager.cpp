@@ -87,6 +87,8 @@
 
 #include <yt/yt/library/profiling/producer.h>
 
+#include <library/cpp/yt/string/raw_formatter.h>
+
 #include <optional>
 
 namespace NYT::NSecurityServer {
@@ -584,7 +586,70 @@ public:
         }
 
         std::vector<TSensorBuffer> buffers(std::ssize(AccountProfilingProducers_));
+        auto bufferForAccount = [&] (TAccount* account) -> TSensorBuffer& {
+            // NB: always mapping an account to the same bucket isn't strictly
+            // necessary while using WithProducerRemoveSupport but it doesn't hurt.
+            auto bufferIndex = account->GetProfilingBucketIndex() % std::ssize(buffers);
+            return buffers[bufferIndex];
+        };
+
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        static constexpr int FormatterBufferSize = 1024;
+        TRawFormatter<FormatterBufferSize> formatter;
+
+        auto addLimitGauges = [&] (
+            TSensorBuffer& buffer,
+            const TClusterResourceLimits& limits,
+            std::string_view prefix,
+            bool includeLimitToSensorName)
+        {
+            auto formatFullSensorName = [&] (std::string_view baseName) -> TStringBuf
+            {
+                formatter.Reset();
+
+                formatter.AppendString(prefix);
+                formatter.AppendChar('/');
+                formatter.AppendString(baseName);
+                if (includeLimitToSensorName) {
+                    formatter.AppendString("_limit");
+                }
+                if (baseName == "disk_space" || baseName == "tablet_static_memory") {
+                    formatter.AppendString("_in_gb");
+                }
+
+                return TStringBuf(formatter.GetData(), formatter.GetBytesWritten());
+            };
+
+            buffer.AddGauge(formatFullSensorName("node_count"), limits.GetNodeCount().UnsafeToUnderlying());
+            buffer.AddGauge(formatFullSensorName("chunk_count"), limits.GetChunkCount().UnsafeToUnderlying());
+            buffer.AddGauge(formatFullSensorName("tablet_count"), limits.GetTabletCount().UnsafeToUnderlying());
+            buffer.AddGauge(formatFullSensorName("tablet_static_memory"), limits.GetTabletStaticMemory().UnsafeToUnderlying());
+
+            for (auto [mediumIndex, diskSpaceLimit] : limits.DiskSpace()) {
+                const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                if (!IsObjectAlive(medium)) {
+                    continue;
+                }
+
+                TWithTagGuard guard(&buffer, "medium", medium->GetName());
+                buffer.AddGauge(formatFullSensorName("disk_space"), diskSpaceLimit.UnsafeToUnderlying() / static_cast<double>(1_GB));
+            }
+
+            const auto& masterMemoryLimits = limits.MasterMemory();
+            buffer.AddGauge(formatFullSensorName("total_master_memory"), masterMemoryLimits.Total.UnsafeToUnderlying());
+            buffer.AddGauge(formatFullSensorName("chunk_host_master_memory"), masterMemoryLimits.ChunkHost.UnsafeToUnderlying());
+            for (auto [cellTag, limit] : masterMemoryLimits.PerCell) {
+                TWithTagGuard guard(&buffer, "cell_tag", ToString(cellTag));
+                buffer.AddGauge(formatFullSensorName("per_cell_master_memory"), limit.UnsafeToUnderlying());
+            }
+        };
+
+        if (auto* rootAccount = GetRootAccount(); IsShardActive(rootAccount->GetShardIndex())) {
+            auto& buffer = bufferForAccount(rootAccount);
+            auto topmostAccountLimits =  rootAccount->ComputeTotalChildrenLimits();
+            addLimitGauges(buffer, topmostAccountLimits, "/total_allocated_limits", /* includeLimitToSensorName */ false);
+        }
 
         for (const auto& [shardIndex, accounts] : IncumbentShardIndexToAccountsForProfiling_) {
             if (!IsShardActive(shardIndex)) {
@@ -592,13 +657,11 @@ public:
             }
 
             for (auto* account : accounts) {
-                // NB: Account should always stay in the same bucket. If the bucket changes, then the previous bucket will continue
-                // to report outdated values. The worst part is that outdated and current values will get added up.
-                // On the other note, the distribution is not quite uniform, but it does not matter here.
-                auto bufferIndex = account->GetProfilingBucketIndex() % std::ssize(buffers);
-                auto& buffer = buffers[bufferIndex];
+                auto& buffer = bufferForAccount(account);
 
                 TWithTagGuard accountTag(&buffer, "account", account->GetName());
+
+                addLimitGauges(buffer, account->ClusterResourceLimits(), /* prefix */ "", /* includeLimitToSensorName */ true);
 
                 const auto& statistics = account->ClusterStatistics();
                 buffer.AddGauge("/node_count", statistics.CommittedResourceUsage.GetNodeCount());
@@ -651,40 +714,18 @@ public:
                     }
                 }
 
-                const auto& resourceLimit = account->ClusterResourceLimits();
-                for (const auto& [index, space] : resourceLimit.DiskSpace()) {
-                    const auto* medium = chunkManager->FindMediumByIndex(index);
-                    if (!IsObjectAlive(medium)) {
-                        continue;
-                    }
-                    TWithTagGuard guard(&buffer, "medium", medium->GetName());
-                    buffer.AddGauge("/disk_space_limit_in_gb", space.UnsafeToUnderlying() / static_cast<double>(1_GB));
-                }
-
-                buffer.AddGauge("/node_count_limit", resourceLimit.GetNodeCount().UnsafeToUnderlying());
-                buffer.AddGauge("/chunk_count_limit", resourceLimit.GetChunkCount().UnsafeToUnderlying());
-
                 buffer.AddGauge("/tablet_static_memory_in_gb", statistics.ResourceUsage.GetTabletStaticMemory());
-                buffer.AddGauge("/tablet_static_memory_limit_in_gb", resourceLimit.GetTabletStaticMemory().UnsafeToUnderlying());
+
                 profileDetailed(
                     statistics.ResourceUsage.GetTabletStaticMemory(),
                     statistics.CommittedResourceUsage.GetTabletStaticMemory(),
                     "/detailed_tablet_static_memory_in_gb");
 
                 buffer.AddGauge("/tablet_count", statistics.ResourceUsage.GetTabletCount());
-                buffer.AddGauge("/tablet_count_limit", resourceLimit.GetTabletCount().UnsafeToUnderlying());
                 profileDetailed(
                     statistics.ResourceUsage.GetTabletCount(),
                     statistics.CommittedResourceUsage.GetTabletCount(),
                     "/detailed_tablet_count");
-
-                const auto& masterLimits = resourceLimit.MasterMemory();
-                buffer.AddGauge("/total_master_memory_limit", masterLimits.Total.UnsafeToUnderlying());
-                buffer.AddGauge("/chunk_host_master_memory", masterLimits.ChunkHost.UnsafeToUnderlying());
-                for (const auto& [cellTag, limit] : masterLimits.PerCell) {
-                    TWithTagGuard guard(&buffer, "cell_tag", ToString(cellTag));
-                    buffer.AddGauge("/per_cell_master_memory_limit", limit.UnsafeToUnderlying());
-                }
 
                 const auto& multicellStatistics = account->MulticellStatistics();
                 for (const auto& [cellTag, cellStatistics] : multicellStatistics) {
