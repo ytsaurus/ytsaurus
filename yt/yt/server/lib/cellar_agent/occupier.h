@@ -14,7 +14,15 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h>
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NYT::NCellarNodeTrackerClient::NProto {
+
+class TCreateCellSlotInfo;
+
+} // namespace NCellarNodeTrackerClient::NProto
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT::NCellarAgent {
 
