@@ -1982,6 +1982,24 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         create_tablet_cell_bundle(self.TABLET_CELL_BUNDLE, attributes={"options": {"peer_count": peer_count}})
         return sync_create_cells(1, tablet_cell_bundle=self.TABLET_CELL_BUNDLE)[0]
 
+    def _dump_ref_counted(self, node):
+        # Diagnostics for a stuck lookup_rows_cache/used: dump the full ref-counted tracker
+        # statistics from the node so we can see exactly which objects are still alive (and how
+        # many bytes they pin) after the tablet was unmounted, without pre-judging the type.
+        statistics = get(
+            "//sys/cluster_nodes/{}/orchid/monitoring/ref_counted/statistics".format(node),
+            verbose=False,
+            default=[])
+        print_debug("Ref-counted tracker statistics on {} ({} records):".format(node, len(statistics)))
+        for record in sorted(statistics, key=lambda record: record["name"]):
+            print_debug("  {}: objects_alive={}, objects_allocated={}, bytes_alive={}, bytes_allocated={}".format(
+                record["name"],
+                record["objects_alive"],
+                record["objects_allocated"],
+                record["bytes_alive"],
+                record["bytes_allocated"]))
+        return statistics
+
     @authors("lukyan")
     @pytest.mark.parametrize("hunks", [False, True])
     @pytest.mark.parametrize("peer_count", [1, 2])
@@ -2040,19 +2058,42 @@ class TestLookupCache(TestSortedDynamicTablesBase):
             wait(lambda: get(path) > 51)
             assert get(path) == 52
 
-        node = get_tablet_leader_address(get("//tmp/t/@tablets/0/tablet_id"))
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        node = get_tablet_leader_address(tablet_id)
         sync_unmount_table("//tmp/t")
 
         self._create_simple_table("//tmp/dummy", False, tablet_cell_bundle=self.TABLET_CELL_BUNDLE)
         sync_mount_table("//tmp/dummy")
+
+        last_dump_time = [0.0]
 
         def _check():
             # Wake up some threads and trigger maintenance actions when they go to sleep.
             insert_rows("//tmp/dummy", [{"key": 1}])
             self._read("//tmp/dummy", [1])
 
-            return get(f"//sys/cluster_nodes/{node}/@statistics/memory/lookup_rows_cache/used") == 0
-        wait(_check)
+            used = get(f"//sys/cluster_nodes/{node}/@statistics/memory/lookup_rows_cache/used")
+            # Periodically dump the ref-counted statistics so we can watch the alive-set evolve
+            # while the memory stays pinned, not just the final snapshot.
+            if used != 0 and time.time() - last_dump_time[0] >= 5:
+                last_dump_time[0] = time.time()
+                print_debug("lookup_rows_cache/used still {} on {}; periodic ref-counted dump".format(used, node))
+                self._dump_ref_counted(node)
+            return used == 0
+        try:
+            wait(_check)
+        except WaitFailed:
+            # The lookup row cache memory was not released after unmount. Dump diagnostics
+            # to find what still pins it: the tablet should be gone from the node orchid,
+            # so any live TSmallArena / TLookupTable / TCachedRow points at a leaked
+            # strong reference to the unmounted tablet's row cache rather than a reclamation lag.
+            used = get(f"//sys/cluster_nodes/{node}/@statistics/memory/lookup_rows_cache/used")
+            orchid = self._find_tablet_orchid(node, tablet_id)
+            print_debug(
+                "lookup_rows_cache/used stuck at {} on {}; tablet {} orchid: {}".format(
+                    used, node, tablet_id, "present" if orchid is not None else "absent (unmounted)"))
+            self._dump_ref_counted(node)
+            raise
 
     @authors("lukyan")
     @pytest.mark.parametrize("hunks", [False, True])
