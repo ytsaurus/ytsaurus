@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
+#include <yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h>
+
 namespace NYT::NChaosNode {
 
 using namespace NCellarAgent;
