@@ -94,7 +94,8 @@ struct ITabletSlot
         TCellId siblingCellId) = 0;
 
     virtual void UnregisterSiblingTabletAvenue(
-        NHiveServer::TAvenueEndpointId siblingEndpointId) = 0;
+        NHiveServer::TAvenueEndpointId siblingEndpointId,
+        bool allowDestructionInMessageToSelf = false) = 0;
 
     virtual void CommitTabletMutation(const ::google::protobuf::MessageLite& message) = 0;
     virtual void PostMasterMessage(TTabletId tabletId, const ::google::protobuf::MessageLite& message) = 0;

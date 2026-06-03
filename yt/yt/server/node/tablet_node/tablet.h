@@ -555,6 +555,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellId, SiblingCellId);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, SiblingMountRevision);
     DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, SiblingAvenueEndpointId);
+    // Reign of the current servant at the moment when movement started.
+    // Movement should be aborted whenever reign of any participant changes.
+    DEFINE_BYVAL_RW_PROPERTY(ETabletReign, Reign);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TStoreId>, CommonDynamicStoreIds);
 
     using TStoreRowCountMap = THashMap<TStoreId, i64>;

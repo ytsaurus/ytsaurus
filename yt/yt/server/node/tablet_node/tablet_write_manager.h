@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include "dynamic_store_bits.h"
-#include "serialize.h"
 #include "transaction.h"
 #include "write_log.h"
 

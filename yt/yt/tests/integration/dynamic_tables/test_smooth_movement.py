@@ -793,7 +793,7 @@ class TestSmoothMovement(SmoothMovementBase):
     @authors("ifsmirnov")
     @pytest.mark.parametrize("read_only", [True, False])
     @pytest.mark.parametrize("peer_count", [1, 2])
-    def test_abort_movement_on_reign_change(self, read_only, peer_count):
+    def test_abort_movement_on_reign_change_at_source(self, read_only, peer_count):
         set("//sys/tablet_cell_bundles/default/@options/peer_count", peer_count)
 
         nodes = ls("//sys/tablet_nodes")
@@ -847,7 +847,11 @@ class TestSmoothMovement(SmoothMovementBase):
 
         if read_only:
             assert _check_smooth_movement_in_progress(True)
-            exit_read_only(src_cell_id)
+
+            # Command may start before cell is reconfigured at the client, thus stale invalid channel
+            # for the cell will be used and the command will fail.
+            for _ in range(3):
+                exit_read_only(src_cell_id, timeout=5000)
 
             def _is_cell_alive():
                 try:
@@ -894,6 +898,116 @@ class TestSmoothMovement(SmoothMovementBase):
             assert get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/reign") == next_reign
 
         assert _check_smooth_movement_in_progress(False)
+
+    @authors("ifsmirnov")
+    def test_reject_movement_if_target_reign_differs(self):
+        nodes = ls("//sys/tablet_nodes")
+        for node in nodes[2:]:
+            disable_tablet_cells_on_node(node)
+        src_cell_id, dst_cell_id = sync_create_cells(2)
+        dst_node = get(f"#{dst_cell_id}/@peers/0/address")
+
+        # Will be fully moved before reign change.
+        self._create_sorted_table("//tmp/t1")
+        sync_mount_table("//tmp/t1", cell_id=src_cell_id)
+        tablet1 = get("//tmp/t1/@tablets/0/tablet_id")
+
+        # Target servant allocated before reign change, replicated content sent after reign change.
+        self._create_sorted_table("//tmp/t2")
+        sync_mount_table("//tmp/t2", cell_id=src_cell_id)
+        tablet2 = get("//tmp/t2/@tablets/0/tablet_id")
+
+        # Servant switch message sent when target was offline and updating to the new reign.
+        # No rejection possible.
+        self._create_sorted_table("//tmp/t3")
+        sync_mount_table("//tmp/t3", cell_id=src_cell_id)
+        tablet3 = get("//tmp/t3/@tablets/0/tablet_id")
+
+        # Movement started after reign change.
+        self._create_sorted_table("//tmp/t4")
+        sync_mount_table("//tmp/t4", cell_id=src_cell_id)
+
+        h1 = SmoothMovementHelper("//tmp/t1")
+        h1.start()
+        h1.wait_for_action()
+
+        h2 = SmoothMovementHelper("//tmp/t2")
+        h2.start(stage="target_allocated")
+
+        h3 = SmoothMovementHelper("//tmp/t3")
+        h3.start(stage="waiting_for_locks_before_switch")
+
+        # Advance reign at target node.
+        current_reign = get(f"#{src_cell_id}/orchid/reign")
+        next_reign = current_reign + 1
+
+        disable_tablet_cells_on_node(dst_node)
+        wait(lambda: get(f"#{dst_cell_id}/@health") == "failed")
+
+        self._update_specific_nodes_dynamic_config([dst_node], {
+            "tablet_node": {
+                "testing": {
+                    "reign_override": next_reign,
+                }
+            }
+        })
+
+        h3.remove_breakpoint()
+        wait(lambda: get(h3.source_orchid + "/smooth_movement/stage") == "servant_switched")
+
+        enable_tablet_cells_on_node(dst_node)
+        wait(lambda: get(f"#{dst_cell_id}/@health") == "good")
+        assert get(f"#{src_cell_id}/orchid/reign") == current_reign
+        assert get(f"#{dst_cell_id}/orchid/reign") == next_reign
+
+        # tablet1 was fully moved when dst was with the old reign.
+        # Recovery with the new reign should not abort the action.
+        assert exists(f"#{dst_cell_id}/orchid/tablets/{tablet1}")
+        lookup_rows("//tmp/t1", [{"key": 1}])
+
+        # tablet2 movement was aborted by target when target reign changed.
+        h2.remove_breakpoint()
+        with raises_yt_error("Smooth movement rejected on tablet reign change"):
+            h2.wait_for_action()
+
+        # Abort for tablet3 was requested when source had already initiated the switch.
+        # Action cannot not be aborted, target must accept the switch.
+        h3.wait_for_action()
+        assert exists(f"#{dst_cell_id}/orchid/tablets/{tablet3}")
+        assert not exists(f"#{dst_cell_id}/orchid/tablets/{tablet3}/smooth_movement")
+        lookup_rows("//tmp/t3", [{"key": 1}])
+
+        # tablet4 has different reign from the start and should not be moved.
+        h4 = SmoothMovementHelper("//tmp/t4")
+        h4.start()
+        with raises_yt_error("Replicated content reign .* differs from current reign .*"):
+            h4.wait_for_action()
+
+        assert exists(f"#{src_cell_id}/orchid/tablets/{tablet2}")
+        assert not exists(f"#{src_cell_id}/orchid/tablets/{tablet2}/smooth_movement")
+        wait(lambda: not exists(f"#{dst_cell_id}/orchid/tablets/{tablet2}"))
+
+    @authors("ifsmirnov")
+    def test_reject_replicated_content(self):
+        sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", mount_config={
+            "testing": {
+                "reject_replicated_content_receiving": True,
+            },
+        })
+        sync_mount_table("//tmp/t")
+
+        h = SmoothMovementHelper("//tmp/t")
+        h.start()
+        with raises_yt_error("Smooth movement rejected by target for testing purposes"):
+            h.wait_for_action()
+
+        # NB: Unlike other options, this one is checked at the target servant BEFORE
+        # replicated content with options-known-at-source arrives.
+        set("//tmp/t/@mount_config/testing/reject_replicated_content_receiving", False)
+        h = SmoothMovementHelper("//tmp/t")
+        h.start()
+        h.wait_for_action()
 
     @authors("ifsmirnov")
     def test_movement_aborted_and_restarted(self):

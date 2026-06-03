@@ -226,6 +226,9 @@ void TTestingTableMountConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("compaction_delay", &TThis::CompactionDelay)
         .Default();
+
+    registrar.Parameter("reject_replicated_content_receiving", &TThis::RejectReplicatedContentReceiving)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

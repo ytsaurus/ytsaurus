@@ -232,6 +232,8 @@ struct TTestingTableMountConfig
     TDuration PartitioningDelay;
     TDuration CompactionDelay;
 
+    bool RejectReplicatedContentReceiving;
+
     REGISTER_YSON_STRUCT_LITE(TTestingTableMountConfig);
 
     static void Register(TRegistrar registrar);
