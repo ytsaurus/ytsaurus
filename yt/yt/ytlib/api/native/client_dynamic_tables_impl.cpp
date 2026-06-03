@@ -1623,7 +1623,8 @@ TSelectRowsResult TClient::DoSelectRows(
 
 TDuration TClient::CheckPermissionsForQuery(
     const TPlanFragment& fragment,
-    const TSelectRowsOptions& options)
+    const TSelectRowsOptions& options,
+    const ITableMountCachePtr& tableMountCache)
 {
     NProfiling::TWallTimer timer;
 
@@ -1670,10 +1671,20 @@ TDuration TClient::CheckPermissionsForQuery(
     const auto& permissionCache = Connection_->GetPermissionCache();
     auto permissionCheckErrors = WaitFor(permissionCache->GetMany(permissionKeys))
         .ValueOrThrow();
-    for (const auto& error : permissionCheckErrors) {
-        if (error.FindMatching(NYTree::EErrorCode::ResolveError)) {
+    YT_VERIFY(permissionKeys.size() == permissionCheckErrors.size());
+    for (int i = 0; i < std::ssize(permissionCheckErrors); ++i) {
+        auto& error = permissionCheckErrors[i];
+        if (error.IsOK() || error.FindMatching(NYTree::EErrorCode::ResolveError)) {
             continue;
         }
+
+        const auto& key = permissionKeys[i];
+        auto tableInfo = WaitForFast(tableMountCache->GetTableInfo(key.Path))
+            .ValueOrThrow();
+        if (tableInfo->UpstreamReplicaId != NullObjectId) {
+            error <<= TErrorAttribute("replica_path", tableInfo->PhysicalPath);
+        }
+
         error.ThrowOnError();
     }
 
@@ -2013,7 +2024,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             << TErrorAttribute("source", NAst::FormatJoin(std::get<NAst::TJoin>(ast.Joins[index])));
     }
 
-    auto permissionCacheWaitTime = CheckPermissionsForQuery(*fragment, options);
+    auto permissionCacheWaitTime = CheckPermissionsForQuery(*fragment, options, mountCache);
 
     if (options.DetailedProfilingInfo) {
         auto mainTableMountInfo = WaitForFast(mountCache->GetTableInfo(mainTable))
