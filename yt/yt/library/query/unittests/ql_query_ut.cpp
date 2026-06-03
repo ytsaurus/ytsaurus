@@ -1379,6 +1379,30 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
     }
 }
 
+TEST_F(TQueryPrepareTest, InvalidColumnIdInExpression)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"spec.revision", EValueType::Int64},
+        }))));
+
+    auto query = "select if_null(t.`spec.revision`, 0) from `//t` as t";
+    auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 2);
+    auto plan = PreparePlanFragment(
+        &PrepareMock_,
+        parsedSource->Source,
+        std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
+        parsedSource->AstHead,
+        TPreparePlanFragmentOptions{
+            .SyntaxVersion = 2,
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+            .ExecutionBackend = EExecutionBackend::Native,
+        });
+    auto fingerprint = InferName(plan->Query, {.OmitValues = true});
+
+    EXPECT_TRUE(fingerprint.contains("t.`spec.revision`"));
+}
+
 TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
