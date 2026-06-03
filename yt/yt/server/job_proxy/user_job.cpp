@@ -2112,11 +2112,16 @@ private:
 
         std::vector<pid_t> pids;
 
-        if (auto maybePid = UserJobEnvironment_->GetJobRootPid()) {
-            pids.push_back(*maybePid);
-        }
-        for (auto pid : UserJobEnvironment_->GetJobPids()) {
-            pids.push_back(pid);
+        try {
+            if (auto maybePid = UserJobEnvironment_->GetJobRootPid()) {
+                pids.push_back(*maybePid);
+            }
+            for (auto pid : UserJobEnvironment_->GetJobPids()) {
+                pids.push_back(pid);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error getting user process PIDs");
+            return;
         }
 
         const THashMap<pid_t, int> oldOomScoreAdjs = std::move(OomScoreAdjs_);
