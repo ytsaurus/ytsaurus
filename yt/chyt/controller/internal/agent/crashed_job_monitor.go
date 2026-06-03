@@ -2,11 +2,12 @@ package agent
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"go.ytsaurus.tech/yt/go/yt"
-	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type crashedJobEvent struct {
@@ -77,5 +78,14 @@ func (m *crashedJobMonitor) getCoreAlert() error {
 		return nil
 	}
 
-	return yterrors.Err(yterrors.Attr("op_id_to_crashed_job_ids", cores))
+	parts := make([]string, 0, len(cores))
+	for opID, jobIDs := range cores {
+		jobStrs := make([]string, len(jobIDs))
+		for i, j := range jobIDs {
+			jobStrs[i] = j.String()
+		}
+		parts = append(parts, fmt.Sprintf("op %v: crashed jobs [%v]", opID, strings.Join(jobStrs, ", ")))
+	}
+
+	return errors.New(strings.Join(parts, "; "))
 }
