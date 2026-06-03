@@ -430,6 +430,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    TError GetLastRestartError() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     DEFINE_SIGNAL_OVERRIDE(TFuture<void>(), LeaderLeaseCheck);
 
     // Stuff from IDistributedHydraManager
