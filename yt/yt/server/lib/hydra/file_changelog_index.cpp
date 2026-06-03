@@ -405,7 +405,6 @@ i64 TFileChangelogIndex::GetRecordOffset(int recordIndex) const
     return chunk[perChunkIndex].Offset;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra
