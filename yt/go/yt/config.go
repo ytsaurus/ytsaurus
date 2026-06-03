@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -186,6 +187,17 @@ type Config struct {
 	//
 	// NOTE: this codec has nothing to do with codec used for storing table chunks.
 	CompressionCodec ClientCompressionCodec
+
+	// IPVersion restricts the address family used for outbound connections.
+	//
+	// Applies to:
+	//   - bus TCP dials (RPC client only)
+	//   - HTTP dials (proxy discovery for RPC, all requests for HTTP client) —
+	//     only when HTTPClient is unset; a user-provided HTTPClient is responsible
+	//     for configuring its own transport.
+	//
+	// YT_FORCE_IPV4 and YT_FORCE_IPV6 environment variables can be used, but non Any config value takes priority.
+	IPVersion IPVersion
 
 	// HTTPClient allows to override default http.Client.
 	//
@@ -398,6 +410,31 @@ func (c *Config) GetClientCompressionCodec() ClientCompressionCodec {
 	return c.CompressionCodec
 }
 
+func parseEnvBool(name string) bool {
+	v := os.Getenv(name)
+	if v == "" {
+		return false
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false
+	}
+	return b
+}
+
+func (c *Config) GetIPVersion() IPVersion {
+	if c.IPVersion != IPVersionAny {
+		return c.IPVersion
+	}
+	if parseEnvBool("YT_FORCE_IPV4") {
+		return IPVersionV4
+	}
+	if parseEnvBool("YT_FORCE_IPV6") {
+		return IPVersionV6
+	}
+	return c.IPVersion
+}
+
 const (
 	TVMOnlyHTTPProxyPort  = 9026
 	TVMOnlyHTTPSProxyPort = 9443
@@ -458,6 +495,26 @@ func (c ClientCompressionCodec) BlockCodec() (string, bool) {
 		//		return "brotli_11", true
 	default:
 		return "", false
+	}
+}
+
+// IPVersion restricts address family used for outbound connections.
+type IPVersion int
+
+const (
+	IPVersionAny IPVersion = iota
+	IPVersionV4
+	IPVersionV6
+)
+
+func (v IPVersion) Network() string {
+	switch v {
+	case IPVersionV4:
+		return "tcp4"
+	case IPVersionV6:
+		return "tcp6"
+	default:
+		return "tcp"
 	}
 }
 
