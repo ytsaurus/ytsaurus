@@ -679,8 +679,10 @@ time.sleep(100500)
 
         job_id, = wait_breakpoint(job_count=1)
 
-        data_str = op.read_stderr(job_id).decode()
-        data = json.loads(data_str)
+        # Until job-proxy signals OnJobPrepared to the node, the node will return an empty string here.
+        wait(lambda: op.read_stderr(job_id) != b"")
+
+        data = json.loads(op.read_stderr(job_id).decode())
         pid = self._find_pid(data["pid"], data["cgroup"])
 
         # Check user job oom_score_adj.
