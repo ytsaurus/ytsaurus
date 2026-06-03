@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/schema"
 )
 
 type TestRow struct {
@@ -134,6 +135,50 @@ func TestDecoder(t *testing.T) {
 
 	var intMap map[string]int
 	require.Error(t, decoder.Scan(&intMap))
+
+	require.False(t, decoder.Next())
+	require.NoError(t, decoder.Err())
+}
+
+func TestDecodeGenericNestedOptionalStruct(t *testing.T) {
+	// Column "s": struct<inner: optional<struct<a: int64; b: string>>>.
+	innerStruct := schema.Struct{Members: []schema.StructMember{
+		{Name: "a", Type: schema.TypeInt64},
+		{Name: "b", Type: schema.TypeString},
+	}}
+	tableSchema := &schema.Schema{Columns: []schema.Column{{
+		Name: "s",
+		ComplexType: schema.Struct{Members: []schema.StructMember{
+			{Name: "inner", Type: schema.Optional{Item: innerStruct}},
+		}},
+	}}}
+	skiffSchema := FromTableSchema(*tableSchema)
+	format := Format{Name: "skiff", TableSchemas: []any{&skiffSchema}}
+
+	input := bytes.NewBuffer([]byte{
+		0x00, 0x00, // first row: table index 0
+		0x00, // inner optional tag == 0 (null) — previously panicked
+
+		0x00, 0x00, // second row: table index 0
+		0x01,                                           // inner optional tag == 1 (present)
+		0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // a == int64(42)
+		0x02, 0x00, 0x00, 0x00, 'h', 'i', // b == "hi"
+	})
+
+	decoder, err := NewDecoder(input, format, WithDecoderTableSchemas(tableSchema))
+	require.NoError(t, err)
+
+	require.True(t, decoder.Next())
+	var nullRow map[string]any
+	require.NoError(t, decoder.Scan(&nullRow))
+	require.Equal(t, map[string]any{"s": map[string]any{"inner": nil}}, nullRow)
+
+	require.True(t, decoder.Next())
+	var presentRow map[string]any
+	require.NoError(t, decoder.Scan(&presentRow))
+	require.Equal(t, map[string]any{
+		"s": map[string]any{"inner": map[string]any{"a": int64(42), "b": "hi"}},
+	}, presentRow)
 
 	require.False(t, decoder.Next())
 	require.NoError(t, decoder.Err())
