@@ -40,6 +40,7 @@ const (
 
 type Options struct {
 	Address string
+	Network string
 	Logger  log.Logger
 
 	EncryptionMode EncryptionMode
@@ -553,8 +554,13 @@ func (c *Bus) establishEncryption(isServer bool) error {
 }
 
 func Dial(ctx context.Context, options Options) (*Bus, error) {
+	network := options.Network
+	if network == "" {
+		network = "tcp"
+	}
+
 	var dialer net.Dialer
-	conn, err := dialer.DialContext(ctx, "tcp", options.Address)
+	conn, err := dialer.DialContext(ctx, network, options.Address)
 	if err != nil {
 		return nil, err
 	}

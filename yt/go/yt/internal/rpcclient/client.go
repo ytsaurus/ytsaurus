@@ -57,8 +57,15 @@ func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 		RootCAs: certPool,
 	}
 
+	network := c.GetIPVersion().Network()
+	dialer := &net.Dialer{}
+
 	httpClient := &http.Client{
 		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+				return dialer.DialContext(ctx, network, addr)
+			},
+
 			MaxIdleConns:        0,
 			MaxIdleConnsPerHost: 100,
 			MaxConnsPerHost:     100,
@@ -109,6 +116,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 		clientOpts := []bus.ClientOption{
 			bus.WithLogger(c.log.Logger()),
 			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
+			bus.WithNetwork(conf.GetIPVersion().Network()),
 		}
 		if conf.UseTLS && transport.TLSClientConfig != nil {
 			busTLSConfig := transport.TLSClientConfig.Clone()
