@@ -98,6 +98,8 @@ message TRevisionTracker
     repeated string excluded_paths = 7;
 
     repeated string tracked_tags = 8;
+
+    optional bool track_aggregate_attributes = 9;
 }
 
 message TAccessControlPermissionInfo
