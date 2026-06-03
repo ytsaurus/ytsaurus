@@ -6,6 +6,8 @@ from yt.environment.components.yql_agent import YqlAgent as YqlAgentComponent
 
 from yt.environment.helpers import wait_for_dynamic_config_update
 
+from yt.common import YtError
+
 import os
 
 import pytest
@@ -67,7 +69,22 @@ def yql_agent(request):
     config["max_supported_yql_version"] = getattr(cls, "MAX_YQL_VERSION", None)
     config["default_yql_ui_version"] = getattr(cls, "DEFAULT_YQL_UI_VERSION", None)
     config["allow_not_released_yql_versions"] = getattr(cls, "ALLOW_NOT_RELEASED_YQL_VERSIONS", True)
-    config["subprocesses_count"] = getattr(cls, "YQL_SUBPROCESSES_COUNT", None)
+    config["subprocess_count"] = getattr(cls, "YQL_SUBPROCESS_COUNT", None)
+
+    use_qtworker = getattr(cls, "YQL_QTWORKER", False)
+    if use_qtworker:
+        if config.get("subprocess_count"):
+            raise YtError("YQL_QTWORKER and YQL_SUBPROCESS_COUNT cannot be set together")
+        config["enable_qtworker"] = True
+        config["qtworker_path"] = yatest.common.binary_path("yt/yql/tools/qtworker/qtworker")
+        config["qtworker_worker_conf"] = yatest.common.source_path("yt/yql/cfg/tests/worker.conf")
+        config["qtworker_fs_conf"] = yatest.common.source_path("yt/yql/cfg/tests/fs.conf")
+        config["qtworker_gateways_conf"] = yatest.common.source_path(
+            "yt/yql/cfg/tests/gateways.conf")
+        config["qtworker_udf_resolver_path"] = yatest.common.binary_path(
+            "yql/essentials/tools/udf_resolver/udf_resolver")
+        config["qtworker_udf_dep_stub_path"] = yatest.common.binary_path(
+            "yql/essentials/tools/udf_dep_stub/libyql_udf_dep_stub.so")
 
     with YqlAgent(cls.Env, cls.remote_envs, count, libraries, config) as yql_agent:
         update_yql_agent_environment(cls, yql_agent)

@@ -12,6 +12,7 @@ PEERDIR(
 
 TEST_SRCS(
     test_ytflow.py
+    test_qtworker.py
 )
 
 DEPENDS(
@@ -22,4 +23,14 @@ DEPENDS(
 
     yt/yql/tests/agent/throwing_udf
     yt/yql/tools/ytflow_worker
+
+    yt/yql/tools/qtworker
+    yql/essentials/tools/udf_resolver
+    yql/essentials/tools/udf_dep_stub
+)
+
+DATA(
+    arcadia/yt/yql/cfg/tests/worker.conf
+    arcadia/yt/yql/cfg/tests/gateways.conf
+    arcadia/yt/yql/cfg/tests/fs.conf
 )
