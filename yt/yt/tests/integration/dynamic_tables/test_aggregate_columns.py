@@ -539,29 +539,6 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
         assert value == []
 
-<<<<<<< releases/yt/stable/25.4: Cherry pick commit r19785027, GENAINFRA-554: Introduce _inferrum_kv_cache_* UDFs
-=======
-        insert_rows("//tmp/t", [{"key": 2, "value": yson.YsonList([
-            [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(2)]],
-            [],
-        ])}], aggregate=True)
-        value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
-        assert value == [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(2)], [yson.YsonUint64(2), 2, yson.YsonUint64(2), yson.YsonUint64(2)]]
-
-        insert_rows("//tmp/t", [{"key": 2, "value": yson.YsonList([
-            [],
-            [[yson.YsonUint64(2), 2, yson.YsonUint64(2)]]
-        ])}], aggregate=True)
-        value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
-        assert value == [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(2)]]
-
-        insert_rows("//tmp/t", [{"key": 2, "value": yson.YsonList([
-            [],
-            [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(3)]]
-        ])}], aggregate=True)
-        value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
-        assert value == []
-
     @authors("babenko")
     def test_aggregate_inferrum_kv_cache_replica_set(self):
         sync_create_cells(1)
@@ -600,7 +577,6 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 2, "value": make_delta([2, 3], [1])}], aggregate=True)
         assert lookup_rows("//tmp/t", [{"key": 2}])[0]["value"] == make_state([2, 3])
 
->>>>>>> cherry-pick: GENAINFRA-554: Enable _inferrum_kv_cache_* UDFs in schema; add integration tests
     @authors("aleksandra-zh")
     def test_aggregate_last_seen_replica_set(self):
         sync_create_cells(1)
