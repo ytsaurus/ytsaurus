@@ -100,6 +100,9 @@ class SmoothMovementHelperBase(CommandProvider):
         self._set_breakpoint(stage)
         self._wait_for_stage_at_any_servant(stage)
 
+    def remove_breakpoint(self):
+        self._set_breakpoint(None)
+
     def finish(self):
         assert self.action_id is not None, "Smooth movement is not started"
         self._set_breakpoint(None)
