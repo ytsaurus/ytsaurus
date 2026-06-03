@@ -1,8 +1,9 @@
 RECURSE(
+    build-env
     cron
     local
+    sidecars
     ya-build
     ytsaurus
     ytsaurus-bundle
-    sidecars
 )
