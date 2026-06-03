@@ -3,7 +3,7 @@
 #include "config.h"
 #include "interop.h"
 
-#include <yt/yql/plugin/bridge/plugin.h>
+#include <yt/yql/plugin/native/plugin.h>
 #include <yt/yql/plugin/process/plugin.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -352,7 +352,7 @@ public:
                         bootstrap->GetClusterConnectionConfig(),
                         TString(MaxSupportedYqlVersionStr_),
                         YqlAgentProfiler().WithPrefix("/process_yql_plugin"))
-                    : CreateBridgeYqlPlugin(std::move(options));
+                    : CreateYqlPlugin(std::move(options));
             }),
             EExecutionStackKind::Large);
 

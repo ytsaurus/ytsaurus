@@ -6,7 +6,7 @@
 #include "process.h"
 
 #include <yt/yql/plugin/config.h>
-#include <yt/yql/plugin/bridge/plugin.h>
+#include <yt/yql/plugin/native/plugin.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/yql_plugin/yql_plugin_proxy.h>
@@ -567,7 +567,7 @@ private:
             NYT::NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
             maxSupportedYqlVersion,
             true);
-        DqControllerYqlPlugin_ = CreateBridgeYqlPlugin(std::move(options));
+        DqControllerYqlPlugin_ = CreateYqlPlugin(std::move(options));
     }
 };
 
