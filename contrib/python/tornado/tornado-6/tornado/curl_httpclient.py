@@ -458,7 +458,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             "PUT": pycurl.UPLOAD,
             "HEAD": pycurl.NOBODY,
         }
-        custom_methods = set(["DELETE", "OPTIONS", "PATCH"])
+        custom_methods = {"DELETE", "OPTIONS", "PATCH"}
         for o in curl_options.values():
             curl.setopt(o, False)
         if request.method in curl_options:
@@ -566,7 +566,9 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         if header_line.startswith("HTTP/"):
             headers.clear()
             try:
-                (__, __, reason) = httputil.parse_response_start_line(header_line)
+                (_version, _code, reason) = httputil.parse_response_start_line(
+                    header_line
+                )
                 header_line = "X-Http-Reason: %s" % reason
             except httputil.HTTPInputError:
                 return

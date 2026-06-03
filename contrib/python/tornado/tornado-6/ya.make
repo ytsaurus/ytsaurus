@@ -4,7 +4,7 @@ PY3_LIBRARY()
 
 PROVIDES(tornado)
 
-VERSION(6.4.2)
+VERSION(6.5.5)
 
 LICENSE(Apache-2.0)
 
@@ -28,6 +28,7 @@ PY_REGISTER(
 PY_SRCS(
     TOP_LEVEL
     tornado/__init__.py
+    tornado/__init__.pyi
     tornado/_locale_data.py
     tornado/auth.py
     tornado/autoreload.py
@@ -54,6 +55,7 @@ PY_SRCS(
     tornado/queues.py
     tornado/routing.py
     tornado/simple_httpclient.py
+    tornado/speedups.pyi
     tornado/tcpclient.py
     tornado/tcpserver.py
     tornado/template.py
