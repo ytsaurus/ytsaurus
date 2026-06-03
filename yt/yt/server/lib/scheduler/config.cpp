@@ -210,15 +210,7 @@ void TStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
             ValidateGpuSchedulingModuleName(schedulingSegmentModule);
         }
 
-        double previousModuleShare = 0.0;
-        for (const auto& entry : config->ModuleShareToNetworkPriority) {
-            if (entry.ModuleShare <= previousModuleShare && entry.ModuleShare > 0) {
-                THROW_ERROR_EXCEPTION("Module shares must be in strictly ascending order")
-                    << TErrorAttribute("module", entry.ModuleShare)
-                    << TErrorAttribute("previous_module", previousModuleShare);
-            }
-            previousModuleShare = entry.ModuleShare;
-        }
+        ValidateModuleShareToNetworkPriority(config->ModuleShareToNetworkPriority);
     });
 
     registrar.Postprocessor([&] (TStrategySchedulingSegmentsConfig* config) {
@@ -304,10 +296,15 @@ void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
     registrar.Parameter("initialization_timeout", &TThis::InitializationTimeout)
         .Default(TDuration::Minutes(5));
 
+    registrar.Parameter("module_share_to_network_priority", &TThis::ModuleShareToNetworkPriority)
+        .Default();
+
     registrar.Postprocessor([&] (TGpuSchedulingPolicyConfig* config) {
         for (const auto& module : config->Modules) {
             ValidateGpuSchedulingModuleName(module);
         }
+
+        ValidateModuleShareToNetworkPriority(config->ModuleShareToNetworkPriority);
     });
 }
 

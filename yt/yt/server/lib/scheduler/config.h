@@ -252,6 +252,8 @@ struct TGpuSchedulingPolicyConfig
 
     TDuration InitializationTimeout;
 
+    std::vector<TModuleShareAndNetworkPriority> ModuleShareToNetworkPriority;
+
     REGISTER_YSON_STRUCT(TGpuSchedulingPolicyConfig);
 
     static void Register(TRegistrar registrar);

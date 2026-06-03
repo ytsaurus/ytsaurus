@@ -68,6 +68,37 @@ void ValidateGpuSchedulingModuleName(TStringBuf name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<TNetworkPriority> ComputeNetworkPriority(
+    double share,
+    const std::vector<TModuleShareAndNetworkPriority>& table)
+{
+    std::optional<TNetworkPriority> previousPriority;
+    for (const auto& entry : table) {
+        if (share < entry.ModuleShare) {
+            return previousPriority;
+        }
+        previousPriority = entry.NetworkPriority;
+    }
+
+    return previousPriority;
+}
+
+void ValidateModuleShareToNetworkPriority(
+    const std::vector<TModuleShareAndNetworkPriority>& table)
+{
+    double previousModuleShare = 0.0;
+    for (const auto& entry : table) {
+        if (entry.ModuleShare <= previousModuleShare && entry.ModuleShare > 0) {
+            THROW_ERROR_EXCEPTION("Module shares must be in strictly ascending order")
+                << TErrorAttribute("module", entry.ModuleShare)
+                << TErrorAttribute("previous_module_share", previousModuleShare);
+        }
+        previousModuleShare = entry.ModuleShare;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Delay(TDuration delay, EDelayType delayType)
 {
     switch (delayType) {

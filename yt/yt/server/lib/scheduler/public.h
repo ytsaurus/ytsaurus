@@ -259,6 +259,8 @@ DECLARE_REFCOUNTED_STRUCT(TRefCountedExecNodeDescriptorMap)
 
 class TSchedulingTagFilter;
 
+struct TModuleShareAndNetworkPriority;;
+
 DECLARE_REFCOUNTED_STRUCT(TControllerScheduleAllocationResult)
 
 struct TAllocationStartDescriptor;

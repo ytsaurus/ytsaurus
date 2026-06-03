@@ -13,13 +13,16 @@ from yt_env_setup import (
 from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
     update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
-    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters, update_controller_agent_config,
+    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters,
+    print_debug, update_controller_agent_config,
 )
 
 from yt_scheduler_helpers import (
     scheduler_orchid_path, scheduler_orchid_node_path, scheduler_new_orchid_pool_tree_path, scheduler_orchid_pool_path,
     scheduler_orchid_operation_path
 )
+
+from yt_helpers import read_structured_log, write_log_barrier
 
 from yt.test_helpers import are_almost_equal
 
@@ -1101,6 +1104,161 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         # Verify the scheduler survived — would time out if YT_VERIFY crashed the process.
         wait_operation_unregistered(op.id)
+
+
+##################################################################
+
+class TestAllocatingGpuPolicyNetworkPriority(AllocatingGpuSchedulingPolicyBaseConfig):
+    NUM_NODES = 5
+
+    USE_PORTO = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "controller_agent_connector": {
+                    "heartbeat_executor": {
+                        "period": 500,
+                    },
+                },
+                "gpu_manager": {
+                    "enable_network_service_level": True,
+                },
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8,
+                },
+            },
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
+            },
+        },
+        "slot_manager": {
+            "job_environment": {
+                "type": "porto",
+            },
+        },
+    }
+
+    MODULE_SHARE_TO_NETWORK_PRIORITY = [
+        {"module_share": 0.1, "network_priority": 1},
+        {"module_share": 0.4, "network_priority": 2},
+        {"module_share": 0.8, "network_priority": 3},
+    ]
+
+    def setup_method(self, method):
+        super(TestAllocatingGpuPolicyNetworkPriority, self).setup_method(method)
+
+        update_pool_tree_config_option(
+            "gpu",
+            "gpu_scheduling_policy/module_share_to_network_priority",
+            self.MODULE_SHARE_TO_NETWORK_PRIORITY)
+
+    @authors("yaishenka")
+    def test_network_priority(self):
+        # NB(yaishenka): TGpuManager::ApplyNetworkPriority skips emitting the test event
+        # when the new priority equals the current one (initially DefaultNetworkPriority = 0).
+        # All four cases run in sequence so each transition is observable.
+
+        update_pool_tree_config_option("gpu", "enable_step_function_for_gang_operations", False)
+
+        # 5 jobs x 8 GPU => full module; share = 5/5 => priority 3.
+        # NB(yaishenka): is_gang is required so the operation is full-host module-bound
+        # (see TOperation::IsFullHostModuleBound).
+        from_barriers = self.write_log_barriers_on_all_nodes()
+        full_module_op = run_sleeping_vanilla(
+            job_count=5,
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"is_gang": True},
+        )
+        wait(lambda: len(full_module_op.get_running_jobs()) == 5)
+
+        self.assert_network_priority_of_all_jobs(full_module_op, from_barriers, 3)
+        full_module_op.abort()
+
+        # 1 job x 8 GPU; share = 1/5 = 0.2 => priority 1.
+        # Single-allocation vanilla is full-host module-bound without is_gang.
+        from_barriers = self.write_log_barriers_on_all_nodes()
+        one_node_op = run_sleeping_vanilla(
+            job_count=1,
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(one_node_op.get_running_jobs()) == 1)
+
+        self.assert_network_priority_of_all_jobs(one_node_op, from_barriers, 1)
+        one_node_op.abort()
+
+        # 3 jobs x 8 GPU; share = 3/5 = 0.6 => priority 2.
+        from_barriers = self.write_log_barriers_on_all_nodes()
+        half_module_op = run_sleeping_vanilla(
+            job_count=3,
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"is_gang": True},
+        )
+        wait(lambda: len(half_module_op.get_running_jobs()) == 3)
+
+        self.assert_network_priority_of_all_jobs(half_module_op, from_barriers, 2)
+        half_module_op.abort()
+
+        # 10 jobs x 4 GPU saturates all 5 nodes but op is not full-host (gpu_limit < 8),
+        # so it is never module-bound. NetworkPriority stays nullopt => exec node falls
+        # back to DefaultNetworkPriority = 0.
+        from_barriers = self.write_log_barriers_on_all_nodes()
+        non_full_host_op = run_sleeping_vanilla(
+            job_count=10,
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(non_full_host_op.get_running_jobs()) == 10)
+
+        self.assert_network_priority_of_all_jobs(non_full_host_op, from_barriers, 0)
+        non_full_host_op.abort()
+
+    def write_log_barriers_on_all_nodes(self):
+        return [write_log_barrier(self.get_node_address(i)) for i in range(self.NUM_NODES)]
+
+    def assert_network_priority_of_all_jobs(self, op, from_barriers, expected_network_priority):
+        address_to_node_index = self.get_address_to_node_index()
+        jobs = op.get_running_jobs().values()
+        node_indices = builtins.set([address_to_node_index[job["address"]] for job in jobs])
+        wait(lambda: self.check_network_priority_on_nodes(node_indices, from_barriers, expected_network_priority))
+
+    def check_network_priority_on_nodes(self, node_indices, from_barriers, expected_network_priority):
+        for node_index in node_indices:
+            log = read_structured_log(
+                self.get_structured_log_path(node_index),
+                from_barrier=from_barriers[node_index],
+                row_filter=lambda row: "event_type" in row and row["event_type"] == "apply_network_priority_in_test",
+            )
+            if len(log) == 0:
+                print_debug("log of node {} is empty".format(node_index))
+                return False
+
+            assert len(log) == 1, "log has more than one row: {}".format(log)
+            assert log[0]["network_priority"] == expected_network_priority, \
+                "wrong network priority in log: {}, node_index: {}".format(log, node_index)
+        return True
+
+    def get_address_to_node_index(self):
+        return {self.get_node_address(i): i for i in range(self.NUM_NODES)}
+
+    def get_structured_log_path(self, node_id):
+        return "{}/logs/node-{}.json.log".format(self.path_to_run, node_id)
+
+    def get_node_address(self, node_id):
+        return "localhost:" + str(self.Env.configs["node"][node_id]["rpc_port"])
 
 
 ##################################################################

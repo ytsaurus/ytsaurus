@@ -247,6 +247,12 @@ std::optional<std::string> TOperation::GetUsedSchedulingModule() const
     return (*Assignments_.begin())->Node->SchedulingModule();
 }
 
+void TOperation::ResetSchedulingModule()
+{
+    SchedulingModule_.reset();
+    NetworkPriority_.reset();
+}
+
 bool TOperation::IsZeroAssignedUsage() const
 {
     return Assignments_.empty();
@@ -319,6 +325,8 @@ void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer)
             .Item("preemptible").Value(operation.IsPreemptible())
             .Item("starving").Value(operation.IsStarving())
             .Item("scheduling_module").Value(operation.SchedulingModule())
+            .OptionalItem("network_priority", operation.NetworkPriority())
+            // TODO(yaishenka): Think about what else to expose here.
             .Item("allocations").Value(operation.AllocationIdToAllocationState())
         .EndMap();
 }

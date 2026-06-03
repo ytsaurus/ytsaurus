@@ -764,12 +764,16 @@ void TSchedulingPolicy::ReviveOperationState(TOperationPtr operation)
     if (maybeState->SchedulingModule) {
         operation->SchedulingModule() = std::move(maybeState->SchedulingModule);
     }
+    if (maybeState->NetworkPriority) {
+        operation->NetworkPriority() = std::move(maybeState->NetworkPriority);
+    }
 
     YT_LOG_DEBUG(
         "Operation state revived "
-        "(OperationId: %v,SchedulingModule: %v)",
+        "(OperationId: %v, SchedulingModule: %v, NetworkPriority: %v)",
         operation->GetId(),
-        operation->SchedulingModule());
+        operation->SchedulingModule(),
+        operation->NetworkPriority());
 }
 
 void TSchedulingPolicy::RevivePendingAllocations(const TNodePtr& node)
@@ -920,10 +924,12 @@ void TSchedulingPolicy::UpdatePersistentState()
         const auto& [operationId, operation] = it;
         auto& operationPersistentState = PersistentState_->OperationStates[operationId];
         operationPersistentState.SchedulingModule = operation->SchedulingModule();
+        operationPersistentState.NetworkPriority = operation->NetworkPriority();
 
-        YT_LOG_DEBUG("Updated operation persistent state (OperationId: %v, SchedulingModule: %v, Enabled: %v)",
+        YT_LOG_DEBUG("Updated operation persistent state (OperationId: %v, SchedulingModule: %v, NetworkPriority: %v, Enabled: %v)",
             operationId,
             operation->SchedulingModule(),
+            operation->NetworkPriority(),
             operation->IsEnabled());
     };
 
@@ -1232,7 +1238,6 @@ void TSchedulingPolicy::ScheduleAllocations(
             allocation->ResourceUsage());
 
         // TODO(yaishenka): Scheduling index and stage type are irrelevant for this policy. Do not store it in TAllocation.
-        // TODO(YT-27936): (!) Implement network priority though.
         schedulingHeartbeatContext->StartAllocation(
             operationElement->GetTreeId(),
             operationElement->GetOperationId(),
@@ -1242,7 +1247,7 @@ void TSchedulingPolicy::ScheduleAllocations(
             operationElement->Spec()->PreemptionMode,
             /*schedulingIndex*/ 0,
             /*stageType*/ EAllocationSchedulingStage::RegularMediumPriority,
-            /*networkPriority*/ {});
+            operation->NetworkPriority());
 
         nodeShardInvoker->Invoke(BIND(
             &TPoolTreeOperationElement::OnScheduleAllocationFinished,

@@ -9,6 +9,9 @@ void TPersistentOperationState::Register(TRegistrar registrar)
     registrar.Parameter("scheduling_module", &TThis::SchedulingModule)
         .Default()
         .DontSerializeDefault();
+    registrar.Parameter("network_priority", &TThis::NetworkPriority)
+        .Default()
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
