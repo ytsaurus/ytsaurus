@@ -149,7 +149,7 @@ void RegisterNbdDisk(TYsonStructRegistrar<Config>& registrar)
         .Default();
 
     registrar.Postprocessor([&] (Config* config) {
-        static constexpr i64 MaxNbdDiskSize = 60_GB;
+        static constexpr i64 MaxNbdDiskSize = 512_GB;
         // NBD disk size shall not exceed MaxNbdDiskSize.
         if (config->NbdDisk && config->DiskSpace > MaxNbdDiskSize) {
             THROW_ERROR_EXCEPTION("\"disk_space\" exceeds maximum limit for NBD disk")
