@@ -1,7 +1,7 @@
 #include "config.h"
 #include "plugin_service.h"
 
-#include <yt/yql/plugin/bridge/plugin.h>
+#include <yt/yql/plugin/native/plugin.h>
 #include <yt/yql/plugin/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -73,7 +73,7 @@ protected:
             config->MaxSupportedYqlVersion,
             false);
 
-        auto yqlPlugin = CreateBridgeYqlPlugin(std::move(options));
+        auto yqlPlugin = CreateYqlPlugin(std::move(options));
         yqlPlugin->Start();
 
         if (config->DynamicGatewaysConfig) {

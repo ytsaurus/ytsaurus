@@ -45,7 +45,7 @@ PEERDIR(
     yt/yt/server/lib/component_state_checker
 
     yt/yql/plugin
-    yt/yql/plugin/bridge
+    yt/yql/plugin/native
 
     yql/essentials/public/langver
     yql/essentials/public/result_format
