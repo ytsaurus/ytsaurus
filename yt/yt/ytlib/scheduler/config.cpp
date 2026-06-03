@@ -2355,7 +2355,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         .Alias("data_size_per_map_job")
         .Default()
         .GreaterThan(0);
-    registrar.BaseClassParameter("compressed_data_size_per_map_job", &TSortOperationSpec::CompressedDataSizePerPartitionJob)
+    registrar.BaseClassParameter("compressed_data_size_per_map_job", &TMapReduceOperationSpec::CompressedDataSizePerPartitionJob)
         .Default()
         .GreaterThan(0);
     registrar.BaseClassParameter("map_locality_timeout", &TMapReduceOperationSpec::PartitionLocalityTimeout)

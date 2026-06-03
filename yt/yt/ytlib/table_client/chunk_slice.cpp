@@ -613,8 +613,8 @@ std::optional<THashSet<int>> GetBlockFilter(
             return {};
         }
 
-        for (const auto& columName : *columnStableNames) {
-            if (auto columnId = nameTable->FindId(columName.Underlying())) {
+        for (const auto& columnName : *columnStableNames) {
+            if (auto columnId = nameTable->FindId(columnName.Underlying())) {
                 YT_VERIFY(*columnId < columnMetaExt->columns_size());
                 auto columnMeta = columnMetaExt->columns(*columnId);
                 for (const auto& segment : columnMeta.segments()) {
