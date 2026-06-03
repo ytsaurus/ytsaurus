@@ -21,12 +21,13 @@ const (
 
 	ContentTypeAny ContentType = "*/*"
 
-	TypeApplicationJSON          ContentType = "application/json"
-	TypeApplicationXML           ContentType = "application/xml"
-	TypeApplicationOctetStream   ContentType = "application/octet-stream"
-	TypeApplicationProtobuf      ContentType = "application/protobuf"
-	TypeApplicationMsgpack       ContentType = "application/msgpack"
-	TypeApplicationXSolomonSpack ContentType = "application/x-solomon-spack"
+	TypeApplicationJSON               ContentType = "application/json"
+	TypeApplicationXML                ContentType = "application/xml"
+	TypeApplicationOctetStream        ContentType = "application/octet-stream"
+	TypeApplicationProtobuf           ContentType = "application/protobuf"
+	TypeApplicationMsgpack            ContentType = "application/msgpack"
+	TypeApplicationXSolomonSpack      ContentType = "application/x-solomon-spack"
+	TypeApplicationXWwwFromUrlencoded ContentType = "application/x-www-form-urlencoded"
 
 	EncodingAny     ContentEncoding = "*"
 	EncodingZSTD    ContentEncoding = "zstd"
