@@ -569,15 +569,15 @@ void TTmpfsVolumeConfig::Register(TRegistrar registrar)
 void TNbdDiskConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("data_node_rpc_timeout", &TThis::DataNodeRpcTimeout)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Minutes(4));
     registrar.Parameter("data_node_nbd_service_rpc_timeout", &TThis::DataNodeNbdServiceRpcTimeout)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Minutes(2));
     registrar.Parameter("data_node_nbd_service_make_timeout", &TThis::DataNodeNbdServiceMakeTimeout)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Minutes(5));
     registrar.Parameter("data_node_address", &TThis::DataNodeAddress)
         .Default();
     registrar.Parameter("master_rpc_timeout", &TThis::MasterRpcTimeout)
-        .Default(TDuration::Seconds(5));
+        .Default(TDuration::Seconds(10));
     registrar.Parameter("min_data_node_count", &TThis::MinDataNodeCount)
         .GreaterThanOrEqual(1)
         .Default(1);
