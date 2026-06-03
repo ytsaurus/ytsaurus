@@ -383,7 +383,9 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
         startCommitTimestamp,
         endCommitTimestamp);
 
-    int createdNodeCount = 0, prerequisiteCheckFailedCount = 0;
+    auto createdNodeCount = 0;
+    auto prerequisiteCheckFailedCount = 0;
+    auto leaseIssueFailedCount = 0;
     for (int requestIndex : std::views::iota(0, RequestCount)) {
         auto result = results[requestIndex];
         YT_VERIFY(result.IsOK());
@@ -400,6 +402,8 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
         } else if (error.GetCode() == NObjectClient::EErrorCode::PrerequisiteCheckFailed) {
             YT_VERIFY(startCommitTimestamp < endTimestamp);
             ++prerequisiteCheckFailedCount;
+        } else if (error.GetMessage().contains("Failed to issue leases for prerequisite transactions")) {
+            ++leaseIssueFailedCount;
         } else {
             YT_LOG_FATAL(error, "Unexpected error");
         }
@@ -407,9 +411,10 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
 
     YT_LOG_DEBUG(
         "Creations with prerequisite transaction are finished "
-        "(CreatedNodeCount: %v, PrerequisiteCheckFailedCount: %v, PrerequisiteTransactionId: %v)",
+        "(CreatedNodeCount: %v, PrerequisiteCheckFailedCount: %v, LeaseIssueFailedCount: %v, PrerequisiteTransactionId: %v)",
         createdNodeCount,
         prerequisiteCheckFailedCount,
+        leaseIssueFailedCount,
         prerequisiteTx->GetId());
 
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", prerequisiteTx->GetId()))).ValueOrThrow());
@@ -420,8 +425,8 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
     YT_VERIFY(error.GetCode() == NObjectClient::EErrorCode::PrerequisiteCheckFailed);
 
     WaitFor(Client_->SetNode(
-            "//sys/cypress_proxies/@config/object_service/enable_fast_path_prerequisite_transactions_check",
-            ConvertToYsonString(true)))
+        "//sys/cypress_proxies/@config/object_service/enable_fast_path_prerequisite_transactions_check",
+        ConvertToYsonString(true)))
         .ThrowOnError();
 }
 

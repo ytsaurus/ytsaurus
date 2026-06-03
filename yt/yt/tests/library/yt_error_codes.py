@@ -23,6 +23,7 @@ AuthorizationErrorCode = 901
 AccountLimitExceeded = 902
 IsAlreadyPresentInGroup = 908
 NoSuchUser = 910
+PrerequisiteCheckFailed = 1000
 InvalidObjectType = 1006
 TmpfsOverflow = 1124
 JobProxyUnavailable = 1127

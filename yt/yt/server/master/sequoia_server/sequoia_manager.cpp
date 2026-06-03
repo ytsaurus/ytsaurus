@@ -191,7 +191,7 @@ private:
             leaseManager,
             hiveManager,
             multicellManager->GetCellId(),
-            /*synWithAllLeaseTransactionCoordinators*/ true,
+            /*syncWithAllLeaseTransactionCoordinators*/ true,
             BIND([multicellManager] (TCellTag cellTag) {
                 return multicellManager->GetCellId(cellTag);
             }),
@@ -199,10 +199,19 @@ private:
                 return multicellManager->FindMasterChannel(cellTag, EPeerKind::Leader);
             })));
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            resultOrError,
-            NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-            "Failed to issue leases for prerequisite transactions");
+        if (!resultOrError.IsOK()) {
+            if (IsRetriableError(resultOrError)) {
+                THROW_ERROR_EXCEPTION("Failed to issue leases for prerequisite transactions")
+                    << TErrorAttribute("prerequisite_transaction_ids", prerequisiteTransactionIds)
+                    << resultOrError;
+            } else {
+                THROW_ERROR_EXCEPTION(
+                    NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                    "Failed to issue leases for prerequisite transactions")
+                    << TErrorAttribute("prerequisite_transaction_ids", prerequisiteTransactionIds)
+                    << resultOrError;
+            }
+        }
     }
 
     void HydraStartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)

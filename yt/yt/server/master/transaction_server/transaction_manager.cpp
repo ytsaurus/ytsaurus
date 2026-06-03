@@ -2972,7 +2972,8 @@ private:
         }
         auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
         if (!cellLeaseTransactionIds) {
-            THROW_ERROR_EXCEPTION("Requested to issue leases for missing cell")
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable,
+                "Requested to issue leases for missing cell")
                 << TErrorAttribute("transaction_ids", transactionIds)
                 << TErrorAttribute("cell_id", cellId)
                 << TErrorAttribute("cell_type", cellType);
