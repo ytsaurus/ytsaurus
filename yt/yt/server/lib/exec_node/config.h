@@ -382,6 +382,8 @@ struct TChunkCacheDynamicConfig
 {
     bool TestCacheLocationDisabling;
 
+    bool TestDisableOnOutOfDiskSpace;
+
     REGISTER_YSON_STRUCT(TChunkCacheDynamicConfig);
 
     static void Register(TRegistrar registrar);

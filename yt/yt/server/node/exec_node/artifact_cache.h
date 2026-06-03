@@ -68,7 +68,7 @@ public:
         const TArtifactDownloadOptions& artifactDownloadOptions);
 
     //! Remove chunks from cache.
-    TFuture<void> RemoveArtifactsByLocation(const TCacheLocationPtr& location);
+    TFuture<void> RemoveArtifactsByLocation(const TCacheLocationPtr& location, bool forbidSlruResurrection);
 
     //! Cache locations.
     DECLARE_BYREF_RO_PROPERTY(std::vector<TCacheLocationPtr>, Locations);
