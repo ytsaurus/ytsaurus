@@ -205,8 +205,8 @@ select a from primary.`//tmp/t` where $f(unwrap(a));
 
 
 class TestUdfsWithDynamicConfigWithProcesses(TestUdfsWithDynamicConfig):
-    YQL_SUBPROCESSES_COUNT = 8
+    YQL_SUBPROCESS_COUNT = 8
 
 
 class TestUdfsWithProcesses(TestUdfs):
-    YQL_SUBPROCESSES_COUNT = 8
+    YQL_SUBPROCESS_COUNT = 8

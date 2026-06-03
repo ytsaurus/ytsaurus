@@ -2041,17 +2041,17 @@ class TestDeclareRpcProxy(TestDeclare):
 
 @authors("staketd")
 class TestYqlAgentWithProcesses(TestYqlAgent):
-    YQL_SUBPROCESSES_COUNT = 8
+    YQL_SUBPROCESS_COUNT = 8
 
 
 @authors("staketd")
 class TestYqlAgentDynConfigWithProcesses(TestYqlAgentDynConfig):
-    YQL_SUBPROCESSES_COUNT = 8
+    YQL_SUBPROCESS_COUNT = 8
 
 
 @authors("staketd")
 class TestMaxYqlVersionConfigAttrWithProcesses(TestMaxYqlVersionConfigAttr):
-    YQL_SUBPROCESSES_COUNT = 8
+    YQL_SUBPROCESS_COUNT = 8
 
 
 @authors("a-romanov")
@@ -2203,7 +2203,7 @@ class TestsDDL(TestQueriesYqlSimpleBase):
 
 @authors("mpereskokova")
 class TestStackOverflowWithProcesses(TestStackOverflow):
-    YQL_SUBPROCESSES_COUNT = 8
+    YQL_SUBPROCESS_COUNT = 8
 
 
 @authors("a-romanov")

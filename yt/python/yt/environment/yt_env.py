@@ -1325,7 +1325,7 @@ class YTInstance(object):
         if has_some_bind_failure:
             raise YtEnvRetriableError(f"Process {name} failed to bind on some of ports")
 
-    def _run(self, args, name, env=None, number=None):
+    def _run(self, args, name, env=None, number=None, update_args=True):
         with self._lock:
             index = number if number is not None else 0
             name_with_number = name
@@ -1339,9 +1339,11 @@ class YTInstance(object):
             stderr_path = os.path.join(self.stderrs_path, "stderr.{0}".format(name_with_number))
             self._stderr_paths[name].append(stderr_path)
 
-            if self._kill_child_processes:
-                args += ["--pdeathsig", str(int(signal.SIGTERM))]
-            args += ["--setsid"]
+            if update_args:
+                # TODO(mpereskokova): Configure these params via environment variables
+                if self._kill_child_processes:
+                    args += ["--pdeathsig", str(int(signal.SIGTERM))]
+                args += ["--setsid"]
 
             if env is None:
                 env = copy.copy(os.environ)
@@ -1382,6 +1384,15 @@ class YTInstance(object):
         logger.info(f"Process {pid} backtraces:")
         for line in gdb_output.splitlines():
             logger.info(line)
+
+    def run_external_component(self, name, args):
+        logger.info("Starting external component %s", name)
+        with push_front_env_path(self.bin_path):
+            run_result = self._run(args, name, update_args=False)
+            if run_result is None:
+                raise YtError("Could not start external component '{}'".format(name))
+
+            return run_result.pid
 
     def run_yt_component(self, component, config_paths, name=None, indexes=None, config_option=None, custom_paths=None):
         if config_option is None:
