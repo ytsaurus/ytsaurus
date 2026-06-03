@@ -98,6 +98,7 @@ void TStatisticsReporter::Reconfigure(const TTabletNodeDynamicConfigPtr& config)
     Enable_ = statisticsReporterConfig->Enable;
     MaxTabletsPerTransaction_ = statisticsReporterConfig->MaxTabletsPerTransaction;
     ReportBackoffTime_ = statisticsReporterConfig->ReportBackoffTime;
+    WriteTimeout_ = statisticsReporterConfig->WriteTimeout;
     TablePath_ = statisticsReporterConfig->TablePath;
     guard.Release();
 
@@ -188,6 +189,7 @@ TUnversionedRow TStatisticsReporter::MakeUnversionedRow(
 }
 
 void TStatisticsReporter::WriteRows(
+    TDuration writeTimeout,
     const TYPath& tablePath,
     TRange<TUnversionedRow> rows,
     const TRowBufferPtr& rowBuffer,
@@ -208,7 +210,7 @@ void TStatisticsReporter::WriteRows(
         NameTable,
         MakeSharedRange(rows, rowBuffer));
 
-    WaitFor(transaction->Commit())
+    WaitFor(transaction->Commit().WithTimeout(writeTimeout))
         .ThrowOnError();
 
     auto elapsedTime = timer.GetElapsedTime();
@@ -336,6 +338,7 @@ void TStatisticsReporter::ProcessStatistics()
     auto tablePath = TablePath_;
     i64 maxTabletsPerTransaction = MaxTabletsPerTransaction_;
     auto reportBackoffTime = ReportBackoffTime_;
+    auto writeTimeout = WriteTimeout_;
     guard.Release();
 
     auto latestTabletSnapshots = GetLatestTabletSnapshots();
@@ -360,14 +363,16 @@ void TStatisticsReporter::ProcessStatistics()
         tabletsWithStatistics,
         tablePath,
         maxTabletsPerTransaction,
-        reportBackoffTime);
+        reportBackoffTime,
+        writeTimeout);
 }
 
 void TStatisticsReporter::ReportStatistics(
     const std::vector<TTabletSnapshotPtr>& tabletsWithStatistics,
     const NYPath::TYPath& tablePath,
     i64 maxTabletsPerTransaction,
-    TDuration reportBackoffTime)
+    TDuration reportBackoffTime,
+    TDuration writeTimeout)
 {
     auto context = CreateTraceContextFromCurrent("TabletStatisticsReporter");
     TTraceContextGuard contextGuard(context);
@@ -378,7 +383,7 @@ void TStatisticsReporter::ReportStatistics(
             maxTabletsPerTransaction,
             /*keyColumnsOnly*/ false,
             tabletsWithStatistics,
-            BIND(&TStatisticsReporter::WriteRows, MakeWeak(this)));
+            BIND(&TStatisticsReporter::WriteRows, MakeWeak(this), writeTimeout));
         ReportCount_.Increment();
         YT_LOG_DEBUG("Finished reporting tablet statistics");
     } catch (const std::exception& ex) {

@@ -720,7 +720,8 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
 
     @authors("atalmenev")
     def test_performance_counters_after_smooth_move(self):
-        sync_create_cells(2)
+        set("//sys/tablet_cell_bundles/default/@cell_balancer_config/enable_tablet_cell_smoothing", False)
+        sync_create_cells(1)
 
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")

@@ -43,6 +43,7 @@ private:
     bool Enable_ = false;
     int MaxTabletsPerTransaction_;
     TDuration ReportBackoffTime_;
+    TDuration WriteTimeout_;
     NYPath::TYPath TablePath_;
 
     static std::pair<i64, i64> GetDataSizes(const TTabletSnapshotPtr& tabletSnapshot);
@@ -53,6 +54,7 @@ private:
         bool keyColumnsOnly = false);
 
     void WriteRows(
+        TDuration writeTimeout,
         const NYPath::TYPath& tablePath,
         TRange<TUnversionedRow> rows,
         const NTableClient::TRowBufferPtr& rowBuffer,
@@ -75,7 +77,8 @@ private:
         const std::vector<TTabletSnapshotPtr>& tabletsWithStatistics,
         const NYPath::TYPath& tablePath,
         i64 maxTabletsPerTransaction,
-        TDuration loadBackoffTime);
+        TDuration loadBackoffTime,
+        TDuration writeTimeout);
 
     void LoadUninitializedStatistics(
         const std::vector<TTabletSnapshotPtr>& tabletsWithoutStatistics,
