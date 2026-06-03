@@ -1310,8 +1310,6 @@ class YTEnvSetup(object):
             if cls.USE_CUSTOM_ROOTFS:
                 update_inplace(config, get_custom_rootfs_delta_node_config())
 
-            config["ref_counted_tracker_dump_period"] = 5000
-
             # TODO(khlebnikov) move "breakpoints" out of "tmp" which shouldn't be shared.
             shared_dir = os.path.join(cluster_path, "tmp")
             if not os.path.exists(shared_dir):
