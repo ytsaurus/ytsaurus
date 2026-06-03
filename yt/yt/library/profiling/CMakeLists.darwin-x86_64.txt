@@ -50,6 +50,7 @@ target_sources(yt-library-profiling PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/percpu.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/sensor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/sensor_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/tag.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/testing.cpp
 )

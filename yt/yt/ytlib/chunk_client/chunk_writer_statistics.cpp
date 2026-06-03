@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/misc/statistics.h>
 
-#include <yt/yt/library/profiling/solomon/sensor.h>
-
 namespace NYT::NChunkClient {
 
 using namespace NStatisticPath;
