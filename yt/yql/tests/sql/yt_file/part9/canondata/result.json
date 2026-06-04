@@ -1098,16 +1098,16 @@
     ],
     "test.test[join-cbo_7tables--Debug]": [
         {
-            "checksum": "20b8d8776f184fe55ebb139e564e1f26",
-            "size": 20170,
-            "uri": "https://{canondata_backend}/1903885/121522ac29d301614615994e3195a7f1e1f4a199/resource.tar.gz#test.test_join-cbo_7tables--Debug_/opt.yql"
+            "checksum": "b899d0141244d8da5e85469375e07b03",
+            "size": 20244,
+            "uri": "https://{canondata_backend}/937458/0f74c55630b8435e221da6910b359cafcf0f1737/resource.tar.gz#test.test_join-cbo_7tables--Debug_/opt.yql"
         }
     ],
     "test.test[join-cbo_7tables--Plan]": [
         {
-            "checksum": "a69aeba5e6358e6025771e6d32330aa4",
+            "checksum": "ba56f6fbe178c21c032a82711e3d20b3",
             "size": 19692,
-            "uri": "https://{canondata_backend}/1937367/65fc5a6ac392347ec8aaf5240a408deff833bdb7/resource.tar.gz#test.test_join-cbo_7tables--Plan_/plan.txt"
+            "uri": "https://{canondata_backend}/937458/0f74c55630b8435e221da6910b359cafcf0f1737/resource.tar.gz#test.test_join-cbo_7tables--Plan_/plan.txt"
         }
     ],
     "test.test[join-cbo_7tables--Results]": [
