@@ -30,6 +30,7 @@ from yt_gpu_scheduler_helpers import (
     get_operation_from_gpu_policy_orchid, get_node_from_gpu_policy_orchid, get_operation_gpu_assignments_from_gpu_policy_orchid,
     wait_for_operations_in_gpu_policy_orchid, wait_for_assignments_in_gpu_policy_orchid, check_assignment_from_gpu_policy_orchid, check_operation_from_gpu_policy_orchid,
     check_gpu_allocations_from_gpu_policy_orchid, wait_for_gpu_allocations_empty_in_gpu_policy_orchid,
+    wait_for_allocation_preempted, wait_for_gpu_event, read_gpu_events,
 )
 
 
@@ -1263,7 +1264,261 @@ class TestAllocatingGpuPolicyNetworkPriority(AllocatingGpuSchedulingPolicyBaseCo
 
 ##################################################################
 
-class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
+class TestAllocatingGpuSchedulingPolicyPreemption(AllocatingGpuSchedulingPolicyBaseConfig):
+    def _scheduler_log_file(self):
+        return self.path_to_run + "/logs/scheduler-0.json.log"
+
+    def _scheduler_address(self):
+        return ls("//sys/scheduler/instances")[0]
+
+    @authors("yaishenka")
+    def test_preempt_assignment_exceeding_resource_limits(self):
+        scheduler_log_file = self._scheduler_log_file()
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=4,
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 4)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 16)
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=4, exactly=True)
+
+        update_op_parameters(
+            op.id,
+            parameters={"scheduling_options_per_pool_tree": {"gpu": {"resource_limits": {"gpu": 8}}}},
+        )
+
+        events = wait_for_allocation_preempted(
+            scheduler_log_file,
+            from_barrier,
+            op,
+            reason="resource_limits_violated",
+            count=2,
+        )
+        assert len(events) == 2
+        for event in events:
+            assert event["preempted_usage"]["gpu"] == 4
+            assert event["preemption_info"]["reason"] == "resource_limits_violated"
+            assert op.id in event["preemption_info"]["description"]
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 8)
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=2, exactly=True)
+
+        update_op_parameters(
+            op.id,
+            parameters={"scheduling_options_per_pool_tree": {"gpu": {"resource_limits": {"gpu": 0}}}},
+        )
+
+        wait_for_allocation_preempted(
+            scheduler_log_file,
+            from_barrier,
+            op,
+            reason="resource_limits_violated",
+            count=4,
+        )
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
+
+    @authors("yaishenka")
+    def test_starving_regular_op_preempts_low_priority(self):
+        create_pool(
+            "guaranteed_pool",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 8}},
+        )
+        create_pool(
+            "no_guaranteed_pool",
+            pool_tree="gpu",
+            wait_for_orchid=False,
+        )
+
+        scheduler_log_file = self._scheduler_log_file()
+
+        filler_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=2,
+            spec={"pool": "no_guaranteed_pool"},
+        )
+
+        wait(lambda: len(filler_op.get_running_jobs()) == 2)
+        wait(lambda: get(scheduler_orchid_operation_path(filler_op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 16)
+        wait_for_assignments_in_gpu_policy_orchid(filler_op, assignment_count=2, exactly=True)
+
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        starving_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=1,
+            spec={"pool": "guaranteed_pool"},
+        )
+
+        wait(lambda: len(starving_op.get_running_jobs()) == 1)
+
+        scheduling_event = wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            event_type="allocation_scheduled",
+            op=starving_op,
+        )
+        target_node = scheduling_event["node_address"]
+
+        events = wait_for_allocation_preempted(
+            scheduler_log_file,
+            from_barrier,
+            filler_op,
+            reason="preemption",
+        )
+        # The starving op needs only 4 GPU. Preempting one filler frees a full
+        # 8-GPU node — the planner should pick exactly one assignment.
+        assert len(events) == 1
+        event = events[0]
+        assert event["preempted_usage"]["gpu"] == 8
+        assert event["node_address"] == target_node
+        assert event["preemption_info"]["reason"] == "preemption"
+        assert event["preemption_info"]["preempted_for_operation_id"] == starving_op.id
+
+    @authors("yaishenka")
+    def test_disable_operation_removes_preliminary_assignments(self):
+        scheduler_log_file = self._scheduler_log_file()
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        # Hold the CA's ScheduleAllocation inside its delay so the planner
+        # places a preliminary assignment but the heartbeat never realizes it.
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            spec={"testing": {"inside_schedule_allocation_delay": {"duration": 60000, "type": "sync"}}},
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+
+        assignment = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
+        assert assignment.get("allocation_id", yson.YsonEntity()) == yson.YsonEntity(), \
+            "assignment should still be preliminary at this point"
+
+        op.abort()
+
+        # DisableOperation runs RemoveAssignment (silent) on the preliminary
+        # assignment; UnregisterOperation then has nothing left to preempt.
+        wait_operation_unregistered(op.id)
+
+        to_barrier = write_log_barrier(self._scheduler_address())
+        events = read_gpu_events(scheduler_log_file, from_barrier, to_barrier=to_barrier, op=op)
+        event_types = {event["event_type"] for event in events}
+
+        # Sanity: the planner did place the preliminary assignment.
+        assert "assignment_added" in event_types
+        # The contract: RemoveAssignment is silent and the assignment never
+        # realized, so none of these events should appear for this op.
+        for forbidden in ("assignment_preempted", "allocation_scheduled", "allocation_preempted"):
+            assert forbidden not in event_types, \
+                f"unexpected {forbidden} event for op disabled with only preliminary assignment"
+
+    @authors("yaishenka")
+    def test_full_host_aggressive_preemption_evicts_non_fhmb(self):
+        # Goal: isolate trigger #3 (full-host aggressive preemption) from
+        # trigger #2 (regular preemptive planning) and from the FHMB
+        # self-preemptible failure mode.
+        #
+        # Constraints from the GPU policy:
+        # - For regular ops: assignment->Preemptible is true iff cumulative
+        #   usage_share exceeds fair_share
+        #   (assignment_plan_update_context_detail.cpp:425-427).
+        # - For FHMB ops: operation->Preemptible is true iff fair_share is
+        #   effectively zero (line 404). A preemptible FHMB op crashes
+        #   assignment_plan_update.cpp:284 (YT_VERIFY(!operation->IsPreemptible())).
+        #
+        # Both invariants must hold simultaneously, so total guarantees must
+        # cover the cluster (16 GPU) with the FHMB pool getting a non-zero
+        # slice. Two regular pools (guarantee=4 each) host an op using 8 GPU
+        # apiece: of the two 4-GPU assignments, the first stays non-preemptible
+        # (cumulative=4 == fair_share=4), the second is preemptible
+        # (cumulative=8 > fair_share). With one preemptible 4-GPU assignment
+        # per node, trigger #2's discount can free at most 4 GPU per node —
+        # below the FHMB's 8-GPU demand. After the aggressive timeout, trigger
+        # #3 evicts the remaining 4 GPU of non-preemptible regular assignments
+        # to free a full host.
+        create_pool(
+            "regular_pool_a",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 4}},
+        )
+        create_pool(
+            "regular_pool_b",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 4}},
+        )
+        create_pool(
+            "fhmb_pool",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 8}},
+            wait_for_orchid=False,
+        )
+
+        scheduler_log_file = self._scheduler_log_file()
+
+        regular_op_a = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=2,
+            spec={"pool": "regular_pool_a"},
+        )
+        regular_op_b = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=2,
+            spec={"pool": "regular_pool_b"},
+        )
+
+        wait(lambda: len(regular_op_a.get_running_jobs()) == 2)
+        wait(lambda: len(regular_op_b.get_running_jobs()) == 2)
+        wait_for_assignments_in_gpu_policy_orchid(regular_op_a, assignment_count=2, exactly=True)
+        wait_for_assignments_in_gpu_policy_orchid(regular_op_b, assignment_count=2, exactly=True)
+
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        fhmb_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"pool": "fhmb_pool"},
+        )
+
+        # Bin-packing may place op_a / op_b either both on separate nodes or
+        # interleaved across the two — the test doesn't care which.
+        # Wait until enough aggressive-preemption events have freed a full host.
+        def aggressive_events():
+            return [
+                event
+                for event in read_gpu_events(scheduler_log_file, from_barrier, event_type="allocation_preempted")
+                if event.get("reason") == "full_host_aggressive_preemption"
+            ]
+
+        wait(lambda: sum(event["preempted_usage"]["gpu"] for event in aggressive_events()) >= 8)
+
+        events = aggressive_events()
+        target_node = events[0]["node_address"]
+        total_freed = 0
+        for event in events:
+            assert event["node_address"] == target_node, \
+                "aggressive preemption should evict from a single node"
+            assert event["preemption_info"]["reason"] == "full_host_aggressive_preemption"
+            assert event["operation_id"] in (regular_op_a.id, regular_op_b.id)
+            total_freed += event["preempted_usage"]["gpu"]
+        assert total_freed == 8
+
+        # Sanity: FHMB op gets scheduled on the freed node.
+        fhmb_scheduled = wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            event_type="allocation_scheduled",
+            op=fhmb_op,
+        )
+        assert fhmb_scheduled["node_address"] == target_node
+        assert fhmb_scheduled["resource_usage"]["gpu"] == 8
+
+
+##################################################################
+
+class AllocatingGpuSchedulingPolicyMultiModuleBaseConfig(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 4
@@ -1313,12 +1568,12 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
     RACKS = ["SAS1", "VLA1"]
 
     def _setup_data_centers(self, node_count_per_data_center, ibc_to_dc=None):
-        dc_to_rack = dict(zip(TestAllocatingGpuSchedulingPolicyMultiModule.DATA_CENTERS, TestAllocatingGpuSchedulingPolicyMultiModule.RACKS))
+        dc_to_rack = dict(zip(self.DATA_CENTERS, self.RACKS))
         data_center_index_per_node = sum([[i] * count for i, count in enumerate(node_count_per_data_center)], [])
 
         def get_node_rack(i, node):
             if ibc_to_dc is None:
-                return TestAllocatingGpuSchedulingPolicyMultiModule.RACKS[data_center_index_per_node[i]]
+                return self.RACKS[data_center_index_per_node[i]]
             ibc = get("//sys/cluster_nodes/{}/@annotations/infiniband_cluster_tag".format(node))
             return dc_to_rack[ibc_to_dc[ibc]]
 
@@ -1326,12 +1581,12 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
         for i, node in enumerate(nodes):
             set("//sys/cluster_nodes/{}/@rack".format(node), get_node_rack(i, node))
 
-        rack_to_dc = dict(zip(TestAllocatingGpuSchedulingPolicyMultiModule.RACKS, TestAllocatingGpuSchedulingPolicyMultiModule.DATA_CENTERS))
+        rack_to_dc = dict(zip(self.RACKS, self.DATA_CENTERS))
         for i, node in enumerate(nodes):
             wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == rack_to_dc[get_node_rack(i, node)])
 
     def setup_method(self, method):
-        super(TestAllocatingGpuSchedulingPolicyMultiModule, self).setup_method(method)
+        super(AllocatingGpuSchedulingPolicyMultiModuleBaseConfig, self).setup_method(method)
 
         update_pool_tree_config("default", {"node_tag_filter": "!gpu"})
         create_pool_tree("gpu", config={
@@ -1341,7 +1596,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
                 "mode": "allocating",
                 "plan_update_period": 100,
                 "module_type": "data_center",
-                "modules": TestAllocatingGpuSchedulingPolicyMultiModule.DATA_CENTERS,
+                "modules": self.DATA_CENTERS,
                 "full_host_aggressive_preemption_timeout": 1000,
             },
             "preemptive_scheduling_backoff": 0,
@@ -1355,7 +1610,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
         set("//sys/pool_trees/@default_tree", "gpu")
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/default_pool_tree", default=None) == "gpu")
 
-        dc_to_rack = dict(zip(TestAllocatingGpuSchedulingPolicyMultiModule.DATA_CENTERS, TestAllocatingGpuSchedulingPolicyMultiModule.RACKS))
+        dc_to_rack = dict(zip(self.DATA_CENTERS, self.RACKS))
         for dc, r in dc_to_rack.items():
             create_data_center(dc)
             create_rack(r)
@@ -1364,11 +1619,15 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
         for node in ls("//sys/cluster_nodes"):
             set("//sys/cluster_nodes/{}/@user_tags".format(node), ["gpu"])
 
-        module_count = TestAllocatingGpuSchedulingPolicyMultiModule.NUM_NODES // 2
+        module_count = self.NUM_NODES // 2
         self._setup_data_centers([module_count, module_count])
 
-        wait(lambda: get(scheduler_new_orchid_pool_tree_path("gpu") + "/node_count") == TestAllocatingGpuSchedulingPolicyMultiModule.NUM_NODES)
+        wait(lambda: get(scheduler_new_orchid_pool_tree_path("gpu") + "/node_count") == self.NUM_NODES)
 
+
+##################################################################
+
+class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicyMultiModuleBaseConfig):
     @authors("yaishenka")
     def test_simple_full_host_vanilla(self):
         op = run_sleeping_vanilla(
@@ -1625,6 +1884,201 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
         update_pool_tree_config_option("gpu", "gpu_scheduling_policy/module_reconsideration_timeout", 5000)
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/grouped_needed_resources", default=None) == {})
         wait_for_assignments_in_gpu_policy_orchid(op, 2)
+
+
+##################################################################
+
+class TestAllocatingGpuSchedulingPolicyMultiModulePreemption(AllocatingGpuSchedulingPolicyMultiModuleBaseConfig):
+    def _scheduler_log_file(self):
+        return self.path_to_run + "/logs/scheduler-0.json.log"
+
+    def _scheduler_address(self):
+        return ls("//sys/scheduler/instances")[0]
+
+    @authors("yaishenka")
+    def test_full_host_op_evicted_from_module_after_timeout(self):
+        # Speed up the reconsideration timeout; push the aggressive timeout
+        # far out so trigger #3 doesn't fire first.
+        update_pool_tree_config_option(
+            "gpu",
+            "gpu_scheduling_policy/module_reconsideration_timeout",
+            2000,
+        )
+        update_pool_tree_config_option(
+            "gpu",
+            "gpu_scheduling_policy/full_host_aggressive_preemption_timeout",
+            60000,
+        )
+
+        # Pin a small filler op to one VLA node so that the FHMB op (pinned
+        # to VLA via scheduling_modules) cannot place a full host there.
+        # With only 1 free VLA node and demand=2 hosts, the FHMB op waits
+        # past module_reconsideration_timeout and gets evicted.
+        vla_nodes = [
+            n for n in ls("//sys/cluster_nodes")
+            if get(f"//sys/cluster_nodes/{n}/@data_center") == "VLA"
+        ]
+        assert len(vla_nodes) == 2
+        target_vla_node = vla_nodes[0]
+
+        create_pool(
+            "filler_pool",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 4}},
+        )
+        create_pool(
+            "fhmb_pool",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 16}},
+            wait_for_orchid=False,
+        )
+
+        filler_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            spec={
+                "pool": "filler_pool",
+                "scheduling_tag_filter": target_vla_node,
+            },
+        )
+
+        wait(lambda: len(filler_op.get_running_jobs()) == 1)
+        wait_for_assignments_in_gpu_policy_orchid(filler_op, assignment_count=1, exactly=True)
+
+        scheduler_log_file = self._scheduler_log_file()
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        fhmb_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=2,
+            spec={
+                "pool": "fhmb_pool",
+                "scheduling_modules": ["VLA"],
+                "is_gang": True,
+            },
+        )
+
+        # After module_reconsideration_timeout, the FHMB op's single placed
+        # full-host allocation is preempted via EvictOperationFromSchedulingModule.
+        events = wait_for_allocation_preempted(
+            scheduler_log_file,
+            from_barrier,
+            fhmb_op,
+            reason="eviction_from_scheduling_module",
+        )
+        assert len(events) >= 1
+        event = events[0]
+        assert event["preempted_usage"]["gpu"] == 8
+        assert event["preemption_info"]["reason"] == "eviction_from_scheduling_module"
+
+    @authors("yaishenka")
+    def test_full_host_op_rebound_preempts_old_module_assignments(self):
+        # Trigger #6 fires inside BindFullHostOperationToModule when an
+        # operation has assignments in module X (operationUsedModule = X)
+        # but the planner picks a different module Y as the bind target.
+        # That requires the op to be in a transient state where
+        # SchedulingModule is unset *and* Assignments_ is non-empty. The
+        # only path to that state is via InitializeModuleStates
+        # (assignment_plan_update.cpp:186): if the op is preemptible at
+        # plan-tick time, the planner resets its SchedulingModule but
+        # leaves its assignments alone.
+        #
+        # For an FHMB gang operation, SetPreemptible is driven by
+        # Dominates(epsilon, fair_share) (context_detail.cpp:404). With
+        # enable_step_function_for_gang_operations on, the fair-share
+        # update zeroes the gang's fair_share whenever it can't be funded
+        # in full — so we can flip op_gang preemptible by introducing a
+        # pool that swallows the rest of the cluster.
+        #
+        # While op_gang is preemptible, UpdateOperationResources zeroes
+        # its ready-to-assign count, so the planner does NOT add it to
+        # operationsToPlan (avoiding the YT_VERIFY(!preemptible) at
+        # assignment_plan_update.cpp:284). That gives us a safe window
+        # to also ban a node in op_gang's original module: the ban runs
+        # UpdateNodeDescriptor → PreemptAllNodeAssignments synchronously
+        # and removes one of the two existing assignments without
+        # disturbing the (still-preemptible) op_gang.
+        #
+        # Sequence:
+        #   1. Place a 2-job gang FHMB op_gang.
+        #   2. Start op_filler in pool_guaranteed (strong_guarantee = full
+        #      cluster). op_filler's scheduling_tag_filter matches no node,
+        #      so it claims the pool's fair share without ever placing or
+        #      preempting anything.
+        #   3. Wait for op_gang.scheduling_module to be reset (orchid
+        #      signal that the gang step-function zeroed fair_share and
+        #      InitializeModuleStates cleared the bind).
+        #   4. Ban one node in op_gang's original module. The synchronous
+        #      preemption shrinks op_gang.Assignments_ from 2 to 1; ready
+        #      stays 0 because op_gang is still preemptible.
+        #   5. Abort op_filler. op_gang.fair_share recovers → next plan
+        #      tick marks op_gang non-preemptible and recomputes its
+        #      ready-to-assign count (now 1).
+        #   6. ProcessFullHostMBOps adds op_gang via shouldPlanModule
+        #      (!preemptible, !SchedulingModule, !IsZeroAssignedUsage).
+        #      BindFullHostOperationToModule sees the original module's
+        #      GetNodeCount = 1 (the banned node is gone from AvailableNodes_)
+        #      < demand = 2 → infeasible. The other module is feasible →
+        #      operationUsedModule != bestModule → trigger #6 fires and
+        #      preempts the surviving original-module assignment.
+        update_scheduler_config("node_registration_timeout", 1000)
+        update_scheduler_config("node_heartbeat_timeout", 1000)
+        update_scheduler_config("node_reconnection_timeout", 1000)
+        update_pool_tree_config_option("gpu", "enable_step_function_for_gang_operations", True)
+
+        create_pool("pool_gang", pool_tree="gpu")
+        create_pool(
+            "pool_guaranteed",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 32}},
+        )
+
+        op_gang = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=2,
+            spec={"pool": "pool_gang", "is_gang": True},
+        )
+
+        wait(lambda: len(op_gang.get_running_jobs()) == 2)
+        wait(lambda: get(scheduler_orchid_operation_path(op_gang.id, tree="gpu") + "/grouped_needed_resources", default=None) == {})
+        wait_for_assignments_in_gpu_policy_orchid(op_gang, assignment_count=2, exactly=True)
+
+        initial_assignments = get_operation_gpu_assignments_from_gpu_policy_orchid(op_gang)
+        initial_nodes = [a["node_address"] for a in initial_assignments]
+        initial_module = get(f"//sys/cluster_nodes/{initial_nodes[0]}/@data_center")
+
+        op_filler = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 6, "enable_gpu_layers": False},
+            job_count=5,
+            spec={
+                "pool": "pool_guaranteed",
+                "scheduling_tag_filter": "nonexistent_tag_for_op_b",
+            },
+        )
+
+        def op_gang_null_module():
+            op_view = get_operation_from_gpu_policy_orchid(op_gang)
+            return op_view.get("scheduling_module", yson.YsonEntity()) == yson.YsonEntity()
+        wait(op_gang_null_module)
+
+        set_node_banned(initial_nodes[0], True, wait_for_master=True, wait_for_scheduler=True)
+        wait(lambda: not exists(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{initial_nodes[0]}"))
+
+        scheduler_log_file = self._scheduler_log_file()
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        op_filler.abort()
+
+        events = wait_for_allocation_preempted(
+            scheduler_log_file,
+            from_barrier,
+            op_gang,
+            reason="operation_bound_to_other_module",
+        )
+        assert len(events) >= 1
+        event = events[0]
+        assert event["preempted_usage"]["gpu"] == 8
+        assert event["preemption_info"]["reason"] == "operation_bound_to_other_module"
+        assert get(f"//sys/cluster_nodes/{event['node_address']}/@data_center") == initial_module
 
 
 ##################################################################
