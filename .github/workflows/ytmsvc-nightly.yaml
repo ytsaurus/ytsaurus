@@ -1,9 +1,16 @@
-name: Release YT microservices
+name: Release YT microservices Nightly
 
 on:
   push:
+    branches:
+      - main
     tags:
-      - 'docker/ytmsvc/0\.[0-9]+\.[0-9]+*'
+      - 'docker-test/ytmsvc/0\.[0-9]+\.[0-9]+*'
+    paths:
+      - '.github/workflows/ytmsvc-nightly.yaml'
+      - 'yt/docker/charts/ytmsvc-chart/**'
+      - 'yt/docker/ytmsvc/**'
+      - 'yt/microservices/**'
 
 jobs:
   start-vm:
@@ -55,16 +62,19 @@ jobs:
       - name: Docker login
         run: |
           echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+
       - name: Parse Tag
         id: tag
         run: |
-          echo "RELEASE_VERSION=$(echo ${GITHUB_REF#refs/*/docker/ytmsvc/})" >> $GITHUB_OUTPUT
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "RELEASE_VERSION=$(echo ${GITHUB_REF#refs/tags/docker-test/ytmsvc/})" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASE_VERSION=0.0.1-dev-${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build And Push Docker Image And Helm Chart
         run: |
-          make -C yt/docker/ytmsvc release-all \
-            VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} \
-            DOCKER_REPOSITORY=ytmsvc \
-            CHART_REPOSITORY=ytmsvc-chart
+          make -C yt/docker/ytmsvc release-all VERSION=${{ steps.tag.outputs.RELEASE_VERSION }}
 
   stop-vm:
     name: Stop VM
