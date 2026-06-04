@@ -1,10 +1,13 @@
 package tech.ytsaurus.client.request;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpcproxy.TReqStartShuffle;
 
 public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle>
@@ -16,11 +19,16 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
 
     private final GUID parentTransactionId;
 
+    private final Boolean usePushBasedShuffle;
+
     @Nullable
     private final String medium;
 
     @Nullable
     private final Integer replicationFactor;
+
+    @Nullable
+    private final TableSchema schema;
 
     public StartShuffle(BuilderBase<?> builder) {
         super(builder);
@@ -29,6 +37,8 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
         this.parentTransactionId = builder.parentTransactionId;
         this.medium = builder.medium;
         this.replicationFactor = builder.replicationFactor;
+        this.schema = builder.schema;
+        this.usePushBasedShuffle = builder.usePushBasedShuffle;
     }
 
     public static StartShuffle.Builder builder() {
@@ -41,7 +51,8 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
 
         builder.setAccount(account)
                 .setPartitionCount(partitionCount)
-                .setParentTransactionId(RpcUtil.toProto(parentTransactionId));
+                .setParentTransactionId(RpcUtil.toProto(parentTransactionId))
+                .setUsePushBasedShuffle(usePushBasedShuffle);
 
         if (medium != null) {
             builder.setMedium(medium);
@@ -49,6 +60,10 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
 
         if (replicationFactor != null) {
             builder.setReplicationFactor(replicationFactor);
+        }
+
+        if (schema != null) {
+            builder.setSchema(ApiServiceUtil.serializeTableSchema(schema));
         }
     }
 
@@ -58,7 +73,9 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
                 .setPartitionCount(partitionCount)
                 .setParentTransactionId(parentTransactionId)
                 .setMedium(medium)
-                .setReplicationFactor(replicationFactor);
+                .setReplicationFactor(replicationFactor)
+                .setSchema(schema)
+                .setUsePushBasedShuffle(usePushBasedShuffle);
     }
 
     public static class Builder extends StartShuffle.BuilderBase<StartShuffle.Builder> {
@@ -78,11 +95,16 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
 
         private GUID parentTransactionId;
 
+        private Boolean usePushBasedShuffle = false;
+
         @Nullable
         private String medium = null;
 
         @Nullable
         private Integer replicationFactor = null;
+
+        @Nullable
+        private TableSchema schema = null;
 
         public TBuilder setAccount(String account) {
             this.account = account;
@@ -99,6 +121,11 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
             return self();
         }
 
+        public TBuilder setUsePushBasedShuffle(Boolean usePushBasedShuffle) {
+            this.usePushBasedShuffle = usePushBasedShuffle;
+            return self();
+        }
+
         public TBuilder setMedium(@Nullable String medium) {
             this.medium = medium;
             return self();
@@ -107,6 +134,29 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
         public TBuilder setReplicationFactor(@Nullable Integer replicationFactor) {
             this.replicationFactor = replicationFactor;
             return self();
+        }
+
+        public TBuilder setSchema(@Nullable TableSchema schema) {
+            this.schema = schema;
+            return self();
+        }
+
+        @Override
+        protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+            sb.append("account=").append(account).append(", ");
+            sb.append("partitionCount=").append(partitionCount).append(", ");
+            sb.append("parentTransactionId=").append(parentTransactionId).append(", ");
+            sb.append("usePushBasedShuffle=").append(usePushBasedShuffle).append(", ");
+            if (medium != null) {
+                sb.append("medium=").append(medium).append(", ");
+            }
+            if (replicationFactor != null) {
+                sb.append("replicationFactor=").append(replicationFactor).append(", ");
+            }
+            if (schema != null) {
+                sb.append("schema=").append(schema).append(", ");
+            }
+            super.writeArgumentsLogString(sb);
         }
 
         public StartShuffle build() {
