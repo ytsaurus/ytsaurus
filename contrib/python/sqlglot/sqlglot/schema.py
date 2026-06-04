@@ -9,7 +9,7 @@ from sqlglot.errors import SchemaError
 from sqlglot.helper import dict_depth, first
 from sqlglot.trie import TrieResult, in_trie, new_trie
 
-from sqlglot.helper import mypyc_attr, trait
+from sqlglot.helper import trait
 
 
 if t.TYPE_CHECKING:
@@ -147,7 +147,6 @@ class Schema(abc.ABC):
         return True
 
 
-@mypyc_attr(allow_interpreted_subclasses=True)
 class AbstractMappingSchema:
     def __init__(
         self,
@@ -577,7 +576,7 @@ class MappingSchema(AbstractMappingSchema, Schema):
         normalize = self.normalize if normalize is None else normalize
 
         if isinstance(udf, str):
-            parsed: exp.Expression = exp.maybe_parse(udf, dialect=dialect)
+            parsed: exp.Expr = exp.maybe_parse(udf, dialect=dialect)
 
             if isinstance(parsed, exp.Anonymous):
                 udf = parsed
@@ -617,9 +616,7 @@ class MappingSchema(AbstractMappingSchema, Schema):
                         normalize_name(part, dialect=dialect, is_table=True, normalize=normalize)
                     )
 
-        self._normalized_table_cache[(t.cast(exp.Table, table), dialect, normalize)] = (
-            normalized_table
-        )
+        self._normalized_table_cache[(normalized_table, dialect, normalize)] = normalized_table
         return normalized_table
 
     def _normalize_name(
