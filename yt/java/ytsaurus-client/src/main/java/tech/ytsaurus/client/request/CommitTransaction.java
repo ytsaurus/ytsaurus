@@ -20,10 +20,13 @@ import tech.ytsaurus.rpcproxy.TReqCommitTransaction;
 public class CommitTransaction extends RequestBase<CommitTransaction.Builder, CommitTransaction>
         implements HighLevelRequest<TReqCommitTransaction.Builder> {
     private final GUID transactionId;
+    @Nullable
+    private final PrerequisiteOptions prerequisiteOptions;
 
     CommitTransaction(Builder builder) {
         super(builder);
         transactionId = Objects.requireNonNull(builder.transactionId);
+        prerequisiteOptions = builder.prerequisiteOptions;
     }
 
     public CommitTransaction(GUID transactionId) {
@@ -34,24 +37,44 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
         return new Builder();
     }
 
+    public GUID getTransactionId() {
+        return transactionId;
+    }
+
+    @Nullable
+    public PrerequisiteOptions getPrerequisiteOptions() {
+        return prerequisiteOptions;
+    }
+
     /**
      * Internal method: prepare request to send over network.
      */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCommitTransaction.Builder, ?> builder) {
         builder.body().setTransactionId(RpcUtil.toProto(transactionId));
+        if (prerequisiteOptions != null) {
+            prerequisiteOptions.writeTo(builder.body().getPrerequisiteOptionsBuilder());
+        }
     }
 
     @Override
     protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
         super.writeArgumentsLogString(sb);
         sb.append("TransactionId: ").append(transactionId).append(";");
+        if (prerequisiteOptions != null) {
+            sb.append("PrerequisiteOptions: {");
+            prerequisiteOptions.writeArgumentsLogString(sb);
+            sb.append("}; ");
+        }
     }
 
     @Override
     public Builder toBuilder() {
         return builder()
                 .setTransactionId(transactionId)
+                .setPrerequisiteOptions(prerequisiteOptions != null
+                        ? new PrerequisiteOptions(prerequisiteOptions)
+                        : null)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
@@ -62,6 +85,8 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
     public static class Builder extends RequestBase.Builder<Builder, CommitTransaction> {
         @Nullable
         private GUID transactionId;
+        @Nullable
+        private PrerequisiteOptions prerequisiteOptions;
 
         Builder() {
         }
@@ -69,10 +94,16 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
         Builder(Builder builder) {
             super(builder);
             transactionId = builder.transactionId;
+            prerequisiteOptions = builder.prerequisiteOptions;
         }
 
         public Builder setTransactionId(GUID transactionId) {
             this.transactionId = transactionId;
+            return this;
+        }
+
+        public Builder setPrerequisiteOptions(@Nullable PrerequisiteOptions prerequisiteOptions) {
+            this.prerequisiteOptions = prerequisiteOptions;
             return this;
         }
 
