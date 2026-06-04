@@ -22,6 +22,7 @@ import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
 import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.CheckPermission;
+import tech.ytsaurus.client.request.CommitTransaction;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
 import tech.ytsaurus.client.request.CreateNode;
@@ -225,6 +226,18 @@ public class ApiServiceTransaction extends Pingable implements TransactionalClie
     }
 
     public CompletableFuture<Void> commit() {
+        return commit(builder -> { });
+    }
+
+    /**
+     * Transaction id in the request is managed by this class and cannot be customized.
+     */
+    public CompletableFuture<Void> commit(Consumer<CommitTransaction.Builder> commitRequestCustomizer) {
+        CommitTransaction.Builder requestBuilder = CommitTransaction.builder();
+        commitRequestCustomizer.accept(requestBuilder);
+        requestBuilder.setTransactionId(id);
+        CommitTransaction request = requestBuilder.build();
+
         updateState(State.ACTIVE, State.COMMITTING);
 
         List<CompletableFuture<Void>> allModifyRowsResults = new ArrayList<>();
@@ -242,7 +255,7 @@ public class ApiServiceTransaction extends Pingable implements TransactionalClie
                 logger.warn("Cannot commit transaction since modify rows failed:", error);
                 abortImpl(false);
             }
-        }).thenCompose(unused -> client.commitTransaction(id)
+        }).thenCompose(unused -> client.commitTransaction(request)
                 .whenComplete((result, error) -> {
                     if (error == null) {
                         updateState(State.COMMITTING, State.COMMITTED);
