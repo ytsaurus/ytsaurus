@@ -371,8 +371,24 @@ def generate_data(args: argparse.Namespace):
             input_stream=[PricesSplit(i) for i in range(args.days_to_generate)],
         )
 
+        plain_nomenclature_view = '''select * from (
+    select
+        Unwrap(cast(TableRow() as Struct<'first_appeared': Timestamp,'id': Int64,'is_rx': Bool,'name': Text>)),
+        Unwrap(Yson::ConvertTo(meta_data, Struct<'min_temperature': Int64, 'max_temperature': Int64, 'origin': Text>))
+    from self
+) flatten columns'''
+        client.set(f"{path_to_nomenclature_table}/@_yql_view_plain", plain_nomenclature_view)
+
+
         output_order_tables = []
         client.create("map_node", path_to_orders_directory, force=args.force)
+
+        plain_orders_view = '''select * from (
+    select
+        Unwrap(cast(TableRow() as Struct<'date':Date,'nomenclature_id':Int64,'order_uuid':Uuid,'quantity':Int64>)),
+        Unwrap(Yson::ConvertTo(order_meta, Struct<'order_collector': Int64, 'warehouse_rack': Int64, 'quality': List<Text>>))
+    from self
+) flatten columns'''
 
         for day_index in range(args.days_to_generate):
             order_table_path = path_to_orders_directory + "/" + str(datetime.date.today() - timedelta(days=day_index))
@@ -384,6 +400,7 @@ def generate_data(args: argparse.Namespace):
                 recursive=True,
                 attributes={"schema": SCHEMA_ORDERS, "optimize_for": "scan"},
             )
+            client.set(f"{order_table_path}/@_yql_view_plain", plain_orders_view)
 
         client.run_map(
             GenerateOrders(
