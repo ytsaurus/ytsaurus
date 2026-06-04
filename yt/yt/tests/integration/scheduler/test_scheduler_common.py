@@ -15,7 +15,7 @@ from yt_commands import (
     run_test_vanilla, run_sleeping_vanilla, get_job_fail_context, dump_job_context,
     get_singular_chunk_id, PrepareTables,
     raises_yt_error, update_scheduler_config, update_controller_agent_config,
-    assert_statistics, sorted_dicts,
+    assert_statistics, sorted_dicts, get_allocation_id_from_job_id,
     set_node_banned, disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
     update_nodes_dynamic_config)
 
@@ -2082,3 +2082,73 @@ class TestSchedulerTracing(YTEnvSetup):
         })
 
         run_test_vanilla("sleep 0.1", track=True)
+
+
+##################################################################
+
+
+class TestAllocationGroupNameForwarding(YTEnvSetup, PrepareTables):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            # Make snapshots frequent so wait_for_fresh_snapshot() is fast.
+            "snapshot_period": 500,
+            "snapshot_writer": {
+                "upload_replication_factor": 1,
+                "min_upload_replication_factor": 1,
+            },
+        }
+    }
+
+    @authors("yaishenka")
+    def test_allocation_group_name_on_normal_creation(self):
+        self._prepare_tables()
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=with_breakpoint("BREAKPOINT"),
+        )
+
+        job_ids = wait_breakpoint()
+        allocation_id = get_allocation_id_from_job_id(job_ids[0])
+
+        orchid_path = \
+            f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/allocation_group_name"
+        wait(lambda: get(orchid_path) == "map")
+
+        release_breakpoint()
+        op.track()
+
+    @authors("yaishenka")
+    def test_allocation_group_name_on_revive(self):
+        self._prepare_tables()
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=with_breakpoint("BREAKPOINT"),
+        )
+
+        job_ids = wait_breakpoint()
+        allocation_id = get_allocation_id_from_job_id(job_ids[0])
+
+        op.wait_for_fresh_snapshot()
+
+        # Restarting the scheduler triggers revive: the controller agent
+        # resends running allocations via TReviveOperationResult.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        orchid_path = \
+            f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/allocation_group_name"
+        wait(lambda: get(orchid_path, default=None) == "map")
+
+        release_breakpoint()
+        op.track()

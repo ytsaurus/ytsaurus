@@ -4421,7 +4421,8 @@ private:
                             .Item("preempted").Value(allocationProperties.Preempted)
                             .Item("preemption_reason").Value(allocationProperties.PreemptionReason)
                             .Item("preemption_timeout").Value(allocationProperties.PreemptionTimeout)
-                            .Item("preemptible_progress_start_time").Value(allocationProperties.PreemptibleProgressStartTime);
+                            .Item("preemptible_progress_start_time").Value(allocationProperties.PreemptibleProgressStartTime)
+                            .Item("allocation_group_name").Value(allocationProperties.AllocationGroupName);
 
                         auto const& operation = Scheduler_->FindOperation(allocationProperties.OperationId);
                         if (operation) {

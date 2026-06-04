@@ -52,6 +52,9 @@ struct TAllocationStartDescriptor
     const TAllocationId Id;
     const TJobResourcesWithQuota ResourceLimits;
     TAllocationAttributes AllocationAttributes;
+
+    //! Name of the allocation group this allocation belongs to.
+    std::string AllocationGroupName;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

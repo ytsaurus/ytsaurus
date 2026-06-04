@@ -1180,6 +1180,7 @@ TAllocationDescription TNodeShard::GetAllocationDescription(TAllocationId alloca
             .PreemptionReason = allocation->GetPreemptionReason(),
             .PreemptionTimeout = CpuDurationToDuration(allocation->GetPreemptionTimeout()),
             .PreemptibleProgressStartTime = allocation->GetPreemptibleProgressStartTime(),
+            .AllocationGroupName = allocation->AllocationGroupName(),
         };
     } else {
         result.Running = false;
@@ -1389,6 +1390,9 @@ void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse
         FromProto(
             &(result->StartDescriptor->AllocationAttributes),
             response.allocation_attributes());
+        // A successful schedule response always carries the allocation group name.
+        YT_VERIFY(response.has_allocation_group_name());
+        result->StartDescriptor->AllocationGroupName = FromProto<std::string>(response.allocation_group_name());
     }
     for (const auto& protoCounter : response.failed()) {
         result->Failed[static_cast<EScheduleFailReason>(protoCounter.reason())] = protoCounter.value();
