@@ -165,7 +165,7 @@ public:
             auto workerSettings = GetDefaultWorkerSettings(workerConfig);
             const TString selfJobId = tracker.GetSelfJobId();
             workerSettings.WorkerId = static_cast<ui32>(selfIndex) - 1;
-            workerSettings.JobFactorySettings.NumThreads = 2;
+            workerSettings.JobFactorySettings.NumThreads = 1;
             workerSettings.JobFactorySettings.Function =
                 [tdsDiscovery, jobLauncher, ytJobService, &tracker, selfIndex, selfJobId, operationId](TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) {
                     TVanillaInfo vanillaInfo{
