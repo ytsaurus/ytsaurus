@@ -37,6 +37,7 @@ inline constexpr TStringBuf CompactPartitionOutputMessagesTableName = "compact_p
 inline constexpr TStringBuf CompactOutputMessagesTableName = "compact_output_messages";
 inline constexpr TStringBuf StatesTableName = "states";
 inline constexpr TStringBuf PartitionStatesTableName = "partition_states";
+inline constexpr TStringBuf KeyVisitorStatesTableName = "key_visitor_states";
 inline constexpr TStringBuf TimersTableName = "timers";
 inline constexpr TStringBuf ControllerLogsTableName = "controller_logs";
 inline constexpr TStringBuf FlowStateTableName = "flow_state";
@@ -52,6 +53,7 @@ inline const std::vector InternalFlowTables{
     CompactOutputMessagesTableName,
     StatesTableName,
     PartitionStatesTableName,
+    KeyVisitorStatesTableName,
     TimersTableName,
     ControllerLogsTableName,
     FlowStateTableName,

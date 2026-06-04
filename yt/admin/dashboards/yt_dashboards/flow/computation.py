@@ -149,20 +149,24 @@ class ComputationCellGenerator:
                             .query_transformation("{query} / 4")
                             .alias(f"bugfix source - {stream_alias}"),
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.unregistered_count.rate"))
-                            .alias(f"timer - {stream_alias}")
+                            .alias(f"timer - {stream_alias}"),
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.key_visitor_streams.persisted_count.rate"))
+                            .alias(f"key_visitor - {stream_alias}")
                     )
                         .unit("UNIT_COUNTS_PER_SECOND"),
-                    description="Input/source/timer messages that are processed and can be forgotten")
+                    description="Input/source/timer/key_visitor messages that are processed and can be forgotten")
                 .cell(
                     "Generated messages rate",
                     MultiSensor(
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_streams.registered_count.rate"))
                             .alias(f"output - {stream_alias}"),
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.registered_count.rate"))
-                            .alias(f"timer - {stream_alias}")
+                            .alias(f"timer - {stream_alias}"),
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.key_visitor_streams.registered_count.rate"))
+                            .alias(f"key_visitor - {stream_alias}")
                     )
                         .unit("UNIT_COUNTS_PER_SECOND"),
-                    description="Output/timer messages that was generated in pipeline")
+                    description="Output/timer/key_visitor messages that was generated in pipeline")
                 .cell(
                     "Processed messages bytes rate",
                     MultiSensor(
