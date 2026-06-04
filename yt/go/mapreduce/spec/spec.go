@@ -116,6 +116,10 @@ type AutoMerge struct {
 	ChunkSizeThreshold        int `yson:"chunk_size_threshold,omitempty"`
 }
 
+type JobSplitter struct {
+	EnableJobSplitting *bool `yson:"enable_job_splitting,omitempty"`
+}
+
 const (
 	ColumnarStatisticsModeFallback   = "fallback"
 	ColumnarStatisticsModeFromMaster = "from_master"
@@ -206,6 +210,7 @@ type Spec struct {
 	SortJobIO      *JobIO `yson:"sort_job_io,omitempty"`
 
 	AutoMerge                    *AutoMerge          `yson:"auto_merge,omitempty"`
+	JobSplitter                  *JobSplitter        `yson:"job_splitter,omitempty"`
 	InputTableColumnarStatistics *ColumnarStatistics `yson:"input_table_columnar_statistics,omitempty"`
 	UserFileColumnarStatistics   *ColumnarStatistics `yson:"user_file_columnar_statistics,omitempty"`
 
