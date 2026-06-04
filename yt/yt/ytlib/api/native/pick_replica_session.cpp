@@ -274,10 +274,8 @@ TPickReplicaSession::TResult TPickReplicaSession::Execute(
 
     TError error;
     for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
-        std::string cluster;
         try {
-            TReplicaSynchronicityList replicas;
-            std::tie(cluster, replicas) = PickClusterAndReplicas(PickViableClusters(config));
+            auto [cluster, replicas] = PickClusterAndReplicas(PickViableClusters(config));
 
             YT_LOG_DEBUG("Fallback to replicas (Cluster: %v, Replicas: %v, Attempt: %v)",
                 cluster,
@@ -294,7 +292,6 @@ TPickReplicaSession::TResult TPickReplicaSession::Execute(
             YT_LOG_DEBUG(ex, "Fallback to replicas failed (Attempt: %v)", retryCount);
 
             error = ex.Error();
-            error <<= TErrorAttribute("replica_cluster", cluster);
             if (auto banDirective = TReplicaBanDirective::FromError(error);
                 banDirective.Mode == EBanMode::Replica &&
                 banDirective.ReplicaId)
