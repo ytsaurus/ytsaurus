@@ -1364,6 +1364,8 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     IMemoryUsageTrackerPtr memoryTracker,
     int depth)
 {
+    CheckStackDepth();
+
     auto query = New<TQuery>(TGuid::Create());
 
     auto Logger = MakeQueryLogger(query);
