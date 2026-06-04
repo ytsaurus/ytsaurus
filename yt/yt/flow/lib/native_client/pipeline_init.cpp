@@ -135,6 +135,20 @@ IAttributeDictionaryPtr GetPartitionStatesTableAttributes()
         /*uniqueKeys*/ true));
 }
 
+IAttributeDictionaryPtr GetKeyVisitorStatesTableAttributes()
+{
+    return CreateDynamicTableAttributes(TTableSchema(
+        std::vector{
+            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("stream_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
+            TColumnSchema("is_lower", EValueType::Boolean, ESortOrder::Ascending),
+            TColumnSchema("state", EValueType::Any),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true));
+}
+
 IAttributeDictionaryPtr GetTimersTableAttributes()
 {
     return CreateDynamicTableAttributes(TTableSchema(
@@ -259,6 +273,7 @@ auto GetTables()
         {CompactOutputMessagesTableName, GetCompactOutputMessagesTableAttributes()},
         {StatesTableName, GetStatesTableAttributes()},
         {PartitionStatesTableName, GetPartitionStatesTableAttributes()},
+        {KeyVisitorStatesTableName, GetKeyVisitorStatesTableAttributes()},
         {TimersTableName, GetTimersTableAttributes()},
         {ControllerLogsTableName, GetControllerLogsTableAttributes()},
         {FlowStateTableName, GetFlowStateTableAttributes()},
