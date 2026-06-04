@@ -1274,8 +1274,7 @@ private:
 
     TDuration CheckPermissionsForQuery(
         const NQueryClient::TPlanFragment& fragment,
-        const TSelectRowsOptions& options,
-        const NTabletClient::ITableMountCachePtr& tableMountCache);
+        const TSelectRowsOptions& options);
 
     TSelectRowsResult DoSelectRowsOnce(
         const std::string& queryString,
