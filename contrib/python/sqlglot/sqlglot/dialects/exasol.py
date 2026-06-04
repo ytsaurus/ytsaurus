@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-import typing as t
 
-from sqlglot import exp, generator, parser, tokens, transforms
+from sqlglot import exp, generator, tokens, transforms
+from sqlglot.errors import UnsupportedError
 from sqlglot.dialects.dialect import (
     DATE_ADD_OR_SUB,
     Dialect,
     NormalizationStrategy,
-    binary_from_function,
-    build_date_delta,
-    build_formatted_time,
-    build_timetostr_or_tochar,
-    build_trunc,
     groupconcat_sql,
     no_last_day_sql,
     rename_func,
@@ -20,9 +15,9 @@ from sqlglot.dialects.dialect import (
     timestamptrunc_sql,
 )
 from sqlglot.generator import unsupported_args
-from sqlglot.helper import seq_get
-from sqlglot.tokens import TokenType
 from sqlglot.optimizer.scope import build_scope
+from sqlglot.parsers.exasol import DATE_UNITS, ExasolParser
+from sqlglot.tokens import TokenType
 
 
 def _sha2_sql(self: Exasol.Generator, expression: exp.SHA2) -> str:
@@ -41,20 +36,8 @@ def _date_diff_sql(self: Exasol.Generator, expression: exp.DateDiff | exp.TsOrDs
     return self.func(f"{unit}S_BETWEEN", expression.this, expression.expression)
 
 
-# https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/zeroifnull.htm
-def _build_zeroifnull(args: t.List) -> exp.If:
-    cond = exp.Is(this=seq_get(args, 0), expression=exp.Null())
-    return exp.If(this=cond, true=exp.Literal.number(0), false=seq_get(args, 0))
-
-
-# https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/nullifzero.htm
-def _build_nullifzero(args: t.List) -> exp.If:
-    cond = exp.EQ(this=seq_get(args, 0), expression=exp.Literal.number(0))
-    return exp.If(this=cond, true=exp.Null(), false=seq_get(args, 0))
-
-
 # https://docs.exasol.com/db/latest/sql/select.htm#:~:text=If%20you%20have,local.x%3E10
-def _add_local_prefix_for_aliases(expression: exp.Expression) -> exp.Expression:
+def _add_local_prefix_for_aliases(expression: exp.Expr) -> exp.Expr:
     if isinstance(expression, exp.Select):
         aliases: dict[str, bool] = {
             alias.name: bool(alias.args.get("quoted"))
@@ -72,7 +55,7 @@ def _add_local_prefix_for_aliases(expression: exp.Expression) -> exp.Expression:
         ):
             table_ident.replace(exp.to_identifier(table_ident.name.upper(), quoted=True))
 
-        def prefix_local(node, visible_aliases: dict[str, bool]) -> exp.Expression:
+        def prefix_local(node, visible_aliases: dict[str, bool]) -> exp.Expr:
             if isinstance(node, exp.Column) and not node.table:
                 if node.name in visible_aliases:
                     return exp.Column(
@@ -86,7 +69,7 @@ def _add_local_prefix_for_aliases(expression: exp.Expression) -> exp.Expression:
                 expression.set(key, arg.transform(lambda node: prefix_local(node, aliases)))
 
         seen_aliases: dict[str, bool] = {}
-        new_selects: list[exp.Expression] = []
+        new_selects: list[exp.Expr] = []
         for sel in expression.selects:
             if isinstance(sel, exp.Alias):
                 inner = sel.this.transform(lambda node: prefix_local(node, seen_aliases))
@@ -124,7 +107,7 @@ def _timestamp_trunc_sql(self: Exasol.Generator, expression: exp.DateTrunc) -> s
     return _trunc_sql(self, "TIMESTAMP", expression)
 
 
-def is_case_insensitive(node: exp.Expression) -> bool:
+def is_case_insensitive(node: exp.Expr) -> bool:
     return isinstance(node, exp.Collate) and node.text("expression").upper() == "UTF8_LCASE"
 
 
@@ -165,7 +148,7 @@ def _substring_index_sql(self: Exasol.Generator, expression: exp.SubstringIndex)
 
 
 # https://docs.exasol.com/db/latest/sql/select.htm#:~:text=The%20select_list%20defines%20the%20columns%20of%20the%20result%20table.%20If%20*%20is%20used%2C%20all%20columns%20are%20listed.%20You%20can%20use%20an%20expression%20like%20t.*%20to%20list%20all%20columns%20of%20the%20table%20t%2C%20the%20view%20t%2C%20or%20the%20object%20with%20the%20table%20alias%20t.
-def _qualify_unscoped_star(expression: exp.Expression) -> exp.Expression:
+def _qualify_unscoped_star(expression: exp.Expr) -> exp.Expr:
     """
     Exasol doesn't support a bare * alongside other select items, so we rewrite it
     Rewrite: SELECT *, <other> FROM <Table>
@@ -177,11 +160,11 @@ def _qualify_unscoped_star(expression: exp.Expression) -> exp.Expression:
 
     select_expressions = expression.expressions or []
 
-    def is_bare_star(expr: exp.Expression) -> bool:
+    def is_bare_star(expr: exp.Expr) -> bool:
         return isinstance(expr, exp.Star) and expr.this is None
 
     has_other_expression = False
-    bare_star_expr: exp.Expression | None = None
+    bare_star_expr: exp.Expr | None = None
     for expr in select_expressions:
         has_bare_star = is_bare_star(expr)
         if has_bare_star and bare_star_expr is None:
@@ -213,7 +196,7 @@ def _qualify_unscoped_star(expression: exp.Expression) -> exp.Expression:
         exp.Column(this=bare_star_expr.copy(), table=ident) for ident in table_identifiers
     ]
 
-    new_select_expressions: list[exp.Expression] = []
+    new_select_expressions: list[exp.Expr] = []
 
     for select_expr in select_expressions:
         new_select_expressions.extend(qualified_star_columns) if is_bare_star(
@@ -237,7 +220,7 @@ def _add_date_sql(self: Exasol.Generator, expression: DATE_ADD_OR_SUB) -> str:
         self.unsupported(f"'{unit}' is not supported in Exasol.")
         return self.function_fallback_sql(expression)
 
-    offset_expr: exp.Expression = expression.expression
+    offset_expr: exp.Expr = expression.expression
     if interval is not None:
         offset_expr = interval.this
 
@@ -247,7 +230,37 @@ def _add_date_sql(self: Exasol.Generator, expression: DATE_ADD_OR_SUB) -> str:
     return self.func(f"ADD_{unit}S", expression.this, offset_expr)
 
 
-DATE_UNITS = {"DAY", "WEEK", "MONTH", "YEAR", "HOUR", "MINUTE", "SECOND"}
+def _group_by_all(expression: exp.Expr) -> exp.Expr:
+    if not isinstance(expression, exp.Select):
+        return expression
+
+    group = expression.args.get("group")
+    if not group or not group.args.get("all"):
+        return expression
+
+    if expression.is_star:
+        if any(proj.find(exp.AggFunc) for proj in expression.expressions):
+            raise UnsupportedError(
+                "GROUP BY ALL with star projection and aggregates is not supported by Exasol"
+            )
+        expression.set("distinct", exp.Distinct())
+        expression.set("group", None)
+        return expression
+
+    group_positions = [
+        exp.Literal.number(i)
+        for i, proj in enumerate(expression.expressions, start=1)
+        if not proj.find(exp.AggFunc)
+    ]
+
+    if not group_positions:
+        expression.set("group", None)
+        return expression
+
+    group.set("expressions", group_positions)
+    group.set("all", None)
+
+    return expression
 
 
 class Exasol(Dialect):
@@ -256,7 +269,6 @@ class Exasol(Dialect):
     # https://docs.exasol.com/db/latest/sql_references/data_types/datatypesoverview.htm
     SUPPORTS_USER_DEFINED_TYPES = False
     # https://docs.exasol.com/db/latest/sql/select.htm
-    SUPPORTS_SEMI_ANTI_JOIN = False
     SUPPORTS_COLUMN_JOIN_MARKS = True
     NULL_ORDERING = "nulls_are_last"
     # https://docs.exasol.com/db/latest/sql_references/literals.htm#StringLiterals
@@ -298,153 +310,49 @@ class Exasol(Dialect):
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/if.htm
             "ENDIF": TokenType.END,
             "LONG VARCHAR": TokenType.TEXT,
+            "REGEXP_LIKE": TokenType.RLIKE,
             "SEPARATOR": TokenType.SEPARATOR,
             "SYSTIMESTAMP": TokenType.SYSTIMESTAMP,
         }
         KEYWORDS.pop("DIV")
 
-    class Parser(parser.Parser):
-        FUNCTIONS = {
-            **parser.Parser.FUNCTIONS,
-            **{
-                f"ADD_{unit}S": build_date_delta(exp.DateAdd, default_unit=unit)
-                for unit in DATE_UNITS
-            },
-            **{
-                f"{unit}S_BETWEEN": build_date_delta(exp.DateDiff, default_unit=unit)
-                for unit in DATE_UNITS
-            },
-            "APPROXIMATE_COUNT_DISTINCT": exp.ApproxDistinct.from_arg_list,
-            "BIT_AND": binary_from_function(exp.BitwiseAnd),
-            "BIT_OR": binary_from_function(exp.BitwiseOr),
-            "BIT_XOR": binary_from_function(exp.BitwiseXor),
-            "BIT_NOT": lambda args: exp.BitwiseNot(this=seq_get(args, 0)),
-            "BIT_LSHIFT": binary_from_function(exp.BitwiseLeftShift),
-            "BIT_RSHIFT": binary_from_function(exp.BitwiseRightShift),
-            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/convert_tz.htm
-            "CONVERT_TZ": lambda args: exp.ConvertTimezone(
-                source_tz=seq_get(args, 1),
-                target_tz=seq_get(args, 2),
-                timestamp=seq_get(args, 0),
-                options=seq_get(args, 3),
-            ),
-            "CURDATE": exp.CurrentDate.from_arg_list,
-            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/date_trunc.htm#DATE_TRUNC
-            "DATE_TRUNC": lambda args: exp.TimestampTrunc(
-                this=seq_get(args, 1), unit=seq_get(args, 0)
-            ),
-            "DIV": binary_from_function(exp.IntDiv),
-            "EVERY": lambda args: exp.All(this=seq_get(args, 0)),
-            "EDIT_DISTANCE": exp.Levenshtein.from_arg_list,
-            "HASH_SHA": exp.SHA.from_arg_list,
-            "HASH_SHA1": exp.SHA.from_arg_list,
-            "HASH_MD5": exp.MD5.from_arg_list,
-            "HASHTYPE_MD5": exp.MD5Digest.from_arg_list,
-            "HASH_SHA256": lambda args: exp.SHA2(
-                this=seq_get(args, 0), length=exp.Literal.number(256)
-            ),
-            "HASH_SHA512": lambda args: exp.SHA2(
-                this=seq_get(args, 0), length=exp.Literal.number(512)
-            ),
-            "NOW": exp.CurrentTimestamp.from_arg_list,
-            "NULLIFZERO": _build_nullifzero,
-            "REGEXP_SUBSTR": exp.RegexpExtract.from_arg_list,
-            "REGEXP_REPLACE": lambda args: exp.RegexpReplace(
-                this=seq_get(args, 0),
-                expression=seq_get(args, 1),
-                replacement=seq_get(args, 2),
-                position=seq_get(args, 3),
-                occurrence=seq_get(args, 4),
-            ),
-            "TRUNC": build_trunc,
-            "TRUNCATE": build_trunc,
-            "TO_CHAR": build_timetostr_or_tochar,
-            "TO_DATE": build_formatted_time(exp.TsOrDsToDate, "exasol"),
-            "USER": exp.CurrentUser.from_arg_list,
-            "VAR_POP": exp.VariancePop.from_arg_list,
-            "ZEROIFNULL": _build_zeroifnull,
-        }
-        CONSTRAINT_PARSERS = {
-            **parser.Parser.CONSTRAINT_PARSERS,
-            "COMMENT": lambda self: self.expression(
-                exp.CommentColumnConstraint,
-                this=self._match(TokenType.IS) and self._parse_string(),
-            ),
-        }
-
-        FUNC_TOKENS = {
-            *parser.Parser.FUNC_TOKENS,
-            TokenType.SYSTIMESTAMP,
-        }
-
-        NO_PAREN_FUNCTIONS = {
-            **parser.Parser.NO_PAREN_FUNCTIONS,
-            TokenType.SYSTIMESTAMP: exp.Systimestamp,
-            TokenType.CURRENT_SCHEMA: exp.CurrentSchema,
-        }
-
-        FUNCTION_PARSERS = {
-            **parser.Parser.FUNCTION_PARSERS,
-            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/listagg.htm
-            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/group_concat.htm
-            **dict.fromkeys(("GROUP_CONCAT", "LISTAGG"), lambda self: self._parse_group_concat()),
-            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/json_value.htm
-            "JSON_VALUE": lambda self: self._parse_json_value(),
-        }
-
-        def _parse_column(self) -> t.Optional[exp.Expression]:
-            column = super()._parse_column()
-            if not isinstance(column, exp.Column):
-                return column
-            table_ident = column.args.get("table")
-            if (
-                isinstance(table_ident, exp.Identifier)
-                and table_ident.name.upper() == "LOCAL"
-                and not bool(table_ident.args.get("quoted"))
-            ):
-                column.set("table", None)
-            return column
-
-        ODBC_DATETIME_LITERALS = {
-            "d": exp.Date,
-            "ts": exp.Timestamp,
-        }
+    Parser = ExasolParser
 
     class Generator(generator.Generator):
         # https://docs.exasol.com/db/latest/sql_references/data_types/datatypedetails.htm#StringDataType
         STRING_TYPE_MAPPING = {
-            exp.DataType.Type.BLOB: "VARCHAR",
-            exp.DataType.Type.LONGBLOB: "VARCHAR",
-            exp.DataType.Type.LONGTEXT: "VARCHAR",
-            exp.DataType.Type.MEDIUMBLOB: "VARCHAR",
-            exp.DataType.Type.MEDIUMTEXT: "VARCHAR",
-            exp.DataType.Type.TINYBLOB: "VARCHAR",
-            exp.DataType.Type.TINYTEXT: "VARCHAR",
+            exp.DType.BLOB: "VARCHAR",
+            exp.DType.LONGBLOB: "VARCHAR",
+            exp.DType.LONGTEXT: "VARCHAR",
+            exp.DType.MEDIUMBLOB: "VARCHAR",
+            exp.DType.MEDIUMTEXT: "VARCHAR",
+            exp.DType.TINYBLOB: "VARCHAR",
+            exp.DType.TINYTEXT: "VARCHAR",
             # https://docs.exasol.com/db/latest/sql_references/data_types/datatypealiases.htm
-            exp.DataType.Type.TEXT: "LONG VARCHAR",
-            exp.DataType.Type.VARBINARY: "VARCHAR",
+            exp.DType.TEXT: "LONG VARCHAR",
+            exp.DType.VARBINARY: "VARCHAR",
         }
 
         # https://docs.exasol.com/db/latest/sql_references/data_types/datatypealiases.htm
         TYPE_MAPPING = {
             **generator.Generator.TYPE_MAPPING,
             **STRING_TYPE_MAPPING,
-            exp.DataType.Type.TINYINT: "SMALLINT",
-            exp.DataType.Type.MEDIUMINT: "INT",
-            exp.DataType.Type.DECIMAL32: "DECIMAL",
-            exp.DataType.Type.DECIMAL64: "DECIMAL",
-            exp.DataType.Type.DECIMAL128: "DECIMAL",
-            exp.DataType.Type.DECIMAL256: "DECIMAL",
-            exp.DataType.Type.DATETIME: "TIMESTAMP",
-            exp.DataType.Type.TIMESTAMPTZ: "TIMESTAMP",
-            exp.DataType.Type.TIMESTAMPLTZ: "TIMESTAMP",
-            exp.DataType.Type.TIMESTAMPNTZ: "TIMESTAMP",
+            exp.DType.TINYINT: "SMALLINT",
+            exp.DType.MEDIUMINT: "INT",
+            exp.DType.DECIMAL32: "DECIMAL",
+            exp.DType.DECIMAL64: "DECIMAL",
+            exp.DType.DECIMAL128: "DECIMAL",
+            exp.DType.DECIMAL256: "DECIMAL",
+            exp.DType.DATETIME: "TIMESTAMP",
+            exp.DType.TIMESTAMPTZ: "TIMESTAMP",
+            exp.DType.TIMESTAMPLTZ: "TIMESTAMP",
+            exp.DType.TIMESTAMPNTZ: "TIMESTAMP",
         }
 
         def datatype_sql(self, expression: exp.DataType) -> str:
             # Exasol supports a fixed default precision of 3 for TIMESTAMP WITH LOCAL TIME ZONE
             # and does not allow specifying a different custom precision
-            if expression.is_type(exp.DataType.Type.TIMESTAMPLTZ):
+            if expression.is_type(exp.DType.TIMESTAMPLTZ):
                 return "TIMESTAMP WITH LOCAL TIME ZONE"
 
             return super().datatype_sql(expression)
@@ -485,6 +393,8 @@ class Exasol(Dialect):
             ),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/mod.htm
             exp.Mod: rename_func("MOD"),
+            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/from_posix_time.htm
+            exp.UnixToTime: lambda self, e: self.func("FROM_POSIX_TIME", e.this),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/rank.htm
             exp.Rank: unsupported_args("expressions")(lambda *_: "RANK()"),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/dense_rank.htm
@@ -502,10 +412,10 @@ class Exasol(Dialect):
                 rename_func("APPROXIMATE_COUNT_DISTINCT")
             ),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/to_char%20(datetime).htm
+            exp.TimeToStr: lambda self, e: self.func("TO_CHAR", e.this, self.format_time(e)),
             exp.ToChar: lambda self, e: self.func("TO_CHAR", e.this, self.format_time(e)),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/to_date.htm
             exp.TsOrDsToDate: lambda self, e: self.func("TO_DATE", e.this, self.format_time(e)),
-            exp.TimeToStr: lambda self, e: self.func("TO_CHAR", e.this, self.format_time(e)),
             exp.TimeStrToTime: timestrtotime_sql,
             exp.TimestampTrunc: _timestamp_trunc_sql,
             exp.StrToTime: lambda self, e: self.func("TO_DATE", e.this, self.format_time(e)),
@@ -517,10 +427,8 @@ class Exasol(Dialect):
                 e.args.get("zone"),
             ),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/instr.htm
-            exp.StrPosition: lambda self, e: (
-                strposition_sql(
-                    self, e, func_name="INSTR", supports_position=True, supports_occurrence=True
-                )
+            exp.StrPosition: lambda self, e: strposition_sql(
+                self, e, func_name="INSTR", supports_position=True, supports_occurrence=True
             ),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/hash_sha%5B1%5D.htm#HASH_SHA%5B1%5D
             exp.SHA: rename_func("HASH_SHA"),
@@ -536,6 +444,7 @@ class Exasol(Dialect):
                 [
                     _qualify_unscoped_star,
                     _add_local_prefix_for_aliases,
+                    _group_by_all,
                 ]
             ),
             exp.SubstringIndex: _substring_index_sql,
@@ -1033,3 +942,35 @@ class Exasol(Dialect):
 
         def collate_sql(self, expression: exp.Collate) -> str:
             return self.sql(expression.this)
+
+        def jsonextract_sql(self, expression: exp.JSONExtract) -> str:
+            sql = self.func(
+                "JSON_EXTRACT", expression.this, expression.expression, *expression.expressions
+            )
+
+            emits = self.sql(expression, "emits")
+            if emits:
+                sql = f"{sql} EMITS {emits}"
+
+            return sql
+
+        @unsupported_args("flag")
+        def regexplike_sql(self, expression: exp.RegexpLike) -> str:
+            if not expression.args.get("full_match"):
+                pattern = expression.expression
+                if pattern.is_string:
+                    expression.set("expression", exp.Literal.string(f".*{pattern.name}.*"))
+                else:
+                    expression.set(
+                        "expression",
+                        exp.Paren(
+                            this=exp.Concat(
+                                expressions=[
+                                    exp.Literal.string(".*"),
+                                    pattern,
+                                    exp.Literal.string(".*"),
+                                ]
+                            )
+                        ),
+                    )
+            return self.binary(expression, "REGEXP_LIKE")

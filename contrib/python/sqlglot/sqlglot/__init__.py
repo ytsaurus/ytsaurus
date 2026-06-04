@@ -1,4 +1,4 @@
-# ruff: noqa: F401
+# ruff: noqa: F401, E402
 """
 .. include:: ../README.md
 
@@ -6,6 +6,23 @@
 """
 
 from __future__ import annotations
+
+# bootstrap mypyc runtime: compiled .so modules do a top-level `import HASH__mypyc`,
+# but the runtime .so lives inside sqlglot/. Pre-load it into sys.modules.
+# this is only needed for editable builds
+import sys
+from pathlib import Path
+
+for path in Path(__file__).parent.glob("*__mypyc*.so"):
+    name = path.stem.split(".")[0]
+    if name not in sys.modules:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(name, path)
+        if spec and spec.loader:
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[name] = mod
+            spec.loader.exec_module(mod)
 
 import logging
 import typing as t
@@ -20,7 +37,7 @@ from sqlglot.errors import (
     UnsupportedError as UnsupportedError,
 )
 from sqlglot.expressions import (
-    Expression as Expression,
+    Expr as Expr,
     alias_ as alias,
     and_ as and_,
     case as case,
@@ -59,7 +76,7 @@ logger = logging.getLogger("sqlglot")
 
 
 try:
-    from sqlglot._version import __version__, __version_tuple__
+    from sqlglot._version import __version__, __version_tuple__  # type: ignore[import-not-found]
 except ImportError:
     logger.error(
         "Unable to set __version__, run `pip install -e .` or `python setup.py develop` first."
@@ -87,7 +104,7 @@ def tokenize(sql: str, read: DialectType = None, dialect: DialectType = None) ->
 
 def parse(
     sql: str, read: DialectType = None, dialect: DialectType = None, **opts
-) -> t.List[t.Optional[Expression]]:
+) -> t.List[t.Optional[Expr]]:
     """
     Parses the given SQL string into a collection of syntax trees, one per parsed SQL statement.
 
@@ -108,7 +125,7 @@ def parse_one(sql: str, *, into: t.Type[E], **opts) -> E: ...
 
 
 @t.overload
-def parse_one(sql: str, **opts) -> Expression: ...
+def parse_one(sql: str, **opts) -> Expr: ...
 
 
 def parse_one(
@@ -117,19 +134,19 @@ def parse_one(
     dialect: DialectType = None,
     into: t.Optional[exp.IntoType] = None,
     **opts,
-) -> Expression:
+) -> Expr:
     """
-    Parses the given SQL string and returns a syntax tree for the first parsed SQL statement.
+    Parses the given SQL string and returns a syntax tree.
 
     Args:
         sql: the SQL code string to parse.
         read: the SQL dialect to apply during parsing (eg. "spark", "hive", "presto", "mysql").
         dialect: the SQL dialect (alias for read)
-        into: the SQLGlot Expression to parse into.
+        into: the SQLGlot Expr to parse into.
         **opts: other `sqlglot.parser.Parser` options.
 
     Returns:
-        The syntax tree for the first parsed statement.
+        A single syntax tree if one statement is parsed, otherwise a Block expression containing all parsed syntax trees.
     """
 
     dialect = Dialect.get_or_raise(read or dialect)

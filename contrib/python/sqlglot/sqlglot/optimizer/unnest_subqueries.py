@@ -17,9 +17,9 @@ def unnest_subqueries(expression):
         'SELECT * FROM x AS x LEFT JOIN (SELECT y.a AS a FROM y AS y WHERE TRUE GROUP BY y.a) AS _u_0 ON x.a = _u_0.a WHERE _u_0.a = 1'
 
     Args:
-        expression (sqlglot.Expression): expression to unnest
+        expression (sqlglot.Expr): expression to unnest
     Returns:
-        sqlglot.Expression: unnested expression
+        sqlglot.Expr: unnested expression
     """
     next_alias_name = name_sequence("_u_")
 
@@ -192,6 +192,11 @@ def decorrelate(select, parent_select, external_columns, next_alias_name):
                 group_by.append(key)
 
     parent_predicate = select.find_ancestor(exp.Predicate)
+
+    # When the subquery is embedded inside a function (e.g. COALESCE, TRIM) in the SELECT list,
+    # the ancestor chain contains no Predicate node AND the subquery is not a direct projection.
+    if parent_predicate is None and not is_subquery_projection:
+        return
 
     # if the value of the subquery is not an agg or a key, we need to collect it into an array
     # so that it can be grouped. For subquery projections, we use a MAX aggregation instead.

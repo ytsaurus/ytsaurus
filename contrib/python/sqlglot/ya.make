@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(29.0.1)
+VERSION(30.0.3)
 
 LICENSE(MIT)
 
@@ -55,8 +55,22 @@ PY_SRCS(
     sqlglot/executor/env.py
     sqlglot/executor/python.py
     sqlglot/executor/table.py
-    sqlglot/expression_core.py
-    sqlglot/expressions.py
+    sqlglot/expressions/__init__.py
+    sqlglot/expressions/aggregate.py
+    sqlglot/expressions/array.py
+    sqlglot/expressions/builders.py
+    sqlglot/expressions/constraints.py
+    sqlglot/expressions/core.py
+    sqlglot/expressions/datatypes.py
+    sqlglot/expressions/ddl.py
+    sqlglot/expressions/dml.py
+    sqlglot/expressions/functions.py
+    sqlglot/expressions/json.py
+    sqlglot/expressions/math.py
+    sqlglot/expressions/properties.py
+    sqlglot/expressions/query.py
+    sqlglot/expressions/string.py
+    sqlglot/expressions/temporal.py
     sqlglot/generator.py
     sqlglot/helper.py
     sqlglot/jsonpath.py
@@ -83,7 +97,40 @@ PY_SRCS(
     sqlglot/optimizer/simplify.py
     sqlglot/optimizer/unnest_subqueries.py
     sqlglot/parser.py
-    sqlglot/parser_core.py
+    sqlglot/parsers/__init__.py
+    sqlglot/parsers/athena.py
+    sqlglot/parsers/base.py
+    sqlglot/parsers/bigquery.py
+    sqlglot/parsers/clickhouse.py
+    sqlglot/parsers/databricks.py
+    sqlglot/parsers/doris.py
+    sqlglot/parsers/dremio.py
+    sqlglot/parsers/drill.py
+    sqlglot/parsers/druid.py
+    sqlglot/parsers/duckdb.py
+    sqlglot/parsers/dune.py
+    sqlglot/parsers/exasol.py
+    sqlglot/parsers/fabric.py
+    sqlglot/parsers/hive.py
+    sqlglot/parsers/materialize.py
+    sqlglot/parsers/mysql.py
+    sqlglot/parsers/oracle.py
+    sqlglot/parsers/postgres.py
+    sqlglot/parsers/presto.py
+    sqlglot/parsers/prql.py
+    sqlglot/parsers/redshift.py
+    sqlglot/parsers/risingwave.py
+    sqlglot/parsers/singlestore.py
+    sqlglot/parsers/snowflake.py
+    sqlglot/parsers/solr.py
+    sqlglot/parsers/spark.py
+    sqlglot/parsers/spark2.py
+    sqlglot/parsers/sqlite.py
+    sqlglot/parsers/starrocks.py
+    sqlglot/parsers/tableau.py
+    sqlglot/parsers/teradata.py
+    sqlglot/parsers/trino.py
+    sqlglot/parsers/tsql.py
     sqlglot/planner.py
     sqlglot/schema.py
     sqlglot/serde.py
@@ -99,6 +146,7 @@ PY_SRCS(
     sqlglot/typing/hive.py
     sqlglot/typing/mysql.py
     sqlglot/typing/presto.py
+    sqlglot/typing/redshift.py
     sqlglot/typing/snowflake.py
     sqlglot/typing/spark.py
     sqlglot/typing/spark2.py
