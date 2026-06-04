@@ -615,9 +615,10 @@ private:
             YT_LOG_EVENT(
                 Logger,
                 GetLogLevelForTooManyRetries(error),
-                "Too many attempts to revoke transaction leases (TransactionId: %v, RetryCount: %v)",
+                "Too many attempts to revoke transaction leases (TransactionId: %v, RetryCount: %v, LastError: %v)",
                 transaction->GetId(),
-                *invocationIndex);
+                *invocationIndex,
+                error);
         }
 
         YT_LOG_DEBUG("Transaction leases revocation enqueued (TransactionId: %v, Deadline: %v)",
@@ -662,9 +663,10 @@ private:
             YT_LOG_EVENT(
                 Logger,
                 GetLogLevelForTooManyRetries(error),
-                "Too many attempts to finish transaction (TransactionId: %v, RetryCount: %v)",
+                "Too many attempts to finish transaction (TransactionId: %v, RetryCount: %v, LastError: %v)",
                 transaction->GetId(),
-                *invocationIndex);
+                *invocationIndex,
+                error);
         }
 
         YT_LOG_DEBUG("Transaction finish enqueued (TransactionId: %v, Deadline: %v)",
