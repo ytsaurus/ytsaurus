@@ -16,7 +16,7 @@ $Cut = ($text, $limit) -> {
     -- Named expressions can be declared inside a lambda.
     $dots = "..."u;
 
-    $cut_from = Unicode::RFind( -- This function searches for the first position
+    $cut_from = Unicode::RFind( -- Unicode::RFind searches for the first position
                                 -- of a substring in the text starting from the end.
      -- Unicode::Substring extracts a substring from the text without allocating or copying memory.
         Unicode::Substring($text, 0, $limit - Unicode::GetLength($dots)),
