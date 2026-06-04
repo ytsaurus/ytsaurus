@@ -118,6 +118,10 @@ TFormat InferHeaderFormat(const TFormatManager& formatManager, const std::string
         THROW_ERROR_EXCEPTION("Unable to parse X-YT-Header-Format header")
             << ex;
     }
+
+    if (ConvertTo<EFormatType>(formatNode) == EFormatType::Yson) {
+        formatNode->MutableAttributes()->Set("format", "text");
+    }
     return formatManager.ConvertToFormat(formatNode, "header format from X-YT-Header-Format header");
 }
 
