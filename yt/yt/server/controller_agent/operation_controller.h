@@ -93,6 +93,7 @@ struct TOperationControllerReviveResult
         TString TreeId;
         NNodeTrackerClient::TNodeId NodeId;
         std::string NodeAddress;
+        std::string AllocationGroupName;
     };
 
     bool RevivedFromSnapshot = false;

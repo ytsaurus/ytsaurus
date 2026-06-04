@@ -96,6 +96,9 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, PreemptibleProgressStartTime);
 
+    //! Name of the allocation group this allocation belongs to.
+    DEFINE_BYREF_RO_PROPERTY(std::string, AllocationGroupName);
+
 public:
     TAllocation(
         TAllocationId id,
