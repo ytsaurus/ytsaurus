@@ -987,8 +987,11 @@ public:
     {
         auto startTime = TInstant::Now();
 
+        // See PORTO-460 for "//" prefix.
+        auto portoPlace = (!Config_->LocationIsAbsolute && !place.StartsWith("//") ? "//" : "") + place;
+
         auto Logger = ExecNodeLogger()
-            .WithTag("Place: %v", place);
+            .WithTag("Place: %v", portoPlace);
 
         YT_LOG_DEBUG(
             "Removing layers from porto place (Timeout: %v)",
@@ -998,7 +1001,7 @@ public:
 
         auto executor = FastLayerExecutor_ ? FastLayerExecutor_ : LayerExecutor_;
 
-        auto layerIds = WaitFor(executor->ListLayers(place).WithTimeout(timeout))
+        auto layerIds = WaitFor(executor->ListLayers(portoPlace).WithTimeout(timeout))
             .ValueOrThrow();
 
         std::vector<TFuture<void>> removeFutures;
@@ -1010,7 +1013,7 @@ public:
             removedLayers.push_back(layerId);
             removeFutures.push_back(executor->RemoveLayer(
                 layerId,
-                place,
+                portoPlace,
                 false /*async*/));
         }
 
