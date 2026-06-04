@@ -1015,16 +1015,16 @@
     ],
     "test.test[join-cbo_7tables_partial--Debug]": [
         {
-            "checksum": "fd1afc329fe292deb28fe7d23237c78b",
-            "size": 22316,
-            "uri": "https://{canondata_backend}/1031349/55d238a244f3a0983368ea5e21207e3376525d7f/resource.tar.gz#test.test_join-cbo_7tables_partial--Debug_/opt.yql"
+            "checksum": "fd8a4be032894286882b8ab3455740d8",
+            "size": 22384,
+            "uri": "https://{canondata_backend}/1946324/ec48236f9265ffd55397e3e29b2b595ec331d407/resource.tar.gz#test.test_join-cbo_7tables_partial--Debug_/opt.yql"
         }
     ],
     "test.test[join-cbo_7tables_partial--Plan]": [
         {
-            "checksum": "dafca1848cf90696327ef5a0f10b9a53",
+            "checksum": "ffa2bbabe42a9d2e9ccafbebd391838b",
             "size": 26028,
-            "uri": "https://{canondata_backend}/1936273/cba7177a70fa3421d2df18de0a323d0f08f40f74/resource.tar.gz#test.test_join-cbo_7tables_partial--Plan_/plan.txt"
+            "uri": "https://{canondata_backend}/1946324/ec48236f9265ffd55397e3e29b2b595ec331d407/resource.tar.gz#test.test_join-cbo_7tables_partial--Plan_/plan.txt"
         }
     ],
     "test.test[join-cbo_7tables_partial--Results]": [
@@ -1036,16 +1036,16 @@
     ],
     "test.test[join-join_cbo_3_tables--Debug]": [
         {
-            "checksum": "809d665ec9b635a98ec480b9b2dffe23",
-            "size": 8472,
-            "uri": "https://{canondata_backend}/1031349/55d238a244f3a0983368ea5e21207e3376525d7f/resource.tar.gz#test.test_join-join_cbo_3_tables--Debug_/opt.yql"
+            "checksum": "295c6c57f7641e3c673a956c34cebce8",
+            "size": 8574,
+            "uri": "https://{canondata_backend}/1946324/ec48236f9265ffd55397e3e29b2b595ec331d407/resource.tar.gz#test.test_join-join_cbo_3_tables--Debug_/opt.yql"
         }
     ],
     "test.test[join-join_cbo_3_tables--Plan]": [
         {
-            "checksum": "ca4bca1b7543a208612a88c111cee6f3",
-            "size": 13969,
-            "uri": "https://{canondata_backend}/1781765/19d33bb3e70ef18d8e2cd72a44b9d1af30a94ab2/resource.tar.gz#test.test_join-join_cbo_3_tables--Plan_/plan.txt"
+            "checksum": "568e75c3238dd6e5287f20c8f05843d9",
+            "size": 13981,
+            "uri": "https://{canondata_backend}/1946324/ec48236f9265ffd55397e3e29b2b595ec331d407/resource.tar.gz#test.test_join-join_cbo_3_tables--Plan_/plan.txt"
         }
     ],
     "test.test[join-join_cbo_3_tables--Results]": [
