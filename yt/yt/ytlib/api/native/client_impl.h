@@ -1663,9 +1663,16 @@ private:
     // Flow
     //
 
-    std::string DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
+    struct TPipelineLeaderDescriptor
+    {
+        std::string Address;
+        NObjectClient::TObjectId PipelineObjectId;
+    };
 
-    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const std::string& address);
+    TPipelineLeaderDescriptor DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
+
+    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(
+        const TPipelineLeaderDescriptor& descriptor);
 
     void ValidatePipelinePermission(const NYPath::TYPath& pipelinePath, NYTree::EPermission permission);
 };

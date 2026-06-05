@@ -423,6 +423,9 @@ struct TConnectionDynamicConfig
 
     TDuration FlowPipelineControllerRpcTimeout;
 
+    //! If true, every RPC request to Flow Controller is signed with proxy signature.
+    bool FlowProxySignatureEnabled;
+
     EMasterChannelKind ReadOperationsArchiveStateFrom;
 
     bool EnableDistributedReplicationCollocationAttachment;
