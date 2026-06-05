@@ -2366,7 +2366,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
         write_table("//tmp/in", [{"key": None}])
         create("table", "//tmp/out")
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             merge(
                 in_="//tmp/in",
                 out="<schema=[{name=key;type=int64;required=true}]>//tmp/out",
