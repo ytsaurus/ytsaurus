@@ -25,5 +25,6 @@ IF (NOT OPENSOURCE)
         resource-pumper
         solomon-resolver
         thor
+        moondiscover
     )
 ENDIF()
