@@ -9,12 +9,13 @@ from sqlglot.tokens import TokenType
 
 if t.TYPE_CHECKING:
     from sqlglot._typing import F
+    from sqlglot.dialects.dialect import Dialect
 
 
 def build_with_ignore_nulls(
-    exp_class: t.Type[exp.Expr],
-) -> t.Callable[[t.List[exp.Expr]], exp.Expr]:
-    def _parse(args: t.List[exp.Expr]) -> exp.Expr:
+    exp_class: type[exp.Expr],
+) -> t.Callable[[list[exp.Expr]], exp.Expr]:
+    def _parse(args: list[exp.Expr]) -> exp.Expr:
         this = exp_class(this=seq_get(args, 0))
         if seq_get(args, 1) == exp.true():
             return exp.IgnoreNulls(this=this)
@@ -23,13 +24,23 @@ def build_with_ignore_nulls(
     return _parse
 
 
-def _build_to_date(args: t.List) -> exp.TsOrDsToDate:
-    expr = build_formatted_time(exp.TsOrDsToDate, "hive")(args)
+def _build_to_date(args: list, dialect: Dialect) -> exp.TsOrDsToDate:
+    expr = build_formatted_time(exp.TsOrDsToDate)(args, dialect)
     expr.set("safe", True)
     return expr
 
 
-def _build_date_add(args: t.List) -> exp.TsOrDsAdd:
+def _build_named_struct(args: list) -> exp.Struct:
+    """Map named_struct('k', v, ...) to exp.Struct so _annotate_struct sees it."""
+    expressions: list[exp.Expression] = []
+    for i in range(0, len(args) - 1, 2):
+        key, value = args[i], args[i + 1]
+        name = key.name
+        expressions.append(exp.PropertyEQ(this=exp.to_identifier(name), expression=value))
+    return exp.Struct(expressions=expressions)
+
+
+def _build_date_add(args: list) -> exp.TsOrDsAdd:
     expression = seq_get(args, 1)
     if expression:
         expression = expression * -1
@@ -64,11 +75,12 @@ class HiveParser(parser.Parser):
         "DATE_ADD": lambda args: exp.TsOrDsAdd(
             this=seq_get(args, 0), expression=seq_get(args, 1), unit=exp.Literal.string("DAY")
         ),
-        "DATE_FORMAT": lambda args: build_formatted_time(exp.TimeToStr, "hive")(
+        "DATE_FORMAT": lambda args, dialect: build_formatted_time(exp.TimeToStr)(
             [
                 exp.TimeStrToTime(this=seq_get(args, 0)),
                 seq_get(args, 1),
-            ]
+            ],
+            dialect,
         ),
         "DATE_SUB": _build_date_add,
         "DATEDIFF": lambda args: exp.DateDiff(
@@ -78,7 +90,7 @@ class HiveParser(parser.Parser):
         "DAY": lambda args: exp.Day(this=exp.TsOrDsToDate(this=seq_get(args, 0))),
         "FIRST": build_with_ignore_nulls(exp.First),
         "FIRST_VALUE": build_with_ignore_nulls(exp.FirstValue),
-        "FROM_UNIXTIME": build_formatted_time(exp.UnixToStr, "hive", True),
+        "FROM_UNIXTIME": build_formatted_time(exp.UnixToStr, default=True),
         "GET_JSON_OBJECT": lambda args, dialect: exp.JSONExtractScalar(
             this=seq_get(args, 0), expression=dialect.to_json_path(seq_get(args, 1))
         ),
@@ -86,6 +98,7 @@ class HiveParser(parser.Parser):
         "LAST_VALUE": build_with_ignore_nulls(exp.LastValue),
         "MAP": parser.build_var_map,
         "MONTH": lambda args: exp.Month(this=exp.TsOrDsToDate.from_arg_list(args)),
+        "NAMED_STRUCT": _build_named_struct,
         "REGEXP_EXTRACT": build_regexp_extract(exp.RegexpExtract),
         "REGEXP_EXTRACT_ALL": build_regexp_extract(exp.RegexpExtractAll),
         "SEQUENCE": exp.GenerateSeries.from_arg_list,
@@ -100,8 +113,8 @@ class HiveParser(parser.Parser):
         "TO_JSON": exp.JSONFormat.from_arg_list,
         "TRUNC": exp.TimestampTrunc.from_arg_list,
         "UNBASE64": exp.FromBase64.from_arg_list,
-        "UNIX_TIMESTAMP": lambda args: build_formatted_time(exp.StrToUnix, "hive", True)(
-            args or [exp.CurrentTimestamp()]
+        "UNIX_TIMESTAMP": lambda args, dialect: build_formatted_time(exp.StrToUnix, default=True)(
+            args or [exp.CurrentTimestamp()], dialect
         ),
         "YEAR": lambda args: exp.Year(this=exp.TsOrDsToDate.from_arg_list(args)),
     }
@@ -120,6 +133,7 @@ class HiveParser(parser.Parser):
         "SERDEPROPERTIES": lambda self: exp.SerdeProperties(
             expressions=self._parse_wrapped_csv(self._parse_property)
         ),
+        "USING": lambda self: self._parse_using_property(),
     }
 
     ALTER_PARSERS = {
@@ -127,7 +141,7 @@ class HiveParser(parser.Parser):
         "CHANGE": lambda self: self._parse_alter_table_change(),
     }
 
-    def _parse_transform(self) -> t.Optional[exp.Transform | exp.QueryTransform]:
+    def _parse_transform(self) -> exp.Transform | exp.QueryTransform | None:
         if not self._match(TokenType.L_PAREN, advance=False):
             self._retreat(self._index - 1)
             return None
@@ -164,9 +178,9 @@ class HiveParser(parser.Parser):
             )
         )
 
-    def _parse_quantile_function(self, func: t.Type[F]) -> F:
+    def _parse_quantile_function(self, func: type[F]) -> F:
         if self._match(TokenType.DISTINCT):
-            first_arg: t.Optional[exp.Expr] = self.expression(
+            first_arg: exp.Expr | None = self.expression(
                 exp.Distinct(expressions=[self._parse_lambda()])
             )
         else:
@@ -180,8 +194,12 @@ class HiveParser(parser.Parser):
         return func.from_arg_list(args)
 
     def _parse_types(
-        self, check_func: bool = False, schema: bool = False, allow_identifiers: bool = True
-    ) -> t.Optional[exp.Expr]:
+        self,
+        check_func: bool = False,
+        schema: bool = False,
+        allow_identifiers: bool = True,
+        with_collation: bool = False,
+    ) -> exp.Expr | None:
         """
         Spark (and most likely Hive) treats casts to CHAR(length) and VARCHAR(length) as casts to
         STRING in all contexts except for schema definitions. For example, this is in Spark v3.4.0:
@@ -201,22 +219,25 @@ class HiveParser(parser.Parser):
         Reference: https://spark.apache.org/docs/latest/sql-ref-datatypes.html
         """
         this = super()._parse_types(
-            check_func=check_func, schema=schema, allow_identifiers=allow_identifiers
+            check_func=check_func,
+            schema=schema,
+            allow_identifiers=allow_identifiers,
+            with_collation=with_collation,
         )
 
         if this and not schema:
-            return this.transform(
-                lambda node: (
-                    node.replace(exp.DataType.build("text"))
-                    if isinstance(node, exp.DataType) and node.is_type("char", "varchar")
-                    else node
-                ),
-                copy=False,
-            )
+
+            def _to_text(node: exp.Expr) -> exp.Expr:
+                if isinstance(node, exp.DataType) and node.is_type("char", "varchar"):
+                    node.set("this", exp.DType.TEXT)
+                    node.set("expressions", None)
+                return node
+
+            return this.transform(_to_text, copy=False)
 
         return this
 
-    def _parse_alter_table_change(self) -> t.Optional[exp.Expr]:
+    def _parse_alter_table_change(self) -> exp.Expr | None:
         self._match(TokenType.COLUMN)
         this = self._parse_field(any_token=True)
 
@@ -237,9 +258,16 @@ class HiveParser(parser.Parser):
             exp.AlterColumn(this=this, rename_to=column_new, dtype=dtype, comment=comment)
         )
 
+    def _parse_using_property(self) -> exp.Property:
+        if self._match_texts(("JAR", "FILE", "ARCHIVE")):
+            kind = self._prev.text.upper()
+            return exp.UsingProperty(this=self._parse_string(), kind=kind)
+
+        return self._parse_property_assignment(exp.FileFormatProperty)
+
     def _parse_partition_and_order(
         self,
-    ) -> t.Tuple[t.List[exp.Expr], t.Optional[exp.Expr]]:
+    ) -> tuple[list[exp.Expr], exp.Expr | None]:
         return (
             (
                 self._parse_csv(self._parse_assignment)

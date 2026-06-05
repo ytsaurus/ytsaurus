@@ -14,9 +14,11 @@ from sqlglot.expressions.core import (
     Dot,
     maybe_copy,
 )
+from builtins import type as Type
 
 if t.TYPE_CHECKING:
     from sqlglot.dialects.dialect import DialectType
+    from typing_extensions import Self
 
 
 class DataTypeParam(Expression):
@@ -157,6 +159,16 @@ class DType(AutoName):
     YEAR = auto()
     TDIGEST = auto()
 
+    def into_expr(self, **kwargs: object) -> DataType:
+        """Converts this `DType` into a `DataType` instance.
+
+        Args:
+            **kwargs (object): additional arguments to pass in the constructor of DataType.
+        Returns:
+            DataType: the resulting `DataType` instance.
+        """
+        return DataType(this=self).set_kwargs(kwargs)
+
 
 class DataType(Expression):
     arg_types = {
@@ -166,11 +178,12 @@ class DataType(Expression):
         "values": False,
         "kind": False,
         "nullable": False,
+        "collate": False,
     }
 
-    Type: t.ClassVar[t.Type[DType]] = DType
+    Type: t.ClassVar[Type[DType]] = DType
 
-    STRUCT_TYPES: t.ClassVar[t.Set[DType]] = {
+    STRUCT_TYPES: t.ClassVar[set[DType]] = {
         DType.FILE,
         DType.NESTED,
         DType.OBJECT,
@@ -178,12 +191,12 @@ class DataType(Expression):
         DType.UNION,
     }
 
-    ARRAY_TYPES: t.ClassVar[t.Set[DType]] = {
+    ARRAY_TYPES: t.ClassVar[set[DType]] = {
         DType.ARRAY,
         DType.LIST,
     }
 
-    NESTED_TYPES: t.ClassVar[t.Set[DType]] = {
+    NESTED_TYPES: t.ClassVar[set[DType]] = {
         DType.FILE,
         DType.NESTED,
         DType.OBJECT,
@@ -194,7 +207,7 @@ class DataType(Expression):
         DType.MAP,
     }
 
-    TEXT_TYPES: t.ClassVar[t.Set[DType]] = {
+    TEXT_TYPES: t.ClassVar[set[DType]] = {
         DType.CHAR,
         DType.NCHAR,
         DType.NVARCHAR,
@@ -203,7 +216,7 @@ class DataType(Expression):
         DType.NAME,
     }
 
-    SIGNED_INTEGER_TYPES: t.ClassVar[t.Set[DType]] = {
+    SIGNED_INTEGER_TYPES: t.ClassVar[set[DType]] = {
         DType.BIGINT,
         DType.INT,
         DType.INT128,
@@ -213,7 +226,7 @@ class DataType(Expression):
         DType.TINYINT,
     }
 
-    UNSIGNED_INTEGER_TYPES: t.ClassVar[t.Set[DType]] = {
+    UNSIGNED_INTEGER_TYPES: t.ClassVar[set[DType]] = {
         DType.UBIGINT,
         DType.UINT,
         DType.UINT128,
@@ -223,46 +236,7 @@ class DataType(Expression):
         DType.UTINYINT,
     }
 
-    INTEGER_TYPES: t.ClassVar[t.Set[DType]] = {
-        DType.BIGINT,
-        DType.INT,
-        DType.INT128,
-        DType.INT256,
-        DType.MEDIUMINT,
-        DType.SMALLINT,
-        DType.TINYINT,
-        DType.UBIGINT,
-        DType.UINT,
-        DType.UINT128,
-        DType.UINT256,
-        DType.UMEDIUMINT,
-        DType.USMALLINT,
-        DType.UTINYINT,
-        DType.BIT,
-    }
-
-    FLOAT_TYPES: t.ClassVar[t.Set[DType]] = {
-        DType.DOUBLE,
-        DType.FLOAT,
-    }
-
-    REAL_TYPES: t.ClassVar[t.Set[DType]] = {
-        DType.DOUBLE,
-        DType.FLOAT,
-        DType.BIGDECIMAL,
-        DType.DECIMAL,
-        DType.DECIMAL32,
-        DType.DECIMAL64,
-        DType.DECIMAL128,
-        DType.DECIMAL256,
-        DType.DECFLOAT,
-        DType.MONEY,
-        DType.SMALLMONEY,
-        DType.UDECIMAL,
-        DType.UDOUBLE,
-    }
-
-    NUMERIC_TYPES: t.ClassVar[t.Set[DType]] = {
+    INTEGER_TYPES: t.ClassVar[set[DType]] = {
         DType.BIGINT,
         DType.INT,
         DType.INT128,
@@ -278,6 +252,14 @@ class DataType(Expression):
         DType.USMALLINT,
         DType.UTINYINT,
         DType.BIT,
+    }
+
+    FLOAT_TYPES: t.ClassVar[set[DType]] = {
+        DType.DOUBLE,
+        DType.FLOAT,
+    }
+
+    REAL_TYPES: t.ClassVar[set[DType]] = {
         DType.DOUBLE,
         DType.FLOAT,
         DType.BIGDECIMAL,
@@ -293,7 +275,38 @@ class DataType(Expression):
         DType.UDOUBLE,
     }
 
-    TEMPORAL_TYPES: t.ClassVar[t.Set[DType]] = {
+    NUMERIC_TYPES: t.ClassVar[set[DType]] = {
+        DType.BIGINT,
+        DType.INT,
+        DType.INT128,
+        DType.INT256,
+        DType.MEDIUMINT,
+        DType.SMALLINT,
+        DType.TINYINT,
+        DType.UBIGINT,
+        DType.UINT,
+        DType.UINT128,
+        DType.UINT256,
+        DType.UMEDIUMINT,
+        DType.USMALLINT,
+        DType.UTINYINT,
+        DType.BIT,
+        DType.DOUBLE,
+        DType.FLOAT,
+        DType.BIGDECIMAL,
+        DType.DECIMAL,
+        DType.DECIMAL32,
+        DType.DECIMAL64,
+        DType.DECIMAL128,
+        DType.DECIMAL256,
+        DType.DECFLOAT,
+        DType.MONEY,
+        DType.SMALLMONEY,
+        DType.UDECIMAL,
+        DType.UDOUBLE,
+    }
+
+    TEMPORAL_TYPES: t.ClassVar[set[DType]] = {
         DType.DATE,
         DType.DATE32,
         DType.DATETIME,
@@ -318,8 +331,8 @@ class DataType(Expression):
         dialect: DialectType = None,
         udt: bool = False,
         copy: bool = True,
-        **kwargs,
-    ) -> DataType:
+        **kwargs: object,
+    ) -> Self:
         """
         Constructs a DataType object.
 
@@ -334,33 +347,50 @@ class DataType(Expression):
         Returns:
             The constructed DataType object.
         """
-        from sqlglot import parse_one
-
         if isinstance(dtype, str):
-            if dtype.upper() == "UNKNOWN":
-                return DataType(this=DType.UNKNOWN, **kwargs)
-
-            try:
-                data_type_exp = parse_one(
-                    dtype, read=dialect, into=DataType, error_level=ErrorLevel.IGNORE
-                )
-            except ParseError:
-                if udt:
-                    return DataType(this=DType.USERDEFINED, kind=dtype, **kwargs)
-                raise
-        elif isinstance(dtype, (Identifier, Dot)) and udt:
-            return DataType(this=DType.USERDEFINED, kind=dtype, **kwargs)
+            return cls.from_str(dtype, dialect, udt, **kwargs)
         elif isinstance(dtype, DType):
-            data_type_exp = DataType(this=dtype)
-        elif isinstance(dtype, DataType):
+            data_type_exp = cls(this=dtype)
+            if kwargs:
+                for k, v in kwargs.items():
+                    data_type_exp.set(k, v)
+            return data_type_exp
+        elif isinstance(dtype, (Identifier, Dot)) and udt:
+            return cls(this=DType.USERDEFINED, kind=dtype, **kwargs)
+        elif isinstance(dtype, cls):
             return maybe_copy(dtype, copy)
         else:
             raise ValueError(f"Invalid data type: {type(dtype)}. Expected str or DType")
 
-        if kwargs:
-            for k, v in kwargs.items():
-                data_type_exp.set(k, v)
-        return data_type_exp
+    @classmethod
+    def from_str(
+        cls, dtype: str, dialect: DialectType = None, udt: bool = False, **kwargs: object
+    ) -> Self:
+        """
+        Constructs a `DataType` object from a `str` representation.
+
+        Args:
+            dtype: the data type of interest.
+            dialect: the dialect to use for parsing `dtype`.
+            udt: when set to True, `dtype` will be used as-is if it can't be parsed into a
+                `DataType`, thus creating a user-defined type.
+            kwargs: additional arguments to pass in the constructor of `DataType`.
+
+        Returns:
+            The constructed `DataType` object.
+        """
+        from sqlglot import parse_one
+
+        if dtype.upper() == "UNKNOWN":
+            return cls(this=DType.UNKNOWN, **kwargs)
+        try:
+            return parse_one(
+                dtype, read=dialect, into=cls, error_level=ErrorLevel.IGNORE
+            ).set_kwargs(kwargs)
+        except ParseError:
+            if udt:
+                return cls(this=DType.USERDEFINED, kind=dtype, **kwargs)
+            raise
 
     def is_type(self, *dtypes: DATA_TYPE, check_nullable: bool = False) -> bool:
         """

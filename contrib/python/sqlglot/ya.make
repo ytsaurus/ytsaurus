@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(30.0.3)
+VERSION(30.8.0)
 
 LICENSE(MIT)
 
@@ -72,12 +72,47 @@ PY_SRCS(
     sqlglot/expressions/string.py
     sqlglot/expressions/temporal.py
     sqlglot/generator.py
+    sqlglot/generators/__init__.py
+    sqlglot/generators/athena.py
+    sqlglot/generators/bigquery.py
+    sqlglot/generators/clickhouse.py
+    sqlglot/generators/databricks.py
+    sqlglot/generators/doris.py
+    sqlglot/generators/dremio.py
+    sqlglot/generators/drill.py
+    sqlglot/generators/druid.py
+    sqlglot/generators/duckdb.py
+    sqlglot/generators/dune.py
+    sqlglot/generators/exasol.py
+    sqlglot/generators/fabric.py
+    sqlglot/generators/hive.py
+    sqlglot/generators/materialize.py
+    sqlglot/generators/mysql.py
+    sqlglot/generators/oracle.py
+    sqlglot/generators/postgres.py
+    sqlglot/generators/presto.py
+    sqlglot/generators/prql.py
+    sqlglot/generators/python.py
+    sqlglot/generators/redshift.py
+    sqlglot/generators/risingwave.py
+    sqlglot/generators/singlestore.py
+    sqlglot/generators/snowflake.py
+    sqlglot/generators/solr.py
+    sqlglot/generators/spark.py
+    sqlglot/generators/spark2.py
+    sqlglot/generators/sqlite.py
+    sqlglot/generators/starrocks.py
+    sqlglot/generators/tableau.py
+    sqlglot/generators/teradata.py
+    sqlglot/generators/trino.py
+    sqlglot/generators/tsql.py
     sqlglot/helper.py
     sqlglot/jsonpath.py
     sqlglot/lineage.py
     sqlglot/optimizer/__init__.py
     sqlglot/optimizer/annotate_types.py
     sqlglot/optimizer/canonicalize.py
+    sqlglot/optimizer/canonicalize_internal_names.py
     sqlglot/optimizer/eliminate_ctes.py
     sqlglot/optimizer/eliminate_joins.py
     sqlglot/optimizer/eliminate_subqueries.py

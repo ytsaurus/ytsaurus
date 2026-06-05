@@ -28,6 +28,7 @@ EXPRESSION_METADATA = {
             exp.CurrentSchema,
             exp.Hex,
             exp.NextDay,
+            exp.RegexpExtract,
             exp.Repeat,
             exp.Replace,
             exp.Soundex,
@@ -52,6 +53,8 @@ EXPRESSION_METADATA = {
         for expr_type in {
             exp.ArrayDistinct,
             exp.ArrayExcept,
+            exp.First,
+            exp.Last,
             exp.Reverse,
         }
     },
@@ -62,5 +65,5 @@ EXPRESSION_METADATA = {
     },
     exp.If: {"annotator": lambda self, e: self._annotate_by_args(e, "true", "false", promote=True)},
     exp.Quantile: {"annotator": lambda self, e: self._annotate_by_args(e, "quantile")},
-    exp.RegexpSplit: {"returns": exp.DataType.build("ARRAY<STRING>")},
+    exp.RegexpSplit: {"returns": exp.DataType.from_str("ARRAY<STRING>")},
 }

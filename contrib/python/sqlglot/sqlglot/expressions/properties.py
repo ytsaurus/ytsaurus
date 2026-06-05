@@ -129,6 +129,10 @@ class EngineProperty(Property):
     arg_types = {"this": True}
 
 
+class UuidProperty(Property):
+    arg_types = {"this": True}
+
+
 class HeapProperty(Property):
     arg_types = {}
 
@@ -281,6 +285,10 @@ class MergeBlockRatioProperty(Property):
     arg_types = {"this": False, "no": False, "default": False, "percent": False}
 
 
+class ModuleProperty(Property):
+    arg_types = {"this": True, "expressions": False}
+
+
 class NetworkProperty(Property):
     arg_types = {}
 
@@ -326,7 +334,7 @@ class RollupIndex(Expression):
 
 
 class RowAccessProperty(Property):
-    arg_types = {}
+    arg_types = {"this": False, "expressions": False}
 
 
 class PartitionByListProperty(Property):
@@ -473,8 +481,17 @@ class StorageHandlerProperty(Property):
     arg_types = {"this": True}
 
 
+class UsingProperty(Property):
+    # kind: JAR, FILE, or ARCHIVE; this: the resource path (string literal)
+    arg_types = {"this": True, "kind": True}
+
+
 class TemporaryProperty(Property):
     arg_types = {"this": False}
+
+
+class VirtualProperty(Property):
+    arg_types = {}
 
 
 class SecureProperty(Property):
@@ -565,7 +582,7 @@ class ForceProperty(Property):
 class Properties(Expression):
     arg_types = {"expressions": True}
 
-    NAME_TO_PROPERTY: t.ClassVar[t.Dict[str, t.Type[Property]]] = {
+    NAME_TO_PROPERTY: t.ClassVar[dict[str, type[Property]]] = {
         "ALGORITHM": AlgorithmProperty,
         "AUTO_INCREMENT": AutoIncrementProperty,
         "CHARACTER SET": CharacterSetProperty,
@@ -591,7 +608,7 @@ class Properties(Expression):
         "INCLUDE": IncludeProperty,
     }
 
-    PROPERTY_TO_NAME: t.ClassVar[t.Dict[t.Type[Property], str]] = {}
+    PROPERTY_TO_NAME: t.ClassVar[dict[type[Property], str]] = {}
 
     # CREATE property locations
     # Form: schema specified
@@ -606,10 +623,10 @@ class Properties(Expression):
     #     table a [POST_NAME]
     #     as [POST_ALIAS] (select * from b) [POST_EXPRESSION]
     #     index (c) [POST_INDEX]
-    Location: t.ClassVar[t.Type[PropertiesLocation]] = PropertiesLocation
+    Location: t.ClassVar[type[PropertiesLocation]] = PropertiesLocation
 
     @classmethod
-    def from_dict(cls, properties_dict: t.Dict) -> Properties:
+    def from_dict(cls, properties_dict: dict) -> Properties:
         expressions = []
         for key, value in properties_dict.items():
             property_cls = cls.NAME_TO_PROPERTY.get(key.upper())

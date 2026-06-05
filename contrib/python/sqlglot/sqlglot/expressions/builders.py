@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 import typing as t
 
-from sqlglot._typing import E
 from sqlglot.helper import seq_get, ensure_collection, split_num_words
 from sqlglot.errors import ParseError, TokenError
 from sqlglot.expressions.core import (
@@ -43,20 +42,30 @@ from sqlglot.expressions.query import (
     Values,
     Where,
     With,
+    Query,
 )
 from sqlglot.expressions.ddl import Alter, AlterRename, RenameColumn
 from sqlglot.expressions.dml import Delete, Insert, Merge, Update, When, Whens
 from sqlglot.expressions.functions import Case, Cast
 from sqlglot.expressions.array import Array
 
+
 if t.TYPE_CHECKING:
+    from collections.abc import Sequence, Iterable, Iterator
     from sqlglot.dialects.dialect import DialectType
     from sqlglot.expressions.core import ExpOrStr, Func
     from sqlglot.expressions.datatypes import DATA_TYPE
-    from sqlglot.expressions.query import Query
+    from sqlglot._typing import ParserArgs, ParserNoDialectArgs, E, P
+    from typing_extensions import Unpack, Concatenate
+    from sqlglot.expressions.core import Dot
 
 
-def select(*expressions: ExpOrStr, dialect: DialectType = None, **opts) -> Select:
+def select(
+    *expressions: ExpOrStr,
+    dialect: DialectType = None,
+    copy: bool = True,
+    **opts: Unpack[ParserNoDialectArgs],
+) -> Select:
     """
     Initializes a syntax tree from one or multiple SELECT expressions.
 
@@ -75,10 +84,15 @@ def select(*expressions: ExpOrStr, dialect: DialectType = None, **opts) -> Selec
     Returns:
         Select: the syntax tree for the SELECT statement.
     """
-    return Select().select(*expressions, dialect=dialect, **opts)
+    return Select().select(*expressions, dialect=dialect, copy=copy, **opts)
 
 
-def from_(expression: ExpOrStr, dialect: DialectType = None, **opts) -> Select:
+def from_(
+    expression: ExpOrStr,
+    dialect: DialectType = None,
+    copy: bool = True,
+    **opts: Unpack[ParserNoDialectArgs],
+) -> Select:
     """
     Initializes a syntax tree from a FROM expression.
 
@@ -97,17 +111,18 @@ def from_(expression: ExpOrStr, dialect: DialectType = None, **opts) -> Select:
     Returns:
         Select: the syntax tree for the SELECT statement.
     """
-    return Select().from_(expression, dialect=dialect, **opts)
+    return Select().from_(expression, dialect=dialect, copy=copy, **opts)
 
 
 def update(
     table: str | Table,
-    properties: t.Optional[dict] = None,
-    where: t.Optional[ExpOrStr] = None,
-    from_: t.Optional[ExpOrStr] = None,
-    with_: t.Optional[t.Dict[str, ExpOrStr]] = None,
+    properties: dict[str, object] | None = None,
+    where: ExpOrStr | None = None,
+    from_: ExpOrStr | None = None,
+    with_: dict[str, ExpOrStr] | None = None,
     dialect: DialectType = None,
-    **opts,
+    copy: bool = True,
+    **opts: Unpack[ParserNoDialectArgs],
 ) -> Update:
     """
     Creates an update statement.
@@ -123,35 +138,38 @@ def update(
         from_: sql statement parsed into a FROM statement
         with_: dictionary of CTE aliases / select statements to include in a WITH clause.
         dialect: the dialect used to parse the input expressions.
+        copy: whether to copy the input expressions.
         **opts: other options to use to parse the input expressions.
 
     Returns:
         Update: the syntax tree for the UPDATE statement.
     """
-    update_expr = Update(this=maybe_parse(table, into=Table, dialect=dialect))
+    update_expr = Update(this=maybe_parse(table, into=Table, dialect=dialect, copy=copy))
     if properties:
         update_expr.set(
             "expressions",
             [
-                EQ(this=maybe_parse(k, dialect=dialect, **opts), expression=convert(v))
+                EQ(this=maybe_parse(k, dialect=dialect, copy=copy, **opts), expression=convert(v))
                 for k, v in properties.items()
             ],
         )
     if from_:
         update_expr.set(
             "from_",
-            maybe_parse(from_, into=From, dialect=dialect, prefix="FROM", **opts),
+            maybe_parse(from_, into=From, dialect=dialect, prefix="FROM", copy=copy, **opts),
         )
     if isinstance(where, Condition):
         where = Where(this=where)
     if where:
         update_expr.set(
             "where",
-            maybe_parse(where, into=Where, dialect=dialect, prefix="WHERE", **opts),
+            maybe_parse(where, into=Where, dialect=dialect, prefix="WHERE", copy=copy, **opts),
         )
     if with_:
         cte_list = [
-            alias_(CTE(this=maybe_parse(qry, dialect=dialect, **opts)), alias, table=True)
+            alias_(
+                CTE(this=maybe_parse(qry, dialect=dialect, copy=copy, **opts)), alias, table=True
+            )
             for alias, qry in with_.items()
         ]
         update_expr.set(
@@ -163,10 +181,10 @@ def update(
 
 def delete(
     table: ExpOrStr,
-    where: t.Optional[ExpOrStr] = None,
-    returning: t.Optional[ExpOrStr] = None,
+    where: ExpOrStr | None = None,
+    returning: ExpOrStr | None = None,
     dialect: DialectType = None,
-    **opts,
+    **opts: Unpack[ParserNoDialectArgs],
 ) -> Delete:
     """
     Builds a delete statement.
@@ -194,13 +212,13 @@ def delete(
 
 def insert(
     expression: ExpOrStr,
-    into: ExpOrStr,
-    columns: t.Optional[t.Sequence[str | Identifier]] = None,
-    overwrite: t.Optional[bool] = None,
-    returning: t.Optional[ExpOrStr] = None,
+    into: str | Table,
+    columns: Sequence[str | Identifier] | None = None,
+    overwrite: bool | None = None,
+    returning: ExpOrStr | None = None,
     dialect: DialectType = None,
     copy: bool = True,
-    **opts,
+    **opts: Unpack[ParserNoDialectArgs],
 ) -> Insert:
     """
     Builds an INSERT statement.
@@ -241,10 +259,10 @@ def merge(
     into: ExpOrStr,
     using: ExpOrStr,
     on: ExpOrStr,
-    returning: t.Optional[ExpOrStr] = None,
+    returning: ExpOrStr | None = None,
     dialect: DialectType = None,
     copy: bool = True,
-    **opts,
+    **opts: Unpack[ParserNoDialectArgs],
 ) -> Merge:
     """
     Builds a MERGE statement.
@@ -270,7 +288,7 @@ def merge(
     Returns:
         Merge: The syntax tree for the MERGE statement.
     """
-    expressions: t.List[Expr] = []
+    expressions: list[Expr] = []
     for when_expr in when_exprs:
         expression = maybe_parse(when_expr, dialect=dialect, copy=copy, into=Whens, **opts)
         expressions.extend([expression] if isinstance(expression, When) else expression.expressions)
@@ -331,7 +349,7 @@ def to_interval(interval: str | Expr) -> Interval:
 
 
 def to_table(
-    sql_path: str | Table, dialect: DialectType = None, copy: bool = True, **kwargs
+    sql_path: str | Table, dialect: DialectType = None, copy: bool = True, **kwargs: object
 ) -> Table:
     """
     Create a table expression from a `[catalog].[schema].[table]` sql path. Catalog and schema are optional.
@@ -359,19 +377,16 @@ def to_table(
 
         table = table_(this, db=db, catalog=catalog)
 
-    for k, v in kwargs.items():
-        table.set(k, v)
-
-    return table
+    return table.set_kwargs(kwargs)
 
 
 def to_column(
     sql_path: str | Column,
-    quoted: t.Optional[bool] = None,
+    quoted: bool | None = None,
     dialect: DialectType = None,
     copy: bool = True,
-    **kwargs,
-) -> Column:
+    **kwargs: t.Any,
+) -> Column | Dot:
     """
     Create a column from a `[table].[column]` sql path. Table is optional.
     If a column is passed in then that column is returned.
@@ -406,9 +421,10 @@ def to_column(
 
 def subquery(
     expression: ExpOrStr,
-    alias: t.Optional[Identifier | str] = None,
+    alias: Identifier | str | None = None,
     dialect: DialectType = None,
-    **opts,
+    copy: bool = True,
+    **opts: Unpack[ParserNoDialectArgs],
 ) -> Select:
     """
     Build a subquery expression that's selected from.
@@ -427,13 +443,18 @@ def subquery(
     Returns:
         A new Select instance with the subquery expression included.
     """
-
-    expression = maybe_parse(expression, dialect=dialect, **opts).subquery(alias, **opts)
-    return Select().from_(expression, dialect=dialect, **opts)
+    expr = (
+        maybe_parse(expression, dialect=dialect, **opts).assert_is(Query).subquery(alias, copy=copy)
+    )
+    return Select().from_(expr, dialect=dialect, **opts)
 
 
 def cast(
-    expression: ExpOrStr, to: DATA_TYPE, copy: bool = True, dialect: DialectType = None, **opts
+    expression: ExpOrStr,
+    to: DATA_TYPE,
+    copy: bool = True,
+    dialect: DialectType = None,
+    **opts: Unpack[ParserNoDialectArgs],
 ) -> Cast:
     """Cast an expression to a data type.
 
@@ -486,10 +507,10 @@ def cast(
 
 def table_(
     table: Identifier | str,
-    db: t.Optional[Identifier | str] = None,
-    catalog: t.Optional[Identifier | str] = None,
-    quoted: t.Optional[bool] = None,
-    alias: t.Optional[Identifier | str] = None,
+    db: Identifier | str | None = None,
+    catalog: Identifier | str | None = None,
+    quoted: bool | None = None,
+    alias: Identifier | str | None = None,
 ) -> Table:
     """Build a Table.
 
@@ -512,9 +533,9 @@ def table_(
 
 
 def values(
-    values: t.Iterable[t.Tuple[object, ...] | Tuple],
-    alias: t.Optional[str] = None,
-    columns: t.Optional[t.Iterable[str] | t.Dict[str, DataType]] = None,
+    values: Iterable[tuple[object, ...] | Tuple],
+    alias: str | None = None,
+    columns: Iterable[str] | dict[str, DataType] | None = None,
 ) -> Values:
     """Build VALUES statement.
 
@@ -544,7 +565,7 @@ def values(
     )
 
 
-def var(name: t.Optional[ExpOrStr]) -> Var:
+def var(name: ExpOrStr | None) -> Var:
     """Build a SQL variable.
 
     Example:
@@ -598,7 +619,7 @@ def rename_column(
     table_name: str | Table,
     old_column_name: str | Column,
     new_column_name: str | Column,
-    exists: t.Optional[bool] = None,
+    exists: bool | None = None,
     dialect: DialectType = None,
 ) -> Alter:
     """Build ALTER TABLE... RENAME COLUMN... expression
@@ -625,7 +646,12 @@ def rename_column(
     )
 
 
-def replace_children(expression: Expr, fun: t.Callable, *args, **kwargs) -> None:
+def replace_children(
+    expression: Expr,
+    fun: t.Callable[Concatenate[Expr, P], object],
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> None:
     """
     Replace children of an expression with the result of a lambda fun(child) -> exp.
     """
@@ -650,8 +676,8 @@ def replace_children(expression: Expr, fun: t.Callable, *args, **kwargs) -> None
 
 def replace_tree(
     expression: Expr,
-    fun: t.Callable,
-    prune: t.Optional[t.Callable[[Expr], bool]] = None,
+    fun: t.Callable[[Expr], Expr],
+    prune: t.Callable[[Expr], bool] | None = None,
 ) -> Expr:
     """
     Replace an entire tree with the result of function calls on each node.
@@ -674,7 +700,7 @@ def replace_tree(
     return new_node
 
 
-def find_tables(expression: Expr) -> t.Set[Table]:
+def find_tables(expression: Expr) -> set[Table]:
     """
     Find all tables referenced in a query.
 
@@ -694,7 +720,7 @@ def find_tables(expression: Expr) -> t.Set[Table]:
     }
 
 
-def column_table_names(expression: Expr, exclude: str = "") -> t.Set[str]:
+def column_table_names(expression: Expr, exclude: str = "") -> set[str]:
     """
     Return all table names referenced through columns in an expression.
 
@@ -774,7 +800,7 @@ def normalize_table_name(table: str | Table, dialect: DialectType = None, copy: 
 
 
 def replace_tables(
-    expression: E, mapping: t.Dict[str, str], dialect: DialectType = None, copy: bool = True
+    expression: E, mapping: dict[str, str], dialect: DialectType = None, copy: bool = True
 ) -> E:
     """Replace all tables in expression according to the mapping.
 
@@ -813,7 +839,7 @@ def replace_tables(
     return expression.transform(_replace_tables, copy=copy)  # type: ignore
 
 
-def replace_placeholders(expression: Expr, *args, **kwargs) -> Expr:
+def replace_placeholders(expression: Expr, *args: object, **kwargs: t.Any) -> Expr:
     """Replace placeholders in an expression.
 
     Args:
@@ -833,7 +859,7 @@ def replace_placeholders(expression: Expr, *args, **kwargs) -> Expr:
         The mapped expression.
     """
 
-    def _replace_placeholders(node: Expr, args, **kwargs) -> Expr:
+    def _replace_placeholders(node: Expr, args: Iterator[object], **kwargs: object) -> Expr:
         if isinstance(node, Placeholder):
             if node.this:
                 new_name = kwargs.get(node.this)
@@ -851,7 +877,7 @@ def replace_placeholders(expression: Expr, *args, **kwargs) -> Expr:
 
 def expand(
     expression: Expr,
-    sources: t.Dict[str, Query | t.Callable[[], Query]],
+    sources: dict[str, Query | t.Callable[[], Query]],
     dialect: DialectType = None,
     copy: bool = True,
 ) -> Expr:
@@ -895,7 +921,9 @@ def expand(
     return expression.transform(_expand, copy=copy)
 
 
-def func(name: str, *args, copy: bool = True, dialect: DialectType = None, **kwargs) -> Func:
+def func(
+    name: str, *args: t.Any, copy: bool = True, dialect: DialectType = None, **kwargs: t.Any
+) -> Func:
     """
     Returns a Func expression.
 
@@ -927,7 +955,7 @@ def func(name: str, *args, copy: bool = True, dialect: DialectType = None, **kwa
 
     dialect = Dialect.get_or_raise(dialect)
 
-    converted: t.List[Expr] = [maybe_parse(arg, dialect=dialect, copy=copy) for arg in args]
+    converted: list[Expr] = [maybe_parse(arg, dialect=dialect, copy=copy) for arg in args]
     kwargs = {key: maybe_parse(value, dialect=dialect, copy=copy) for key, value in kwargs.items()}
 
     constructor = dialect.parser_class.FUNCTIONS.get(name.upper())
@@ -961,8 +989,9 @@ def func(name: str, *args, copy: bool = True, dialect: DialectType = None, **kwa
 
 
 def case(
-    expression: t.Optional[ExpOrStr] = None,
-    **opts,
+    expression: ExpOrStr | None = None,
+    copy: bool = True,
+    **opts: Unpack[ParserArgs],
 ) -> Case:
     """
     Initialize a CASE statement.
@@ -972,17 +1001,21 @@ def case(
 
     Args:
         expression: Optionally, the input expression (not all dialects support this)
+        copy: whether to copy the argument expressions.
         **opts: Extra keyword arguments for parsing `expression`
     """
     if expression is not None:
-        this = maybe_parse(expression, **opts)
+        this = maybe_parse(expression, copy=copy, **opts)
     else:
         this = None
     return Case(this=this, ifs=[])
 
 
 def array(
-    *expressions: ExpOrStr, copy: bool = True, dialect: DialectType = None, **kwargs
+    *expressions: ExpOrStr,
+    copy: bool = True,
+    dialect: DialectType = None,
+    **kwargs: Unpack[ParserNoDialectArgs],
 ) -> Array:
     """
     Returns an array.
@@ -1009,7 +1042,10 @@ def array(
 
 
 def tuple_(
-    *expressions: ExpOrStr, copy: bool = True, dialect: DialectType = None, **kwargs
+    *expressions: ExpOrStr,
+    copy: bool = True,
+    dialect: DialectType = None,
+    **kwargs: Unpack[ParserNoDialectArgs],
 ) -> Tuple:
     """
     Returns an tuple.
@@ -1058,10 +1094,10 @@ def null() -> Null:
 
 def apply_index_offset(
     this: Expr,
-    expressions: t.List[E],
+    expressions: list[E],
     offset: int,
     dialect: DialectType = None,
-) -> t.List[E]:
+) -> list[E]:
     if not offset or len(expressions) != 1:
         return expressions
 

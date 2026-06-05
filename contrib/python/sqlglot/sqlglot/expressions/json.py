@@ -16,6 +16,7 @@ class JSONArray(Expression, Func):
         "return_type": False,
         "strict": False,
     }
+    is_var_len_args = True
 
 
 class JSONArrayAgg(Expression, AggFunc):
@@ -192,6 +193,10 @@ class JSONStripNulls(Expression, Func):
         "remove_empty": False,
     }
     _sql_names = ["JSON_STRIP_NULLS"]
+
+
+class StripNullValue(Expression, Func):
+    pass
 
 
 class JSONTable(Expression, Func):

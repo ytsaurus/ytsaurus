@@ -18,7 +18,7 @@ if t.TYPE_CHECKING:
 DATE_DELTA = t.Union[exp.DateAdd, exp.DateSub]
 
 
-def to_char_is_numeric_handler(args: t.List, dialect: DialectType) -> exp.TimeToStr | exp.ToChar:
+def to_char_is_numeric_handler(args: list, dialect: DialectType) -> exp.TimeToStr | exp.ToChar:
     expression = build_timetostr_or_tochar(args, dialect)
     fmt = seq_get(args, 1)
 
@@ -30,8 +30,8 @@ def to_char_is_numeric_handler(args: t.List, dialect: DialectType) -> exp.TimeTo
 
 
 def build_date_delta_with_cast_interval(
-    expression_class: t.Type[DATE_DELTA],
-) -> t.Callable[[t.List[exp.Expr]], exp.Expr]:
+    expression_class: type[DATE_DELTA],
+) -> t.Callable[[list[exp.Expr]], exp.Expr]:
     fallback_builder = build_date_delta(expression_class)
 
     def _builder(args):
@@ -56,7 +56,7 @@ def build_date_delta_with_cast_interval(
     return _builder
 
 
-def datetype_handler(args: t.List[exp.Expr], dialect: DialectType) -> exp.Expr:
+def datetype_handler(args: list[exp.Expr], dialect: DialectType) -> exp.Expr:
     from sqlglot.dialects.dialect import Dialect
 
     year, month, day = args
@@ -78,7 +78,7 @@ def datetype_handler(args: t.List[exp.Expr], dialect: DialectType) -> exp.Expr:
             ],
             coalesce=dialect.CONCAT_COALESCE,
         ),
-        to=exp.DataType.build("DATE"),
+        to=exp.DType.DATE.into_expr(),
     )
 
 
@@ -101,12 +101,12 @@ class DremioParser(parser.Parser):
         "BIT_AND": exp.BitwiseAndAgg.from_arg_list,
         "BIT_OR": exp.BitwiseOrAgg.from_arg_list,
         "DATE_ADD": build_date_delta_with_cast_interval(exp.DateAdd),
-        "DATE_FORMAT": build_formatted_time(exp.TimeToStr, "dremio"),
+        "DATE_FORMAT": build_formatted_time(exp.TimeToStr),
         "DATE_SUB": build_date_delta_with_cast_interval(exp.DateSub),
         "REGEXP_MATCHES": exp.RegexpLike.from_arg_list,
         "REPEATSTR": exp.Repeat.from_arg_list,
         "TO_CHAR": to_char_is_numeric_handler,
-        "TO_DATE": build_formatted_time(exp.TsOrDsToDate, "dremio"),
+        "TO_DATE": build_formatted_time(exp.TsOrDsToDate),
         "DATE_PART": exp.Extract.from_arg_list,
         "DATETYPE": datetype_handler,
     }
@@ -120,5 +120,5 @@ class DremioParser(parser.Parser):
                 this=exp.CurrentTimestamp(),
                 zone=exp.Literal.string("UTC"),
             ),
-            to=exp.DataType.build("DATE"),
+            to=exp.DType.DATE.into_expr(),
         )

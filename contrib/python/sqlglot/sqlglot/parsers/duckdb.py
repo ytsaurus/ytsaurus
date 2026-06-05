@@ -15,22 +15,23 @@ from sqlglot.dialects.dialect import (
 from sqlglot.helper import seq_get
 from sqlglot.parser import binary_range_parser
 from sqlglot.tokens import TokenType
+from collections.abc import Collection
 
 
-def _build_sort_array_desc(args: t.List) -> exp.Expr:
+def _build_sort_array_desc(args: list) -> exp.Expr:
     return exp.SortArray(this=seq_get(args, 0), asc=exp.false())
 
 
-def _build_array_prepend(args: t.List) -> exp.Expr:
+def _build_array_prepend(args: list) -> exp.Expr:
     return exp.ArrayPrepend(this=seq_get(args, 1), expression=seq_get(args, 0))
 
 
-def _build_date_diff(args: t.List) -> exp.Expr:
+def _build_date_diff(args: list) -> exp.Expr:
     return exp.DateDiff(this=seq_get(args, 2), expression=seq_get(args, 1), unit=seq_get(args, 0))
 
 
-def _build_generate_series(end_exclusive: bool = False) -> t.Callable[[t.List], exp.GenerateSeries]:
-    def _builder(args: t.List) -> exp.GenerateSeries:
+def _build_generate_series(end_exclusive: bool = False) -> t.Callable[[list], exp.GenerateSeries]:
+    def _builder(args: list) -> exp.GenerateSeries:
         # Check https://duckdb.org/docs/sql/functions/nested.html#range-functions
         if len(args) == 1:
             # DuckDB uses 0 as a default for the series' start when it's omitted
@@ -44,7 +45,7 @@ def _build_generate_series(end_exclusive: bool = False) -> t.Callable[[t.List], 
     return _builder
 
 
-def _build_make_timestamp(args: t.List) -> exp.Expr:
+def _build_make_timestamp(args: list) -> exp.Expr:
     if len(args) == 1:
         return exp.UnixToTime(this=seq_get(args, 0), scale=exp.UnixToTime.MICROS)
 
@@ -63,6 +64,11 @@ def _show_parser(*args: t.Any, **kwargs: t.Any) -> t.Callable[[DuckDBParser], ex
         return self._parse_show_duckdb(*args, **kwargs)
 
     return _parse
+
+
+def _convert_text_type(dtype: exp.DataType) -> exp.DataType:
+    dtype.set("expressions", None)
+    return dtype
 
 
 class DuckDBParser(parser.Parser):
@@ -129,8 +135,11 @@ class DuckDBParser(parser.Parser):
         ),
         "JARO_WINKLER_SIMILARITY": exp.JarowinklerSimilarity.from_arg_list,
         "JSON": exp.ParseJSON.from_arg_list,
+        "JSON_ARRAY": lambda args: exp.JSONArray(expressions=args),
         "JSON_EXTRACT_PATH": parser.build_extract_json_with_path(exp.JSONExtract),
         "JSON_EXTRACT_STRING": parser.build_extract_json_with_path(exp.JSONExtractScalar),
+        "LIST": exp.ArrayAgg.from_arg_list,
+        "LIST_DISTINCT": exp.ArrayDistinct.from_arg_list,
         "LIST_APPEND": exp.ArrayAppend.from_arg_list,
         "LIST_CONCAT": parser.build_array_concat,
         "LIST_CONTAINS": exp.ArrayContains.from_arg_list,
@@ -163,11 +172,11 @@ class DuckDBParser(parser.Parser):
             single_replace=True,
         ),
         "SHA256": lambda args: exp.SHA2(this=seq_get(args, 0), length=exp.Literal.number(256)),
-        "STRFTIME": build_formatted_time(exp.TimeToStr, "duckdb"),
+        "STRFTIME": build_formatted_time(exp.TimeToStr),
         "STRING_SPLIT": exp.Split.from_arg_list,
         "STRING_SPLIT_REGEX": exp.RegexpSplit.from_arg_list,
         "STRING_TO_ARRAY": exp.Split.from_arg_list,
-        "STRPTIME": build_formatted_time(exp.StrToTime, "duckdb"),
+        "STRPTIME": build_formatted_time(exp.StrToTime),
         "STRUCT_PACK": exp.Struct.from_arg_list,
         "STR_SPLIT": exp.Split.from_arg_list,
         "STR_SPLIT_REGEX": exp.RegexpSplit.from_arg_list,
@@ -205,7 +214,7 @@ class DuckDBParser(parser.Parser):
         # https://duckdb.org/docs/sql/data_types/numeric
         exp.DType.DECIMAL: build_default_decimal_type(precision=18, scale=3),
         # https://duckdb.org/docs/sql/data_types/text
-        exp.DType.TEXT: lambda dtype: exp.DataType.build("TEXT"),
+        exp.DType.TEXT: _convert_text_type,
     }
 
     STATEMENT_PARSERS = {
@@ -225,7 +234,19 @@ class DuckDBParser(parser.Parser):
     SHOW_TRIE = new_trie(key.split(" ") for key in SHOW_PARSERS)
     SET_TRIE = new_trie(key.split(" ") for key in SET_PARSERS)
 
-    def _parse_lambda(self, alias: bool = False) -> t.Optional[exp.Expr]:
+    def _parse_function_properties(self) -> exp.Properties | None:
+        if self._match(TokenType.TABLE):
+            return exp.Properties(
+                expressions=[
+                    exp.ReturnsProperty(
+                        this=exp.Schema(this=exp.var("TABLE")),
+                        is_table=True,
+                    ),
+                ]
+            )
+        return super()._parse_function_properties()
+
+    def _parse_lambda(self, alias: bool = False) -> exp.Expr | None:
         index = self._index
         if not self._match_text_seq("LAMBDA"):
             return super()._parse_lambda(alias=alias)
@@ -238,7 +259,7 @@ class DuckDBParser(parser.Parser):
         this = self._replace_lambda(self._parse_assignment(), expressions)
         return self.expression(exp.Lambda(this=this, expressions=expressions, colon=True))
 
-    def _parse_expression(self) -> t.Optional[exp.Expr]:
+    def _parse_expression(self) -> exp.Expr | None:
         # DuckDB supports prefix aliases, e.g. foo: 1
         if self._next.token_type == TokenType.COLON:
             alias = self._parse_id_var(tokens=self.ALIAS_TOKENS)
@@ -258,12 +279,12 @@ class DuckDBParser(parser.Parser):
         self,
         schema: bool = False,
         joins: bool = False,
-        alias_tokens: t.Optional[t.Collection[TokenType]] = None,
+        alias_tokens: Collection[TokenType] | None = None,
         parse_bracket: bool = False,
         is_db_reference: bool = False,
         parse_partition: bool = False,
         consume_pipe: bool = False,
-    ) -> t.Optional[exp.Expr]:
+    ) -> exp.Expr | None:
         # DuckDB supports prefix aliases, e.g. FROM foo: bar
         if self._next.token_type == TokenType.COLON:
             alias = self._parse_table_alias(alias_tokens=alias_tokens or self.TABLE_ALIAS_TOKENS)
@@ -289,7 +310,7 @@ class DuckDBParser(parser.Parser):
 
         return table
 
-    def _parse_table_sample(self, as_modifier: bool = False) -> t.Optional[exp.TableSample]:
+    def _parse_table_sample(self, as_modifier: bool = False) -> exp.TableSample | None:
         # https://duckdb.org/docs/sql/samples.html
         sample = super()._parse_table_sample(as_modifier=as_modifier)
         if sample and not sample.args.get("method"):
@@ -300,7 +321,7 @@ class DuckDBParser(parser.Parser):
 
         return sample
 
-    def _parse_bracket(self, this: t.Optional[exp.Expr] = None) -> t.Optional[exp.Expr]:
+    def _parse_bracket(self, this: exp.Expr | None = None) -> exp.Expr | None:
         bracket = super()._parse_bracket(this)
 
         if self.dialect.version < (1, 2) and isinstance(bracket, exp.Bracket):
@@ -316,10 +337,10 @@ class DuckDBParser(parser.Parser):
         args = self._parse_wrapped_csv(self._parse_assignment)
         return self.expression(exp.Map(keys=seq_get(args, 0), values=seq_get(args, 1)))
 
-    def _parse_struct_types(self, type_required: bool = False) -> t.Optional[exp.Expr]:
+    def _parse_struct_types(self, type_required: bool = False) -> exp.Expr | None:
         return self._parse_field_def()
 
-    def _pivot_column_names(self, aggregations: t.List[exp.Expr]) -> t.List[str]:
+    def _pivot_column_names(self, aggregations: list[exp.Expr]) -> list[str]:
         if len(aggregations) == 1:
             return super()._pivot_column_names(aggregations)
         return pivot_column_names(aggregations, dialect="duckdb")
@@ -349,7 +370,8 @@ class DuckDBParser(parser.Parser):
         )
 
     def _parse_show_duckdb(self, this: str) -> exp.Show:
-        return self.expression(exp.Show(this=this))
+        from_ = self._parse_table(schema=True) if self._match(TokenType.FROM) else None
+        return self.expression(exp.Show(this=this, from_=from_))
 
     def _parse_force(self) -> exp.Install | exp.Command:
         # FORCE can only be followed by INSTALL or CHECKPOINT
@@ -368,7 +390,7 @@ class DuckDBParser(parser.Parser):
             )
         )
 
-    def _parse_primary(self) -> t.Optional[exp.Expr]:
+    def _parse_primary(self) -> exp.Expr | None:
         if self._match_pair(TokenType.HASH, TokenType.NUMBER):
             return exp.PositionalColumn(this=exp.Literal.number(self._prev.text))
 
