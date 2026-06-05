@@ -276,10 +276,6 @@ void FromProto(
     TVolume* volume,
     const NControllerAgent::NProto::TVolume& volumeProto);
 
-void ToProto(
-    NControllerAgent::NProto::TVolume* volumeProto,
-    const TVolume& volume);
-
 void FromProto(
     TVolumeMount* volumeMount,
     const NControllerAgent::NProto::TVolumeMount& volumeMountProto);

@@ -197,6 +197,13 @@ void EnrichLayers(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(
+    NControllerAgent::NProto::TVolume* volumeProto,
+    const NScheduler::TVolume& volume,
+    const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent
 
 #define HELPERS_INL_H_
