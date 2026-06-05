@@ -539,6 +539,45 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id])
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id])
 
+    @authors("dtorilov")
+    def test_yt_28005_02(self):
+        self._create_cells()
+
+        schema_k1_before_k2 = [
+            {"name": "k0", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(k2)"},
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "v0", "type": "int64"},
+        ]
+        schema_k2_before_k1 = [
+            {"name": "k0", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(k2)"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "v0", "type": "int64"},
+        ]
+
+        self._create_replicated_table("//tmp/t1", schema=schema_k1_before_k2)
+        self._create_replicated_table("//tmp/t2", schema=schema_k2_before_k1)
+
+        replica_id1 = create_table_replica(
+            "//tmp/t1", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async"}
+        )
+        self._create_replica_table("//tmp/r1", replica_id1, schema=schema_k1_before_k2)
+        sync_enable_table_replica(replica_id1)
+
+        replica_id2 = create_table_replica(
+            "//tmp/t2", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"}
+        )
+        self._create_replica_table("//tmp/r2", replica_id2, schema=schema_k2_before_k1)
+        sync_enable_table_replica(replica_id2)
+
+        insert_rows("//tmp/t1", [{"k1": 1, "k2": 2, "v0": 42}], require_sync_replica=False)
+        insert_rows("//tmp/t2", [{"k1": 1, "k2": 2, "v0": 42}], require_sync_replica=False)
+
+        farm_hash_of_2 = yson.YsonUint64(3427386618069609762)
+        wait(lambda: select_rows("k0 from [//tmp/r1]", driver=self.replica_driver) == [{"k0": farm_hash_of_2}])
+        wait(lambda: select_rows("k0 from [//tmp/r2]", driver=self.replica_driver) == [{"k0": farm_hash_of_2}])
+
     @authors("savrus")
     def test_forbid_in_sync_async_replicas(self):
         self._create_cells()
