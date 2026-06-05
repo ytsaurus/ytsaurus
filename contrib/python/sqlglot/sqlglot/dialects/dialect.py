@@ -4,9 +4,10 @@ import importlib
 import logging
 import typing as t
 import sys
-
+from collections.abc import Iterable, MutableSequence
 from enum import Enum, auto
 from functools import reduce
+from builtins import type as Type
 
 from sqlglot import exp
 from sqlglot.dialects import DIALECT_MODULE_NAMES
@@ -22,7 +23,7 @@ from sqlglot.helper import (
     to_bool,
     ensure_list,
 )
-from sqlglot.jsonpath import JSONPathTokenizer, parse as parse_json_path
+from sqlglot.jsonpath import ALL_JSON_PATH_PARTS, JSONPathTokenizer, parse as parse_json_path
 from sqlglot.parser import Parser
 from sqlglot.parsers.base import BaseParser
 from sqlglot.time import TIMEZONES, format_time, subsecond_precision
@@ -45,6 +46,7 @@ JSON_EXTRACT_TYPE = t.Union[
 ]
 DATETIME_DELTA = t.Union[
     exp.DateAdd,
+    exp.DateSub,
     exp.DatetimeAdd,
     exp.DatetimeSub,
     exp.TimeAdd,
@@ -56,7 +58,8 @@ DATETIME_DELTA = t.Union[
 DATETIME_ADD = (exp.DateAdd, exp.TimeAdd, exp.DatetimeAdd, exp.TsOrDsAdd, exp.TimestampAdd)
 
 if t.TYPE_CHECKING:
-    from sqlglot._typing import B, E, F
+    from sqlglot._typing import B, E, F, GeneratorArgs, ParserArgs, BuilderArgs
+    from typing_extensions import Unpack
 
 logger = logging.getLogger("sqlglot")
 
@@ -132,9 +135,9 @@ class NormalizationStrategy(str, AutoName):
 
 
 class _Dialect(type):
-    _classes: t.Dict[str, t.Type[Dialect]] = {}
+    _classes: dict[str, Type[Dialect]] = {}
 
-    def __eq__(cls, other: t.Any) -> bool:
+    def __eq__(cls, other: object) -> bool:
         if cls is other:
             return True
         if isinstance(other, str):
@@ -210,16 +213,14 @@ class _Dialect(type):
             pass
 
     @classmethod
-    def __getitem__(cls, key: str) -> t.Type[Dialect]:
+    def __getitem__(cls, key: str) -> Type[Dialect]:
         if key not in cls._classes:
             cls._try_load(key)
 
         return cls._classes[key]
 
     @classmethod
-    def get(
-        cls, key: str, default: t.Optional[t.Type[Dialect]] = None
-    ) -> t.Optional[t.Type[Dialect]]:
+    def get(cls, key: str, default: Type[Dialect] | None = None) -> Type[Dialect] | None:
         if key not in cls._classes:
             cls._try_load(key)
 
@@ -263,15 +264,22 @@ class _Dialect(type):
             "Parser", klass.__dict__.get("parser_class", base_parser[0])
         )
         klass.generator_class = klass.__dict__.get(
-            "Generator", type("Generator", base_generator, {})
+            "Generator", klass.__dict__.get("generator_class", base_generator[0])
         )
+
+        # Remove transforms that correspond to unsupported JSONPathPart expressions
+        gen_cls = klass.generator_class
+        supported = getattr(gen_cls, "SUPPORTED_JSON_PATH_PARTS", None)
+        if isinstance(supported, set):
+            for part in ALL_JSON_PATH_PARTS - supported:
+                gen_cls.TRANSFORMS.pop(part, None)
 
         klass.QUOTE_START, klass.QUOTE_END = list(klass.tokenizer_class._QUOTES.items())[0]
         klass.IDENTIFIER_START, klass.IDENTIFIER_END = list(
             klass.tokenizer_class._IDENTIFIERS.items()
         )[0]
 
-        def get_start_end(token_type: TokenType) -> t.Tuple[t.Optional[str], t.Optional[str]]:
+        def get_start_end(token_type: TokenType) -> tuple[str | None, str | None]:
             return next(
                 (
                     (s, e)
@@ -303,23 +311,6 @@ class _Dialect(type):
 
         if enum not in ("", "bigquery", "snowflake"):
             klass.INITCAP_SUPPORTS_CUSTOM_DELIMITERS = False
-
-        if enum not in ("", "bigquery"):
-            klass.generator_class.SELECT_KINDS = ()
-
-        if enum not in ("", "athena", "presto", "trino", "duckdb"):
-            klass.generator_class.TRY_SUPPORTED = False
-            klass.generator_class.SUPPORTS_UESCAPE = False
-
-        if enum not in ("", "databricks", "hive", "spark", "spark2"):
-            modifier_transforms = klass.generator_class.AFTER_HAVING_MODIFIER_TRANSFORMS.copy()
-            for modifier in ("cluster", "distribute", "sort"):
-                modifier_transforms.pop(modifier, None)
-
-            klass.generator_class.AFTER_HAVING_MODIFIER_TRANSFORMS = modifier_transforms
-
-        if enum not in ("", "databricks", "oracle", "redshift", "snowflake", "spark"):
-            klass.generator_class.SUPPORTS_DECODE_CASE = False
 
         klass.VALID_INTERVAL_UNITS = {
             *klass.VALID_INTERVAL_UNITS,
@@ -383,7 +374,7 @@ class Dialect(metaclass=_Dialect):
     e.g JSON_VALUE vs JSON_EXTRACT_SCALAR in BigQuery
     """
 
-    LOG_BASE_FIRST: t.Optional[bool] = True
+    LOG_BASE_FIRST: bool | None = True
     """
     Whether the base comes first in the `LOG` function.
     Possible values: `True`, `False`, `None` (two arguments are not supported by `LOG`)
@@ -408,6 +399,9 @@ class Dialect(metaclass=_Dialect):
     CONCAT_COALESCE = False
     """A `NULL` arg in `CONCAT` yields `NULL` by default, but in some dialects it yields an empty string."""
 
+    CONCAT_WS_COALESCE = False
+    """A `NULL` arg in `CONCAT_WS` yields `NULL` by default, but in some dialects it is skipped."""
+
     HEX_LOWERCASE = False
     """Whether the `HEX` function returns a lowercase hexadecimal string."""
 
@@ -415,21 +409,30 @@ class Dialect(metaclass=_Dialect):
     DATEINT_FORMAT = "'%Y%m%d'"
     TIME_FORMAT = "'%Y-%m-%d %H:%M:%S'"
 
-    TIME_MAPPING: t.Dict[str, str] = {}
+    TIME_MAPPING: dict[str, str] = {}
     """Associates this dialect's time formats with their equivalent Python `strftime` formats."""
 
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/format-elements#format_model_rules_date_time
     # https://docs.teradata.com/r/Teradata-Database-SQL-Functions-Operators-Exprs-and-Predicates/March-2017/Data-Type-Conversions/Character-to-DATE-Conversion/Forcing-a-FORMAT-on-CAST-for-Converting-Character-to-DATE
-    FORMAT_MAPPING: t.Dict[str, str] = {}
+    FORMAT_MAPPING: dict[str, str] = {}
     """
     Helper which is used for parsing the special syntax `CAST(x AS DATE FORMAT 'yyyy')`.
     If empty, the corresponding trie will be constructed off of `TIME_MAPPING`.
     """
 
-    UNESCAPED_SEQUENCES: t.Dict[str, str] = {}
+    UNESCAPED_SEQUENCES: dict[str, str] = {}
     """Mapping of an escaped sequence (`\\n`) to its unescaped version (`\n`)."""
 
-    PSEUDOCOLUMNS: t.Set[str] = set()
+    STRINGS_SUPPORT_ESCAPED_SEQUENCES: bool = False
+    """Whether string literals support escape sequences (e.g. `\\n`). Set by the metaclass based on the tokenizer's STRING_ESCAPES."""
+
+    BYTE_STRINGS_SUPPORT_ESCAPED_SEQUENCES: bool = False
+    """Whether byte string literals support escape sequences. Set by the metaclass based on the tokenizer's BYTE_STRING_ESCAPES."""
+
+    INVERSE_VECTOR_TYPE_ALIASES: dict[str, str] = {}
+    """Mapping of vector type aliases back to their canonical names. Overridden by dialects like SingleStore."""
+
+    PSEUDOCOLUMNS: set[str] = set()
     """
     Columns that are auto-generated by the engine corresponding to this dialect.
     For example, such columns may be excluded from `SELECT *` queries.
@@ -635,10 +638,13 @@ class Dialect(metaclass=_Dialect):
     STRICT_JSON_PATH_SYNTAX = True
     """Whether failing to parse a JSON path expression using the JSONPath dialect will log a warning."""
 
+    JSON_PATH_SINGLE_DOT_IS_WILDCARD = False
+    """Whether a single DOT in a JSON path (e.g. $.) is treated as a valid wildcard key."""
+
     ON_CONDITION_EMPTY_BEFORE_ERROR = True
     """Whether "X ON EMPTY" should come before "X ON ERROR" (for dialects like T-SQL, MySQL, Oracle)."""
 
-    ARRAY_AGG_INCLUDES_NULLS: t.Optional[bool] = True
+    ARRAY_AGG_INCLUDES_NULLS: bool | None = True
     """Whether ArrayAgg needs to filter NULL values."""
 
     ARRAY_FUNCS_PROPAGATES_NULLS = False
@@ -666,7 +672,7 @@ class Dialect(metaclass=_Dialect):
     REGEXP_EXTRACT_POSITION_OVERFLOW_RETURNS_NULL = True
     """Whether REGEXP_EXTRACT returns NULL when the position arg exceeds the string length."""
 
-    SET_OP_DISTINCT_BY_DEFAULT: t.Dict[t.Type[exp.Expr], t.Optional[bool]] = {
+    SET_OP_DISTINCT_BY_DEFAULT: dict[Type[exp.Expr], bool | None] = {
         exp.Except: True,
         exp.Intersect: True,
         exp.Union: True,
@@ -694,7 +700,7 @@ class Dialect(metaclass=_Dialect):
 
     # Whether the value/LHS of the TRY_CAST(<value> AS <type>) should strictly be a
     # STRING type (Snowflake's case) or can be of any type
-    TRY_CAST_REQUIRES_STRING: t.Optional[bool] = None
+    TRY_CAST_REQUIRES_STRING: bool | None = None
 
     # Whether the double negation can be applied
     # Not safe with MySQL and SQLite due to type coercion (may not return boolean)
@@ -720,7 +726,7 @@ class Dialect(metaclass=_Dialect):
     Whether JSON_EXTRACT_SCALAR returns null if a non-scalar value is selected.
     """
 
-    DEFAULT_FUNCTIONS_COLUMN_NAMES: t.Dict[t.Type[exp.Func], t.Union[str, t.Tuple[str, ...]]] = {}
+    DEFAULT_FUNCTIONS_COLUMN_NAMES: dict[Type[exp.Func], str | tuple[str, ...]] = {}
     """
     Maps function expressions to their default output column name(s).
 
@@ -758,17 +764,17 @@ class Dialect(metaclass=_Dialect):
     generator_class = Generator
 
     # A trie of the time_mapping keys
-    TIME_TRIE: t.Dict = {}
-    FORMAT_TRIE: t.Dict = {}
+    TIME_TRIE: dict = {}
+    FORMAT_TRIE: dict = {}
 
-    INVERSE_TIME_MAPPING: t.Dict[str, str] = {}
-    INVERSE_TIME_TRIE: t.Dict = {}
-    INVERSE_FORMAT_MAPPING: t.Dict[str, str] = {}
-    INVERSE_FORMAT_TRIE: t.Dict = {}
+    INVERSE_TIME_MAPPING: dict[str, str] = {}
+    INVERSE_TIME_TRIE: dict = {}
+    INVERSE_FORMAT_MAPPING: dict[str, str] = {}
+    INVERSE_FORMAT_TRIE: dict = {}
 
     INVERSE_CREATABLE_KIND_MAPPING: dict[str, str] = {}
 
-    ESCAPED_SEQUENCES: t.Dict[str, str] = {}
+    ESCAPED_SEQUENCES: dict[str, str] = {}
 
     # Delimiters for string literals and identifiers
     QUOTE_START = "'"
@@ -776,17 +782,17 @@ class Dialect(metaclass=_Dialect):
     IDENTIFIER_START = '"'
     IDENTIFIER_END = '"'
 
-    VALID_INTERVAL_UNITS: t.Set[str] = set()
+    VALID_INTERVAL_UNITS: set[str] = set()
 
     # Delimiters for bit, hex, byte and unicode literals
-    BIT_START: t.Optional[str] = None
-    BIT_END: t.Optional[str] = None
-    HEX_START: t.Optional[str] = None
-    HEX_END: t.Optional[str] = None
-    BYTE_START: t.Optional[str] = None
-    BYTE_END: t.Optional[str] = None
-    UNICODE_START: t.Optional[str] = None
-    UNICODE_END: t.Optional[str] = None
+    BIT_START: str | None = None
+    BIT_END: str | None = None
+    HEX_START: str | None = None
+    HEX_END: str | None = None
+    BYTE_START: str | None = None
+    BYTE_END: str | None = None
+    UNICODE_START: str | None = None
+    UNICODE_END: str | None = None
 
     DATE_PART_MAPPING = {
         "Y": "YEAR",
@@ -884,7 +890,7 @@ class Dialect(metaclass=_Dialect):
     }
 
     # Specifies what types a given type can be coerced into
-    COERCES_TO: t.Dict[exp.DType, t.Set[exp.DType]] = {}
+    COERCES_TO: dict[exp.DType, set[exp.DType]] = {}
 
     # Specifies type inference & validation rules for expressions
     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
@@ -927,7 +933,7 @@ class Dialect(metaclass=_Dialect):
                 kwargs = {}
                 for pair in kv_pairs:
                     key = pair[0].strip()
-                    value: t.Union[bool | str | None] = None
+                    value: bool | str | None = None
 
                     if len(pair) == 1:
                         # Default initialize standalone settings to True
@@ -955,7 +961,7 @@ class Dialect(metaclass=_Dialect):
         raise ValueError(f"Invalid dialect type for '{dialect}': '{type(dialect)}'.")
 
     @classmethod
-    def format_time(cls, expression: t.Optional[str | exp.Expr]) -> t.Optional[exp.Expr]:
+    def format_time(cls, expression: str | exp.Expr | None) -> exp.Expr | None:
         """Converts a time format in this dialect to its equivalent Python `strftime` format."""
         if isinstance(expression, str):
             return exp.Literal.string(
@@ -984,7 +990,7 @@ class Dialect(metaclass=_Dialect):
         for unsupported_setting in kwargs.keys() - self.SUPPORTED_SETTINGS:
             suggest_closest_match_and_fail("setting", unsupported_setting, self.SUPPORTED_SETTINGS)
 
-    def __eq__(self, other: t.Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         # Does not currently take dialect state into account
         return type(self) == other
 
@@ -1094,7 +1100,7 @@ class Dialect(metaclass=_Dialect):
             expression.set("quoted", self.can_quote(expression, identify or "unsafe"))
         return expression
 
-    def to_json_path(self, path: t.Optional[exp.Expr]) -> t.Optional[exp.Expr]:
+    def to_json_path(self, path: exp.Expr | None) -> exp.Expr | None:
         if isinstance(path, exp.Literal):
             path_text = path.name
             if path.is_number:
@@ -1109,46 +1115,50 @@ class Dialect(metaclass=_Dialect):
 
         return path
 
-    def parse(self, sql: str, **opts) -> t.List[t.Optional[exp.Expr]]:
+    def parse(self, sql: str, **opts: Unpack[ParserArgs]) -> list[exp.Expr | None]:
         return self.parser(**opts).parse(self.tokenize(sql), sql)
 
     def parse_into(
-        self, expression_type: exp.IntoType, sql: str, **opts
-    ) -> t.List[t.Optional[exp.Expr]]:
+        self, expression_type: exp.IntoType, sql: str, **opts: Unpack[ParserArgs]
+    ) -> list[exp.Expr | None]:
         return self.parser(**opts).parse_into(expression_type, self.tokenize(sql), sql)
 
-    def generate(self, expression: exp.Expr, copy: bool = True, **opts) -> str:
+    def generate(
+        self, expression: exp.Expr, copy: bool = True, **opts: Unpack[GeneratorArgs]
+    ) -> str:
         return self.generator(**opts).generate(expression, copy=copy)
 
-    def transpile(self, sql: str, **opts) -> t.List[str]:
+    def transpile(self, sql: str, **opts: Unpack[GeneratorArgs]) -> list[str]:
         return [
             self.generate(expression, copy=False, **opts) if expression else ""
             for expression in self.parse(sql)
         ]
 
-    def tokenize(self, sql: str, **opts) -> t.List[Token]:
-        return self.tokenizer(**opts).tokenize(sql)
+    def tokenize(self, sql: str, dialect: DialectType = None) -> list[Token]:
+        return self.tokenizer(dialect=dialect).tokenize(sql)
 
-    def tokenizer(self, **opts) -> Tokenizer:
-        return self.tokenizer_class(**{"dialect": self, **opts})
+    def tokenizer(self, dialect: DialectType = None) -> Tokenizer:
+        return self.tokenizer_class(dialect=dialect or self)
 
-    def jsonpath_tokenizer(self, **opts) -> JSONPathTokenizer:
-        return self.jsonpath_tokenizer_class(**{"dialect": self, **opts})
+    def jsonpath_tokenizer(self, dialect: DialectType = None) -> JSONPathTokenizer:
+        return self.jsonpath_tokenizer_class(dialect=dialect or self)
 
-    def parser(self, **opts) -> Parser:
-        return self.parser_class(**{"dialect": self, **opts})
+    def parser(self, **opts: Unpack[ParserArgs]) -> Parser:
+        args: ParserArgs = {"dialect": self, **opts}
+        return self.parser_class(**args)
 
-    def generator(self, **opts) -> Generator:
-        return self.generator_class(**{"dialect": self, **opts})
+    def generator(self, **opts: Unpack[GeneratorArgs]) -> Generator:
+        args: GeneratorArgs = {"dialect": self, **opts}
+        return self.generator_class(**args)
 
-    def generate_values_aliases(self, expression: exp.Values) -> t.List[exp.Identifier]:
+    def generate_values_aliases(self, expression: exp.Values) -> list[exp.Identifier]:
         return [
             exp.to_identifier(f"_col_{i}")
             for i, _ in enumerate(expression.expressions[0].expressions)
         ]
 
 
-DialectType = t.Union[str, Dialect, t.Type[Dialect], None]
+DialectType = t.Union[str, Dialect, Type[Dialect], None]
 
 
 def rename_func(name: str) -> t.Callable[[Generator, exp.Expr], str]:
@@ -1174,7 +1184,7 @@ def approx_count_distinct_sql(self: Generator, expression: exp.ApproxDistinct) -
 
 
 def if_sql(
-    name: str = "IF", false_value: t.Optional[exp.Expr | str] = None
+    name: str = "IF", false_value: exp.Expr | str | None = None
 ) -> t.Callable[[Generator, exp.If], str]:
     def _if_sql(self: Generator, expression: exp.If) -> str:
         return self.func(
@@ -1209,7 +1219,9 @@ def inline_array_unless_query(self: Generator, expression: exp.Expr) -> str:
 def no_ilike_sql(self: Generator, expression: exp.ILike) -> str:
     return self.like_sql(
         exp.Like(
-            this=exp.Lower(this=expression.this), expression=exp.Lower(this=expression.expression)
+            this=exp.Lower(this=expression.this),
+            expression=exp.Lower(this=expression.expression),
+            negate=expression.args.get("negate"),
         )
     )
 
@@ -1356,7 +1368,7 @@ def array_append_sql(
 
 
 def generate_series_sql(
-    func_name: str, exclusive_func_name: t.Optional[str] = None
+    func_name: str, exclusive_func_name: str | None = None
 ) -> t.Callable[[Generator, exp.GenerateSeries], str]:
     def _generate_series_sql(self: Generator, expression: exp.GenerateSeries) -> str:
         start = expression.args.get("start")
@@ -1391,7 +1403,7 @@ def array_concat_sql(
         Dialects that propagate NULLs need to set `ARRAY_FUNCS_PROPAGATES_NULLS` to True.
     """
 
-    def _build_func_call(self: Generator, func_name: str, args: t.Sequence[exp.Expr]) -> str:
+    def _build_func_call(self: Generator, func_name: str, args: BuilderArgs) -> str:
         """Build ARRAY_CONCAT call from a list of arguments, handling variadic vs binary nesting."""
         if self.ARRAY_CONCAT_IS_VAR_LEN:
             return self.func(func_name, *args)
@@ -1428,7 +1440,7 @@ def array_concat_sql(
         # Check if ANY argument is NULL and return NULL explicitly
         if source_null_propagation:
             # Build OR-chain: a IS NULL OR b IS NULL OR c IS NULL
-            null_checks: t.List[exp.Expr] = [
+            null_checks: list[exp.Expr] = [
                 exp.Is(this=arg.copy(), expression=exp.Null()) for arg in all_args
             ]
             combined_check: exp.Expr = reduce(
@@ -1528,35 +1540,39 @@ def months_between_sql(self: Generator, expression: exp.MonthsBetween) -> str:
 
 
 def build_formatted_time(
-    exp_class: t.Type[E], dialect: str, default: t.Optional[bool | str] = None
-) -> t.Callable[[t.List], E]:
+    exp_class: Type[E], dialect_override: str | None = None, default: bool | str | None = None
+) -> t.Callable[[BuilderArgs, Dialect], E]:
     """Helper used for time expressions.
 
     Args:
         exp_class: the expression class to instantiate.
-        dialect: target sql dialect.
+        dialect_override: optional sql dialect to override the parser's one.
         default: the default format, True being time.
 
     Returns:
         A callable that can be used to return the appropriately formatted time expression.
     """
 
-    def _builder(args: t.List):
-        return exp_class(
-            this=seq_get(args, 0),
-            format=Dialect[dialect].format_time(
-                seq_get(args, 1)
-                or (Dialect[dialect].TIME_FORMAT if default is True else default or None)
-            ),
+    def _builder(args: BuilderArgs, dialect: Dialect) -> E:
+        target_dialect = (
+            t.cast(Dialect, Dialect[dialect_override])
+            if isinstance(dialect_override, str)
+            else dialect
         )
+
+        fmt = seq_get(args, 1)
+        if not fmt:
+            fmt = target_dialect.TIME_FORMAT if default is True else default or None
+
+        return exp_class(this=seq_get(args, 0), format=target_dialect.format_time(fmt))
 
     return _builder
 
 
 def time_format(
     dialect: DialectType = None,
-) -> t.Callable[[Generator, exp.UnixToStr | exp.StrToUnix], t.Optional[str]]:
-    def _time_format(self: Generator, expression: exp.UnixToStr | exp.StrToUnix) -> t.Optional[str]:
+) -> t.Callable[[Generator, exp.UnixToStr | exp.StrToUnix], str | None]:
+    def _time_format(self: Generator, expression: exp.UnixToStr | exp.StrToUnix) -> str | None:
         """
         Returns the time format for a given expression, unless it's equivalent
         to the default time format of the dialect of interest.
@@ -1568,12 +1584,12 @@ def time_format(
 
 
 def build_date_delta(
-    exp_class: t.Type[E],
-    unit_mapping: t.Optional[t.Dict[str, str]] = None,
-    default_unit: t.Optional[str] = "DAY",
+    exp_class: Type[E],
+    unit_mapping: dict[str, str] | None = None,
+    default_unit: str | None = "DAY",
     supports_timezone: bool = False,
-) -> t.Callable[[t.List], E]:
-    def _builder(args: t.List) -> E:
+) -> t.Callable[[BuilderArgs], E]:
+    def _builder(args: BuilderArgs) -> E:
         unit_based = len(args) >= 3
         has_timezone = len(args) == 4
         this = args[2] if unit_based else seq_get(args, 0)
@@ -1590,23 +1606,30 @@ def build_date_delta(
 
 
 def build_date_delta_with_interval(
-    expression_class: t.Type[E],
-) -> t.Callable[[t.List], t.Optional[E]]:
-    def _builder(args: t.List) -> t.Optional[E]:
+    expression_class: Type[E],
+    default_unit: str | None = None,
+) -> t.Callable[[BuilderArgs], E | None]:
+    def _builder(args: BuilderArgs) -> E | None:
         if len(args) < 2:
             return None
 
         interval = args[1]
 
         if not isinstance(interval, exp.Interval):
-            raise ParseError(f"INTERVAL expression expected but got '{interval}'")
+            if default_unit is None:
+                raise ParseError(f"INTERVAL expression expected but got '{interval}'")
+            return expression_class(
+                this=args[0],
+                expression=interval,
+                unit=exp.Literal.string(default_unit),
+            )
 
         return expression_class(this=args[0], expression=interval.this, unit=unit_to_str(interval))
 
     return _builder
 
 
-def date_trunc_to_time(args: t.List) -> exp.DateTrunc | exp.TimestampTrunc:
+def date_trunc_to_time(args: BuilderArgs) -> exp.DateTrunc | exp.TimestampTrunc:
     unit = seq_get(args, 0)
     this = seq_get(args, 1)
 
@@ -1698,9 +1721,8 @@ def timestrtotime_sql(
     expression: exp.TimeStrToTime,
     include_precision: bool = False,
 ) -> str:
-    datatype = exp.DataType.build(
-        exp.DType.TIMESTAMPTZ if expression.args.get("zone") else exp.DType.TIMESTAMP
-    )
+    builder = exp.DType.TIMESTAMPTZ if expression.args.get("zone") else exp.DType.TIMESTAMP
+    datatype = builder.into_expr()
 
     if isinstance(expression.this, exp.Literal) and include_precision:
         precision = subsecond_precision(expression.this.name)
@@ -1748,14 +1770,15 @@ def count_if_to_sum(self: Generator, expression: exp.CountIf) -> str:
 
 
 def trim_sql(self: Generator, expression: exp.Trim, default_trim_type: str = "") -> str:
-    target = self.sql(expression, "this")
-    trim_type = self.sql(expression, "position") or default_trim_type
     remove_chars = self.sql(expression, "expression")
-    collation = self.sql(expression, "collation")
 
     # Use TRIM/LTRIM/RTRIM syntax if the expression isn't database-specific
     if not remove_chars:
         return self.trim_sql(expression)
+
+    target = self.sql(expression, "this")
+    trim_type = self.sql(expression, "position") or default_trim_type
+    collation = self.sql(expression, "collation")
 
     trim_type = f"{trim_type} " if trim_type else ""
     remove_chars = f"{remove_chars} " if remove_chars else ""
@@ -1802,8 +1825,8 @@ def regexp_replace_sql(self: Generator, expression: exp.RegexpReplace) -> str:
     )
 
 
-def pivot_column_names(aggregations: t.List[exp.Expr], dialect: DialectType) -> t.List[str]:
-    names = []
+def pivot_column_names(aggregations: Iterable[exp.Expr], dialect: DialectType) -> list[str]:
+    names: list[str] = []
     for agg in aggregations:
         if isinstance(agg, exp.Alias):
             names.append(agg.alias)
@@ -1814,7 +1837,7 @@ def pivot_column_names(aggregations: t.List[exp.Expr], dialect: DialectType) -> 
             be quoted in the base parser's `_parse_pivot` method, due to `to_identifier`.
             Otherwise, we'd end up with `col_avg(`foo`)` (notice the double quotes).
             """
-            agg_all_unquoted = agg.transform(
+            agg_all_unquoted: exp.Expr = agg.transform(
                 lambda node: (
                     exp.Identifier(this=node.name, quoted=False)
                     if isinstance(node, exp.Identifier)
@@ -1826,21 +1849,22 @@ def pivot_column_names(aggregations: t.List[exp.Expr], dialect: DialectType) -> 
     return names
 
 
-def binary_from_function(expr_type: t.Type[B]) -> t.Callable[[t.List], B]:
+def binary_from_function(expr_type: Type[B]) -> t.Callable[[BuilderArgs], B]:
     return lambda args: expr_type(this=seq_get(args, 0), expression=seq_get(args, 1))
 
 
 # Used to represent DATE_TRUNC in Doris, Postgres and Starrocks dialects
-def build_timestamp_trunc(args: t.List) -> exp.TimestampTrunc:
+def build_timestamp_trunc(args: BuilderArgs) -> exp.TimestampTrunc:
     return exp.TimestampTrunc(this=seq_get(args, 1), unit=seq_get(args, 0))
 
 
 def build_trunc(
-    args: t.List,
+    args: BuilderArgs,
     dialect: DialectType,
     date_trunc_unabbreviate: bool = True,
-    default_date_trunc_unit: t.Optional[str] = None,
+    default_date_trunc_unit: str | None = None,
     date_trunc_requires_part: bool = True,
+    fractions_supported: bool = False,
 ) -> exp.DateTrunc | exp.Trunc | exp.Anonymous:
     """
     Builder for dialects with overloaded TRUNC (Oracle, Snowflake, etc).
@@ -1870,7 +1894,7 @@ def build_trunc(
         or (second and second.is_type(*exp.DataType.NUMERIC_TYPES))
         or (not date_trunc_requires_part and not second)
     ):
-        return exp.Trunc(this=this, decimals=second)
+        return exp.Trunc(this=this, decimals=second, fractions_supported=fractions_supported)
 
     return exp.Anonymous(this="TRUNC", expressions=args)
 
@@ -1891,7 +1915,7 @@ def is_parse_json(expression: exp.Expr) -> bool:
     )
 
 
-def isnull_to_is_null(args: t.List) -> exp.Expr:
+def isnull_to_is_null(args: BuilderArgs) -> exp.Expr:
     return exp.Paren(this=exp.Is(this=seq_get(args, 0), expression=exp.null()))
 
 
@@ -1947,7 +1971,7 @@ def date_delta_to_binary_interval_op(
         unit = unit_to_var(expression)
         op = "+" if isinstance(expression, DATETIME_ADD) else "-"
 
-        to_type: t.Optional[exp.DATA_TYPE] = None
+        to_type: exp.DATA_TYPE | None = None
         if cast:
             if isinstance(expression, exp.TsOrDsAdd):
                 to_type = expression.return_type
@@ -1969,7 +1993,7 @@ def date_delta_to_binary_interval_op(
     return date_delta_to_binary_interval_op_sql
 
 
-def unit_to_str(expression: exp.Expr, default: str = "DAY") -> t.Optional[exp.Expr]:
+def unit_to_str(expression: exp.Expr, default: str = "DAY") -> exp.Expr | None:
     unit = expression.args.get("unit")
     if not unit:
         return exp.Literal.string(default) if default else None
@@ -1980,7 +2004,7 @@ def unit_to_str(expression: exp.Expr, default: str = "DAY") -> t.Optional[exp.Ex
     return exp.Literal.string(unit.name)
 
 
-def unit_to_var(expression: exp.Expr, default: str = "DAY") -> t.Optional[exp.Expr]:
+def unit_to_var(expression: exp.Expr, default: str = "DAY") -> exp.Expr | None:
     unit = expression.args.get("unit")
 
     if isinstance(unit, (exp.Var, exp.Placeholder, exp.WeekStart, exp.Column)):
@@ -1996,9 +2020,7 @@ def map_date_part(part: exp.Expr, dialect: DialectType = Dialect) -> exp.Expr:
 
 
 @t.overload
-def map_date_part(
-    part: t.Optional[exp.Expr], dialect: DialectType = Dialect
-) -> t.Optional[exp.Expr]:
+def map_date_part(part: exp.Expr | None, dialect: DialectType = Dialect) -> exp.Expr | None:
     pass
 
 
@@ -2026,7 +2048,7 @@ def merge_without_target_sql(self: Generator, expression: exp.Merge) -> str:
     """Remove table refs from columns in when statements."""
     alias = expression.this.args.get("alias")
 
-    def normalize(identifier: t.Optional[exp.Identifier]) -> t.Optional[str]:
+    def normalize(identifier: exp.Identifier | None) -> str | None:
         return self.dialect.normalize_identifier(identifier).name if identifier else None
 
     targets = {normalize(expression.this.this)}
@@ -2059,13 +2081,13 @@ def merge_without_target_sql(self: Generator, expression: exp.Merge) -> str:
 
 
 def build_json_extract_path(
-    expr_type: t.Type[F],
+    expr_type: Type[F],
     zero_based_indexing: bool = True,
     arrow_req_json_type: bool = False,
-    json_type: t.Optional[str] = None,
-) -> t.Callable[[t.List], F]:
-    def _builder(args: t.List) -> F:
-        segments: t.List[exp.JSONPathPart] = [exp.JSONPathRoot()]
+    json_type: str | None = None,
+) -> t.Callable[[MutableSequence[t.Any]], F]:
+    def _builder(args: MutableSequence[t.Any]) -> F:
+        segments: list[exp.JSONPathPart] = [exp.JSONPathRoot()]
         for arg in args[1:]:
             if not isinstance(arg, exp.Literal):
                 # We use the fallback parser because we can't really transpile non-literals safely
@@ -2100,7 +2122,7 @@ def build_json_extract_path(
 
 
 def json_extract_segments(
-    name: str, quoted_index: bool = True, op: t.Optional[str] = None
+    name: str, quoted_index: bool = True, op: str | None = None
 ) -> t.Callable[[Generator, JSON_EXTRACT_TYPE], str]:
     def _json_extract_segments(self: Generator, expression: JSON_EXTRACT_TYPE) -> str:
         path = expression.expression
@@ -2217,19 +2239,19 @@ def to_number_with_nls_param(self: Generator, expression: exp.ToNumber) -> str:
 
 
 def build_default_decimal_type(
-    precision: t.Optional[int] = None, scale: t.Optional[int] = None
+    precision: int | None = None, scale: int | None = None
 ) -> t.Callable[[exp.DataType], exp.DataType]:
     def _builder(dtype: exp.DataType) -> exp.DataType:
         if dtype.expressions or precision is None:
             return dtype
 
         params = f"{precision}{f', {scale}' if scale is not None else ''}"
-        return exp.DataType.build(f"DECIMAL({params})")
+        return exp.DataType.from_str(f"DECIMAL({params})")
 
     return _builder
 
 
-def build_timestamp_from_parts(args: t.List) -> exp.Func:
+def build_timestamp_from_parts(args: BuilderArgs) -> exp.Func:
     if len(args) == 2:
         # Other dialects don't have the TIMESTAMP_FROM_PARTS(date, time) concept,
         # so we parse this into Anonymous for now instead of introducing complexity
@@ -2294,8 +2316,8 @@ def sequence_sql(self: Generator, expression: exp.GenerateSeries | exp.GenerateD
     return self.func("SEQUENCE", start, end, step)
 
 
-def build_like(expr_type: t.Type[E], not_like: bool = False) -> t.Callable[[t.List], exp.Expr]:
-    def _builder(args: t.List) -> exp.Expr:
+def build_like(expr_type: Type[E], not_like: bool = False) -> t.Callable[[BuilderArgs], exp.Expr]:
+    def _builder(args: BuilderArgs) -> exp.Expr:
         like_expr: exp.Expr = expr_type(this=seq_get(args, 0), expression=seq_get(args, 1))
 
         if escape := seq_get(args, 2):
@@ -2309,8 +2331,8 @@ def build_like(expr_type: t.Type[E], not_like: bool = False) -> t.Callable[[t.Li
     return _builder
 
 
-def build_regexp_extract(expr_type: t.Type[E]) -> t.Callable[[t.List, Dialect], E]:
-    def _builder(args: t.List, dialect: Dialect) -> E:
+def build_regexp_extract(expr_type: Type[E]) -> t.Callable[[BuilderArgs, Dialect], E]:
+    def _builder(args: BuilderArgs, dialect: Dialect) -> E:
         # The "position" argument specifies the index of the string character to start matching from.
         # `null_if_pos_overflow` reflects the dialect's behavior when position is greater than the string
         # length. If true, returns NULL. If false, returns an empty string. `null_if_pos_overflow` is
@@ -2335,7 +2357,7 @@ def explode_to_unnest_sql(self: Generator, expression: exp.Lateral) -> str:
     this = expression.this
     alias = expression.args.get("alias")
 
-    cross_join_expr: t.Optional[exp.Expr] = None
+    cross_join_expr: exp.Expr | None = None
     if isinstance(this, exp.Posexplode) and alias:
         # Spark's `FROM x LATERAL VIEW POSEXPLODE(y) t AS pos, col` has the following semantics:
         # - The first column is the position and the rest (1 for array, 2 for maps) are the exploded values
@@ -2392,8 +2414,8 @@ def length_or_char_length_sql(self: Generator, expression: exp.Length) -> str:
 def groupconcat_sql(
     self: Generator,
     expression: exp.GroupConcat,
-    func_name="LISTAGG",
-    sep: t.Optional[str] = ",",
+    func_name: str = "LISTAGG",
+    sep: str | None = ",",
     within_group: bool = True,
     on_overflow: bool = False,
 ) -> str:
@@ -2436,7 +2458,9 @@ def groupconcat_sql(
     return self.sql(listagg)
 
 
-def build_timetostr_or_tochar(args: t.List, dialect: DialectType) -> exp.TimeToStr | exp.ToChar:
+def build_timetostr_or_tochar(
+    args: BuilderArgs, dialect: DialectType
+) -> exp.TimeToStr | exp.ToChar:
     if len(args) == 2:
         this = args[0]
         if not this.type:
@@ -2445,13 +2469,12 @@ def build_timetostr_or_tochar(args: t.List, dialect: DialectType) -> exp.TimeToS
             annotate_types(this, dialect=dialect)
 
         if this.is_type(*exp.DataType.TEMPORAL_TYPES):
-            dialect_name = dialect.__class__.__name__.lower()
-            return build_formatted_time(exp.TimeToStr, dialect_name, default=True)(args)
+            return build_formatted_time(exp.TimeToStr, default=True)(args, t.cast(Dialect, dialect))
 
     return exp.ToChar.from_arg_list(args)
 
 
-def build_replace_with_optional_replacement(args: t.List) -> exp.Replace:
+def build_replace_with_optional_replacement(args: BuilderArgs) -> exp.Replace:
     return exp.Replace(
         this=seq_get(args, 0),
         expression=seq_get(args, 1),

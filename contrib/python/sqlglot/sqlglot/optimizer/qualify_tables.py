@@ -10,13 +10,14 @@ from sqlglot.optimizer.scope import Scope, traverse_scope
 
 if t.TYPE_CHECKING:
     from sqlglot._typing import E
+    from collections.abc import Sequence
 
 
 def qualify_tables(
     expression: E,
-    db: t.Optional[str | exp.Identifier] = None,
-    catalog: t.Optional[str | exp.Identifier] = None,
-    on_qualify: t.Optional[t.Callable[[exp.Table], None]] = None,
+    db: str | exp.Identifier | None = None,
+    catalog: str | exp.Identifier | None = None,
+    on_qualify: t.Callable[[exp.Table], None] | None = None,
     dialect: DialectType = None,
     canonicalize_table_aliases: bool = False,
 ) -> E:
@@ -75,11 +76,11 @@ def qualify_tables(
 
     def _set_alias(
         expression: exp.Expr,
-        canonical_aliases: t.Dict[str, str],
-        target_alias: t.Optional[str] = None,
-        scope: t.Optional[Scope] = None,
+        canonical_aliases: dict[str, str],
+        target_alias: str | None = None,
+        scope: Scope | None = None,
         normalize: bool = False,
-        columns: t.Optional[t.List[t.Union[str, exp.Identifier]]] = None,
+        columns: Sequence[str | exp.Identifier | exp.ColumnDef] | None = None,
     ) -> None:
         alias = expression.args.get("alias") or exp.TableAlias()
 
@@ -96,7 +97,10 @@ def qualify_tables(
         alias.set("this", exp.to_identifier(new_alias_name))
 
         if columns:
-            alias.set("columns", [exp.to_identifier(c) for c in columns])
+            alias.set(
+                "columns",
+                [exp.to_identifier(c) if isinstance(c, str) else c.copy() for c in columns],
+            )
 
         expression.set("alias", alias)
 
@@ -105,7 +109,7 @@ def qualify_tables(
 
     for scope in traverse_scope(expression):
         local_columns = scope.local_columns
-        canonical_aliases: t.Dict[str, str] = {}
+        canonical_aliases: dict[str, str] = {}
 
         for query in scope.subqueries:
             subquery = query.parent
@@ -136,7 +140,7 @@ def qualify_tables(
 
                 table_this = source.this
                 table_alias = source.args.get("alias")
-                function_columns: t.List[t.Union[str, exp.Identifier]] = []
+                function_columns: Sequence[str | exp.Identifier | exp.ColumnDef] | None = None
                 if isinstance(table_this, exp.Func):
                     if not table_alias:
                         function_columns = ensure_list(

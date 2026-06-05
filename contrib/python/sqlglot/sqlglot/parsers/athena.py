@@ -8,6 +8,11 @@ from sqlglot.parser import Parser
 from sqlglot.parsers.trino import TrinoParser
 from sqlglot.tokens import TokenType, Token
 
+if t.TYPE_CHECKING:
+    from sqlglot.dialects.dialect import DialectType
+    from sqlglot.dialects.hive import Hive
+    from sqlglot.dialects.trino import Trino
+
 
 class AthenaTrinoParser(TrinoParser):
     STATEMENT_PARSERS = {
@@ -19,15 +24,15 @@ class AthenaTrinoParser(TrinoParser):
 class AthenaParser(Parser):
     def __init__(
         self,
-        error_level: t.Optional[ErrorLevel] = None,
+        error_level: ErrorLevel | None = None,
         error_message_context: int = 100,
         max_errors: int = 3,
-        dialect: t.Any = None,
-        hive: t.Any = None,
-        trino: t.Any = None,
-        **kwargs: t.Any,
+        dialect: DialectType = None,
+        hive: Hive | None = None,
+        trino: Trino | None = None,
     ) -> None:
-        from sqlglot.dialects import Hive, Trino
+        from sqlglot.dialects.hive import Hive
+        from sqlglot.dialects.trino import Trino
 
         hive = hive or Hive()
         trino = trino or Trino()
@@ -51,7 +56,7 @@ class AthenaParser(Parser):
             dialect=trino,
         )
 
-    def parse(self, raw_tokens: t.List[Token], sql: str) -> t.List[t.Optional[exp.Expr]]:
+    def parse(self, raw_tokens: list[Token], sql: str) -> list[exp.Expr | None]:
         if raw_tokens and raw_tokens[0].token_type == TokenType.HIVE_TOKEN_STREAM:
             return self._hive_parser.parse(raw_tokens[1:], sql)
 
@@ -60,9 +65,9 @@ class AthenaParser(Parser):
     def parse_into(
         self,
         expression_types: exp.IntoType,
-        raw_tokens: t.List[Token],
-        sql: t.Optional[str] = None,
-    ) -> t.List[t.Optional[exp.Expr]]:
+        raw_tokens: list[Token],
+        sql: str | None = None,
+    ) -> list[exp.Expr | None]:
         if raw_tokens and raw_tokens[0].token_type == TokenType.HIVE_TOKEN_STREAM:
             return self._hive_parser.parse_into(expression_types, raw_tokens[1:], sql)
 

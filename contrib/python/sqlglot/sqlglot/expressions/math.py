@@ -108,7 +108,12 @@ class EuclideanDistance(Expression, Func):
 
 
 class JarowinklerSimilarity(Expression, Func):
-    arg_types = {"this": True, "expression": True, "case_insensitive": False}
+    arg_types = {
+        "this": True,
+        "expression": True,
+        "case_insensitive": False,
+        "integer_scale": False,
+    }
 
 
 class ManhattanDistance(Expression, Func):
@@ -181,7 +186,7 @@ class Sqrt(Expression, Func):
 
 
 class Trunc(Expression, Func):
-    arg_types = {"this": True, "decimals": False}
+    arg_types = {"this": True, "decimals": False, "fractions_supported": False}
     _sql_names = ["TRUNC", "TRUNCATE"]
 
 

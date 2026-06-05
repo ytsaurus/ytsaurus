@@ -13,8 +13,8 @@ from sqlglot.parsers.hive import HiveParser
 from sqlglot.parser import build_trim
 
 
-def build_as_cast(to_type: str) -> t.Callable[[t.List], exp.Expr]:
-    return lambda args: exp.Cast(this=seq_get(args, 0), to=exp.DataType.build(to_type))
+def build_as_cast(to_type: str) -> t.Callable[[list], exp.Expr]:
+    return lambda args: exp.Cast(this=seq_get(args, 0), to=exp.DataType.from_str(to_type))
 
 
 class Spark2Parser(HiveParser):
@@ -59,10 +59,10 @@ class Spark2Parser(HiveParser):
         "STRING": build_as_cast("string"),
         "SLICE": exp.ArraySlice.from_arg_list,
         "TIMESTAMP": build_as_cast("timestamp"),
-        "TO_TIMESTAMP": lambda args: (
+        "TO_TIMESTAMP": lambda args, dialect: (
             build_as_cast("timestamp")(args)
             if len(args) == 1
-            else build_formatted_time(exp.StrToTime, "spark")(args)
+            else build_formatted_time(exp.StrToTime)(args, dialect)
         ),
         "TO_UNIX_TIMESTAMP": exp.StrToUnix.from_arg_list,
         "TO_UTC_TIMESTAMP": lambda args, dialect: exp.FromTimeZone(
@@ -90,14 +90,14 @@ class Spark2Parser(HiveParser):
         "SHUFFLE_REPLICATE_NL": lambda self: self._parse_join_hint("SHUFFLE_REPLICATE_NL"),
     }
 
-    def _parse_drop_column(self) -> t.Optional[exp.Drop | exp.Command]:
+    def _parse_drop_column(self) -> exp.Drop | exp.Command | None:
         return (
             self.expression(exp.Drop(this=self._parse_schema(), kind="COLUMNS"))
             if self._match_text_seq("DROP", "COLUMNS")
             else None
         )
 
-    def _pivot_column_names(self, aggregations: t.List[exp.Expr]) -> t.List[str]:
+    def _pivot_column_names(self, aggregations: list[exp.Expr]) -> list[str]:
         if len(aggregations) == 1:
             return []
         return pivot_column_names(aggregations, dialect="spark")

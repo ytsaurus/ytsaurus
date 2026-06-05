@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-import typing as t
 
-from sqlglot import exp, generator, tokens
-from sqlglot.dialects import Dialect, Hive, Trino
+from sqlglot import tokens
+from sqlglot.dialects.dialect import Dialect, DialectType
+from sqlglot.generators.athena import AthenaGenerator
 from sqlglot.parsers.athena import AthenaParser
 from sqlglot.tokens import TokenType, Token
+from sqlglot.dialects.trino import Trino
+from sqlglot.dialects.hive import Hive
 
 
 class Athena(Dialect):
@@ -46,34 +48,6 @@ class Athena(Dialect):
     - https://docs.aws.amazon.com/athena/latest/ug/dml-queries-functions-operators.html
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        self._hive = Hive(**kwargs)
-        self._trino = Trino(**kwargs)
-
-    def tokenize(self, sql: str, **opts) -> t.List[Token]:
-        opts["hive"] = self._hive
-        opts["trino"] = self._trino
-        return super().tokenize(sql, **opts)
-
-    def parse(self, sql: str, **opts) -> t.List[t.Optional[exp.Expr]]:
-        opts["hive"] = self._hive
-        opts["trino"] = self._trino
-        return super().parse(sql, **opts)
-
-    def parse_into(
-        self, expression_type: exp.IntoType, sql: str, **opts
-    ) -> t.List[t.Optional[exp.Expr]]:
-        opts["hive"] = self._hive
-        opts["trino"] = self._trino
-        return super().parse_into(expression_type, sql, **opts)
-
-    def generate(self, expression: exp.Expr, copy: bool = True, **opts) -> str:
-        opts["hive"] = self._hive
-        opts["trino"] = self._trino
-        return super().generate(expression, copy=copy, **opts)
-
     # This Tokenizer consumes a combination of HiveQL and Trino SQL and then processes the tokens
     # to disambiguate which dialect needs to be actually used in order to tokenize correctly.
     class Tokenizer(tokens.Tokenizer):
@@ -93,16 +67,13 @@ class Athena(Dialect):
             "UNLOAD": TokenType.COMMAND,
         }
 
-        def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
-            hive = kwargs.pop("hive", None) or Hive()
-            trino = kwargs.pop("trino", None) or Trino()
+        def __init__(self, dialect: DialectType = None) -> None:
+            super().__init__(dialect=dialect)
 
-            super().__init__(*args, **kwargs)
+            self._hive_tokenizer = Hive().tokenizer()
+            self._trino_tokenizer = _TrinoTokenizer(Trino())
 
-            self._hive_tokenizer = hive.tokenizer(*args, **{**kwargs, "dialect": hive})
-            self._trino_tokenizer = _TrinoTokenizer(*args, **{**kwargs, "dialect": trino})
-
-        def tokenize(self, sql: str) -> t.List[Token]:
+        def tokenize(self, sql: str) -> list[Token]:
             tokens = super().tokenize(sql)
 
             if _tokenize_as_hive(tokens):
@@ -112,26 +83,10 @@ class Athena(Dialect):
 
     Parser = AthenaParser
 
-    class Generator(generator.Generator):
-        def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
-            hive = kwargs.pop("hive", None) or Hive()
-            trino = kwargs.pop("trino", None) or Trino()
-
-            super().__init__(*args, **kwargs)
-
-            self._hive_generator = _HiveGenerator(*args, **{**kwargs, "dialect": hive})
-            self._trino_generator = _TrinoGenerator(*args, **{**kwargs, "dialect": trino})
-
-        def generate(self, expression: exp.Expr, copy: bool = True) -> str:
-            if _generate_as_hive(expression):
-                generator = self._hive_generator
-            else:
-                generator = self._trino_generator
-
-            return generator.generate(expression, copy=copy)
+    Generator = AthenaGenerator
 
 
-def _tokenize_as_hive(tokens: t.List[Token]) -> bool:
+def _tokenize_as_hive(tokens: list[Token]) -> bool:
     if len(tokens) < 2:
         return False
 
@@ -156,100 +111,9 @@ def _tokenize_as_hive(tokens: t.List[Token]) -> bool:
     return False
 
 
-def _generate_as_hive(expression: exp.Expr) -> bool:
-    if isinstance(expression, exp.Create):
-        if expression.kind == "TABLE":
-            properties = expression.args.get("properties")
-
-            # CREATE EXTERNAL TABLE is Hive
-            if properties and properties.find(exp.ExternalProperty):
-                return True
-
-            # Any CREATE TABLE other than CREATE TABLE ... AS <query> is Hive
-            if not isinstance(expression.expression, exp.Query):
-                return True
-        else:
-            # CREATE VIEW is Trino, but CREATE SCHEMA, CREATE DATABASE, etc, is Hive
-            return expression.kind != "VIEW"
-    elif isinstance(expression, (exp.Alter, exp.Drop, exp.Describe, exp.Show)):
-        if isinstance(expression, exp.Drop) and expression.kind == "VIEW":
-            # DROP VIEW is Trino, because CREATE VIEW is as well
-            return False
-
-        # Everything else, e.g., ALTER statements, is Hive
-        return True
-
-    return False
-
-
-def _is_iceberg_table(properties: exp.Properties) -> bool:
-    for p in properties.expressions:
-        if isinstance(p, exp.Property) and p.name == "table_type":
-            return p.text("value").lower() == "iceberg"
-
-    return False
-
-
-def _location_property_sql(self: Athena.Generator, e: exp.LocationProperty):
-    # If table_type='iceberg', the LocationProperty is called 'location'
-    # Otherwise, it's called 'external_location'
-    # ref: https://docs.aws.amazon.com/athena/latest/ug/create-table-as.html
-
-    prop_name = "external_location"
-
-    if isinstance(e.parent, exp.Properties):
-        if _is_iceberg_table(e.parent):
-            prop_name = "location"
-
-    return f"{prop_name}={self.sql(e, 'this')}"
-
-
-def _partitioned_by_property_sql(self: Athena.Generator, e: exp.PartitionedByProperty) -> str:
-    # If table_type='iceberg' then the table property for partitioning is called 'partitioning'
-    # If table_type='hive' it's called 'partitioned_by'
-    # ref: https://docs.aws.amazon.com/athena/latest/ug/create-table-as.html#ctas-table-properties
-
-    prop_name = "partitioned_by"
-
-    if isinstance(e.parent, exp.Properties):
-        if _is_iceberg_table(e.parent):
-            prop_name = "partitioning"
-
-    return f"{prop_name}={self.sql(e, 'this')}"
-
-
-# Athena extensions to Hive's generator
-class _HiveGenerator(Hive.Generator):
-    def alter_sql(self, expression: exp.Alter) -> str:
-        # Package any ALTER TABLE ADD actions into a Schema object, so it gets generated as
-        # `ALTER TABLE .. ADD COLUMNS(...)`, instead of `ALTER TABLE ... ADD COLUMN`, which
-        # is invalid syntax on Athena
-        if isinstance(expression, exp.Alter) and expression.kind == "TABLE":
-            if expression.actions and isinstance(expression.actions[0], exp.ColumnDef):
-                new_actions = exp.Schema(expressions=expression.actions)
-                expression.set("actions", [new_actions])
-
-        return super().alter_sql(expression)
-
-
 # Athena extensions to Trino's tokenizer
 class _TrinoTokenizer(Trino.Tokenizer):
     KEYWORDS = {
         **Trino.Tokenizer.KEYWORDS,
         "UNLOAD": TokenType.COMMAND,
-    }
-
-
-# Athena extensions to Trino's parser
-# Athena extensions to Trino's generator
-class _TrinoGenerator(Trino.Generator):
-    PROPERTIES_LOCATION = {
-        **Trino.Generator.PROPERTIES_LOCATION,
-        exp.LocationProperty: exp.Properties.Location.POST_WITH,
-    }
-
-    TRANSFORMS = {
-        **Trino.Generator.TRANSFORMS,
-        exp.PartitionedByProperty: _partitioned_by_property_sql,
-        exp.LocationProperty: _location_property_sql,
     }

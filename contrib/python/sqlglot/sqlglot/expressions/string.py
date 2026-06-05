@@ -63,7 +63,7 @@ class IsAscii(Expression, Func):
 
 
 class Left(Expression, Func):
-    arg_types = {"this": True, "expression": True}
+    arg_types = {"this": True, "expression": True, "negative_length_returns_empty": False}
 
 
 class Length(Expression, Func):
@@ -119,7 +119,7 @@ class Reverse(Expression, Func):
 
 
 class Right(Expression, Func):
-    arg_types = {"this": True, "expression": True}
+    arg_types = {"this": True, "expression": True, "negative_length_returns_empty": False}
 
 
 class RtrimmedLength(Expression, Func):
@@ -196,6 +196,7 @@ class StrPosition(Expression, Func):
         "substr": True,
         "position": False,
         "occurrence": False,
+        "clamp_position": False,
     }
 
 
@@ -219,7 +220,7 @@ class Stuff(Expression, Func):
 
 class Substring(Expression, Func):
     _sql_names = ["SUBSTRING", "SUBSTR"]
-    arg_types = {"this": True, "start": False, "length": False}
+    arg_types = {"this": True, "start": False, "length": False, "zero_start": False}
 
 
 class SubstringIndex(Expression, Func):
@@ -247,7 +248,7 @@ class Trim(Expression, Func):
 
 
 class Unicode(Expression, Func):
-    pass
+    arg_types = {"this": True, "empty_is_zero": False}
 
 
 class Upper(Expression, Func):
@@ -302,15 +303,11 @@ class FromBase64(Expression, Func):
 
 
 class Hex(Expression, Func):
-    pass
+    arg_types = {"this": True, "case": False}
 
 
 class HexDecodeString(Expression, Func):
     pass
-
-
-class HexEncode(Expression, Func):
-    arg_types = {"this": True, "case": False}
 
 
 class LowerHex(Hex):
