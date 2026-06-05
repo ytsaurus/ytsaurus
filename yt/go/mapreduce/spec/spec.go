@@ -27,6 +27,13 @@ type DiskRequest struct {
 	MediumName string `yson:"medium_name,omitempty"`
 }
 
+type JobProfiler struct {
+	Binary               string  `yson:"binary,omitempty"` // "user_job" or "job_proxy"
+	Type                 string  `yson:"type,omitempty"`   // "cpu", "memory", "peak_memory"
+	ProfilingProbability float64 `yson:"profiling_probability,omitempty"`
+	SamplingFrequency    int     `yson:"sampling_frequency,omitempty"`
+}
+
 type UserScript struct {
 	// Command specifies shell command that would be executed inside job.
 	//
@@ -62,6 +69,9 @@ type UserScript struct {
 	UseSmapsMemoryTracker  *bool          `yson:"use_smaps_memory_tracker,omitempty"`
 	Monitoring             map[string]any `yson:"monitoring,omitempty"`
 	EnableGpuCheck         *bool          `yson:"enable_gpu_check,omitempty"`
+
+	// Profilers requests collection of job profiles. See JobProfiler.
+	Profilers []*JobProfiler `yson:"profilers,omitempty"`
 
 	// Following fields are used only in vanilla operations.
 	JobCount         int           `yson:"job_count,omitempty"`
