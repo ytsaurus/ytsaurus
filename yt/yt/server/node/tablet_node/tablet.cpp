@@ -2257,6 +2257,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
 
     snapshot->TabletSizeMetrics = TabletSizeMetrics_;
 
+    snapshot->OriginatorTablets = OriginatorTablets_;
+
     return snapshot;
 }
 
