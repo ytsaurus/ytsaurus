@@ -33,13 +33,15 @@ public:
         const NApi::NNative::IClientPtr& client,
         const IInvokerPtr& invoker,
         const NLogging::TLogger& logger,
-        const NApi::TMasterReadOptions& options = {});
+        const NApi::TMasterReadOptions& masterReadOptions = {},
+        const NApi::TTransactionalOptions& transactionalOptions = {});
 
     TFuture<void> Fetch();
 
 private:
     struct TEntry
     {
+        NYPath::TYPath Path;
         NYPath::TYPath DirName;
         TString BaseName;
         bool FetchAsBatch = false;
@@ -74,6 +76,7 @@ private:
     NApi::NNative::IClientPtr Client_;
     IInvokerPtr Invoker_;
     NApi::TMasterReadOptions MasterReadOptions_;
+    NApi::TTransactionalOptions TransactionalOptions_;
 
     NLogging::TLogger Logger;
 
