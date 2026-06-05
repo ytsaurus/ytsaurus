@@ -24,7 +24,7 @@ def run_check(yt_client, logger, options, states):
         batch_client = yt_client.create_batch_client()
         batch_responses = {}
         for chunk_id in chunk_ids:
-            batch_responses[chunk_id] = batch_client.get(f"#{chunk_id}", attributes=["part_loss_time", "vital"])
+            batch_responses[chunk_id] = batch_client.get(f"#{chunk_id}", attributes=["part_loss_time", "vital", "replication_status"])
         batch_client.commit_batch()
 
         chunks = {}
@@ -34,7 +34,7 @@ def run_check(yt_client, logger, options, states):
                 chunks[chunk_id] = response.get_result()
     else:
         logger.warning("Using full chunk list for oldest_part_missing_chunks, may have slow response time")
-        response_list = yt_client.list("//sys/oldest_part_missing_chunks", attributes=["part_loss_time", "vital"])
+        response_list = yt_client.list("//sys/oldest_part_missing_chunks", attributes=["part_loss_time", "vital", "replication_status"])
         chunks = {str(response): response for response in response_list}
 
     oldest_part_loss_time_utc = None
@@ -44,6 +44,13 @@ def run_check(yt_client, logger, options, states):
         if not chunk.attributes["vital"]:
             continue
         if not chunk.attributes["part_loss_time"]:
+            continue
+        replication_status = chunk.attributes.get("replication_status", {})
+        has_missing_parts = any(
+            medium_status.get("data_missing") or medium_status.get("parity_missing")
+            for medium_status in replication_status.values()
+        )
+        if not has_missing_parts:
             continue
         part_loss_timestamp = date_string_to_timestamp(chunk.attributes["part_loss_time"])
         part_loss_datetime_utc = datetime.fromtimestamp(part_loss_timestamp, UTC)
