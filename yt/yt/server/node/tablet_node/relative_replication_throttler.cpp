@@ -82,7 +82,6 @@ public:
     }
 
     TInstant GetMaxAllowedRecordTime(
-        TInstant now,
         TTimestamp currentTimestamp,
         TDuration replicationTickPeriod) const override
     {
@@ -90,16 +89,7 @@ public:
             return TInstant::Max();
         }
 
-        if (Queue_.empty()) {
-            return GetDefaultMaxAllowedInstant(currentTimestamp, replicationTickPeriod);
-        }
-
-        const auto& entry = Queue_.back();
-        if (now <= entry.ReplicationTime) {
-            return GetDefaultMaxAllowedInstant(currentTimestamp, replicationTickPeriod);
-        }
-
-        return entry.LogRowRecordTime + (now - entry.ReplicationTime) * GetCorrectedRatio();
+        return GetDefaultMaxAllowedInstant(currentTimestamp, replicationTickPeriod);
     }
 
 private:

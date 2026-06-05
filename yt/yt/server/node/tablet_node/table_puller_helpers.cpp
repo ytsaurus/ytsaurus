@@ -292,4 +292,32 @@ TBannedReplicaTracker& TQueueReplicaSelector::GetBannedReplicaTracker()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TIterationTimeTracker::TIterationTimeTracker(int previousIterationWeight, int currentIterationWeight, TDuration initialDuration)
+    : PreviousIterationWeight_(previousIterationWeight)
+    , CurrentIterationWeight_(currentIterationWeight)
+    , SmoothedItetationDuration_(initialDuration)
+{
+    YT_VERIFY(PreviousIterationWeight_ >= 0);
+    YT_VERIFY(CurrentIterationWeight_ > 0);
+}
+
+TDuration TIterationTimeTracker::CalculateSmoothedIterationDuration(TInstant currentIterationInstant)
+{
+    if (LastIterationInstant_ != TInstant::Zero()) {
+        auto elapsedTime = currentIterationInstant - LastIterationInstant_;
+
+        int weightSum = PreviousIterationWeight_ + CurrentIterationWeight_;
+        auto weigthedElapsedTime = elapsedTime * CurrentIterationWeight_;
+        auto weigthedPreviousTime = SmoothedItetationDuration_ * CurrentIterationWeight_;
+
+        SmoothedItetationDuration_ = (weigthedElapsedTime + weigthedPreviousTime) / weightSum;
+    }
+
+    LastIterationInstant_ = currentIterationInstant;
+
+    return SmoothedItetationDuration_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletNode

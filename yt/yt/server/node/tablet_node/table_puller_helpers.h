@@ -75,4 +75,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TIterationTimeTracker
+{
+public:
+    TIterationTimeTracker(int previousIterationWeight, int currentIterationWeight, TDuration initialDuration);
+    TDuration CalculateSmoothedIterationDuration(TInstant currentIterationInstant);
+
+private:
+    const int PreviousIterationWeight_;
+    const int CurrentIterationWeight_;
+
+    TInstant LastIterationInstant_;
+    TDuration SmoothedItetationDuration_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletNode
