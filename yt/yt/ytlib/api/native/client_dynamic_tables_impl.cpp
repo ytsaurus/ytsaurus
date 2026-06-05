@@ -3590,6 +3590,13 @@ public:
         return IsTrivial_;
     }
 
+    std::pair<TTimestamp, TTimestamp> GetResultTimestampRange() const
+    {
+        return MinResultTimestamp_ != MaxTimestamp
+            ? std::pair(MinResultTimestamp_, MaxResultTimestamp_)
+            : GetReplicationProgressMinMaxTimestamp(ReplicationProgress_);
+    }
+
 private:
     const IClientPtr Client_;
     const TTableSchemaPtr Schema_;
@@ -3610,6 +3617,9 @@ private:
     std::optional<i64> ReplicationRowIndex_;
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
+
+    TTimestamp MinResultTimestamp_ = MaxTimestamp;
+    TTimestamp MaxResultTimestamp_ = MinTimestamp;
 
     TFuture<void> DoPullRows()
     {
@@ -3718,9 +3728,16 @@ private:
         std::vector<TTypeErasedRow> rows;
         while (!reader->IsFinished()) {
             auto row = reader->ReadVersionedRow(schemaData, true);
-            if (ExtractTimestampFromPulledRow(row) > maxTimestamp) {
+            auto rowTimestamp = ExtractTimestampFromPulledRow(row);
+
+            if (rowTimestamp > maxTimestamp) {
                 ReplicationRowIndex_.reset();
                 break;
+            }
+
+            MaxResultTimestamp_ = rowTimestamp;
+            if (MinResultTimestamp_ == MaxTimestamp) {
+                MinResultTimestamp_ = rowTimestamp;
             }
 
             rows.push_back(row.ToTypeErasedRow());
@@ -3737,10 +3754,17 @@ private:
         std::vector<TTypeErasedRow> rows;
         while (!reader->IsFinished()) {
             auto row = reader->ReadSchemafulRow(schemaData, true);
-            if (FromUnversionedValue<ui64>(row[TimestampColumnIndex_]) > maxTimestamp) {
+            auto rowTimestamp = FromUnversionedValue<ui64>(row[TimestampColumnIndex_]);
+            if (rowTimestamp > maxTimestamp) {
                 ReplicationRowIndex_.reset();
                 break;
             }
+
+            MaxResultTimestamp_ = rowTimestamp;
+            if (MinResultTimestamp_ == MaxTimestamp) {
+                MinResultTimestamp_ = rowTimestamp;
+            }
+
             rows.push_back(row.ToTypeErasedRow());
         }
         return rows;
@@ -3914,7 +3938,8 @@ TPullRowsResult TClient::DoPullRows(
 
     bool success = false;
     for (const auto& session : sessions) {
-        if (!session->IsTrivial() && session->GetResultOrError().IsOK()) {
+        bool isSessionGood = !session->IsTrivial() && session->GetResultOrError().IsOK();
+        if (isSessionGood) {
             success = true;
         }
 
@@ -3935,6 +3960,24 @@ TPullRowsResult TClient::DoPullRows(
 
         combinedResult.DataWeight += session->GetDataWeight();
         combinedResult.RowCount += session->GetRowCount();
+        if (isSessionGood) {
+            auto timestampRange = session->GetResultTimestampRange();
+            // MinTimestamp could be greater than MaxTransactionCommitInstant
+            // if there were no other records in the queue.
+            if (TimestampToInstant(timestampRange.first).second <= options.MaxTransactionCommitInstant) {
+                if (combinedResult.PullRowsMinTimestamp == NullTimestamp) {
+                    combinedResult.PullRowsMinTimestamp = timestampRange.first;
+                    combinedResult.PullRowsMaxTimestamp = timestampRange.second;
+                } else {
+                    combinedResult.PullRowsMaxTimestamp = std::max(
+                        combinedResult.PullRowsMaxTimestamp,
+                        timestampRange.second);
+                    combinedResult.PullRowsMinTimestamp = std::min(
+                        combinedResult.PullRowsMinTimestamp,
+                        timestampRange.first);
+                }
+            }
+        }
     }
 
     if (!allTrivial && !success) {
