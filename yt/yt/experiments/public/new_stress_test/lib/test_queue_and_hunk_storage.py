@@ -551,6 +551,17 @@ class Queue(TableBase):
         new_history = _derive_history(self.history, "alter_to_static")
         logger.info(f"Altering queue {self.path} into static table {new_path} (new history: {_format_history(new_history)})")
 
+        # Read expected rows from the .data table while it is still mounted.
+        # The .data table is a *sorted* dynamic table (QUEUE_DATA_SCHEMA sorts by
+        # tablet_index, row_index), and YT forbids altering a sorted table from
+        # dynamic to static ("Cannot switch mode from dynamic to static: table is
+        # sorted"). So instead of altering the .data in place, we rebuild it below
+        # as a freshly-created static table from these rows.
+        expected_rows = sorted(
+            self.get_expected_rows(),
+            key=lambda r: (r["key"], r["value"]),
+        )
+
         # Unmount queue and its .data so dynamic stores are flushed into chunks.
         self.unmount()
         yt.unmount_table(self.data_path, sync=True)
@@ -558,17 +569,21 @@ class Queue(TableBase):
         # Hunk chunks may still be sealing after unmount; alter rejects unsealed.
         self._wait_hunk_chunks_sealed()
 
-        # Direct alter dynamic→static on both the queue and its .data. Preserves
-        # chunk_ids (including hunk references on the queue), so subsequent ops
-        # exercise the real chunk lifecycle for hunked tables. The .data carries
-        # queue-style sort (tablet_index, row_index) into the static result —
-        # _validate_static_result sorts both sides in Python to tolerate that.
+        # Direct alter dynamic→static on the queue itself. QUEUE_SCHEMA is unsorted
+        # (ordered queue), so this is allowed. It preserves chunk_ids (including hunk
+        # references), so subsequent ops exercise the real chunk lifecycle for hunked
+        # tables.
         yt.move(self.path, new_path)
         yt.alter_table(new_path, dynamic=False)
-        yt.move(self.data_path, new_data_path)
-        yt.alter_table(new_data_path, dynamic=False)
+
+        # The .data is sorted-dynamic and cannot be altered to static, so drop it and
+        # recreate a static .data table (STATIC_DATA_SCHEMA) from the rows read above.
+        # _validate_static_result sorts both sides in Python, so the differing column
+        # order/sort is tolerated.
+        yt.remove(self.data_path)
 
         static_table = StaticTable(self.base_path, new_static_name, history=new_history)
+        static_table._create_static_data_table(new_data_path, expected_rows)
         static_table._validate_static_result(new_path, new_data_path, "alter_to_static result")
         return static_table
 
