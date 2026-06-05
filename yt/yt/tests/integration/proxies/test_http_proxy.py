@@ -703,6 +703,24 @@ class TestHttpProxy(HttpProxyTestBase):
         else:
             raise AssertionError(f"Request {correlation_id} doesn't seem to be canceled")
 
+    @authors("dagorokhov")
+    @pytest.mark.parametrize("yson_format", ["yson", "<format=binary>yson", "<format=text>yson", "<format=pretty>yson"])
+    def test_header_format_yson(self, yson_format):
+        create("table", "//tmp/test")
+
+        headers_text = {
+            "X-YT-Header-Format": yson_format,
+        }
+        rsp = requests.request(
+            "GET",
+            "{}/api/v4/read_table?path=//tmp/test".format(self._get_proxy_address()),
+            headers=headers_text,
+        )
+        yson_string = rsp.headers['X-YT-Response-Parameters']
+        yson_decoded = yson.loads(bytes(yson_string, 'utf-8'))
+        yson_encoded = yson.dumps(yson_decoded)
+        assert yson_string == yson_encoded.decode('utf-8')
+
 
 @pytest.mark.enabled_multidaemon
 class TestHttpProxyMemoryDrop(HttpProxyTestBase):
