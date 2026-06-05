@@ -2162,7 +2162,7 @@ protected:
 
 TString UnversionedValueToString(TUnversionedValue value)
 {
-    TString result;
+    std::string result;
     TFixedGrowthStringOutput outStream(&result, 300);
     NYson::TUncheckedYsonTokenWriter writer(&outStream);
 
@@ -2188,6 +2188,8 @@ TString UnversionedValueToString(TUnversionedValue value)
         default:
             YT_ABORT();
     }
+
+    writer.Finish();
 
     return result;
 }
