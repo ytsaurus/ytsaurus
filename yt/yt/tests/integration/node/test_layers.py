@@ -2044,6 +2044,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
     NUM_USER_SLOTS = 2
+    NUM_TEST_PARTITIONS = 3
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
@@ -2346,7 +2347,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="sleep 30; cat",
+            command="sleep 10; cat",
             spec={
                 "max_failed_job_count": 1,
                 "job_count": self.NUM_USER_SLOTS,
