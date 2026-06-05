@@ -967,24 +967,6 @@ void ToProto(
     }
 }
 
-void ToProto(NControllerAgent::NProto::TVolume* volumeProto, const TVolume& volume)
-{
-    if (volume.DiskRequest) {
-        if (auto nbdDiskRequest = volume.DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
-            auto protoDiskRequest = volumeProto->mutable_nbd_disk_request();
-            ToProto(protoDiskRequest, *nbdDiskRequest);
-        } else if (auto localDiskRequest = volume.DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
-            auto protoDiskRequest = volumeProto->mutable_local_disk_request();
-            ToProto(protoDiskRequest, *localDiskRequest);
-        } else if (auto tmpfsDiskRequest = volume.DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()) {
-            ToProto(volumeProto->mutable_tmpfs_storage_request(), *tmpfsDiskRequest);
-        } else {
-            YT_ABORT();
-        }
-    }
-    volumeProto->set_allow_reusing(volume.AllowReusing);
-}
-
 void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeProto)
 {
     using TProtoMessage = NControllerAgent::NProto::TVolume::DiskRequestCase;
