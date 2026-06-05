@@ -36,7 +36,7 @@ struct IDistributedChunkSessionPool
         int slotCookie,
         std::optional<NChunkClient::TSessionId> excludedSessionId = {}) = 0;
 
-    virtual TFuture<void> FinalizeSlot(int slotCookie) = 0;
+    virtual void FinalizeSlot(int slotCookie) = 0;
 
     virtual TFuture<std::vector<TSlotChunkInfo>> GetSlotChunks(int slotCookie) const = 0;
 };

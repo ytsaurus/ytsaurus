@@ -20,10 +20,13 @@ SRCS(
     parallel_reader_memory_manager_ut.cpp
     partitioner_ut.cpp
     permission_cache_ut.cpp
+    push_based_shuffle_record_format_ut.cpp
+    push_based_partition_reader_ut.cpp
     replication_reader_ut.cpp
     replication_writer_ut.cpp
     secondary_index_ut.cpp
     serialize_ut.cpp
+    shuffle_writer_ut.cpp
     sorted_merging_reader_ut.cpp
     striped_erasure_ut.cpp
     tablet_request_batcher_ut.cpp

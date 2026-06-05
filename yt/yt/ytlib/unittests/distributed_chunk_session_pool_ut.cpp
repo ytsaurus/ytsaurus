@@ -166,7 +166,7 @@ public:
                 .CreateController = BIND([this] {
                     return CreateController();
                 }),
-                .ScheduleChunkSeal = BIND([this] (TChunkId chunkId) {
+                .SendChunkSealRequest = BIND([this] (TChunkId chunkId) {
                     ScheduledSeals_.push_back(chunkId);
 
                     int callIndex = ScheduleChunkSealCallCount_++;
@@ -554,8 +554,7 @@ TEST(TDistributedChunkSessionPoolTest, FinalizeSlotClosesLateStartedPendingSessi
     ASSERT_EQ(harness.GetCreateControllerCallCount(), 1);
     auto sessionId = harness.StartedSessions()[0].SessionId;
 
-    WaitFor(pool->FinalizeSlot(11))
-        .ThrowOnError();
+    pool->FinalizeSlot(11);
     harness.GetController(sessionId)->FulfillStartSession();
     harness.DrainInvoker();
 
@@ -580,8 +579,8 @@ TEST(TDistributedChunkSessionPoolTest, FinalizeSlotClosesAndSealsAllSessions)
     auto second = WaitFor(pool->GetSession(11, first.SessionId))
         .ValueOrThrow();
 
-    WaitFor(pool->FinalizeSlot(11))
-        .ThrowOnError();
+    pool->FinalizeSlot(11);
+    harness.DrainInvoker();
 
     EXPECT_EQ(harness.GetController(first.SessionId)->GetCloseCallCount(), 1);
     EXPECT_EQ(harness.GetController(second.SessionId)->GetCloseCallCount(), 1);
@@ -609,11 +608,9 @@ TEST(TDistributedChunkSessionPoolTest, FinalizeSlotStartsSealingWithoutWaitingFo
     auto second = WaitFor(pool->GetSession(11, first.SessionId))
         .ValueOrThrow();
 
-    auto finalizeFuture = pool->FinalizeSlot(11);
+    pool->FinalizeSlot(11);
     harness.DrainInvoker();
 
-    EXPECT_TRUE(finalizeFuture.IsSet());
-    EXPECT_TRUE(WaitFor(finalizeFuture).IsOK());
     EXPECT_THAT(
         harness.ScheduledSeals(),
         ::testing::UnorderedElementsAre(first.SessionId.ChunkId, second.SessionId.ChunkId));
@@ -655,8 +652,7 @@ TEST(TDistributedChunkSessionPoolTest, FinalizedSlotRejectsNewSessions)
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
     WaitFor(pool->GetSession(11))
         .ThrowOnError();
-    WaitFor(pool->FinalizeSlot(11))
-        .ThrowOnError();
+    pool->FinalizeSlot(11);
 
     auto error = WaitFor(pool->GetSession(11));
     EXPECT_FALSE(error.IsOK());

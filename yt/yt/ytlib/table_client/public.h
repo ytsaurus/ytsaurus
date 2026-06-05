@@ -39,6 +39,7 @@ using TColumnFilterDictionary = TGenericColumnFilterDictionary<std::string>;
 using TColumnStableNameFilterDictionary = TGenericColumnFilterDictionary<TColumnStableName>;
 
 class THorizontalBlockReader;
+class THorizontalBlockWriter;
 
 struct THunkChunkRef;
 struct THunkChunksInfo;

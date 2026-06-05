@@ -28,7 +28,7 @@ TAG(
 
 SIZE(LARGE)
 
-YT_SPEC(yt/yt/tests/cpp/test_chunk_sealing/config.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(ram:20)

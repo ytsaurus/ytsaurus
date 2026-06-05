@@ -261,9 +261,11 @@ SRCS(
     data_node_tracker_client/proto/data_node_tracker_service.proto
 
     distributed_chunk_session_client/config.cpp
+    distributed_chunk_session_client/helpers.cpp
     distributed_chunk_session_client/distributed_chunk_session_pool.cpp
     distributed_chunk_session_client/distributed_chunk_writer.cpp
     distributed_chunk_session_client/distributed_chunk_session_controller.cpp
+    distributed_chunk_session_client/distributed_chunk_session_reader.cpp
 
     distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
 
@@ -378,6 +380,12 @@ SRCS(
 
     offshore_data_gateway/config.cpp
     offshore_data_gateway/offshore_data_gateway_channel.cpp
+
+    push_based_shuffle_client/config.cpp
+    push_based_shuffle_client/record_format.cpp
+    push_based_shuffle_client/session_provider.cpp
+    push_based_shuffle_client/partition_reader.cpp
+    push_based_shuffle_client/shuffle_writer.cpp
 
     query_client/executor.cpp
     query_client/explain.cpp
