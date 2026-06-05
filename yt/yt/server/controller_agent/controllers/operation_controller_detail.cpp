@@ -1632,6 +1632,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive(bool suspended
             .TreeId = joblet->TreeId,
             .NodeId = joblet->NodeDescriptor.Id,
             .NodeAddress = NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses),
+            .AllocationGroupName = joblet->TaskName,
         });
     }
 
@@ -5174,6 +5175,7 @@ void TOperationControllerBase::TryScheduleFirstJob(
                 /*allowIdleCpuPolicy*/ IsIdleCpuPolicyAllowedInTree(allocation.TreeId),
                 *context.GetScheduleAllocationSpec());
             startDescriptor.AllocationAttributes.EnableMultipleJobs = Spec_->EnableMultipleJobsInAllocation.value_or(false);
+            startDescriptor.AllocationGroupName = std::string(task->GetVertexDescriptor());
             scheduleAllocationResult->StartDescriptor.emplace(std::move(startDescriptor));
 
             RegisterTestingSpeculativeJobIfNeeded(*task, scheduleAllocationResult->StartDescriptor->Id);

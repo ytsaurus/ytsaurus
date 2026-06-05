@@ -43,6 +43,7 @@ TAllocation::TAllocation(
     // , SchedulingStage_(schedulingStage)
     , NetworkPriority_(networkPriority)
     , Logger_(CreateLogger())
+    , AllocationGroupName_(startDescriptor.AllocationGroupName)
     , Codicil_(Format("AllocationId: %v, OperationId: %v",
         Id_,
         OperationId_))

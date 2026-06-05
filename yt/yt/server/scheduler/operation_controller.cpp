@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 namespace NYT::NScheduler {
 
 using namespace NApi;
@@ -111,6 +113,8 @@ void FromProto(
             TAllocationStartDescriptor{
                 .Id = allocationId,
                 .ResourceLimits = FromProto<TJobResourcesWithQuota>(allocationProto.resource_limits()),
+                .AllocationAttributes = {},
+                .AllocationGroupName = FromProto<std::string>(allocationProto.allocation_group_name()),
             },
             preemptionMode,
             allocationProto.tree_id(),

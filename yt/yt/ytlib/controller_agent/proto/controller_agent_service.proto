@@ -200,6 +200,7 @@ message TReviveOperationResult
         required string tree_id = 4;
         required uint32 node_id = 5;
         required string node_address = 6;
+        required string allocation_group_name = 9;
     }
 
     required bytes attributes = 1; // YSON

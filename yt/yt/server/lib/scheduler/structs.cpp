@@ -119,6 +119,8 @@ void ToProto(
         ToProto(
             protoResponse->mutable_allocation_attributes(),
             startDescriptor.AllocationAttributes);
+
+        protoResponse->set_allocation_group_name(startDescriptor.AllocationGroupName);
     }
 
     protoResponse->set_duration(ToProto(scheduleJobResult.Duration));
