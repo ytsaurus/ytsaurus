@@ -22,12 +22,12 @@ types:
         sort_order: Ascending
 
       - cpp_name: OperationType
-        cpp_type: TString
+        cpp_type: std::string
         column_name: operation_type
         column_type: String
 
       - cpp_name: State
-        cpp_type: TString
+        cpp_type: std::string
         column_name: state
         column_type: String
 
@@ -37,12 +37,12 @@ types:
         column_type: String
 
       - cpp_name: FilterFactors
-        cpp_type: TString
+        cpp_type: std::string
         column_name: filter_factors
         column_type: String
 
       - cpp_name: Pool
-        cpp_type: TString
+        cpp_type: std::string
         column_name: pool
         column_type: String
 
@@ -67,12 +67,12 @@ types:
         column_type: Any
 
       - cpp_name: PoolsStr
-        cpp_type: TString
+        cpp_type: std::string
         column_name: pools_str
         column_type: String
 
       - cpp_name: PoolTreeToPoolStr
-        cpp_type: TString
+        cpp_type: std::string
         column_name: pool_tree_to_pool_str
         column_type: String
 

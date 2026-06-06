@@ -28,6 +28,6 @@ types:
         sort_order: Ascending
 
       - cpp_name: FailContext
-        cpp_type: TString
+        cpp_type: std::string
         column_name: fail_context
         column_type: String
