@@ -38,7 +38,7 @@ private:
 
     int EffectiveKeySize_;
 
-    std::optional<TString> LastFileName_;
+    std::optional<std::string> LastFileName_;
     i64 LastDataSize_ = 0;
     i64 NextPartIndex_ = 0;
 
