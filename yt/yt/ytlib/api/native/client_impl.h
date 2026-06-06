@@ -1159,7 +1159,7 @@ private:
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
-    THashMap<TString, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
+    THashMap<std::string, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
 
     TChannels GetMasterChannels(EMasterChannelKind kind);
     NRpc::IChannelPtr FindMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
