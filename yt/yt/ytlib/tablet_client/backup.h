@@ -75,7 +75,7 @@ struct TTableReplicaBackupDescriptor
 {
     TTableReplicaId ReplicaId;
     ETableReplicaMode Mode = ETableReplicaMode::Sync;
-    TString ReplicaPath;
+    NYPath::TYPath ReplicaPath;
 
     void Persist(const TStreamPersistenceContext& context);
 };
