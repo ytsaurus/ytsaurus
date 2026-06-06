@@ -544,13 +544,13 @@ public: \
         (path, rowCount, options))
 
     IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
-        const TString& md5,
+        const std::string& md5,
         const TGetFileFromCacheOptions& options),
         (md5, options))
 
     IMPLEMENT_METHOD(TPutFileToCacheResult, PutFileToCache, (
         const NYPath::TYPath& path,
-        const TString& expectedMD5,
+        const std::string& expectedMD5,
         const TPutFileToCacheOptions& options),
         (path, expectedMD5, options))
 
@@ -1400,7 +1400,7 @@ private:
         NTransactionClient::TTransactionId transactionId = {});
     TPutFileToCacheResult DoAttemptPutFileToCache(
         const NYPath::TYPath& path,
-        const TString& expectedMD5,
+        const std::string& expectedMD5,
         const TPutFileToCacheOptions& options,
         NLogging::TLogger logger);
 
