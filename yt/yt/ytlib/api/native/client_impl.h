@@ -706,7 +706,7 @@ public: \
         (jobId, options))
     IMPLEMENT_METHOD(TPollJobShellResponse, PollJobShell, (
         NScheduler::TJobId jobId,
-        const std::optional<TString>& shellName,
+        const std::optional<std::string>& shellName,
         const NYson::TYsonString& parameters,
         const TPollJobShellOptions& options),
         (jobId, shellName, parameters, options))
