@@ -38,8 +38,8 @@ TObjectServiceCacheKey::TObjectServiceCacheKey(
     TCellTag cellTag,
     const std::string& user,
     TYPath path,
-    TString service,
-    TString method,
+    std::string service,
+    std::string method,
     TSharedRef requestBody,
     bool suppressUpstreamSync,
     bool suppressTransactionCoordinatorSync)
@@ -434,7 +434,7 @@ void TObjectServiceCache::Reconfigure(const TObjectServiceCacheDynamicConfigPtr&
     MaxAdvisedStickyGroupSize_.store(config->MaxAdvisedStickyGroupSize);
 }
 
-TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const std::string& user, const TString& method)
+TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const std::string& user, const std::string& method)
 {
     auto key = std::tuple(user, method);
 

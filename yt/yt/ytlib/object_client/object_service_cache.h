@@ -20,8 +20,8 @@ struct TObjectServiceCacheKey
     TCellTag CellTag = InvalidCellTag;
     std::string User;
     NYPath::TYPath Path;
-    TString Service;
-    TString Method;
+    std::string Service;
+    std::string Method;
     TSharedRef RequestBody;
     size_t RequestBodyHash;
     bool SuppressUpstreamSync = false;
@@ -33,8 +33,8 @@ struct TObjectServiceCacheKey
         TCellTag cellTag,
         const std::string& user,
         NYPath::TYPath path,
-        TString service,
-        TString method,
+        std::string service,
+        std::string method,
         TSharedRef requestBody,
         bool suppressUpstreamSync,
         bool suppressTransactionCoordinatorSync);
@@ -191,7 +191,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
-    using TProfilingCountersKey = std::tuple<std::string, TString>;
+    using TProfilingCountersKey = std::tuple<std::string, std::string>;
     THashMap<TProfilingCountersKey, TCacheProfilingCountersPtr> KeyToCounters_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ExpiredEntriesLock_);
@@ -200,7 +200,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TopEntriesLock_);
     THashMap<TObjectServiceCacheKey, TObjectServiceCacheEntryPtr> TopEntries_;
 
-    TCacheProfilingCountersPtr GetProfilingCounters(const std::string& user, const TString& method);
+    TCacheProfilingCountersPtr GetProfilingCounters(const std::string& user, const std::string& method);
 
     void MaybeEraseTopEntry(const TObjectServiceCacheKey& key);
 
