@@ -788,7 +788,7 @@ public: \
         const std::string& address,
         const TKillProcessOptions& options),
         (address, options))
-    IMPLEMENT_METHOD(TString, WriteCoreDump, (
+    IMPLEMENT_METHOD(std::string, WriteCoreDump, (
         const std::string& address,
         const TWriteCoreDumpOptions& options),
         (address, options))
@@ -796,7 +796,7 @@ public: \
         const std::string& address,
         const TWriteLogBarrierOptions& options),
         (address, options))
-    IMPLEMENT_METHOD(TString, WriteOperationControllerCoreDump, (
+    IMPLEMENT_METHOD(std::string, WriteOperationControllerCoreDump, (
         NScheduler::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options),
         (operationId, options))
@@ -857,7 +857,7 @@ public: \
         EMaintenanceComponent component,
         const std::string& address,
         EMaintenanceType type,
-        const TString& comment,
+        const std::string& comment,
         const TAddMaintenanceOptions& options),
         (component, address, type, comment, options))
     IMPLEMENT_METHOD(TMaintenanceCountsPerTarget, RemoveMaintenance, (
