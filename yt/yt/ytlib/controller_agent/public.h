@@ -145,13 +145,13 @@ YT_DEFINE_ERROR_ENUM(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString SecureVaultEnvPrefix;
+extern const std::string SecureVaultEnvPrefix;
 
 YT_DEFINE_STRONG_TYPEDEF(TControllerEpoch, int);
 
 YT_DEFINE_STRONG_TYPEDEF(TIncarnationId, NObjectClient::TTransactionId);
 
-using TAgentId = TString;
+using TAgentId = std::string;
 
 struct TControllerAgentDescriptor
 {
