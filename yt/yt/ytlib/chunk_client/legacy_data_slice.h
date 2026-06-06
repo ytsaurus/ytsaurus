@@ -195,7 +195,7 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(
 //! This debug string will eventually become ToString for new data slices.
 //! In particular, it does not mention anything related to data slice
 //! internal structure (i.e. chunk slices).
-TString GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice);
+std::string GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
