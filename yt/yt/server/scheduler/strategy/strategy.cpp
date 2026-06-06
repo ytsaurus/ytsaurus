@@ -675,7 +675,8 @@ public:
         }
 
         for (const auto& [treeId, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
-            const auto& offloadingSettings = GetTree(treeId)->GetOffloadingSettingsFor(options->Pool.GetSpecifiedPoolName(), user);
+            // TODO(babenko): migrate to std::string
+            const auto& offloadingSettings = GetTree(treeId)->GetOffloadingSettingsFor(TString(options->Pool.GetSpecifiedPoolName()), user);
             if (offloadingSettings.empty()) {
                 continue;
             }
@@ -707,7 +708,8 @@ public:
                         auto treeParams = New<TOperationPoolTreeRuntimeParameters>();
                         treeParams->Weight = offloadingPoolSettings->Weight;
                         const auto& poolName = offloadingPoolSettings->Pool.value_or(options->Pool.GetSpecifiedPoolName());
-                        treeParams->Pool = tree->CreatePoolName(poolName, user);
+                        // TODO(babenko): migrate to std::string
+                        treeParams->Pool = tree->CreatePoolName(TString(poolName), user);
                         treeParams->Tentative = offloadingPoolSettings->Tentative;
                         treeParams->ResourceLimits = offloadingPoolSettings->ResourceLimits;
                         treeParams->Offloading = true;
@@ -726,7 +728,7 @@ public:
         YT_VERIFY(origin);
 
         for (auto& [poolTree, treeParams] : origin->SchedulingOptionsPerPoolTree) {
-            std::optional<TString> newPoolName = update->Pool;
+            std::optional<std::string> newPoolName = update->Pool;
             auto treeUpdateIt = update->SchedulingOptionsPerPoolTree.find(poolTree);
             if (treeUpdateIt != update->SchedulingOptionsPerPoolTree.end()) {
                 newPoolName = treeUpdateIt->second->Pool;
@@ -738,7 +740,8 @@ public:
                 treeParams->Weight = *update->Weight;
             }
             if (newPoolName) {
-                treeParams->Pool = GetTree(poolTree)->CreatePoolName(*newPoolName, user);
+                // TODO(babenko): migrate to std::string
+                treeParams->Pool = GetTree(poolTree)->CreatePoolName(TString(*newPoolName), user);
             }
         }
     }
@@ -1292,7 +1295,8 @@ public:
             // then its demand and guaranteed resources ratio are considered to be zero.
             TResourceVector currentDemandShare;
             TResourceVector estimatedGuaranteeShare;
-            if (auto poolStateSnapshot = tree->GetMaybeStateSnapshotForPool(poolName.GetPool())) {
+            // TODO(babenko): migrate to std::string
+            if (auto poolStateSnapshot = tree->GetMaybeStateSnapshotForPool(TString(poolName.GetPool()))) {
                 currentDemandShare = poolStateSnapshot->DemandShare;
                 estimatedGuaranteeShare = poolStateSnapshot->EstimatedGuaranteeShare;
             }

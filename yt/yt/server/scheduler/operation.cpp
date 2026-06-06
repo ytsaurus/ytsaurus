@@ -538,7 +538,7 @@ std::vector<TString> TOperation::GetExperimentAssignmentNames() const
     return result;
 }
 
-std::vector<std::string> TOperation::GetJobShellOwners(const TString& jobShellName)
+std::vector<std::string> TOperation::GetJobShellOwners(const std::string& jobShellName)
 {
     TJobShellPtr jobShell;
     for (const auto& shell : Spec_->JobShells) {
@@ -622,7 +622,8 @@ void TOperation::SetTemporaryToken(const std::string& token, const TNodeId& node
     YT_VERIFY(State_ == EOperationState::Starting);
     YT_VERIFY(Spec_->IssueTemporaryToken);
     // We allow issuing unused temporary tokens to support enabling this option by default.
-    if (!AddSecureVaultEntry(Spec_->TemporaryTokenEnvironmentVariableName, ConvertToNode(token))) {
+    // TODO(babenko): migrate to std::string
+    if (!AddSecureVaultEntry(TString(Spec_->TemporaryTokenEnvironmentVariableName), ConvertToNode(token))) {
         YT_LOG_DEBUG("Not using temporary token as there is an explicit one");
     }
 

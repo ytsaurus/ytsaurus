@@ -43,18 +43,18 @@ void SerializeJobResourcesWithQuota(
 
 void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStringBuf /*format*/);
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits);
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits,
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
-TString FormatResources(const TJobResourcesWithQuota& resources);
+std::string FormatResources(const TJobResourcesWithQuota& resources);
 
-TString FormatResourcesConfig(const TJobResourcesConfigPtr& config);
+std::string FormatResourcesConfig(const TJobResourcesConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +80,7 @@ private:
 void ProfileResources(
     NProfiling::ISensorWriter* writer,
     const TJobResources& resources,
-    const TString& prefix,
+    const std::string& prefix,
     NProfiling::EMetricType metricType = NProfiling::EMetricType::Gauge);
 
 ////////////////////////////////////////////////////////////////////////////////

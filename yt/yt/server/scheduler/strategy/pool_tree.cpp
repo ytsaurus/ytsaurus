@@ -1535,7 +1535,8 @@ private:
 
             std::vector<TString> result;
             result.reserve(std::ssize(poolMap) + 1);
-            result.push_back(RootPoolName);
+            // TODO(babenko): migrate to std::string
+            result.push_back(TString(RootPoolName));
             for (const auto& [name, _] : poolMap) {
                 result.push_back(name);
             }
@@ -2085,7 +2086,8 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto pool = FindPool(poolName.GetPool());
+        // TODO(babenko): migrate to std::string
+        auto pool = FindPool(TString(poolName.GetPool()));
         if (pool) {
             return pool;
         }
@@ -2094,7 +2096,8 @@ private:
         auto poolConfig = New<TPoolConfig>();
 
         TPoolTreeCompositeElement* parent = poolName.GetParentPool()
-            ? GetPool(*poolName.GetParentPool()).Get()
+            // TODO(babenko): migrate to std::string
+            ? GetPool(TString(*poolName.GetParentPool())).Get()
             : GetDefaultParentPoolForUser(userName).Get();
 
         ApplyEphemeralSubpoolConfig(parent, poolConfig);
@@ -2102,7 +2105,8 @@ private:
         pool = New<TPoolTreePoolElement>(
             StrategyHost_,
             this,
-            poolName.GetPool(),
+            // TODO(babenko): migrate to std::string
+            TString(poolName.GetPool()),
             TGuid(),
             poolConfig,
             /*defaultConfigured*/ true,
@@ -2112,7 +2116,8 @@ private:
 
         if (!poolName.GetParentPool()) {
             pool->SetEphemeralInDefaultParentPool();
-            UserToEphemeralPoolsInDefaultPool_[userName].insert(poolName.GetPool());
+            // TODO(babenko): migrate to std::string
+            UserToEphemeralPoolsInDefaultPool_[userName].insert(TString(poolName.GetPool()));
         }
 
         pool->SetUserName(userName);
@@ -2446,14 +2451,16 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        TPoolTreeCompositeElementPtr pool = FindPool(poolName.GetPool());
+        // TODO(babenko): migrate to std::string
+        TPoolTreeCompositeElementPtr pool = FindPool(TString(poolName.GetPool()));
         if (pool) {
             return pool;
         }
         if (!poolName.GetParentPool()) {
             return GetDefaultParentPoolForUser(userName);
         }
-        pool = FindPool(*poolName.GetParentPool());
+        // TODO(babenko): migrate to std::string
+        pool = FindPool(TString(*poolName.GetParentPool()));
         if (!pool) {
             THROW_ERROR_EXCEPTION("Parent pool %Qv does not exist", poolName.GetParentPool());
         }
@@ -2537,7 +2544,8 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto pool = FindPool(poolName.GetPool());
+        // TODO(babenko): migrate to std::string
+        auto pool = FindPool(TString(poolName.GetPool()));
         if (pool) {
             return;
         }
@@ -2604,7 +2612,8 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        const TPoolTreeCompositeElement* pool = FindPool(poolName.GetPool()).Get();
+        // TODO(babenko): migrate to std::string
+        const TPoolTreeCompositeElement* pool = FindPool(TString(poolName.GetPool())).Get();
         // NB: Check is not performed if operation is started in default or unknown pool.
         if (pool && pool->AreImmediateOperationsForbidden()) {
             THROW_ERROR_EXCEPTION("Starting operations immediately in pool %Qv is forbidden", poolName.GetPool());

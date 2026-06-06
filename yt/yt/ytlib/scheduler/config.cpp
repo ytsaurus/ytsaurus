@@ -168,7 +168,7 @@ void RegisterNbdDisk(TYsonStructRegistrar<TConfig>& registrar)
 
 static constexpr int MaxAllowedProfilingTagCount = 200;
 
-TPoolName::TPoolName(TString pool, std::optional<TString> parent)
+TPoolName::TPoolName(std::string pool, std::optional<std::string> parent)
 {
     if (parent) {
         Pool_ = *parent +  Delimiter + pool;
@@ -180,24 +180,24 @@ TPoolName::TPoolName(TString pool, std::optional<TString> parent)
 
 const char TPoolName::Delimiter = '$';
 
-const TString& TPoolName::GetPool() const
+const std::string& TPoolName::GetPool() const
 {
     return Pool_;
 }
 
-const std::optional<TString>& TPoolName::GetParentPool() const
+const std::optional<std::string>& TPoolName::GetParentPool() const
 {
     return ParentPool_;
 }
 
-const TString& TPoolName::GetSpecifiedPoolName() const
+const std::string& TPoolName::GetSpecifiedPoolName() const
 {
     return ParentPool_ ? *ParentPool_ : Pool_;
 }
 
-TPoolName TPoolName::FromString(const TString& value)
+TPoolName TPoolName::FromString(const std::string& value)
 {
-    std::vector<TString> parts;
+    std::vector<std::string> parts;
     StringSplitter(value).Split(Delimiter).AddTo(&parts);
     switch (parts.size()) {
         case 1:
@@ -213,20 +213,21 @@ TPoolName TPoolName::FromString(const TString& value)
 
 TString TPoolName::ToString() const
 {
-    return Pool_;
+    // TODO(babenko): migrate to std::string
+    return TString(Pool_);
 }
 
 void Deserialize(TPoolName& value, INodePtr node)
 {
     // TODO(babenko): migrate to std::string
-    value = TPoolName::FromString(TString(node->AsString()->GetValue()));
+    value = TPoolName::FromString(std::string(node->AsString()->GetValue()));
 }
 
 void Deserialize(TPoolName& value, TYsonPullParserCursor* cursor)
 {
     MaybeSkipAttributes(cursor);
     EnsureYsonToken("TPoolName", *cursor, EYsonItemType::StringValue);
-    value = TPoolName::FromString(ExtractTo<TString>(cursor));
+    value = TPoolName::FromString(ExtractTo<std::string>(cursor));
 }
 
 void Serialize(const TPoolName& value, IYsonConsumer* consumer)
@@ -654,9 +655,9 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
         .Default(false);
 }
 
-const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
+const std::vector<std::string>& TUserJobMonitoringConfig::GetDefaultSensorNames()
 {
-    static const std::vector<TString> DefaultSensorNames = {
+    static const std::vector<std::string> DefaultSensorNames = {
         "cpu/burst",
         "cpu/user",
         "cpu/system",
@@ -1091,7 +1092,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
             NControllerAgent::ValidateEnvironmentVariableName(spec->TemporaryTokenEnvironmentVariableName);
         }
 
-        if (spec->Alias && !spec->Alias->StartsWith(OperationAliasPrefix)) {
+        if (spec->Alias && !spec->Alias->starts_with(OperationAliasPrefix)) {
             THROW_ERROR_EXCEPTION("Operation alias should start with %Qv", OperationAliasPrefix)
                 << TErrorAttribute("operation_alias", spec->Alias);
         }
@@ -1128,7 +1129,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         ValidateProfilers(spec->Profilers);
 
         {
-            THashSet<TString> jobShellNames;
+            THashSet<std::string> jobShellNames;
             for (const auto& jobShell : spec->JobShells) {
                 if (!jobShellNames.emplace(jobShell->Name).second) {
                     THROW_ERROR_EXCEPTION("Job shell names should be distinct")
@@ -1772,7 +1773,7 @@ void TOptionalUserJobSpec::Register(TRegistrar registrar)
 
 bool TOptionalUserJobSpec::IsNontrivial() const
 {
-    return Command != TString();
+    return Command != std::string();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2406,13 +2407,13 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([] (TMapReduceOperationSpec* spec) {
-        auto throwError = [] (NTableClient::EControlAttribute attribute, const TString& jobType) {
+        auto throwError = [] (NTableClient::EControlAttribute attribute, const std::string& jobType) {
             THROW_ERROR_EXCEPTION(
                 "%Qlv control attribute is not supported by %Qlv jobs in map-reduce operation",
                 attribute,
                 jobType);
         };
-        auto validateControlAttributes = [&] (const NFormats::TControlAttributesConfigPtr& attributes, const TString& jobType) {
+        auto validateControlAttributes = [&] (const NFormats::TControlAttributesConfigPtr& attributes, const std::string& jobType) {
             if (attributes->EnableRowIndex) {
                 throwError(NTableClient::EControlAttribute::RowIndex, jobType);
             }
@@ -3000,7 +3001,7 @@ void TPoolConfig::Register(TRegistrar registrar)
     });
 }
 
-void TPoolConfig::Validate(const TString& poolName)
+void TPoolConfig::Validate(const std::string& poolName)
 {
     Postprocess();
 
@@ -3246,13 +3247,13 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     if (auto acl = mapNode->FindChild("acl")) {
         Deserialize(parameters.Acl, acl);
     }
-    parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationPoolTreeRuntimeParametersPtr>>(
+    parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<std::string, TOperationPoolTreeRuntimeParametersPtr>>(
         mapNode->GetChildOrThrow("scheduling_options_per_pool_tree"));
     if (auto child = mapNode->FindChild("scheduling_tag_filter")) {
         Deserialize(parameters.SchedulingTagFilter, child);
     }
     if (auto optionsPerJobShell = mapNode->FindChild("options_per_job_shell")) {
-        parameters.OptionsPerJobShell = ConvertTo<THashMap<TString, TOperationJobShellRuntimeParametersPtr>>(optionsPerJobShell);
+        parameters.OptionsPerJobShell = ConvertTo<THashMap<std::string, TOperationJobShellRuntimeParametersPtr>>(optionsPerJobShell);
     }
     if (auto annotations = mapNode->FindChild("annotations")) {
         Deserialize(parameters.Annotations, annotations);
