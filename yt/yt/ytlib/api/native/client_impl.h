@@ -933,13 +933,13 @@ public: \
 
     IMPLEMENT_METHOD(void, SetUserPassword, (
         const std::string& user,
-        const TString& currentPasswordSha256,
-        const TString& newPasswordSha256,
+        const std::string& currentPasswordSha256,
+        const std::string& newPasswordSha256,
         const TSetUserPasswordOptions& options),
         (user, currentPasswordSha256, newPasswordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueToken, (
         const std::string& user,
-        const TString& passwordSha256,
+        const std::string& passwordSha256,
         const TIssueTokenOptions& options),
         (user, passwordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueSpecificTemporaryToken, (
@@ -960,13 +960,13 @@ public: \
         (user, token, options))
     IMPLEMENT_METHOD(void, RevokeToken, (
         const std::string& user,
-        const TString& passwordSha256,
-        const TString& tokenSha256,
+        const std::string& passwordSha256,
+        const std::string& tokenSha256,
         const TRevokeTokenOptions& options),
         (user, passwordSha256, tokenSha256, options))
     IMPLEMENT_METHOD(TListUserTokensResult, ListUserTokens, (
         const std::string& user,
-        const TString& passwordSha256,
+        const std::string& passwordSha256,
         const TListUserTokensOptions& options),
         (user, passwordSha256, options))
 
@@ -1656,7 +1656,7 @@ private:
     void ValidateAuthenticationCommandPermissions(
         TStringBuf action,
         const std::string& user,
-        const TString& passwordSha256,
+        const std::string& passwordSha256,
         const TTimeoutOptions& options);
 
     //
