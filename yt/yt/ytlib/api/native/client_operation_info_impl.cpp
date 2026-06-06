@@ -1199,14 +1199,14 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         auto records = ToRecords<NRecords::TOrderedByStartTimePartial>(resultCounts.Rowset);
 
         for (auto record : records) {
-            std::optional<THashMap<TString, TString>> poolTreeToPool;
+            std::optional<THashMap<std::string, std::string>> poolTreeToPool;
             if (record.PoolTreeToPoolStr) {
-                poolTreeToPool = ConvertTo<THashMap<TString, TString>>(TYsonString(*record.PoolTreeToPoolStr));
+                poolTreeToPool = ConvertTo<THashMap<std::string, std::string>>(TYsonString(*record.PoolTreeToPoolStr));
             }
-            std::optional<std::vector<TString>> pools;
+            std::optional<std::vector<std::string>> pools;
             if (record.PoolsStr) {
                 // NB: "any_to_yson_string" returns a string; cf. YT-12047.
-                pools = ConvertTo<std::vector<TString>>(TYsonString(*record.PoolsStr));
+                pools = ConvertTo<std::vector<std::string>>(TYsonString(*record.PoolsStr));
             }
             auto user = *record.AuthenticatedUser;
             auto state = ParseEnum<EOperationState>(*record.State);
