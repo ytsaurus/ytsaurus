@@ -99,7 +99,7 @@ const std::vector<std::string>& TJobShellInfo::GetOwners()
     return JobShell_->Owners;
 }
 
-const TString& TJobShellInfo::GetSubcontainerName()
+const std::string& TJobShellInfo::GetSubcontainerName()
 {
     return JobShell_->Subcontainer;
 }
@@ -161,7 +161,7 @@ TYPath GetSchedulerOrchidOperationPath(TOperationId operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
-TYPath GetSchedulerOrchidAliasPath(const TString& alias)
+TYPath GetSchedulerOrchidAliasPath(const std::string& alias)
 {
     return
         "//sys/scheduler/orchid/scheduler/operations/" +
@@ -211,7 +211,7 @@ std::optional<std::string> FindControllerAgentAddressFromCypress(
     }
 
     const auto& response = responseOrError.ValueOrThrow();
-    return ConvertTo<TString>(TYsonString(response->value()));
+    return ConvertTo<std::string>(TYsonString(response->value()));
 }
 
 TYPath GetSnapshotPath(TOperationId operationId)
@@ -231,9 +231,9 @@ TYPath GetSecureVaultPath(TOperationId operationId)
 NYPath::TYPath GetJobPath(
     TOperationId operationId,
     TJobId jobId,
-    const TString& resourceName)
+    const std::string& resourceName)
 {
-    TString suffix;
+    std::string suffix;
     if (!resourceName.empty()) {
         suffix = "/" + resourceName;
     }
@@ -473,7 +473,7 @@ TSerializableAccessControlList TAccessControlRule::GetOrLookupAcl(const NApi::NN
     }
 }
 
-TString TAccessControlRule::GetAclString() const
+std::string TAccessControlRule::GetAclString() const
 {
     if (IsAcoName()) {
         return GetAcoName();

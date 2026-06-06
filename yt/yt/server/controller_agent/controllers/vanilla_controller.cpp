@@ -506,7 +506,8 @@ void TVanillaController::CustomMaterialize()
         auto task = CreateTask(
             this,
             taskSpec,
-            taskName,
+            // TODO(babenko): migrate to std::string
+            TString(taskName),
             std::move(streamDescriptors),
             std::vector<TInputStreamDescriptorPtr>{},
             GetOrCrash(dynamicSpec->Tasks, taskName)->JobCount);
@@ -520,7 +521,8 @@ void TVanillaController::CustomMaterialize()
         TotalTargetJobCount_ += task->GetTargetJobCount();
 
         Tasks_.emplace_back(std::move(task));
-        ValidateUserFileCount(taskSpec, taskName);
+        // TODO(babenko): migrate to std::string
+        ValidateUserFileCount(taskSpec, TString(taskName));
     }
 }
 
@@ -722,18 +724,18 @@ TOperationSpecBaseConfigurator TVanillaController::GetOperationSpecBaseConfigura
     auto configurator = TConfigurator<TVanillaOperationSpec>();
 
     auto& tasksRegistrar = configurator.MapField("tasks", &TVanillaOperationSpec::Tasks)
-        .ValidateOnAdded(BIND_NO_PROPAGATE([] (const TString& key, const TVanillaTaskSpecPtr& /*newSpec*/) {
+        .ValidateOnAdded(BIND_NO_PROPAGATE([] (const std::string& key, const TVanillaTaskSpecPtr& /*newSpec*/) {
             THROW_ERROR_EXCEPTION("Cannot create a new task")
                 << TErrorAttribute("new_task_name", key);
         }))
-        .ValidateOnRemoved(BIND_NO_PROPAGATE([] (const TString& key, const TVanillaTaskSpecPtr& /*oldSpec*/) {
+        .ValidateOnRemoved(BIND_NO_PROPAGATE([] (const std::string& key, const TVanillaTaskSpecPtr& /*oldSpec*/) {
             THROW_ERROR_EXCEPTION("Cannot remove a task")
                 << TErrorAttribute("old_task_name", key);
         }))
-        .OnAdded(BIND_NO_PROPAGATE([] (const TString& /*key*/, const TVanillaTaskSpecPtr& /*newSpec*/) -> TConfigurator<TVanillaTaskSpec> {
+        .OnAdded(BIND_NO_PROPAGATE([] (const std::string& /*key*/, const TVanillaTaskSpecPtr& /*newSpec*/) -> TConfigurator<TVanillaTaskSpec> {
             YT_ABORT();
         }))
-        .OnRemoved(BIND_NO_PROPAGATE([] (const TString& /*key*/, const TVanillaTaskSpecPtr& /*oldSpec*/) {
+        .OnRemoved(BIND_NO_PROPAGATE([] (const std::string& /*key*/, const TVanillaTaskSpecPtr& /*oldSpec*/) {
             YT_ABORT();
         }));
 

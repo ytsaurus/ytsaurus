@@ -41,13 +41,15 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TrimCommandForBriefSpec(const TString& command)
+TString TrimCommandForBriefSpec(const std::string& command)
 {
     const int MaxBriefSpecCommandLength = 256;
+    // TODO(babenko): migrate to std::string
+    TString commandT(command);
     return
-        command.length() <= MaxBriefSpecCommandLength
-        ? command
-        : command.substr(0, MaxBriefSpecCommandLength) + "...";
+        commandT.length() <= MaxBriefSpecCommandLength
+        ? commandT
+        : commandT.substr(0, MaxBriefSpecCommandLength) + "...";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -531,7 +533,8 @@ void EnrichLayers(
         }
         if (rootVolume->Layers.empty() && operationSpec->DefaultBaseLayerPath) {
             auto newLayer = New<TLayer>();
-            newLayer->Path = *operationSpec->DefaultBaseLayerPath;
+            // TODO(babenko): migrate to std::string
+            newLayer->Path = TString(*operationSpec->DefaultBaseLayerPath);
             rootVolume->Layers.push_back(std::move(newLayer));
         }
         if (config->DefaultLayerPath && rootVolume->Layers.empty()) {
@@ -560,7 +563,8 @@ void EnrichLayers(
 
                 if (cudaProfilerLayerPath && profilerSpec->Type == EProfilerType::Cuda) {
                     auto newLayer = New<TLayer>();
-                    newLayer->Path = *cudaProfilerLayerPath;
+                    // TODO(babenko): migrate to std::string
+                    newLayer->Path = TString(*cudaProfilerLayerPath);
                     rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
                     break;
                 }
@@ -573,7 +577,8 @@ void EnrichLayers(
             if (systemLayerPath) {
                 // This must be the top layer, so insert in the beginning.
                 auto newLayer = New<TLayer>();
-                newLayer->Path = *systemLayerPath;
+                // TODO(babenko): migrate to std::string
+                newLayer->Path = TString(*systemLayerPath);
                 rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
             }
         }

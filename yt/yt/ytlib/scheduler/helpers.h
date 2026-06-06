@@ -45,7 +45,7 @@ public:
 
     const std::vector<std::string>& GetOwners();
 
-    const TString& GetSubcontainerName();
+    const std::string& GetSubcontainerName();
 
 private:
     const TJobShellPtr JobShell_;
@@ -65,7 +65,7 @@ NYPath::TYPath GetSecureVaultPath(TOperationId operationId);
 NYPath::TYPath GetFailContextPath(TOperationId operationId, TJobId jobId);
 
 NYPath::TYPath GetSchedulerOrchidOperationPath(TOperationId operationId);
-NYPath::TYPath GetSchedulerOrchidAliasPath(const TString& alias);
+NYPath::TYPath GetSchedulerOrchidAliasPath(const std::string& alias);
 NYPath::TYPath GetControllerAgentOrchidOperationPath(
     TStringBuf controllerAgentAddress,
     TOperationId operationId);
@@ -76,7 +76,7 @@ std::optional<std::string> FindControllerAgentAddressFromCypress(
 NYPath::TYPath GetJobPath(
     TOperationId operationId,
     TJobId jobId,
-    const TString& resourceName);
+    const std::string& resourceName);
 
 // TODO(ignat): move it to proper place.
 const NYPath::TYPath& GetClusterNamePath();
@@ -146,7 +146,7 @@ public:
 
     NSecurityClient::TSerializableAccessControlList GetOrLookupAcl(const NApi::NNative::IClientPtr& client) const;
 
-    TString GetAclString() const;
+    std::string GetAclString() const;
 
     void Persist(const TStreamPersistenceContext& context);
 
