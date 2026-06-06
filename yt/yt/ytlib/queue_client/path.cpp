@@ -24,6 +24,7 @@ void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& a
         return;
     }
 
+    // TODO(babenko): migrate to std::string
     TString attrString;
     TStringOutput output(attrString);
     TYsonWriter attrWriter(&output, EYsonFormat::Text, EYsonType::MapFragment);
