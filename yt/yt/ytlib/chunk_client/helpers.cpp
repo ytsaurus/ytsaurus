@@ -1186,7 +1186,7 @@ bool IsLargeEnoughChunkWeight(i64 chunkWeight, i64 chunkWeightThreshold)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatBlocks(int startBlockIndex, int endBlockIndex)
+std::string FormatBlocks(int startBlockIndex, int endBlockIndex)
 {
     TStringBuilder builder;
 

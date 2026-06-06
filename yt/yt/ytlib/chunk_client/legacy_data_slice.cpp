@@ -734,7 +734,7 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<T
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice)
+std::string GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice)
 {
     return Format("{DS: %v.%v.%v, L: %v:%v, DW: %v}",
         dataSlice->GetInputStreamIndex(),

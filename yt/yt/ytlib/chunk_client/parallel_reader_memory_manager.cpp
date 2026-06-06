@@ -610,9 +610,9 @@ private:
         class TBatchLogger
         {
         public:
-            TBatchLogger(TString name, TLogger logger)
-                : Name_(name)
-                , Logger(logger)
+            TBatchLogger(std::string name, TLogger logger)
+                : Name_(std::move(name))
+                , Logger(std::move(logger))
             { }
 
             ~TBatchLogger()
@@ -623,7 +623,7 @@ private:
                 }
             }
 
-            void LogRecord(const TString& record)
+            void LogRecord(const std::string& record)
             {
                 if (RecordCount_ == 0) {
                     Builder_.AppendFormat("Logging batch of %v (", Name_);
@@ -641,8 +641,9 @@ private:
             }
 
         private:
-            TString Name_;
+            const std::string Name_;
             const TLogger Logger;
+
             TStringBuilder Builder_;
             int RecordCount_ = 0;
         };

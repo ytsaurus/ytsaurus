@@ -351,7 +351,7 @@ bool IsLargeEnoughChunkWeight(i64 chunkWeight, i64 chunkWeightThreshold);
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Format blocks as [start:end] or [block] depending on interval size.
-TString FormatBlocks(int startBlockIndex, int endBlockIndex);
+std::string FormatBlocks(int startBlockIndex, int endBlockIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
