@@ -322,7 +322,8 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("default_network", &TThis::DefaultNetwork)
-        .Default(NBus::DefaultNetworkName);
+        // TODO(babenko): migrate to std::string
+        .Default(TString(NBus::DefaultNetworkName));
     registrar.Parameter("networks", &TThis::Networks)
         .Default();
 
