@@ -160,7 +160,7 @@ public:
 
 protected:
     const TObjectId ObjectId_;
-    const TString Type_;
+    const std::string Type_;
     const TCellTag CellTag_;
 
     const NLogging::TLogger Logger;
@@ -604,7 +604,7 @@ private:
 
     static TErrorOr<TCellTag> CombinedLookupHandler(
         TChaosObjectId objectId,
-        const TString& type,
+        const std::string& type,
         TErrorOr<TChaosObjectLocationResult>&& errorOrCellTag)
     {
         if (!errorOrCellTag.IsOK()) {
