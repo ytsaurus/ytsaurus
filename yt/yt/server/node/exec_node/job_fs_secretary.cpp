@@ -337,7 +337,7 @@ void TJobFSSecretary::AddGpuToppingLayersIfNeeded(const TUserJobSpec* userJobSpe
         return;
     }
 
-    if (userJobSpec->root_volume_layers().empty()) {
+    if (RootVolumeLayerArtifactKeys_.empty()) {
         THROW_ERROR_EXCEPTION(
             NExecNode::EErrorCode::GpuJobWithoutLayers,
             "No layers specified for GPU job; at least a base layer is required to use GPU");

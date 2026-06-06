@@ -10620,6 +10620,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     {
+        THashMap<TStringBuf, const TUserFile*> layerPathToUserFile;
+        for (const auto& file : files) {
+            if (file.Layer) {
+                layerPathToUserFile[file.GetPath()] = &file;
+            }
+        }
+
         THashSet<std::string> volumesNotAllowedToBeCreated;
         for (const auto& [name, volume] : jobSpecConfig->Volumes) {
             if (IsDiskRequestTmpfs(volume->DiskRequest) && !Config_->EnableTmpfs) {
@@ -10637,8 +10644,21 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         for (const auto& [name, volume]: jobSpecConfig->Volumes) {
             if (!volumesNotAllowedToBeCreated.contains(name)) {
                 auto& protoVolume = (*protoVolumes)[name];
-                ToProto(&protoVolume, *volume);
+                ToProto(&protoVolume, *volume, layerPathToUserFile);
             }
+        }
+
+        // COMPAT(krasovav)
+        std::optional<TStringBuf> rootVolumeId;
+        for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
+            if (volumeMount->MountPath == "/") {
+                rootVolumeId = volumeMount->VolumeId;
+                break;
+            }
+        }
+
+        if (rootVolumeId) {
+            *jobSpec->mutable_root_volume_layers() = jobSpec->volumes().at(*rootVolumeId).layers();
         }
     }
 
