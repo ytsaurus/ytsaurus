@@ -36,6 +36,8 @@
 
 #include <yt/yt/core/utilex/random.h>
 
+#include <library/cpp/yt/system/process_id.h>
+
 namespace NYT::NExecNode {
 
 using namespace NContainers;
@@ -60,7 +62,7 @@ TSlotManager::TSlotManager(IBootstrap* bootstrap)
     , StaticConfig_(Bootstrap_->GetConfig()->ExecNode->SlotManager)
     , DynamicConfig_(New<TSlotManagerDynamicConfig>())
     , SlotCount_(Bootstrap_->GetConfig()->JobResourceManager->ResourceLimits->UserSlots)
-    , NodeTag_(Format("yt-node-%v-%v", Bootstrap_->GetConfig()->RpcPort, GetCurrentProcessId()))
+    , NodeTag_(Format("yt-node-%v-%v", Bootstrap_->GetConfig()->RpcPort, GetProcessId()))
     , PortoHealthChecker_(New<TPortoHealthChecker>(
         New<TPortoExecutorDynamicConfig>(),
         Bootstrap_->GetControlInvoker(),

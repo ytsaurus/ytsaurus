@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ytree/attributes.h>
 
+#include <library/cpp/yt/system/thread_id.h>
+
 namespace Py {
 
 using namespace NYT;
@@ -215,12 +217,12 @@ bool AreArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
 
 TGilGuard::TGilGuard()
     : State_(PyGILState_Ensure())
-    , ThreadId_(GetCurrentThreadId())
+    , ThreadId_(GetSystemThreadId())
 { }
 
 TGilGuard::~TGilGuard()
 {
-    YT_VERIFY(ThreadId_ == GetCurrentThreadId());
+    YT_VERIFY(ThreadId_ == GetSystemThreadId());
     PyGILState_Release(State_);
 }
 
@@ -228,7 +230,7 @@ TGilGuard::~TGilGuard()
 
 TReleaseAcquireGilGuard::TReleaseAcquireGilGuard()
     : State_(PyEval_SaveThread())
-    , ThreadId_(GetCurrentThreadId())
+    , ThreadId_(GetSystemThreadId())
 {
     EnterReleaseAcquireGuard();
 }
@@ -248,7 +250,7 @@ TReleaseAcquireGilGuard::~TReleaseAcquireGilGuard()
     // if (!Py_IsInitialized()) {
     //     return;
     // }
-    YT_VERIFY(ThreadId_ == GetCurrentThreadId());
+    YT_VERIFY(ThreadId_ == GetSystemThreadId());
     PyEval_RestoreThread(State_);
 
     LeaveReleaseAcquireGuard();

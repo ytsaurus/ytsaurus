@@ -57,6 +57,8 @@
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
+#include <library/cpp/yt/system/thread_id.h>
+
 namespace NYT::NCellMaster {
 
 using namespace NConcurrency;
@@ -271,7 +273,7 @@ public:
         if (IsAutomatonLocked()) {
             auto automatonThreadId = AutomatonThread_Slot.GetBoundThreadId();
             YT_VERIFY(automatonThreadId != NThreading::InvalidThreadId);
-            YT_VERIFY(GetCurrentThreadId() != automatonThreadId);
+            YT_VERIFY(GetSystemThreadId() != automatonThreadId);
         } else {
             YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         }
