@@ -272,6 +272,10 @@ spec_template = {
         "remove_static_table_probability": 0.1,
         "write_probability": 0.3,
         "read_probability": 0.3,
+        "write_min_batch_size": 1,
+        "write_max_batch_size": 100,
+        "write_min_row_size": 512,
+        "write_max_row_size": 2048,
     },
 
     "replicated": {

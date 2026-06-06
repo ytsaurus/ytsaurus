@@ -457,8 +457,10 @@ class Queue(TableBase):
 
         self.mount_state.unmount(tablet_index, sync)
 
-    def write(self, only_in_sync_mounted):
-        logger.info(f"Writing to the queue {self.path}, only in sync mounted: {only_in_sync_mounted}")
+    def write(self, only_in_sync_mounted, spec):
+        cfg = spec.queue_and_hunk_storage
+        batch_size = random.randint(cfg.write_min_batch_size, cfg.write_max_batch_size)
+        logger.info(f"Writing to the queue {self.path}, only in sync mounted: {only_in_sync_mounted}, batch size: {batch_size}")
 
         if only_in_sync_mounted:
             tablets = [tablet_index for tablet_index in range(self.tablet_count) if self.mount_state.is_mounted_tablet[tablet_index] and self.mount_state.is_sync[tablet_index]]
@@ -471,7 +473,14 @@ class Queue(TableBase):
             logger.info(f"No mounted tablet in the queue {self.path}, do nothing")
             return
 
-        rows = [{"key": RSG.generate(2), "value": RSG.generate(1024), "$tablet_index": random.choice(tablets)} for _ in range(10)]
+        rows = [
+            {
+                "key": RSG.generate(2),
+                "value": RSG.generate(random.randint(cfg.write_min_row_size, cfg.write_max_row_size)),
+                "$tablet_index": random.choice(tablets),
+            }
+            for _ in range(batch_size)
+        ]
         data_rows = []
 
         new_written_row_count = [0] * self.tablet_count
@@ -879,7 +888,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
             only_in_sync_mounted = random.choice([True, False])
             try:
-                queue.write(only_in_sync_mounted=only_in_sync_mounted)
+                queue.write(only_in_sync_mounted=only_in_sync_mounted, spec=spec)
             except YtError as err:
                 _check_write_error(queue, only_in_sync_mounted, err)
 
