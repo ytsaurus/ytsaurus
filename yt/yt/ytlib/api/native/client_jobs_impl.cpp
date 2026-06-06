@@ -37,7 +37,7 @@ public:
         IClientPtr client,
         TJobId jobId,
         std::string shellId,
-        std::optional<TString> shellName,
+        std::optional<std::string> shellName,
         const NLogging::TLogger& logger)
         : Client_(std::move(client))
         , JobId_(jobId)
@@ -93,7 +93,7 @@ public:
 private:
     const IClientPtr Client_;
     const TJobId JobId_;
-    const std::optional<TString> ShellName_;
+    const std::optional<std::string> ShellName_;
     const std::string ShellId_;
 
     const NLogging::TLogger Logger;
@@ -202,7 +202,7 @@ void TClient::DoAbandonJob(
 
 TPollJobShellResponse TClient::DoPollJobShell(
     TJobId jobId,
-    const std::optional<TString>& shellName,
+    const std::optional<std::string>& shellName,
     const TYsonString& parameters,
     const TPollJobShellOptions& /*options*/)
 {
@@ -258,16 +258,13 @@ IAsyncZeroCopyInputStreamPtr TClient::DoRunJobShellCommand(
     const std::string& command,
     const TRunJobShellCommandOptions& /*options*/)
 {
-    // TODO(bystrovserg): Just remove it after TJobShellDescriptorKey migrates to std::string.
-    auto shellNameConverted = shellName ? std::optional<TString>(*shellName) : std::nullopt;
-
     auto spawnParameters = BuildYsonStringFluently()
         .BeginMap()
             .Item("operation").Value("spawn")
             .Item("command").Value(command)
         .EndMap();
 
-    auto rsp = WaitFor(PollJobShell(jobId, shellNameConverted, spawnParameters, {}))
+    auto rsp = WaitFor(PollJobShell(jobId, shellName, spawnParameters, {}))
         .ValueOrThrow();
 
     auto result = ConvertToNode(rsp.Result);
@@ -281,7 +278,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoRunJobShellCommand(
         StaticPointerCast<IClient>(MakeStrong(this)),
         jobId,
         shellId,
-        std::move(shellNameConverted),
+        shellName,
         Logger);
 }
 
