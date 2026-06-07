@@ -72,7 +72,8 @@ void LogAndThrowAuthorizationError(
         resultSubjectName = subject->Name;
     }
 
-    auto errorPath = nodeAncestry.Back().Path.ToRealPath().Underlying();
+    // TODO(babenko): think about proper cast
+    auto errorPath = TYPath(nodeAncestry.Back().Path.ToRealPath().Underlying());
     NSecurityServer::LogAndThrowAuthorizationError(
         Logger(),
         target,

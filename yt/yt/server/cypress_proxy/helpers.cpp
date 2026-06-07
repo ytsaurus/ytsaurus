@@ -637,7 +637,7 @@ std::string BuildMultipleTransactionSelectCondition(TRange<TTransactionId> trans
 
 bool IsAncestorPath(const TAbsolutePath& ancestor, const TAbsolutePath& descendant)
 {
-    return descendant.Underlying().StartsWith(ancestor.Underlying() + TAbsolutePath::Separator);
+    return descendant.Underlying().starts_with(ancestor.Underlying() + TAbsolutePath::Separator);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

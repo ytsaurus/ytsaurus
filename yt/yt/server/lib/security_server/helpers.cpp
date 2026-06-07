@@ -130,7 +130,7 @@ std::optional<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMo
     }
 }
 
-std::string FormatCypressNodeName(const std::string& name)
+std::string FormatCypressNodeName(NYPath::TYPathBuf name)
 {
     return Format("node %v", name);
 }

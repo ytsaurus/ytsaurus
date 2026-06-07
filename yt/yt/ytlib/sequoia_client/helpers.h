@@ -14,8 +14,8 @@ namespace NYT::NSequoiaClient {
 
 struct TSelectRowsQuery
 {
-    std::vector<TString> WhereConjuncts;
-    std::vector<TString> OrderBy;
+    std::vector<std::string> WhereConjuncts;
+    std::vector<std::string> OrderBy;
     std::optional<int> Limit;
 };
 
