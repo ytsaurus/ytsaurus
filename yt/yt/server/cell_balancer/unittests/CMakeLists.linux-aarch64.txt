@@ -14,10 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(cell-balancer-unittests)
+add_executable(unittester-cell-balancer)
 
 
-target_compile_options(cell-balancer-unittests PRIVATE
+target_compile_options(unittester-cell-balancer PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -27,7 +27,7 @@ target_compile_options(cell-balancer-unittests PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(cell-balancer-unittests PUBLIC
+target_link_libraries(unittester-cell-balancer PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -37,11 +37,11 @@ target_link_libraries(cell-balancer-unittests PUBLIC
   yt-server-cell_balancer
 )
 
-target_allocator(cell-balancer-unittests
+target_allocator(unittester-cell-balancer
   system_allocator
 )
 
-target_link_options(cell-balancer-unittests PRIVATE
+target_link_options(unittester-cell-balancer PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -52,7 +52,7 @@ target_link_options(cell-balancer-unittests PRIVATE
   -lutil
 )
 
-target_sources(cell-balancer-unittests PRIVATE
+target_sources(unittester-cell-balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/allocation_from_spare_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/annotate_new_instances_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/bundle_scheduler_ut.cpp
@@ -64,14 +64,14 @@ target_sources(cell-balancer-unittests PRIVATE
 
 add_test(
   NAME
-  cell-balancer-unittests
+  unittester-cell-balancer
   COMMAND
-  cell-balancer-unittests
+  unittester-cell-balancer
 )
 
 set_property(
   TEST
-  cell-balancer-unittests
+  unittester-cell-balancer
   PROPERTY
   LABELS
   SMALL
@@ -79,16 +79,16 @@ set_property(
 
 set_property(
   TEST
-  cell-balancer-unittests
+  unittester-cell-balancer
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(cell-balancer-unittests)
+vcs_info(unittester-cell-balancer)
 
 set_property(
   TEST
-  cell-balancer-unittests
+  unittester-cell-balancer
   PROPERTY
   PROCESSORS
   1

@@ -1,4 +1,4 @@
-GTEST()
+GTEST(unittester-tools-trigrep)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
