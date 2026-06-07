@@ -2678,7 +2678,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/h")
         sync_mount_table("//tmp/t")
 
-        rows = [{"$tablet_index": random.randint(0, 2), "key": 0, "value": "a" * 100} for i in range(10)]
+        rows = [{"$tablet_index": i, "key": 0, "value": "a" * 100} for i in range(3)]
+        rows += [{"$tablet_index": random.randint(0, 2), "key": 0, "value": "a" * 100} for i in range(10)]
         self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
@@ -2786,7 +2787,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         rows = [{"key": 0, "value": "a" * 100} for i in range(3000)]
         insert_count = 0
         iter_count = 0
-        while iter_count < 3 and insert_count < 1:
+        while iter_count < 3 or insert_count < 1:
             iter_count += 1
             try:
                 self._insert_rows_with_hunk_storage("//tmp/t", rows)
