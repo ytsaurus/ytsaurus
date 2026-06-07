@@ -26,7 +26,7 @@ struct TDqManagerConfig
     ui32 ActorThreads;
     bool UseIPv4;
 
-    std::vector<NYTree::INodePtr> YtBackends;
+    NYTree::IMapNodePtr YtBackends;
 
     NYTree::INodePtr YtCoordinator;
     NYTree::INodePtr Scheduler;

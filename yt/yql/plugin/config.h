@@ -92,7 +92,7 @@ struct TDQManagerConfig
     ui16 GrpcPort;
     ui32 ActorThreads;
     bool UseIPv4;
-    std::vector<TDQYTBackendPtr> YTBackends;
+    std::map<std::string, TDQYTBackendPtr> YTBackends;
     TDQYTCoordinatorPtr YTCoordinator;
 
     //! Address resolver used in DQ operation. Is taken from singletons config if not set.
