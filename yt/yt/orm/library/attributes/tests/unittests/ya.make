@@ -1,4 +1,4 @@
-GTEST(unittester-yt-orm-library)
+GTEST(unittester-yt-orm-library-attributes)
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/orm/ya_cpp.make.inc)
 

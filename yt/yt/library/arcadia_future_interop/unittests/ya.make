@@ -1,4 +1,4 @@
-GTEST()
+GTEST(unittester-library-arcadia-future-interop)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 

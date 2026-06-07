@@ -1,4 +1,4 @@
-GTEST()
+GTEST(unittester-library-xor-filter)
 
 SRCS(
     xor_filter_ut.cpp
