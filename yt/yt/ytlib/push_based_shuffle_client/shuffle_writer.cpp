@@ -74,7 +74,8 @@ public:
         IPartitionerPtr partitioner,
         TCreateDistributedChunkWriterCallback createDistributedChunkWriter,
         i32 mapperId,
-        IInvokerPtr invoker)
+        IInvokerPtr invoker,
+        THashMap<int, TSessionDescriptor> seededSessions)
         : Config_(std::move(config))
         , SessionProvider_(std::move(sessionProvider))
         , Partitioner_(std::move(partitioner))
@@ -83,6 +84,7 @@ public:
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
         , Logger(PushBasedShuffleLogger().WithTag("MapperId: %v", MapperId_))
         , Partitions_(Partitioner_->GetPartitionCount())
+        , SeededSessions_(std::move(seededSessions))
         , BuildersBudget_(static_cast<i64>(Config_->MemoryBudget * Config_->BuildersBudgetFraction))
         , InFlightBudget_(Config_->MemoryBudget - BuildersBudget_)
     {
@@ -140,6 +142,9 @@ private:
 
     std::vector<TPartitionState> Partitions_;
     THashSet<int> NonEmptyPartitions_;
+    // Sessions handed out by RegisterMapper, consumed (erased) on a partition's first session
+    // request; failovers and unseeded partitions go through the provider.
+    THashMap<int, TSessionDescriptor> SeededSessions_;
 
     const i64 BuildersBudget_;
     const i64 InFlightBudget_;
@@ -319,11 +324,23 @@ private:
     {
         auto& partitionState = Partitions_[partitionIndex];
         YT_VERIFY(!partitionState.PendingSessionFuture);
-        YT_LOG_DEBUG(
-            "Requesting session (PartitionIndex: %v, ExcludedSessionId: %v)",
-            partitionIndex,
-            excluded);
-        partitionState.PendingSessionFuture = SessionProvider_->GetSession(partitionIndex, excluded);
+
+        // The initial (non-excluded) request for a partition uses its RegisterMapper-seeded
+        // session if present; failovers and unseeded partitions go through the provider.
+        if (!excluded) {
+            auto seedIt = SeededSessions_.find(partitionIndex);
+            if (seedIt != SeededSessions_.end()) {
+                partitionState.PendingSessionFuture = MakeFuture(seedIt->second);
+                SeededSessions_.erase(seedIt);
+            }
+        }
+        if (!partitionState.PendingSessionFuture) {
+            YT_LOG_DEBUG(
+                "Requesting session (PartitionIndex: %v, ExcludedSessionId: %v)",
+                partitionIndex,
+                excluded);
+            partitionState.PendingSessionFuture = SessionProvider_->GetSession(partitionIndex, excluded);
+        }
         ++OutstandingWork_;
         partitionState.PendingSessionFuture.Subscribe(BIND_NO_PROPAGATE(
             &TPushBasedShuffleWriter::OnSessionResolved,
@@ -489,7 +506,8 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
     IPartitionerPtr partitioner,
     NApi::NNative::IConnectionPtr connection,
     i32 mapperId,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    THashMap<int, TSessionDescriptor> seededSessions)
 {
     auto writerConfig = config->WriterConfig;
     auto createWriter = BIND([connection, writerConfig] (TNodeDescriptor sequencerNode, TSessionId sessionId) {
@@ -506,7 +524,8 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
         std::move(partitioner),
         std::move(createWriter),
         mapperId,
-        std::move(invoker));
+        std::move(invoker),
+        std::move(seededSessions));
 }
 
 IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
@@ -523,7 +542,8 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
         std::move(partitioner),
         std::move(createDistributedChunkWriter),
         mapperId,
-        std::move(invoker));
+        std::move(invoker),
+        THashMap<int, TSessionDescriptor>{});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
