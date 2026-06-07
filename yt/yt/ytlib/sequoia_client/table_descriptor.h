@@ -30,7 +30,7 @@ struct ITableDescriptor
 {
     virtual ~ITableDescriptor() = default;
 
-    virtual const TString& GetTableName() const = 0;
+    virtual const std::string& GetTableName() const = 0;
 
     virtual bool IsSorted() const = 0;
 

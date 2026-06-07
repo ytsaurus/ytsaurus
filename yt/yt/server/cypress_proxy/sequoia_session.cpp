@@ -369,7 +369,7 @@ void TraverseSelectedSubtree(
         const auto& currentPath = currentRecords.Front().Key.Path;
         while (
             !currentAncestors.empty() &&
-            !currentPath.Underlying().StartsWith(currentAncestors.top().Front().Key.Path.Underlying()))
+            !currentPath.Underlying().starts_with(currentAncestors.top().Front().Key.Path.Underlying()))
         {
             currentAncestors.pop();
         }

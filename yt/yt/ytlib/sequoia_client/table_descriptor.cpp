@@ -85,9 +85,9 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
                     return LeakySingleton<T##TableName##TableDescriptor>(); \
                 } \
                 \
-                const TString& GetTableName() const override \
+                const std::string& GetTableName() const override \
                 { \
-                    static const TString Result(tableName); \
+                    static const std::string Result(tableName); \
                     return Result; \
                 } \
                 \
