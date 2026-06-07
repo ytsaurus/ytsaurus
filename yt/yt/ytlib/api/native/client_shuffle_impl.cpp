@@ -281,14 +281,9 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
 
             auto sessionProvider = New<TRemotePartitionWriteSessionProvider>(channel, handle, rpcTimeout);
 
-            // TODO(apollo1321): Push-based uses hardcoded defaults in v1. The per-operation
-            // options.Config is a table writer config that does not map onto the push-based writer;
-            // a dedicated config should instead be set at start_shuffle and carried on the shuffle handle.
-            auto pushConfig = New<TShuffleWriterConfig>();
-            pushConfig->SetDefaults();
-            pushConfig->Codec = NCompression::ECodec::None;
-            pushConfig->WriterConfig = New<NDistributedChunkSessionClient::TDistributedChunkWriterConfig>();
-            pushConfig->WriterConfig->SetDefaults();
+            auto pushConfig = handle->PushConfig
+                ? ConvertTo<TPushShuffleConfigPtr>(*handle->PushConfig)->WriterConfig
+                : New<TShuffleWriterConfig>();
 
             auto pushBasedWriter = CreatePushBasedShuffleWriter(
                 pushConfig,
@@ -442,14 +437,9 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
                 return validIds.contains(header.MapperId);
             };
 
-            // TODO(apollo1321): Push-based uses hardcoded defaults in v1. The per-operation
-            // options.Config is a table reader config that does not map onto the push-based reader;
-            // a dedicated config should instead be set at start_shuffle and carried on the shuffle handle.
-            auto readerConfig = New<TPartitionReaderConfig>();
-            readerConfig->SetDefaults();
-            readerConfig->ChunkSessionReaderConfig = New<NDistributedChunkSessionClient::TDistributedChunkSessionReaderConfig>();
-            readerConfig->ChunkSessionReaderConfig->SetDefaults();
-            readerConfig->Codec = NCompression::ECodec::None;
+            auto readerConfig = handle->PushConfig
+                ? ConvertTo<TPushShuffleConfigPtr>(*handle->PushConfig)->ReaderConfig
+                : New<TPartitionReaderConfig>();
 
             // The reader must use the same read quorum the controller created the
             // journal chunks with; both derive it from the replication factor.
@@ -510,6 +500,9 @@ TSignedShuffleHandlePtr TClient::DoStartShuffle(
     }
     if (options.Schema) {
         ToProto(req->mutable_schema(), options.Schema);
+    }
+    if (options.PushConfig) {
+        req->set_push_config(ToProto(*options.PushConfig));
     }
 
     auto rsp = WaitFor(req->Invoke())
@@ -665,6 +658,9 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
         shuffleHandle->PartitionCount,
         nameTable->GetId(partitionColumn));
 
+    // TODO(apollo1321): Carry the writer/reader config on the shuffle handle (set once at
+    // start_shuffle, shared by all writers and readers) for both push and pull, and drop the
+    // per-call options.Config — push already ignores it; pull still consumes it per call.
     auto tableWriterOptions = New<TTableWriterOptions>();
     tableWriterOptions->EvaluateComputedColumns = false;
     tableWriterOptions->Account = shuffleHandle->Account;
