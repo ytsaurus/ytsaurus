@@ -18,6 +18,7 @@ using namespace NConcurrency;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NProfiling;
+using namespace NPushBasedShuffleClient;
 using namespace NTransactionClient;
 
 using NApi::NNative::IClientPtr;
@@ -46,7 +47,8 @@ public:
         bool usePushBasedShuffle,
         std::string account,
         std::string medium,
-        int replicationFactor) override
+        int replicationFactor,
+        TPushShuffleConfigPtr pushConfig) override
     {
         TTransactionStartOptions options;
         options.ParentId = parentTransactionId;
@@ -61,7 +63,8 @@ public:
                 usePushBasedShuffle,
                 std::move(account),
                 std::move(medium),
-                replicationFactor)
+                replicationFactor,
+                std::move(pushConfig))
                 .AsyncVia(SerializedInvoker_));
     }
 
@@ -107,6 +110,7 @@ private:
         std::string account,
         std::string medium,
         int replicationFactor,
+        TPushShuffleConfigPtr pushConfig,
         ITransactionPtr&& transaction)
     {
         auto transactionId = transaction->GetId();
@@ -133,7 +137,8 @@ private:
                 std::move(transaction),
                 std::move(account),
                 std::move(medium),
-                replicationFactor);
+                replicationFactor,
+                std::move(pushConfig));
         } else {
             ShuffleControllers_[transactionId] = CreatePullBasedShuffleController(
                 partitionCount,

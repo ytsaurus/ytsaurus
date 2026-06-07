@@ -41,6 +41,8 @@ namespace NYT::NApi::NNative {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NDistributedChunkSessionClient;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NShuffleClient;
 using namespace NTableClient;
@@ -89,7 +91,7 @@ public:
         , RpcTimeout_(rpcTimeout)
     { }
 
-    TFuture<NDistributedChunkSessionClient::TSessionDescriptor> GetSession(
+    TFuture<TSessionDescriptor> GetSession(
         int partitionIndex,
         std::optional<TSessionId> excludedSessionId) override
     {
@@ -103,9 +105,10 @@ public:
         }
         return req->Invoke()
             .Apply(BIND_NO_PROPAGATE([] (const TShuffleServiceProxy::TRspGetPartitionWriteSessionPtr& rsp) {
-                return NDistributedChunkSessionClient::TSessionDescriptor{
-                    .SessionId = FromProto<TSessionId>(rsp->session_id()),
-                    .SequencerNode = FromProto<NNodeTrackerClient::TNodeDescriptor>(rsp->sequencer_node()),
+                const auto& session = rsp->session();
+                return TSessionDescriptor{
+                    .SessionId = FromProto<TSessionId>(session.session_id()),
+                    .SequencerNode = FromProto<TNodeDescriptor>(session.sequencer_node()),
                 };
             }));
     }
@@ -270,6 +273,18 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
         ] (const TShuffleServiceProxy::TRspRegisterMapperPtr& rsp) -> IRowBatchWriterPtr {
             i32 mapperId = rsp->mapper_id();
 
+            THashMap<int, TSessionDescriptor> seededSessions;
+            seededSessions.reserve(rsp->ready_sessions_size());
+            for (const auto& readySession : rsp->ready_sessions()) {
+                const auto& session = readySession.session();
+                seededSessions.emplace(
+                    readySession.partition_index(),
+                    TSessionDescriptor{
+                        .SessionId = FromProto<TSessionId>(session.session_id()),
+                        .SequencerNode = FromProto<TNodeDescriptor>(session.sequencer_node()),
+                    });
+            }
+
             // The shuffle schema is the single source of the column name-to-id
             // mapping. The name table is derived from it, so value ids equal
             // schema column indices for both writer and reader.
@@ -281,14 +296,9 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
 
             auto sessionProvider = New<TRemotePartitionWriteSessionProvider>(channel, handle, rpcTimeout);
 
-            // TODO(apollo1321): Push-based uses hardcoded defaults in v1. The per-operation
-            // options.Config is a table writer config that does not map onto the push-based writer;
-            // a dedicated config should instead be set at start_shuffle and carried on the shuffle handle.
-            auto pushConfig = New<TShuffleWriterConfig>();
-            pushConfig->SetDefaults();
-            pushConfig->Codec = NCompression::ECodec::None;
-            pushConfig->WriterConfig = New<NDistributedChunkSessionClient::TDistributedChunkWriterConfig>();
-            pushConfig->WriterConfig->SetDefaults();
+            auto pushConfig = handle->PushConfig
+                ? ConvertTo<TPushShuffleConfigPtr>(*handle->PushConfig)->WriterConfig
+                : New<TShuffleWriterConfig>();
 
             auto pushBasedWriter = CreatePushBasedShuffleWriter(
                 pushConfig,
@@ -296,7 +306,8 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
                 partitioner,
                 client->GetNativeConnection(),
                 mapperId,
-                client->GetConnection()->GetInvoker());
+                client->GetConnection()->GetInvoker(),
+                std::move(seededSessions));
 
             return New<TPushBasedShuffleWriterAdapter>(
                 std::move(pushBasedWriter),
@@ -366,13 +377,18 @@ public:
 
         // Value ids are schema column indices for every writer (the name table
         // is derived from the shuffle schema), so rows need no remapping.
-        std::vector<TUnversionedRow> outRows;
+        i64 batchRowCount = 0;
         for (const auto& record : batch->Records) {
-            for (i64 index = 0; index < std::ssize(record.Rows); ++index) {
-                i64 rowId = record.Header.StartRow + index;
-                if (SeenRows_.emplace(record.Header.MapperId, rowId).second) {
-                    outRows.push_back(record.Rows[index]);
-                }
+            batchRowCount += std::ssize(record.Rows);
+        }
+        std::vector<TUnversionedRow> outRows;
+        outRows.reserve(batchRowCount);
+
+        for (const auto& record : batch->Records) {
+            // A lost-ACK resend duplicates a whole record; dedup by (mapper_id, start_row).
+            // Duplicates are rare, hence [[likely]].
+            if (SeenRecords_.emplace(record.Header.MapperId, record.Header.StartRow).second) [[likely]] {
+                outRows.insert(outRows.end(), record.Rows.begin(), record.Rows.end());
             }
         }
 
@@ -398,10 +414,9 @@ private:
     const IPushBasedPartitionReaderPtr Reader_;
     const TNameTablePtr NameTable_;
     TFuture<TShuffleReadBatchPtr> PendingBatch_;
-    // Cross-chunk dedup of (mapper_id, row_id). Bounded by the number of unique
-    // rows in the partition, which the caller (e.g. SPYT) controls via its
-    // partitioning; it is retained for the reader's lifetime.
-    THashSet<std::pair<i32, i64>> SeenRows_;
+    // Records already emitted, keyed by (mapper_id, start_row). Retained for the reader's
+    // lifetime; bounded by the record count in the partition.
+    THashSet<std::pair<i32, i64>> SeenRecords_;
     bool Drained_ = false;
 };
 
@@ -442,18 +457,13 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
                 return validIds.contains(header.MapperId);
             };
 
-            // TODO(apollo1321): Push-based uses hardcoded defaults in v1. The per-operation
-            // options.Config is a table reader config that does not map onto the push-based reader;
-            // a dedicated config should instead be set at start_shuffle and carried on the shuffle handle.
-            auto readerConfig = New<TPartitionReaderConfig>();
-            readerConfig->SetDefaults();
-            readerConfig->ChunkSessionReaderConfig = New<NDistributedChunkSessionClient::TDistributedChunkSessionReaderConfig>();
-            readerConfig->ChunkSessionReaderConfig->SetDefaults();
-            readerConfig->Codec = NCompression::ECodec::None;
+            auto readerConfig = handle->PushConfig
+                ? ConvertTo<TPushShuffleConfigPtr>(*handle->PushConfig)->ReaderConfig
+                : New<TPartitionReaderConfig>();
 
             // The reader must use the same read quorum the controller created the
             // journal chunks with; both derive it from the replication factor.
-            int readQuorum = NDistributedChunkSessionClient::ComputeDefaultJournalQuorums(
+            int readQuorum = ComputeDefaultJournalQuorums(
                 handle->ReplicationFactor).ReadQuorum;
 
             auto partitionReader = CreatePushBasedPartitionReader(
@@ -510,6 +520,9 @@ TSignedShuffleHandlePtr TClient::DoStartShuffle(
     }
     if (options.Schema) {
         ToProto(req->mutable_schema(), options.Schema);
+    }
+    if (options.PushConfig) {
+        req->set_push_config(ToProto(*options.PushConfig));
     }
 
     auto rsp = WaitFor(req->Invoke())
@@ -665,6 +678,9 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
         shuffleHandle->PartitionCount,
         nameTable->GetId(partitionColumn));
 
+    // TODO(apollo1321): Carry the writer/reader config on the shuffle handle (set once at
+    // start_shuffle, shared by all writers and readers) for both push and pull, and drop the
+    // per-call options.Config — push already ignores it; pull still consumes it per call.
     auto tableWriterOptions = New<TTableWriterOptions>();
     tableWriterOptions->EvaluateComputedColumns = false;
     tableWriterOptions->Account = shuffleHandle->Account;

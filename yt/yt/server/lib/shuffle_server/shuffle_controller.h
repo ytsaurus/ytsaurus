@@ -7,6 +7,8 @@
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_pool.h>
 
+#include <yt/yt/ytlib/push_based_shuffle_client/public.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -53,12 +55,18 @@ struct TPushBasedFetchResult
     std::vector<i32> ValidMapperIds;
 };
 
+struct TMapperRegistration
+{
+    i32 MapperId = 0;
+    std::vector<NDistributedChunkSessionClient::TReadySession> ReadySessions;
+};
+
 //! Push-based shuffle: mappers push records into shared per-partition journal
 //! chunk sessions; readers fetch the partition's chunks plus the valid mapper set.
 struct IPushBasedShuffleController
     : public IShuffleController
 {
-    virtual TFuture<i32> RegisterMapper(
+    virtual TFuture<TMapperRegistration> RegisterMapper(
         std::optional<int> writerIndex,
         bool overwriteExistingWriterData) = 0;
 
@@ -87,7 +95,8 @@ IPushBasedShuffleControllerPtr CreatePushBasedShuffleController(
     NApi::ITransactionPtr transaction,
     std::string account,
     std::string medium,
-    int replicationFactor);
+    int replicationFactor,
+    NPushBasedShuffleClient::TPushShuffleConfigPtr pushConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

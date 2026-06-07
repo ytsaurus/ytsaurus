@@ -7883,6 +7883,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartShuffle)
             if (request->has_schema()) {
                 FromProto(&options.Schema, request->schema());
             }
+            if (request->has_push_config()) {
+                options.PushConfig = TYsonString(request->push_config());
+            }
             return client->StartShuffle(
                 request->account(),
                 request->partition_count(),
