@@ -350,7 +350,7 @@ public: \
 
     IMPLEMENT_METHOD(NQueryTrackerClient::TQueryId, StartQuery, (
         NQueryTrackerClient::EQueryEngine engine,
-        const TString& query,
+        const std::string& query,
         const TStartQueryOptions& options = {}),
         (engine, query, options))
     IMPLEMENT_METHOD(void, AbortQuery, (
