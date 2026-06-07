@@ -361,13 +361,18 @@ public:
 
         // Value ids are schema column indices for every writer (the name table
         // is derived from the shuffle schema), so rows need no remapping.
-        std::vector<TUnversionedRow> outRows;
+        i64 batchRowCount = 0;
         for (const auto& record : batch->Records) {
-            for (i64 index = 0; index < std::ssize(record.Rows); ++index) {
-                i64 rowId = record.Header.StartRow + index;
-                if (SeenRows_.emplace(record.Header.MapperId, rowId).second) {
-                    outRows.push_back(record.Rows[index]);
-                }
+            batchRowCount += std::ssize(record.Rows);
+        }
+        std::vector<TUnversionedRow> outRows;
+        outRows.reserve(batchRowCount);
+
+        for (const auto& record : batch->Records) {
+            // A lost-ACK resend duplicates a whole record; dedup by (mapper_id, start_row).
+            // Duplicates are rare, hence [[likely]].
+            if (SeenRecords_.emplace(record.Header.MapperId, record.Header.StartRow).second) [[likely]] {
+                outRows.insert(outRows.end(), record.Rows.begin(), record.Rows.end());
             }
         }
 
@@ -393,10 +398,9 @@ private:
     const IPushBasedPartitionReaderPtr Reader_;
     const TNameTablePtr NameTable_;
     TFuture<TShuffleReadBatchPtr> PendingBatch_;
-    // Cross-chunk dedup of (mapper_id, row_id). Bounded by the number of unique
-    // rows in the partition, which the caller (e.g. SPYT) controls via its
-    // partitioning; it is retained for the reader's lifetime.
-    THashSet<std::pair<i32, i64>> SeenRows_;
+    // Records already emitted, keyed by (mapper_id, start_row). Retained for the reader's
+    // lifetime; bounded by the record count in the partition.
+    THashSet<std::pair<i32, i64>> SeenRecords_;
     bool Drained_ = false;
 };
 
