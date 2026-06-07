@@ -5,6 +5,8 @@
 #include <yt/yt/core/rpc/client.h>
 #include <yt/yt/core/rpc/service.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NCypressClient {
 
 using namespace NRpc;
@@ -102,16 +104,17 @@ bool GetAllowResolveFromSequoiaObject(const NRpc::NProto::TRequestHeader& header
         : false;
 }
 
-void SetSequoiaNodeEffectiveAcl(NRpc::NProto::TRequestHeader* header, const TString& effectiveAcl)
+void SetSequoiaNodeEffectiveAcl(NRpc::NProto::TRequestHeader* header, const NYson::TYsonString& effectiveAcl)
 {
-    header->SetExtension(TSequoiaExt::target_node_effective_acl, effectiveAcl);
+    ToProto(header->MutableExtension(TSequoiaExt::target_node_effective_acl), effectiveAcl);
 }
 
-std::optional<TStringBuf> GetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequestHeader& header)
+NYson::TYsonStringBuf TryGetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequestHeader& header)
 {
-    return header.HasExtension(TSequoiaExt::target_node_effective_acl)
-        ? std::make_optional<TStringBuf>(header.GetExtension(TSequoiaExt::target_node_effective_acl))
-        : std::nullopt;
+    if (!header.HasExtension(TSequoiaExt::target_node_effective_acl)) {
+        return {};
+    }
+    return NYson::TYsonStringBuf(TStringBuf(header.GetExtension(TSequoiaExt::target_node_effective_acl)));
 }
 
 void SetResolveDepth(NRpc::NProto::TRequestHeader* header, int value)
