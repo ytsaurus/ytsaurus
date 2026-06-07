@@ -150,6 +150,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fiber.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fiber_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fls.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/invoker_alarm.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/invoker_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/lease_manager.cpp
@@ -160,7 +161,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/pooled_execution_stack.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/pollable_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/prioritized_invoker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/profiling_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/propagating_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/quantized_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/scheduler_thread.cpp
