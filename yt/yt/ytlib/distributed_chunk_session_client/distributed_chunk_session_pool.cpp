@@ -98,6 +98,17 @@ public:
             .Run();
     }
 
+    TFuture<std::vector<TReadySession>> GetReadySessions() const final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return BIND_NO_PROPAGATE(
+            &TDistributedChunkSessionPool::DoGetReadySessions,
+            MakeStrong(this))
+            .AsyncVia(SerializedInvoker_)
+            .Run();
+    }
+
 private:
     struct TSessionEntry
     {
@@ -565,6 +576,31 @@ private:
             result.push_back(TSlotChunkInfo{
                 .ChunkId = entry.StartedSession.SessionId.ChunkId,
                 .Replicas = entry.StartedSession.Replicas,
+            });
+        }
+
+        return result;
+    }
+
+    std::vector<TReadySession> DoGetReadySessions() const
+    {
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+
+        std::vector<TReadySession> result;
+        result.reserve(Slots_.size());
+        for (const auto& [slotCookie, slot] : Slots_) {
+            if (slot.Finalized || slot.ActiveSessionIds.empty()) {
+                continue;
+            }
+
+            const auto& sessionId = slot.ActiveSessionIds.front();
+            const auto& entry = GetOrCrash(slot.Sessions, sessionId);
+            result.push_back(TReadySession{
+                .SlotCookie = slotCookie,
+                .Descriptor = TSessionDescriptor{
+                    .SessionId = entry.StartedSession.SessionId,
+                    .SequencerNode = entry.StartedSession.SequencerNode,
+                },
             });
         }
 

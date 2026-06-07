@@ -41,6 +41,8 @@ namespace NYT::NApi::NNative {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NDistributedChunkSessionClient;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NShuffleClient;
 using namespace NTableClient;
@@ -89,7 +91,7 @@ public:
         , RpcTimeout_(rpcTimeout)
     { }
 
-    TFuture<NDistributedChunkSessionClient::TSessionDescriptor> GetSession(
+    TFuture<TSessionDescriptor> GetSession(
         int partitionIndex,
         std::optional<TSessionId> excludedSessionId) override
     {
@@ -103,9 +105,10 @@ public:
         }
         return req->Invoke()
             .Apply(BIND_NO_PROPAGATE([] (const TShuffleServiceProxy::TRspGetPartitionWriteSessionPtr& rsp) {
-                return NDistributedChunkSessionClient::TSessionDescriptor{
-                    .SessionId = FromProto<TSessionId>(rsp->session_id()),
-                    .SequencerNode = FromProto<NNodeTrackerClient::TNodeDescriptor>(rsp->sequencer_node()),
+                const auto& session = rsp->session();
+                return TSessionDescriptor{
+                    .SessionId = FromProto<TSessionId>(session.session_id()),
+                    .SequencerNode = FromProto<TNodeDescriptor>(session.sequencer_node()),
                 };
             }));
     }
@@ -270,6 +273,18 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
         ] (const TShuffleServiceProxy::TRspRegisterMapperPtr& rsp) -> IRowBatchWriterPtr {
             i32 mapperId = rsp->mapper_id();
 
+            THashMap<int, TSessionDescriptor> seededSessions;
+            seededSessions.reserve(rsp->ready_sessions_size());
+            for (const auto& readySession : rsp->ready_sessions()) {
+                const auto& session = readySession.session();
+                seededSessions.emplace(
+                    readySession.partition_index(),
+                    TSessionDescriptor{
+                        .SessionId = FromProto<TSessionId>(session.session_id()),
+                        .SequencerNode = FromProto<TNodeDescriptor>(session.sequencer_node()),
+                    });
+            }
+
             // The shuffle schema is the single source of the column name-to-id
             // mapping. The name table is derived from it, so value ids equal
             // schema column indices for both writer and reader.
@@ -291,7 +306,8 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
                 partitioner,
                 client->GetNativeConnection(),
                 mapperId,
-                client->GetConnection()->GetInvoker());
+                client->GetConnection()->GetInvoker(),
+                std::move(seededSessions));
 
             return New<TPushBasedShuffleWriterAdapter>(
                 std::move(pushBasedWriter),
@@ -447,7 +463,7 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
 
             // The reader must use the same read quorum the controller created the
             // journal chunks with; both derive it from the replication factor.
-            int readQuorum = NDistributedChunkSessionClient::ComputeDefaultJournalQuorums(
+            int readQuorum = ComputeDefaultJournalQuorums(
                 handle->ReplicationFactor).ReadQuorum;
 
             auto partitionReader = CreatePushBasedPartitionReader(

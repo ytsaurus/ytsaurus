@@ -245,9 +245,21 @@ public:
             std::move(writerOptions),
             std::move(writerConfig),
             SerializedInvoker_);
+
+        for (int partitionIndex = 0; partitionIndex < PartitionCount_; ++partitionIndex) {
+            Pool_->GetSession(partitionIndex)
+                .Subscribe(BIND_NO_PROPAGATE([partitionIndex] (const TErrorOr<TSessionDescriptor>& sessionOrError) {
+                    if (!sessionOrError.IsOK()) {
+                        YT_LOG_DEBUG(
+                            sessionOrError,
+                            "Failed to eagerly start partition write session (PartitionIndex: %v)",
+                            partitionIndex);
+                    }
+                }));
+        }
     }
 
-    TFuture<i32> RegisterMapper(
+    TFuture<TMapperRegistration> RegisterMapper(
         std::optional<int> writerIndex,
         bool overwriteExistingWriterData) override
     {
@@ -302,7 +314,7 @@ private:
     THashSet<i32> ValidMapperIds_;
     bool ReadPhaseStarted_ = false;
 
-    i32 DoRegisterMapper(std::optional<int> writerIndex, bool overwriteExistingWriterData)
+    TFuture<TMapperRegistration> DoRegisterMapper(std::optional<int> writerIndex, bool overwriteExistingWriterData)
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
@@ -329,7 +341,14 @@ private:
             WriterIndexToMapperIds_[*writerIndex].push_back(mapperId);
         }
         ValidMapperIds_.insert(mapperId);
-        return mapperId;
+
+        return Pool_->GetReadySessions()
+            .Apply(BIND_NO_PROPAGATE([mapperId] (std::vector<TReadySession> readySessions) {
+                return TMapperRegistration{
+                    .MapperId = mapperId,
+                    .ReadySessions = std::move(readySessions),
+                };
+            }));
     }
 
     TFuture<TSessionDescriptor> DoGetPartitionWriteSession(

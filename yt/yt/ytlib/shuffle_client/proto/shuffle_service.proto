@@ -40,9 +40,25 @@ message TReqRegisterMapper
     optional bool overwrite_existing_writer_data = 3 [default = false];
 }
 
+message TPartitionWriteSession
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor sequencer_node = 2;
+}
+
 message TRspRegisterMapper
 {
     required int32 mapper_id = 1;
+
+    message TReadySession
+    {
+        required int32 partition_index = 1;
+        required TPartitionWriteSession session = 2;
+    }
+
+    // Sessions already started at registration time. The mapper uses these directly and
+    // falls back to GetPartitionWriteSession for any partition absent here.
+    repeated TReadySession ready_sessions = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,8 +73,7 @@ message TReqGetPartitionWriteSession
 
 message TRspGetPartitionWriteSession
 {
-    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
-    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor sequencer_node = 2;
+    required TPartitionWriteSession session = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

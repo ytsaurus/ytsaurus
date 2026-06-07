@@ -255,11 +255,22 @@ public:
             .ValueOrThrow();
         auto pushController = ToPushBasedOrThrow(controller);
 
-        i32 mapperId = WaitFor(pushController->RegisterMapper(writerIndex, overwrite))
+        auto registration = WaitFor(pushController->RegisterMapper(writerIndex, overwrite))
             .ValueOrThrow();
 
-        response->set_mapper_id(mapperId);
-        context->SetResponseInfo("MapperId: %v", mapperId);
+        response->set_mapper_id(registration.MapperId);
+        for (const auto& readySession : registration.ReadySessions) {
+            auto* protoSession = response->add_ready_sessions();
+            protoSession->set_partition_index(readySession.SlotCookie);
+            auto* session = protoSession->mutable_session();
+            ToProto(session->mutable_session_id(), readySession.Descriptor.SessionId);
+            ToProto(session->mutable_sequencer_node(), readySession.Descriptor.SequencerNode);
+        }
+
+        context->SetResponseInfo(
+            "MapperId: %v, ReadySessionCount: %v",
+            registration.MapperId,
+            registration.ReadySessions.size());
         context->Reply();
     }
 
@@ -286,8 +297,9 @@ public:
         auto sessionDescriptor = WaitFor(pushController->GetPartitionWriteSession(partitionIndex, excludedSessionId))
             .ValueOrThrow();
 
-        ToProto(response->mutable_session_id(), sessionDescriptor.SessionId);
-        ToProto(response->mutable_sequencer_node(), sessionDescriptor.SequencerNode);
+        auto* session = response->mutable_session();
+        ToProto(session->mutable_session_id(), sessionDescriptor.SessionId);
+        ToProto(session->mutable_sequencer_node(), sessionDescriptor.SequencerNode);
 
         context->SetResponseInfo("SessionId: %v", sessionDescriptor.SessionId);
         context->Reply();
