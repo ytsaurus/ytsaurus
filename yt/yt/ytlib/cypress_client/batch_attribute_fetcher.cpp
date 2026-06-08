@@ -103,7 +103,11 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
             DeduplicationReferenceTableIndices_[Entries_[endIndex].Index] = Entries_[beginIndex].Index;
             ++endIndex;
         }
-        Entries_[uniqueIndex++] = std::move(Entries_[beginIndex]);
+        // NB: Guard against self-move-assignment: it is NOT a no-op but rather leaves the string in a valid but unspecified state.
+        if (uniqueIndex != beginIndex) {
+            Entries_[uniqueIndex] = std::move(Entries_[beginIndex]);
+        }
+        ++uniqueIndex;
     }
     Entries_.resize(uniqueIndex);
 
