@@ -31,6 +31,27 @@ TClusterTag TStrongOrderingManager::GetClockSourceClusterTag() const
     return ClockClusterTag_;
 }
 
+TFuture<void> TStrongOrderingManager::WaitUntilPreparedCommitsFinish()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return PreparedCommitsFinished_.Transform([&] (TPromise<void>& promise) {
+        auto preparedCommitCount = PreparedCommitCount_.load(std::memory_order::relaxed);
+        if (preparedCommitCount == 0) {
+            YT_LOG_DEBUG("No prepared strongly ordered commits");
+            return OKFuture;
+        }
+
+        if (!promise) {
+            promise = NewPromise<void>();
+        }
+
+        YT_LOG_DEBUG("Waiting for currently prepared strongly ordered commits to be finished (PreparedCommitCount: %v)",
+            preparedCommitCount);
+        return promise.ToFuture();
+    });
+}
+
 void TStrongOrderingManager::OnCommitPrepare(
     TTransactionId transactionId,
     TTimestamp prepareTimestamp,
@@ -180,6 +201,10 @@ void TStrongOrderingManager::Persist(const TStreamPersistenceContext& context)
     Persist(context, PreparedTransactionCount_);
     Persist(context, ReadyToCommitTransactionCount_);
     Persist(context, ReadyToFlushTransactionCount_);
+
+    if (context.IsLoad()) {
+        PreparedCommitCount_.store(TransactionIdToTransactionInfo_.size(), std::memory_order::relaxed);
+    }
 }
 
 void TStrongOrderingManager::Clear()
@@ -190,6 +215,13 @@ void TStrongOrderingManager::Clear()
     PreparedTransactionCount_.store(0, std::memory_order::relaxed);
     ReadyToCommitTransactionCount_.store(0, std::memory_order::relaxed);
     ReadyToFlushTransactionCount_.store(0, std::memory_order::relaxed);
+    PreparedCommitCount_.store(0, std::memory_order::relaxed);
+    PreparedCommitsFinished_.Transform([] (TPromise<void>& promise) {
+        if (promise) {
+            promise.TrySet();
+            promise.Reset();
+        }
+    });
 }
 
 void TStrongOrderingManager::TStrongOrderingShard::Persist(const TStreamPersistenceContext& context)
@@ -469,9 +501,11 @@ std::vector<TTransactionId> TStrongOrderingManager::ForgetTransaction(TTransacti
     auto state = transactionInfo.CommitState;
     const auto& strongOrderingTags = transactionInfo.StrongOrderingTags;
 
-    YT_LOG_DEBUG("Removing transaction from strong ordering manager (TransactionId: %v, State: %v, StrongOrderingTags: %v)",
+    auto preparedCommitCount = PreparedCommitCount_.fetch_sub(1, std::memory_order::relaxed);
+    YT_LOG_DEBUG("Removing transaction from strong ordering manager (TransactionId: %v, State: %v, PreparedCommitCount: %v, StrongOrderingTags: %v)",
         transactionId,
         state,
+        preparedCommitCount,
         MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
 
     std::vector<TTransactionId> transactionsToFlush;
@@ -516,6 +550,14 @@ std::vector<TTransactionId> TStrongOrderingManager::ForgetTransaction(TTransacti
         MaybeRemoveShard(tag);
     }
 
+    if (preparedCommitCount == 1) {
+        PreparedCommitsFinished_.Transform([&] (TPromise<void>& promise) {
+            if (promise) {
+                promise.Set();
+                promise.Reset();
+            }
+        });
+    }
     TransactionIdToTransactionInfo_.erase(transactionInfoIt);
     return transactionsToFlush;
 }
@@ -545,12 +587,14 @@ void TStrongOrderingManager::RegisterTransaction(
     YT_VERIFY(!strongOrderingTags.empty());
 
     auto commitTimestampLowerBound = ObserveTimestamp(prepareTimestamp) + 1;
+    auto preparedCommitCount = PreparedCommitCount_.fetch_add(1, std::memory_order::relaxed);
     YT_LOG_DEBUG(
         "Transaction prepare timestamp is added to strong ordering manager "
-        "(TransactionId: %v, PrepareTimestamp: %v, CommitTimestampLowerBound: %v, StrongOrderingTags: %v)",
+        "(TransactionId: %v, PrepareTimestamp: %v, CommitTimestampLowerBound: %v, PreparedCommitCount: %v, StrongOrderingTags: %v)",
         transactionId,
         prepareTimestamp,
         commitTimestampLowerBound,
+        preparedCommitCount,
         MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
 
     for (const auto& tag : strongOrderingTags) {
