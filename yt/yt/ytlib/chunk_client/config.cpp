@@ -178,6 +178,8 @@ void TMediumDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("sync_period", &TThis::SyncPeriod)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("use_cache", &TThis::UseCache)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

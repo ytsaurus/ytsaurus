@@ -17,6 +17,7 @@ PEERDIR(
     ${YT_TESTS_ROOT}/scheduler
     ${YT_TESTS_ROOT}/scheduler_simulator
     ${YT_TESTS_ROOT}/queries
+    ${YT_TESTS_ROOT}/s3
 )
 
 END()

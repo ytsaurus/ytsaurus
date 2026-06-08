@@ -859,6 +859,7 @@ void TInputManager::FetchInputTablesAttributes()
                 "schema_id",
                 "unflushed_timestamp",
                 "content_revision",
+                "primary_medium",
                 "enable_dynamic_store_read",
                 "tablet_state",
                 "account",
@@ -889,6 +890,20 @@ void TInputManager::FetchInputTablesAttributes()
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
             auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
             tableAttributes.emplace(std::move(table), std::move(attributes));
+        }
+    }
+
+    if (Host_->GetConfig()->ForbidOperationsOnOffshoreMedia) {
+        const auto& mediumDirectory = Host_->GetMediumDirectory();
+        for (const auto& [table, attributes] : tableAttributes) {
+            auto mediumName = attributes->Get<std::string>("primary_medium", "default");
+            auto mediumDescriptor = mediumDirectory->FindByName(mediumName);
+            if (mediumDescriptor && mediumDescriptor->IsOffshore()) {
+                THROW_ERROR_EXCEPTION(
+                    "Operations on tables with offshore medium are forbidden by controller agent config")
+                    << TErrorAttribute("table_path", table->GetPath())
+                    << TErrorAttribute("primary_medium", mediumName);
+            }
         }
     }
 

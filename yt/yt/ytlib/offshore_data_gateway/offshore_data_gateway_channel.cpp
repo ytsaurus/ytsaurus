@@ -114,7 +114,6 @@ private:
             return MakeFuture<IChannelPtr>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
         }
 
-        // TODO(pavel-bash): Maybe later it'll be a good idea to include those into Config.
         NApi::TMasterReadOptions masterReadOptions;
         masterReadOptions.ReadFrom = NApi::EMasterChannelKind::MasterSideCache;
 
