@@ -3410,7 +3410,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
             *proxyInternalConfig->ExecutorStderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyInternalConfig->ExecutorStderrPath);
             YT_LOG_DEBUG("Executor stderr path replaced (NewPath: %v)", *proxyInternalConfig->ExecutorStderrPath);
-
         }
     }
 
