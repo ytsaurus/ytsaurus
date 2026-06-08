@@ -750,7 +750,9 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         new_tablet_ids = []
 
         def _check_sum_counter():
-            sum_counter = sum(self._get_counter(table_id, tablet_id, "dynamic_row_write") for tablet_id in new_tablet_ids)
+            sum_counter = sum(filter(
+                None,
+                (self._get_counter(table_id, tablet_id, "dynamic_row_write") for tablet_id in new_tablet_ids)))
 
             return abs(expected_counter - sum_counter) <= threshold
 
