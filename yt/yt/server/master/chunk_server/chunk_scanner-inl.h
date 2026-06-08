@@ -133,6 +133,12 @@ int TChunkScanQueueWithPayload<TPayload>::GetQueueSize() const
 }
 
 template <class TPayload>
+std::optional<NProfiling::TCpuInstant> TChunkScanQueueWithPayload<TPayload>::GetLastDequeuedChunkEnqueueInstant() const
+{
+    return LastDequeuedChunkEnqueueInstant_;
+}
+
+template <class TPayload>
 constexpr auto TChunkScanQueueWithPayload<TPayload>::None() noexcept -> TQueuedChunk
 {
     return WithoutPayload(nullptr);
@@ -199,7 +205,7 @@ template <class TPayload>
 auto TChunkScannerWithPayload<TPayload>::DequeueChunk(NProfiling::TCpuInstant deadline) -> TQueuedChunk
 {
     if (TBase::HasUnscannedChunk(deadline)) {
-        TChunkQueue::LastDequeuedChunkEnqueueInstant_ = {};
+        TChunkQueue::LastDequeuedChunkEnqueueInstant_ = std::nullopt;
         return TChunkQueue::WithoutPayload(TGlobalChunkScanner::DequeueChunk());
     }
 
