@@ -235,6 +235,9 @@ DEFINE_ENUM(EMasterReign,
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
 
+static_assert(static_cast<int>(TEnumTraits<EMasterReign>::GetMinValue()) >= NHydra::MinMasterReign);
+static_assert(static_cast<int>(TEnumTraits<EMasterReign>::GetMaxValue()) <= NHydra::MaxMasterReign);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSaveContext

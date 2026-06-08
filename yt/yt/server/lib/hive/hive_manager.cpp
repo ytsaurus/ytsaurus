@@ -16,6 +16,7 @@
 #include <yt/yt/server/lib/hydra/hydra_service.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra/serialize.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
@@ -1052,13 +1053,11 @@ private:
 
             // COMPAT(ifsmirnov): ReignInHiveMessages.
             reign = mutationContext->Request().Reign;
-            constexpr TReign ChaosReignBase = 300000;
             constexpr TReign ChaosReignReignInHiveMessages = 300304;
-            constexpr TReign TabletReignBase = 100000;
             constexpr TReign TabletReignReignInHiveMessages = 101408;
-            if (ChaosReignBase < reign && reign < ChaosReignReignInHiveMessages) {
+            if (IsChaosReign(reign) && reign < ChaosReignReignInHiveMessages) {
                 reign = 0;
-            } else if (TabletReignBase < reign && reign < TabletReignReignInHiveMessages) {
+            } else if (IsTabletReign(reign) && reign < TabletReignReignInHiveMessages) {
                 reign = 0;
             }
         }
