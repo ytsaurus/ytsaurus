@@ -1528,10 +1528,11 @@ private:
         }
 
         auto randomSeed = RandomNumber<ui64>();
-        YT_LOG_DEBUG("Enqueue mutation (RandomSeed: %x, MutationType: %v, MutationId: %v, EpochId: %v)",
+        YT_LOG_DEBUG("Enqueue mutation (RandomSeed: %x, MutationType: %v, MutationId: %v, MutationSize: %v, EpochId: %v)",
             randomSeed,
             request.Type,
             request.MutationId,
+            request.Data.Size(),
             request.EpochId);
 
         MutationDraftQueue_->Enqueue({
