@@ -307,21 +307,23 @@ void SafeUpdateAggregatedJobStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config)
+TDockerImageSpec::TDockerImageSpec(const std::string& dockerImage, const TDockerRegistryConfigPtr& config)
 {
+    // TODO(babenko): migrate to std::string
+    TString dockerImageT(dockerImage);
     const auto& internalRegistries = config->InternalRegistryAlternativeAddresses;
     TStringBuf imageRef;
     TStringBuf imageTag;
 
     // Format: [REGISTRY/]IMAGE[:TAG][@DIGEST], where REGISTRY is FQDN[:PORT].
     // Registry FQDN must has at least one "." or PORT.
-    if (!StringSplitter(dockerImage).Split('/').Limit(2).TryCollectInto(&Registry, &imageRef) ||
+    if (!StringSplitter(dockerImageT).Split('/').Limit(2).TryCollectInto(&Registry, &imageRef) ||
         Registry.find_first_of(".:") == TString::npos)
     {
         // Use main internal registry address.
         Registry = config->InternalRegistryAddress.value_or("");
         IsInternal = true;
-        imageRef = dockerImage;
+        imageRef = dockerImageT;
     } else if (std::ranges::find(internalRegistries, Registry) != internalRegistries.end()) {
         IsInternal = true;
     } else if (config->InternalRegistryRegex && NRe2::TRe2::FullMatch(Registry, *config->InternalRegistryRegex)) {

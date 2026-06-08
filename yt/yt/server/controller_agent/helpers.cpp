@@ -41,13 +41,15 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TrimCommandForBriefSpec(const TString& command)
+TString TrimCommandForBriefSpec(const std::string& command)
 {
     const int MaxBriefSpecCommandLength = 256;
+    // TODO(babenko): migrate to std::string
+    TString commandT(command);
     return
-        command.length() <= MaxBriefSpecCommandLength
-        ? command
-        : command.substr(0, MaxBriefSpecCommandLength) + "...";
+        commandT.length() <= MaxBriefSpecCommandLength
+        ? commandT
+        : commandT.substr(0, MaxBriefSpecCommandLength) + "...";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,20 +183,7 @@ void BuildFileSpecs(
         if (file.GpuCheck) {
             descriptor = jobSpec->add_gpu_check_volume_layers();
         } else if (file.Layer) {
-            auto createVolumeDescriptor = [&] (const std::string& volumeId) {
-                auto* volumeDescriptor = (*jobSpec->mutable_volumes())[volumeId].add_layers();
-                BuildFileSpec(volumeDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
-            };
-
-            descriptor = jobSpec->add_root_volume_layers();
-            for (const auto& [volumeId, volume] : config->Volumes) {
-                for (const auto& layer : volume->Layers) {
-                    if (layer->Path == file.Path) {
-                        createVolumeDescriptor(volumeId);
-                        break;
-                    }
-                }
-            }
+            continue;
         } else {
             descriptor = jobSpec->add_files();
         }
@@ -544,7 +533,8 @@ void EnrichLayers(
         }
         if (rootVolume->Layers.empty() && operationSpec->DefaultBaseLayerPath) {
             auto newLayer = New<TLayer>();
-            newLayer->Path = *operationSpec->DefaultBaseLayerPath;
+            // TODO(babenko): migrate to std::string
+            newLayer->Path = TString(*operationSpec->DefaultBaseLayerPath);
             rootVolume->Layers.push_back(std::move(newLayer));
         }
         if (config->DefaultLayerPath && rootVolume->Layers.empty()) {
@@ -573,7 +563,8 @@ void EnrichLayers(
 
                 if (cudaProfilerLayerPath && profilerSpec->Type == EProfilerType::Cuda) {
                     auto newLayer = New<TLayer>();
-                    newLayer->Path = *cudaProfilerLayerPath;
+                    // TODO(babenko): migrate to std::string
+                    newLayer->Path = TString(*cudaProfilerLayerPath);
                     rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
                     break;
                 }
@@ -586,7 +577,8 @@ void EnrichLayers(
             if (systemLayerPath) {
                 // This must be the top layer, so insert in the beginning.
                 auto newLayer = New<TLayer>();
-                newLayer->Path = *systemLayerPath;
+                // TODO(babenko): migrate to std::string
+                newLayer->Path = TString(*systemLayerPath);
                 rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
             }
         }
@@ -602,6 +594,36 @@ void EnrichLayers(
 
     auto it = GetIteratorOrCrash(spec->Volumes, getRootVolumeId(spec->JobVolumeMounts));
     enrichRootVolumeLayers(it->second);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NControllerAgent::NProto::TVolume* volumeProto,
+    const NScheduler::TVolume& volume,
+    const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile)
+{
+    if (volume.DiskRequest) {
+        if (auto nbdDiskRequest = volume.DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
+            auto protoDiskRequest = volumeProto->mutable_nbd_disk_request();
+            ToProto(protoDiskRequest, *nbdDiskRequest);
+        } else if (auto localDiskRequest = volume.DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
+            auto protoDiskRequest = volumeProto->mutable_local_disk_request();
+            ToProto(protoDiskRequest, *localDiskRequest);
+        } else if (auto tmpfsDiskRequest = volume.DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()) {
+            ToProto(volumeProto->mutable_tmpfs_storage_request(), *tmpfsDiskRequest);
+        } else {
+            YT_ABORT();
+        }
+    }
+
+    volumeProto->set_allow_reusing(volume.AllowReusing);
+    for (const auto& layer : volume.Layers) {
+        auto* file = GetOrCrash(layerPathToUserFile, layer->Path.GetPath());
+
+        auto* descriptor = volumeProto->add_layers();
+        BuildFileSpec(descriptor, *file, /* copyFiles */ false, /* enableBypassArtifactCache*/ false);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

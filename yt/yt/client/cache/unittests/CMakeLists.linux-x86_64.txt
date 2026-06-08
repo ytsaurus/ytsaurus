@@ -14,10 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(yt-yt-client-cache-unittests)
+add_executable(unittester-client-cache)
 
 
-target_compile_options(yt-yt-client-cache-unittests PRIVATE
+target_compile_options(unittester-client-cache PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -27,7 +27,7 @@ target_compile_options(yt-yt-client-cache-unittests PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(yt-yt-client-cache-unittests PUBLIC
+target_link_libraries(unittester-client-cache PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -39,12 +39,12 @@ target_link_libraries(yt-yt-client-cache-unittests PUBLIC
   yt-client-cache
 )
 
-target_allocator(yt-yt-client-cache-unittests
+target_allocator(unittester-client-cache
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(yt-yt-client-cache-unittests PRIVATE
+target_link_options(unittester-client-cache PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -55,21 +55,21 @@ target_link_options(yt-yt-client-cache-unittests PRIVATE
   -lutil
 )
 
-target_sources(yt-yt-client-cache-unittests PRIVATE
+target_sources(unittester-client-cache PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/unittests/cache_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-client-cache-unittests
+  unittester-client-cache
   COMMAND
-  yt-yt-client-cache-unittests
+  unittester-client-cache
 )
 
 set_property(
   TEST
-  yt-yt-client-cache-unittests
+  unittester-client-cache
   PROPERTY
   LABELS
   SMALL
@@ -77,16 +77,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-client-cache-unittests
+  unittester-client-cache
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-client-cache-unittests)
+vcs_info(unittester-client-cache)
 
 set_property(
   TEST
-  yt-yt-client-cache-unittests
+  unittester-client-cache
   PROPERTY
   PROCESSORS
   1

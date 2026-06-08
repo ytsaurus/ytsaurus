@@ -1,4 +1,4 @@
-GTEST()
+GTEST(unittester-tools-record-codegen)
 
 SRCS(
     test_simple_mapping.cpp

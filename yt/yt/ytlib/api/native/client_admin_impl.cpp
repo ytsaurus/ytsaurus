@@ -563,7 +563,7 @@ void TClient::DoKillProcess(const std::string& address, const TKillProcessOption
         .ThrowOnError();
 }
 
-TString TClient::DoWriteCoreDump(const std::string& address, const TWriteCoreDumpOptions& /*options*/)
+std::string TClient::DoWriteCoreDump(const std::string& address, const TWriteCoreDumpOptions& /*options*/)
 {
     ValidateSuperuserPermissions();
 
@@ -596,7 +596,7 @@ TGuid TClient::DoWriteLogBarrier(const std::string& address, const TWriteLogBarr
     return result;
 }
 
-TString TClient::DoWriteOperationControllerCoreDump(
+std::string TClient::DoWriteOperationControllerCoreDump(
     TOperationId operationId,
     const TWriteOperationControllerCoreDumpOptions& options)
 {
@@ -888,7 +888,7 @@ TMaintenanceIdPerTarget TClient::DoAddMaintenance(
     EMaintenanceComponent component,
     const std::string& address,
     EMaintenanceType type,
-    const TString& comment,
+    const std::string& comment,
     const TAddMaintenanceOptions& options)
 {
     ValidateMaintenanceComment(comment);

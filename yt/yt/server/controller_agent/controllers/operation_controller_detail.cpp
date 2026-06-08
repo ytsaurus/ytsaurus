@@ -986,7 +986,8 @@ void TOperationControllerBase::InitializeStructures()
     }
 
     if (TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs())) {
-        auto path = TRichYPath(*Spec_->JobExperiment->BaseLayerPath);
+        // TODO(babenko): migrate to std::string
+        auto path = TRichYPath(TString(*Spec_->JobExperiment->BaseLayerPath));
         if (path.GetTransactionId()) {
             THROW_ERROR_EXCEPTION("Transaction id is not supported for \"probing_base_layer_path\"");
         }
@@ -6128,7 +6129,8 @@ void TOperationControllerBase::InitializeJobExperiment()
         if (TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs())) {
             YT_VERIFY(BaseLayer_.has_value());
             JobExperiment_ = New<TLayerJobExperiment>(
-                *Spec_->DefaultBaseLayerPath,
+                // TODO(babenko): migrate to std::string
+                TString(*Spec_->DefaultBaseLayerPath),
                 *BaseLayer_,
                 Config_->EnableBypassArtifactCache,
                 Logger);
@@ -10618,6 +10620,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     {
+        THashMap<TStringBuf, const TUserFile*> layerPathToUserFile;
+        for (const auto& file : files) {
+            if (file.Layer) {
+                layerPathToUserFile[file.GetPath()] = &file;
+            }
+        }
+
         THashSet<std::string> volumesNotAllowedToBeCreated;
         for (const auto& [name, volume] : jobSpecConfig->Volumes) {
             if (IsDiskRequestTmpfs(volume->DiskRequest) && !Config_->EnableTmpfs) {
@@ -10635,8 +10644,21 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         for (const auto& [name, volume]: jobSpecConfig->Volumes) {
             if (!volumesNotAllowedToBeCreated.contains(name)) {
                 auto& protoVolume = (*protoVolumes)[name];
-                ToProto(&protoVolume, *volume);
+                ToProto(&protoVolume, *volume, layerPathToUserFile);
             }
+        }
+
+        // COMPAT(krasovav)
+        std::optional<TStringBuf> rootVolumeId;
+        for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
+            if (volumeMount->MountPath == "/") {
+                rootVolumeId = volumeMount->VolumeId;
+                break;
+            }
+        }
+
+        if (rootVolumeId) {
+            *jobSpec->mutable_root_volume_layers() = jobSpec->volumes().at(*rootVolumeId).layers();
         }
     }
 
@@ -10705,7 +10727,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_use_smaps_memory_tracker(jobSpecConfig->UseSMapsMemoryTracker);
 
-    auto fillEnvironment = [&] (const THashMap<TString, TString>& env) {
+    auto fillEnvironment = [&] (const auto& env) {
         for (const auto& [key, value] : env) {
             jobSpec->add_environment(Format("%v=%v", key, value));
         }

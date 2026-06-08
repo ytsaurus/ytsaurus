@@ -33,7 +33,7 @@ TOptions CreateOperationOptions(const TOptions& options, const NYTree::INodePtr&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TrimCommandForBriefSpec(const TString& command);
+TString TrimCommandForBriefSpec(const std::string& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -194,6 +194,13 @@ void EnrichLayers(
     const TOperationSpecBasePtr& operationSpec,
     const IOperationControllerHostPtr& host,
     TNonNullPtr<NScheduler::TUserJobSpec> spec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NControllerAgent::NProto::TVolume* volumeProto,
+    const NScheduler::TVolume& volume,
+    const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile);
 
 ////////////////////////////////////////////////////////////////////////////////
 

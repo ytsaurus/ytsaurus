@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
+from builtins import type as Type
+
 import logging
 import typing as t
 
@@ -20,7 +23,7 @@ from sqlglot.errors import (
     UnsupportedError as UnsupportedError,
 )
 from sqlglot.expressions import (
-    Expression as Expression,
+    Expr as Expr,
     alias_ as alias,
     and_ as and_,
     case as case,
@@ -52,14 +55,15 @@ from sqlglot.schema import MappingSchema as MappingSchema, Schema as Schema
 from sqlglot.tokens import Token as Token, Tokenizer as Tokenizer, TokenType as TokenType
 
 if t.TYPE_CHECKING:
-    from sqlglot._typing import E
+    from sqlglot._typing import E, GeneratorArgs, ParserNoDialectArgs
+    from typing_extensions import Unpack
     from sqlglot.dialects.dialect import DialectType as DialectType
 
 logger = logging.getLogger("sqlglot")
 
 
 try:
-    from sqlglot._version import __version__, __version_tuple__
+    from sqlglot._version import __version__, __version_tuple__  # type: ignore[import-not-found]
 except ImportError:
     logger.error(
         "Unable to set __version__, run `pip install -e .` or `python setup.py develop` first."
@@ -70,7 +74,7 @@ pretty = False
 """Whether to format generated SQL by default."""
 
 
-def tokenize(sql: str, read: DialectType = None, dialect: DialectType = None) -> t.List[Token]:
+def tokenize(sql: str, read: DialectType = None, dialect: DialectType = None) -> list[Token]:
     """
     Tokenizes the given SQL string.
 
@@ -86,8 +90,11 @@ def tokenize(sql: str, read: DialectType = None, dialect: DialectType = None) ->
 
 
 def parse(
-    sql: str, read: DialectType = None, dialect: DialectType = None, **opts
-) -> t.List[t.Optional[Expression]]:
+    sql: str,
+    read: DialectType = None,
+    dialect: DialectType = None,
+    **opts: Unpack[ParserNoDialectArgs],
+) -> list[Expr | None]:
     """
     Parses the given SQL string into a collection of syntax trees, one per parsed SQL statement.
 
@@ -104,32 +111,45 @@ def parse(
 
 
 @t.overload
-def parse_one(sql: str, *, into: t.Type[E], **opts) -> E: ...
+def parse_one(
+    sql: str,
+    *,
+    read: DialectType = ...,
+    dialect: DialectType = ...,
+    into: Type[E],
+    **opts: Unpack[ParserNoDialectArgs],
+) -> E: ...
 
 
 @t.overload
-def parse_one(sql: str, **opts) -> Expression: ...
+def parse_one(
+    sql: str,
+    read: DialectType = ...,
+    dialect: DialectType = ...,
+    into: exp.IntoType | None = ...,
+    **opts: Unpack[ParserNoDialectArgs],
+) -> Expr: ...
 
 
 def parse_one(
     sql: str,
     read: DialectType = None,
     dialect: DialectType = None,
-    into: t.Optional[exp.IntoType] = None,
-    **opts,
-) -> Expression:
+    into: exp.IntoType | None = None,
+    **opts: Unpack[ParserNoDialectArgs],
+) -> Expr:
     """
-    Parses the given SQL string and returns a syntax tree for the first parsed SQL statement.
+    Parses the given SQL string and returns a syntax tree.
 
     Args:
         sql: the SQL code string to parse.
         read: the SQL dialect to apply during parsing (eg. "spark", "hive", "presto", "mysql").
         dialect: the SQL dialect (alias for read)
-        into: the SQLGlot Expression to parse into.
+        into: the SQLGlot Expr to parse into.
         **opts: other `sqlglot.parser.Parser` options.
 
     Returns:
-        The syntax tree for the first parsed statement.
+        A single syntax tree if one statement is parsed, otherwise a Block expression containing all parsed syntax trees.
     """
 
     dialect = Dialect.get_or_raise(read or dialect)
@@ -150,9 +170,9 @@ def transpile(
     read: DialectType = None,
     write: DialectType = None,
     identity: bool = True,
-    error_level: t.Optional[ErrorLevel] = None,
-    **opts,
-) -> t.List[str]:
+    error_level: ErrorLevel | None = None,
+    **opts: Unpack[GeneratorArgs],
+) -> list[str]:
     """
     Parses the given SQL string in accordance with the source dialect and returns a list of SQL strings transformed
     to conform to the target dialect. Each string in the returned list represents a single transformed SQL statement.

@@ -1623,8 +1623,7 @@ TSelectRowsResult TClient::DoSelectRows(
 
 TDuration TClient::CheckPermissionsForQuery(
     const TPlanFragment& fragment,
-    const TSelectRowsOptions& options,
-    const ITableMountCachePtr& tableMountCache)
+    const TSelectRowsOptions& options)
 {
     NProfiling::TWallTimer timer;
 
@@ -1671,20 +1670,10 @@ TDuration TClient::CheckPermissionsForQuery(
     const auto& permissionCache = Connection_->GetPermissionCache();
     auto permissionCheckErrors = WaitFor(permissionCache->GetMany(permissionKeys))
         .ValueOrThrow();
-    YT_VERIFY(permissionKeys.size() == permissionCheckErrors.size());
-    for (int i = 0; i < std::ssize(permissionCheckErrors); ++i) {
-        auto& error = permissionCheckErrors[i];
-        if (error.IsOK() || error.FindMatching(NYTree::EErrorCode::ResolveError)) {
+    for (const auto& error : permissionCheckErrors) {
+        if (error.FindMatching(NYTree::EErrorCode::ResolveError)) {
             continue;
         }
-
-        const auto& key = permissionKeys[i];
-        auto tableInfo = WaitForFast(tableMountCache->GetTableInfo(key.Path))
-            .ValueOrThrow();
-        if (tableInfo->UpstreamReplicaId != NullObjectId) {
-            error <<= TErrorAttribute("replica_path", tableInfo->PhysicalPath);
-        }
-
         error.ThrowOnError();
     }
 
@@ -2024,7 +2013,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             << TErrorAttribute("source", NAst::FormatJoin(std::get<NAst::TJoin>(ast.Joins[index])));
     }
 
-    auto permissionCacheWaitTime = CheckPermissionsForQuery(*fragment, options, mountCache);
+    auto permissionCacheWaitTime = CheckPermissionsForQuery(*fragment, options);
 
     if (options.DetailedProfilingInfo) {
         auto mainTableMountInfo = WaitForFast(mountCache->GetTableInfo(mainTable))
@@ -3609,6 +3598,13 @@ public:
         return IsTrivial_;
     }
 
+    std::pair<TTimestamp, TTimestamp> GetResultTimestampRange() const
+    {
+        return MinResultTimestamp_ != MaxTimestamp
+            ? std::pair(MinResultTimestamp_, MaxResultTimestamp_)
+            : GetReplicationProgressMinMaxTimestamp(ReplicationProgress_);
+    }
+
 private:
     const IClientPtr Client_;
     const TTableSchemaPtr Schema_;
@@ -3629,6 +3625,9 @@ private:
     std::optional<i64> ReplicationRowIndex_;
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
+
+    TTimestamp MinResultTimestamp_ = MaxTimestamp;
+    TTimestamp MaxResultTimestamp_ = MinTimestamp;
 
     TFuture<void> DoPullRows()
     {
@@ -3737,9 +3736,16 @@ private:
         std::vector<TTypeErasedRow> rows;
         while (!reader->IsFinished()) {
             auto row = reader->ReadVersionedRow(schemaData, true);
-            if (ExtractTimestampFromPulledRow(row) > maxTimestamp) {
+            auto rowTimestamp = ExtractTimestampFromPulledRow(row);
+
+            if (rowTimestamp > maxTimestamp) {
                 ReplicationRowIndex_.reset();
                 break;
+            }
+
+            MaxResultTimestamp_ = rowTimestamp;
+            if (MinResultTimestamp_ == MaxTimestamp) {
+                MinResultTimestamp_ = rowTimestamp;
             }
 
             rows.push_back(row.ToTypeErasedRow());
@@ -3756,10 +3762,17 @@ private:
         std::vector<TTypeErasedRow> rows;
         while (!reader->IsFinished()) {
             auto row = reader->ReadSchemafulRow(schemaData, true);
-            if (FromUnversionedValue<ui64>(row[TimestampColumnIndex_]) > maxTimestamp) {
+            auto rowTimestamp = FromUnversionedValue<ui64>(row[TimestampColumnIndex_]);
+            if (rowTimestamp > maxTimestamp) {
                 ReplicationRowIndex_.reset();
                 break;
             }
+
+            MaxResultTimestamp_ = rowTimestamp;
+            if (MinResultTimestamp_ == MaxTimestamp) {
+                MinResultTimestamp_ = rowTimestamp;
+            }
+
             rows.push_back(row.ToTypeErasedRow());
         }
         return rows;
@@ -3933,7 +3946,8 @@ TPullRowsResult TClient::DoPullRows(
 
     bool success = false;
     for (const auto& session : sessions) {
-        if (!session->IsTrivial() && session->GetResultOrError().IsOK()) {
+        bool isSessionGood = !session->IsTrivial() && session->GetResultOrError().IsOK();
+        if (isSessionGood) {
             success = true;
         }
 
@@ -3954,6 +3968,24 @@ TPullRowsResult TClient::DoPullRows(
 
         combinedResult.DataWeight += session->GetDataWeight();
         combinedResult.RowCount += session->GetRowCount();
+        if (isSessionGood) {
+            auto timestampRange = session->GetResultTimestampRange();
+            // MinTimestamp could be greater than MaxTransactionCommitInstant
+            // if there were no other records in the queue.
+            if (TimestampToInstant(timestampRange.first).second <= options.MaxTransactionCommitInstant) {
+                if (combinedResult.PullRowsMinTimestamp == NullTimestamp) {
+                    combinedResult.PullRowsMinTimestamp = timestampRange.first;
+                    combinedResult.PullRowsMaxTimestamp = timestampRange.second;
+                } else {
+                    combinedResult.PullRowsMaxTimestamp = std::max(
+                        combinedResult.PullRowsMaxTimestamp,
+                        timestampRange.second);
+                    combinedResult.PullRowsMinTimestamp = std::min(
+                        combinedResult.PullRowsMinTimestamp,
+                        timestampRange.first);
+                }
+            }
+        }
     }
 
     if (!allTrivial && !success) {

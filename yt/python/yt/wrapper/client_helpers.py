@@ -96,10 +96,6 @@ def {name}({method_signature}):
     wrapped_func.__name__ = func.__name__
     wrapped_func.__doc__ = func.__doc__
     wrapped_func.__dict__ = func.__dict__.copy()
-    # decorator 5.1.1 stores __signature__ of the original function in __dict__.
-    # Remove it so that getfullargspec reads the real code of the generated method
-    # instead of the original function's signature (which still has "client" and
-    # lacks "self").
     wrapped_func.__dict__.pop("__signature__", None)
     wrapped_func.__defaults__ = defaults
     wrapped_func.__annotations__ = getattr(func, "__annotations__", None)

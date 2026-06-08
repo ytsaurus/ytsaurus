@@ -12,10 +12,10 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(yt-yt-client-api-unittests)
+add_executable(unittester-client-api)
 
 
-target_compile_options(yt-yt-client-api-unittests PRIVATE
+target_compile_options(unittester-client-api PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -25,7 +25,7 @@ target_compile_options(yt-yt-client-api-unittests PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(yt-yt-client-api-unittests PUBLIC
+target_link_libraries(unittester-client-api PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
@@ -36,11 +36,11 @@ target_link_libraries(yt-yt-client-api-unittests PUBLIC
   yt-yt-client
 )
 
-target_allocator(yt-yt-client-api-unittests
+target_allocator(unittester-client-api
   system_allocator
 )
 
-target_link_options(yt-yt-client-api-unittests PRIVATE
+target_link_options(unittester-client-api PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -48,21 +48,21 @@ target_link_options(yt-yt-client-api-unittests PRIVATE
   CoreFoundation
 )
 
-target_sources(yt-yt-client-api-unittests PRIVATE
+target_sources(unittester-client-api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/unittests/options_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-client-api-unittests
+  unittester-client-api
   COMMAND
-  yt-yt-client-api-unittests
+  unittester-client-api
 )
 
 set_property(
   TEST
-  yt-yt-client-api-unittests
+  unittester-client-api
   PROPERTY
   LABELS
   SMALL
@@ -70,16 +70,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-client-api-unittests
+  unittester-client-api
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-client-api-unittests)
+vcs_info(unittester-client-api)
 
 set_property(
   TEST
-  yt-yt-client-api-unittests
+  unittester-client-api
   PROPERTY
   PROCESSORS
   1

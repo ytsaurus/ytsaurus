@@ -14,13 +14,13 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatAcoList(const std::optional<TYsonString>& accessControlObjects)
+std::string FormatAcoList(const std::optional<TYsonString>& accessControlObjects)
 {
     if (!accessControlObjects) {
         return "[]";
     }
 
-    auto accessControlObjectsList = ConvertTo<std::vector<TString>>(accessControlObjects);
+    auto accessControlObjectsList = ConvertTo<std::vector<std::string>>(accessControlObjects);
     for (size_t i = 0; i < accessControlObjectsList.size(); i++) {
         accessControlObjectsList[i] = Format("aco:%v", accessControlObjectsList[i]);
     }

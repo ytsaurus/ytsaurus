@@ -20,7 +20,7 @@ namespace NYT::NSequoiaClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute, class TUnderlying>
-TString TPathBase<Absolute, TUnderlying>::GetBaseName() const
+std::string TPathBase<Absolute, TUnderlying>::GetBaseName() const
 {
     auto offset = FindLastSegment();
     return NSequoiaClient::ToStringLiteral(TStringBuf(Path_.begin() + offset + 1, Path_.end()));
@@ -133,13 +133,13 @@ TMangledSequoiaPath TPathBaseImpl<true, TUnderlying>::ToMangledSequoiaPath() con
 template <class TUnderlying>
 TRealPath TPathBaseImpl<true, TUnderlying>::ToRealPath() const &
 {
-    return TRealPath(TString(TBase::Underlying()));
+    return TRealPath(std::string(TBase::Underlying()));
 }
 
 template <class TUnderlying>
 TRealPath TPathBaseImpl<true, TUnderlying>::ToRealPath() &&
 {
-    return TRealPath(TString(std::move(*this).Underlying()));
+    return TRealPath(std::string(std::move(*this).Underlying()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,7 +169,7 @@ TBasicPathBuf<Absolute> TBasicPathBuf<Absolute>::UnsafeMakeCanonicalPath(NYPath:
 template <bool Absolute>
 template <class T>
 TBasicPath<Absolute>::TBasicPath(const TPathBase<Absolute, T>& other)
-    : TBase(TString(other.Underlying()))
+    : TBase(std::string(other.Underlying()))
 { }
 
 template <bool Absolute>

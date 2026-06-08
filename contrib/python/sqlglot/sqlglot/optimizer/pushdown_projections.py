@@ -21,12 +21,12 @@ SELECT_ALL = object()
 
 # Selection to use if selection list is empty
 def default_selection(is_agg: bool) -> exp.Alias:
-    return alias(exp.Max(this=exp.Literal.number(1)) if is_agg else "1", "_")
+    return alias(exp.Max(this=exp.Literal.number(1)) if is_agg else "1", "_").assert_is(exp.Alias)
 
 
 def pushdown_projections(
     expression: E,
-    schema: t.Optional[t.Dict | Schema] = None,
+    schema: dict[str, object] | Schema | None = None,
     remove_unused_selections: bool = True,
     dialect: DialectType = None,
 ) -> E:
@@ -41,15 +41,15 @@ def pushdown_projections(
         'SELECT y.a AS a FROM (SELECT x.a AS a FROM x) AS y'
 
     Args:
-        expression (sqlglot.Expression): expression to optimize
+        expression (sqlglot.Expr): expression to optimize
         remove_unused_selections (bool): remove selects that are unused
     Returns:
-        sqlglot.Expression: optimized expression
+        sqlglot.Expr: optimized expression
     """
     # Map of Scope to all columns being selected by outer queries.
     schema = ensure_schema(schema, dialect=dialect)
-    source_column_alias_count: t.Dict[exp.Expression | Scope, int] = {}
-    referenced_columns: t.DefaultDict[Scope, t.Set[str | object]] = defaultdict(set)
+    source_column_alias_count: dict[exp.Expr | Scope, int] = {}
+    referenced_columns: defaultdict[Scope, set[str | object]] = defaultdict(set)
 
     # We build the scope tree (which is traversed in DFS postorder), then iterate
     # over the result in reverse order. This should ensure that the set of selected
@@ -64,40 +64,46 @@ def pushdown_projections(
 
         if isinstance(scope.expression, exp.SetOperation):
             set_op = scope.expression
-            if not (set_op.kind or set_op.side):
+            if set_op.kind or set_op.side:
                 # Do not optimize this set operation if it's using the BigQuery specific
                 # kind / side syntax (e.g INNER UNION ALL BY NAME) which changes the semantics of the operation
-                left, right = scope.union_scopes
-                if len(left.expression.selects) != len(right.expression.selects):
-                    scope_sql = scope.expression.sql(dialect=dialect)
-                    raise OptimizeError(
-                        f"Invalid set operation due to column mismatch: {scope_sql}."
-                    )
+                continue
 
-                referenced_columns[left] = parent_selections
+            left, right = scope.union_scopes
+            le = left.expression
+            re = right.expression
 
-                if any(select.is_star for select in right.expression.selects):
-                    referenced_columns[right] = parent_selections
-                elif not any(select.is_star for select in left.expression.selects):
-                    if scope.expression.args.get("by_name"):
-                        referenced_columns[right] = referenced_columns[left]
-                    else:
-                        referenced_columns[right] = {
-                            right.expression.selects[i].alias_or_name
-                            for i, select in enumerate(left.expression.selects)
-                            if SELECT_ALL in parent_selections
-                            or select.alias_or_name in parent_selections
-                        }
+            if not (isinstance(le, exp.Selectable) and isinstance(re, exp.Selectable)):
+                continue
+
+            if len(le.selects) != len(re.selects):
+                scope_sql = scope.expression.sql(dialect=dialect)
+                raise OptimizeError(f"Invalid set operation due to column mismatch: {scope_sql}.")
+
+            referenced_columns[left] = parent_selections
+
+            if re.is_star:
+                referenced_columns[right] = parent_selections
+            elif not le.is_star:
+                if scope.expression.args.get("by_name"):
+                    referenced_columns[right] = referenced_columns[left]
+                else:
+                    referenced_columns[right] = {
+                        re.selects[i].alias_or_name
+                        for i, select in enumerate(le.selects)
+                        if SELECT_ALL in parent_selections
+                        or select.alias_or_name in parent_selections
+                    }
 
         if isinstance(scope.expression, exp.Select):
             if remove_unused_selections:
                 _remove_unused_selections(scope, parent_selections, schema, alias_count)
 
-            if scope.expression.is_star:
+            if scope.scans_all_subscope_columns:
                 continue
 
             # Group columns by source name
-            selects = defaultdict(set)
+            selects: dict[str, set[object]] = defaultdict(set)
             for col in scope.columns:
                 table_name = col.table
                 col_name = col.name
@@ -105,11 +111,11 @@ def pushdown_projections(
 
             # Push the selected columns down to the next scope
             for name, (node, source) in scope.selected_sources.items():
-                if isinstance(source, Scope):
+                if isinstance(source, Scope) and isinstance(source.expression, exp.Selectable):
                     select = seq_get(source.expression.selects, 0)
 
                     if scope.pivots or isinstance(select, exp.QueryTransform):
-                        columns = {SELECT_ALL}
+                        columns: set[object] = {SELECT_ALL}
                     else:
                         columns = selects.get(name) or set()
 

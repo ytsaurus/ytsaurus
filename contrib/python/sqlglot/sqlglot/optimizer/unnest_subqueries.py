@@ -1,9 +1,11 @@
+from __future__ import annotations
 from sqlglot import exp
 from sqlglot.helper import name_sequence
 from sqlglot.optimizer.scope import ScopeType, find_in_scope, traverse_scope
+from sqlglot._typing import E
 
 
-def unnest_subqueries(expression):
+def unnest_subqueries(expression: E) -> E:
     """
     Rewrite sqlglot AST to convert some predicates with subqueries into joins.
 
@@ -17,9 +19,9 @@ def unnest_subqueries(expression):
         'SELECT * FROM x AS x LEFT JOIN (SELECT y.a AS a FROM y AS y WHERE TRUE GROUP BY y.a) AS _u_0 ON x.a = _u_0.a WHERE _u_0.a = 1'
 
     Args:
-        expression (sqlglot.Expression): expression to unnest
+        expression (sqlglot.Expr): expression to unnest
     Returns:
-        sqlglot.Expression: unnested expression
+        sqlglot.Expr: unnested expression
     """
     next_alias_name = name_sequence("_u_")
 
@@ -193,6 +195,11 @@ def decorrelate(select, parent_select, external_columns, next_alias_name):
 
     parent_predicate = select.find_ancestor(exp.Predicate)
 
+    # When the subquery is embedded inside a function (e.g. COALESCE, TRIM) in the SELECT list,
+    # the ancestor chain contains no Predicate node AND the subquery is not a direct projection.
+    if parent_predicate is None and not is_subquery_projection:
+        return
+
     # if the value of the subquery is not an agg or a key, we need to collect it into an array
     # so that it can be grouped. For subquery projections, we use a MAX aggregation instead.
     agg_func = exp.Max if is_subquery_projection else exp.ArrayAgg
@@ -298,11 +305,11 @@ def decorrelate(select, parent_select, external_columns, next_alias_name):
     )
 
 
-def _replace(expression, condition):
+def _replace(expression: exp.Expr, condition: exp.ExpOrStr) -> exp.Expr:
     return expression.replace(exp.condition(condition))
 
 
-def _other_operand(expression):
+def _other_operand(expression: object) -> exp.Expr | None:
     if isinstance(expression, exp.In):
         return expression.this
 

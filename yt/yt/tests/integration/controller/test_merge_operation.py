@@ -14,6 +14,8 @@ from yt_type_helpers import (
 
 from yt_helpers import skip_if_component_old
 
+import yt_error_codes
+
 from yt.environment.helpers import assert_items_equal
 import yt.yson as yson
 
@@ -2359,14 +2361,15 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_schema_compatibility(self):
         create(
             "table",
-            "//tmp/t1",
+            "//tmp/in",
             attributes={"schema": [{"name": "key", "type": "int64"}]},
         )
-        write_table("//tmp/t1", [{"key": None}])
-        with raises_yt_error("Node .* has no child with key .*"):
+        write_table("//tmp/in", [{"key": None}])
+        create("table", "//tmp/out")
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             merge(
-                in_="//tmp/t1",
-                out="<schema=[{name=key;type=int64;required=true}]>//tmp/t2",
+                in_="//tmp/in",
+                out="<schema=[{name=key;type=int64;required=true}]>//tmp/out",
             )
 
     @authors("ermolovd")

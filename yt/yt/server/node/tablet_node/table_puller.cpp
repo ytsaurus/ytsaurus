@@ -74,8 +74,11 @@ DEFINE_ENUM(EPullerErrorKind,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int TabletRowsPerRead = 1000;
+inline static constexpr int TabletRowsPerRead = 1000;
 static const TString PullerErrorKindAttribute = "puller_error_kind";
+
+inline static constexpr int PreviousIterationDurationSmoothingWeight = 4;
+inline static constexpr int CurrentIterationDurationSmoothingWeight = 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,6 +178,10 @@ public:
             MountConfig_->TablePullerForceSameClusterQueue)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
         , ReplicatorClientCache_(std::move(replicatorClientCache))
+        , ReplicationIterationTimeTracker_(
+            PreviousIterationDurationSmoothingWeight,
+            CurrentIterationDurationSmoothingWeight,
+            MountConfig_->ReplicationTickPeriod)
     { }
 
     void Enable() override
@@ -234,11 +241,13 @@ private:
 
     const IErrorManagerPtr ErrorManager_;
 
-    IChaosAgentPtr ChaosAgent_;
+    const IChaosAgentPtr ChaosAgent_;
+
     TQueueReplicaSelector QueueReplicaSelector_;
     ui64 ReplicationRound_ = 0;
     TReplicationProgress LastReplicationProgressAdvance_;
     TPerFiberClusterClientCache ReplicatorClientCache_;
+    TIterationTimeTracker ReplicationIterationTimeTracker_;
 
     TFuture<void> FiberFuture_;
 
@@ -595,10 +604,12 @@ private:
                         << HardErrorAttribute;
                 }
 
+                auto smoothedReplicationRoundDuration = ReplicationIterationTimeTracker_
+                    .CalculateSmoothedIterationDuration(now);
+
                 auto maxTransactionCommitInstant = RelativeThrottler_->GetMaxAllowedRecordTime(
-                    now,
                     currentBatchFirstTimestamp,
-                    MountConfig_->ReplicationTickPeriod);
+                    smoothedReplicationRoundDuration);
 
                 TPullRowsOptions options;
                 options.TabletRowsPerRead = TabletRowsPerRead;
@@ -655,12 +666,11 @@ private:
             Throttler_->Acquire(dataWeight);
 
             // Do not throttle on first iteration of the new table.
-            if (currentBatchFirstTimestamp != MinTimestamp) {
-                auto newReplicationTimestamp = GetReplicationProgressMaxTimestamp(progress);
+            if (currentBatchFirstTimestamp != MinTimestamp && result.PullRowsMinTimestamp != NullTimestamp) {
                 RelativeThrottler_->OnReplicationBatchProcessed(
-                    currentBatchFirstTimestamp,
-                    newReplicationTimestamp);
-                }
+                    result.PullRowsMinTimestamp,
+                    result.PullRowsMaxTimestamp);
+            }
 
             // TODO(savrus) Remove this sanity check when pull rows is mature enough.
             if (result.Versioned) {

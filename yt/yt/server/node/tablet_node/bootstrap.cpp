@@ -178,6 +178,8 @@ public:
             GetConfig()->QueryAgent->TableRowFetchThreadPoolSize,
             "TableRowFetch");
 
+        TabletStatisticsActionQueue_ = New<TActionQueue>("TabletStatistics");
+
         if (GetConfig()->EnableFairThrottler) {
             for (auto kind : {
                 ETabletNodeThrottlerKind::StoreCompactionAndPartitioningIn,
@@ -253,7 +255,7 @@ public:
 
         RowComparerProvider_ = NQueryClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
-        StatisticsReporter_ = New<TStatisticsReporter>(this);
+        StatisticsReporter_ = CreateStatisticsReporter(this);
         OverloadReporter_ = CreateOverloadReporter(this);
         StoreCompactor_ = CreateStoreCompactor(this);
         StoreFlusher_ = CreateStoreFlusher(this);
@@ -462,6 +464,11 @@ public:
         return TableRowFetchThreadPool_->GetInvoker();
     }
 
+    const IInvokerPtr& GetTabletStatisticsInvoker() const override
+    {
+        return TabletStatisticsActionQueue_->GetInvoker();
+    }
+
     IInvokerPtr GetQueryPoolInvoker(
         const std::string& poolName,
         const TFairShareThreadPoolTag& tag) const override
@@ -596,6 +603,8 @@ private:
     IThreadPoolPtr TabletFetchThreadPool_;
     IThreadPoolPtr TableRowFetchThreadPool_;
 
+    TActionQueuePtr TabletStatisticsActionQueue_;
+
     ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
     IFairShareThreadPoolPtr PullRowsThreadPool_;
 
@@ -613,7 +622,7 @@ private:
     IStoreTrimmerPtr StoreTrimmer_;
     IHunkChunkSweeperPtr HunkChunkSweeper_;
     IPartitionBalancerPtr PartitionBalancer_;
-    TStatisticsReporterPtr StatisticsReporter_;
+    IStatisticsReporterPtr StatisticsReporter_;
     IOverloadReporterPtr OverloadReporter_;
     IBackingStoreCleanerPtr BackingStoreCleaner_;
     ILsmInteropPtr LsmInterop_;

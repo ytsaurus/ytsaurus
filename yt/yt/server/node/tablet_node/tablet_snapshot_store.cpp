@@ -69,6 +69,32 @@ public:
         return snapshots;
     }
 
+    std::vector<TTabletSnapshotPtr> GetLatestTabletSnapshots() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
+
+        std::vector<TTabletSnapshotPtr> latestSnapshots;
+
+        for (auto rangeBegin = TabletIdToSnapshot_.begin(), rangeEnd = rangeBegin;
+            rangeBegin != TabletIdToSnapshot_.end();
+            rangeBegin = rangeEnd)
+        {
+            auto latestSnapshotIt = rangeEnd++;
+
+            for (; rangeEnd != TabletIdToSnapshot_.end() && rangeBegin->first == rangeEnd->first; ++rangeEnd) {
+                if (rangeEnd->second->MountRevision > latestSnapshotIt->second->MountRevision) {
+                    latestSnapshotIt = rangeEnd;
+                }
+            }
+
+            latestSnapshots.push_back(latestSnapshotIt->second);
+        }
+
+        return latestSnapshots;
+    }
+
     TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -617,6 +643,11 @@ public:
     { }
 
     std::vector<TTabletSnapshotPtr> GetTabletSnapshots() override
+    {
+        return {TabletSnapshot_};
+    }
+
+    std::vector<TTabletSnapshotPtr> GetLatestTabletSnapshots() override
     {
         return {TabletSnapshot_};
     }

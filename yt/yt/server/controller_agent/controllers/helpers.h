@@ -91,7 +91,7 @@ struct TDockerImageSpec
 
     bool IsInternal = false;
 
-    TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config);
+    TDockerImageSpec(const std::string& dockerImage, const TDockerRegistryConfigPtr& config);
     TString GetDockerImage() const;
 };
 

@@ -174,7 +174,7 @@ public:
 
     TFuture<void> ValidateJobShellAccess(
         const std::string& user,
-        const TString& jobShellName,
+        const std::string& jobShellName,
         const std::vector<std::string>& jobShellOwners);
 
     TFuture<TOperationId> FindOperationIdByAllocationId(TAllocationId allocationId) const;

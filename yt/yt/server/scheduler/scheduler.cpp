@@ -590,7 +590,7 @@ public:
     // COMPAT(pogorelov)
     void DoValidateJobShellAccess(
         const std::string& user,
-        const TString& jobShellName,
+        const std::string& jobShellName,
         const std::vector<std::string>& jobShellOwners)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -611,7 +611,7 @@ public:
     // COMPAT(pogorelov)
     TFuture<void> ValidateJobShellAccess(
         const std::string& user,
-        const TString& jobShellName,
+        const std::string& jobShellName,
         const std::vector<std::string>& jobShellOwners)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -693,7 +693,8 @@ public:
             user,
             /*startTime*/ TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
-            spec->Alias,
+            // TODO(babenko): migrate to std::string
+            spec->Alias ? std::make_optional(TString(*spec->Alias)) : std::nullopt,
             std::move(preprocessedSpec.ExperimentAssignments),
             std::move(preprocessedSpec.ProvidedSpecString));
 
@@ -1042,7 +1043,8 @@ public:
             const auto& shells = operation->Spec()->JobShells;
             THashSet<TString> jobShellNames;
             for (const auto& shell : shells) {
-                jobShellNames.insert(shell->Name);
+                // TODO(babenko): migrate to std::string
+                jobShellNames.insert(TString(shell->Name));
             }
             for (const auto& [jobShellName, options] : update->OptionsPerJobShell) {
                 if (!jobShellNames.contains(jobShellName)) {
@@ -4668,7 +4670,7 @@ TFuture<void> TScheduler::SetOperationAlert(
 
 TFuture<void> TScheduler::ValidateJobShellAccess(
     const std::string& user,
-    const TString& jobShellName,
+    const std::string& jobShellName,
     const std::vector<std::string>& jobShellOwners)
 {
     return Impl_->ValidateJobShellAccess(user, jobShellName, jobShellOwners);

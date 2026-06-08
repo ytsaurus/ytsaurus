@@ -59,18 +59,18 @@ def _build_process_resources(d):
 
 
 def _gpu(sensor):
-    return Scheduler(sensor).value("tree", SCHEDULER_GPU_DASHBOARD_DEFAULT_TREE)
+    return Scheduler(sensor).value("tree", "{{tree}}")
 
 
 def _fs_pool(sensor):
     return (SchedulerPools(sensor)
-        .value("tree", SCHEDULER_GPU_DASHBOARD_DEFAULT_TREE)
+        .value("tree", "{{tree}}")
         .value("pool", "<Root>"))
 
 
 def _gpu_module(sensor):
     return (Scheduler(sensor)
-        .value("tree", SCHEDULER_GPU_DASHBOARD_DEFAULT_TREE)
+        .value("tree", "{{tree}}")
         .all("module")
         .legend_format("{{module}}"))
 
@@ -99,7 +99,7 @@ def _build_gpu_scheduling_statistics(d):
                     Scheduler("yt.scheduler.gpu_policy.extra_planning_time.avg").legend_format("extra"),
                 )
                 .stack(True)
-                .value("tree", SCHEDULER_GPU_DASHBOARD_DEFAULT_TREE))
+                .value("tree", "{{tree}}"))
         .row()
             .cell("Total nodes per module", _gpu_module("yt.scheduler.gpu_policy.module.total_nodes_count"))
             .cell("Unreserved nodes per module", _gpu_module("yt.scheduler.gpu_policy.module.unreserved_nodes_count"))
@@ -111,7 +111,7 @@ def _build_gpu_scheduling_statistics(d):
 def _build_fs_vs_gpu_comparison(d):
     def gpu_node_resource(resource):
         return (GpuSchedulerMonitor(f"gpu_scheduler.nodes.assigned_resource_usage.{resource}")
-            .value("pool_tree", SCHEDULER_GPU_DASHBOARD_DEFAULT_TREE)
+            .value("pool_tree", "{{tree}}")
             .query_transformation("series_sum({query})"))
 
     d.add(Rowset()
@@ -181,7 +181,7 @@ def build_scheduler_gpu(has_porto, backend):
     d.add_parameter(
         "tree",
         "Pool tree",
-        MonitoringLabelDashboardParameter("yt", "pool_tree", SCHEDULER_GPU_DASHBOARD_DEFAULT_TREE),
+        MonitoringLabelDashboardParameter("yt", "tree", SCHEDULER_GPU_DASHBOARD_DEFAULT_TREE),
         backends=["monitoring"],
     )
 

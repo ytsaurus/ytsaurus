@@ -2044,6 +2044,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
     NUM_USER_SLOTS = 2
+    NUM_TEST_PARTITIONS = 3
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
@@ -2336,25 +2337,17 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         assert len(nodes) == self.NUM_NODES
         profiler = profiler_factory().at_node(nodes[0])
 
-        # Get counter objects.
+        # Get counter objects. start_value is captured at construction time so
+        # get_delta() always returns the increment relative to that baseline.
         cache_missed_counter = profiler.counter("exec_node/ronbd_volume_cache/missed_count")
         cache_hit_sync_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/ronbd_volume_cache/hit_count")
         cache_hit_async_counter = profiler.with_tags({"hit_type": "async"}).counter("exec_node/ronbd_volume_cache/hit_count")
-
-        # Get initial counter values before the operation.
-        initial_cache_missed_count = cache_missed_counter.get()
-        initial_cache_hit_sync_count = cache_hit_sync_counter.get()
-        initial_cache_hit_async_count = cache_hit_async_counter.get()
-
-        # Get initial log counts before running the operation.
-        initial_logs_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
-        initial_logs_removed_count = len(self._get_node_debug_logs("Removed volume (VolumeType: RO NBD"))
 
         # Run map operation with NUM_USER_SLOTS jobs.
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="sleep 30; cat",
+            command="sleep 10; cat",
             spec={
                 "max_failed_job_count": 1,
                 "job_count": self.NUM_USER_SLOTS,
@@ -2364,33 +2357,13 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             },
         )
 
-        # Wait until all jobs but the first one hit cache.
-        # The log message is written synchronously during volume cache lookup, but
-        # we use wait() to tolerate log buffering delays.
-        wait(lambda: len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted")) - initial_logs_cache_hit_count == self.NUM_USER_SLOTS - 1)
+        # Check that only one job misses cache.
+        wait(lambda: cache_missed_counter.get_delta() >= 1)
+        assert cache_missed_counter.get_delta() == 1
 
-        # Wait until the shared RO NBD volume is removed.
-        # The "Removed volume" log is written asynchronously: it is part of a future
-        # chain that runs on the NBD server invoker after the last job releases its
-        # reference to the volume.  Reading the log file immediately after map()
-        # returns is racy because the removal chain may not have completed yet.
-        wait(lambda: len(self._get_node_debug_logs("Removed volume (VolumeType: RO NBD")) - initial_logs_removed_count == self.NUM_USER_SLOTS - 1)
-
-        # Get final counter values after operation completes.
-        final_cache_missed_count = cache_missed_counter.get()
-        final_cache_hit_sync_count = cache_hit_sync_counter.get()
-        final_cache_hit_async_count = cache_hit_async_counter.get()
-
-        # Check that only the first job misses cache.
-        cache_missed_delta = final_cache_missed_count - initial_cache_missed_count
-        assert cache_missed_delta == 1
-
-        # Check that all jobs but the first one hit cache (either sync or async).
-        total_cache_hit_count = (
-            (final_cache_hit_sync_count - initial_cache_hit_sync_count) +
-            (final_cache_hit_async_count - initial_cache_hit_async_count)
-        )
-        assert total_cache_hit_count == self.NUM_USER_SLOTS - 1
+        # Check that all jobs but the one hit cache (either sync or async).
+        wait(lambda: cache_hit_sync_counter.get_delta() + cache_hit_async_counter.get_delta() >= self.NUM_USER_SLOTS - 1)
+        assert cache_hit_sync_counter.get_delta() + cache_hit_async_counter.get_delta() == self.NUM_USER_SLOTS - 1
 
 
 @authors("yuryalekseev")

@@ -5,15 +5,9 @@ from enum import IntEnum, auto
 
 from sqlglot.errors import TokenError
 
-# dict lookup is faster than .upper(), .isspace(), .isdigit()
-_CHAR_UPPER: t.Dict[str, str] = {chr(i): chr(i).upper() for i in range(97, 123)}
-
-_SPACE_CHARS: t.FrozenSet[str] = frozenset(
-    "\t\n\r \x0b\x0c\x1c\x1d\x1e\x1f\x85\xa0"
-    "\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
-    "\u2028\u2029\u202f\u205f\u3000"
-)
-_DIGIT_CHARS: t.FrozenSet[str] = frozenset("0123456789")
+# dict lookup is faster than .upper() and .isdigit()
+_CHAR_UPPER: dict[str, str] = {chr(i): chr(i).upper() for i in range(97, 123)}
+_DIGIT_CHARS: frozenset[str] = frozenset("0123456789")
 
 
 class TokenType(IntEnum):
@@ -29,6 +23,7 @@ class TokenType(IntEnum):
     PLUS = auto()
     COLON = auto()
     DOTCOLON = auto()
+    DOTCARET = auto()
     DCOLON = auto()
     DCOLONDOLLAR = auto()
     DCOLONPERCENT = auto()
@@ -104,6 +99,7 @@ class TokenType(IntEnum):
     TABLE = auto()
     WAREHOUSE = auto()
     STAGE = auto()
+    STREAM = auto()
     STREAMLIT = auto()
     VAR = auto()
     BIT_STRING = auto()
@@ -272,6 +268,7 @@ class TokenType(IntEnum):
     CURRENT_TIME = auto()
     CURRENT_TIMESTAMP = auto()
     CURRENT_USER = auto()
+    CURRENT_USER_ID = auto()
     CURRENT_ROLE = auto()
     CURRENT_CATALOG = auto()
     DECLARE = auto()
@@ -321,6 +318,7 @@ class TokenType(IntEnum):
     INNER = auto()
     INSERT = auto()
     INSTALL = auto()
+    INTEGRATION = auto()
     INTERSECT = auto()
     INTERVAL = auto()
     INTO = auto()
@@ -369,11 +367,14 @@ class TokenType(IntEnum):
     OVER = auto()
     OVERLAPS = auto()
     OVERWRITE = auto()
+    PACKAGE = auto()
     PARTITION = auto()
     PARTITION_BY = auto()
     PERCENT = auto()
     PIVOT = auto()
     PLACEHOLDER = auto()
+    POLICY = auto()
+    POOL = auto()
     POSITIONAL = auto()
     PRAGMA = auto()
     PREWHERE = auto()
@@ -395,10 +396,12 @@ class TokenType(IntEnum):
     REFERENCES = auto()
     RIGHT = auto()
     RLIKE = auto()
+    ROLE = auto()
     ROLLBACK = auto()
     ROLLUP = auto()
     ROW = auto()
     ROWS = auto()
+    RULE = auto()
     SELECT = auto()
     SEMI = auto()
     SEPARATOR = auto()
@@ -411,6 +414,7 @@ class TokenType(IntEnum):
     SOME = auto()
     SORT_BY = auto()
     SOUNDS_LIKE = auto()
+    SQL_SECURITY = auto()
     START_WITH = auto()
     STORAGE_INTEGRATION = auto()
     STRAIGHT_JOIN = auto()
@@ -424,6 +428,7 @@ class TokenType(IntEnum):
     TRUE = auto()
     TRUNCATE = auto()
     TRIGGER = auto()
+    TYPE = auto()
     UNCACHE = auto()
     UNION = auto()
     UNNEST = auto()
@@ -436,6 +441,7 @@ class TokenType(IntEnum):
     VIEW = auto()
     SEMANTIC_VIEW = auto()
     VOLATILE = auto()
+    VOLUME = auto()
     WHEN = auto()
     WHERE = auto()
     WINDOW = auto()
@@ -453,8 +459,9 @@ class TokenType(IntEnum):
     NAMESPACE = auto()
     EXPORT = auto()
 
-    # sentinel
+    # sentinels
     HIVE_TOKEN_STREAM = auto()
+    SENTINEL = auto()
 
     def __str__(self) -> str:
         return f"TokenType.{self.name}"
@@ -462,7 +469,7 @@ class TokenType(IntEnum):
 
 class Token:
     # mypyc doesn't expose slots
-    _attrs: t.ClassVar[t.Tuple[str, ...]] = (
+    _attrs: t.ClassVar[tuple[str, ...]] = (
         "token_type",
         "text",
         "line",
@@ -501,7 +508,7 @@ class Token:
         col: int = 1,
         start: int = 0,
         end: int = 0,
-        comments: t.Optional[t.List[str]] = None,
+        comments: list[str] | None = None,
     ) -> None:
         self.token_type = token_type
         self.text = text
@@ -510,6 +517,9 @@ class Token:
         self.start = start
         self.end = end
         self.comments = [] if comments is None else comments
+
+    def __bool__(self) -> bool:
+        return self.token_type != TokenType.SENTINEL
 
     def __repr__(self) -> str:
         attributes = ", ".join(
@@ -550,8 +560,8 @@ class TokenizerCore:
         "nested_comments",
         "hint_start",
         "tokens_preceding_hint",
-        "bit_strings",
-        "hex_strings",
+        "has_bit_strings",
+        "has_hex_strings",
         "numeric_literals",
         "var_single_tokens",
         "string_escapes_allowed_in_raw_strings",
@@ -559,38 +569,40 @@ class TokenizerCore:
         "heredoc_string_alternative",
         "keyword_trie",
         "numbers_can_be_underscore_separated",
+        "numbers_can_have_decimals",
         "identifiers_can_start_with_digit",
         "unescaped_sequences",
     )
 
     def __init__(
         self,
-        single_tokens: t.Dict[str, TokenType],
-        keywords: t.Dict[str, TokenType],
-        quotes: t.Dict[str, str],
-        format_strings: t.Dict[str, t.Tuple[str, TokenType]],
-        identifiers: t.Dict[str, str],
-        comments: t.Dict[str, t.Optional[str]],
-        string_escapes: t.Set[str],
-        byte_string_escapes: t.Set[str],
-        identifier_escapes: t.Set[str],
-        escape_follow_chars: t.Set[str],
-        commands: t.Set[TokenType],
-        command_prefix_tokens: t.Set[TokenType],
+        single_tokens: dict[str, TokenType],
+        keywords: dict[str, TokenType],
+        quotes: dict[str, str],
+        format_strings: dict[str, tuple[str, TokenType]],
+        identifiers: dict[str, str],
+        comments: dict[str, str | None],
+        string_escapes: set[str],
+        byte_string_escapes: set[str],
+        identifier_escapes: set[str],
+        escape_follow_chars: set[str],
+        commands: set[TokenType],
+        command_prefix_tokens: set[TokenType],
         nested_comments: bool,
         hint_start: str,
-        tokens_preceding_hint: t.Set[TokenType],
-        bit_strings: t.List[t.Union[str, t.Tuple[str, str]]],
-        hex_strings: t.List[t.Union[str, t.Tuple[str, str]]],
-        numeric_literals: t.Dict[str, str],
-        var_single_tokens: t.Set[str],
+        tokens_preceding_hint: set[TokenType],
+        has_bit_strings: bool,
+        has_hex_strings: bool,
+        numeric_literals: dict[str, str],
+        var_single_tokens: set[str],
         string_escapes_allowed_in_raw_strings: bool,
         heredoc_tag_is_identifier: bool,
         heredoc_string_alternative: TokenType,
-        keyword_trie: t.Dict,
+        keyword_trie: dict,
         numbers_can_be_underscore_separated: bool,
+        numbers_can_have_decimals: bool,
         identifiers_can_start_with_digit: bool,
-        unescaped_sequences: t.Dict[str, str],
+        unescaped_sequences: dict[str, str],
     ) -> None:
         self.single_tokens = single_tokens
         self.keywords = keywords
@@ -607,8 +619,8 @@ class TokenizerCore:
         self.nested_comments = nested_comments
         self.hint_start = hint_start
         self.tokens_preceding_hint = tokens_preceding_hint
-        self.bit_strings = bit_strings
-        self.hex_strings = hex_strings
+        self.has_bit_strings = has_bit_strings
+        self.has_hex_strings = has_hex_strings
         self.numeric_literals = numeric_literals
         self.var_single_tokens = var_single_tokens
         self.string_escapes_allowed_in_raw_strings = string_escapes_allowed_in_raw_strings
@@ -616,25 +628,37 @@ class TokenizerCore:
         self.heredoc_string_alternative = heredoc_string_alternative
         self.keyword_trie = keyword_trie
         self.numbers_can_be_underscore_separated = numbers_can_be_underscore_separated
+        self.numbers_can_have_decimals = numbers_can_have_decimals
         self.identifiers_can_start_with_digit = identifiers_can_start_with_digit
         self.unescaped_sequences = unescaped_sequences
-        self.reset()
-
-    def reset(self) -> None:
         self.sql = ""
         self.size = 0
-        self.tokens: t.List[Token] = []
+        self.tokens: list[Token] = []
         self._start = 0
         self._current = 0
         self._line = 1
         self._col = 0
-        self._comments: t.List[str] = []
+        self._comments: list[str] = []
         self._char = ""
         self._end = False
         self._peek = ""
         self._prev_token_line = -1
 
-    def tokenize(self, sql: str) -> t.List[Token]:
+    def reset(self) -> None:
+        self.sql = ""
+        self.size = 0
+        self.tokens = []
+        self._start = 0
+        self._current = 0
+        self._line = 1
+        self._col = 0
+        self._comments = []
+        self._char = ""
+        self._end = False
+        self._peek = ""
+        self._prev_token_line = -1
+
+    def tokenize(self, sql: str) -> list[Token]:
         """Returns a list of tokens corresponding to the SQL string `sql`."""
         self.reset()
         self.sql = sql
@@ -652,7 +676,6 @@ class TokenizerCore:
 
     def _scan(self, check_semicolon: bool = False) -> None:
         identifiers = self.identifiers
-        space_chars = _SPACE_CHARS
         digit_chars = _DIGIT_CHARS
 
         while self.size and not self._end:
@@ -672,7 +695,7 @@ class TokenizerCore:
             self._start = current
             self._advance(offset)
 
-            if self._char not in space_chars:
+            if not self._char.isspace():
                 if self._char in digit_chars:
                     self._scan_number()
                 elif self._char in identifiers:
@@ -736,7 +759,7 @@ class TokenizerCore:
     def _text(self) -> str:
         return self.sql[self._start : self._current]
 
-    def _add(self, token_type: TokenType, text: t.Optional[str] = None) -> None:
+    def _add(self, token_type: TokenType, text: str | None = None) -> None:
         self._prev_token_line = self._line
 
         if self._comments and token_type == TokenType.SEMICOLON and self.tokens:
@@ -779,7 +802,6 @@ class TokenizerCore:
         sql_size = self.size
         single_tokens = self.single_tokens
         char_upper = _CHAR_UPPER
-        space_chars = _SPACE_CHARS
         size = 0
         word = None
         chars = self._char
@@ -804,7 +826,7 @@ class TokenizerCore:
             if end < sql_size:
                 char = sql[end]
                 single_token = single_token or char in single_tokens
-                is_space = char in space_chars
+                is_space = char.isspace()
 
                 if not is_space or not prev_space:
                     if is_space:
@@ -897,9 +919,9 @@ class TokenizerCore:
         if self._char == "0":
             peek = _CHAR_UPPER.get(self._peek, self._peek)
             if peek == "B":
-                return self._scan_bits() if self.bit_strings else self._add(TokenType.NUMBER)
+                return self._scan_bits() if self.has_bit_strings else self._add(TokenType.NUMBER)
             elif peek == "X":
-                return self._scan_hex() if self.hex_strings else self._add(TokenType.NUMBER)
+                return self._scan_hex() if self.has_hex_strings else self._add(TokenType.NUMBER)
 
         decimal = False
         scientific = 0
@@ -909,12 +931,25 @@ class TokenizerCore:
         numeric_literals = self.numeric_literals
         identifiers_can_start_with_digit = self.identifiers_can_start_with_digit
 
+        is_underscore_separated: bool = False
+        number_text: str = ""
+        numeric_literal: str = ""
+        numeric_type: TokenType | None = None
+
         while True:
             if self._peek in _DIGIT_CHARS:
-                self._advance()
+                # Batch consecutive digits: scan ahead to find how many
+                sql = self.sql
+                end = self._current + 1
+                size = self.size
+                while end < size and sql[end] in _DIGIT_CHARS:
+                    end += 1
+                self._advance(end - self._current)
             elif self._peek == "." and not decimal:
-                if self.tokens and self.tokens[-1].token_type == TokenType.PARAMETER:
-                    return self._add(TokenType.NUMBER)
+                if (
+                    self.tokens and self.tokens[-1].token_type == TokenType.PARAMETER
+                ) or not self.numbers_can_have_decimals:
+                    break
                 decimal = True
                 self._advance()
             elif self._peek in ("-", "+") and scientific == 1:
@@ -923,37 +958,44 @@ class TokenizerCore:
                     scientific += 1
                     self._advance()
                 else:
-                    return self._add(TokenType.NUMBER)
+                    break
             elif _CHAR_UPPER.get(self._peek, self._peek) == "E" and not scientific:
                 scientific += 1
                 self._advance()
             elif self._peek == "_" and numbers_can_be_underscore_separated:
+                is_underscore_separated = True
                 self._advance()
             elif self._peek.isidentifier():
                 number_text = self._text
-                literal = ""
 
-                while (
-                    self._peek
-                    and self._peek not in _SPACE_CHARS
-                    and self._peek not in single_tokens
-                ):
-                    literal += self._peek
+                while self._peek and not self._peek.isspace() and self._peek not in single_tokens:
+                    numeric_literal += self._peek
                     self._advance()
 
-                token_type = keywords.get(numeric_literals.get(literal.upper(), ""))
+                numeric_type = keywords.get(numeric_literals.get(numeric_literal.upper(), ""))
 
-                if token_type:
-                    self._add(TokenType.NUMBER, number_text)
-                    self._add(TokenType.DCOLON, "::")
-                    return self._add(token_type, literal)
+                if numeric_type:
+                    break
                 elif identifiers_can_start_with_digit:
                     return self._add(TokenType.VAR)
 
-                self._advance(-len(literal))
-                return self._add(TokenType.NUMBER, number_text)
+                self._advance(-len(numeric_literal))
+                break
             else:
-                return self._add(TokenType.NUMBER)
+                break
+
+        number_text = number_text or self.sql[self._start : self._current]
+
+        # Normalize inputs such as 100_000 to 100000
+        if is_underscore_separated:
+            number_text = number_text.replace("_", "")
+
+        self._add(TokenType.NUMBER, number_text)
+
+        # Normalize inputs such as 123L to 123::BIGINT so that they're parsed as casts
+        if numeric_type:
+            self._add(TokenType.DCOLON, "::")
+            self._add(numeric_type, numeric_literal)
 
     def _scan_bits(self) -> None:
         self._advance()
@@ -1063,7 +1105,7 @@ class TokenizerCore:
 
         while True:
             peek = self._peek
-            if not peek or peek in _SPACE_CHARS:
+            if not peek or peek.isspace():
                 break
             if peek not in var_single_tokens and peek in single_tokens:
                 break
@@ -1078,7 +1120,7 @@ class TokenizerCore:
     def _extract_string(
         self,
         delimiter: str,
-        escapes: t.Optional[t.Set[str]] = None,
+        escapes: set[str] | None = None,
         raw_string: bool = False,
         raise_unmatched: bool = True,
     ) -> str:
@@ -1089,6 +1131,33 @@ class TokenizerCore:
         escape_follow_chars = self.escape_follow_chars
         string_escapes_allowed_in_raw_strings = self.string_escapes_allowed_in_raw_strings
         quotes = self.quotes
+        sql = self.sql
+
+        # use str.find() when the string is simple... no \ or other escapes
+        if delim_size == 1:
+            pos = self._current - 1
+            end = sql.find(delimiter, pos)
+
+            if (
+                # the closing delimiter was found
+                end != -1
+                # there's no doubled delimiter (e.g. '' escape), or the delimiter isn't an escape char
+                and (end + 1 >= self.size or sql[end + 1] != delimiter or delimiter not in escapes)
+                # no backslash in the string that would need escape processing
+                and (not (unescaped_sequences or "\\" in escapes) or sql.find("\\", pos, end) == -1)
+            ):
+                newlines = sql.count("\n", pos, end)
+                if newlines:
+                    self._line += newlines
+                    self._col = end - sql.rfind("\n", pos, end)
+                else:
+                    self._col += end - pos
+
+                self._current = end + 1
+                self._end = self._current >= self.size
+                self._char = sql[end]
+                self._peek = "" if self._end else sql[self._current]
+                return sql[pos:end]
 
         while True:
             if not raw_string and unescaped_sequences and self._peek and self._char in escapes:
@@ -1133,6 +1202,6 @@ class TokenizerCore:
 
                 current = self._current - 1
                 self._advance(alnum=True)
-                text += self.sql[current : self._current - 1]
+                text += sql[current : self._current - 1]
 
         return text

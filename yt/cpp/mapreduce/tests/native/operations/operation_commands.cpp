@@ -804,9 +804,46 @@ TEST(JobCommands, ListJobs)
         .SortField(EJobSortField::State)
         .SortOrder(ESortOrder::SO_ASCENDING);
 
+    // Aborted/lost attempts are irrelevant to the checks below, drop them.
+    auto listJobs = [] (auto&& doListJobs) {
+        auto result = doListJobs();
+        EraseIf(result.Jobs, [] (const TJobAttributes& job) {
+            return job.State == EJobState::Aborted || job.State == EJobState::Lost;
+        });
+        return result;
+    };
+
+    // Right after the operation finishes the controller agent may still report a
+    // leftover partition_map attempt in a non-terminal (running) state; it is
+    // appended to the archive-sorted result without re-sorting and breaks the
+    // assumptions below. Wait until every remaining job is Completed or Failed.
+    auto listJobsSettled = [&] (auto&& doListJobs) {
+        TListJobsResult result;
+        WaitForPredicate([&] {
+            result = listJobs(doListJobs);
+            for (const auto& job : result.Jobs) {
+                if (job.State != EJobState::Completed && job.State != EJobState::Failed) {
+                    return false;
+                }
+            }
+            return true;
+        });
+        return result;
+    };
+
     const TVector<std::pair<TString, TListJobsResult>> results = {
-        {"op->ListJobs", op->ListJobs(options)},
-        {"client->ListJobs", client->ListJobs(op->GetId(), options)},
+        {
+            "op->ListJobs",
+            listJobsSettled([&] {
+                return op->ListJobs(options);
+            }),
+        },
+        {
+            "client->ListJobs",
+            listJobsSettled([&] {
+                return client->ListJobs(op->GetId(), options);
+            }),
+        },
     };
     for (const auto& [label, result] : results) {
         // There must be 3 partition_map jobs, the last of which is failed

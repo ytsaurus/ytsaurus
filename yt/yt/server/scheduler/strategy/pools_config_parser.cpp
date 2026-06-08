@@ -28,7 +28,8 @@ TPoolsConfigParser::TPoolsConfigParser(
 
 TError TPoolsConfigParser::TryParse(const INodePtr& rootNode)
 {
-    if (TryParse(rootNode, RootPoolName, /*isFifo*/ false)) {
+    // TODO(babenko): migrate to std::string
+    if (TryParse(rootNode, TString(RootPoolName), /*isFifo*/ false)) {
         ProcessErasedPools();
     }
     return Error_;
@@ -90,7 +91,8 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& poo
                 }
 
                 const auto& presetNode = it->second;
-                ValidatePoolPresetConfig(preset, presetNode);
+                // TODO(babenko): migrate to std::string
+                ValidatePoolPresetConfig(TString(preset), presetNode);
 
                 poolConfigNode = PatchNode(presetNode, poolConfigNode);
             }

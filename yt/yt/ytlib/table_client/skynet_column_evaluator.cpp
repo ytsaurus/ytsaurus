@@ -129,7 +129,7 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
 
     //! Start new file.
     if (!LastFileName_ || *LastFileName_ != fileName || keySwitched) {
-        LastFileName_ = TString(fileName);
+        LastFileName_ = std::string(fileName);
         LastDataSize_ = SkynetPartSize;
         NextPartIndex_ = 0;
 

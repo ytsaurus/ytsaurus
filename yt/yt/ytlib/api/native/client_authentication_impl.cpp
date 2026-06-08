@@ -49,8 +49,8 @@ static std::string GenerateToken()
 
 void TClient::DoSetUserPassword(
     const std::string& user,
-    const TString& currentPasswordSha256,
-    const TString& newPasswordSha256,
+    const std::string& currentPasswordSha256,
+    const std::string& newPasswordSha256,
     const TSetUserPasswordOptions& options)
 {
     ValidateAuthenticationCommandPermissions(
@@ -90,7 +90,7 @@ void TClient::DoSetUserPassword(
 
 TIssueTokenResult TClient::DoIssueToken(
     const std::string& user,
-    const TString& passwordSha256,
+    const std::string& passwordSha256,
     const TIssueTokenOptions& options)
 {
     ValidateAuthenticationCommandPermissions(
@@ -246,8 +246,8 @@ void TClient::DoRefreshTemporaryToken(
 
 void TClient::DoRevokeToken(
     const std::string& user,
-    const TString& passwordSha256,
-    const TString& tokenSha256,
+    const std::string& passwordSha256,
+    const std::string& tokenSha256,
     const TRevokeTokenOptions& options)
 {
     auto rootClient = CreateRootClient();
@@ -292,7 +292,7 @@ void TClient::DoRevokeToken(
 
 TListUserTokensResult TClient::DoListUserTokens(
     const std::string& user,
-    const TString& passwordSha256,
+    const std::string& passwordSha256,
     const TListUserTokensOptions& options)
 {
     ValidateAuthenticationCommandPermissions(
@@ -368,7 +368,7 @@ TListUserTokensResult TClient::DoListUserTokens(
 void TClient::ValidateAuthenticationCommandPermissions(
     TStringBuf action,
     const std::string& user,
-    const TString& passwordSha256,
+    const std::string& passwordSha256,
     const TTimeoutOptions& options)
 {
     static const std::string HashedPasswordAttribute = "hashed_password";

@@ -16,10 +16,10 @@ find_package(linux-headers-generic REQUIRED)
 
 add_subdirectory(deps)
 
-add_executable(yt-yt-library-profiling-unittests)
+add_executable(unittester-library-profiling)
 
 
-target_compile_options(yt-yt-library-profiling-unittests PRIVATE
+target_compile_options(unittester-library-profiling PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -29,7 +29,7 @@ target_compile_options(yt-yt-library-profiling-unittests PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
+target_link_libraries(unittester-library-profiling PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -46,11 +46,11 @@ target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
   library-profiling-perf
 )
 
-target_allocator(yt-yt-library-profiling-unittests
+target_allocator(unittester-library-profiling
   cpp-malloc-tcmalloc
 )
 
-target_link_options(yt-yt-library-profiling-unittests PRIVATE
+target_link_options(unittester-library-profiling PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -61,7 +61,7 @@ target_link_options(yt-yt-library-profiling-unittests PRIVATE
   -lutil
 )
 
-target_sources(yt-yt-library-profiling-unittests PRIVATE
+target_sources(unittester-library-profiling PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_service_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/name_conflicts_ut.cpp
@@ -77,14 +77,14 @@ target_sources(yt-yt-library-profiling-unittests PRIVATE
 
 add_test(
   NAME
-  yt-yt-library-profiling-unittests
+  unittester-library-profiling
   COMMAND
-  yt-yt-library-profiling-unittests
+  unittester-library-profiling
 )
 
 set_property(
   TEST
-  yt-yt-library-profiling-unittests
+  unittester-library-profiling
   PROPERTY
   LABELS
   MEDIUM
@@ -92,16 +92,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-library-profiling-unittests
+  unittester-library-profiling
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-library-profiling-unittests)
+vcs_info(unittester-library-profiling)
 
 set_property(
   TEST
-  yt-yt-library-profiling-unittests
+  unittester-library-profiling
   PROPERTY
   PROCESSORS
   1

@@ -333,7 +333,8 @@ TResolveIterationResult ResolveByObjectId(
             auto resolvedPath = ResolveByPath(
                 session,
                 method,
-                resolvedNode->Path.Underlying(),
+                // TODO(babenko): think about proper cast
+                TYPath(resolvedNode->Path.Underlying()),
                 pathIsAdditional);
 
             auto* resolveHere = std::get_if<TResolveHere>(&resolvedPath);

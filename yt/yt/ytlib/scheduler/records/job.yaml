@@ -28,17 +28,17 @@ types:
         sort_order: Ascending
 
       - cpp_name: Type
-        cpp_type: TString
+        cpp_type: std::string
         column_name: type
         column_type: String
 
       - cpp_name: State
-        cpp_type: TString
+        cpp_type: std::string
         column_name: state
         column_type: String
 
       - cpp_name: TransientState
-        cpp_type: TString
+        cpp_type: std::string
         column_name: transient_state
         column_type: String
 
@@ -88,7 +88,7 @@ types:
         column_type: Any
 
       - cpp_name: StatisticsLz4
-        cpp_type: TString
+        cpp_type: std::string
         column_name: statistics_lz4
         column_type: String
 
@@ -123,12 +123,12 @@ types:
         column_type: Any
 
       - cpp_name: JobCompetitionId
-        cpp_type: TString
+        cpp_type: std::string
         column_name: job_competition_id
         column_type: String
 
       - cpp_name: ProbingJobCompetitionId
-        cpp_type: TString
+        cpp_type: std::string
         column_name: probing_job_competition_id
         column_type: String
 
@@ -148,17 +148,17 @@ types:
         column_type: Any
 
       - cpp_name: TaskName
-        cpp_type: TString
+        cpp_type: std::string
         column_name: task_name
         column_type: String
 
       - cpp_name: PoolTree
-        cpp_type: TString
+        cpp_type: std::string
         column_name: pool_tree
         column_type: String
 
       - cpp_name: MonitoringDescriptor
-        cpp_type: TString
+        cpp_type: std::string
         column_name: monitoring_descriptor
         column_type: String
 
@@ -183,17 +183,17 @@ types:
         column_type: Uint64
 
       - cpp_name: ControllerState
-        cpp_type: TString
+        cpp_type: std::string
         column_name: controller_state
         column_type: String
 
       - cpp_name: NodeState
-        cpp_type: TString
+        cpp_type: std::string
         column_name: node_state
         column_type: String
 
       - cpp_name: JobType
-        cpp_type: TString
+        cpp_type: std::string
         column_name: job_type
         column_type: String
 

@@ -5,6 +5,8 @@
 
 #include <yt/yt/ytlib/shuffle_client/shuffle_service_proxy.h>
 
+#include <yt/yt/ytlib/push_based_shuffle_client/config.h>
+
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -28,6 +30,7 @@ using namespace NDistributedChunkSessionClient;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NPushBasedShuffleClient;
 using namespace NRpc;
 using namespace NShuffleClient;
 using namespace NTableClient;
@@ -102,6 +105,11 @@ public:
             usePushBasedShuffle && !schema->IsStrict(),
             "Push-based shuffle requires a strict schema");
 
+        TPushShuffleConfigPtr pushConfig;
+        if (request->has_push_config()) {
+            pushConfig = ConvertTo<TPushShuffleConfigPtr>(TYsonString(request->push_config()));
+        }
+
         auto transactionId = WaitFor(
             ShuffleManager_->StartShuffle(
                 partitionCount,
@@ -109,7 +117,8 @@ public:
                 usePushBasedShuffle,
                 account,
                 medium,
-                replicationFactor))
+                replicationFactor,
+                std::move(pushConfig)))
             .ValueOrThrow();
 
         auto shuffleHandle = New<TShuffleHandle>();
@@ -121,6 +130,9 @@ public:
         shuffleHandle->Medium = std::move(medium);
         shuffleHandle->UsePushBasedShuffle = usePushBasedShuffle;
         shuffleHandle->Schema = std::move(schema);
+        if (request->has_push_config()) {
+            shuffleHandle->PushConfig = TYsonString(request->push_config());
+        }
 
         response->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
 
@@ -243,11 +255,22 @@ public:
             .ValueOrThrow();
         auto pushController = ToPushBasedOrThrow(controller);
 
-        i32 mapperId = WaitFor(pushController->RegisterMapper(writerIndex, overwrite))
+        auto registration = WaitFor(pushController->RegisterMapper(writerIndex, overwrite))
             .ValueOrThrow();
 
-        response->set_mapper_id(mapperId);
-        context->SetResponseInfo("MapperId: %v", mapperId);
+        response->set_mapper_id(registration.MapperId);
+        for (const auto& readySession : registration.ReadySessions) {
+            auto* protoSession = response->add_ready_sessions();
+            protoSession->set_partition_index(readySession.SlotCookie);
+            auto* session = protoSession->mutable_session();
+            ToProto(session->mutable_session_id(), readySession.Descriptor.SessionId);
+            ToProto(session->mutable_sequencer_node(), readySession.Descriptor.SequencerNode);
+        }
+
+        context->SetResponseInfo(
+            "MapperId: %v, ReadySessionCount: %v",
+            registration.MapperId,
+            registration.ReadySessions.size());
         context->Reply();
     }
 
@@ -274,8 +297,9 @@ public:
         auto sessionDescriptor = WaitFor(pushController->GetPartitionWriteSession(partitionIndex, excludedSessionId))
             .ValueOrThrow();
 
-        ToProto(response->mutable_session_id(), sessionDescriptor.SessionId);
-        ToProto(response->mutable_sequencer_node(), sessionDescriptor.SequencerNode);
+        auto* session = response->mutable_session();
+        ToProto(session->mutable_session_id(), sessionDescriptor.SessionId);
+        ToProto(session->mutable_sequencer_node(), sessionDescriptor.SequencerNode);
 
         context->SetResponseInfo("SessionId: %v", sessionDescriptor.SessionId);
         context->Reply();

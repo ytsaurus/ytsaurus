@@ -1411,7 +1411,8 @@ private:
                 user,
                 attributes.Get<TInstant>("start_time"),
                 cancelableOperationInvoker,
-                spec->Alias,
+                // TODO(babenko): migrate to std::string
+                spec->Alias ? std::make_optional(TString(*spec->Alias)) : std::nullopt,
                 std::move(preprocessedSpec.ExperimentAssignments),
                 providedSpecString,
                 attributes.Get<EOperationState>("state"),

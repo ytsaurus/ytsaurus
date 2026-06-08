@@ -36,6 +36,7 @@ target_link_libraries(cpp-yt-error PUBLIC
   cpp-yt-global
   cpp-yt-memory
   cpp-yt-misc
+  cpp-yt-system
   cpp-yt-threading
   cpp-yt-string
   cpp-yt-logging

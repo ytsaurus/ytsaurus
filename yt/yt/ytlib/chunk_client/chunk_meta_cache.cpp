@@ -128,7 +128,7 @@ public:
 
                 // Represent extensions as a map to avoid a linear scan for every tag.
                 auto missingExtensionMapFuture = missingExtensionsFuture.AsUnique().Apply(BIND([] (TRefCountedChunkMetaPtr&& fetchedChunkMeta) {
-                    THashMap<int, TString> extensionMap;
+                    THashMap<int, TProtobufString> extensionMap;
                     for (auto& ext : *fetchedChunkMeta->mutable_extensions()->mutable_extensions()) {
                         YT_VERIFY(extensionMap.emplace(ext.tag(), std::move(*ext.mutable_data())).second);
                     }
@@ -137,15 +137,14 @@ public:
 
                 for (int tag : missingExtensionTags) {
                     auto extensionFuture = missingExtensionMapFuture.Apply(
-                        BIND([tag, key = GetKey()] (const THashMap<int, TString>& extensionMap) -> std::optional<TString>
-                        {
+                        BIND([tag, key = GetKey()] (const THashMap<int, TProtobufString>& extensionMap) -> std::optional<TProtobufString> {
                             auto it = extensionMap.find(tag);
                             if (it == extensionMap.end()) {
                                 return std::nullopt;
                             }
                             // TODO(dakovalkov): We create an extension copy here.
-                            // It's almost free as long as TString is ref-counted.
-                            // If TString ever becomes std::string, we will need to find another way.
+                            // It's almost free as long as TProtobufString is ref-counted.
+                            // If TProtobufString ever becomes std::string, we will need to find another way.
                             return it->second;
                         }));
 
@@ -194,7 +193,7 @@ private:
 
     TRefCountedChunkMetaPtr MainMeta_;
 
-    using TExtensionState = TFuture<std::optional<TString>>;
+    using TExtensionState = TFuture<std::optional<TProtobufString>>;
     THashMap<int, TExtensionState> Extensions_;
 
     TRefCountedChunkMetaPtr AssembleChunkMeta(const std::optional<std::vector<int>>& extensionTags) const

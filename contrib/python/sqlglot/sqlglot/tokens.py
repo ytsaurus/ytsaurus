@@ -1,20 +1,41 @@
 from __future__ import annotations
 
+import threading
 import typing as t
 
 from sqlglot.trie import new_trie
 
-# Import Token and TokenType from tokenizer_core (compiled with mypyc)
-from sqlglot.tokenizer_core import Token, TokenType
+from sqlglot.tokenizer_core import Token, TokenizerCore, TokenType
+
+T = t.TypeVar("T")
+
+
+class ThreadLocalCache(threading.local):
+    """Per-thread cache. Each thread sees its own dict; safe for caching stateful objects."""
+
+    def __init__(self) -> None:
+        self.cache: dict[type, t.Any] = {}
+
+    def get_or_build(self, key: type, build: t.Callable[[], T]) -> T:
+        if not (obj := self.cache.get(key)):
+            self.cache[key] = obj = build()
+        return obj
+
+
+try:
+    import sqlglotc  # noqa: F401
+except ImportError:
+    pass
 
 try:
     import sqlglotrs  # type: ignore # noqa: F401
     import warnings
 
-    warnings.warn(
-        "sqlglot[rs] is deprecated and no longer compatible with sqlglot. "
-        "Please use sqlglotc instead for faster parsing: pip install sqlglot[c]",
-    )
+    if "sqlglotc" not in globals():
+        warnings.warn(
+            "sqlglot[rs] is deprecated and no longer compatible with sqlglot. "
+            "Please use sqlglotc instead for faster parsing: pip install sqlglot[c]",
+        )
 except ImportError:
     pass
 
@@ -22,51 +43,51 @@ if t.TYPE_CHECKING:
     from sqlglot.dialects.dialect import DialectType
 
 
-def _convert_quotes(arr: t.List[str | t.Tuple[str, str]]) -> t.Dict[str, str]:
+def _convert_quotes(arr: list[str | tuple[str, str]]) -> dict[str, str]:
     return dict((item, item) if isinstance(item, str) else (item[0], item[1]) for item in arr)
 
 
 def _quotes_to_format(
-    token_type: TokenType, arr: t.List[str | t.Tuple[str, str]]
-) -> t.Dict[str, t.Tuple[str, TokenType]]:
+    token_type: TokenType, arr: list[str | tuple[str, str]]
+) -> dict[str, tuple[str, TokenType]]:
     return {k: (v, token_type) for k, v in _convert_quotes(arr).items()}
 
 
 class _TokenizerBase:
-    QUOTES: t.ClassVar[t.List[t.Tuple[str, str] | str]]
-    IDENTIFIERS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
-    BIT_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
-    BYTE_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
-    HEX_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
-    RAW_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
-    HEREDOC_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
-    UNICODE_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
-    STRING_ESCAPES: t.ClassVar[t.List[str]]
-    BYTE_STRING_ESCAPES: t.ClassVar[t.List[str]]
-    ESCAPE_FOLLOW_CHARS: t.ClassVar[t.List[str]]
-    IDENTIFIER_ESCAPES: t.ClassVar[t.List[str]]
+    QUOTES: t.ClassVar[list[tuple[str, str] | str]]
+    IDENTIFIERS: t.ClassVar[list[str | tuple[str, str]]]
+    BIT_STRINGS: t.ClassVar[list[str | tuple[str, str]]]
+    BYTE_STRINGS: t.ClassVar[list[str | tuple[str, str]]]
+    HEX_STRINGS: t.ClassVar[list[str | tuple[str, str]]]
+    RAW_STRINGS: t.ClassVar[list[str | tuple[str, str]]]
+    HEREDOC_STRINGS: t.ClassVar[list[str | tuple[str, str]]]
+    UNICODE_STRINGS: t.ClassVar[list[str | tuple[str, str]]]
+    STRING_ESCAPES: t.ClassVar[list[str]]
+    BYTE_STRING_ESCAPES: t.ClassVar[list[str]]
+    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]]
+    IDENTIFIER_ESCAPES: t.ClassVar[list[str]]
     HINT_START: t.ClassVar[str]
-    KEYWORDS: t.ClassVar[t.Dict[str, TokenType]]
-    SINGLE_TOKENS: t.ClassVar[t.Dict[str, TokenType]]
-    NUMERIC_LITERALS: t.ClassVar[t.Dict[str, str]]
-    VAR_SINGLE_TOKENS: t.ClassVar[t.Set[str]]
-    COMMANDS: t.ClassVar[t.Set[TokenType]]
-    COMMAND_PREFIX_TOKENS: t.ClassVar[t.Set[TokenType]]
+    KEYWORDS: t.ClassVar[dict[str, TokenType]]
+    SINGLE_TOKENS: t.ClassVar[dict[str, TokenType]]
+    NUMERIC_LITERALS: t.ClassVar[dict[str, str]]
+    VAR_SINGLE_TOKENS: t.ClassVar[set[str]]
+    COMMANDS: t.ClassVar[set[TokenType]]
+    COMMAND_PREFIX_TOKENS: t.ClassVar[set[TokenType]]
     HEREDOC_TAG_IS_IDENTIFIER: t.ClassVar[bool]
     STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS: t.ClassVar[bool]
     NESTED_COMMENTS: t.ClassVar[bool]
-    TOKENS_PRECEDING_HINT: t.ClassVar[t.Set[TokenType]]
+    TOKENS_PRECEDING_HINT: t.ClassVar[set[TokenType]]
     HEREDOC_STRING_ALTERNATIVE: t.ClassVar[TokenType]
-    COMMENTS: t.ClassVar[t.List[str | t.Tuple[str, str]]]
-    _QUOTES: t.ClassVar[t.Dict[str, str]]
-    _IDENTIFIERS: t.ClassVar[t.Dict[str, str]]
-    _FORMAT_STRINGS: t.ClassVar[t.Dict[str, t.Tuple[str, TokenType]]]
-    _STRING_ESCAPES: t.ClassVar[t.Set[str]]
-    _BYTE_STRING_ESCAPES: t.ClassVar[t.Set[str]]
-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[t.Set[str]]
-    _IDENTIFIER_ESCAPES: t.ClassVar[t.Set[str]]
-    _COMMENTS: t.ClassVar[t.Dict[str, t.Optional[str]]]
-    _KEYWORD_TRIE: t.ClassVar[t.Dict]
+    COMMENTS: t.ClassVar[list[str | tuple[str, str]]]
+    _QUOTES: t.ClassVar[dict[str, str]]
+    _IDENTIFIERS: t.ClassVar[dict[str, str]]
+    _FORMAT_STRINGS: t.ClassVar[dict[str, tuple[str, TokenType]]]
+    _STRING_ESCAPES: t.ClassVar[set[str]]
+    _BYTE_STRING_ESCAPES: t.ClassVar[set[str]]
+    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]]
+    _IDENTIFIER_ESCAPES: t.ClassVar[set[str]]
+    _COMMENTS: t.ClassVar[dict[str, str | None]]
+    _KEYWORD_TRIE: t.ClassVar[dict[str, object]]
 
     @classmethod
     def __init_subclass__(cls, **kwargs: t.Any) -> None:
@@ -146,23 +167,23 @@ class Tokenizer(_TokenizerBase):
         '"': TokenType.UNKNOWN,
     }
 
-    BIT_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
-    BYTE_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
-    HEX_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
-    RAW_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
-    HEREDOC_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
-    UNICODE_STRINGS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = []
-    IDENTIFIERS: t.ClassVar[t.List[str | t.Tuple[str, str]]] = ['"']
-    QUOTES: t.ClassVar[t.List[t.Tuple[str, str] | str]] = ["'"]
-    STRING_ESCAPES = ["'"]
-    BYTE_STRING_ESCAPES: t.ClassVar[t.List[str]] = []
-    VAR_SINGLE_TOKENS: t.ClassVar[t.Set[str]] = set()
-    ESCAPE_FOLLOW_CHARS: t.ClassVar[t.List[str]] = []
+    BIT_STRINGS: t.ClassVar[list[str | tuple[str, str]]] = []
+    BYTE_STRINGS: t.ClassVar[list[str | tuple[str, str]]] = []
+    HEX_STRINGS: t.ClassVar[list[str | tuple[str, str]]] = []
+    RAW_STRINGS: t.ClassVar[list[str | tuple[str, str]]] = []
+    HEREDOC_STRINGS: t.ClassVar[list[str | tuple[str, str]]] = []
+    UNICODE_STRINGS: t.ClassVar[list[str | tuple[str, str]]] = []
+    IDENTIFIERS: t.ClassVar[list[str | tuple[str, str]]] = ['"']
+    QUOTES: t.ClassVar[list[tuple[str, str] | str]] = ["'"]
+    STRING_ESCAPES: t.ClassVar[list[str]] = ["'"]
+    BYTE_STRING_ESCAPES: t.ClassVar[list[str]] = []
+    VAR_SINGLE_TOKENS: t.ClassVar[set[str]] = set()
+    ESCAPE_FOLLOW_CHARS: t.ClassVar[list[str]] = []
 
     # The strings in this list can always be used as escapes, regardless of the surrounding
     # identifier delimiters. By default, the closing delimiter is assumed to also act as an
     # identifier escape, e.g. if we use double-quotes, then they also act as escapes: "x"""
-    IDENTIFIER_ESCAPES: t.ClassVar[t.List[str]] = []
+    IDENTIFIER_ESCAPES: t.ClassVar[list[str]] = []
 
     # Whether the heredoc tags follow the same lexical rules as unquoted identifiers
     HEREDOC_TAG_IS_IDENTIFIER = False
@@ -180,17 +201,17 @@ class Tokenizer(_TokenizerBase):
     TOKENS_PRECEDING_HINT = {TokenType.SELECT, TokenType.INSERT, TokenType.UPDATE, TokenType.DELETE}
 
     # Autofilled
-    _COMMENTS: t.ClassVar[t.Dict[str, t.Optional[str]]] = {}
-    _FORMAT_STRINGS: t.ClassVar[t.Dict[str, t.Tuple[str, TokenType]]] = {}
-    _IDENTIFIERS: t.ClassVar[t.Dict[str, str]] = {}
-    _IDENTIFIER_ESCAPES: t.ClassVar[t.Set[str]] = set()
-    _QUOTES: t.ClassVar[t.Dict[str, str]] = {}
-    _STRING_ESCAPES: t.ClassVar[t.Set[str]] = set()
-    _BYTE_STRING_ESCAPES: t.ClassVar[t.Set[str]] = set()
-    _KEYWORD_TRIE: t.ClassVar[t.Dict] = {}
-    _ESCAPE_FOLLOW_CHARS: t.ClassVar[t.Set[str]] = set()
+    _COMMENTS: t.ClassVar[dict[str, str | None]] = {}
+    _FORMAT_STRINGS: t.ClassVar[dict[str, tuple[str, TokenType]]] = {}
+    _IDENTIFIERS: t.ClassVar[dict[str, str]] = {}
+    _IDENTIFIER_ESCAPES: t.ClassVar[set[str]] = set()
+    _QUOTES: t.ClassVar[dict[str, str]] = {}
+    _STRING_ESCAPES: t.ClassVar[set[str]] = set()
+    _BYTE_STRING_ESCAPES: t.ClassVar[set[str]] = set()
+    _KEYWORD_TRIE: t.ClassVar[dict[str, object]] = {}
+    _ESCAPE_FOLLOW_CHARS: t.ClassVar[set[str]] = set()
 
-    KEYWORDS: t.ClassVar[t.Dict[str, TokenType]] = {
+    KEYWORDS: t.ClassVar[dict[str, TokenType]] = {
         **{f"{{%{postfix}": TokenType.BLOCK_START for postfix in ("", "+", "-")},
         **{f"{prefix}%}}": TokenType.BLOCK_END for prefix in ("", "+", "-")},
         **{f"{{{{{postfix}": TokenType.BLOCK_START for postfix in ("+", "-")},
@@ -362,6 +383,7 @@ class Tokenizer(_TokenizerBase):
         "SIMILAR TO": TokenType.SIMILAR_TO,
         "SOME": TokenType.SOME,
         "SORT BY": TokenType.SORT_BY,
+        "SQL SECURITY": TokenType.SQL_SECURITY,
         "START WITH": TokenType.START_WITH,
         "STRAIGHT_JOIN": TokenType.STRAIGHT_JOIN,
         "TABLE": TokenType.TABLE,
@@ -518,26 +540,28 @@ class Tokenizer(_TokenizerBase):
     COMMAND_PREFIX_TOKENS = {TokenType.SEMICOLON, TokenType.BEGIN}
 
     # Handle numeric literals like in hive (3L = BIGINT)
-    NUMERIC_LITERALS: t.ClassVar[t.Dict[str, str]] = {}
+    NUMERIC_LITERALS: t.ClassVar[dict[str, str]] = {}
+
+    # In tokenizers like JSONPath, dots are always key separators, never decimal points
+    NUMBERS_CAN_HAVE_DECIMALS: t.ClassVar[bool] = True
 
     COMMENTS = ["--", ("/*", "*/")]
+
+    _core_cache: t.ClassVar[ThreadLocalCache] = ThreadLocalCache()
 
     __slots__ = (
         "dialect",
         "_core",
     )
 
-    def __init__(
-        self,
-        dialect: DialectType = None,
-        **opts: t.Any,
-    ) -> None:
-        from sqlglot.dialects import Dialect
-        from sqlglot.tokenizer_core import TokenizerCore as _TokenizerCore
+    def __init__(self, dialect: DialectType = None) -> None:
+        from sqlglot.dialects.dialect import Dialect
 
         self.dialect = Dialect.get_or_raise(dialect)
+        self._core = self._core_cache.get_or_build(type(self), self._init_core)
 
-        self._core = _TokenizerCore(
+    def _init_core(self) -> TokenizerCore:
+        return TokenizerCore(
             single_tokens=self.SINGLE_TOKENS,
             keywords=self.KEYWORDS,
             quotes=self._QUOTES,
@@ -553,8 +577,8 @@ class Tokenizer(_TokenizerBase):
             nested_comments=self.NESTED_COMMENTS,
             hint_start=self.HINT_START,
             tokens_preceding_hint=self.TOKENS_PRECEDING_HINT,
-            bit_strings=list(self.BIT_STRINGS),
-            hex_strings=list(self.HEX_STRINGS),
+            has_bit_strings=bool(self.BIT_STRINGS),
+            has_hex_strings=bool(self.HEX_STRINGS),
             numeric_literals=self.NUMERIC_LITERALS,
             var_single_tokens=self.VAR_SINGLE_TOKENS,
             string_escapes_allowed_in_raw_strings=self.STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS,
@@ -562,11 +586,12 @@ class Tokenizer(_TokenizerBase):
             heredoc_string_alternative=self.HEREDOC_STRING_ALTERNATIVE,
             keyword_trie=self._KEYWORD_TRIE,
             numbers_can_be_underscore_separated=self.dialect.NUMBERS_CAN_BE_UNDERSCORE_SEPARATED,
+            numbers_can_have_decimals=self.NUMBERS_CAN_HAVE_DECIMALS,
             identifiers_can_start_with_digit=self.dialect.IDENTIFIERS_CAN_START_WITH_DIGIT,
             unescaped_sequences=self.dialect.UNESCAPED_SEQUENCES,
         )
 
-    def tokenize(self, sql: str) -> t.List[Token]:
+    def tokenize(self, sql: str) -> list[Token]:
         """Returns a list of tokens corresponding to the SQL string `sql`."""
         return self._core.tokenize(sql)  # type: ignore
 
@@ -581,6 +606,6 @@ class Tokenizer(_TokenizerBase):
         return self._core.size
 
     @property
-    def tokens(self) -> t.List[Token]:
+    def tokens(self) -> list[Token]:
         """The list of tokens produced by tokenization."""
         return self._core.tokens

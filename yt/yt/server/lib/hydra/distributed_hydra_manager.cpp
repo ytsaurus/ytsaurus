@@ -596,11 +596,12 @@ public:
         }));
     }
 
-    TMutationRequest MakeSystemMutationRequest(const TString& mutationType)
+    TMutationRequest MakeSystemMutationRequest(const std::string& mutationType)
     {
         return {
             .Reign = GetCurrentReign(),
-            .Type = mutationType
+            // TODO(babenko): migrate to std::string
+            .Type = TString(mutationType)
         };
     }
 

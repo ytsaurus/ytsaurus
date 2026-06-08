@@ -28,6 +28,12 @@ struct TSlotChunkInfo
     NChunkClient::TChunkReplicaWithMediumList Replicas;
 };
 
+struct TReadySession
+{
+    int SlotCookie = 0;
+    TSessionDescriptor Descriptor;
+};
+
 //! Thread affinity: any.
 struct IDistributedChunkSessionPool
     : virtual public TRefCounted
@@ -39,6 +45,8 @@ struct IDistributedChunkSessionPool
     virtual void FinalizeSlot(int slotCookie) = 0;
 
     virtual TFuture<std::vector<TSlotChunkInfo>> GetSlotChunks(int slotCookie) const = 0;
+
+    virtual TFuture<std::vector<TReadySession>> GetReadySessions() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionPool)

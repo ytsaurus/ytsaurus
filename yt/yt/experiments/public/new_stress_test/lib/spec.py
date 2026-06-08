@@ -272,6 +272,18 @@ spec_template = {
         "remove_static_table_probability": 0.1,
         "write_probability": 0.3,
         "read_probability": 0.3,
+        "write_min_batch_size": 1,
+        "write_max_batch_size": 100,
+        "write_min_row_size": 512,
+        "write_max_row_size": 2048,
+        # Cap peak memory for fat writes/reads. On write, the batch still goes in a
+        # single tablet transaction, but it is generated and pushed as several
+        # insert_rows calls each bounded by this many bytes (insert_rows buffers its
+        # whole input), so only one chunk is materialized at a time. On read, the queue
+        # is pulled back in pages bounded by this data weight instead of loading whole
+        # tablets into Python.
+        "write_insert_chunk_bytes": 16 * 1024 * 1024,
+        "read_page_max_data_weight": 16 * 1024 * 1024,
     },
 
     "replicated": {

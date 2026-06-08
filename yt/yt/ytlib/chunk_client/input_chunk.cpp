@@ -467,7 +467,7 @@ void FromProto(TInputChunkPtr* inputChunk, const NProto::TChunkSpec& chunkSpec)
 
 void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, TStringBuf /*spec*/)
 {
-    TString boundaryKeys;
+    std::string boundaryKeys;
     if (inputChunk->BoundaryKeys()) {
         boundaryKeys = Format(
             "MinKey: %v, MaxKey: %v",

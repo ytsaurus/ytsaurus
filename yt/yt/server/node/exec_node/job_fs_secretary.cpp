@@ -107,8 +107,8 @@ TError CheckDockerImage(
 }
 
 TError CheckRootVolumeDiskSpaceAndInodeLimit(
-    std::optional<int> baselineDiskSpace,
-    std::optional<int> currentDiskSpace,
+    std::optional<i64> baselineDiskSpace,
+    std::optional<i64> currentDiskSpace,
     std::optional<i64> baselineInodeLimit,
     std::optional<i64> currentInodeLimit)
 {
@@ -337,7 +337,7 @@ void TJobFSSecretary::AddGpuToppingLayersIfNeeded(const TUserJobSpec* userJobSpe
         return;
     }
 
-    if (userJobSpec->root_volume_layers().empty()) {
+    if (RootVolumeLayerArtifactKeys_.empty()) {
         THROW_ERROR_EXCEPTION(
             NExecNode::EErrorCode::GpuJobWithoutLayers,
             "No layers specified for GPU job; at least a base layer is required to use GPU");
@@ -771,12 +771,12 @@ void TJobFSSecretary::SetVirtualSandboxReader(NNbd::IImageReaderPtr reader)
     VirtualSandboxData_->Reader = std::move(reader);
 }
 
-const std::optional<int>& TJobFSSecretary::GetRootVolumeDiskSpace() const
+const std::optional<i64>& TJobFSSecretary::GetRootVolumeDiskSpace() const
 {
     return RootVolumeDiskSpace_;
 }
 
-const std::optional<int64_t>& TJobFSSecretary::GetRootVolumeInodeLimit() const
+const std::optional<i64>& TJobFSSecretary::GetRootVolumeInodeLimit() const
 {
     return RootVolumeInodeLimit_;
 }

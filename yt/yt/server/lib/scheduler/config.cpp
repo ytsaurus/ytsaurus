@@ -425,7 +425,8 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("default_parent_pool", &TThis::DefaultParentPool)
-        .Default(RootPoolName);
+        // TODO(babenko): migrate to std::string
+        .Default(TString(RootPoolName));
 
     registrar.Parameter("forbid_immediate_operations_in_root", &TThis::ForbidImmediateOperationsInRoot)
         .Default(true);

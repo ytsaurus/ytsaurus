@@ -1506,7 +1506,12 @@ bool TPoolTreePoolElement::IsEphemeralHub() const
 
 THashSet<TString> TPoolTreePoolElement::GetAllowedProfilingTags() const
 {
-    return Config_->AllowedProfilingTags;
+    // TODO(babenko): migrate to std::string
+    THashSet<TString> result;
+    for (const auto& tag : Config_->AllowedProfilingTags) {
+        result.insert(TString(tag));
+    }
+    return result;
 }
 
 bool TPoolTreePoolElement::IsStepFunctionForGangOperationsEnabled() const
@@ -1533,11 +1538,16 @@ void TPoolTreePoolElement::BuildResourceMetering(
 
     std::optional<TMeteringKey> key;
     if (Config_->Abc) {
+        // TODO(babenko): migrate to std::string
+        THashMap<TString, TString> meteringTags;
+        for (const auto& [k, v] : Config_->MeteringTags) {
+            meteringTags[TString(k)] = TString(v);
+        }
         key = TMeteringKey{
             .AbcId  = Config_->Abc->Id,
             .TreeId = GetTreeId(),
             .PoolId = GetId(),
-            .MeteringTags = Config_->MeteringTags,
+            .MeteringTags = std::move(meteringTags),
         };
 
         auto accumulatedResourceUsageVolume = GetOrDefault(poolResourceUsages, GetId(), TResourceVolume{});
@@ -2645,7 +2655,8 @@ TPoolTreeRootElement::TPoolTreeRootElement(
         treeElementHost,
         treeConfig,
         treeId,
-        RootPoolName,
+        // TODO(babenko): migrate to std::string
+        TString(RootPoolName),
         EResourceTreeElementKind::Root,
         logger.WithTag("Pool: %v, SchedulingMode: %v",
             RootPoolName,
@@ -2725,7 +2736,8 @@ const TSchedulingTagFilter& TPoolTreeRootElement::GetSchedulingTagFilter() const
 
 TString TPoolTreeRootElement::GetId() const
 {
-    return RootPoolName;
+    // TODO(babenko): migrate to std::string
+    return TString(RootPoolName);
 }
 
 std::optional<double> TPoolTreeRootElement::GetSpecifiedWeight() const

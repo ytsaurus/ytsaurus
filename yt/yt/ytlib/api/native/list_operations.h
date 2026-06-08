@@ -27,8 +27,8 @@ DEFINE_ENUM(EListOperationsCountingFilterType,
 
 struct TCountingFilterAttributes
 {
-    std::optional<THashMap<TString, TString>> PoolTreeToPool;
-    std::optional<std::vector<TString>> Pools;
+    std::optional<THashMap<std::string, std::string>> PoolTreeToPool;
+    std::optional<std::vector<std::string>> Pools;
     std::string User;
     NScheduler::EOperationState State = {};
     NScheduler::EOperationType Type = {};

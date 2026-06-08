@@ -911,7 +911,7 @@ private:
         auto& header = *subrequest->RequestHeader;
         SetAllowResolveFromSequoiaObject(&header, true);
         if (payload.EffectiveAcl.has_value()) {
-            SetSequoiaNodeEffectiveAcl(&header, payload.EffectiveAcl->ToString());
+            SetSequoiaNodeEffectiveAcl(&header, *payload.EffectiveAcl);
         }
 
         auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);

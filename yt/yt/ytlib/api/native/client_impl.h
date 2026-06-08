@@ -350,7 +350,7 @@ public: \
 
     IMPLEMENT_METHOD(NQueryTrackerClient::TQueryId, StartQuery, (
         NQueryTrackerClient::EQueryEngine engine,
-        const TString& query,
+        const std::string& query,
         const TStartQueryOptions& options = {}),
         (engine, query, options))
     IMPLEMENT_METHOD(void, AbortQuery, (
@@ -544,13 +544,13 @@ public: \
         (path, rowCount, options))
 
     IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
-        const TString& md5,
+        const std::string& md5,
         const TGetFileFromCacheOptions& options),
         (md5, options))
 
     IMPLEMENT_METHOD(TPutFileToCacheResult, PutFileToCache, (
         const NYPath::TYPath& path,
-        const TString& expectedMD5,
+        const std::string& expectedMD5,
         const TPutFileToCacheOptions& options),
         (path, expectedMD5, options))
 
@@ -706,7 +706,7 @@ public: \
         (jobId, options))
     IMPLEMENT_METHOD(TPollJobShellResponse, PollJobShell, (
         NScheduler::TJobId jobId,
-        const std::optional<TString>& shellName,
+        const std::optional<std::string>& shellName,
         const NYson::TYsonString& parameters,
         const TPollJobShellOptions& options),
         (jobId, shellName, parameters, options))
@@ -788,7 +788,7 @@ public: \
         const std::string& address,
         const TKillProcessOptions& options),
         (address, options))
-    IMPLEMENT_METHOD(TString, WriteCoreDump, (
+    IMPLEMENT_METHOD(std::string, WriteCoreDump, (
         const std::string& address,
         const TWriteCoreDumpOptions& options),
         (address, options))
@@ -796,7 +796,7 @@ public: \
         const std::string& address,
         const TWriteLogBarrierOptions& options),
         (address, options))
-    IMPLEMENT_METHOD(TString, WriteOperationControllerCoreDump, (
+    IMPLEMENT_METHOD(std::string, WriteOperationControllerCoreDump, (
         NScheduler::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options),
         (operationId, options))
@@ -857,7 +857,7 @@ public: \
         EMaintenanceComponent component,
         const std::string& address,
         EMaintenanceType type,
-        const TString& comment,
+        const std::string& comment,
         const TAddMaintenanceOptions& options),
         (component, address, type, comment, options))
     IMPLEMENT_METHOD(TMaintenanceCountsPerTarget, RemoveMaintenance, (
@@ -933,13 +933,13 @@ public: \
 
     IMPLEMENT_METHOD(void, SetUserPassword, (
         const std::string& user,
-        const TString& currentPasswordSha256,
-        const TString& newPasswordSha256,
+        const std::string& currentPasswordSha256,
+        const std::string& newPasswordSha256,
         const TSetUserPasswordOptions& options),
         (user, currentPasswordSha256, newPasswordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueToken, (
         const std::string& user,
-        const TString& passwordSha256,
+        const std::string& passwordSha256,
         const TIssueTokenOptions& options),
         (user, passwordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueSpecificTemporaryToken, (
@@ -960,13 +960,13 @@ public: \
         (user, token, options))
     IMPLEMENT_METHOD(void, RevokeToken, (
         const std::string& user,
-        const TString& passwordSha256,
-        const TString& tokenSha256,
+        const std::string& passwordSha256,
+        const std::string& tokenSha256,
         const TRevokeTokenOptions& options),
         (user, passwordSha256, tokenSha256, options))
     IMPLEMENT_METHOD(TListUserTokensResult, ListUserTokens, (
         const std::string& user,
-        const TString& passwordSha256,
+        const std::string& passwordSha256,
         const TListUserTokensOptions& options),
         (user, passwordSha256, options))
 
@@ -1159,7 +1159,7 @@ private:
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
-    THashMap<TString, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
+    THashMap<std::string, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
 
     TChannels GetMasterChannels(EMasterChannelKind kind);
     NRpc::IChannelPtr FindMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
@@ -1274,8 +1274,7 @@ private:
 
     TDuration CheckPermissionsForQuery(
         const NQueryClient::TPlanFragment& fragment,
-        const TSelectRowsOptions& options,
-        const NTabletClient::ITableMountCachePtr& tableMountCache);
+        const TSelectRowsOptions& options);
 
     TSelectRowsResult DoSelectRowsOnce(
         const std::string& queryString,
@@ -1401,7 +1400,7 @@ private:
         NTransactionClient::TTransactionId transactionId = {});
     TPutFileToCacheResult DoAttemptPutFileToCache(
         const NYPath::TYPath& path,
-        const TString& expectedMD5,
+        const std::string& expectedMD5,
         const TPutFileToCacheOptions& options,
         NLogging::TLogger logger);
 
@@ -1657,16 +1656,23 @@ private:
     void ValidateAuthenticationCommandPermissions(
         TStringBuf action,
         const std::string& user,
-        const TString& passwordSha256,
+        const std::string& passwordSha256,
         const TTimeoutOptions& options);
 
     //
     // Flow
     //
 
-    std::string DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
+    struct TPipelineLeaderDescriptor
+    {
+        std::string Address;
+        NObjectClient::TObjectId PipelineObjectId;
+    };
 
-    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const std::string& address);
+    TPipelineLeaderDescriptor DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
+
+    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(
+        const TPipelineLeaderDescriptor& descriptor);
 
     void ValidatePipelinePermission(const NYPath::TYPath& pipelinePath, NYTree::EPermission permission);
 };
