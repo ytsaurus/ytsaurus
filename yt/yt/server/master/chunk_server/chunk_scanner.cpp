@@ -115,6 +115,11 @@ bool TGlobalChunkScanner::HasUnscannedChunk(NProfiling::TCpuInstant deadline) co
     return ActiveGlobalChunkScanIndex_ != -1;
 }
 
+TCpuInstant TGlobalChunkScanner::GetGlobalScanStartTime() const
+{
+    return GlobalScanStarted_;
+}
+
 int TGlobalChunkScanner::GetQueueSize() const
 {
     return std::transform_reduce(
