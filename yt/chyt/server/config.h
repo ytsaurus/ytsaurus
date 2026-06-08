@@ -18,9 +18,11 @@
 
 #include <yt/yt/client/table_client/config.h>
 
-#include <yt/yt/core/misc/configurable_singleton_def.h>
-
 #include <yt/yt/core/concurrency/config.h>
+
+#include <yt/yt/core/rpc/public.h>
+
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -753,6 +755,20 @@ DEFINE_REFCOUNTED_TYPE(TSystemLogTableExportersConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExecutionProfilingConfig
+    : public NYTree::TYsonStruct
+{
+    NRpc::TTimeHistogramConfigPtr AttributeFetchTimeHistogram;
+
+    REGISTER_YSON_STRUCT(TExecutionProfilingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TExecutionProfilingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TYtConfig
     : public NYTree::TYsonStruct
 {
@@ -851,6 +867,8 @@ struct TYtConfig
     //! but for scenarios with concatTables over directories with a large number of tables
     //! with the same schemas, we will be able to fetch only unique ones.
     bool EnableSchemaIdFetching;
+
+    TExecutionProfilingConfigPtr ExecutionProfiling;
 
     REGISTER_YSON_STRUCT(TYtConfig);
 

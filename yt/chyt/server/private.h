@@ -144,6 +144,7 @@ DECLARE_REFCOUNTED_CLASS(TCypressDictionaryConfigRepository)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)
 DECLARE_REFCOUNTED_CLASS(TCachedTableSchema)
 DECLARE_REFCOUNTED_CLASS(IDictionaryAccessControl)
+DECLARE_REFCOUNTED_STRUCT(TExecutionProfilingConfig)
 
 struct TValue;
 struct TSubquerySpec;
