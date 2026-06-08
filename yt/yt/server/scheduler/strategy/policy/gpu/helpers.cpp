@@ -9,7 +9,7 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 bool IsAssignmentPreliminary(const TAssignmentPtr& assignment)
 {
-    return !assignment->AllocationId.has_value();
+    return !assignment->AllocationId;
 }
 
 NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType)

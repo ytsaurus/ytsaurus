@@ -182,7 +182,7 @@ public:
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
         const std::string& preemptionDescription,
-        std::optional<TOperationId> preemptedForOperationId = {}) override
+        TOperationId preemptedForOperationId = {}) override
     {
         (*PreemptedAssignments_)[assignment->Node->GetId()].insert(assignment);
 
@@ -567,7 +567,7 @@ protected:
     }
 
 private:
-    ui32 NextAvailableNodeId_ = 0;
+    NNodeTrackerClient::TNodeId::TUnderlying NextAvailableNodeId_ = 0;
     THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>> PreemptedAssignments_;
     THashMap<TAssignmentPtr, TPreemptionInfo> PreemptionInfo_;
 };
