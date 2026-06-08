@@ -42,6 +42,8 @@ public:
 
     NApi::TClusterTag GetClockSourceClusterTag() const;
 
+    TFuture<void> WaitUntilPreparedCommitsFinish();
+
     void OnCommitPrepare(
         TTransactionId transactionId,
         TTimestamp prepareTimestamp,
@@ -171,6 +173,9 @@ private:
     std::atomic<int> PreparedTransactionCount_ = 0;
     std::atomic<int> ReadyToCommitTransactionCount_ = 0;
     std::atomic<int> ReadyToFlushTransactionCount_ = 0;
+
+    std::atomic<int> PreparedCommitCount_ = 0;
+    NThreading::TAtomicObject<TPromise<void>> PreparedCommitsFinished_;
 
     TStrongOrderingShard* GetOrCreateShard(const std::string& tag);
     TStrongOrderingShard* GetShardOrCrash(const std::string& tag);
