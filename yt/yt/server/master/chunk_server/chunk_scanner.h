@@ -67,6 +67,8 @@ public:
     //! and added manually to global chunk scanner.
     int GetQueueSize() const;
 
+    NProfiling::TCpuInstant GetGlobalScanStartTime() const;
+
 protected:
     std::bitset<ChunkShardCount> ActiveShardIndices_;
     NProfiling::TCpuInstant GlobalScanStarted_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
@@ -165,7 +167,10 @@ public:
      *  The resulting timepoints of delay expiration are expected to be chronologically ordered.
      *  In case of timepoint collision, the FIFO order is preserved.
      */
-    bool EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay = {});
+    bool EnqueueChunk(
+        TQueuedChunk chunk,
+        std::optional<TCpuDuration> delay = {},
+        std::optional<NProfiling::TCpuInstant> originalInstant = {});
 
     //! Checks the queue and dequeues the next chunk. Ephemeral-unrefs it and clears the scan flag.
     TQueuedChunk DequeueChunk();
@@ -205,10 +210,20 @@ private:
     void RequeueDelayedChunks(NProfiling::TCpuInstant deadline);
 
 protected:
+    NProfiling::TCpuInstant LastDequeuedChunkEnqueueInstant_ = {};
+
     static constexpr TQueuedChunk None() noexcept;
     static constexpr TQueuedChunk WithoutPayload(TChunk* chunk) noexcept;
 
     static constexpr TChunk* GetChunk(const TQueuedChunk& chunk) noexcept;
+
+public:
+    //! Returns the enqueue instant of the last chunk successfully dequeued from the manual queue,
+    //! or zero if the last dequeue came from the global scan.
+    NProfiling::TCpuInstant GetLastDequeuedChunkEnqueueInstant() const
+    {
+        return LastDequeuedChunkEnqueueInstant_;
+    }
 };
 
 //! A helper for background global chunk scan.
@@ -244,7 +259,10 @@ public:
      *
      *  Otherwise calls #TChunkScanQueueWithPayload::EnqueueChunk.
      */
-    bool EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay = {});
+    bool EnqueueChunk(
+        TQueuedChunk chunk,
+        std::optional<TCpuDuration> delay = {},
+        std::optional<NProfiling::TCpuInstant> originalInstant = {});
 
     //! Tries to dequeue the next chunk.
     /*!

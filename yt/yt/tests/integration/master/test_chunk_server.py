@@ -2713,3 +2713,44 @@ class TestChunkServerCypressIntegration(YTEnvSetup):
         # Should not raise
         set(f"//sys/chunks/{chunk_id}/@a", "a")
         assert get(f"//sys/chunks/{chunk_id}/@a") == "a"
+
+
+##################################################################
+
+
+class TestChunkRefreshQueueWaitTime(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "chunk_refresh_period": 100,
+            "chunk_refresh_delay": 0,
+        }
+    }
+
+    def _get_master_profiler(self):
+        return profiler_factory().at_primary_master(ls("//sys/primary_masters")[0])
+
+    @authors("aleksandra-zh")
+    def test_refresh_queue_wait_time_counter(self):
+        profiler = self._get_master_profiler()
+        blob_counter = profiler.counter("chunk_server/blob_refresh_queue_wait_time")
+        journal_counter = profiler.counter("chunk_server/journal_refresh_queue_wait_time")
+
+        # Disable refresh so the chunk sits in the queue long enough for us to observe wait time.
+        set("//sys/@config/chunk_manager/enable_chunk_refresh", False)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        wait(lambda: get_singular_chunk_id("//tmp/t") is not None)
+
+        sleep(0.5)
+
+        set("//sys/@config/chunk_manager/enable_chunk_refresh", True)
+
+        # The blob counter must accumulate a nonzero wait time once the chunk is dequeued.
+        wait(lambda: blob_counter.get_delta() > 0)
+        # No journal chunks were written, so the journal counter must stay at zero.
+        assert journal_counter.get_delta() == 0

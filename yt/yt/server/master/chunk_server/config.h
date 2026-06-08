@@ -687,6 +687,10 @@ struct TDynamicChunkManagerConfig
     // Alert if the number of chunk refresh attempts reaches that number.
     int MaxUnsuccessfullRefreshAttempts;
 
+    //! Alert if a chunk has been waiting in the refresh queue for longer than this.
+    TDuration MaxChunkRefreshQueueWaitTime;
+    TDuration MaxGlobalChunkRefreshQueueWaitTime;
+
     //! Interval between consequent replicator state checks.
     TDuration ReplicatorEnabledCheckPeriod;
 

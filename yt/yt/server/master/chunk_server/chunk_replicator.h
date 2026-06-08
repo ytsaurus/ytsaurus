@@ -216,6 +216,9 @@ private:
     const std::unique_ptr<TChunkRefreshScanner> BlobRefreshScanner_;
     const std::unique_ptr<TChunkRefreshScanner> JournalRefreshScanner_;
 
+    NProfiling::TTimeCounter BlobRefreshQueueWaitTimeCounter_;
+    NProfiling::TTimeCounter JournalRefreshQueueWaitTimeCounter_;
+
     ISequoiaChunkRefresherPtr SequoiaChunkRefresher_;
 
     NConcurrency::TPeriodicExecutorPtr ScheduleChunkRequisitionUpdatesExecutor_;
