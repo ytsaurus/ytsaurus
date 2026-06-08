@@ -55,6 +55,10 @@ TTabletCellBundlePtr TTabletCellBundle::DeepCopy(bool copyCells, bool copyTablet
         auto newTable = table->Clone(bundle.Get(), copyTabletsAndStatistics);
         EmplaceOrCrash(bundle->Tables, id, newTable);
 
+        // NB: There may be multiple tables with the same path and different ids
+        // if the table was recreated.
+        bundle->TablesByPath.emplace(newTable->Path, newTable);
+
         if (copyTabletsAndStatistics) {
             for (const auto& tablet : table->Tablets) {
                 auto newTablet = tablet->Clone(newTable.Get());
