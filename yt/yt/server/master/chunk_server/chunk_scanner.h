@@ -166,6 +166,9 @@ public:
      *  If #delay is specified, the chunk appears in the queue after this delay.
      *  The resulting timepoints of delay expiration are expected to be chronologically ordered.
      *  In case of timepoint collision, the FIFO order is preserved.
+     *
+     *  If #originalInstant is specified, the chunk is considered to be queued for refresh during
+     *  #originalInstant time, otherwise the current time is used.
      */
     bool EnqueueChunk(
         TQueuedChunk chunk,
@@ -180,6 +183,10 @@ public:
         std::numeric_limits<NProfiling::TCpuInstant>::max()) const;
 
     int GetQueueSize() const;
+
+    //! Returns the enqueue instant of the last chunk successfully dequeued from the non-global queue,
+    //! or zero if the last dequeue came from the global scan.
+    std::optional<NProfiling::TCpuInstant> GetLastDequeuedChunkEnqueueInstant() const;
 
 private:
     struct TQueueEntryWithPayload
@@ -210,20 +217,12 @@ private:
     void RequeueDelayedChunks(NProfiling::TCpuInstant deadline);
 
 protected:
-    NProfiling::TCpuInstant LastDequeuedChunkEnqueueInstant_ = {};
+    std::optional<NProfiling::TCpuInstant> LastDequeuedChunkEnqueueInstant_ = std::nullopt;
 
     static constexpr TQueuedChunk None() noexcept;
     static constexpr TQueuedChunk WithoutPayload(TChunk* chunk) noexcept;
 
     static constexpr TChunk* GetChunk(const TQueuedChunk& chunk) noexcept;
-
-public:
-    //! Returns the enqueue instant of the last chunk successfully dequeued from the manual queue,
-    //! or zero if the last dequeue came from the global scan.
-    NProfiling::TCpuInstant GetLastDequeuedChunkEnqueueInstant() const
-    {
-        return LastDequeuedChunkEnqueueInstant_;
-    }
 };
 
 //! A helper for background global chunk scan.

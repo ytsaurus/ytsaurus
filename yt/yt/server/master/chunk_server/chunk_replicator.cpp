@@ -2995,7 +2995,7 @@ void TChunkReplicator::OnRefresh()
     {
         std::vector<TEphemeralObjectPtr<TChunk>> chunksToRefresh;
         THashMap<TChunkId, int> chunkIdToErrorCount;
-        THashMap<TChunkId, NProfiling::TCpuInstant> chunkIdToEnqueueInstant;
+        THashMap<TChunkId, std::optional<NProfiling::TCpuInstant>> chunkIdToEnqueueInstant;
         while (*totalCount < maxChunksPerRefresh && scanner->HasUnscannedChunk(deadline)) {
             ++(*totalCount);
             auto [chunk, errorCount] = scanner->DequeueChunk(deadline);
@@ -3011,7 +3011,7 @@ void TChunkReplicator::OnRefresh()
                 if (globalRefreshStartTime < now && CpuDurationToDuration(now - globalRefreshStartTime) < config->MaxGlobalChunkRefreshQueueWaitTime) {
                     allowedWaitTime += config->MaxGlobalChunkRefreshQueueWaitTime;
                 }
-                auto waitTime = CpuDurationToDuration(now - enqueueInstant);
+                auto waitTime = CpuDurationToDuration(now - *enqueueInstant);
                 refreshQueueWaitTimeCounter.Add(waitTime);
                 if (waitTime > allowedWaitTime) {
                     YT_LOG_ALERT(
@@ -3021,7 +3021,7 @@ void TChunkReplicator::OnRefresh()
                         waitTime,
                         allowedWaitTime);
                 } else {
-                    YT_LOG_DEBUG("Chunk has been dequeued from refresh queue (ChunkId: %v, WaitTime: %v, AllowedWaitTime: %v)",
+                    YT_LOG_TRACE("Chunk has been dequeued from refresh queue (ChunkId: %v, WaitTime: %v, AllowedWaitTime: %v)",
                     chunk->GetId(),
                     waitTime,
                     allowedWaitTime);
@@ -3040,7 +3040,8 @@ void TChunkReplicator::OnRefresh()
                 scanner->EnqueueChunk(
                     {chunk, errorCount},
                     delay,
-                    enqueueInstant ? std::make_optional(enqueueInstant) : std::nullopt);
+                    enqueueInstant);
+                continue;
             }
 
             chunksToRefresh.emplace_back(chunk);
@@ -3072,10 +3073,11 @@ void TChunkReplicator::OnRefresh()
                         replicasOrError);
                 }
                 auto it = chunkIdToEnqueueInstant.find(chunk->GetId());
+                // TODO(aleksandra-zh): GetOrCrash is valid here, but all maps will become one, so whatever.
                 scanner->EnqueueChunk(
                     {chunk.Get(), refreshErrorCount},
                     {},
-                    it != chunkIdToEnqueueInstant.end() ? std::make_optional(it->second) : std::nullopt);
+                    it != chunkIdToEnqueueInstant.end() ? it->second : std::nullopt);
                 ++(*replicasErrorCount);
                 continue;
             }
