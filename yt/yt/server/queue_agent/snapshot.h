@@ -123,6 +123,21 @@ DEFINE_REFCOUNTED_TYPE(TSubConsumerSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Snapshot of a multi consumer.
+struct TMultiConsumerSnapshot
+    : public TObjectSnapshotBase
+{
+    // This field is always set, we are using intrusive pointer to avoid copying the row.
+    TIntrusivePtr<NQueueClient::TConsumerTableRow> Row;
+    std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
+
+    THashSet<std::string> QueueConsumerNames;
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiConsumerSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Snapshot of a partition within consumer.
 struct TConsumerPartitionSnapshot
     : public TRefCounted

@@ -116,8 +116,8 @@ public:
                 QueueSnapshot_->BannedSince = QueueSnapshot_->PassInstant;
             }
 
-            QueueSnapshot_->Error = TError("Queue is banned by \"queue_agent_banned\" attribute (BannedSince: %v)",
-                QueueSnapshot_->BannedSince);
+            QueueSnapshot_->Error = TError("Queue is banned by \"queue_agent_banned\" attribute")
+                << TErrorAttribute("banned_since", QueueSnapshot_->BannedSince);
 
             return QueueSnapshot_;
         }
@@ -157,7 +157,7 @@ private:
         // TODO(achulkov2): Check schema for chaos_replicated_table object (we only check for a sync replica below)?
 
         QueueSnapshot_->Family = EQueueFamily::OrderedDynamicTable;
-        auto syncClientContext = ClientDirectory_->GetNativeSyncClient(QueueSnapshot_);
+        auto syncClientContext = ClientDirectory_->GetNativeSyncClient(QueueSnapshot_->Row, QueueSnapshot_->ReplicatedTableMappingRow);
         const auto& tableMountCache = syncClientContext.Client->GetTableMountCache();
         const auto& cellDirectory = syncClientContext.Client->GetNativeConnection()->GetCellDirectory();
 
@@ -281,7 +281,7 @@ private:
             }
         }
 
-        auto clientContext = ClientDirectory_->GetDataReadContext(QueueSnapshot_);
+        auto clientContext = ClientDirectory_->GetDataReadContext(QueueSnapshot_->Row, QueueSnapshot_->ReplicatedTableMappingRow);
 
         auto params = TCollectPartitionRowInfoParams{
             .HasCumulativeDataWeightColumn = true,

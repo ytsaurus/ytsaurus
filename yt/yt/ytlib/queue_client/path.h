@@ -42,6 +42,16 @@ public:
     static TGenericObjectReference FromRichYPath(const NYPath::TRichYPath& richYPath);
 };
 
+class TNamedConsumerReference
+    : public NYPath::TConstrainedRichYPath<
+        NYPath::TRequiredAttributesValidator<QueueConsumerNameAttributeKey, ClusterAttributeKey>,
+        NYPath::TWhitelistAttributesValidator<QueueConsumerNameAttributeKey, ClusterAttributeKey>>
+{
+public:
+    TNamedConsumerReference() = delete;
+    using TConstrainedRichYPath::TConstrainedRichYPath;
+};
+
 using TConsumerReference = TGenericObjectReference;
 
 std::weak_ordering operator<=>(const TTablePath& lhs, const TTablePath& rhs);
@@ -56,14 +66,19 @@ TCrossClusterReference ToCrossClusterReference(const TTablePath& path);
 TCrossClusterReference ToCrossClusterReference(const TGenericObjectReference& ref);
 
 //! Stable format for TTablePath.
-void FormatValue(TStringBuilderBase* builder, const NQueueClient::TTablePath& path, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TTablePath& path, TStringBuf spec);
 
 //! Stable format for TGenericObjectReference.
-void FormatValue(TStringBuilderBase* builder, const NQueueClient::TGenericObjectReference& ref, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TGenericObjectReference& ref, TStringBuf spec);
+
+//! Stable format for TNamedConsumerReference.
+void FormatValue(TStringBuilderBase* builder, const TNamedConsumerReference& ref, TStringBuf spec);
 
 void Serialize(const TTablePath& path, NYson::IYsonConsumer* consumer);
 
 void Serialize(const TGenericObjectReference& ref, NYson::IYsonConsumer* consumer);
+
+void Serialize(const TNamedConsumerReference& ref, NYson::IYsonConsumer* consumer);
 
 NYTree::IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster);
 

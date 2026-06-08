@@ -16,19 +16,18 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TObjectSnapshotPtr>
+template <class TRow>
 TQueueAgentClientDirectory::TClientContext TQueueAgentClientDirectory::GetDataReadContext(
-    const TObjectSnapshotPtr& snapshot,
+    const TRow& row,
+    const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     bool onlyDataReplicas)
 {
-    const auto& object = snapshot->Row.Path;
+    const auto& object = row.Path;
 
-    if (!snapshot->Row.ObjectType) {
+    if (!row.ObjectType) {
         THROW_ERROR_EXCEPTION("Cannot get client for object %Qv with unknown object type", object);
     }
-    auto objectType = *snapshot->Row.ObjectType;
-
-    const auto& replicatedTableMappingRow = snapshot->ReplicatedTableMappingRow;
+    auto objectType = *row.ObjectType;
 
     switch (objectType) {
         case NCypressClient::EObjectType::Table:
@@ -63,20 +62,19 @@ TQueueAgentClientDirectory::TClientContext TQueueAgentClientDirectory::GetDataRe
     }
 }
 
-template <class TObjectSnapshotPtr>
+template <class TRow>
 TQueueAgentClientDirectory::TNativeClientContext TQueueAgentClientDirectory::GetNativeSyncClient(
-    const TObjectSnapshotPtr& snapshot,
+    const TRow& row,
+    const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     bool onlyDataReplicas)
 {
-    const auto& object = snapshot->Row.Path;
+    const auto& object = row.Path;
 
-    if (!snapshot->Row.ObjectType) {
+    if (!row.ObjectType) {
         THROW_ERROR_EXCEPTION("Cannot get client for object %Qv with unknown object type",
             object);
     }
-    auto objectType = *snapshot->Row.ObjectType;
-
-    const auto& replicatedTableMappingRow = snapshot->ReplicatedTableMappingRow;
+    auto objectType = *row.ObjectType;
 
     switch (objectType) {
         case NCypressClient::EObjectType::Table:
