@@ -34,7 +34,7 @@ public:
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
         const std::string& preemptionDescription,
-        std::optional<TOperationId> preemptedForOperationId = {}) const;
+        TOperationId preemptedForOperationId = {}) const;
 
     void RemoveAssignment(const TAssignmentPtr& assignment, bool strict = true) const;
 
@@ -71,7 +71,7 @@ public:
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
         const std::string& preemptionDescription,
-        std::optional<TOperationId> preemptedForOperationId = {}) override;
+        TOperationId preemptedForOperationId = {}) override;
 
     TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const override;
     std::optional<TString> FindLimitViolatingParentId(const TPoolTreeElement* element) const;

@@ -80,7 +80,7 @@ struct IAssignmentPlanUpdateContext
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
         const std::string& preemptionDescription,
-        std::optional<TOperationId> preemptedForOperationId = {}) = 0;
+        TOperationId preemptedForOperationId = {}) = 0;
 
     virtual TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const = 0;
 };

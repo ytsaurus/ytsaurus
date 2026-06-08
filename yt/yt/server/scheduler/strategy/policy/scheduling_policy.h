@@ -171,7 +171,7 @@ ISchedulingPolicyPtr CreateSchedulingPolicy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(yaishenka): YT-27597 Implement this methods in GPU policy and refactor it.
+// TODO(yaishenka): YT-27597 Implement these methods in GPU policy and refactor it.
 struct TSchedulingPolicyStaticCaller
 {
     static TError CheckOperationIsStuck(
@@ -184,7 +184,7 @@ struct TSchedulingPolicyStaticCaller
     static void BuildOperationProgress(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const TPoolTreeOperationElement* element,
-        IStrategyHost* const strategyHost,
+        IStrategyHost* strategyHost,
         NYTree::TFluentMap fluent);
 
     static void BuildElementYson(
@@ -193,5 +193,7 @@ struct TSchedulingPolicyStaticCaller
         const TFieldFilter& filter,
         NYTree::TFluentMap fluent);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler::NStrategy::NPolicy

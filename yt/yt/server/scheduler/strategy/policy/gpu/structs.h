@@ -39,7 +39,7 @@ struct TAssignment final
     // Marks assignment with allocation waiting for revival.
     bool Reviving = false;
 
-    std::optional<TAllocationId> AllocationId;
+    TAllocationId AllocationId;
     std::optional<TInstant> PreemptibleProgressStartTime;
 
     TAssignment(
@@ -64,7 +64,7 @@ struct TPreemptionInfo
 {
     const EAllocationPreemptionReason Reason;
     const std::string Description;
-    const std::optional<TOperationId> PreemptedForOperationId;
+    const TOperationId PreemptedForOperationId;
 };
 
 void Serialize(const TPreemptionInfo& preemptionInfo, NYson::IYsonConsumer* consumer);
@@ -263,7 +263,7 @@ public:
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason reason,
         std::string description,
-        std::optional<TOperationId> preemptedForOperationId = {});
+        TOperationId preemptedForOperationId = {});
 
     void SetDescriptor(TExecNodeDescriptorPtr descriptor);
 

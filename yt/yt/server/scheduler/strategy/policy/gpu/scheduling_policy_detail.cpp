@@ -47,7 +47,7 @@ TAllocationInfoMap CollectRunningAllocationInfos(
 
     runningAllocationInfos.reserve(std::size(schedulingHeartbeatContext->RunningAllocations()));
 
-    for (auto allocation : schedulingHeartbeatContext->RunningAllocations()) {
+    for (const auto& allocation : schedulingHeartbeatContext->RunningAllocations()) {
         runningAllocationInfos.emplace(
             allocation->GetId(),
             TAllocationInfo{
@@ -798,7 +798,7 @@ void TSchedulingPolicy::PreemptAllOperationAssignments(
 void TSchedulingPolicy::RemoveAllOperationAssignments(const TOperationPtr& operation)
 {
     for (const auto& assignment : GetItems(operation->Assignments())) {
-        RemoveAssignment(assignment, true);
+        RemoveAssignment(assignment, /*strict*/ true);
     }
 }
 
@@ -1087,7 +1087,7 @@ void TSchedulingPolicy::ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatis
     ProfilingCounters_.FullHostModuleBoundOperations.Update(fullHostModuleBoundOperations);
 }
 
-TLogger TSchedulingPolicy::GetNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor)
+TLogger TSchedulingPolicy::MakeNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor)
 {
     YT_VERIFY(nodeDescriptor);
 
@@ -1108,8 +1108,7 @@ void TSchedulingPolicy::DoProcessSchedulingHeartbeat(
         .ValueOrThrow();
 
     const auto& nodeDescriptor = schedulingHeartbeatContext->GetNodeDescriptor();
-    const auto Logger = GetNodeLogger(nodeDescriptor);
-
+    const auto Logger = MakeNodeLogger(nodeDescriptor);
     auto node = GetOrDefault(Nodes_, nodeDescriptor->Id);
 
     if (!node) {
@@ -1137,7 +1136,7 @@ void TSchedulingPolicy::PreemptAllocations(
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    const auto Logger = GetNodeLogger(node->Descriptor());
+    const auto Logger = MakeNodeLogger(node->Descriptor());
 
     auto runningAllocationInfos = CollectRunningAllocationInfos(schedulingHeartbeatContext, treeSnapshot);
 
@@ -1202,7 +1201,7 @@ void TSchedulingPolicy::ScheduleAllocations(
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    const auto NodeLogger = GetNodeLogger(node->Descriptor());
+    const auto NodeLogger = MakeNodeLogger(node->Descriptor());
 
     auto nodeShardId = StrategyHost_->GetNodeShardId(node->GetId());
     const auto& nodeShardInvoker = StrategyHost_->GetNodeShardInvokers()[nodeShardId];
@@ -1237,8 +1236,8 @@ void TSchedulingPolicy::ScheduleAllocations(
         }
 
         if (!operation->Assignments().contains(assignment)) {
-            YT_LOG_WARNING("Assignment doesn't belong to operation anymore");
-            RemoveAssignment(assignment, true);
+            YT_LOG_WARNING("Assignment does not belong to operation anymore");
+            RemoveAssignment(assignment, /*strict*/ true);
             continue;
         }
 
@@ -1386,7 +1385,7 @@ bool TSchedulingPolicy::PreemptAllocation(
             preemptionReason = preemptionInfo->Reason;
             allocation->SetPreemptionReason(preemptionInfo->Description);
             if (preemptionInfo->PreemptedForOperationId) {
-                allocation->SetPreemptedFor(TPreemptedFor{.OperationId = *preemptionInfo->PreemptedForOperationId});
+                allocation->SetPreemptedFor(TPreemptedFor{.OperationId = preemptionInfo->PreemptedForOperationId});
             }
         }
 
@@ -1434,7 +1433,7 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    const auto NodeLogger = GetNodeLogger(node->Descriptor());
+    const auto NodeLogger = MakeNodeLogger(node->Descriptor());
     const auto Logger = NodeLogger.WithTag("OperationId: %v", operationElement->GetOperationId());
 
     auto nodeShardId = StrategyHost_->GetNodeShardId(node->GetId());
@@ -1451,7 +1450,6 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
         assignment->AllocationGroupName)
         .AsyncVia(nodeShardInvoker)
         .Run();
-
 
     auto scheduleAllocationResult = WaitFor(scheduleAllocationFuture)
         .ValueOrThrow();
@@ -1475,22 +1473,22 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
     // NB(yaishenka): After wait above node can be unregistered, operation can be disabled (and maybe enabled again)
     if (!node->Assignments().contains(assignment) || !operation->IsEnabled()) {
         YT_LOG_DEBUG(
-                "Aborting allocation with deleted assignment "
-                "(AllocationId: %v, AllocationResources: %v, NodeAssignedResources: %v, NodeResourceLimits: %v)",
-                allocationId,
-                FormatResources(scheduleAllocationResult->StartDescriptor->ResourceLimits.ToJobResources()),
-                FormatResources(node->AssignedResourceUsage()),
-                FormatResources(node->Descriptor()->ResourceLimits));
+            "Aborting allocation with deleted assignment "
+            "(AllocationId: %v, AllocationResources: %v, NodeAssignedResources: %v, NodeResourceLimits: %v)",
+            allocationId,
+            FormatResources(scheduleAllocationResult->StartDescriptor->ResourceLimits.ToJobResources()),
+            FormatResources(node->AssignedResourceUsage()),
+            FormatResources(node->Descriptor()->ResourceLimits));
 
-            operationElement->AbortAllocation(
-                allocationId,
-                EAbortReason::SchedulingResourceOvercommit,
-                scheduleAllocationResult->ControllerEpoch);
+        operationElement->AbortAllocation(
+            allocationId,
+            EAbortReason::SchedulingResourceOvercommit,
+            scheduleAllocationResult->ControllerEpoch);
 
-            scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
-            scheduleAllocationResult->RecordFail(NControllerAgent::EScheduleFailReason::NoCandidateTasks);
+        scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
+        scheduleAllocationResult->RecordFail(NControllerAgent::EScheduleFailReason::NoCandidateTasks);
 
-            return scheduleAllocationResult;
+        return scheduleAllocationResult;
     }
 
     auto delta = assignment->UpdateResourceUsage(scheduleAllocationResult->StartDescriptor->ResourceLimits);
@@ -1502,7 +1500,7 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
         case EResourceTreeIncreaseResult::Success:
             break;
         case EResourceTreeIncreaseResult::AdditionalResourceLimitExceeded:
-            // NB(yaishenka): we don't provide additional resource limits, so we don't expect this value
+            // NB(yaishenka): We do not provide additional resource limits, so we do not expect this value.
             YT_ABORT();
         case EResourceTreeIncreaseResult::ResourceLimitExceeded: {
             YT_LOG_DEBUG(

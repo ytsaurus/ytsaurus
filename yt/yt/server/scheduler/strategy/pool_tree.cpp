@@ -252,6 +252,7 @@ auto GetSchedulingPolicyBuilder(const TStrategyTreeConfigPtr& config)
         case EPolicyKind::Gpu:
             return NPolicy::NGpu::CreateAllocatingSchedulingPolicy;
     }
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2780,12 +2781,12 @@ private:
 
             if (updateResult.NeedToAbort) {
                 YT_LOG_DEBUG(
-                    "Abort allocation update since operation is disabled or missing in snapshot "
-                    "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, NeedToAbort: %v)",
+                    "Aborting allocation update "
+                    "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, AbortReason: %v)",
                     allocationUpdate.OperationId,
                     allocationUpdate.AllocationId,
                     updateResult.Status,
-                    updateResult.NeedToAbort);
+                    updateResult.AbortReason);
                 YT_VERIFY(updateResult.AbortReason.has_value());
                 EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *updateResult.AbortReason);
             }
