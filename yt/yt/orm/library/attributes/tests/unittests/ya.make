@@ -19,6 +19,8 @@ PEERDIR(
 
     yt/yt/orm/library/attributes
 
+    yt/yt/client
+
     yt/yt/core/test_framework
 )
 
