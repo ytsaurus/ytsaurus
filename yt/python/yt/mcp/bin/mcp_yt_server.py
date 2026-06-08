@@ -1,12 +1,5 @@
 from yt.mcp.lib.tool_runner_mcp import YTToolRunnerMCP
-
-from yt.mcp.lib.tools.list_dir import ListDir, Search
-from yt.mcp.lib.tools.get_attributes import GetAttributes
-from yt.mcp.lib.tools.check_is_paths_exists import CheckIsPathsExists
-from yt.mcp.lib.tools.admin import GetProxy
-from yt.mcp.lib.tools.account import CheckPermissions, AccountProperty
-from yt.mcp.lib.tools.common_client import CommonCypress
-from yt.mcp.lib.tools.table import ReadStaticTable
+from yt.mcp.lib.server import get_tools_groups
 
 import argparse
 import itertools
@@ -47,30 +40,7 @@ def main():
         token_file=app_args.yt_token_file,
     )
 
-    tools_groups = {
-        "common": [
-            # list_dir
-            ListDir(),
-            Search(),
-            # get_attributes
-            GetAttributes(),
-            # check_is_paths_exists
-            CheckIsPathsExists(),
-            # common_client
-            CommonCypress(),
-            # table
-            ReadStaticTable(),
-        ],
-        "account": [
-            # account
-            CheckPermissions(),
-            AccountProperty(),
-        ],
-        "admin": [
-            # admin
-            GetProxy(),
-        ],
-    }
+    tools_groups = get_tools_groups()
 
     tools = []
     for group in [app_args.tools_common, app_args.tools_account, app_args.tools_admin]:
