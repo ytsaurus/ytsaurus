@@ -223,7 +223,7 @@ void TOperation::RemoveAssignment(const TAssignmentPtr& assignment)
     AssignedResourceUsage_ -= assignment->ResourceUsage;
 
     if (assignment->AllocationId) {
-        EraseOrCrash(AllocationIdToAssignment_, *assignment->AllocationId);
+        EraseOrCrash(AllocationIdToAssignment_, assignment->AllocationId);
     } else {
         auto it = GetIteratorOrCrash(EmptyAssignmentCountPerGroup_, assignment->AllocationGroupName);
         YT_VERIFY(it->second > 0);
@@ -298,7 +298,7 @@ void TOperation::AddRevivedAllocation(
 {
     YT_VERIFY(Assignments_.contains(assignment));
     YT_VERIFY(assignment->AllocationId == allocation->GetId());
-    YT_VERIFY(GetOrCrash(AllocationIdToAssignment_, *assignment->AllocationId) == assignment);
+    YT_VERIFY(GetOrCrash(AllocationIdToAssignment_, assignment->AllocationId) == assignment);
     EmplaceOrCrash(AllocationIdToAllocationState_, allocation->GetId(), allocation);
 }
 
@@ -429,7 +429,7 @@ void TNode::RemoveAssignment(const TAssignmentPtr& assignment)
     AssignedResourceUsage_ -= assignment->ResourceUsage;
 
     if (assignment->AllocationId) {
-        EraseOrCrash(AllocationIdToAssignment_, *assignment->AllocationId);
+        EraseOrCrash(AllocationIdToAssignment_, assignment->AllocationId);
     }
 }
 
@@ -437,19 +437,19 @@ void TNode::PreemptAssignment(
     const TAssignmentPtr& assignment,
     EAllocationPreemptionReason reason,
     std::string description,
-    std::optional<TOperationId> preemptedForOperationId)
+    TOperationId preemptedForOperationId)
 {
     if (assignment->AllocationId) {
         const auto& allocation = GetOrCrash(
             assignment->Operation->AllocationIdToAllocationState(),
-            *assignment->AllocationId);
+            assignment->AllocationId);
         allocation->PreemptionInfo().emplace(TPreemptionInfo{
             .Reason = reason,
             .Description = std::move(description),
             .PreemptedForOperationId = preemptedForOperationId,
         });
 
-        InsertOrCrash(AllocationsToPreempt_, *assignment->AllocationId);
+        InsertOrCrash(AllocationsToPreempt_, assignment->AllocationId);
     }
 
     RemoveAssignment(assignment);

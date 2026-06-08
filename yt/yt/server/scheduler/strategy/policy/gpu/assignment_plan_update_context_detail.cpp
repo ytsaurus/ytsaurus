@@ -51,7 +51,7 @@ void TAssignmentHandler::PreemptAssignment(
     const TAssignmentPtr& assignment,
     EAllocationPreemptionReason preemptionReason,
     const std::string& preemptionDescription,
-    std::optional<TOperationId> preemptedForOperationId) const
+    TOperationId preemptedForOperationId) const
 {
     assignment->Node->PreemptAssignment(
         assignment,
@@ -163,7 +163,7 @@ void TAssignmentPlanUpdateContext::PreemptAssignment(
     const TAssignmentPtr& assignment,
     EAllocationPreemptionReason preemptionReason,
     const std::string& preemptionDescription,
-    std::optional<TOperationId> preemptedForOperationId)
+    TOperationId preemptedForOperationId)
 {
     IncreaseOperationUsage(assignment->Operation, -assignment->ResourceUsage);
     AssignmentHandler_.PreemptAssignment(
@@ -412,7 +412,7 @@ void TAssignmentPlanUpdateContext::UpdatePreemptionStatus(const TOperationPtr& o
             [] (const auto& lhs, const auto& rhs) {
                 // Empty allocations go last.
                 if (!lhs->AllocationId || !rhs->AllocationId) {
-                    return lhs->AllocationId.has_value();
+                    return static_cast<bool>(lhs->AllocationId);
                 }
                 if (!lhs->PreemptibleProgressStartTime || !rhs->PreemptibleProgressStartTime) {
                     return lhs->PreemptibleProgressStartTime.has_value();

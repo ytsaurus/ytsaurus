@@ -30,7 +30,7 @@ from yt_gpu_scheduler_helpers import (
     get_operation_from_gpu_policy_orchid, get_node_from_gpu_policy_orchid, get_operation_gpu_assignments_from_gpu_policy_orchid,
     wait_for_operations_in_gpu_policy_orchid, wait_for_assignments_in_gpu_policy_orchid, check_assignment_from_gpu_policy_orchid, check_operation_from_gpu_policy_orchid,
     check_gpu_allocations_from_gpu_policy_orchid, wait_for_gpu_allocations_empty_in_gpu_policy_orchid,
-    wait_for_allocation_preempted, wait_for_gpu_event, read_gpu_events,
+    wait_for_allocation_preempted, wait_for_gpu_event, read_gpu_events, is_default_guid,
 )
 
 
@@ -1050,7 +1050,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
         # would not match the assignment's allocation_group_name.
         allocation_id_to_group_name = {}
         for assignment in operation["assignments"]:
-            assert assignment["allocation_id"] != yson.YsonEntity()
+            assert not is_default_guid(assignment["allocation_id"])
             allocation_id_to_group_name[assignment["allocation_id"]] = assignment["allocation_group_name"]
 
         running_by_task = {"task_small": 0, "task_big": 0}
@@ -1395,7 +1395,7 @@ class TestAllocatingGpuSchedulingPolicyPreemption(AllocatingGpuSchedulingPolicyB
         wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
 
         assignment = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
-        assert assignment.get("allocation_id", yson.YsonEntity()) == yson.YsonEntity(), \
+        assert is_default_guid(assignment.get("allocation_id")), \
             "assignment should still be preliminary at this point"
 
         op.abort()

@@ -4,8 +4,6 @@ import time
 
 import pytest
 
-import yt.yson as yson
-
 from yt.test_helpers import are_almost_equal
 
 from yt_env_setup import (
@@ -34,6 +32,7 @@ from yt_helpers import (
 from yt_gpu_scheduler_helpers import (
     get_operation_from_gpu_policy_orchid, get_node_from_gpu_policy_orchid, get_operation_gpu_assignments_from_gpu_policy_orchid,
     wait_for_operations_in_gpu_policy_orchid, wait_for_assignments_in_gpu_policy_orchid, check_assignment_from_gpu_policy_orchid, check_operation_from_gpu_policy_orchid,
+    is_default_guid,
 )
 
 
@@ -1750,7 +1749,7 @@ class TestDryRunGpuSchedulingPolicyMultiModule(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait_for_assignments_in_gpu_policy_orchid(pending_op, assignment_count=1)
-        wait(lambda: get_operation_from_gpu_policy_orchid(pending_op)["assignments"][0]["allocation_id"] == yson.YsonEntity())
+        wait(lambda: is_default_guid(get_operation_from_gpu_policy_orchid(pending_op)["assignments"][0]["allocation_id"]))
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             wait(lambda: not get_operation_from_gpu_policy_orchid(pending_op)["enabled"])

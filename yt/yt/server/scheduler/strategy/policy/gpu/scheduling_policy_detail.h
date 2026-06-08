@@ -233,7 +233,7 @@ private:
 
     void ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatisticsPtr& statistics);
 
-    TLogger GetNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor);
+    TLogger MakeNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor);
 
     void DoProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,

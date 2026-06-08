@@ -37,7 +37,6 @@ ISchedulingPolicyPtr CreateSchedulingPolicy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TError TSchedulingPolicyStaticCaller::CheckOperationIsStuck(
     const TPoolTreeSnapshotPtr& treeSnapshot,
     const TPoolTreeOperationElement* element,
@@ -46,7 +45,7 @@ TError TSchedulingPolicyStaticCaller::CheckOperationIsStuck(
     const TOperationStuckCheckOptionsPtr& options)
 {
     const auto& state = treeSnapshot->SchedulingPolicyState();
-    YT_ASSERT(state);
+    YT_VERIFY(state);
 
     if (state->PolicyKind == EPolicyKind::Gpu) {
         return {};
@@ -63,11 +62,11 @@ TError TSchedulingPolicyStaticCaller::CheckOperationIsStuck(
 void TSchedulingPolicyStaticCaller::BuildOperationProgress(
     const TPoolTreeSnapshotPtr& treeSnapshot,
     const TPoolTreeOperationElement* element,
-    IStrategyHost* const strategyHost,
+    IStrategyHost* strategyHost,
     NYTree::TFluentMap fluent)
 {
     const auto& state = treeSnapshot->SchedulingPolicyState();
-    YT_ASSERT(state);
+    YT_VERIFY(state);
 
     if (state->PolicyKind == EPolicyKind::Gpu) {
         return;
@@ -87,7 +86,7 @@ void TSchedulingPolicyStaticCaller::BuildElementYson(
     NYTree::TFluentMap fluent)
 {
     const auto& state = treeSnapshot->SchedulingPolicyState();
-    YT_ASSERT(state);
+    YT_VERIFY(state);
 
     if (state->PolicyKind == EPolicyKind::Gpu) {
         return;
