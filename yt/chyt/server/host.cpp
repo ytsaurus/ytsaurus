@@ -788,11 +788,10 @@ private:
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
 
-        ChannelFactory_ = CreateCachingChannelFactory(CreateTcpBusChannelFactory(ConnectionConfig_->Dynamic->BusClient));
-
         Connection_ = NApi::NNative::CreateConnection(
             ConnectionConfig_,
             connectionOptions);
+        ChannelFactory_ = Connection_->GetChannelFactory();
 
         // Kick-start node directory synchronizing; otherwise it will start only with first query.
         Connection_->GetNodeDirectorySynchronizer()->Start();
