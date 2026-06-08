@@ -106,7 +106,7 @@ func isProxyBannedError(err error) bool {
 
 func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
 	var cancel func()
-	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 {
+	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 && !call.Params.HTTPVerb().IsHeavy() {
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
@@ -144,7 +144,7 @@ func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker)
 
 func (r *Retrier) InterceptInTx(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
 	var cancel func()
-	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 {
+	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 && !call.Params.HTTPVerb().IsHeavy() {
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
