@@ -671,9 +671,19 @@ public:
         return DataSize_;
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
         return static_cast<i64>(Queue_->GetChangelog()->GetWriteAmplificationRatio() * payloadSize);
+    }
+
+    i64 EstimateReadSize(
+        int /*firstRecordId*/,
+        int /*maxRecords*/,
+        i64 maxBytes) const override
+    {
+        // TODO(babenko): Provide a more precise estimate based on the requested record range.
+        // For now use the total changelog size as the read guess.
+        return std::min(maxBytes, GetDataSize());
     }
 
     const TChangelogMeta& GetMeta() const override
