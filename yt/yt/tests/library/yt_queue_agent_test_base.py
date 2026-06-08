@@ -336,6 +336,14 @@ class ConsumerOrchid(ObjectOrchid):
         return status["queues"][queue_ref], partitions[queue_ref]
 
 
+class MultiConsumerOrchid(ObjectOrchid):
+    OBJECT_TYPE = "multi_consumer"
+
+    def get_queue_consumer_names(self) -> list[str]:
+        result = self.get_status()
+        return result["queue_consumer_names"]
+
+
 class QueueAgentOrchid(OrchidWithRegularPasses):
     ENTITY_NAME = "queue_agent"
 
@@ -404,6 +412,9 @@ class QueueAgentOrchid(OrchidWithRegularPasses):
 
     def get_owned_consumer_orchids(self):
         return [self.get_consumer_orchid(consumer) for consumer in self.list_consumers()]
+
+    def get_multi_consumer_orchid(self, consumer_ref: str | GenericObjectPath):
+        return MultiConsumerOrchid(str(consumer_ref), self.agent_id)
 
     def get_controller_info(self):
         return get(f"{self.orchid_path()}/controller_info")

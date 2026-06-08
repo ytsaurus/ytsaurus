@@ -9,6 +9,8 @@ SRCS(
     cypress_synchronizer.cpp
     dynamic_config_manager.cpp
     helpers.cpp
+    multi_consumer_controller.cpp
+    multi_consumer_profile_manager.cpp
     object.cpp
     pass_profiler.cpp
     performance_counters.cpp

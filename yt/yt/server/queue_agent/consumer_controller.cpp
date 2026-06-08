@@ -66,23 +66,22 @@ public:
         const IObjectStore* store,
         std::vector<bool> isVerboseLoggingQueue,
         TInstant passInstant)
-        : Row_(std::move(row))
-        , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
-        , PreviousConsumerSnapshot_(std::move(previousConsumerSnapshot))
+        : PreviousConsumerSnapshot_(std::move(previousConsumerSnapshot))
         , Registrations_(std::move(registrations))
         , Logger(logger)
         , ClientDirectory_(std::move(clientDirectory))
         , Store_(store)
         , IsVerboseLoggingQueue_(std::move(isVerboseLoggingQueue))
         , PassInstant_(passInstant)
-        , ConsumerSnapshot_(New<TConsumerSnapshot>(Row_))
-    { }
+        , ConsumerSnapshot_(New<TConsumerSnapshot>(std::move(row)))
+    {
+        ConsumerSnapshot_->ReplicatedTableMappingRow = std::move(replicatedTableMappingRow);
+    }
 
     TConsumerSnapshotPtr Build()
     {
         ConsumerSnapshot_->PassIndex = PreviousConsumerSnapshot_->PassIndex + 1;
         ConsumerSnapshot_->PassInstant = PassInstant_;
-        ConsumerSnapshot_->ReplicatedTableMappingRow = ReplicatedTableMappingRow_;
 
         if (ConsumerSnapshot_->Row.QueueAgentBanned.value_or(false)) {
             ConsumerSnapshot_->Banned = true;
@@ -95,8 +94,8 @@ public:
                 ConsumerSnapshot_->BannedSince = ConsumerSnapshot_->PassInstant;
             }
 
-            ConsumerSnapshot_->Error = TError("Consumer is banned by \"queue_agent_banned\" attribute (BannedSince: %v)",
-                ConsumerSnapshot_->BannedSince);
+            ConsumerSnapshot_->Error = TError("Consumer is banned by \"queue_agent_banned\" attribute")
+                << TErrorAttribute("banned_since", ConsumerSnapshot_->BannedSince);
 
             return ConsumerSnapshot_;
         }
@@ -104,17 +103,14 @@ public:
         try {
             GuardedBuild();
         } catch (const std::exception& ex) {
-            auto error = TError(ex);
-            YT_LOG_DEBUG(error, "Error building consumer snapshot");
-            ConsumerSnapshot_->Error = std::move(error);
+            ConsumerSnapshot_->Error = ex;
+            YT_LOG_DEBUG(ConsumerSnapshot_->Error, "Error building consumer snapshot");
         }
 
         return ConsumerSnapshot_;
     }
 
 private:
-    const TConsumerTableRow Row_;
-    const std::optional<TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
     const TConsumerSnapshotPtr PreviousConsumerSnapshot_;
     const std::vector<TConsumerRegistrationTableRow> Registrations_;
     const TLogger Logger;
@@ -123,42 +119,16 @@ private:
     const std::vector<bool> IsVerboseLoggingQueue_;
     const TInstant PassInstant_;
 
-    IClientPtr Client_;
-    IConsumerClientPtr ConsumerClient_;
-
     TConsumerSnapshotPtr ConsumerSnapshot_;
 
     void GuardedBuild()
     {
         YT_LOG_DEBUG("Building consumer snapshot (PassIndex: %v)", ConsumerSnapshot_->PassIndex);
 
-        if (Row_.SynchronizationError && !Row_.SynchronizationError->IsOK()) {
-            THROW_ERROR TError("Consumer synchronization failed")
-                << *Row_.SynchronizationError;
-        }
+        ValidateConsumer(ConsumerSnapshot_->Row, ConsumerSnapshot_->ReplicatedTableMappingRow);
 
-        if (!Row_.RowRevision) {
-            THROW_ERROR_EXCEPTION("Consumer is not in-sync yet");
-        }
-        if (!Row_.ObjectType) {
-            THROW_ERROR_EXCEPTION("Consumer object type is not known yet");
-        }
-        if (!Row_.Schema) {
-            THROW_ERROR_EXCEPTION("Consumer schema is not known yet");
-        }
-
-        if (IsReplicatedTableObjectType(Row_.ObjectType) && !ReplicatedTableMappingRow_) {
-            THROW_ERROR_EXCEPTION("No replicated table mapping row is known for replicated consumer");
-        }
-        if (ReplicatedTableMappingRow_) {
-            ReplicatedTableMappingRow_->Validate();
-        }
-
-        auto consumerPath = ConsumerSnapshot_->Row.Path;
-
-        auto clientContext = ClientDirectory_->GetDataReadContext(ConsumerSnapshot_, /*onlyDataReplicas*/ true);
-        Client_ = clientContext.Client;
-        ConsumerClient_ = CreateConsumerClient(Client_, clientContext.Path, *ConsumerSnapshot_->Row.Schema);
+        auto clientContext = ClientDirectory_->GetDataReadContext(ConsumerSnapshot_->Row, ConsumerSnapshot_->ReplicatedTableMappingRow, /*onlyDataReplicas*/ true);
+        auto consumerClient = CreateConsumerClient(clientContext.Client, clientContext.Path, *ConsumerSnapshot_->Row.Schema);
 
         std::vector<TTablePath> queuePaths;
         std::vector<TFuture<TSubConsumerSnapshotPtr>> subSnapshotFutures;
@@ -175,6 +145,7 @@ private:
             subSnapshotFutures.push_back(BIND(
                 &TConsumerSnapshotBuildSession::BuildSubConsumerSnapshot,
                 MakeStrong(this),
+                consumerClient,
                 queuePath,
                 Passed(std::move(queueSnapshot)),
                 IsVerboseLoggingQueue_[registrationIndex])
@@ -204,6 +175,7 @@ private:
     }
 
     TSubConsumerSnapshotPtr BuildSubConsumerSnapshot(
+        IConsumerClientPtr consumerClient,
         TTablePath queuePath,
         TQueueSnapshotConstPtr queueSnapshot,
         bool enableVerboseLogging)
@@ -245,7 +217,7 @@ private:
         }
 
         {
-            auto subConsumerClient = ConsumerClient_->GetSubConsumerClient(/*queueClient*/ nullptr, ToCrossClusterReference(queuePath));
+            auto subConsumerClient = consumerClient->GetSubConsumerClient(/*queueClient*/ nullptr, ToCrossClusterReference(queuePath));
 
             auto consumerPartitionInfos = WaitFor(subConsumerClient->CollectPartitions(partitionCount, /*withLastConsumeTime*/ true))
                 .ValueOrThrow();
@@ -388,7 +360,7 @@ private:
         // TODO(nadya73): Use CollectPartitionRowInfos.
         YT_LOG_DEBUG("Collecting consumer timestamps");
 
-        auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot);
+        auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot->Row, queueSnapshot->ReplicatedTableMappingRow);
 
         TStringBuilder queryBuilder;
         queryBuilder.AppendFormat("[$tablet_index], [$timestamp] from [%v] where ([$tablet_index], [$row_index]) in (",
@@ -458,7 +430,7 @@ private:
             }
         }
 
-        auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot);
+        auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot->Row, queueSnapshot->ReplicatedTableMappingRow);
 
         auto params = TCollectPartitionRowInfoParams{
             .HasCumulativeDataWeightColumn = true,
@@ -719,7 +691,6 @@ bool UpdateConsumerController(
     const TConsumerTableRow& row,
     const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
-    const IQueueExportManagerPtr& /*queueExportManager*/,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,
     const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker)

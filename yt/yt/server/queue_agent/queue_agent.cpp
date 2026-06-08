@@ -3,6 +3,7 @@
 #include "config.h"
 #include "consumer_controller.h"
 #include "helpers.h"
+#include "multi_consumer_controller.h"
 #include "object.h"
 #include "pass_profiler.h"
 #include "queue_controller.h"
@@ -30,6 +31,7 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/range_helpers.h>
 
 #include <yt/yt/core/ypath/token.h>
 
@@ -60,21 +62,96 @@ using namespace NLogging;
 
 namespace {
 
-std::optional<TReplicatedTableMappingTableRow> GetReplicatedTableMappingRow(const THashMap<TTablePath, TReplicatedTableMappingTableRow>& replicatedTableMapping, const TTablePath& ref)
+std::optional<TReplicatedTableMappingTableRow> GetReplicatedTableMappingRow(const THashMap<TTablePath, TReplicatedTableMappingTableRow>& replicatedTableMapping, const TTablePath& path)
 {
-    if (auto* rowPtr = replicatedTableMapping.FindPtr(ref)) {
+    if (auto* rowPtr = replicatedTableMapping.FindPtr(path)) {
         return *rowPtr;
     }
     return {};
+}
+
+std::optional<TReplicatedTableMappingTableRow> GetReplicatedTableMappingRow(const THashMap<TTablePath, TReplicatedTableMappingTableRow>& replicatedTableMapping, const TGenericObjectReference& ref)
+{
+    return GetReplicatedTableMappingRow(replicatedTableMapping, ToTablePath(ref));
+}
+
+template <typename T>
+auto GetPathOrReference(const T& object)
+{
+    if constexpr (requires { object.Path; }) {
+        return object.Path;
+    } else {
+        return object->Path;
+    }
+}
+
+template <typename T>
+auto GetQueueAgentStage(const T& object)
+{
+    if constexpr (requires { object.QueueAgentStage; }) {
+        return object.QueueAgentStage;
+    } else {
+        return object->QueueAgentStage;
+    }
+}
+
+template <typename T>
+auto GetObjectType(const T& object)
+{
+    if constexpr (requires { object.ObjectType; }) {
+        return object.ObjectType;
+    } else {
+        return object->ObjectType;
+    }
 }
 
 template <typename TPath, typename T>
 THashMap<TPath, T> GetHashTable(const std::vector<T>& rowList) {
     THashMap<TPath, T> result;
     for (const auto& row : rowList) {
-        result.emplace(row.Path, row);
+        result.emplace(GetPathOrReference(row), row);
     }
     return result;
+}
+
+TString GetLeadingStatus(const IObjectControllerPtr& controller)
+{
+    return controller->IsLeading() ? "leader" : "follower";
+}
+
+template <typename T>
+auto GetHashTable(const std::vector<T>& rowList)
+{
+    using TPath = decltype(T::Path);
+    return rowList
+        | std::views::transform([] (const T& row) {
+            return std::make_pair(row.Path, row);
+        })
+        | RangeTo<THashMap<TPath, T>>();
+}
+
+template <typename T>
+auto GetObjectsWithStage(const std::vector<T>& rowList, const std::string& stage)
+{
+    return rowList
+        | std::views::filter([&stage] (const T& row) {
+            return GetQueueAgentStage(row) == stage;
+        })
+        | std::views::transform([] (const auto& row) {
+            return TGenericObjectReference(GetPathOrReference(row));
+        })
+        | RangeTo<THashSet<TGenericObjectReference>>();
+}
+
+//! Checks that the given object is known to the QA and skips objects which are led by this QA.
+template <typename TPath, typename TRow>
+void AddFollowedObject(const TPath& path, const THashMap<TPath, TRow>& allObjects, const THashMap<TPath, TRow>& ledObjects, THashMap<TPath, TRow>& followedObjects)
+{
+    auto allObjectsIt = allObjects.find(path);
+    auto ledObjectsIt = ledObjects.find(path);
+    if (allObjectsIt != allObjects.end() && ledObjectsIt == ledObjects.end()) {
+        followedObjects.emplace(path, allObjectsIt->second);
+    }
 }
 
 } // namespace
@@ -219,10 +296,13 @@ private:
 TTaggedProfilingCounters::TTaggedProfilingCounters(TProfiler profiler)
     : Queues(profiler.Gauge("/queues"))
     , Consumers(profiler.Gauge("/consumers"))
+    , MultiConsumers(profiler.Gauge("/multi_consumers"))
+    , MultiConsumerNames(profiler.Gauge("/multi_consumer_names"))
     , Partitions(profiler.Gauge("/partitions"))
     , TrimmedQueues(profiler.Gauge("/trimmed_queues"))
     , ErroneousQueues(profiler.Gauge("/erroneous_queues"))
     , ErroneousConsumers(profiler.Gauge("/erroneous_consumers"))
+    , ErroneousMultiConsumers(profiler.Gauge("/erroneous_multi_consumers"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -382,7 +462,7 @@ private:
         fluent
             .Item("inactive_objects")
             .BeginMap()
-                .DoFor(TEnumTraits<EObjectKind>::GetDomainValues(), [&] (TFluentMap fluent, const auto& objectKind) {
+                .DoFor(TEnumTraits<EObjectKind>::GetDomainValues(), [&] (TFluentMap fluent, auto objectKind) {
                     fluent
                         .Item(Format("leading_%v", EnumValueToPluralForm(objectKind, /*lowercase*/ true))).Do(std::bind(serializePassesVector, std::placeholders::_1, leadingControllerPasses[objectKind]))
                         .Item(Format("following_%v", EnumValueToPluralForm(objectKind, /*lowercase*/ true))).Do(std::bind(serializePassesVector, std::placeholders::_1, followingControllerPasses[objectKind]));
@@ -390,7 +470,7 @@ private:
             .EndMap()
             .Item("erroneous_objects")
             .BeginMap()
-                .DoFor(TEnumTraits<EObjectKind>::GetDomainValues(), [&] (TFluentMap fluent, const auto& objectKind) {
+                .DoFor(TEnumTraits<EObjectKind>::GetDomainValues(), [&] (TFluentMap fluent, auto objectKind) {
                     fluent
                         .Item(Format("%lv_count", objectKind)).Value(errorCounts[objectKind]);
                 })
@@ -428,7 +508,7 @@ TQueueAgent::TQueueAgent(
     , QueueExportManager_(CreateQueueExportManager(
         DynamicConfig_->QueueExportManager))
 {
-    for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
+    for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
         ObjectServiceNodes_[objectKind] = CreateVirtualNode(
             New<TObjectMapBoundService>(
                 this,
@@ -470,8 +550,10 @@ IMapNodePtr TQueueAgent::GetOrchidNode() const
     node->AddChild("pass_error", virtualScalarNode([&] { return PassError_; }));
     node->AddChild("queues", ObjectServiceNodes_[EObjectKind::Queue]);
     node->AddChild("consumers", ObjectServiceNodes_[EObjectKind::Consumer]);
+    node->AddChild("multi_consumers", ObjectServiceNodes_[EObjectKind::MultiConsumer]);
     node->AddChild("owned_queues", OwnedObjectServiceNodes_[EObjectKind::Queue]);
     node->AddChild("owned_consumers", OwnedObjectServiceNodes_[EObjectKind::Consumer]);
+    node->AddChild("owned_multi_consumers", OwnedObjectServiceNodes_[EObjectKind::MultiConsumer]);
     node->AddChild("controller_info", GetControllerInfoNode());
 
     return node;
@@ -501,7 +583,7 @@ void TQueueAgent::OnDynamicConfigChanged(
     {
         auto guard = ReaderGuard(ObjectLock_);
 
-        for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             for (const auto& [_, object] : Objects_[objectKind]) {
                 object.Controller->OnDynamicConfigChanged(oldConfig->Controller, newConfig->Controller);
             }
@@ -555,6 +637,7 @@ std::vector<TConsumerRegistrationTableRow> TQueueAgent::GetRegistrations(
     EObjectKind objectKind) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_VERIFY(objectKind == EObjectKind::Queue || objectKind == EObjectKind::Consumer, Format("Invalid object kind for registrations request: %v", objectKind));
 
     auto guard = ReaderGuard(ObjectLock_);
 
@@ -619,7 +702,19 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
         THROW_ERROR_EXCEPTION("Error while reading dynamic state") << error;
     }
     auto queueRows = asyncQueueRows.AsUnique().GetOrCrash().Value();
-    auto consumerRows = asyncConsumerRows.AsUnique().GetOrCrash().Value();
+    std::vector<TConsumerTableRow> consumerRows;
+    std::vector<TIntrusivePtr<TConsumerTableRow>> multiConsumerRows;
+    {
+        auto consumerTableRows = asyncConsumerRows.AsUnique().GetOrCrash().Value();
+        for (auto& row : consumerTableRows) {
+            if (row.IsMultiConsumerRow()) {
+                multiConsumerRows.push_back(New<TConsumerTableRow>(std::move(row)));
+            } else {
+                consumerRows.push_back(std::move(row));
+            }
+        }
+    }
+
     const auto& registrationRows = asyncRegistrationRows.GetOrCrash().Value();
     const auto& objectMappingRows = asyncObjectMappingRows.GetOrCrash().Value();
 
@@ -644,19 +739,9 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
     auto allQueues = GetHashTable<TTablePath>(queueRows);
     auto allConsumers = GetHashTable<TConsumerReference>(consumerRows);
 
-    auto getObjectsWithOurStage = [&, this] <class T>(const std::vector<T>& rowList) {
-        THashSet<TGenericObjectReference> result;
-        for (const auto& row : rowList) {
-            if (!row.QueueAgentStage || *row.QueueAgentStage != Config_->Stage) {
-                continue;
-            }
-            result.emplace(row.Path);
-        }
-        return result;
-    };
-
-    auto queuesWithOurStage = getObjectsWithOurStage(queueRows);
-    auto consumersWithOurStage = getObjectsWithOurStage(consumerRows);
+    auto queuesWithOurStage = GetObjectsWithStage(queueRows, Config_->Stage);
+    auto consumersWithOurStage = GetObjectsWithStage(consumerRows, Config_->Stage);
+    auto multiConsumersWithOurStage = GetObjectsWithStage(multiConsumerRows, Config_->Stage);
 
     // Fresh queue/consumer -> responsible queue agent mapping.
     auto objectMapping = TQueueAgentObjectMappingTable::ToMapping(objectMappingRows);
@@ -668,22 +753,20 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
 
     int skippedReplicatedTableObjects = 0;
 
-    auto filterRows = [&, this] <class T>(std::vector<T>& rowList) {
-        rowList.erase(std::remove_if(rowList.begin(), rowList.end(), [&, this] (const T& row) {
-            // Do not perform mutating requests to replicated table objects unless flag is set.
-            if (!DynamicConfig_->HandleReplicatedObjects && IsReplicatedTableObjectType(row.ObjectType)) {
-                skippedReplicatedTableObjects += 1;
-                return true;
-            }
+    auto isNotLeadingRow = [&, this] (const auto& row) {
+        // Do not perform mutating requests to replicated table objects unless flag is set.
+        if (!DynamicConfig_->HandleReplicatedObjects && IsReplicatedTableObjectType(GetObjectType(row))) {
+            skippedReplicatedTableObjects += 1;
+            return true;
+        }
 
-            // NB: We don't need to check the object's stage, since the object to host mapping only contains objects for our stage.
-            auto it = objectMapping.find(TGenericObjectReference(row.Path));
-            return it == objectMapping.end() || it->second != AgentId_;
-        }), rowList.end());
+        // NB: We don't need to check the object's stage, since the object to host mapping only contains objects for our stage.
+        auto it = objectMapping.find(TGenericObjectReference(GetPathOrReference(row)));
+        return it == objectMapping.end() || it->second != AgentId_;
     };
-
-    filterRows(queueRows);
-    filterRows(consumerRows);
+    std::erase_if(queueRows, isNotLeadingRow);
+    std::erase_if(consumerRows, isNotLeadingRow);
+    std::erase_if(multiConsumerRows, isNotLeadingRow);
 
     if (skippedReplicatedTableObjects > 0) {
         YT_VERIFY(!DynamicConfig_->HandleReplicatedObjects);
@@ -697,6 +780,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
 
     auto leaderQueueRows = std::move(queueRows);
     auto leaderConsumerRows = std::move(consumerRows);
+    auto leaderMultiConsumerRows = std::move(multiConsumerRows);
 
     TEnumIndexedArray<EObjectKind, TObjectMap> freshObjects;
 
@@ -705,7 +789,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
 
         for (const auto& row : rows) {
             YT_LOG_TRACE("Processing row (Kind: %v, Row: %v)", objectKind, ConvertToYsonString(row, EYsonFormat::Text).ToString());
-            TGenericObjectReference ref(row.Path);
+            TGenericObjectReference ref(GetPathOrReference(row));
             auto& freshObject = freshObjects[objectKind][ref];
             auto& controller = freshObject.Controller;
 
@@ -718,21 +802,12 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
             // We either recreate controller from scratch, or keep existing controller.
             // If we keep existing controller, we notify it of (potential) row change.
 
-            auto recreated = updateController(
-                controller,
-                leading,
-                row,
-                GetReplicatedTableMappingRow(replicatedTableMapping, row.Path),
-                /*store*/ this,
-                QueueExportManager_,
-                DynamicConfig_->Controller,
-                QAClientDirectory_,
-                ControllerThreadPool_->GetInvoker());
+            auto recreated = updateController(controller, leading, row, GetReplicatedTableMappingRow(replicatedTableMapping, ref));
 
             YT_LOG_DEBUG(
                 "Controller updated (Kind: %v, Object: %v, Reused: %v, Recreated: %v, Leading: %v)",
                 objectKind,
-                row.Path,
+                ref,
                 reused,
                 recreated,
                 leading);
@@ -744,8 +819,21 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
     {
         auto guard = ReaderGuard(ObjectLock_);
 
-        updateControllers(EObjectKind::Queue, leaderQueueRows, UpdateQueueController, /*leading*/ true);
-        updateControllers(EObjectKind::Consumer, leaderConsumerRows, UpdateConsumerController, /*leading*/ true);
+        updateControllers(
+            EObjectKind::Queue,
+            leaderQueueRows,
+            BIND(&TQueueAgent::UpdateQueueController, MakeStrong(this)),
+            /*leading*/ true);
+        updateControllers(
+            EObjectKind::Consumer,
+            leaderConsumerRows,
+            BIND(&TQueueAgent::UpdateConsumerController, MakeStrong(this)),
+            /*leading*/ true);
+        updateControllers(
+            EObjectKind::MultiConsumer,
+            leaderMultiConsumerRows,
+            BIND(&TQueueAgent::UpdateMultiConsumerController, MakeStrong(this)),
+            /*leading*/ true);
     }
 
     auto ledQueues = GetHashTable<TTablePath>(leaderQueueRows);
@@ -757,30 +845,21 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
     // Then, collect follower objects from registrations.
     // NB: Follower objects can be from stages other than ours, since consumers from one stage can be registered for queues from another.
 
-    // Checks that the given object is known to the QA and skips objects which are led by this QA.
-    auto addFollowedObject = [] (const auto& path, auto& allObjects, auto& ledObjects, auto& followedObjects) {
-        auto allObjectsIt = allObjects.find(path);
-        auto ledObjectsIt = ledObjects.find(path);
-        if (allObjectsIt != allObjects.end() && ledObjectsIt == ledObjects.end()) {
-            followedObjects.emplace(path, allObjectsIt->second);
-        }
-    };
-
     // Add follower controllers for consumers and queues registered to led queues and consumers respectively.
     for (const auto& registration : registrationRows) {
         if (ledQueues.contains(registration.Queue)) {
-            addFollowedObject(registration.Consumer, allConsumers, ledConsumers, followedConsumers);
+            AddFollowedObject(registration.Consumer, allConsumers, ledConsumers, followedConsumers);
         }
         if (ledConsumers.contains(registration.Consumer)) {
-            addFollowedObject(registration.Queue, allQueues, ledQueues, followedQueues);
+            AddFollowedObject(registration.Queue, allQueues, ledQueues, followedQueues);
         }
     }
 
-    auto addFollowedReplicas = [&] (const std::vector<TTablePath>& queuePaths) {
+    auto addFollowedReplicas = [&] (const auto& queuePaths) {
         for (const auto& queue : queuePaths) {
             if (auto replicatedTableMappingRow = GetReplicatedTableMappingRow(replicatedTableMapping, queue)) {
                 for (const auto& queueReplica : replicatedTableMappingRow->GetReplicas()) {
-                    addFollowedObject(TTablePath(queueReplica), allQueues, ledQueues, followedQueues);
+                    AddFollowedObject(TTablePath{queueReplica}, allQueues, ledQueues, followedQueues);
                 }
             }
         }
@@ -789,16 +868,24 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
     // Add follower controllers for replicas of all relevant queues.
     // NB: It is important that we do this *after* we add followed queues from registrations.
     // NB: We dont add replicas for all queues, since some of those queues are from stages other than ours.
-    addFollowedReplicas(GetKeys(ledQueues));
-    addFollowedReplicas(GetKeys(followedQueues));
+    addFollowedReplicas(ledQueues | std::views::keys);
+    addFollowedReplicas(followedQueues | std::views::keys);
 
     // Then, create following-controllers for objects referenced by queues and consumers this queue agent is responsible for.
 
     {
         auto guard = ReaderGuard(ObjectLock_);
 
-        updateControllers(EObjectKind::Queue, GetValues(followedQueues), UpdateQueueController, /*leading*/ false);
-        updateControllers(EObjectKind::Consumer, GetValues(followedConsumers), UpdateConsumerController, /*leading*/ false);
+        updateControllers(
+            EObjectKind::Queue,
+            GetValues(followedQueues),
+            BIND(&TQueueAgent::UpdateQueueController, MakeStrong(this)),
+            /*leading*/ false);
+        updateControllers(
+            EObjectKind::Consumer,
+            GetValues(followedConsumers),
+            BIND(&TQueueAgent::UpdateConsumerController, MakeStrong(this)),
+            /*leading*/ false);
     }
 
     // Then, put fresh registrations into fresh objects (both leading and following).
@@ -818,15 +905,17 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
     {
         auto guard = WriterGuard(ObjectLock_);
 
-        for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             Objects_[objectKind].swap(freshObjects[objectKind]);
         }
 
         LeadingObjectCount_[EObjectKind::Queue] = std::ssize(leaderQueueRows);
         LeadingObjectCount_[EObjectKind::Consumer] = std::ssize(leaderConsumerRows);
+        LeadingObjectCount_[EObjectKind::MultiConsumer] = std::ssize(leaderMultiConsumerRows);
 
         ObjectsWithOurStage_[EObjectKind::Queue].swap(queuesWithOurStage);
         ObjectsWithOurStage_[EObjectKind::Consumer].swap(consumersWithOurStage);
+        ObjectsWithOurStage_[EObjectKind::MultiConsumer].swap(multiConsumersWithOurStage);
 
         ObjectToHost_.swap(objectMapping);
     }
@@ -839,9 +928,9 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
         // NB(panesher): After swap we have here only old objects.
         auto& oldObjects = freshObjects;
 
-        for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
-            for (const auto& [ref, object] : oldObjects[objectKind]) {
-                if (!Objects_[objectKind].contains(ref)) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+            for (const auto& [path, object] : oldObjects[objectKind]) {
+                if (!Objects_[objectKind].contains(path)) {
                     object.Controller->Stop();
                 }
             }
@@ -855,9 +944,9 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
     auto updateRows = [&] (EObjectKind objectKind, const auto& rows) {
         for (const auto& row : rows) {
             // Existence of a key in the map is guaranteed by updateControllers.
-            const auto& object = GetOrCrash(Objects_[objectKind], TGenericObjectReference(row.Path));
+            const auto& object = GetOrCrash(Objects_[objectKind], TGenericObjectReference(GetPathOrReference(row)));
             object.Controller->OnRowUpdated(row);
-            object.Controller->OnReplicatedTableMappingRowUpdated(GetReplicatedTableMappingRow(replicatedTableMapping, row.Path));
+            object.Controller->OnReplicatedTableMappingRowUpdated(GetReplicatedTableMappingRow(replicatedTableMapping, GetPathOrReference(row)));
         }
     };
 
@@ -866,6 +955,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
 
         updateRows(EObjectKind::Queue, leaderQueueRows);
         updateRows(EObjectKind::Consumer, leaderConsumerRows);
+        updateRows(EObjectKind::MultiConsumer, leaderMultiConsumerRows);
 
         updateRows(EObjectKind::Queue, GetValues(followedQueues));
         updateRows(EObjectKind::Consumer, GetValues(followedConsumers));
@@ -880,16 +970,25 @@ void TQueueAgent::Profile()
     {
         int QueueCount;
         int ConsumerCount;
+        int MultiConsumerCount;
+        int MultiConsumerNameCount;
         int PartitionCount;
         int TrimmedQueueCount;
         int ErroneousQueueCount;
         int ErroneousConsumerCount;
+        int ErroneousMultiConsumerCount;
     };
 
     THashMap<TProfilingTags, TTaggedCounters> tagsToCounters;
 
-    auto getLeadingStatus = [&] (const IObjectControllerPtr& controller) {
-        return controller->IsLeading() ? "leader" : "follower";
+    auto getCounters = [&tagsToCounters] (const IObjectControllerPtr& controller, const std::string& cluster, const auto& snapshot) -> TTaggedCounters& {
+        TProfilingTags profilingTags{
+            .Cluster = cluster,
+            .LeadingStatus = GetLeadingStatus(controller),
+            .QueueAgentStage = GetQueueAgentStage(snapshot->Row).value_or(NoneQueueAgentStage),
+            .ObjectType = ToOptionalString(GetObjectType(snapshot->Row)).value_or(NoneObjectType),
+        };
+        return tagsToCounters[profilingTags];
     };
 
     {
@@ -897,15 +996,10 @@ void TQueueAgent::Profile()
 
         for (const auto& [queuePath, queue] : Objects_[EObjectKind::Queue]) {
             const auto& snapshot = DynamicPointerCast<TQueueSnapshot>(queue.Controller->GetLatestSnapshot());
+            YT_VERIFY(snapshot, "Queue snapshot is null or could not be cast to TQueueSnapshot");
 
-            TProfilingTags profilingTags = {
-                .Cluster = queuePath.GetCluster().value(),
-                .LeadingStatus = getLeadingStatus(queue.Controller),
-                .QueueAgentStage = snapshot->Row.QueueAgentStage.value_or(NoneQueueAgentStage),
-                .ObjectType = snapshot->Row.ObjectType ? ToString(*snapshot->Row.ObjectType) : NoneObjectType,
-            };
+            auto& taggedCounters = getCounters(queue.Controller, queuePath.GetCluster().value(), snapshot);
 
-            auto& taggedCounters = tagsToCounters[profilingTags];
             ++taggedCounters.QueueCount;
             taggedCounters.PartitionCount += snapshot->PartitionCount;
 
@@ -918,18 +1012,14 @@ void TQueueAgent::Profile()
                 ++taggedCounters.ErroneousQueueCount;
             }
         }
+
         for (const auto& [consumerPath, consumer] : Objects_[EObjectKind::Consumer]) {
             const auto& snapshot = DynamicPointerCast<TConsumerSnapshot>(consumer.Controller->GetLatestSnapshot());
+            YT_VERIFY(snapshot, "Consumer snapshot is null or could not be cast to TConsumerSnapshot");
 
-            TProfilingTags profilingTags = {
-                .Cluster = consumerPath.GetCluster().value(),
-                .LeadingStatus = getLeadingStatus(consumer.Controller),
-                .QueueAgentStage = snapshot->Row.QueueAgentStage.value_or(NoneQueueAgentStage),
-                .ObjectType = snapshot->Row.ObjectType ? ToString(*snapshot->Row.ObjectType) : NoneObjectType,
-            };
-
-            auto& taggedCounters = tagsToCounters[profilingTags];
+            auto& taggedCounters = getCounters(consumer.Controller, consumerPath.GetCluster().value(), snapshot);
             ++taggedCounters.ConsumerCount;
+
             for (const auto& [_, subConsumer] : snapshot->SubSnapshots) {
                 taggedCounters.PartitionCount += subConsumer->PartitionCount;
             }
@@ -938,16 +1028,30 @@ void TQueueAgent::Profile()
                 ++taggedCounters.ErroneousConsumerCount;
             }
         }
+        for (const auto& [multiConsumerPath, multiConsumer] : Objects_[EObjectKind::MultiConsumer]) {
+            const auto& snapshot = DynamicPointerCast<TMultiConsumerSnapshot>(multiConsumer.Controller->GetLatestSnapshot());
+            YT_VERIFY(snapshot, "MultiConsumer snapshot is null or could not be cast to TMultiConsumerSnapshot");
+
+            auto& taggedCounters = getCounters(multiConsumer.Controller, multiConsumerPath.GetCluster().value(), snapshot);
+            ++taggedCounters.MultiConsumerCount;
+            taggedCounters.MultiConsumerNameCount += snapshot->QueueConsumerNames.size();
+            if (!snapshot->Error.IsOK()) {
+                ++taggedCounters.ErroneousMultiConsumerCount;
+            }
+        }
     }
 
     for (const auto& [tag, taggedCounters] : tagsToCounters) {
         auto& profilingCounters = GetOrCreateTaggedProfilingCounters(tag);
         profilingCounters.Queues.Update(taggedCounters.QueueCount);
         profilingCounters.Consumers.Update(taggedCounters.ConsumerCount);
+        profilingCounters.MultiConsumers.Update(taggedCounters.MultiConsumerCount);
+        profilingCounters.MultiConsumerNames.Update(taggedCounters.MultiConsumerNameCount);
         profilingCounters.Partitions.Update(taggedCounters.PartitionCount);
         profilingCounters.TrimmedQueues.Update(taggedCounters.TrimmedQueueCount);
         profilingCounters.ErroneousQueues.Update(taggedCounters.ErroneousQueueCount);
         profilingCounters.ErroneousConsumers.Update(taggedCounters.ErroneousConsumerCount);
+        profilingCounters.ErroneousMultiConsumers.Update(taggedCounters.ErroneousMultiConsumerCount);
     }
 }
 
@@ -976,6 +1080,57 @@ TTaggedProfilingCounters& TQueueAgent::GetOrCreateTaggedProfilingCounters(const 
         it = TaggedProfilingCounters_.insert({profilingTags, profilingCounters}).first;
     }
     return it->second;
+}
+
+bool TQueueAgent::UpdateMultiConsumerController(
+    IObjectControllerPtr& controller,
+    bool /*leading*/,
+    const TIntrusivePtr<TConsumerTableRow>& row,
+    const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow)
+{
+    return ::NYT::NQueueAgent::UpdateMultiConsumerController(
+        controller,
+        row,
+        replicatedTableMappingRow,
+        DynamicConfig_->Controller,
+        QAClientDirectory_,
+        ControllerThreadPool_->GetInvoker(),
+        DynamicState_);
+}
+
+bool TQueueAgent::UpdateConsumerController(
+    IObjectControllerPtr& controller,
+    bool leading,
+    const TConsumerTableRow& row,
+    const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow)
+{
+    return ::NYT::NQueueAgent::UpdateConsumerController(
+        controller,
+        leading,
+        row,
+        replicatedTableMappingRow,
+        /*store*/ this,
+        DynamicConfig_->Controller,
+        QAClientDirectory_,
+        ControllerThreadPool_->GetInvoker());
+}
+
+bool TQueueAgent::UpdateQueueController(
+    IObjectControllerPtr& controller,
+    bool leading,
+    const TQueueTableRow& row,
+    const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow)
+{
+    return ::NYT::NQueueAgent::UpdateQueueController(
+        controller,
+        leading,
+        row,
+        replicatedTableMappingRow,
+        /*store*/ this,
+        QueueExportManager_,
+        DynamicConfig_->Controller,
+        QAClientDirectory_,
+        ControllerThreadPool_->GetInvoker());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

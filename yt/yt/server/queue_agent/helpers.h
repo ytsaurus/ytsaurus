@@ -48,15 +48,21 @@ public:
     //! For regular objects and replicated tables this corresponds to their control cluster and path.
     //! For chaos replicated tables we return a federated client wrapped over replica-clusters for chaos replicated tables.
     //! If `onlyDataReplicas` is true, only data replicas are considered for chaos replicated tables.
-    template <class TObjectSnapshotPtr>
-    TClientContext GetDataReadContext(const TObjectSnapshotPtr& snapshot, bool onlyDataReplicas = false);
+    template <class TRow>
+    TClientContext GetDataReadContext(
+        const TRow& row,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
+        bool onlyDataReplicas = false);
 
     //! Returns native client context suitable for retrieving metadata for the object referenced by the snapshot.
     //! For regular objects this corresponds to their cluster and path.
     //! For replicated tables and chaos replicated tables we return the context for one of their sync replicas.
     //! If `onlyDataReplicas` is true, only data replicas are considered for chaos replicated tables.
-    template <class TObjectSnapshotPtr>
-    TNativeClientContext GetNativeSyncClient(const TObjectSnapshotPtr& snapshot, bool onlyDataReplicas = false);
+    template <class TRow>
+    TNativeClientContext GetNativeSyncClient(
+        const TRow& row,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
+        bool onlyDataReplicas = false);
 
     //! Proxy-method for internal client directory.
     NApi::NNative::IClientPtr GetClientOrThrow(const std::string& cluster) const;
@@ -149,6 +155,12 @@ struct TAggregatedQueueExportsProgress
 };
 
 TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<std::string, TQueueExportProgressPtr>& queueExportsProgress);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateConsumer(
+    const NQueueClient::TConsumerTableRow& row,
+    const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
 
 ////////////////////////////////////////////////////////////////////////////////
 

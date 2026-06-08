@@ -1,6 +1,6 @@
 #pragma once
 
-#include "object.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/hive/public.h>
 
@@ -9,15 +9,14 @@ namespace NYT::NQueueAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Returns true if new controller was created.
-bool UpdateConsumerController(
+bool UpdateMultiConsumerController(
     IObjectControllerPtr& controller,
-    bool leading,
-    const NQueueClient::TConsumerTableRow& row,
+    const TIntrusivePtr<NQueueClient::TConsumerTableRow>& row,
     const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
-    const IObjectStore* store,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,
     const TQueueAgentClientDirectoryPtr& clientDirectory,
-    IInvokerPtr invoker);
+    IInvokerPtr invoker,
+    NQueueClient::TDynamicStatePtr dynamicState);
 
 ////////////////////////////////////////////////////////////////////////////////
 

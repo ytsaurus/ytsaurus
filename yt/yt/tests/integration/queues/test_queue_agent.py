@@ -5963,6 +5963,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
+            "multi_consumer_count": 0,
         })
 
         inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
@@ -6002,6 +6003,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
+            "multi_consumer_count": 0,
         })
 
         inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
@@ -6107,6 +6109,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
+            "multi_consumer_count": 0,
         })
 
         set("//tmp/q/@queue_agent_banned", "whatever", driver=get_driver(cluster=cluster))
@@ -6116,6 +6119,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 1,
             "consumer_count": 0,
+            "multi_consumer_count": 0,
         })
 
         set("//tmp/c/@queue_agent_banned", "whatever", driver=get_driver(cluster=cluster))
@@ -6125,6 +6129,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 1,
             "consumer_count": 1,
+            "multi_consumer_count": 0,
         })
 
         remove("//tmp/q/@queue_agent_banned", driver=get_driver(cluster=cluster))
@@ -6134,6 +6139,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 1,
+            "multi_consumer_count": 0,
         })
 
         remove("//tmp/c/@queue_agent_banned", driver=get_driver(cluster=cluster))
@@ -6143,6 +6149,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
+            "multi_consumer_count": 0,
         })
 
 
@@ -6602,32 +6609,10 @@ class TestMultiConsumerForwardCompatibility(TestQueueAgentBase):
     }
 
     @authors("panesher")
-    def test_multi_consumer_compatibility(self):
-        path = "//tmp/consumer"
-        create(
-            "table",
-            path,
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "queue_consumer_name", "type": "string", "sort_order": "ascending"},
-                    {"name": "test", "type": "string"},
-                    {"name": "key", "type": "string"},
-                ],
-                "treat_as_queue_consumer": True,
-                "queue_agent_stage": "production",
-            },
-        )
-        sync_mount_table(path)
-
-        self._wait_for_component_passes()
-
-        assert f"primary:{path}" in [row["object"] for row in select_rows("* from [//sys/queue_agents/queue_agent_object_mapping]")]
-        consumer_orchid = QueueAgentOrchid().get_consumer_orchid(f"primary:{path}")
-        assert consumer_orchid.get_status()["error"]["message"] == "Multi-consumer are not supported yet"
-
-    @authors("panesher")
     def test_part_of_multi_consumer_compatibility(self):
+        if "queue_agent" not in self.ARTIFACT_COMPONENTS.get("25_4", []):
+            pytest.skip("Starting from version 26, multi consumer controller is introduced.")
+
         path = "//tmp/consumer"
         create(
             "table",

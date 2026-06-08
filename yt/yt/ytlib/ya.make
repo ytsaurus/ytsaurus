@@ -786,6 +786,13 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
+    queue_client/records/multi_consumer_object.yaml
+    OUTPUT_INCLUDES
+        yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/public.h
+)
+
+GENERATE_YT_RECORD(
     queue_client/records/queue_agent_object_mapping.yaml
     OUTPUT_INCLUDES
         yt/yt/core/yson/string.h
