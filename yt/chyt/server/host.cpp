@@ -72,6 +72,7 @@
 
 namespace NYT::NClickHouseServer {
 
+using namespace NApi;
 using namespace NApi::NNative;
 using namespace NProfiling;
 using namespace NYTree;
@@ -84,6 +85,7 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NYPath;
 using namespace NServer;
+using namespace NCypressClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -219,6 +221,18 @@ public:
             [this] {
                 return Config_->MemoryWatchdog->MemoryLimit;
             });
+
+        const auto& timeHistogramConfig = Config_->ExecutionProfiling->AttributeFetchTimeHistogram;
+        if (timeHistogramConfig && timeHistogramConfig->ExponentialBounds) {
+            const auto& exponentialBounds = *timeHistogramConfig->ExponentialBounds;
+            AttributeFetchTimeCounter_ = ClickHouseYtProfiler().TimeHistogram("/object_attribute_fetch/execution", exponentialBounds->Min, exponentialBounds->Max);
+        } else if (timeHistogramConfig && timeHistogramConfig->CustomBounds) {
+            const auto& customBounds = *timeHistogramConfig->CustomBounds;
+            AttributeFetchTimeCounter_ = ClickHouseYtProfiler().TimeHistogram("/object_attribute_fetch/execution", customBounds);
+        } else {
+            AttributeFetchTimeCounter_ = ClickHouseYtProfiler().Timer("/object_attribute_fetch/execution");
+        }
+        AttributeFetchBatchSizeCounter_ = ClickHouseYtProfiler().Summary("/object_attribute_fetch/batch_size");
     }
 
     void SetContext(DB::ContextMutablePtr context_)
@@ -304,7 +318,7 @@ public:
     }
 
     std::vector<THost::TRowLevelAcl> ValidateTableReadPermissionsAndGetRowLevelAcl(
-        const std::vector<NYPath::TRichYPath>& paths,
+        const std::vector<TRichYPath>& paths,
         const TString& user)
     {
         std::vector<TPermissionKey> permissionCacheKeys;
@@ -348,7 +362,7 @@ public:
     }
 
     TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> PreliminaryCheckPermissions(
-        const std::vector<NYPath::TYPath>& paths,
+        const std::vector<TYPath>& paths,
         const TString& user)
     {
         std::vector<TErrorOr<EPreliminaryCheckPermissionResult>> results(paths.size());
@@ -388,14 +402,40 @@ public:
             }));
     }
 
-    const std::vector<std::string>& GetObjectAttributeNamesToFetch() const
+    TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> GetObjectAttributesDirect(
+        const std::vector<TYPath>& paths,
+        const std::vector<NHydra::TRevision>& refreshRevisions,
+        const NNative::IClientPtr& client,
+        const TMasterReadOptions& masterReadOptions,
+        const TTransactionalOptions& transactionalOptions)
     {
-        return TableAttributesToFetch_;
+        auto batchSize = paths.size();
+        if (batchSize == 0) {
+            return MakeFuture(std::vector<TErrorOr<IAttributeDictionaryPtr>>{});
+        }
+
+        AttributeFetchBatchSizeCounter_.Record(batchSize);
+
+        auto fetcher = New<TBatchAttributeFetcher>(
+            paths,
+            refreshRevisions,
+            TableAttributesToFetch_,
+            client,
+            FetcherInvoker_,
+            Logger(),
+            masterReadOptions,
+            transactionalOptions);
+
+        TEventTimerGuard timerGuard(AttributeFetchTimeCounter_);
+
+        return fetcher->Fetch().Apply(BIND([fetcher = std::move(fetcher), timerGuard = std::move(timerGuard)] {
+            return fetcher->Attributes();
+        }));
     }
 
-    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributesCached(
         const std::vector<TYPath>& paths,
-        const IClientPtr& client)
+        const NNative::IClientPtr& client)
     {
         if (paths.empty()) {
             return {};
@@ -417,10 +457,12 @@ public:
 
         std::reverse(missedPaths.begin(), missedPaths.end());
 
-        // TODO(max42): eliminate this.
-        auto attributesForMissedPaths = WaitFor(TableAttributeCache_->GetFromClient(
+        auto attributesForMissedPaths = WaitFor(GetObjectAttributesDirect(
             missedPaths,
-            client))
+            TableAttributeCache_->GetRefreshRevisions(missedPaths),
+            client,
+            *Config_->TableAttributeCache->MasterReadOptions,
+            /*transactionalOptions*/ {}))
             .ValueOrThrow();
 
         std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> attributes;
@@ -856,10 +898,11 @@ private:
     IInvokerPtr ClickHouseTaskPullerInvoker_;
     TActionQueuePtr SystemLogTableExporterActionQueue_;
 
+    NApi::NNative::IConnectionPtr Connection_;
+
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
     NApi::NNative::IClientPtr DictionariesClient_;
-    NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::TClientCachePtr ClientCache_;
 
     TPermissionCachePtr PermissionCache_;
@@ -881,6 +924,9 @@ private:
 
     TCypressDictionaryConfigRepositoryPtr CypressDictionaryConfigRepository_;
     IDictionaryAccessControlPtr DictionaryAccessControl_;
+
+    NProfiling::TEventTimer AttributeFetchTimeCounter_;
+    NProfiling::TSummary AttributeFetchBatchSizeCounter_;
 
     std::atomic<int> SigintCounter_ = {0};
 
@@ -1180,38 +1226,43 @@ void THost::ValidateCliquePermission(const TString& user, EPermission permission
 }
 
 std::vector<THost::TRowLevelAcl> THost::ValidateTableReadPermissionsAndGetRowLevelAcl(
-    const std::vector<NYPath::TRichYPath>& paths,
+    const std::vector<TRichYPath>& paths,
     const TString& user)
 {
     return Impl_->ValidateTableReadPermissionsAndGetRowLevelAcl(paths, user);
 }
 
 TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> THost::PreliminaryCheckPermissions(
-    const std::vector<NYPath::TYPath>& paths,
+    const std::vector<TYPath>& paths,
     const TString& user)
 {
     return Impl_->PreliminaryCheckPermissions(paths, user);
 }
 
-const std::vector<std::string>& THost::GetObjectAttributeNamesToFetch() const
+TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> THost::GetObjectAttributesDirect(
+    const std::vector<TYPath>& paths,
+    const std::vector<NHydra::TRevision>& revisions,
+    const NNative::IClientPtr& client,
+    const TMasterReadOptions& masterReadOptions,
+    const TTransactionalOptions& transactionalOptions)
 {
-    return Impl_->GetObjectAttributeNamesToFetch();
+    return Impl_->GetObjectAttributesDirect(paths, revisions, client, masterReadOptions, transactionalOptions);
 }
 
-std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> THost::GetObjectAttributes(
-    const std::vector<NYPath::TYPath>& paths,
-    const IClientPtr& client)
+std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> THost::GetObjectAttributesCached(
+    const std::vector<TYPath>& paths,
+    const NNative::IClientPtr& client)
 {
-    return Impl_->GetObjectAttributes(paths, client);
+    return Impl_->GetObjectAttributesCached(paths, client);
 }
 
-void THost::InvalidateCachedObjectAttributes(const std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>>& paths)
+void THost::InvalidateCachedObjectAttributes(const std::vector<std::pair<TYPath, NHydra::TRevision>>& paths)
 {
     Impl_->InvalidateCachedObjectAttributes(paths);
 }
 
 void THost::InvalidateCachedObjectAttributesGlobally(
-    const std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>>& paths,
+    const std::vector<std::pair<TYPath, NHydra::TRevision>>& paths,
     EInvalidateCacheMode mode,
     TDuration timeout)
 {
