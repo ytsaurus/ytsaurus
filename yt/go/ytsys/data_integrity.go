@@ -27,7 +27,7 @@ func (i *ChunkIntegrity) String() string {
 
 func (i *ChunkIntegrity) Check(maxURC float64) bool {
 	return i.LVC == 0 && i.DMC == 0 && i.PMC == 0 && i.QMC == 0 &&
-		(i.C == 0 || i.C > 0 && float64(i.URC)/float64(i.C) <= maxURC) &&
+		(i.C == 0 || float64(i.URC)/float64(i.C) <= maxURC) &&
 		i.RequisitionUpdateEnabled && i.RefreshEnabled && i.ReplicatorEnabled
 }
 
