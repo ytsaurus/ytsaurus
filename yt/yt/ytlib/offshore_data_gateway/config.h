@@ -18,6 +18,9 @@ class TOffshoreDataGatewayChannelConfig
 public:
     TDuration RpcTimeout;
 
+    // Nullopt means no periodic update.
+    std::optional<TDuration> DataGatewayUpdatePeriod;
+
     REGISTER_YSON_STRUCT(TOffshoreDataGatewayChannelConfig);
 
     static void Register(TRegistrar registrar);
