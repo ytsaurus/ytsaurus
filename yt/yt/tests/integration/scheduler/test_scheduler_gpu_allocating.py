@@ -14,7 +14,7 @@ from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
     update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
     run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters,
-    print_debug, update_controller_agent_config,
+    print_debug, update_controller_agent_config, update_nodes_dynamic_config,
 )
 
 from yt_scheduler_helpers import (
@@ -1383,13 +1383,27 @@ class TestAllocatingGpuSchedulingPolicyPreemption(AllocatingGpuSchedulingPolicyB
     @authors("yaishenka")
     def test_disable_operation_removes_preliminary_assignments(self):
         scheduler_log_file = self._scheduler_log_file()
+
+        # Effectively stop node -> scheduler heartbeats so the scheduler never
+        # asks a node to start an allocation for the placed assignment. The GPU
+        # planner still places a preliminary assignment (its plan update is
+        # scheduler-side and independent of node heartbeats), but it is never
+        # realized into an allocation. This avoids holding an in-flight
+        # ScheduleAllocation in the CA, which made op.abort() flap.
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "scheduler_connector": {
+                    "heartbeat_executor": {
+                        "period": 1000000,  # 1000 sec
+                    },
+                },
+            },
+        })
+
         from_barrier = write_log_barrier(self._scheduler_address())
 
-        # Hold the CA's ScheduleAllocation inside its delay so the planner
-        # places a preliminary assignment but the heartbeat never realizes it.
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
-            spec={"testing": {"inside_schedule_allocation_delay": {"duration": 60000, "type": "sync"}}},
         )
 
         wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
