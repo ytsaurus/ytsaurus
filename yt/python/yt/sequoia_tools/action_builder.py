@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import functools
 from typing import Any, Callable, Sequence
 from typing_extensions import override
 import uuid
@@ -11,7 +12,7 @@ from yt.environment import migrationlib
 import yt.sequoia_tools as yt_sequoia
 import yt.wrapper as yt
 
-from . import actions, app as sequoia_app, config as cfg, descriptors, helpers, utils
+from . import actions, app as sequoia_app, config as cfg, descriptors, helpers, pivots, utils
 
 import logging
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ class TableContext:
         attributes: dict[str, Any],
         component_context: ComponentContext,
         version: int,
+        pivot_keys: list | None = None,
     ):
         self.name = descriptor.name
         self.parent_path = parent_path
@@ -66,6 +68,7 @@ class TableContext:
         self.attributes = attributes
         self.component_context = component_context
         self.version = version
+        self.pivot_keys = pivot_keys
 
     @property
     def path(self) -> str:
@@ -120,6 +123,10 @@ class ActionBuilder:
         self._actions: list[actions.Action] = []
         self._ground_config = app.config_provider.get_ground_config()
 
+    @functools.cached_property
+    def _cell_tags(self) -> list[str]:
+        return helpers.list_master_cell_tags(self._app.remote_client)
+
     def _maybe_expand_bundled_table(self, ctx: TableContext) -> list[TableContext] | None:
         """Expand bundled table into multiple tables."""
         def from_template(ctx: TableContext, tag: str):
@@ -128,8 +135,7 @@ class ActionBuilder:
             return ctx
 
         if ctx.logical_name == "chunk_refresh_queue":
-            cell_tags = helpers.list_master_cell_tags(self._app.remote_client)
-            return [from_template(ctx, tag) for tag in cell_tags]
+            return [from_template(ctx, tag) for tag in self._cell_tags]
 
         return None
 
@@ -152,7 +158,16 @@ class ActionBuilder:
 
             for descriptor in table_descriptors.values():
                 attributes = component_context.get_table_attributes(descriptor)
-                table_context = TableContext(root_dir, descriptor, attributes, component_context, self._version)
+
+                pivot_fn = pivots.get_pivot_function(descriptor.name)
+                shard_count = attributes.get("tablet_count")
+                pivot_keys = (
+                    pivot_fn(shard_count, self._cell_tags, self._version)
+                    if pivot_fn is not None and shard_count is not None
+                    else None)
+
+                table_context = TableContext(
+                    root_dir, descriptor, attributes, component_context, self._version, pivot_keys)
                 expanded = self._maybe_expand_bundled_table(table_context)
                 if expanded is not None:
                     table_contexts.extend(expanded)

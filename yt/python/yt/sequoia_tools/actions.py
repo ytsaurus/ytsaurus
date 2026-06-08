@@ -395,6 +395,7 @@ class CreateTableAction(CreateNodeAction):
         parent_path: str,
         schema: list[dict[str, Any]],
         attributes: Optional[dict[str, Any]] = None,
+        pivot_keys: Optional[list] = None,
     ) -> None:
         extended_attributes = {
             **(attributes or {}),
@@ -406,6 +407,21 @@ class CreateTableAction(CreateNodeAction):
             type="table",
             root_dir=parent_path,
             attributes=extended_attributes)
+        self._pivot_keys = pivot_keys
+
+    def _do_create(self, app: SequoiaTool) -> None:
+        super()._do_create(app)
+
+        shard_count = self._attributes.get("tablet_count")
+        if shard_count is None or shard_count <= 1:
+            return
+
+        if self._pivot_keys is not None:
+            reshard_kwargs = {"pivot_keys": self._pivot_keys}
+        else:
+            reshard_kwargs = {"tablet_count": shard_count}
+
+        app.ground_client.reshard_table(self._path, sync=True, **reshard_kwargs)
 
     @override
     def validate_prerequisites(self, app: SequoiaTool) -> None:
