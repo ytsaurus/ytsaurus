@@ -1162,6 +1162,14 @@ Sets the [primary medium in {{product-name}}]({{yt-docs-root}}/user-guide/storag
 
 Includes hybrid query execution via DQ
 
+## yt.StaticNetworkProject
+
+| Value type | Default | Static /<br/>Dynamic |
+| --- | --- | --- |
+| String | - | Static, [per‑cluster](#settings) |
+
+Specifies the use of the specified network project in jobs for all map‑reduce operations in the query (including the evaluation stage).
+
 ## yt.NetworkProject
 
 | Value type | Default value | Static/<br/>dynamic |
@@ -1210,13 +1218,23 @@ Sets the maximum number of columnar groups per intermediate query table. If the 
 
 Sets the `"force_job_size_adjuster"` option in the operation settings.
 
-## yt.OmitInaccessibleRows
+## yt.DontForceTransformForInputTables
 
-| Value type | Default value | Static/<br/>dynamic |
+| Value type | Default | Static /<br/>Dynamic |
 | --- | --- | --- |
 | Flag | false | Static |
 
-Allows to read tables which have [row-level ACLs]({{yt-docs-root}}/user-guide/storage/row-level-security) set.
+Disables forced data transformation for user tables with storage settings (`erasure_codec`, `compression_codec`, `primary_medium`, `media`, column‑based groups) that differ from the default settings.
+
+Forced transformation is applied to input tables if they are used to write to output tables only via the YtMerge operation.
+
+## yt.OmitInaccessibleRows
+
+| Value type | Default | Static /<br/>Dynamic |
+| --- | --- | --- |
+| Flag | false | Static |
+
+Allows reading tables subject to [row‑level ACL]({{yt-docs-root}}/user-guide/storage/row-level-security).
 
 
 [*eph-pool]: A pool that is present in the specification but doesn't have an explicit node in Cypress.
