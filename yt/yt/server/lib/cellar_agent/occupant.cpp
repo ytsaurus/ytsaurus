@@ -26,6 +26,7 @@
 #include <yt/yt/server/lib/hydra/snapshot.h>
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/dry_run_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/serialize.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/lib/lease_server/lease_manager.h>
@@ -395,14 +396,12 @@ public:
         TVersion version = mutationContext->GetVersion();
 
         // COMPAT(h0pless): HydraLogicalRecordId.
-        constexpr int ChaosReignBase = 300000;
         constexpr int ChaosReignHydraLogicalRecordId = 300301;
-        constexpr int TabletReignBase = 100000;
         constexpr int TabletReignHydraLogicalRecordId = 101401;
         auto mutationReign = mutationContext->Request().Reign;
-        if (ChaosReignBase < mutationReign && mutationReign < ChaosReignHydraLogicalRecordId) {
+        if (IsChaosReign(mutationReign) && mutationReign < ChaosReignHydraLogicalRecordId) {
             version = mutationContext->GetPhysicalVersion();
-        } else if (TabletReignBase < mutationReign && mutationReign < TabletReignHydraLogicalRecordId) {
+        } else if (IsTabletReign(mutationReign) && mutationReign < TabletReignHydraLogicalRecordId) {
             version = mutationContext->GetPhysicalVersion();
         }
 
