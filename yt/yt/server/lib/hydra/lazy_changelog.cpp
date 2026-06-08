@@ -46,12 +46,23 @@ public:
             : BacklogDataSize_;
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
         auto guard = Guard(SpinLock_);
         return UnderlyingChangelog_
-            ? UnderlyingChangelog_->EstimateChangelogSize(payloadSize)
+            ? UnderlyingChangelog_->EstimateWriteSize(payloadSize)
             : payloadSize;
+    }
+
+    i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        auto guard = Guard(SpinLock_);
+        return UnderlyingChangelog_
+            ? UnderlyingChangelog_->EstimateReadSize(firstRecordId, maxRecords, maxBytes)
+            : std::min(maxBytes, BacklogDataSize_);
     }
 
     const TChangelogMeta& GetMeta() const override

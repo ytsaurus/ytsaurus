@@ -165,15 +165,23 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
-        auto result = UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
+        auto result = UnderlyingChangelog_->EstimateWriteSize(payloadSize);
         if (EnableMultiplexing_) {
             const auto& journalManager = Location_->GetJournalManager();
             result += journalManager->EstimateMultiplexedChangelogSize(payloadSize);
         }
 
         return result;
+    }
+
+    i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        return UnderlyingChangelog_->EstimateReadSize(firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Append(TRange<TSharedRef> records) override

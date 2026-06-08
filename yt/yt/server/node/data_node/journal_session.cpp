@@ -188,7 +188,7 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     }
 
     return MakeFuture(TIOCounters{
-        .Bytes = Changelog_->EstimateChangelogSize(payloadSize),
+        .Bytes = Changelog_->EstimateWriteSize(payloadSize),
         .IORequests = 1,
     });
 }
