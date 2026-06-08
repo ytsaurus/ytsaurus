@@ -177,6 +177,11 @@ TTabletCellBundlePtr TBundleHolder::CreateBundle() const
     for (const auto& tableHolder : Tables) {
         auto table = tableHolder->CreateTable(bundle);
         EmplaceOrCrash(bundle->Tables, table->Id, table);
+
+        // NB: There may be multiple tables with the same path and different ids
+        // if the table was recreated.
+        bundle->TablesByPath.emplace(table->Path, table);
+
         for (const auto& tabletHolder : tableHolder->Tablets) {
             tabletHolder->CreateTablet(table, bundle->TabletCells);
         }
