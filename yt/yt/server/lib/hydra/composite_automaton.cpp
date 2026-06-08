@@ -489,7 +489,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 
         YT_LOG_DEBUG(
             "Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %x, PrevRandomSeed: %x, "
-            "StateHash: %x, MutationType: %v, MutationId: %v, WaitTime: %v)",
+            "StateHash: %x, MutationType: %v, MutationId: %v, MutationSize: %v, WaitTime: %v)",
             version,
             context->GetSequenceNumber(),
             context->GetRandomSeed(),
@@ -497,6 +497,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
             context->GetStateHash(),
             mutationType,
             mutationId,
+            request.Data.Size(),
             waitTime);
 
         auto* descriptor = GetMethodDescriptor(mutationType);
