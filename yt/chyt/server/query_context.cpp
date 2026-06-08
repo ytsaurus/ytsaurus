@@ -474,7 +474,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             }
             case ETableReadLockMode::None: {
                 auto preliminaryCheckPermissionResultsFuture = Host->PreliminaryCheckPermissions(pathsToFetch, User);
-                auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
+                auto attributes = Host->GetObjectAttributesCached(pathsToFetch, Client());
                 auto preliminaryCheckPermissionResults = WaitForFast(preliminaryCheckPermissionResultsFuture.AsUnique())
                     .ValueOrThrow();
                 AddAttributesToSnapshot(
@@ -522,7 +522,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             pathsToFetchUnderTx,
             userToCheckPermissionsFor);
 
-        auto attributesFromCache = Host->GetObjectAttributes(pathsToFetchFromCache, Client());
+        auto attributesFromCache = Host->GetObjectAttributesCached(pathsToFetchFromCache, Client());
 
         WaitFor(
             AllSucceeded(
@@ -785,7 +785,7 @@ void TQueryContext::LockAndFetchAttributesSync(std::vector<TYPath> pathsToFetch)
 void TQueryContext::LockAndFetchAttributesBestEffort(std::vector<TYPath> pathsToFetch)
 {
     auto preliminaryCheckPermissionResultsFuture = Host->PreliminaryCheckPermissions(pathsToFetch, User);
-    auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
+    auto attributes = Host->GetObjectAttributesCached(pathsToFetch, Client());
     std::vector<TYPath> pathsToLock;
 
     for (size_t index = 0; index < pathsToFetch.size(); ++index) {
@@ -988,19 +988,12 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTabl
     TTransactionalOptions transactionalOptions{};
     transactionalOptions.TransactionId = transactionId;
 
-    auto fetcher = New<TBatchAttributeFetcher>(
+    return Host->GetObjectAttributesDirect(
         resolvedPaths,
-        /*refreshRevisions*/ std::vector<NHydra::TRevision>{},
-        Host->GetObjectAttributeNamesToFetch(),
+        /*revisions*/ {},
         Client(),
-        Host->GetFetcherInvoker(),
-        Logger,
         *SessionSettings->CypressReadOptions,
         transactionalOptions);
-
-    return fetcher->Fetch().Apply(BIND([fetcher = std::move(fetcher)] {
-        return fetcher->Attributes();
-    }));
 }
 
 std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttributes(

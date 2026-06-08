@@ -590,6 +590,21 @@ void TSystemLogTableExportersConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TExecutionProfilingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("attribute_fetch_time_histogram", &TThis::AttributeFetchTimeHistogram)
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        auto exponentialBoundsConfig = New<NRpc::THistogramExponentialBounds>();
+        exponentialBoundsConfig->Min = TDuration::MilliSeconds(100);
+        exponentialBoundsConfig->Max = TDuration::Seconds(20);
+        config->AttributeFetchTimeHistogram->ExponentialBounds = std::move(exponentialBoundsConfig);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TYtConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("clique_id", &TThis::CliqueId)
@@ -716,6 +731,9 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_schema_id_fetching", &TThis::EnableSchemaIdFetching)
         .Default(false);
 
+    registrar.Parameter("execution_profiling", &TThis::ExecutionProfiling)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->TableAttributeCache->ExpireAfterAccessTime = TDuration::Minutes(2);
         config->TableAttributeCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(20);
@@ -814,6 +832,8 @@ void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([] (TThis* config) {
+        config->SolomonExporter->SplitRateHistogramIntoGauges = true;
+
         if (config->CpuLimit) {
             config->Yt->CpuLimit = config->CpuLimit;
         }
