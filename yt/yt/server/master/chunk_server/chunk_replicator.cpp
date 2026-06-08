@@ -3001,7 +3001,11 @@ void TChunkReplicator::OnRefresh()
                 continue;
             }
             if (config->DelayRecentlyConfirmedChunksRefresh && chunkManager->IsChunkRecentlyConfirmed(chunk->GetId())) {
-                scanner->EnqueueChunk({chunk, errorCount}, DurationToCpuDuration(config->ReplicaApproveTimeout));
+                auto delay = DurationToCpuDuration(config->ReplicaApproveTimeout);
+                scanner->EnqueueChunk({chunk, errorCount}, delay);
+                YT_LOG_DEBUG("Chunk refresh is delayed (ChunkId: %v, Delay: %v)",
+                    chunk->GetId(),
+                    delay);
                 continue;
             }
 
