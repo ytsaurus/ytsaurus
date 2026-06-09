@@ -24,6 +24,8 @@ import yt.yson as yson
 if is_tsan_build():
     import yatest.common
 
+from gdb_helpers import attach_gdb
+
 from threading import Thread
 import os
 import errno
@@ -816,6 +818,13 @@ class Clique(object):
         wait(get_and_validate_query_log_rows)
 
         return result
+
+    def attach_gdb(self, ex, instance_cookie=0, autoresume=True):
+        instances = self.get_active_instances()
+
+        for inst in instances:
+            if inst.attributes['job_cookie'] == instance_cookie:
+                attach_gdb(inst.attributes['pid'], ex, autoresume=autoresume)
 
 
 class ClickHouseTestBase(YTEnvSetup):
