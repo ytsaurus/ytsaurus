@@ -28,7 +28,16 @@ enum class EOperationHandler {
     OpenSession,
     PingSession,
     ListSessions,
-    PrepareOperation
+    PrepareOperation,
+    WaitForOperations,
+};
+
+// Holds the result of a WaitForOperations long-poll for the second DoReply pass.
+struct TWaitForOperationsPendingRequest: public TThrRefBase {
+    using TPtr = TIntrusivePtr<TWaitForOperationsPendingRequest>;
+    TMaybe<TWaitForOperationsResponse> Response;
+    std::exception_ptr Error;
+    TRequestReplier* Replier = nullptr;
 };
 
 class TReplier: public TRequestReplier {
@@ -37,19 +46,46 @@ public:
         std::unordered_map<EOperationHandler, THandler>& handlers
         , IFmrTvmClient::TPtr tvmClient
         , const std::vector<TTvmId>& allowedSourceTvmIds
+        , IFmrCoordinator::TPtr coordinator
     )
         : Handlers_(handlers)
         , TvmClient_(tvmClient)
         , AllowedSourceTvmIds_(allowedSourceTvmIds)
+        , Coordinator_(coordinator)
     {
     }
 
     bool DoReply(const TReplyParams& params) override {
+        // Second pass: long-poll result is ready.
+        if (WaitOpPending_) {
+            try {
+                if (WaitOpPending_->Error) {
+                    std::rethrow_exception(WaitOpPending_->Error);
+                }
+                YQL_ENSURE(WaitOpPending_->Response.Defined());
+                auto protoResponse = WaitForOperationsResponseToProto(*WaitOpPending_->Response);
+                THttpResponse httpResponse(HTTP_OK);
+                httpResponse.SetContentType("application/x-protobuf");
+                httpResponse.SetContent(protoResponse.SerializeAsString());
+                params.Output << httpResponse;
+            } catch (...) {
+                YQL_CLOG(ERROR, FastMapReduce) << "WaitForOperations reply error: " << CurrentExceptionMessage();
+                THttpResponse response(HTTP_INTERNAL_SERVER_ERROR);
+                response.SetContent(CurrentExceptionMessage());
+                params.Output << response;
+            }
+            return true;
+        }
+
         TParsedHttpFull httpRequest(params.Input.FirstLine());
         auto handlerName = GetHandlerName(httpRequest);
         if (!handlerName) {
             params.Output << THttpResponse(HTTP_NOT_FOUND);
             return true;
+        }
+
+        if (*handlerName == EOperationHandler::WaitForOperations) {
+            return HandleWaitForOperations(params);
         }
 
         try {
@@ -63,7 +99,7 @@ public:
             params.Output << callbackFunc(params.Input);
         } catch (...) {
             YQL_CLOG(ERROR, FastMapReduce) << "Error while processing url path " << httpRequest.Path << " is: " << CurrentExceptionMessage();
-            THttpResponse response = THttpResponse(HTTP_BAD_REQUEST);
+            THttpResponse response = THttpResponse(HTTP_INTERNAL_SERVER_ERROR);
             response.SetContent(CurrentExceptionMessage());
             params.Output << response;
         }
@@ -74,6 +110,37 @@ private:
     std::unordered_map<EOperationHandler, THandler> Handlers_;
     IFmrTvmClient::TPtr TvmClient_;
     const std::vector<TTvmId> AllowedSourceTvmIds_;
+    IFmrCoordinator::TPtr Coordinator_;
+    TWaitForOperationsPendingRequest::TPtr WaitOpPending_;
+
+    bool HandleWaitForOperations(const TReplyParams& params) {
+        NProto::TWaitForOperationsRequest protoRequest;
+        try {
+            YQL_ENSURE(protoRequest.ParseFromString(params.Input.ReadAll()));
+        } catch (...) {
+            YQL_CLOG(ERROR, FastMapReduce) << "WaitForOperations parse error: " << CurrentExceptionMessage();
+            THttpResponse response(HTTP_BAD_REQUEST);
+            response.SetContent(CurrentExceptionMessage());
+            params.Output << response;
+            return true;
+        }
+
+        WaitOpPending_ = MakeIntrusive<TWaitForOperationsPendingRequest>();
+        WaitOpPending_->Replier = this;
+        auto pending = WaitOpPending_;
+        Coordinator_->WaitForOperations(WaitForOperationsRequestFromProto(protoRequest))
+            .Subscribe([pending](const NThreading::TFuture<TWaitForOperationsResponse>& f) {
+                try {
+                    pending->Response = f.GetValue();
+                } catch (...) {
+                    pending->Error = std::current_exception();
+                    YQL_CLOG(ERROR, FastMapReduce) << "WaitForOperations error: " << CurrentExceptionMessage();
+                }
+                static_cast<IObjectInQueue*>(pending->Replier)->Process(nullptr);
+            });
+        // Tell the HTTP framework not to destroy this object yet.
+        return false;
+    }
 
     TMaybe<EOperationHandler> GetHandlerName(TParsedHttpFull httpRequest) {
         TStringBuf queryPath;
@@ -113,6 +180,9 @@ private:
         } else if (queryPath == "prepare_operation") {
             YQL_ENSURE(httpRequest.Method == "POST");
             return EOperationHandler::PrepareOperation;
+        } else if (queryPath == "wait_for_operations") {
+            YQL_ENSURE(httpRequest.Method == "POST");
+            return EOperationHandler::WaitForOperations;
         }
         return Nothing();
     }
@@ -174,7 +244,7 @@ public:
     }
 
     TClientRequest* CreateClient() override {
-       return new TReplier(Handlers_, TvmClient_, AllowedSourceTvmIds_);
+       return new TReplier(Handlers_, TvmClient_, AllowedSourceTvmIds_, Coordinator_);
     }
 
 private:
