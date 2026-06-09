@@ -1572,11 +1572,42 @@
             "uri": "https://{canondata_backend}/1931696/13b8b0356360a5304f6b9f901da30a249a0cf548/resource.tar.gz#test.test_produce-process_multi_in--Results_/results.txt"
         }
     ],
+    "test.test[ql_filter-integer_horizontal_many--Debug]": [
+        {
+            "checksum": "0cb377ec0aec79f2fc55c0ba5e79f567",
+            "size": 4085,
+            "uri": "https://{canondata_backend}/1784826/d3d60fc866818e741d50f925a549dec427839eb4/resource.tar.gz#test.test_ql_filter-integer_horizontal_many--Debug_/opt.yql"
+        }
+    ],
+    "test.test[ql_filter-integer_horizontal_many--Plan]": [
+        {
+            "checksum": "a80262003ebd5789052666f42c67bdc9",
+            "size": 14180,
+            "uri": "https://{canondata_backend}/1784826/d3d60fc866818e741d50f925a549dec427839eb4/resource.tar.gz#test.test_ql_filter-integer_horizontal_many--Plan_/plan.txt"
+        }
+    ],
+    "test.test[ql_filter-integer_horizontal_many--Results]": [
+        {
+            "checksum": "3a7312a29bad45aa5036d5ff7dedc4f5",
+            "size": 6415,
+            "uri": "https://{canondata_backend}/1775059/69d8f5b347ec9f03e0013f94d3860e9174c35490/resource.tar.gz#test.test_ql_filter-integer_horizontal_many--Results_/results.txt"
+        },
+        {
+            "checksum": "70a5df0e73da8fe01345358c0ed8f7e0",
+            "size": 477,
+            "uri": "https://{canondata_backend}/1775059/69d8f5b347ec9f03e0013f94d3860e9174c35490/resource.tar.gz#test.test_ql_filter-integer_horizontal_many--Results_/Output.txt"
+        },
+        {
+            "checksum": "5a5880c72640aae51139b62fc5f496c7",
+            "size": 370,
+            "uri": "https://{canondata_backend}/1775059/69d8f5b347ec9f03e0013f94d3860e9174c35490/resource.tar.gz#test.test_ql_filter-integer_horizontal_many--Results_/Output.yqlrun.txt.attr"
+        }
+    ],
     "test.test[ql_filter-integer_single--Debug]": [
         {
-            "checksum": "0f707bd827f6e19e7191de061a7fae68",
-            "size": 1640,
-            "uri": "https://{canondata_backend}/1931696/8a63746dda7f8202f1f15f34dbde2a954235ea40/resource.tar.gz#test.test_ql_filter-integer_single--Debug_/opt.yql"
+            "checksum": "b9e720ac98f940a5e6430e91f2937f5f",
+            "size": 1626,
+            "uri": "https://{canondata_backend}/1784826/d3d60fc866818e741d50f925a549dec427839eb4/resource.tar.gz#test.test_ql_filter-integer_single--Debug_/opt.yql"
         }
     ],
     "test.test[ql_filter-integer_single--Plan]": [
