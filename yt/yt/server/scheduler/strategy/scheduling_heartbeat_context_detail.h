@@ -69,8 +69,8 @@ public:
 
     void PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, NPolicy::EAllocationPreemptionReason preemptionReason) override;
 
-    NPolicy::TScheduleAllocationsStatistics GetSchedulingStatistics() const override;
-    void SetSchedulingStatistics(NPolicy::TScheduleAllocationsStatistics statistics) override;
+    NPolicy::TScheduleAllocationsStatisticsPtr GetSchedulingStatistics() const override;
+    void SetSchedulingStatistics(NPolicy::TScheduleAllocationsStatisticsPtr statistics) override;
 
     void StoreScheduleAllocationExecDurationEstimate(TDuration duration) override;
     TDuration ExtractScheduleAllocationExecDurationEstimate() override;
@@ -107,7 +107,7 @@ private:
     std::optional<int> DiscountMediumIndex_;
     TJobResourcesWithQuotaDiscount Discount_;
 
-    NPolicy::TScheduleAllocationsStatistics SchedulingStatistics_;
+    NPolicy::TScheduleAllocationsStatisticsPtr SchedulingStatistics_;
 
     std::optional<TDuration> ScheduleAllocationExecDurationEstimate_;
 

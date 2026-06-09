@@ -284,7 +284,7 @@ public:
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(DefaultGpuFullHostPreemptionEnabled);
 
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(SchedulingInfoLoggingEnabled);
-    DEFINE_BYREF_RW_PROPERTY(TScheduleAllocationsStatistics, SchedulingStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TScheduleAllocationsStatisticsImplPtr, SchedulingStatistics);
 
 public:
     TScheduleAllocationsContext(
@@ -598,6 +598,7 @@ public:
 
     //! Diagnostics.
     void BuildSchedulingAttributesStringForNode(
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         NNodeTrackerClient::TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
     void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const override;

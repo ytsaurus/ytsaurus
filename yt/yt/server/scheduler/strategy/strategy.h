@@ -151,6 +151,7 @@ struct INodeHeartbeatStrategyProxy
     virtual int GetSchedulingHeartbeatComplexity() const = 0;
 
     virtual void BuildSchedulingAttributesString(
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
 
     virtual void BuildSchedulingAttributesStringForOngoingAllocations(

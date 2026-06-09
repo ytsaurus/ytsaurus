@@ -6,6 +6,7 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/public.h>
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_heartbeat_context.h>
 #include <yt/yt/server/scheduler/strategy/policy/structs.h>
 
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
@@ -228,6 +229,18 @@ DEFINE_REFCOUNTED_TYPE(TOperation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGpuScheduleAllocationsStatistics
+    : public TScheduleAllocationsStatistics
+{
+    int ScheduledAllocationCount = 0;
+    int PreemptedAllocationCount = 0;
+};
+using TGpuScheduleAllocationsStatisticsPtr = TIntrusivePtr<TGpuScheduleAllocationsStatistics>;
+
+void Serialize(const TGpuScheduleAllocationsStatisticsPtr& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNode final
 {
 public:
@@ -243,6 +256,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AssignedResourceUsage);
 
     DEFINE_BYREF_RO_PROPERTY(TAllocationIdToAssignment, AllocationIdToAssignment);
+    DEFINE_BYREF_RW_PROPERTY(TGpuScheduleAllocationsStatisticsPtr, LastSchedulingHeartbeatStatistics);
 
     using TAllocationIdSet = TCompactSet<TAllocationId, MaxNodeGpuCount>;
     DEFINE_BYREF_RO_PROPERTY(TAllocationIdSet, AllocationsToPreempt);

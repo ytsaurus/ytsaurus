@@ -876,6 +876,7 @@ TScheduleAllocationsContext::TScheduleAllocationsContext(
         SchedulingHeartbeatContext_->CanSchedule(TreeSnapshot_->TreeConfig()->SsdPriorityPreemption->NodeTagFilter))
     , DefaultGpuFullHostPreemptionEnabled_(TreeSnapshot_->TreeConfig()->DefaultGpuFullHostPreemption->Enable)
     , SchedulingInfoLoggingEnabled_(schedulingInfoLoggingEnabled)
+    , SchedulingStatistics_(New<TScheduleAllocationsStatisticsImpl>())
     , SchedulingDeadline_(SchedulingHeartbeatContext_->GetNow() + DurationToCpuDuration(TreeSnapshot_->ControllerConfig()->ScheduleAllocationsTimeout))
     , NodeSchedulingSegment_(nodeState->SchedulingSegment)
     , OperationCountByPreemptionPriority_(GetOrCrash(
@@ -898,11 +899,11 @@ TScheduleAllocationsContext::TScheduleAllocationsContext(
         DynamicAttributesListSnapshot_ && SchedulingInfoLoggingEnabled_,
         "Using dynamic attributes snapshot for allocation scheduling");
 
-    SchedulingStatistics_.ResourceUsage = SchedulingHeartbeatContext_->ResourceUsage();
-    SchedulingStatistics_.ResourceLimits = SchedulingHeartbeatContext_->ResourceLimits();
-    SchedulingStatistics_.SsdPriorityPreemptionEnabled = SsdPriorityPreemptionEnabled_;
-    SchedulingStatistics_.SsdPriorityPreemptionMedia = SsdPriorityPreemptionMedia_;
-    SchedulingStatistics_.OperationCountByPreemptionPriority = OperationCountByPreemptionPriority_;
+    SchedulingStatistics_->ResourceUsage = SchedulingHeartbeatContext_->ResourceUsage();
+    SchedulingStatistics_->ResourceLimits = SchedulingHeartbeatContext_->ResourceLimits();
+    SchedulingStatistics_->SsdPriorityPreemptionEnabled = SsdPriorityPreemptionEnabled_;
+    SchedulingStatistics_->SsdPriorityPreemptionMedia = SsdPriorityPreemptionMedia_;
+    SchedulingStatistics_->OperationCountByPreemptionPriority = OperationCountByPreemptionPriority_;
 }
 
 void TScheduleAllocationsContext::PrepareForScheduling()
@@ -1077,8 +1078,8 @@ void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
 
     StageState_->AnalyzeAllocationsDuration += timer.GetElapsedTime();
 
-    SchedulingStatistics_.PreemptibleAllocationCount = preemptibleAllocations->size();
-    SchedulingStatistics_.ResourceUsageDiscount = SchedulingHeartbeatContext_->GetDiscount().ToJobResources();
+    SchedulingStatistics_->PreemptibleAllocationCount = preemptibleAllocations->size();
+    SchedulingStatistics_->ResourceUsageDiscount = SchedulingHeartbeatContext_->GetDiscount().ToJobResources();
 }
 
 void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
@@ -1366,7 +1367,7 @@ void TScheduleAllocationsContext::FinishStage()
     YT_VERIFY(StageState_);
 
     StageState_->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant] = DynamicAttributesManager_.GetCompositeElementDeactivationCount();
-    SchedulingStatistics_.ScheduleAllocationAttemptCountPerStage[GetStageType()] = StageState_->ScheduleAllocationAttemptCount;
+    SchedulingStatistics_->ScheduleAllocationAttemptCountPerStage[GetStageType()] = StageState_->ScheduleAllocationAttemptCount;
     ProfileAndLogStatisticsOfStage();
 
     StageState_.reset();
@@ -1875,7 +1876,7 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
     const TDiskResources& availableDiskResources,
     TJobResources* precommittedResources)
 {
-    ++SchedulingStatistics_.ControllerScheduleAllocationCount;
+    ++SchedulingStatistics_->ControllerScheduleAllocationCount;
 
     auto traceContext = NTracing::CreateTraceContextFromCurrent("ScheduleAllocation");
     traceContext->AddTag("operation_id", element->GetOperationId());
@@ -1953,7 +1954,7 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
         if (scheduleAllocationResult->Failed[EScheduleFailReason::Timeout] > 0) {
             YT_LOG_WARNING("Allocation scheduling timed out (OperationId: %v)", element->GetOperationId());
 
-            ++SchedulingStatistics_.ControllerScheduleAllocationTimedOutCount;
+            ++SchedulingStatistics_->ControllerScheduleAllocationTimedOutCount;
 
             YT_UNUSED_FUTURE(StrategyHost_->SetOperationAlert(
                 element->GetOperationId(),
@@ -2314,8 +2315,8 @@ void TScheduleAllocationsContext::ProfileStageStatistics()
 
     profilingCounters->ScheduleAllocationAttemptCount.Increment(StageState_->ScheduleAllocationAttemptCount);
     profilingCounters->ScheduleAllocationFailureCount.Increment(StageState_->ScheduleAllocationFailureCount);
-    profilingCounters->ControllerScheduleAllocationCount.Increment(SchedulingStatistics().ControllerScheduleAllocationCount);
-    profilingCounters->ControllerScheduleAllocationTimedOutCount.Increment(SchedulingStatistics().ControllerScheduleAllocationTimedOutCount);
+    profilingCounters->ControllerScheduleAllocationCount.Increment(SchedulingStatistics()->ControllerScheduleAllocationCount);
+    profilingCounters->ControllerScheduleAllocationTimedOutCount.Increment(SchedulingStatistics()->ControllerScheduleAllocationTimedOutCount);
 
     for (auto scheduleAllocationDuration : StageState_->ScheduleAllocationDurations) {
         profilingCounters->ControllerScheduleAllocationTime.Record(scheduleAllocationDuration);
@@ -2589,8 +2590,9 @@ void TSchedulingPolicy::ProcessSchedulingHeartbeat(
             Logger);
         ScheduleAllocations(context.Get());
 
-        const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
-        if (statistics.ScheduleWithPreemption) {
+        const auto& statistics = context->SchedulingStatistics();
+        YT_VERIFY(statistics);
+        if (statistics->ScheduleWithPreemption) {
             nodeState->LastPreemptiveHeartbeatStatistics = statistics;
         } else {
             nodeState->LastNonPreemptiveHeartbeatStatistics = statistics;
@@ -2865,7 +2867,10 @@ TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
     };
 }
 
-void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const
+void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    TNodeId nodeId,
+    TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
     auto nodeState = FindNodeState(nodeId);
     if (!nodeState) {
@@ -2876,6 +2881,21 @@ void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(TNodeId nodeId, T
         "SchedulingSegment: %v, RunningAllocationStatistics: %v",
         nodeState->SchedulingSegment,
         nodeState->RunningAllocationStatistics);
+
+    const auto& statistics = DynamicPointerCast<TScheduleAllocationsStatisticsImpl>(schedulingHeartbeatContext->GetSchedulingStatistics());
+    if (statistics) {
+        delimitedBuilder->AppendFormat(
+            "StartedAllocationsByPreemption: %v, PreemptibleInfo: {AllocationCount: %v, UsageDiscount: %v}, "
+            "SsdPriorityPreemption: {Enabled: %v, Media: %v}, "
+            "ScheduleAllocationAttempts: %v, OperationCountByPreemptionPriority: %v",
+            statistics->ScheduledDuringPreemption,
+            statistics->PreemptibleAllocationCount,
+            statistics->ResourceUsageDiscount,
+            statistics->SsdPriorityPreemptionEnabled,
+            statistics->SsdPriorityPreemptionMedia,
+            statistics->FormatScheduleAllocationAttemptsCompact(),
+            statistics->FormatOperationCountByPreemptionPriorityCompact());
+    }
 }
 
 void TSchedulingPolicy::BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const
@@ -3463,7 +3483,7 @@ void TSchedulingPolicy::DoPreemptiveAllocationScheduling(TScheduleAllocationsCon
         return wasMissing;
     }();
 
-    context->SchedulingStatistics().ScheduleWithPreemption = scheduleAllocationsWithPreemption;
+    context->SchedulingStatistics()->ScheduleWithPreemption = scheduleAllocationsWithPreemption;
     if (!scheduleAllocationsWithPreemption) {
         YT_LOG_DEBUG("Skip preemptive scheduling");
         return;
@@ -3473,7 +3493,7 @@ void TSchedulingPolicy::DoPreemptiveAllocationScheduling(TScheduleAllocationsCon
 
     for (const auto& [stage, parameters] : BuildPreemptiveSchedulingStageList(context)) {
         // We allow to schedule at most one allocation using preemption.
-        if (context->SchedulingStatistics().ScheduledDuringPreemption > 0) {
+        if (context->SchedulingStatistics()->ScheduledDuringPreemption > 0) {
             break;
         }
 
@@ -3557,7 +3577,7 @@ void TSchedulingPolicy::RunRegularSchedulingStage(
         }
     }
 
-    context->SchedulingStatistics().MaxNonPreemptiveSchedulingIndex = context->GetStageMaxSchedulingIndex();
+    context->SchedulingStatistics()->MaxNonPreemptiveSchedulingIndex = context->GetStageMaxSchedulingIndex();
 }
 
 void TSchedulingPolicy::RunPreemptiveSchedulingStage(
@@ -3629,7 +3649,7 @@ void TSchedulingPolicy::RunPreemptiveSchedulingStage(
     }
 
     int startedAfterPreemption = context->SchedulingHeartbeatContext()->StartedAllocations().size();
-    context->SchedulingStatistics().ScheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
+    context->SchedulingStatistics()->ScheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
     context->PreemptAllocationsAfterScheduling(
         parameters.TargetOperationPreemptionPriority,
