@@ -747,12 +747,6 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
         "disable_list_all_registrations": True,
         "implementation": "async_expiring_cache",
         "bypass_caching": False,
-        "cache": {
-            "federation_config": {
-                "cluster_health_check_period": 1000,
-                "bundle_name": "default",
-            },
-        },
     }
 
     QUEUE_CONSUMER_REGISTRATION_MANAGER_LEGACY_IMPLEMENTATION_CHECK = False

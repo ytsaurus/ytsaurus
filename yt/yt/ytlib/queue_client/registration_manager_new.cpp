@@ -10,9 +10,6 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/yt/client/federated/client.h>
-#include <yt/yt/client/federated/config.h>
-
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -55,7 +52,6 @@ struct THash<NYT::NQueueClient::NDetail::TReplicaMappingCacheKey>
 namespace NYT::NQueueClient::NDetail {
 
 using namespace NApi;
-using namespace NClient;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NLogging;
@@ -183,151 +179,68 @@ DEFINE_REFCOUNTED_TYPE(TLookupSessionProfilingCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(apachee): Create reusable helpers for federated client management across Queue API and Queue Agent.
-class TLookupSessionClientManager
+class TLookupSessionClientFactory
     : public TRefCounted
 {
 public:
-    TLookupSessionClientManager(
+    struct TReplicaClient
+    {
+        std::optional<std::string> Cluster;
+        IClientPtr Client;
+    };
+
+    TLookupSessionClientFactory(
         TWeakPtr<NNative::IConnection> connection,
         TLookupSessionConfigPtr config)
         : Connection_(std::move(connection))
-        , OnClusterUpdatedCallback_(BIND_NO_PROPAGATE(&TLookupSessionClientManager::OnClusterUpdated, MakeWeak(this)))
         , Config_(std::move(config))
     { }
 
-    void InitializeRefCounted()
+    std::vector<TReplicaClient> GetReplicaClientsOrThrow() const
     {
         auto localConnection = Connection_.Lock();
         if (!localConnection) {
-            THROW_ERROR_EXCEPTION("Federated client manager owning connection expired");
+            THROW_ERROR_EXCEPTION("Lookup session client factory owning connection expired");
         }
 
-        // Order of initialization explanation:
-        // 1. Update state first, since #OnClusterUpdatedCallback_ might be called after subscribe.
-        // 2. Subscribe before updating client to ensure that client always has "fresh" connections: client is updated either by #OnClusterUpdatedCallback_ or by #UpdateClient that follows.
-        // 3. Finally, update client to ensure it is initialized after manager is constructed.
+        auto config = Config_.Acquire();
 
-        {
-            auto guard = Guard(Lock_);
-            UpdateState(guard);
+        auto clientOptions = TClientOptions::FromUser(config->User);
+        auto clustersOrNull = config->Table.GetClusters();
+        if (!clustersOrNull || clustersOrNull->empty()) {
+            return std::vector{TReplicaClient{
+                .Cluster = localConnection->GetClusterName(),
+                .Client = localConnection->CreateClient(clientOptions),
+            }};
         }
 
-        localConnection->GetClusterDirectory()->SubscribeOnClusterUpdated(OnClusterUpdatedCallback_);
+        const auto& clusters = *clustersOrNull;
+        auto clientDirectory = New<TClientDirectory>(localConnection->GetClusterDirectory(), clientOptions);
 
-        auto guard = Guard(Lock_);
-        UpdateClient(guard);
-    }
+        std::vector<TReplicaClient> clients;
+        clients.reserve(clusters.size());
+        for (const auto& cluster : clusters) {
+            clients.push_back(TReplicaClient{
+                .Cluster = cluster,
+                .Client = clientDirectory->GetClientOrThrow(cluster),
+            });
+        }
 
-    IClientPtr GetClientOrThrow() const
-    {
-        return ClientState_
-            .Acquire()
-            ->ClientOrError
-            .ValueOrThrow();
+        return clients;
     }
 
     void Reconfigure(TLookupSessionConfigPtr newConfig)
     {
-        auto guard = Guard(Lock_);
-        if (*Config_ == *newConfig) {
-            return;
-        }
-
-        Config_ = std::move(newConfig);
-
-        UpdateState(guard);
-        UpdateClient(guard);
-    }
-
-    ~TLookupSessionClientManager()
-    {
-        auto localConnection = Connection_.Lock();
-        if (!localConnection) {
-            return;
-        }
-
-        localConnection->GetClusterDirectory()->UnsubscribeOnClusterUpdated(OnClusterUpdatedCallback_);
+        Config_.Store(newConfig);
     }
 
 private:
-    // NB(apachee): A hacky way to use atomics rather than spinlocks for loading/acquiring TErrorOr<IClientPtr>.
-    struct TClientState final
-    {
-        TErrorOr<IClientPtr> ClientOrError;
-    };
-
     const TWeakPtr<NNative::IConnection> Connection_;
-    const TCallback<void (const std::string&, NYTree::INodePtr)> OnClusterUpdatedCallback_;
-
-    TAtomicIntrusivePtr<TClientState> ClientState_;
-
-    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
-    TLookupSessionConfigPtr Config_;
-    NFederated::TFederationConfigPtr FederationConfig_;
-    TClientOptions ClientOptions_;
-    THashSet<std::string> Clusters_;
-
-    void UpdateState(const TGuard<TSpinLock>& /*guard*/)
-    {
-        FederationConfig_ = Config_->FederationConfig;
-        ClientOptions_ = TClientOptions::FromUser(Config_->User);
-
-        auto clusters = Config_->Table.GetClusters().value_or(std::vector<std::string>{});
-        Clusters_ = THashSet<std::string>(
-            std::make_move_iterator(clusters.begin()),
-            std::make_move_iterator(clusters.end()));
-    }
-
-    void UpdateClient(const TGuard<TSpinLock>& /*guard*/)
-    {
-        TErrorOr<IClientPtr> clientOrError;
-        try {
-            clientOrError = CreateClientOrThrow();
-        } catch (const std::exception& ex) {
-            clientOrError = ex;
-        }
-
-        ClientState_.Store(New<TClientState>(TClientState{
-            .ClientOrError = std::move(clientOrError),
-        }));
-    }
-
-    IClientPtr CreateClientOrThrow() const
-    {
-        auto localConnection = Connection_.Lock();
-        if (!localConnection) {
-            THROW_ERROR_EXCEPTION("Queue consumer registration cache owning connection expired");
-        }
-
-        auto clientDirectory = New<TClientDirectory>(localConnection->GetClusterDirectory(), ClientOptions_);
-
-        if (Clusters_.empty()) {
-            return localConnection->CreateClient(ClientOptions_);
-        }
-
-        std::vector<IClientPtr> clients;
-        clients.reserve(Clusters_.size());
-        for (const auto& cluster : Clusters_) {
-            clients.push_back(clientDirectory->GetClientOrThrow(cluster));
-        }
-
-        return NFederated::CreateClient(clients, FederationConfig_);
-    }
-
-    void OnClusterUpdated(const std::string& cluster, NYTree::INodePtr /*node*/)
-    {
-        auto guard = Guard(Lock_);
-        if (!Clusters_.contains(cluster)) {
-            return;
-        }
-
-        UpdateClient(guard);
-    }
+    TAtomicIntrusivePtr<TLookupSessionConfig> Config_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TLookupSessionClientManager)
-using TLookupSessionClientManagerPtr = TIntrusivePtr<TLookupSessionClientManager>;
+DEFINE_REFCOUNTED_TYPE(TLookupSessionClientFactory)
+using TLookupSessionClientFactoryPtr = TIntrusivePtr<TLookupSessionClientFactory>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -343,10 +256,12 @@ public:
     using TLookupResult = TLookupResultType;
     using TLookupResultWrapped = TErrorTraits<TLookupResult>::TWrapped;
     using TLookupResultUnwrapped = TErrorTraits<TLookupResult>::TUnwrapped;
+    using TLookupSessionResult = std::vector<TLookupResult>;
+    using TLookupSessionWrappedResult = std::vector<TLookupResultWrapped>;
 
 public:
     TLookupSessionBase(
-        TLookupSessionClientManagerPtr clientManager,
+        TLookupSessionClientFactoryPtr clientFactory,
         TLookupSessionConfigPtr config,
         std::vector<TCacheKey> keys,
         TLookupSessionProfilingCountersPtr profilingCounters,
@@ -355,7 +270,7 @@ public:
         , Keys_(std::move(keys))
         , ProfilingCounters_(std::move(profilingCounters))
         , Logger(std::move(logger))
-        , ClientManager_(std::move(clientManager))
+        , ClientFactory_(std::move(clientFactory))
     { }
 
     auto Run() const
@@ -380,9 +295,62 @@ public:
         }
     }
 
-    std::vector<TLookupResultWrapped> RunGuarded() const
+protected:
+    struct TReplicaLookupResult
     {
-        auto client = ClientManager_->GetClientOrThrow();
+        std::optional<std::string> Cluster;
+        TLookupSessionWrappedResult Result;
+    };
+
+    const TLookupSessionConfigPtr Config_;
+    const std::vector<TCacheKey> Keys_;
+    const TLookupSessionProfilingCountersPtr ProfilingCounters_;
+    const TLogger Logger;
+
+    virtual TLookupSessionResult DoLookup(TIntrusivePtr<TTable> table) const = 0;
+
+private:
+    const TLookupSessionClientFactoryPtr ClientFactory_;
+
+    TLookupSessionWrappedResult RunGuarded() const
+    {
+        auto clients = ClientFactory_->GetReplicaClientsOrThrow();
+        YT_VERIFY(!clients.empty());
+
+        int defaultSuccessfulLookupsRequired = std::ssize(clients) / 2 + 1;
+        int successfulLookupsRequired = Config_->SuccessfulLookupsRequired
+            .value_or(defaultSuccessfulLookupsRequired);
+
+        YT_LOG_ALERT_AND_THROW_UNLESS(
+            successfulLookupsRequired > 0 && successfulLookupsRequired <= std::ssize(clients),
+            "Successful lookups required must be between 1 and %v",
+            clients.size());
+
+        std::vector<TFuture<TReplicaLookupResult>> replicaLookupFutures;
+        replicaLookupFutures.reserve(clients.size());
+        for (const auto& [cluster, client] : clients) {
+            replicaLookupFutures.push_back(
+                BIND(&TLookupSessionBase::RunReplicaLookup, MakeStrong(this), client)
+                    .AsyncVia(GetCurrentInvoker())
+                    .Run()
+                    .AsUnique()
+                    .Apply(BIND([cluster] (TLookupSessionWrappedResult&& result) {
+                        return TReplicaLookupResult{
+                            .Cluster = cluster,
+                            .Result = std::move(result),
+                        };
+                    })));
+        }
+
+        auto results = WaitFor(AnyNSucceeded(replicaLookupFutures, successfulLookupsRequired))
+            .ValueOrThrow();
+        YT_VERIFY(!results.empty());
+
+        return MergeResults(std::move(results));
+    }
+
+    std::vector<TLookupResultWrapped> RunReplicaLookup(IClientPtr client) const
+    {
         auto table = New<TTable>(Config_->Table.GetPath(), client);
 
         // NB(apachee): Wrap result in TErrorOr in case it isn't already.
@@ -404,16 +372,69 @@ public:
         }
     }
 
-protected:
-    const TLookupSessionConfigPtr Config_;
-    const std::vector<TCacheKey> Keys_;
-    const TLookupSessionProfilingCountersPtr ProfilingCounters_;
-    const TLogger Logger;
+    //! Merges lookup results from all table replicas into a single result.
+    //! Logic is as follows:
+    //! - Result for each key is calculated independently.
+    //! - We split replica results for each key into successful and failed results.
+    //! - If all replica lookups failed for a key, we return a failed result.
+    //! - If at least one replica lookup succeeded for a key, we return a successful result.
+    //! - We chose random successful result to return, as current setup does not provide any means to deduce the freshest result.
+    //! XXX(apachee): Better merging might be possible, but is considered out of scope for the problem being solved, which is to eradicate full scans of the tables.
+    TLookupSessionWrappedResult MergeResults(std::vector<TReplicaLookupResult> replicaResults) const
+    {
+        {
+            std::vector<TError> replicaLookupErrors;
+            for (const auto& replicaResult : replicaResults) {
+                if (replicaResult.Result.size() != Keys_.size()) {
+                    replicaLookupErrors.push_back(TError(
+                        "Mismatch between requested key count and lookup result count for replica cluster %v",
+                        replicaResult.Cluster)
+                        << TErrorAttribute("requested_key_count", Keys_.size())
+                        << TErrorAttribute("lookup_result_count", replicaResult.Result.size()));
+                }
+            }
 
-    virtual std::vector<TLookupResult> DoLookup(TIntrusivePtr<TTable> table) const = 0;
+            if (!replicaLookupErrors.empty()) {
+                auto error = TError("Replica lookup invariants were violated")
+                    << replicaLookupErrors;
+                YT_LOG_ALERT_AND_THROW(error);
+            }
+        }
 
-private:
-    const TLookupSessionClientManagerPtr ClientManager_;
+        TLookupSessionWrappedResult mergedResult;
+        mergedResult.reserve(Keys_.size());
+
+        std::vector<TLookupResult> successfulKeyResults;
+        std::vector<TError> failedKeyResults;
+
+        for (i64 i = 0; i < std::ssize(Keys_); ++i) {
+            successfulKeyResults.clear();
+            failedKeyResults.clear();
+
+            for (auto&& [_, replicaResult] : replicaResults) {
+                if (replicaResult[i].IsOK()) {
+                    successfulKeyResults.push_back(std::move(replicaResult[i].Value()));
+                } else {
+                    failedKeyResults.push_back(std::move(replicaResult[i]));
+                }
+            }
+
+            YT_VERIFY(!successfulKeyResults.empty() || !failedKeyResults.empty());
+            if (successfulKeyResults.empty()) {
+                // Lookup completely failed.
+                mergedResult.push_back(
+                    TError("All replica lookups failed")
+                        << std::move(failedKeyResults));
+            } else {
+                // NB(apachee): We chose random successful result to return,
+                // as current setup does not provide any means to deduce the freshest result.
+                auto chosenResultIndex = RandomNumber<ui64>(successfulKeyResults.size());
+                mergedResult.push_back(std::move(successfulKeyResults[chosenResultIndex]));
+            }
+        }
+
+        return mergedResult;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -447,7 +468,7 @@ public:
         : Connection_(std::move(connection))
         , ProfilingCounters_(std::move(profiler))
         , SessionLogger_(std::move(sessionLogger))
-        , ClientManager_(New<TLookupSessionClientManager>(
+        , ClientFactory_(New<TLookupSessionClientFactory>(
             Connection_,
             config))
         , Config_(std::move(config))
@@ -456,7 +477,7 @@ public:
     void Reconfigure(TLookupSessionConfigPtr newConfig)
     {
         Config_.Store(newConfig);
-        ClientManager_->Reconfigure(std::move(newConfig));
+        ClientFactory_->Reconfigure(std::move(newConfig));
     }
 
     TIntrusivePtr<TLookupSession> CreateSession(
@@ -464,7 +485,7 @@ public:
         ELookupReason lookupReason) const
     {
         return New<TLookupSession>(
-            ClientManager_,
+            ClientFactory_,
             Config_.Acquire(),
             std::move(keys),
             ProfilingCounters_.LookupSessionByReason[lookupReason],
@@ -475,7 +496,7 @@ private:
     const TWeakPtr<NNative::IConnection> Connection_;
     const TLookupSessionFactoryProfilingCounters ProfilingCounters_;
     const NLogging::TLogger SessionLogger_;
-    const TLookupSessionClientManagerPtr ClientManager_;
+    const TLookupSessionClientFactoryPtr ClientFactory_;
 
     TAtomicIntrusivePtr<TLookupSessionConfig> Config_;
 };
