@@ -95,9 +95,14 @@ def unmount_async_tablets(obj, tablet_index):
             obj.unmount(unmounted_async_tablet_index, sync=True)
 
 
+# Inline hunk threshold for the queue's value column. Values larger than this are
+# stored in the linked hunk storage; smaller ones stay inline. Kept as a single
+# constant so every schema that should produce hunks agrees on the value.
+MAX_INLINE_HUNK_SIZE = 512
+
 QUEUE_SCHEMA = [
     {"name": "key", "type": "string"},
-    {"name": "value", "type": "string", "max_inline_hunk_size": 512},
+    {"name": "value", "type": "string", "max_inline_hunk_size": MAX_INLINE_HUNK_SIZE},
     {"name": "$cumulative_data_weight", "type": "int64"},
 ]
 
@@ -107,7 +112,7 @@ QUEUE_SCHEMA = [
 # (dynamic tables require strict=true, and alter cannot tighten strict).
 ALTERED_QUEUE_SCHEMA = [
     {"name": "key", "type": "string"},
-    {"name": "value", "type": "string", "max_inline_hunk_size": 512},
+    {"name": "value", "type": "string", "max_inline_hunk_size": MAX_INLINE_HUNK_SIZE},
 ]
 
 # Schema applied to the result of single-source operations that produce sorted output
@@ -698,13 +703,20 @@ class StaticTable(TableBase):
         ]
 
         # Two cases depending on the static's lineage:
-        # (a) came from sort/map_reduce/merge → schema has sort_order columns. We must
+        # (a) sorted output (sort/map_reduce) → schema has sort_order columns. We must
         #     first drop sort_order (otherwise alter to dynamic infers sorted-dynamic,
         #     which can't host an ordered queue), then alter to dynamic with
-        #     ALTERED_QUEUE_SCHEMA (key/value, no $cumulative_data_weight).
-        # (b) came from Queue.alter_to_static → schema lacks sort_order and may carry
-        #     $cumulative_data_weight. A single alter dynamic=True suffices; preserving
-        #     the existing schema (including $cumulative_data_weight) is fine for queues.
+        #     ALTERED_QUEUE_SCHEMA (key/value with max_inline_hunk_size).
+        # (b) unsorted static → either an unsorted op output (merge/map/merge_with,
+        #     schema UNSORTED_KV_SCHEMA with no hunk column) or Queue.alter_to_static
+        #     (schema may carry $cumulative_data_weight and already-hunked value). A
+        #     single alter dynamic=True suffices, BUT we must not silently inherit a
+        #     value column without max_inline_hunk_size — otherwise a later
+        #     hunk-storage link produces a queue with hunk_storage_id yet no hunks.
+        #     So preserve the existing schema (keeping $cumulative_data_weight) and
+        #     just ensure the value column is hunked. Adding max_inline_hunk_size is a
+        #     valid alter; only *resetting* it is forbidden, so the alter_to_static
+        #     lineage (already 512) is unaffected.
         schema = yt.get(f"{self.path}/@schema")
         has_sort_order = any(col.get("sort_order") for col in schema)
 
@@ -715,7 +727,11 @@ class StaticTable(TableBase):
             yt.alter_table(new_path, schema=UNSORTED_KV_SCHEMA)
             yt.alter_table(new_path, dynamic=True, schema=ALTERED_QUEUE_SCHEMA)
         else:
-            yt.alter_table(new_path, dynamic=True)
+            hunked_schema = copy.deepcopy(schema)
+            for col in hunked_schema:
+                if col["name"] == "value":
+                    col["max_inline_hunk_size"] = MAX_INLINE_HUNK_SIZE
+            yt.alter_table(new_path, dynamic=True, schema=hunked_schema)
         yt.set(f"{new_path}/@enable_dynamic_store_read", True)
 
         queue = Queue(self.base_path, new_queue_name, tablet_count=1, history=new_history)
