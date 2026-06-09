@@ -489,6 +489,9 @@ yt set //sys/@ui_config/ui_settings/access_log_base_path '"http://ytsaurus-msvc-
 
         # Директория для временных файлов
         tmpPath: //sys/admin/yt-microservices/tmp/id_to_path_updater
+
+        # Максимальное количество одновременно обрабатываемых таблиц
+        maxInputTableCount: 256
   ```
 
 ### Access Log Viewer API

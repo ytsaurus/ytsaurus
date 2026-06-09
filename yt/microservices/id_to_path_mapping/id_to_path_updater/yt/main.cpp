@@ -121,7 +121,7 @@ void Process(TString cluster, TString tmpPath, std::vector<TString> inputTables,
     MarkTablesAsProcessed(client, inputTables);
 }
 
-std::vector<TString> GetTablesToProcess(const TString& cluster, const TString& inputDirectory)
+std::vector<TString> GetTablesToProcess(const TString& cluster, const TString& inputDirectory, int maxInputTableCount)
 {
     auto client = CreateClient(cluster);
     auto listOptions = TListOptions()
@@ -139,6 +139,10 @@ std::vector<TString> GetTablesToProcess(const TString& cluster, const TString& i
         }
     }
     std::sort(result.rbegin(), result.rend());
+    if (std::ssize(result) > maxInputTableCount) {
+        YT_LOG_INFO("Limiting tables to process (UnprocessedTableCount: %v, Limit: %v)", result.size(), maxInputTableCount);
+        result.resize(maxInputTableCount);
+    }
     return result;
 }
 
@@ -167,6 +171,7 @@ int main(int argc, const char** argv)
     TString forceCluster;
     TString tokenEnvVariable;
     THashSet<std::string> allowClusters;
+    int maxInputTableCount = 256;
 
     auto opts = NLastGetopt::TOpts::Default();
     opts.AddLongOption("cluster", "YT cluster").StoreResult(&cluster).Required();
@@ -177,11 +182,13 @@ int main(int argc, const char** argv)
     opts.AddLongOption("token-env-variable", "Environment variable that specifies the token used when accessing YT")
         .StoreResult(&tokenEnvVariable).DefaultValue("YT_ID_TO_PATH_TOKEN");
     opts.AddLongOption("allow-clusters", "Process only clusters in set").InsertTo(&allowClusters);
+    opts.AddLongOption("max-input-table-count", "Maximum number of input tables to process in a single run")
+        .StoreResult(&maxInputTableCount).DefaultValue("256");
     NLastGetopt::TOptsParseResult res(&opts, argc, argv);
 
     TConfig::Get()->Token = LoadIdToPathToken(std::move(tokenEnvVariable));
 
-    auto inputTables = GetTablesToProcess(cluster, inputDirectory);
+    auto inputTables = GetTablesToProcess(cluster, inputDirectory, maxInputTableCount);
     if (inputTables.empty()) {
         YT_LOG_INFO("No tables to process");
         return EXIT_SUCCESS;
