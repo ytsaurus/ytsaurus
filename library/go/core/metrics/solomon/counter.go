@@ -1,6 +1,8 @@
 package solomon
 
 import (
+	"io"
+
 	"go.uber.org/atomic"
 
 	"go.ytsaurus.tech/library/go/core/metrics"
@@ -47,6 +49,10 @@ func (c *Counter) Add(delta int64) {
 
 func (c *Counter) Value() any {
 	return c.value.Load()
+}
+
+func (c *Counter) writeSpackValue(w io.Writer) error {
+	return writeUint64LE(w, uint64(c.value.Load()))
 }
 
 // MarshalJSON implements json.Marshaler.

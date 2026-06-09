@@ -1,6 +1,8 @@
 package solomon
 
 import (
+	"io"
+
 	"go.uber.org/atomic"
 )
 
@@ -34,6 +36,10 @@ func (c *FuncCounter) Function() func() int64 {
 
 func (c *FuncCounter) Value() any {
 	return c.function()
+}
+
+func (c *FuncCounter) writeSpackValue(w io.Writer) error {
+	return writeUint64LE(w, uint64(c.function()))
 }
 
 // MarshalJSON implements json.Marshaler.
