@@ -1,8 +1,7 @@
-from helpers import get_scheduling_options
 
 from yt_commands import (create, create_access_control_object, create_access_control_object_namespace,
-                         write_file, ls, start_op, get, exists, update_op_parameters, create_user,
-                         sync_create_cells, print_debug, get_driver, remove, make_ace, set as yt_set, select_rows)
+                         write_file, ls, start_op, get, exists, create_user, sync_create_cells, print_debug,
+                         get_driver, remove, make_ace, set as yt_set, select_rows, patch_op_spec)
 
 from yt.clickhouse import get_clique_spec_builder
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config
@@ -756,7 +755,7 @@ class Clique(object):
         return self.get_profiler(instance_id).gauge(sensor)
 
     def resize(self, size):
-        update_op_parameters(self.op.id, parameters=get_scheduling_options(user_slots=size))
+        patch_op_spec(self.op.id, patches=[{"path": "/tasks/instances/job_count", "value": size}])
         wait(lambda: self.get_active_instance_count() == size)
 
     def get_clique_id(self):
