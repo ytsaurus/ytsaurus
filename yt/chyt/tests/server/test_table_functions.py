@@ -254,6 +254,14 @@ class TestTableFunctions(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select $path from ytListLogTables('//tmp/dir3')")
 
+            # Passing unix timestamps via toDateTime() should work correctly regardless of session timezone.
+            # Range [1609624800, 1609639200] = [2021-01-02T22:00:00Z, 2021-01-03T02:00:00Z].
+            query = "select $path from ytListLogTables('//tmp/dir1', toDateTime(1609624800), toDateTime(1609639200)) order by $key"
+            assert clique.make_query(query, settings={"session_timezone": "Europe/Moscow"}) == [
+                {"$path": "//tmp/dir1/1d/2021-01-02"},
+                {"$path": "//tmp/dir1/1d/2021-01-03"},
+            ]
+
     @authors("dakovalkov", "buyval01")
     def test_yt_tables(self):
         create("map_node", "//tmp/dir1")
