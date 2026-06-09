@@ -255,6 +255,7 @@ spec_template = {
         "unmount_hunk_storage_tablet_probability": 0.1,
         "mount_hunk_storage_tablet_probability": 0.2,
         "change_hunk_storage_probability": 0.8,
+        "unlink_hunk_storage_probability": 0.2,
         "create_probability": 0.2,
         "copy_probability": 0.3,
         "move_probability": 0.3,
