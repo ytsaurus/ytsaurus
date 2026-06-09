@@ -1282,13 +1282,13 @@ void TTabletBalancer::RequestBalancing(
 
     auto bundleStateIt = Bundles_.find(balancingRequest.BundleName);
     if (bundleStateIt == Bundles_.end()) {
-        THROW_ERROR_EXCEPTION("Received on-demand balancing request for an unknown %Qlv bundle",
+        THROW_ERROR_EXCEPTION("Received on-demand balancing request for an unknown %Qv bundle",
             balancingRequest.BundleName);
     }
 
     auto bundleSnapshotOrError = WaitFor(bundleStateIt->second->GetBundleSnapshot());
     if (!bundleSnapshotOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Failed to get %Qlv bundle snapshot for on-demand balancing",
+        THROW_ERROR_EXCEPTION("Failed to get %Qv bundle snapshot for on-demand balancing",
             balancingRequest.BundleName)
             << bundleSnapshotOrError;
     }

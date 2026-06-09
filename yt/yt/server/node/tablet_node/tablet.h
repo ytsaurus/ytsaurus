@@ -325,6 +325,8 @@ struct TTabletSnapshot
 
     TTabletSizeMetrics TabletSizeMetrics;
 
+    std::vector<NTabletServer::TOriginatorTablet> OriginatorTablets;
+
     std::atomic<bool> Unregistered = false;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
