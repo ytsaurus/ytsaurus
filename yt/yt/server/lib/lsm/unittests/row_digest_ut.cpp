@@ -136,6 +136,13 @@ std::unique_ptr<TStore> MakeStore(TTabletPtr tablet, TDigestFiller filler)
     return store;
 }
 
+std::unique_ptr<TStore> MakeStoreWithoutFirstDigest(TTabletPtr tablet, TDigestFiller filler)
+{
+    auto store = MakeStore(std::move(tablet), std::move(filler));
+    std::get<TVersionedRowDigestPtr>(store->CompactionHints().Payloads()[StoreKind])->FirstTimestampDigest.Reset();
+    return store;
+}
+
 struct TRowDigestTest
     : ::testing::TestWithParam<TRowDigestTestParams>
 { };
@@ -229,6 +236,27 @@ TEST_P(TRowDigestTest, RowDigestTest)
             params.Hint.GetTimestamp().GetValue(),
             Accuracy.GetValue());
     }
+}
+
+TEST(TRowDigestStoreTest, MissingFirstTimestampDigestSkipsTtlCleanup)
+{
+    auto mountConfig = New<TTableMountConfig>();
+    mountConfig->MinDataVersions = 1;
+    mountConfig->MaxDataVersions = 1;
+    mountConfig->MinDataTtl = TDuration::Days(1);
+    mountConfig->MaxDataTtl = TDuration::Days(2);
+    mountConfig->CompactionHints->RowDigest->EnableNonAggregates = true;
+    mountConfig->CompactionHints->RowDigest->MaxObsoleteTimestampRatio = FloorWithPrecision(2. / 3, 6);
+
+    auto tablet = New<TTablet>();
+    tablet->SetMountConfig(std::move(mountConfig));
+
+    auto store = MakeStoreWithoutFirstDigest(tablet, CreateDigestFiller(100, 3, 0));
+    auto& hint = store->CompactionHints().Hints()[Kind];
+
+    ASSERT_TRUE(hint.RecalculateHint(store));
+    EXPECT_EQ(hint.GetReason(), EStoreCompactionReason::None);
+    EXPECT_EQ(hint.GetTimestamp(), TInstant::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -485,6 +513,51 @@ TEST_P(TAggregateRowDigestTest, TooManyTimestampsBlockedByMajorTimestamp)
     EXPECT_EQ(hint->GetReason(), EStoreCompactionReason::AggregateDeleteTooManyTimestamps);
     // Prefix=1 is blocked by majorTimestamp, so prefix=2 (both stores) wins.
     EXPECT_EQ(ssize(hint->StoreIds()), 2);
+    EXPECT_NEAR(
+        hint->GetTimestamp().GetValue(),
+        (StartDate + GetParam().MinDataTtl + TDuration::Hours(8193)).GetValue(),
+        Accuracy.GetValue());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TAggregateRowDigestTest, MissingFirstTimestampDigestSkipsTtlCleanup)
+{
+    auto [partition, hint] = MakePartition();
+    partition->Stores().push_back(MakeStoreWithoutFirstDigest(Tablet, CreateDigestFiller(100, 3, 0)));
+
+    ASSERT_TRUE(hint->RecalculateHint(partition.get()));
+    EXPECT_EQ(
+        hint->GetReason(),
+        GetParam().MinDataVersions == 0
+            ? EStoreCompactionReason::AggregateTtlCleanupExpected
+            : EStoreCompactionReason::None);
+}
+
+TEST_P(TAggregateRowDigestTest, MissingFirstTimestampDigestInOneStoreSkipsTtlCleanup)
+{
+    auto [partition, hint] = MakePartition();
+    partition->Stores().push_back(MakeStoreWithoutFirstDigest(Tablet, CreateDigestFiller(100, 3, 0)));
+    partition->Stores().push_back(MakeStore(Tablet, CreateDigestFiller(100, 3, 0, TDuration::Hours(1), TDuration::Days(100))));
+
+    ASSERT_TRUE(hint->RecalculateHint(partition.get()));
+    EXPECT_EQ(
+        hint->GetReason(),
+        GetParam().MinDataVersions == 0
+            ? EStoreCompactionReason::AggregateTtlCleanupExpected
+            : EStoreCompactionReason::None);
+}
+
+TEST_P(TAggregateRowDigestTest, MissingFirstTimestampDigestStillAllowsTooManyTimestamps)
+{
+    MountConfig->CompactionHints->RowDigest->MaxTimestampsPerValue = 8192;
+    MountConfig->CompactionHints->RowDigest->MaxObsoleteTimestampRatio = 1.0;
+
+    auto [partition, hint] = MakePartition();
+    partition->Stores().push_back(MakeStoreWithoutFirstDigest(Tablet, CreateDigestFiller(2, 16384, 16383)));
+
+    ASSERT_TRUE(hint->RecalculateHint(partition.get()));
+    EXPECT_EQ(hint->GetReason(), EStoreCompactionReason::AggregateDeleteTooManyTimestamps);
     EXPECT_NEAR(
         hint->GetTimestamp().GetValue(),
         (StartDate + GetParam().MinDataTtl + TDuration::Hours(8193)).GetValue(),
