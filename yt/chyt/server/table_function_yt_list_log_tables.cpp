@@ -3,10 +3,13 @@
 #include "storages_yt_nodes.h"
 #include "function_helpers.h"
 
+#include <DataTypes/IDataType.h>
 #include <Parsers/ASTFunction.h>
+#include <Parsers/ASTLiteral.h>
 #include <Storages/IStorage.h>
 #include <TableFunctions/ITableFunction.h>
 #include <TableFunctions/TableFunctionFactory.h>
+#include <Interpreters/evaluateConstantExpression.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -49,16 +52,13 @@ public:
         LogPath_ = EvaluateStringExpression(args[0], context);
 
         if (args.size() >= 2) {
-            // Explicit cast to string to allow passing date/datetime in arguments.
-            auto arg = DB::makeASTFunction("toString", args[1]);
-            auto from = EvaluateStringExpression(arg, context);
+            auto from = ParseDateTimeArg(args[1], context);
             if (!from.empty()) {
                 Options_.From = TInstant::ParseIso8601(from);
             }
         }
         if (args.size() >= 3) {
-            auto arg = DB::makeASTFunction("toString", args[2]);
-            auto to = EvaluateStringExpression(arg, context);
+            auto to = ParseDateTimeArg(args[2], context);
             if (!to.empty()) {
                 Options_.To = TInstant::ParseIso8601(to);
             }
@@ -75,6 +75,18 @@ public:
 private:
     TString LogPath_;
     TStorageYtLogTablesOptions Options_;
+
+    static TString ParseDateTimeArg(const DB::ASTPtr& arg, DB::ContextPtr context)
+    {
+        auto [field, dataType] = DB::evaluateConstantExpression(arg, context);
+        if (DB::WhichDataType(dataType).isString()) {
+            return TString(field.safeGet<std::string>());
+        }
+        auto utcArg = DB::makeASTFunction(
+            "toString",
+            DB::makeASTFunction("toTimeZone", arg, std::make_shared<DB::ASTLiteral>(DB::Field("UTC"))));
+        return EvaluateStringExpression(utcArg, context);
+    }
 
     DB::StoragePtr executeImpl(
         const DB::ASTPtr& /*functionAst*/,
