@@ -44,9 +44,6 @@ class TLease final
     , public TRefTracked<TLease>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(int, PersistentRefCounter);
-    DEFINE_BYVAL_RW_PROPERTY(int, TransientRefCounter);
-
     DEFINE_BYVAL_RW_PROPERTY(TCellId, OwnerCellId);
 
 public:
@@ -74,6 +71,26 @@ public:
 
     int RefTransiently(bool force) override;
     int UnrefTransiently() override;
+
+    int GetPersistentRefCounter() const override
+    {
+        return PersistentRefCounter_;
+    }
+
+    void SetPersistentRefCounter(int value)
+    {
+        PersistentRefCounter_ = value;
+    }
+
+    int GetTransientRefCounter() const
+    {
+        return TransientRefCounter_;
+    }
+
+    void SetTransientRefCounter(int value)
+    {
+        TransientRefCounter_ = value;
+    }
 
     void SetState(ELeaseState newState)
     {
@@ -105,6 +122,9 @@ private:
     const TLeaseId Id_;
     TLeaseManager* const Owner_;
 
+    int PersistentRefCounter_ = 0;
+    int TransientRefCounter_ = 0;
+
     ELeaseState State_ = ELeaseState::Unknown;
 };
 
@@ -119,6 +139,7 @@ class TLeaseManager
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(TLeaseId leaseId, TCellId cellId), LeaseRevoked);
+    DEFINE_SIGNAL_OVERRIDE(void(ILease* lease), LeaseRemoved);
 
 public:
     TLeaseManager(
@@ -688,7 +709,7 @@ private:
         // NB: Lease may die below.
         auto leaseId = lease->GetId();
         auto ownerCellId = lease->GetOwnerCellId();
-        LeaseMap_.Release(leaseId);
+        auto leaseHolder = LeaseMap_.Release(leaseId);
 
         LeaseIdsToRemove_.erase(leaseId);
 
@@ -701,6 +722,8 @@ private:
             auto mailbox = HiveManager_->GetOrCreateCellMailbox(ownerCellId);
             HiveManager_->PostMessage(mailbox, message);
         }
+
+        LeaseRemoved_.Fire(lease);
 
         YT_LOG_DEBUG(
             "Lease removed (LeaseId: %v)",

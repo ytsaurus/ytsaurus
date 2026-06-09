@@ -116,9 +116,6 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_start_foreign_transaction_fixes", &TThis::EnableStartForeignTransactionFixes)
         .Default(false);
 
-    registrar.Parameter("enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases", &TThis::EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
-        .Default(false);
-
     registrar.Parameter("enable_non_strict_externalized_transaction_usage", &TThis::EnableNonStrictExternalizedTransactionUsage)
         .Default(true);
 

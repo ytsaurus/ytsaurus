@@ -24,6 +24,7 @@ struct ILease
 
     virtual int RefPersistently(bool force) = 0;
     virtual int UnrefPersistently() = 0;
+    virtual int GetPersistentRefCounter() const = 0;
 
     virtual int RefTransiently(bool force) = 0;
     virtual int UnrefTransiently() = 0;
@@ -34,7 +35,14 @@ struct ILease
 struct ILeaseManager
     : public virtual TRefCounted
 {
+    // Fired on the lessor side (i.e. on the cell that has issued the lease) once every lessee confirms revocation.
     DECLARE_INTERFACE_SIGNAL(void(TLeaseId leaseId, NHydra::TCellId cellId), LeaseRevoked);
+
+    // Fired on the lessee side (i.e. on the cell that has requested the issuing of the lease)
+    // right before the lease is destroyed locally.
+    // NB: Holding a reference to a lease (either transient or persistent) is not enough to prevent
+    // its removal because RevokeLease may be called with force == true.
+    DECLARE_INTERFACE_SIGNAL(void(ILease* lease), LeaseRemoved);
 
     virtual ILease* FindLease(TLeaseId leaseId) const = 0;
     virtual ILease* GetLease(TLeaseId leaseId) const = 0;
