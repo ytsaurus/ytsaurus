@@ -121,6 +121,7 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
 using namespace NLeaseServer;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NObjectServer;
@@ -179,6 +180,165 @@ private:
     std::optional<NLogging::TFiberMessageTagGuard> MessageTagGuard_;
 };
 
+//! When a mirrored Cypress transaction is used as a prerequisite for another
+//! transaction commit (e.g. for committing Sequoia transactions), the
+//! prerequisite check is implemented by issuing a lease from prerequisite
+//! transaction's coordinator cell to the cell coordinating the commit.
+//! To prevent the prerequisite transaction from finishing concurrently with 2pc,
+//! we take a persistent reference to the lease in prepare (and then release it
+//! in commit/abort).
+class TLeasePersistentReferenceTracker
+{
+public:
+    TLeasePersistentReferenceTracker(TBootstrap* bootstrap, TLogger logger)
+        : Bootstrap_(bootstrap)
+        , Logger(std::move(logger))
+    { }
+
+    void Save(NCellMaster::TSaveContext& context)
+    {
+        using NYT::Save;
+
+        THashMap<TRawObjectPtr<TTransaction>, TCompactFlatSet<TLeaseId, 2>> transactionToReferencedLeaseIds;
+        for (const auto& [transaction, leases] : TransactionToReferencedLeases_) {
+            auto& leaseIds = transactionToReferencedLeaseIds[transaction];
+            for (auto* lease : leases) {
+                leaseIds.insert(lease->GetId());
+            }
+        }
+        Save(context, transactionToReferencedLeaseIds);
+        // LeaseToReferencingTransactions_ is not persisted and is recomputed instead.
+    }
+
+    void Load(NCellMaster::TLoadContext& context)
+    {
+        using NYT::Load;
+
+        const auto& leaseManager = Bootstrap_->GetLeaseManager();
+        auto transactionToReferencedLeaseIds = Load<THashMap<TRawObjectPtr<TTransaction>, TCompactFlatSet<TLeaseId, 2>>>(context);
+        for (const auto& [transaction, leaseIds] : transactionToReferencedLeaseIds) {
+            auto& leases = TransactionToReferencedLeases_[transaction];
+            for (auto leaseId : leaseIds) {
+                if (auto* lease = leaseManager->FindLease(leaseId)) {
+                    leases.insert(lease);
+                    LeaseToReferencingTransactions_[lease].insert(transaction);
+                } else {
+                    YT_LOG_ALERT("Lease not found while loading transaction-to-referenced-lease map (LeaseId: %v, TransactionId: %v)",
+                        leaseId,
+                        transaction->GetId());
+                }
+            }
+        }
+    }
+
+    void RefLease(TTransaction* transaction, ILease* lease)
+    {
+        lease->RefPersistently(/* force */ false); // May throw on inactive lease.
+        TransactionToReferencedLeases_[transaction].insert(lease);
+        LeaseToReferencingTransactions_[lease].insert(transaction);
+    }
+
+    void HandleTransactionFinish(TTransaction* transaction)
+    {
+        auto transactionIt = TransactionToReferencedLeases_.find(transaction);
+
+        if (transactionIt == TransactionToReferencedLeases_.end()) {
+            return;
+        }
+
+        const auto& leases = transactionIt->second;
+        for (auto* lease : leases) {
+            lease->UnrefPersistently();
+            if (auto leaseIt = LeaseToReferencingTransactions_.find(lease);
+                leaseIt != LeaseToReferencingTransactions_.end())
+            {
+                auto& transactions = leaseIt->second;
+                if (transactions.erase(transaction)) {
+                    if (transactions.empty()) {
+                        LeaseToReferencingTransactions_.erase(leaseIt);
+                    }
+                } else {
+                    YT_LOG_ALERT("Lease is referenced by transaction according to transaction-to-lease map but not according to lease-to-transaction map "
+                        "(LeaseId: %v, TransactionId: %v)",
+                        lease->GetId(),
+                        transaction->GetId());
+                }
+            } else {
+                YT_LOG_ALERT("Lease is referenced by transaction according to transaction-to-lease map but is not referenced by any transaction according to lease-to-transaction map "
+                    "(LeaseId: %v, TransactionId: %v)",
+                    lease->GetId(),
+                    transaction->GetId());
+            }
+        }
+
+        TransactionToReferencedLeases_.erase(transactionIt);
+    }
+
+    void HandleLeaseRemoval(ILease* lease)
+    {
+        auto it = LeaseToReferencingTransactions_.find(lease);
+        if (it == LeaseToReferencingTransactions_.end()) {
+            return;
+        }
+
+        const auto& transactions = it->second;
+        YT_LOG_ALERT_IF(transactions.empty(),
+            "Lease is referenced by an empty list of transactions (LeaseId: %v)",
+            lease->GetId());
+
+        YT_LOG_ALERT_IF(lease->GetPersistentRefCounter() < std::ssize(transactions),
+            "Lease has persistent reference count smaller than the number of transactions it's referenced by "
+            "(LeaseId: %v, PersistentRefCounter: %v, ReferencingTransactionCount: %v, ReferencingTransactions: %v)",
+            lease->GetId(),
+            lease->GetPersistentRefCounter(),
+            std::ssize(transactions),
+            MakeShrunkFormattableView(
+                transactions,
+                [] (TStringBuilderBase* builder, TTransaction* transaction) {
+                    builder->AppendFormat("%v", GetObjectId(transaction));
+                },
+                100));
+
+        for (auto* transaction : transactions) {
+            auto it = TransactionToReferencedLeases_.find(transaction);
+            if (it == TransactionToReferencedLeases_.end()) {
+                YT_LOG_ALERT("Transaction is referencing a lease according to a lease-to-transactions map but is not referencing any lease according to the transaction-to-lease map "
+                    "(LeaseId: %v, TransactionId: %v)",
+                    lease->GetId(),
+                    transaction->GetId());
+            } else {
+                auto& leases = it->second;
+                if (leases.erase(lease)) {
+                    if (leases.empty()) {
+                        TransactionToReferencedLeases_.erase(it);
+                    }
+                } else {
+                    YT_LOG_ALERT("Transaction is referencing a lease according to a lease-to-transactions map but is not referencing that lease according to the transaction-to-lease map "
+                        "(LeaseId: %v, TransactionId: %v)",
+                        lease->GetId(),
+                        transaction->GetId());
+                }
+            }
+        }
+
+        // NB: no need to persistently unreference the lease at it's already being
+        // destroyed anyway (probably via revocation with force == true).
+        LeaseToReferencingTransactions_.erase(it);
+    }
+
+    void OnProfiling(NProfiling::TSensorBuffer* buffer)
+    {
+        buffer->AddGauge("/transaction_to_referenced_leases_size", std::ssize(TransactionToReferencedLeases_));
+        buffer->AddGauge("/lease_to_referencing_transactions_size", std::ssize(LeaseToReferencingTransactions_));
+    }
+
+private:
+    const TBootstrap* Bootstrap_;
+    const TLogger Logger;
+    THashMap<TTransaction*, TCompactFlatSet<ILease*, 2>> TransactionToReferencedLeases_;
+    THashMap<ILease*, TCompactFlatSet<TTransaction*, 4>> LeaseToReferencingTransactions_;
+};
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,6 +380,7 @@ public:
         , LeaseTracker_(CreateTransactionLeaseTracker(
             Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
             TransactionServerLogger()))
+        , LeasePersistentReferenceTracker_(Bootstrap_, TransactionServerLogger())
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
@@ -327,6 +488,7 @@ public:
 
         const auto& leaseManager = Bootstrap_->GetLeaseManager();
         leaseManager->SubscribeLeaseRevoked(BIND_NO_PROPAGATE(&TTransactionManager::OnLeaseRevoked, MakeWeak(this)));
+        leaseManager->SubscribeLeaseRemoved(BIND_NO_PROPAGATE(&TTransactionManager::OnLeaseRemoved, MakeWeak(this)));
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
@@ -1532,16 +1694,14 @@ public:
             leaseAgnosticPrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             leaseAwarePrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             for (auto transactionId : prerequisiteTransactionIds) {
-                if (IsMirroringToSequoiaEnabled() &&
-                    IsCypressTransactionMirroredToSequoia(transactionId) &&
-                    GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
-                {
+                if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
                     leaseAwarePrerequisiteTransactionIds.push_back(transactionId);
                 } else {
                     leaseAgnosticPrerequisiteTransactionIds.push_back(transactionId);
                 }
             }
 
+            SortUnique(leaseAwarePrerequisiteTransactionIds);
             asyncResults.push_back(IssueLeasesForCell(
                 leaseAwarePrerequisiteTransactionIds,
                 leaseManager,
@@ -1648,14 +1808,35 @@ public:
                 "Prerequisite check failed: this failure is requested manually via dynamic config");
         }
 
-        const auto& leaseManager = Bootstrap_->GetLeaseManager();
-        for (auto prerequisiteTransactionId : options.PrerequisiteTransactionIds) {
-            if (IsCypressTransactionMirroredToSequoia(prerequisiteTransactionId) &&
-                leaseManager->FindLease(prerequisiteTransactionId))
-            {
-                continue;
+        try {
+            const auto& leaseManager = Bootstrap_->GetLeaseManager();
+            for (auto prerequisiteTransactionId : options.PrerequisiteTransactionIds) {
+                if (IsCypressTransactionMirroredToSequoia(prerequisiteTransactionId)) {
+                    if (auto* lease = leaseManager->FindLease(prerequisiteTransactionId)) {
+                        LeasePersistentReferenceTracker_.RefLease(transaction, lease); // May throw on inactive lease.
+                    } else {
+                        THROW_ERROR_EXCEPTION(
+                            NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                            "Prerequisite check failed: lease not found for prerequisite transaction %v",
+                            prerequisiteTransactionId)
+                            << TErrorAttribute("prerequisite_transaction_id", prerequisiteTransactionId)
+                            << TErrorAttribute("sequoia_transaction_id", transaction->GetId())
+                            << TErrorAttribute("master_cell_id", Bootstrap_->GetCellId());
+                    }
+                } else {
+                    GetAndValidatePrerequisiteTransaction(prerequisiteTransactionId);
+                }
             }
-            GetAndValidatePrerequisiteTransaction(prerequisiteTransactionId);
+        } catch (const TErrorException& ex) {
+            if (ex.Error().GetCode() == NObjectClient::EErrorCode::PrerequisiteCheckFailed) {
+                throw;
+            }
+            // Attempting to reference an inactive lease results in a generic error that needs wrapping.
+            THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed")
+                << TErrorAttribute("sequoia_transaction_id", transaction->GetId())
+                << TErrorAttribute("master_cell_id", Bootstrap_->GetCellId())
+                << ex;
         }
 
         TTransactionContextGuard guard(Bootstrap_, transaction);
@@ -2399,6 +2580,8 @@ private:
     THashSet<TTransaction*> ForeignTransactions_;
     THashSet<TTransaction*> NativeTopmostTransactions_;
     THashSet<TTransaction*> NativeTransactions_;
+
+    TLeasePersistentReferenceTracker LeasePersistentReferenceTracker_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BarrierLock_);
     // This map is transient.
@@ -3526,6 +3709,8 @@ public:
             EraseOrCrash(ForeignTransactions_, transaction);
         }
 
+        LeasePersistentReferenceTracker_.HandleTransactionFinish(transaction);
+
         for (auto prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
             // NB: Duplicates are fine; prerequisite transactions may be duplicated.
             prerequisiteTransaction->DependentTransactions().erase(transaction);
@@ -3820,6 +4005,7 @@ private:
         TransactionMap_.SaveValues(context);
         Save(context, TimestampHolderMap_);
         BoomerangTracker_->Save(context);
+        LeasePersistentReferenceTracker_.Save(context);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -3842,6 +4028,11 @@ private:
         // COMPAT(theevilbird)
         if (context.GetVersion() >= EMasterReign::RemoveStagedNodesInTransactions) {
             NeedUnrefStagedNodes_ = true;
+        }
+
+        // COMPAT(shakurov)
+        if (context.GetVersion() >= EMasterReign::PrerequisiteTransactionsHeldFor2PCViaLeases_26_1) {
+            LeasePersistentReferenceTracker_.Load(context);
         }
     }
 
@@ -4274,6 +4465,14 @@ private:
         }
     }
 
+    void OnLeaseRemoved(ILease* lease)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        LeasePersistentReferenceTracker_.HandleLeaseRemoval(lease);
+    }
+
     void OnProfiling()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -4284,6 +4483,8 @@ private:
             buffer.AddGauge("/cached_recently_finished_transaction_count", TransactionPresenceCache_->GetRecentlyFinishedTransactionCount());
             buffer.AddGauge("/subscribed_remote_transaction_replication_count", TransactionPresenceCache_->GetSubscribedRemoteTransactionReplicationCount());
         }
+
+        LeasePersistentReferenceTracker_.OnProfiling(&buffer);
 
         auto elapsedTime = TDuration::Zero();
         {

@@ -207,6 +207,7 @@ DEFINE_ENUM(EMasterReign,
     ((AbortNodeCreationInSequoiaTransaction)                        (3253))  // theevilbird
     ((SendTabletOriginatorsWhenMountTable_26_1)                     (3254))  // dave11ar
     ((InferrumUdfs_26_1)                                            (3255))  // babenko
+    ((PrerequisiteTransactionsHeldFor2PCViaLeases_26_1)             (3256))  // shakurov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
