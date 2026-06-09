@@ -565,6 +565,25 @@ private:
             TCommit* commit,
             F func)
         {
+            auto identity = commit->AuthenticationIdentity();
+
+            return BIND(&TWrappedParticipant::DoEnqueueRequest<F>,
+                MakeStrong(this),
+                succeedOnUnregistered,
+                mustSendImmediately,
+                std::move(identity),
+                std::move(func))
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .Run();
+        }
+
+        template <class F>
+        TFuture<void> DoEnqueueRequest(
+            bool succeedOnUnregistered,
+            bool mustSendImmediately,
+            NRpc::TAuthenticationIdentity identity,
+            F func)
+        {
             auto promise = NewPromise<void>();
 
             auto guard = Guard(SpinLock_);
@@ -577,15 +596,13 @@ private:
 
             // Fast path.
             if (Up_ && underlying->GetState() == ETransactionParticipantState::Valid) {
-                // Make a copy, commit may die.
-                auto identity = commit->AuthenticationIdentity();
+                guard.Release();
                 NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
-
                 return func(underlying);
             }
 
             // Slow path.
-            auto sender = [=, this, this_ = MakeStrong(this), underlying = std::move(underlying), identity = commit->AuthenticationIdentity()] {
+            auto sender = [=, this, this_ = MakeStrong(this), underlying = std::move(underlying), identity = std::move(identity)] {
                 NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
                 switch (underlying->GetState()) {
                     case ETransactionParticipantState::Valid:
@@ -615,6 +632,7 @@ private:
                 sender();
             } else {
                 if (mustSendImmediately) {
+                    guard.Release();
                     return MakeFuture<void>(MakeDownError());
                 }
                 PendingSenders_.push_back(BIND(std::move(sender)));
