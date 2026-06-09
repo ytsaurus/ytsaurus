@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
+from base import ClickHouseTestBase, Clique, QueryFailedError, InstanceUnavailableCode, enable_sequoia
 
 from helpers import get_scheduling_options
 
@@ -223,7 +223,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             if str(alive_instances[0]) == str(instances[0]):
                 instances[0], instances[1] = instances[1], instances[0]
 
-            with raises_yt_error(code=QueryFailedError):
+            with raises_yt_error(code=InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
             assert clique.make_direct_query(instances[1], "select 1") == [{"1": 1}]
 
@@ -544,10 +544,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             return {session_id: _job_cookie_of_instance_picked_for_the_query(clique, session_id=session_id)
                     for session_id in SESSION_IDS}
 
-        patch = {
-            "graceful_interruption_delay": 100000,
-        }
-        with Clique(NUM_INSTANCES, config_patch=patch) as clique:
+        with Clique(NUM_INSTANCES) as clique:
             initial_distribution = get_distribution(clique)
 
             clique.resize(NUM_INSTANCES - 1)
