@@ -56,7 +56,7 @@ public:
 
 private:
     NYson::IYsonConsumer* Consumer_;
-    std::vector<TString> PathToCurrentMap_;
+    std::vector<std::string> PathToCurrentMap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -223,7 +223,8 @@ protected:
 
         SkipSlash();
 
-        TString key = GetLiteralValue();
+        // TODO(babenko): migrate to std::string
+        TString key(GetLiteralValue());
         AdvanceOver(key);
 
         auto [index, error] = FindAttributeDictionaryEntry(message, fieldDescriptor, key);

@@ -83,7 +83,7 @@ protected:
     TStringBuf GetTokenizerInput() const;
     TStringBuf GetTokenizerPrefix() const;
     TStringBuf GetToken() const;
-    const TString& GetLiteralValue() const;
+    const std::string& GetLiteralValue() const;
     const NYPath::TYPath& GetCurrentPath() const;
 
     // Throws if the token type is wrong.
