@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
+    config_ut.cpp
     path_ut.cpp
 )
 
