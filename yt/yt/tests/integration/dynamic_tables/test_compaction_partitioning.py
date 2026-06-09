@@ -1621,6 +1621,36 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         # aggregate versions and triggers compaction into a single chunk.
         wait(lambda: len(get(f"{table}/@chunk_ids")) == 1)
 
+    @authors("navasardianna")
+    def test_do_not_start_compactions_before_preload(self):
+        sync_create_cells(1)
+
+        self._create_simple_table(
+            "//tmp/t",
+            mount_config={
+                "testing": {
+                    "simulated_store_preload_delay": 5000,
+                },
+            },
+            in_memory_mode="uncompressed")
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "value"} for i in range(20)])
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "value"} for i in range(20)])
+        sync_flush_table("//tmp/t")
+
+        set("//tmp/t/@mount_config/auto_compaction_period", 1)
+        sync_unmount_table("//tmp/t")
+
+        start_time = time()
+        sync_mount_table("//tmp/t")
+
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 1)
+        assert time() - start_time > 4
+
 
 ################################################################################
 
