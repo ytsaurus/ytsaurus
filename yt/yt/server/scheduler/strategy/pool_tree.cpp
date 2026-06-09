@@ -1494,7 +1494,8 @@ private:
             tokenizer.Advance();
             tokenizer.Expect(NYPath::ETokenType::Literal);
 
-            const auto& poolName = tokenizer.GetLiteralValue();
+            // TODO(babenko): migrate to std::string
+            TString poolName(tokenizer.GetLiteralValue());
             if (poolName != RootPoolName && !poolTreeSnapshot->PoolMap().contains(poolName)) {
                 // TODO(omgronny): rewrite it properly
                 if (context->GetMethod() == "Exists") {
