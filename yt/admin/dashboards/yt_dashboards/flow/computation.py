@@ -16,6 +16,35 @@ from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 
 from textwrap import dedent
 
+EPOCH_PART_COLORS = {
+    "Unknown": "#999999",
+
+    "Init": "#b70000",
+
+    # Waiting new data.
+    "Input.Empty": "#00e500",
+    "Input.Fetch": "#00ff00",
+    "Input.InjectionDelay": "#b7e500",
+    "Input.Throttle": "#4c9900",
+    "CheckDelayedMessages": "#8eb200",
+
+    # Backpressure.
+    "Distribute.Start": "#b266b2",
+    "Distribute.OutputBufferOverflow": "#730073",
+    "Distribute.OutputStoreOverflow": "#993299",
+
+    # CPU-bound work + user work.
+    "Process": "#ffa500",
+    "Sync": "#ffb732",
+    "Finish": "#ffc966",
+
+    # System IO-bound work.
+    "DeduplicateInput": "#236bb2",
+    "StartTransaction": "#d6eaff",
+    "Commit": "#84c1ff",
+}
+
+
 class ComputationCellGenerator:
     def __init__(self, has_computation_id_tag=False):
         self._has_computation_id_tag = has_computation_id_tag
@@ -49,33 +78,20 @@ class ComputationCellGenerator:
                 **StartTransaction** - opening transaction (IO-bound work).
                 **Commit** - committing transaction (IO-bound work).
             """),
-            colors={
-                "Unknown": "#999999",
+            colors=EPOCH_PART_COLORS)
 
-                "Init": "#b70000",
-
-                # Waiting new data.
-                "Input.Empty": "#00e500",
-                "Input.Fetch": "#00ff00",
-                "Input.InjectionDelay": "#b7e500",
-                "Input.Throttle": "#4c9900",
-                "CheckDelayedMessages": "#8eb200",
-
-                # Backpressure.
-                "Distribute.Start": "#b266b2",
-                "Distribute.OutputBufferOverflow": "#730073",
-                "Distribute.OutputStoreOverflow": "#993299",
-
-                # CPU-bound work + user work.
-                "Process": "#ffa500",
-                "Sync": "#ffb732",
-                "Finish": "#ffc966",
-
-                # System IO-bound work.
-                "DeduplicateInput": "#236bb2",
-                "StartTransaction": "#d6eaff",
-                "Commit": "#84c1ff",
-            })
+    def add_epoch_parts_max_time_cell(self, row):
+        return row.cell(
+            "Epoch parts max time" + (" (Computation: {{computation_id}})" if self._has_computation_id_tag else ""),
+            MonitoringExpr(
+                FlowWorker("yt.flow.worker.computation.epoch_parts_time_distribution.max")
+                    .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "-")
+                    .value("part", "!-"))
+                .aggr("host")
+                .unit("UNIT_SECONDS")
+                .stack(False),
+            description="Longest single occurrence of each epoch part. See 'Epoch parts time' for what every part means.",
+            colors=EPOCH_PART_COLORS)
 
     def add_epoch_duration_max_time_cell(self, row):
         return row.cell(
@@ -455,9 +471,9 @@ def build_epoch_timings():
     return (Rowset()
         .row()
             .apply_func(GENERATOR.add_epoch_parts_time_cell)
+            .apply_func(GENERATOR.add_epoch_parts_max_time_cell)
             .apply_func(GENERATOR.add_epoch_duration_max_time_cell)
             .apply_func(GENERATOR.add_epoch_count_total_cell)
-            .cell("", EmptyCell())
     )
 
 
