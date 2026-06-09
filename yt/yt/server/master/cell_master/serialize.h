@@ -209,6 +209,7 @@ DEFINE_ENUM(EMasterReign,
     ((SendTabletOriginatorsWhenMountTable_26_1)                     (3254))  // dave11ar
     ((InferrumUdfs_26_1)                                            (3255))  // babenko
     ((PrerequisiteTransactionsHeldFor2PCViaLeases_26_1)             (3256))  // shakurov
+    ((DropOngoingStatisticsUpdateRequestMapping)                    (3257))  // danilalexeev
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
@@ -233,6 +234,7 @@ DEFINE_ENUM(EMasterReign,
     ((AbortNodeCreationInSequoiaTransaction_26_2)                   (3319))  // theevilbird
     ((SendTabletOriginatorsWhenMountTable_26_2)                     (3320))  // dave11ar
     ((PrerequisiteTransactionsHeldFor2PCViaLeases_26_2)             (3321))  // shakurov
+    ((DropOngoingStatisticsUpdateRequestMapping_26_2)               (3322))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

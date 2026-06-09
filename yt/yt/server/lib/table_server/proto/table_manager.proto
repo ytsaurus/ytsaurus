@@ -40,10 +40,13 @@ message TReqConfirmTableStatisticsUpdate
         required bool update_data_statistics = 2;
         required bool update_tablet_statistics = 3;
         optional uint64 actual_content_revision = 4;
+        // COMPAT(danilalexeev): Change to required in 26.2.
+        optional bool update_modification_time = 5;
+        optional bool update_access_time = 6;
     }
 
     repeated TEntry content_revision_cas_failed_nodes = 1;
-    repeated NYT.NProto.TGuid requested_node_ids = 2;
+    reserved 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
