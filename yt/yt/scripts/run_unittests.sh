@@ -17,6 +17,24 @@ function retry {
     return 0
 }
 
+function run_one {
+    local unittester_name="$1"
+    local unittester_binary="./${unittester_name}"
+    echo "Running ${unittester_binary}"
+    if [[ ${unittester_name} =~ ^unittester- ]]; then
+        retry ${unittester_binary} --gtest_output="xml:junit-${unittester_name}.xml"
+    else
+        retry ${unittester_binary}
+    fi
+}
+
+if [ $# -gt 0 ]; then
+    for unittester_name in "$@"; do
+        run_one "${unittester_name}"
+    done
+    exit 0
+fi
+
 # unittester-containers requires porto to be installed.
 for unittester_binary in $(find . -name "unittester-*" -type f); do
     if [[ ${unittester_binary} =~ "unittester-containers" ]]; then
