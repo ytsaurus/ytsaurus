@@ -1,6 +1,7 @@
 package solomon
 
 import (
+	"io"
 	"time"
 
 	"go.uber.org/atomic"
@@ -41,6 +42,10 @@ func (t *Timer) RecordDuration(value time.Duration) {
 
 func (t *Timer) Value() any {
 	return t.value.Load().Seconds()
+}
+
+func (t *Timer) writeSpackValue(w io.Writer) error {
+	return writeFloat64LE(w, t.value.Load().Seconds())
 }
 
 // MarshalJSON implements json.Marshaler.
