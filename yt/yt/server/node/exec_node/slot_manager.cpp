@@ -78,6 +78,11 @@ bool TSlotManager::IsJobEnvironmentResurrectionEnabled()
         ->EnableJobEnvironmentResurrection;
 }
 
+IVolumeManagerPtr TSlotManager::GetVolumeManager() const
+{
+    return VolumeManager_.Acquire();
+}
+
 void TSlotManager::OnContainerDevicesCheckFinished(const TError& error)
 {
     auto config = DynamicConfig_.Acquire();
@@ -1248,22 +1253,6 @@ void TSlotManager::AsyncInitialize()
 
     YT_LOG_INFO("Slot manager async initialization started");
 
-    std::vector<TFuture<void>> initLocationFutures;
-    for (const auto& location : Locations_) {
-        initLocationFutures.push_back(location->Initialize());
-    }
-
-    YT_LOG_INFO("Waiting for all locations to initialize");
-
-    {
-        auto error = WaitFor(AllSet(initLocationFutures));
-        YT_LOG_FATAL_UNLESS(
-            error.IsOK(),
-            error,
-            "Shutdown encountered");
-    }
-    YT_LOG_INFO("Locations initialization finished");
-
     auto dynamicConfig = DynamicConfig_.Acquire();
     auto timeout = dynamicConfig->SlotReleaseTimeout;
     auto slotSync = WaitFor(Bootstrap_->GetJobController()->GetAllJobsCleanupFinishedFuture()
@@ -1271,7 +1260,7 @@ void TSlotManager::AsyncInitialize()
 
     YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");
 
-    // To this moment all old processed must have been killed, so we can safely clean up old volumes
+    // To this moment all old processes must have been killed, so we can safely clean up old volumes
     // during root volume manager initialization.
     JobEnvironmentType_ = StaticConfig_->JobEnvironment.GetCurrentType();
     if (JobEnvironmentType_ == NJobProxy::EJobEnvironmentType::Porto) {
@@ -1285,6 +1274,22 @@ void TSlotManager::AsyncInitialize()
     auto jobEnvironment = JobEnvironment_;
     auto volumeManager = jobEnvironment->CreateVolumeManager(StaticConfig_->Locations);
     VolumeManager_.Store(volumeManager);
+
+    std::vector<TFuture<void>> initLocationFutures;
+    for (const auto& location : Locations_) {
+        initLocationFutures.push_back(location->Initialize(volumeManager));
+    }
+
+    YT_LOG_INFO("Waiting for all locations to initialize");
+
+    {
+        auto error = WaitFor(AllSet(initLocationFutures));
+        YT_LOG_FATAL_UNLESS(
+            error.IsOK(),
+            error,
+            "Shutdown encountered");
+    }
+    YT_LOG_INFO("Locations initialization finished");
 
     NumaNodeStates_.clear();
 

@@ -1466,8 +1466,19 @@ void TLayerLocation::RemoveLayers(
 
     auto executor = FastLayerExecutor_ ? FastLayerExecutor_ : LayerExecutor_;
 
-    auto layerIds = WaitFor(executor->ListLayers(portoPlace).WithTimeout(timeout))
-        .ValueOrThrow();
+    auto listLayersResult = WaitFor(executor->ListLayers(portoPlace).WithTimeout(timeout));
+    // Porto returns Permission error when the place is not permitted for this executor.
+    // This can happen during slot initialization when the slot's porto_place has not yet
+    // been registered as a permitted place for the layer executor. In this case there are
+    // no layers to clean up, so we can safely skip.
+    if (listLayersResult.FindMatching(EPortoErrorCode::Permission)) {
+        YT_LOG_DEBUG(
+            listLayersResult,
+            "Porto place is not permitted for layer executor, skipping layer cleanup");
+        return;
+    }
+
+    auto layerIds = listLayersResult.ValueOrThrow();
 
     std::vector<TFuture<void>> removeFutures;
     for (const auto& layerId : layerIds) {
