@@ -563,38 +563,26 @@ class TestStatisticsReporterBase:
                 ])),
             }
 
+        nodes = ls("//sys/tablet_nodes")
+        node_address = nodes[0]
+        keys = get("//sys/cluster_nodes/" + node_address + "/orchid/performance_counter_names")
+
+        schema = [
+            {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
+            {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
+        ] + [
+            make_struct(name) for name in keys
+        ] + [
+            {"name": "uncompressed_data_size", "type_v3": optional_type("int64")},
+            {"name": "compressed_data_size", "type_v3": optional_type("int64")},
+        ]
+
         create(
             "table",
             table_path,
             attributes={
                 "dynamic": True,
-                "schema": [
-                    {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
-                    {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
-                    make_struct("dynamic_row_read"),
-                    make_struct("dynamic_row_read_data_weight"),
-                    make_struct("dynamic_row_lookup"),
-                    make_struct("dynamic_row_lookup_data_weight"),
-                    make_struct("dynamic_row_write"),
-                    make_struct("dynamic_row_write_data_weight"),
-                    make_struct("dynamic_row_delete"),
-                    make_struct("static_chunk_row_read"),
-                    make_struct("static_chunk_row_read_data_weight"),
-                    make_struct("static_hunk_chunk_row_read_data_weight"),
-                    make_struct("static_chunk_row_lookup"),
-                    make_struct("static_chunk_row_lookup_data_weight"),
-                    make_struct("static_hunk_chunk_row_lookup_data_weight"),
-                    make_struct("user_data_bytes_transmitted"),
-                    make_struct("system_data_bytes_transmitted"),
-                    make_struct("compaction_data_weight"),
-                    make_struct("partitioning_data_weight"),
-                    make_struct("lookup_error"),
-                    make_struct("write_error"),
-                    make_struct("lookup_cpu_time"),
-                    make_struct("select_cpu_time"),
-                    {"name": "uncompressed_data_size", "type_v3": optional_type("int64")},
-                    {"name": "compressed_data_size", "type_v3": optional_type("int64")},
-                ],
+                "schema": schema,
                 "mount_config": {
                     "min_data_ttl": 0,
                     "max_data_ttl": 86400000,
