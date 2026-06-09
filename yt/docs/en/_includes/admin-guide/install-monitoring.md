@@ -4,6 +4,8 @@
 
 [Prometheus](https://prometheus.io/) is used to collect metrics. [Grafana](https://grafana.com/) can be used to view metrics, as well as built-in dashboards in the {{product-name}} UI.
 
+Automated setup of dashboards and alerts is done using the dedicated Helm chart `monitoring-chart`.
+
 ## Installing and configuring Prometheus {#setup-prometheus}
 
 [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator) is used to collect metrics. {{product-name}} components and [Odin](../../admin-guide/install-odin.md) are automatically labeled for metric collection. The Odin Helm chart automatically creates a ServiceMonitor resource for its metrics during installation. To collect metrics from cluster components, we will create a separate ServiceMonitor manually.
@@ -317,50 +319,6 @@
 
 Done! Prometheus is installed and configured to collect qualitative and quantitative metrics from Odin and {{product-name}} components.
 
-## Installing dashboards in {{product-name}} UI {#setup-ui}
-
-{{product-name}} provides ready-made dashboards for monitoring. They can be displayed directly in the {{product-name}} web interface.
-
-1. Pass the `PROMETHEUS_BASE_URL` environment variable with the internal Prometheus address to the UI:
-
-    To configure the integration, you need a UI installed via the [Helm chart](../../admin-guide/install-ytsaurus.md#ui).
-
-    In the `PROMETHEUS_BASE_URL` environment variable, you need to pass the internal Prometheus URL, for example: `http://prometheus-operated.<namespace>.svc.cluster.local:9090/`. Add the variable to the `ui.env` section of your `values.yaml` file:
-    
-    ```yaml
-    ui:
-      env:
-        - name: PROMETHEUS_BASE_URL
-          value: "http://prometheus-operated.<namespace>.svc.cluster.local:9090/"
-    ```
-    
-    Update the chart settings:
-
-    ```bash
-    helm upgrade --install yt-ui ytsaurus-ui/packages/ui-helm-chart/ -f values.yaml
-    ```
-
-2. Dashboards displayed in the UI are stored in Cypress in `//sys/interface_monitoring`. To create and upload them, the `generate_dashboards` utility is used. Go to the directory with the utility and compile it:
-
-    ```bash
-    git clone https://github.com/ytsaurus/ytsaurus
-    cd ytsaurus/yt/admin/dashboards/yt_dashboards/bin
-    ../../../../../ya make
-    ```
-
-3. Specifying the cluster proxy and token, create the `//sys/interface_monitoring` node and upload the `master-accounts` dashboard to Cypress:
-
-    ```bash
-    export YT_PROXY=<proxy>
-    export YT_TOKEN=<token>
-
-    yt create map_node //sys/interface_monitoring
-    ./generate_dashboards submit-cypress master-accounts --backend grafana
-    ```
-
-    After that, the dashboard will appear in the {{product-name}} web interface.
-
-To view some dashboards, access rights to the viewed objects are required. For example, for the `master-accounts` dashboard to work, the `use` permission on the requested account is required.
 
 ## Installing and configuring Grafana {#setup-grafana}
 
@@ -505,7 +463,7 @@ To view some dashboards, access rights to the viewed objects are required. For e
     Open access to the UI:
 
     ```bash
-    kubectl -n <namespace> port-forward service/grafana 3000:80
+    kubectl -n <namespace> port-forward service/grafana 3000:3000
     ```
 
     Go to the UI: [http://localhost:3000](http://localhost:3000).
@@ -528,47 +486,191 @@ To view some dashboards, access rights to the viewed objects are required. For e
 
     {% endcut %}
 
-    The dashboard generator interacts with Grafana using a service account. You can get a token in `Administration` -> `Users and access` -> `Service accounts`. The service account role must be at least "Editor". Save the service account token, for example, `glsa_bk1LYYY`.
-
-5. Using the `generate_dashboards` utility [assembled in the previous section](#setup-ui), generate and upload the `master-accounts` dashboard to Grafana:
+    The dashboard generator interacts with Grafana using a service account. You can get the token in `Administration` -> `Users and access` -> `Service accounts`. The service account role must be at least “Editor”. Save the service account token to an environment variable (you’ll need it in the [Secret creation step](#create-secret)):
 
     ```bash
-    ./generate_dashboards \
-        --dashboard-id ytsaurus-master-accounts \
-        --grafana-api-key glsa_bk1LYYY \
-        --grafana-base-url http://localhost:3000/ \
-        --grafana-datasource '{"type":"prometheus","uid":"prometheus"}' \
-        submit master-accounts \
-        --backend grafana
+    export GRAFANA_TOKEN="<your-grafana-token>" # example: glsa_bk1LYYY
     ```
+5. To let your cluster users access the Grafana UI, configure network access to it:
 
-    It is recommended to pass the dashboard name with the `ytsaurus-` prefix to the `--dashboard-id` parameter. This will be required for further linking the {{product-name}} UI with Grafana.
+    {% note warning %}
 
-    The uploaded dashboard will be visible in the `Dashboards` section.
+    Grafana dashboards, unlike dashboards in the {{product-name}} UI, don’t check access rights to cluster objects. Configure access rights and accounts on the Grafana side.
 
-## Redirects from {{product-name}} UI to Grafana {#redirects-to-grafana}
+    If you’ve restricted the Grafana user group, you can hide the Grafana button in the {{product-name}} UI for everyone else to avoid cluttering the interface. How to configure button visibility by ACL is described in the [Displaying the Grafana navigation button](#grafana-button) section.
 
-1. Open public access to Grafana, for example at `https://grafana.ytsaurus.tech/`.
+    {% endnote %}
 
-2. Pass the `GRAFANA_BASE_URL` environment variable with the external Grafana address to the {{product-name}} UI in the same way as in the [previous section of the documentation](#setup-ui).
+    - Via Ingress / LoadBalancer:
 
-3. To the right of the time range selection, a "Grafana" button will appear, clicking on which the user will be taken to the same dashboard with the same parameters for the same time interval.
+      Configure public access to the `grafana` service using your cluster tools (for example, assign the `https://grafana.ytsaurus.tech` domain).
 
-    ![{{product-name}} UI](../../../images/monitoring-install-redirects-to-grafana-1.png)
+    - Locally:
 
-    Fig. 3. Demonstration of the button in the internal cluster UI.
+      If you’re just testing the system locally, the public address will be the same as for port forwarding: `http://localhost:3000/`. Port forwarding must be active while you’re using the UI.
 
-    ![Grafana UI](../../../images/monitoring-install-redirects-to-grafana-2.png)
+## Configuring the {{product-name}} interface {#setup-ui}
 
-    Fig. 4. Grafana interface with the same parameters as in the internal UI from Fig. 3.
+For monitoring and Grafana integration to work properly, you need to pass the required addresses to the {{product-name}} UI installed via the [Helm chart](../../admin-guide/install-ytsaurus.md#ui). When installing the monitoring chart, these variables will be automatically checked for existence.
 
-By default, the button is available to all cluster users.
+Specify the `PROMETHEUS_BASE_URL` and `GRAFANA_BASE_URL` variables in the `ui.env` section of your `values.yaml` file for the {{product-name}} UI Helm chart:
 
-If you create a document `//sys/interface_monitoring/allow_grafana_url`, the button will be visible only to users who have the `use` permission on this document.
+```yaml
+ui:
+  env:
+    # Internal Prometheus address that the UI will use
+    - name: PROMETHEUS_BASE_URL
+      value: "http://prometheus-operated.<namespace>.svc.cluster.local:9090/"
+    # Public Grafana address for navigation from the UI
+    - name: GRAFANA_BASE_URL
+      value: "https://grafana.ytsaurus.tech" # or http://localhost:3000
+```
+
+Update the {{product-name}} UI Helm chart settings.
+
+## Install dashboards and alerts (`monitoring-chart`) {#setup-monitoring-chart}
+
+Use the `monitoring-chart` Helm chart to automatically load pre‑built dashboards into Cypress and Grafana, and to create standard alerts.
+
+### Step 1: Prepare a user and grant permissions
+
+Create a robot user `robot-monitoring` in {{product-name}}:
+
+```bash
+yt create user --attr "{name=robot-monitoring}"
+```
+
+Create a directory in Cypress to store dashboards (by default, `//sys/interface_monitoring`), and grant write and account‑use permissions for the directory owner account (by default, `sys`) to the `robot-monitoring` user:
+
+{% note info %}
+
+If you are using UI version 3.12.2 or earlier, create `interface-monitoring` instead of `interface_monitoring`.
+
+{% endnote %}
+
+```bash
+yt create map_node //sys/interface_monitoring --ignore-existing
+yt set //sys/interface_monitoring/@acl/end '{action=allow; subjects=[robot-monitoring;]; permissions=[read;write;remove;];}'
+yt set //sys/accounts/sys/@acl/end '{action=allow; subjects=[robot-monitoring]; permissions=[use]}'
+```
+
+### Step 2: Create a Kubernetes Secret with tokens {#create-secret}
+
+The chart uses a Kubernetes Job to load dashboards. It needs tokens to authenticate with Grafana and {{product-name}}.
+
+Create a Secret, inserting the {{product-name}} token and the Grafana token (saved in the `GRAFANA_TOKEN` variable during the [Grafana setup](#setup-grafana) step):
+
+```bash
+kubectl create secret generic ytsaurus-monitoring \
+    --from-literal=YT_TOKEN=$(yt issue-token robot-monitoring) \
+    --from-literal=GRAFANA_TOKEN="$GRAFANA_TOKEN" \
+    -n <namespace>
+```
+
+### Step 3: Prepare `values.yaml` for monitoring‑chart
+
+Create a `values.yaml` file with the following settings. Enter your data:
+
+```yaml
+cluster:
+  # Internal HTTP proxy address of the cluster for loading dashboards
+  proxy: "http://http-proxies.<namespace>.svc.cluster.local"
+  name: "ytsaurus"
+
+dashboards:
+  grafana:
+    # Internal address for loading dashboards
+    url: "http://grafana.<namespace>.svc.cluster.local:3000"
+    datasource:
+      # UID obtained during Grafana setup
+      uid: <your-uid, for example, PBFA97CFB590B2093>
+
+ui:
+  chart:
+    name: "ytsaurus-ui"
+    namespace: "default"
+
+  # These addresses are used to verify UI configuration correctness
+  prometheusInternalUrl: "http://prometheus-operated.<namespace>.svc.cluster.local:9090/"
+  grafanaPublicUrl: "https://grafana.ytsaurus.tech"
+```
+
+You can view the full list of parameters in [`values.yaml`](https://github.com/ytsaurus/ytsaurus/blob/main/yt/docker/charts/monitoring-chart/values.yaml).
+
+{% note info %}
+
+If you use the `//sys/interface-monitoring` directory (for UI versions 3.12.2 and earlier), you must additionally specify its path in `values.yaml`:
+
+```yaml
+dashboards:
+  cypress:
+    path: "//sys/interface-monitoring"
+```
+
+{% endnote %}
+
+### Step 4: Install the chart
+
+Install the monitoring chart:
+
+```bash
+helm install ytsaurus-monitoring oci://ghcr.io/ytsaurus/monitoring-chart \
+    --version {{monitoring-version}} \
+    -f values.yaml \
+    -n <namespace>
+```
+
+During installation, the chart will automatically create `PrometheusRule` resources with alerts and run a `Job` that loads all dashboards into Grafana and the {{product-name}} UI. After that, you can see monitoring tabs in the cluster interface.
+
+{% note info %}
+
+Some dashboards require access permissions to the objects being viewed. For example, the `master-accounts` dashboard requires the `use` permission on the requested account.
+
+{% endnote %}
+
+## Configure alerts {#alerts-configuration}
+
+The `monitoring-chart` comes with a ready‑made set of alerts (PrometheusRule).
+
+You can use the default values or override them selectively in `values.yaml`. View the full list of alerts in [`values.yaml`](https://github.com/ytsaurus/ytsaurus/blob/main/yt/docker/charts/monitoring-chart/values.yaml).
+
+For example, to disable an entire group of alerts or change the trigger threshold for a specific rule:
+
+```yaml
+alerts:
+  groups:
+    master:
+      rules:
+        # Disable a specific rule
+        MasterAutomatonThreadOverload:
+          enabled: false  
+        # Override the trigger time (for)
+        MediumAlmostOutOfSpace:
+          for: 30m  
+    # Disable the entire group of Controller Agent alerts
+    controllerAgent:
+      enabled: false  
+```
+
+## Display the Grafana navigation button {#grafana-button}
+
+Since you already added the `GRAFANA_BASE_URL` variable during UI setup, a **Grafana** button appears in the {{product-name}} interface (to the right of the time range selector).
+
+Clicking it takes the user to the same dashboard with the same parameters for the same time period directly in the Grafana interface.
+
+![{{product-name}} UI](../../../images/monitoring-install-redirects-to-grafana-1.png)
+
+Fig. 3. Button demonstration in the cluster’s internal UI.
+
+![Grafana UI](../../../images/monitoring-install-redirects-to-grafana-2.png)
+
+Fig. 4. Grafana interface with the same parameters as in the internal UI (Fig. 3).
+
+By default, the button is available to all cluster users. If you create the `//sys/interface_monitoring/allow_grafana_url` document (or `//sys/interface-monitoring/allow_grafana_url` for UI versions 3.12.2 and earlier), the button will only be visible to users who have the `use` permission on this document.
 
 ## Supported dashboards {#supported-dashboards}
 
-Currently, the following dashboards are supported:
+Currently, the following dashboards are automatically loaded and supported:
 
 <!-- TODO: Add dashboard descriptions -->
 
