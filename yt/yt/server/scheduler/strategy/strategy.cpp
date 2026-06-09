@@ -2526,10 +2526,11 @@ private:
         }
 
         void BuildSchedulingAttributesString(
+            const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
             TDelimitedStringBuilderWrapper& delimitedBuilder) const override
         {
             if (Tree_) {
-                Tree_->BuildSchedulingAttributesStringForNode(NodeId_, delimitedBuilder);
+                Tree_->BuildSchedulingAttributesStringForNode(schedulingHeartbeatContext, NodeId_, delimitedBuilder);
             }
         }
 

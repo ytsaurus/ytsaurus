@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NScheduler::NStrategy::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,6 +30,29 @@ struct TRunningAllocationStatistics
 void FormatValue(TStringBuilderBase* builder, const TRunningAllocationStatistics& statistics, TStringBuf /*spec*/);
 TString FormatRunningAllocationStatisticsCompact(const TRunningAllocationStatistics& statistics);
 void Serialize(const TRunningAllocationStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(severovv): Temporary name for classic fair-share policy statistics.
+// Will be moved to NPolicy::NClassic namespace in a future refactoring.
+struct TScheduleAllocationsStatisticsImpl
+    : public TScheduleAllocationsStatistics
+{
+    TEnumIndexedArray<EAllocationSchedulingStage, int> ScheduleAllocationAttemptCountPerStage;
+    int MaxNonPreemptiveSchedulingIndex = -1;
+    int ScheduledDuringPreemption = 0;
+    bool ScheduleWithPreemption = false;
+    TEnumIndexedArray<EOperationPreemptionPriority, int> OperationCountByPreemptionPriority;
+    TJobResources ResourceUsageDiscount;
+    bool SsdPriorityPreemptionEnabled = false;
+    THashSet<int> SsdPriorityPreemptionMedia;
+
+    TString FormatOperationCountByPreemptionPriorityCompact() const;
+    TString FormatScheduleAllocationAttemptsCompact() const;
+};
+using TScheduleAllocationsStatisticsImplPtr = TIntrusivePtr<TScheduleAllocationsStatisticsImpl>;
+
+void Serialize(const TScheduleAllocationsStatisticsImplPtr& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,8 +78,8 @@ struct TNodeState final
     ESchedulingSegment SchedulingSegment = ESchedulingSegment::Default;
     std::optional<ESchedulingSegment> SpecifiedSchedulingSegment;
 
-    TScheduleAllocationsStatistics LastPreemptiveHeartbeatStatistics;
-    TScheduleAllocationsStatistics LastNonPreemptiveHeartbeatStatistics;
+    TScheduleAllocationsStatisticsImplPtr LastPreemptiveHeartbeatStatistics = New<TScheduleAllocationsStatisticsImpl>();
+    TScheduleAllocationsStatisticsImplPtr LastNonPreemptiveHeartbeatStatistics = New<TScheduleAllocationsStatisticsImpl>();
 
     TRunningAllocationStatistics RunningAllocationStatistics;
     std::optional<NProfiling::TCpuInstant> LastRunningAllocationStatisticsUpdateTime;

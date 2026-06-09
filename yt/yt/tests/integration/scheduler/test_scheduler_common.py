@@ -2003,7 +2003,7 @@ class TestSchedulerTracing(YTEnvSetup):
                 if "StartedAllocations:" not in line:
                     continue
 
-                started_allocation_count = int(line.split("StartedAllocations:", 1)[1].split(",", 1)[0].split()[1])
+                started_allocation_count = int(line.split("StartedAllocations: ", 1)[1].split(",", 1)[0])
                 if started_allocation_count == 0:
                     continue
 
