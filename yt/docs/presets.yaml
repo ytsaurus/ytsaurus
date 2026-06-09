@@ -19,6 +19,7 @@ default:
     ytmsvc-version: 0.0.2
     excel-version: 0.0.1
     clickhouse: ClickHouse
+    monitoring-version: 0.0.1
 
 public:
   example_cluster: 'cluster_name'
