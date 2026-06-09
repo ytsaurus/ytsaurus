@@ -868,21 +868,33 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         hunk_storage.create(erasure=random.choice([True, False]))
         hunk_storages[hunk_storage_name] = hunk_storage
 
-    # Creating initial queues and hunk storages.
+    # Creating initial queues and hunk storages, then linking every queue to a hunk
+    # storage right away so queues exercise hunk storage from the very first iteration
+    # instead of waiting for a random relink.
     for i in range(3):
         _create_queue()
         _create_hunk_storage()
 
+    for queue in queues.values():
+        link(queue, random.choice(list(hunk_storages.values())))
+
     def _relink():
         for queue in queues.values():
-            if random.random() < spec.queue_and_hunk_storage.change_hunk_storage_probability:
-                hunk_storage_name = queue.hunk_storage_name
-                if hunk_storage_name:
-                    unlink(queue, hunk_storages[hunk_storage_name])
+            if random.random() >= spec.queue_and_hunk_storage.change_hunk_storage_probability:
+                continue
 
-                new_hunk_storage_name = random.choice(list(hunk_storages) + [None])
-                if new_hunk_storage_name:
-                    link(queue, hunk_storages[new_hunk_storage_name])
+            hunk_storage_name = queue.hunk_storage_name
+            if hunk_storage_name:
+                unlink(queue, hunk_storages[hunk_storage_name])
+
+            # The decision to fully detach the queue from any hunk storage is independent
+            # of the decision to change it: with unlink_hunk_storage_probability the queue
+            # is left without a hunk storage, otherwise it is linked to a random one.
+            if random.random() < spec.queue_and_hunk_storage.unlink_hunk_storage_probability:
+                continue
+
+            if hunk_storages:
+                link(queue, hunk_storages[random.choice(list(hunk_storages))])
 
     def _remount():
         for queue in queues.values():
