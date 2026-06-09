@@ -22,6 +22,10 @@ struct TShuffleWriterConfig
 
     //! Fraction of the budget reserved for builder allocations (the
     //! remainder is the in-flight bucket). Must be in (0, 1).
+    //!
+    //! NB: The in-flight bucket holds about (1 - fraction) / fraction records
+    //! per partition; this send pipelining depth must stay well above one to
+    //! keep the per-partition journal flush loop busy.
     double BuildersBudgetFraction;
 
     //! Codec used to compress each shuffle record before it leaves the
