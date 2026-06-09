@@ -17,7 +17,7 @@ from .controller import add_partitions_by_current_job_status_cell, add_controlle
 
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
-from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
+from yt_dashboard_generator.sensor import MultiSensor
 
 from textwrap import dedent
 
@@ -120,9 +120,9 @@ def build_epoch_timings():
     return (Rowset()
         .row()
             .apply_func(COMPUTATION_CELL_GENERATOR.add_epoch_parts_time_cell)
+            .apply_func(COMPUTATION_CELL_GENERATOR.add_epoch_parts_max_time_cell)
             .apply_func(COMPUTATION_CELL_GENERATOR.add_epoch_duration_max_time_cell)
             .apply_func(COMPUTATION_CELL_GENERATOR.add_epoch_count_total_cell)
-            .cell("", EmptyCell())
     )
 
 
