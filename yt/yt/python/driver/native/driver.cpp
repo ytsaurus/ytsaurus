@@ -161,6 +161,9 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(freeze_hydra_peer, FreezeHydraPeer, "Freeze follower on leader crash");
         PYCXX_ADD_KEYWORDS_METHOD(truncate_changelog, TruncateChangelog, "Drop uncommited mutation records");
         PYCXX_ADD_KEYWORDS_METHOD(schedule_restart, ScheduleRestart, "Schedule restart of a peer");
+        PYCXX_ADD_KEYWORDS_METHOD(get_user_banned, GetUserBanned, "Returns whether a user is banned");
+        PYCXX_ADD_KEYWORDS_METHOD(set_user_banned, SetUserBanned, "Bans or unbans a user");
+        PYCXX_ADD_KEYWORDS_METHOD(list_banned_users, ListBannedUsers, "Lists all banned users");
 
         behaviors().readyType();
     }
@@ -505,6 +508,61 @@ public:
         } CATCH_AND_CREATE_YT_ERROR("Failed to schedule restart");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ScheduleRestart)
+
+    Py::Object GetUserBanned(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = TGetUserBannedOptions();
+
+        auto user = ConvertStringObjectToString(ExtractArgument(args, kwargs, "user"));
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto client = CreateClient();
+            auto isBanned = WaitFor(client->GetUserBanned(user, options))
+                .ValueOrThrow();
+            return Py::Boolean(isBanned);
+        } CATCH_AND_CREATE_YT_ERROR("Failed to get user banned status");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetUserBanned)
+
+    Py::Object SetUserBanned(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = TSetUserBannedOptions();
+
+        auto user = ConvertStringObjectToString(ExtractArgument(args, kwargs, "user"));
+        auto banned = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "banned")));
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto client = CreateClient();
+            WaitFor(client->SetUserBanned(user, banned, options))
+                .ThrowOnError();
+            return Py::None();
+        } CATCH_AND_CREATE_YT_ERROR("Failed to set user banned status");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, SetUserBanned)
+
+    Py::Object ListBannedUsers(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = TListBannedUsersOptions();
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto client = CreateClient();
+            auto bannedUsers = WaitFor(client->ListBannedUsers(options))
+                .ValueOrThrow();
+
+            Py::List list;
+            for (const auto& userName : bannedUsers) {
+                list.append(Py::String(userName));
+            }
+            return list;
+        } CATCH_AND_CREATE_YT_ERROR("Failed to list banned users");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, ListBannedUsers)
 
     PYCXX_DECLARE_DRIVER_METHODS(TDriver)
 

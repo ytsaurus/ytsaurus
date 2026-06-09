@@ -73,6 +73,19 @@ def clear_metadata_caches(*args, **kwargs):
     get_driver_instance(None).clear_metadata_caches(*args, **kwargs)
 
 
+def get_user_banned(*args, **kwargs):
+    print(get_driver_instance(None).get_user_banned(*args, **kwargs))
+
+
+def set_user_banned(*args, **kwargs):
+    get_driver_instance(None).set_user_banned(*args, **kwargs)
+
+
+def list_banned_users(*args, **kwargs):
+    for user in get_driver_instance(None).list_banned_users(*args, **kwargs):
+        print(user)
+
+
 def add_set_readonly_parser(parent_parser):
     action = parent_parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--read-only", dest="set_read_only", action="store_true")
@@ -184,6 +197,20 @@ def main():
 
     clear_metadata_caches_parser = subparsers.add_parser("clear-caches", help="Clear metadata caches")
     clear_metadata_caches_parser.set_defaults(func=clear_metadata_caches)
+
+    get_user_banned_parser = subparsers.add_parser("get-user-banned", help="Print whether a user is banned")
+    get_user_banned_parser.add_argument("user")
+    get_user_banned_parser.set_defaults(func=get_user_banned)
+
+    set_user_banned_parser = subparsers.add_parser("set-user-banned", help="Ban or unban a user")
+    set_user_banned_parser.add_argument("user")
+    set_user_banned_action = set_user_banned_parser.add_mutually_exclusive_group(required=True)
+    set_user_banned_action.add_argument("--banned", dest="banned", action="store_true")
+    set_user_banned_action.add_argument("--not-banned", dest="banned", action="store_false")
+    set_user_banned_parser.set_defaults(func=set_user_banned)
+
+    list_banned_users_parser = subparsers.add_parser("list-banned-users", help="List all banned users")
+    list_banned_users_parser.set_defaults(func=list_banned_users)
 
     config_args, unparsed = config_parser.parse_known_args()
     if config_args.proxy is not None:
