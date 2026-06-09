@@ -757,6 +757,25 @@ DEFINE_REFCOUNTED_TYPE(TTabletNodeInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TDataNodeInfo)
+
+struct TDataNodeInfo
+    : public NYTree::TYsonStruct
+{
+    std::string Host;
+    std::string Switch;
+    std::string State;
+    TInstant LastSeenTime;
+
+    REGISTER_YSON_STRUCT(TDataNodeInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDataNodeInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TRpcProxyAlive
     : public NYTree::TYsonStruct
 {
