@@ -49,6 +49,7 @@ static const TYPath ChaosCellBundlesPath("//sys/chaos_cell_bundles");
 
 static const TYPath TabletCellBundlesDynamicConfigPath("//sys/tablet_cell_bundles/@config");
 static const TYPath TabletNodesPath("//sys/tablet_nodes");
+static const TYPath DataNodesPath("//sys/data_nodes");
 static const TYPath TabletCellsPath("//sys/tablet_cells");
 static const TYPath RpcProxiesPath("//sys/rpc_proxies");
 static const TYPath BundleSystemQuotasPath("//sys/account_tree/bundle_system_quotas");
@@ -1235,6 +1236,60 @@ private:
             .ValueOrThrow();
     }
 
+    void OverrideTabletNodeRacksFromDataNodes(
+        const ITransactionPtr& transaction,
+        TIndexedEntries<TTabletNodeInfo>* tabletNodes)
+    {
+        auto dataNodes = CypressList<TDataNodeInfo>(transaction, DataNodesPath).Result;
+
+        // host -> best data node for this host.
+        // "Best" means: online preferred over offline; among equal states, latest last_seen_time wins.
+        THashMap<std::string, TDataNodeInfoPtr> hostToBest;
+        for (const auto& [_, dataNode] : dataNodes) {
+            if (dataNode->Host.empty() || dataNode->Switch.empty()) {
+                continue;
+            }
+
+            auto it = hostToBest.find(dataNode->Host);
+            if (it == hostToBest.end()) {
+                hostToBest.emplace(dataNode->Host, dataNode);
+                continue;
+            }
+
+            const auto& current = it->second;
+            bool currentOnline = current->State == InstanceStateOnline;
+            bool candidateOnline = dataNode->State == InstanceStateOnline;
+
+            if (candidateOnline > currentOnline ||
+                (candidateOnline == currentOnline && dataNode->LastSeenTime > current->LastSeenTime))
+            {
+                it->second = dataNode;
+            }
+        }
+
+        std::vector<std::string> nodesWithoutSwitch;
+        for (auto& [nodeName, tabletNode] : *tabletNodes) {
+            auto it = hostToBest.find(tabletNode->Host);
+            if (it != hostToBest.end()) {
+                tabletNode->Rack = it->second->Switch;
+            } else {
+                tabletNode->Rack = {};
+                nodesWithoutSwitch.push_back(nodeName);
+            }
+        }
+
+        if (!nodesWithoutSwitch.empty()) {
+            RegisterAlert({
+                .Id = "tablet_nodes_without_switch",
+                .Description = Format(
+                    "Some tablet nodes have no corresponding data node switch "
+                    "(NodeCount: %v, ExampleNode: %v)",
+                    nodesWithoutSwitch.size(),
+                    nodesWithoutSwitch.front()),
+            });
+        }
+    }
+
     TSchedulerInputState GetInputState(const ITransactionPtr& transaction)
     {
         TSchedulerInputState inputState{
@@ -1275,6 +1330,12 @@ private:
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_nodes") {
             inputState.TabletNodes = CypressList<TTabletNodeInfo>(transaction, TabletNodesPath).Result;
+        }
+
+        if (inputState.DynamicConfig->UseDataNodeRacks) {
+            YT_PROFILE_TIMING("/bundle_controller/load_timings/data_nodes") {
+                OverrideTabletNodeRacksFromDataNodes(transaction, &inputState.TabletNodes);
+            }
         }
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_cells") {
