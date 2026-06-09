@@ -553,6 +553,8 @@ REPLICATED_TABLE_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["replicated_table_mapp
 
 REPLICA_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["replica_mapping"]
 
+MULTI_CONSUMER_NAMES_TABLE_SCHEMA = MIGRATION_SCHEMAS["multi_consumer_names"]
+
 CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META = [
     {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
     {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},
