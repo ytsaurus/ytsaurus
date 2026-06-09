@@ -39,7 +39,7 @@ public:
         int slotCount,
         std::function<int(int)> slotIndexToUserId);
 
-    TFuture<void> Initialize();
+    TFuture<void> Initialize(IVolumeManagerPtr volumeManager = nullptr);
 
     //! Apply disk quotas.
     TFuture<void> PrepareSandboxDirectories(
@@ -146,6 +146,12 @@ public:
     //! Get path to slot location (not to slot location of a particular index).
     TString GetPath() const;
 
+    //! Remove volumes from porto place for a specific slot.
+    void RemoveVolumesFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager);
+
+    //! Remove layers from porto place for a specific slot.
+    void RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager);
+
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;
@@ -238,7 +244,7 @@ private:
         const std::optional<TString>& destinationPath,
         bool canUseLightInvoker);
 
-    void DoInitialize();
+    void DoInitialize(IVolumeManagerPtr volumeManager);
 
     void DoRepair();
 

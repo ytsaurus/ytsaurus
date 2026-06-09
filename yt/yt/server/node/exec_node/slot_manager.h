@@ -208,6 +208,8 @@ public:
 
     bool IsJobEnvironmentResurrectionEnabled();
 
+    IVolumeManagerPtr GetVolumeManager() const;
+
     void OnContainerDevicesCheckFinished(const TError& error);
 
 private:
