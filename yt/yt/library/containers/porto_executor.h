@@ -19,6 +19,7 @@ namespace NYT::NContainers {
 
 struct TVolumeSpec
 {
+    std::string Id;
     std::string Path;
     std::string Backend;
     std::string State;

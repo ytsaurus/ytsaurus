@@ -892,7 +892,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
         try {
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-                if (sandboxKind == ESandboxKind::Logs || !Exists(sandboxPath)) {
+                if (sandboxKind == ESandboxKind::Logs || sandboxKind == ESandboxKind::PortoPlace || !Exists(sandboxPath)) {
                     continue;
                 }
 
@@ -935,6 +935,53 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
 
         YT_LOG_DEBUG("Sandboxes cleaning finished (SlotIndex: %v)",
             slotIndex);
+    })
+    .AsyncVia(HeavyInvoker_)
+    .Run();
+}
+
+TFuture<void> TSlotLocation::CleanPortoPlace(int slotIndex)
+{
+    return BIND([=, this, this_ = MakeStrong(this)] {
+        ValidateEnabled();
+
+        const auto& sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::PortoPlace);
+
+        try {
+            if (Exists(sandboxPath)) {
+                YT_LOG_DEBUG("Removing porto place job directories (SlotIndex: %v, Path: %v)", slotIndex, sandboxPath);
+
+                WaitFor(JobDirectoryManager_->CleanDirectories(sandboxPath))
+                    .ThrowOnError();
+
+                YT_LOG_DEBUG("Cleaning porto place directory (SlotIndex: %v, Path: %v)", slotIndex, sandboxPath);
+
+                if (Bootstrap_->IsSimpleEnvironment()) {
+                    RemoveRecursive(sandboxPath);
+                } else {
+                    auto future = BIND([=, this_ = MakeStrong(this)] {
+                            RunTool<TRemoveDirAsRootTool>(sandboxPath);
+                        })
+                        .AsyncVia(ToolInvoker_)
+                        .Run();
+                    WaitFor(future)
+                        .ThrowOnError();
+                }
+            }
+
+            // Recreate the porto place directory tree so the next allocation
+            // assigned to this slot finds the expected layout. Without this
+            // step the porto place removed above stays missing until the
+            // node restarts, since BuildSlotRootDirectory is otherwise only
+            // called from DoInitialize and from CleanSandboxes (which skips
+            // the porto place sandbox kind).
+            BuildSlotRootDirectory(slotIndex);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to clean porto place")
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
     })
     .AsyncVia(HeavyInvoker_)
     .Run();
@@ -1403,7 +1450,10 @@ NNodeTrackerClient::NProto::TSlotLocationStatistics TSlotLocation::GetSlotLocati
     return SlotLocationStatistics_;
 }
 
-void TSlotLocation::RemoveVolumesFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager)
+void TSlotLocation::RemoveVolumesFromPortoPlace(
+    int slotIndex,
+    const IVolumeManagerPtr& volumeManager,
+    const THashSet<std::string>& preservedVolumePaths)
 {
     auto portoPlacePath = GetSandboxPath(slotIndex, ESandboxKind::PortoPlace);
 
@@ -1424,12 +1474,13 @@ void TSlotLocation::RemoveVolumesFromPortoPlace(int slotIndex, const IVolumeMana
     auto timeout = SlotManagerDynamicConfig_.Acquire()->RemoveVolumesFromPortoPlaceTimeout;
 
     YT_LOG_DEBUG(
-        "Cleaning up volumes from porto place (SlotIndex: %v, PortoPlace: %v, Timeout: %v)",
+        "Cleaning up volumes from porto place (SlotIndex: %v, PortoPlace: %v, Timeout: %v, PreservedVolumePaths: %v)",
         slotIndex,
         portoPlacePath,
-        timeout);
+        timeout,
+        preservedVolumePaths);
 
-    auto removeVolumesResult = WaitFor(volumeManager->RemoveVolumes(portoPlacePath, timeout));
+    auto removeVolumesResult = WaitFor(volumeManager->RemoveVolumes(portoPlacePath, timeout, preservedVolumePaths));
     if (!removeVolumesResult.IsOK()) {
         auto error = TError("Failed to remove volumes from porto place")
             << TErrorAttribute("porto_place", portoPlacePath)
@@ -1579,11 +1630,14 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
         /*removeIfExists*/ false));
 
     // Create directory that porto uses to create volumes and import layers inside container.
+    // Do not remove it during slot root directory rebuild: reusable root volumes may be
+    // stored there for the whole allocation lifetime. User-imported Porto resources are
+    // cleaned explicitly before regular volume removal.
     config->Directories.push_back(getDirectory(
         GetSandboxPath(slotIndex, ESandboxKind::PortoPlace),
         uid,
         /*permissions*/ 0777,
-        /*removeIfExists*/ true));
+        /*removeIfExists*/ false));
 
     config->Directories.push_back(getDirectory(
         NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), VolumesName),

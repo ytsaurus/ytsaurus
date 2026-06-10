@@ -1481,7 +1481,7 @@ void TLayerLocation::DoUnlinkVolume(
 //! Volumes are not expected to be used since all jobs must be dead by now.
 void TLayerLocation::RemoveVolumes(TDuration timeout)
 {
-    RemoveVolumes(VolumesPath_, timeout);
+    RemoveVolumes(VolumesPath_, timeout, /*excludedVolumePaths*/ {});
 }
 
 //! Remove layers planted at a given place.
@@ -1549,10 +1549,11 @@ void TLayerLocation::RemoveLayers(
         TInstant::Now() - startTime);
 }
 
-//! Remove volumes planted at a given directory.
+//! Remove volumes planted at a given directory, excluding the given porto mount paths.
 void TLayerLocation::RemoveVolumes(
     const std::string& path,
-    TDuration timeout)
+    TDuration timeout,
+    const THashSet<std::string>& excludedVolumePaths)
 {
     auto startTime = TInstant::Now();
     auto deadline = startTime + timeout;
@@ -1590,6 +1591,10 @@ void TLayerLocation::RemoveVolumes(
                 continue;
             }
 
+            if (excludedVolumePaths.contains(volume.Path)) {
+                continue;
+            }
+
             if (volume.State == "destroyed") {
                 // Skipping destroyed volumes.
                 YT_LOG_DEBUG(
@@ -1609,7 +1614,8 @@ void TLayerLocation::RemoveVolumes(
             }
 
             YT_LOG_DEBUG(
-                "Trying to unlink volume (VolumePath: %v, State: %v)",
+                "Trying to unlink volume (VolumeId: %v, VolumePath: %v, State: %v)",
+                volume.Id,
                 volume.Path,
                 volume.State);
 

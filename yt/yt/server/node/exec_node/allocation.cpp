@@ -761,7 +761,11 @@ void TAllocation::OnAllocationFinished(
 
     AllocationFinished_.Fire(MakeStrong(this));
 
+    NJobAgent::TResourceHolderPtr resourceHolder;
+    IUserSlotPtr userSlot;
     if (ResourceHolder_) {
+        resourceHolder = ResourceHolder_;
+        userSlot = StaticPointerCast<IUserSlot>(ResourceHolder_->GetUserSlot());
         ResourceHolder_->ResetOwner({});
     }
 
@@ -769,35 +773,48 @@ void TAllocation::OnAllocationFinished(
 
     auto fsSecretary = FSSecretary_;
     auto allocationLogger = Logger;
-    auto releaseAllocationResources = [fsSecretary, allocationLogger] {
-        const auto& Logger = allocationLogger;
 
-        for (auto& volume : fsSecretary->ReleaseVolumes()) {
-            if (!volume) {
-                continue;
+    // The resource holder is captured to keep the user slot alive (enabled and not
+    // returned to the slot pool) until porto place cleanup completes; otherwise the
+    // same SlotIndex may be picked by another allocation that would then race with
+    // our cleanup. The resource holder destructor releases base resources (calling
+    // UserSlot_->ResetState which requires JobThread affinity), so the callback
+    // runs on JobInvoker.
+    auto cleanupAllocation =
+        [fsSecretary, allocationLogger, userSlot, resourceHolder = std::move(resourceHolder)] (const TError& error) {
+            const auto& Logger = allocationLogger;
+
+            YT_VERIFY(error.IsOK());
+
+            for (auto& volume : fsSecretary->ReleaseVolumes()) {
+                if (!volume) {
+                    continue;
+                }
+
+                auto removeResult = WaitFor(volume->Remove());
+                YT_LOG_ERROR_IF(
+                    !removeResult.IsOK(),
+                    removeResult,
+                    "Volume remove failed (VolumePath: %v)",
+                    volume->GetPath());
             }
 
-            auto removeResult = WaitFor(volume->Remove());
-            YT_LOG_ERROR_IF(
-                !removeResult.IsOK(),
-                removeResult,
-                "Volume remove failed (VolumePath: %v)",
-                volume->GetPath());
-        }
+            fsSecretary->ReleasePreparedLayers();
+            fsSecretary->ReleaseArtifacts();
 
-        fsSecretary->ReleasePreparedLayers();
-        fsSecretary->ReleaseArtifacts();
-    };
+            if (userSlot) {
+                try {
+                    userSlot->CleanPortoPlace();
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex, "Failed to clean porto place");
+                }
+            }
+        };
 
-    if (lastJob) {
-        lastJob->GetCleanupFinishedEvent().Subscribe(
-            BIND_NO_PROPAGATE([releaseAllocationResources] (const TError& /*error*/) {
-                releaseAllocationResources();
-            })
-                .Via(Bootstrap_->GetJobInvoker()));
-    } else {
-        releaseAllocationResources();
-    }
+    auto cleanupTrigger = lastJob ? lastJob->GetCleanupFinishedEvent() : OKFuture;
+    cleanupTrigger.Subscribe(
+        BIND_NO_PROPAGATE(std::move(cleanupAllocation))
+            .Via(Bootstrap_->GetJobInvoker()));
 
     FSSecretary_.Reset();
 

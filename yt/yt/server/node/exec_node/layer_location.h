@@ -140,10 +140,11 @@ public:
 
     i64 GetUsedSpace() const;
 
-    //! Remove volumes planted at a given place.
+    //! Remove volumes planted at a given place, excluding the given porto mount paths.
     void RemoveVolumes(
         const std::string& place,
-        TDuration timeout);
+        TDuration timeout,
+        const THashSet<std::string>& excludedVolumePaths = {});
 
     //! Remove layers planted at a given place.
     void RemoveLayers(
