@@ -17,7 +17,7 @@ void TShuffleWriterConfig::Register(TRegistrar registrar)
         .Default(64_MB);
     registrar.Parameter("builders_budget_fraction", &TThis::BuildersBudgetFraction)
         .InRange(0.01, 0.99)
-        .Default(0.8);
+        .Default(0.1);
     registrar.Parameter("codec", &TThis::Codec)
         .Default(ECodec::None);
     registrar.Parameter("max_send_attempts", &TThis::MaxSendAttempts)
