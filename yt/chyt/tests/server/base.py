@@ -92,7 +92,14 @@ class Clique(object):
     query_log_table_path = None
     dictionaries_path = None
 
-    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, alias=None, export_query_log=False, **kwargs):
+    def __init__(self, instance_count,
+                 max_failed_job_count=0,
+                 config_patch=None,
+                 cpu_limit=None,
+                 alias=None,
+                 export_query_log=False,
+                 enable_dictionary_repository=True,
+                 **kwargs):
         """
         alias: str
             Alias for the database. With or without asterisk: both forms are legal.
@@ -166,12 +173,13 @@ class Clique(object):
         config["yt"]["user_defined_sql_objects_storage"]["path"] = self.sql_udf_path
         config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
 
-        config["yt"]["dictionary_repository"] = dict()
-        self.dictionaries_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
-        config["yt"]["dictionary_repository"]["root_path"] = self.dictionaries_path
-        create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
-            "acl": [ace],
-        })
+        if enable_dictionary_repository:
+            config["yt"]["dictionary_repository"] = dict()
+            self.dictionaries_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
+            config["yt"]["dictionary_repository"]["root_path"] = self.dictionaries_path
+            create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
+                "acl": [ace],
+            })
 
         spec = {"pool": None}
         self.is_tracing = False
