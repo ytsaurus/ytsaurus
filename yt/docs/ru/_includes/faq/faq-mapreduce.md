@@ -50,9 +50,10 @@
 
 - Досрочно завершить операцию, ожидающую недоступных данных, и получить частичный результат. Для этого используйте команду `complete-op` в CLI или кнопку **Complete** в веб-интерфейсе на странице операции.
 
-Чтобы изменить поведение системы в случае недоступности чанков, задайте опции `unavailable_chunk_tactics` и `unavailable_chunk_strategy` в [спецификации операции](../../user-guide/data-processing/operations/overview.md#chunk_strategy). Имейте в виду: поменять опции «на лету» не получится, они задаются перед запуском операции. В случае необходимости чтения данных из таблицы с недоступными чанками можно выделить часть таблицы, состоящую из уцелевших чанков:
-```
-yt merge --src //path/to/input --dst //path/to/output --spec "{unavailable_chunk_strategy=skip}"
+Чтобы изменить поведение системы в случае недоступности чанков, задайте опции `unavailable_chunk_tactics` и `unavailable_chunk_strategy` в [спецификации операции](../../user-guide/data-processing/operations/overview.md#chunk_strategy). Имейте в виду: поменять опции «на лету» не получится, они задаются перед запуском операции. Например, в случае необходимости чтения данных из таблицы с недоступными чанками можно выделить часть таблицы, состоящую из уцелевших чанков:
+
+```bash
+yt merge --src table --dst table --spec "{unavailable_chunk_strategy=skip}"
 ```
 
 В случае недоступности erasure-чанков поведение системы можно настроить с помощью опции `chunk_availability_policy`. Подробнее в разделе [Типы операций](../../user-guide/data-processing/operations/overview.md#chunk_erasure_strategy).
