@@ -3,12 +3,14 @@ package tech.ytsaurus.client.request;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpcproxy.TReqStartShuffle;
+import tech.ytsaurus.ysontree.YTreeMapNode;
 
 public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle>
         implements HighLevelRequest<TReqStartShuffle.Builder> {
@@ -30,6 +32,9 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
     @Nullable
     private final TableSchema schema;
 
+    @Nullable
+    private final YTreeMapNode pushConfig;
+
     public StartShuffle(BuilderBase<?> builder) {
         super(builder);
         this.account = builder.account;
@@ -39,6 +44,7 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
         this.replicationFactor = builder.replicationFactor;
         this.schema = builder.schema;
         this.usePushBasedShuffle = builder.usePushBasedShuffle;
+        this.pushConfig = builder.pushConfig;
     }
 
     public static StartShuffle.Builder builder() {
@@ -65,6 +71,10 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
         if (schema != null) {
             builder.setSchema(ApiServiceUtil.serializeTableSchema(schema));
         }
+
+        if (pushConfig != null) {
+            builder.setPushConfig(ByteString.copyFrom(pushConfig.toBinary()));
+        }
     }
 
     @Override
@@ -75,7 +85,8 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
                 .setMedium(medium)
                 .setReplicationFactor(replicationFactor)
                 .setSchema(schema)
-                .setUsePushBasedShuffle(usePushBasedShuffle);
+                .setUsePushBasedShuffle(usePushBasedShuffle)
+                .setPushConfig(pushConfig);
     }
 
     public static class Builder extends StartShuffle.BuilderBase<StartShuffle.Builder> {
@@ -105,6 +116,9 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
 
         @Nullable
         private TableSchema schema = null;
+
+        @Nullable
+        private YTreeMapNode pushConfig = null;
 
         public TBuilder setAccount(String account) {
             this.account = account;
@@ -141,6 +155,11 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
             return self();
         }
 
+        public TBuilder setPushConfig(@Nullable YTreeMapNode pushConfig) {
+            this.pushConfig = pushConfig;
+            return self();
+        }
+
         @Override
         protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
             sb.append("account=").append(account).append(", ");
@@ -155,6 +174,9 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
             }
             if (schema != null) {
                 sb.append("schema=").append(schema).append(", ");
+            }
+            if (pushConfig != null) {
+                sb.append("pushConfig=").append(pushConfig).append(", ");
             }
             super.writeArgumentsLogString(sb);
         }
