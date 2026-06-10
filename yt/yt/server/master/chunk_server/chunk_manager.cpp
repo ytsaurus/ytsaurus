@@ -6055,16 +6055,18 @@ private:
                         codecToDataSize[FromProto<NErasure::ECodec>(protoRef.erasure_codec())] += hunkDataSize;
                     }
 
-                    for (auto codec : TEnumTraits<NErasure::ECodec>::GetDomainValues()) {
-                        if (codecToDataSize[codec] == 0) {
+                    for (int index = 0; index < std::ssize(codecToDataSize); ++index) {
+                        auto codec = static_cast<NErasure::ECodec>(index);
+                        auto codecDataSize = codecToDataSize[codec];
+                        if (codecDataSize == 0) {
                             continue;
                         }
 
                         if (codec == NErasure::ECodec::None) {
-                            statisticsDelta.HunkRegularDiskSpace += codecToDataSize[codec];
+                            statisticsDelta.HunkRegularDiskSpace += codecDataSize;
                         } else {
                             // NB: Include size of parity parts to disk space statistics.
-                            statisticsDelta.HunkErasureDiskSpace += ComputeDiskSpaceFromDataSize(codecToDataSize[codec], codec);
+                            statisticsDelta.HunkErasureDiskSpace += ComputeDiskSpaceFromDataSize(codecDataSize, codec);
                         }
                     }
 
