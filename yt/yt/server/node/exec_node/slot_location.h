@@ -97,6 +97,8 @@ public:
 
     TFuture<void> CleanSandboxes(int slotIndex);
 
+    TFuture<void> CleanPortoPlace(int slotIndex);
+
     std::string GetSlotPath(int slotIndex) const;
 
     TDiskStatistics GetDiskStatistics(int slotIndex) const;
@@ -146,8 +148,11 @@ public:
     //! Get path to slot location (not to slot location of a particular index).
     std::string GetPath() const;
 
-    //! Remove volumes from porto place for a specific slot.
-    void RemoveVolumesFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager);
+    //! Remove volumes from porto place for a specific slot, excluding the given porto mount paths.
+    void RemoveVolumesFromPortoPlace(
+        int slotIndex,
+        const IVolumeManagerPtr& volumeManager,
+        const THashSet<std::string>& preservedVolumePaths = {});
 
     //! Remove layers from porto place for a specific slot.
     void RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager);

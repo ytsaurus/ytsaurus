@@ -133,7 +133,10 @@ public:
         YT_UNIMPLEMENTED("LinkVolumes is not implemented for SimpleVolumeManager");
     }
 
-    TFuture<void> RemoveVolumes(const std::string& place, TDuration timeout) override
+    TFuture<void> RemoveVolumes(
+        const std::string& place,
+        TDuration timeout,
+        const THashSet<std::string>& /*excludedVolumePaths*/) override
     {
         YT_LOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager (Place: %v, Timeout: %v)",
             place,
@@ -736,19 +739,24 @@ public:
         return location->RbindRootVolume(volume, slotPath);
     }
 
-    //! Remove volumes planted at a given place.
-    TFuture<void> RemoveVolumes(const std::string& place, TDuration timeout) override
+    //! Remove volumes planted at a given place, excluding the given porto mount paths.
+    TFuture<void> RemoveVolumes(
+        const std::string& place,
+        TDuration timeout,
+        const THashSet<std::string>& excludedVolumePaths) override
     {
         auto location = LayerCache_->PickRandomLocation();
         return BIND(
             [
                 location,
                 place,
-                timeout
+                timeout,
+                excludedVolumePaths
             ] {
                 return location->RemoveVolumes(
                     place,
-                    timeout);
+                    timeout,
+                    excludedVolumePaths);
             })
             .AsyncVia(GetCurrentInvoker())
             .Run();

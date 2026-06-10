@@ -39,6 +39,14 @@ struct IUserSlot
     //! Kill all possibly running processes and clean sandboxes.
     virtual TFuture<void> CleanProcesses() = 0;
 
+    //! Remove Porto volumes and layers imported into porto place by the user job,
+    //! preserving the volumes mounted at the given paths (e.g. reusable root volume).
+    virtual void CleanUserImportedPortoResources(
+        const THashSet<std::string>& preservedVolumePaths = {}) = 0;
+
+    //! Remove the porto place directory. Called during allocation cleanup.
+    virtual void CleanPortoPlace() = 0;
+
     virtual void CleanSandbox() = 0;
 
     virtual void CancelPreparation() = 0;

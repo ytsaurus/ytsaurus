@@ -124,14 +124,33 @@ public:
         }
     }
 
-    void CleanSandbox() override
+    void CleanUserImportedPortoResources(const THashSet<std::string>& preservedVolumePaths) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
-        Location_->RemoveVolumesFromPortoPlace(SlotIndex_, VolumeManager_);
+        YT_VERIFY(VolumeManager_);
+
+        Location_->RemoveVolumesFromPortoPlace(SlotIndex_, VolumeManager_, preservedVolumePaths);
         Location_->RemoveLayersFromPortoPlace(SlotIndex_, VolumeManager_);
+    }
+
+    void CleanPortoPlace() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
+
+        WaitFor(Location_->CleanPortoPlace(SlotIndex_))
+            .ThrowOnError();
+    }
+
+    void CleanSandbox() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
 
         WaitFor(Location_->CleanSandboxes(
             SlotIndex_))
