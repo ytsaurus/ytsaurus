@@ -196,8 +196,6 @@ struct ITableManager
 
     virtual TFuture<NYson::TYsonString> GetQueueAgentObjectRevisionsAsync() const = 0;
 
-    virtual void OnTableCopied(TTableNode* sourceNode, TTableNode* clonedNode) = 0;
-
     virtual void UpdateReplicationCollocationOptions(
         TTableCollocation* collocation,
         NTabletClient::TReplicationCollocationOptionsPtr options) = 0;

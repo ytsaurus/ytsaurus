@@ -234,10 +234,6 @@ public:
             // will use CAS.
             auto& statistics = StatisticsUpdateRequests_[chunkOwner->GetId()];
             statistics |= request;
-
-            auto& ongoingUpdate = NodeIdToOngoingStatisticsUpdate_[chunkOwner->GetId()];
-            ongoingUpdate.RequestCount++;
-            ongoingUpdate.EffectiveRequest |= statistics;
         }
     }
 
@@ -280,9 +276,6 @@ public:
         multicellManager->PostToMaster(req, chunkOwner->GetNativeCellTag());
 
         StatisticsUpdateRequests_.Pop(chunkOwner->GetId());
-        auto& ongoingUpdate = NodeIdToOngoingStatisticsUpdate_[chunkOwner->GetId()];
-        ongoingUpdate.RequestCount++;
-        ongoingUpdate.EffectiveRequest |= statistics;
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(MasterTableSchema, TMasterTableSchema);
@@ -1476,20 +1469,6 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationId), ReplicationCollocationDestroyed);
 
 private:
-    struct TOngoingStatisticsUpdate
-    {
-        i64 RequestCount = 0;
-        TStatisticsUpdateRequest EffectiveRequest;
-
-        void Persist(const NCellMaster::TPersistenceContext& context)
-        {
-            using NYT::Persist;
-
-            Persist(context, RequestCount);
-            Persist(context, EffectiveRequest);
-        }
-    };
-
     friend class TMasterTableSchemaTypeHandler;
 
     static const TCompactTableSchemaPtr EmptyTableSchema;
@@ -1508,7 +1487,6 @@ private:
     TEntityMap<TSecondaryIndex> SecondaryIndexMap_;
 
     TRandomAccessQueue<TNodeId, TStatisticsUpdateRequest> StatisticsUpdateRequests_;
-    THashMap<TNodeId, TOngoingStatisticsUpdate> NodeIdToOngoingStatisticsUpdate_;
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
 
@@ -1699,7 +1677,6 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (const auto& entry : request->entries()) {
             auto nodeId = FromProto<TTableId>(entry.node_id());
-            ToProto(confirmRequest.add_requested_node_ids(), nodeId);
             auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
             if (!IsObjectAlive(node)) {
                 continue;
@@ -1721,6 +1698,9 @@ private:
                 ToProto(retryEntry->mutable_node_id(), nodeId);
                 retryEntry->set_update_data_statistics(entry.has_data_statistics());
                 retryEntry->set_update_tablet_statistics(entry.has_tablet_resource_usage());
+                retryEntry->set_update_modification_time(entry.has_modification_time());
+                retryEntry->set_update_access_time(entry.has_access_time());
+
                 // Sending actual revisions fits nicely into the protocol but, strictly
                 // speaking, this is only necessary for migrating on update. (A newly
                 // updated external cell doesn't know native content revisions - and it
@@ -1797,26 +1777,10 @@ private:
                 TStatisticsUpdateRequest{
                     .UpdateDataStatistics = entry.update_data_statistics(),
                     .UpdateTabletResourceUsage = entry.update_tablet_statistics(),
-                    .UpdateModificationTime = true,
-                    .UpdateAccessTime = true,
+                    .UpdateModificationTime = entry.update_modification_time(),
+                    .UpdateAccessTime = entry.update_access_time(),
                     .UseNativeContentRevisionCas = true,
                 });
-        }
-
-        for (const auto& protoNodeId : request->requested_node_ids()) {
-            auto nodeId = FromProto<TNodeId>(protoNodeId);
-            auto it = NodeIdToOngoingStatisticsUpdate_.find(nodeId);
-            if (it == NodeIdToOngoingStatisticsUpdate_.end()) {
-                YT_LOG_WARNING("Received excessive statistics update confirmation for node; ignored (NodeId: %v)",
-                    nodeId);
-                continue;
-            }
-
-            auto& count = it->second.RequestCount;
-            YT_VERIFY(count > 0);
-            if (--count == 0) {
-                NodeIdToOngoingStatisticsUpdate_.erase(it);
-            }
         }
     }
 
@@ -1850,7 +1814,6 @@ private:
         TableCollocationMap_.Clear();
         SecondaryIndexMap_.Clear();
         StatisticsUpdateRequests_.Clear();
-        NodeIdToOngoingStatisticsUpdate_.clear();
         Queues_.clear();
         QueueConsumers_.clear();
         QueueProducers_.clear();
@@ -1877,7 +1840,26 @@ private:
         MasterTableSchemaMap_.LoadValues(context);
 
         Load(context, StatisticsUpdateRequests_);
-        Load(context, NodeIdToOngoingStatisticsUpdate_);
+
+        // COMPAT(danilalexeev): Remove in 26.2.
+        if (context.GetVersion() < EMasterReign::DropOngoingStatisticsUpdateRequestMapping) {
+            struct TOngoingStatisticsUpdate
+            {
+                i64 RequestCount = 0;
+                TStatisticsUpdateRequest EffectiveRequest;
+
+                void Persist(const NCellMaster::TPersistenceContext& context)
+                {
+                    using NYT::Persist;
+
+                    Persist(context, RequestCount);
+                    Persist(context, EffectiveRequest);
+                }
+            };
+
+            THashMap<TNodeId, TOngoingStatisticsUpdate> nodeIdToOngoingStatisticsUpdate;
+            Load(context, nodeIdToOngoingStatisticsUpdate);
+        }
 
         TableCollocationMap_.LoadValues(context);
 
@@ -2037,27 +2019,6 @@ private:
         return schemaToRefCounter;
     }
 
-    void OnTableCopied(TTableNode* sourceNode, TTableNode* clonedNode) override
-    {
-        if (!sourceNode->IsForeign()) {
-            return;
-        }
-
-        auto it = NodeIdToOngoingStatisticsUpdate_.find(sourceNode->GetId());
-        if (it != NodeIdToOngoingStatisticsUpdate_.end()) {
-            const auto& request = it->second.EffectiveRequest;
-            ScheduleStatisticsUpdate(
-                clonedNode,
-                TStatisticsUpdateRequest{
-                    .UpdateDataStatistics = request.UpdateDataStatistics,
-                    .UpdateTabletResourceUsage = request.UpdateTabletResourceUsage,
-                    .UpdateModificationTime = true,
-                    .UpdateAccessTime = true,
-                    .UseNativeContentRevisionCas = request.UseNativeContentRevisionCas,
-                });
-        }
-    }
-
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
@@ -2170,7 +2131,6 @@ private:
     {
         MasterTableSchemaMap_.SaveValues(context);
         Save(context, StatisticsUpdateRequests_);
-        Save(context, NodeIdToOngoingStatisticsUpdate_);
         TableCollocationMap_.SaveValues(context);
         SecondaryIndexMap_.SaveValues(context);
         Save(context, Queues_);
