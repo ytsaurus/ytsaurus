@@ -188,4 +188,5 @@ microservices:
         maxParallelOps: 1
         maxTables: 100
         networkProject: null
+        recomputeStale: true
     secretRefs: []
