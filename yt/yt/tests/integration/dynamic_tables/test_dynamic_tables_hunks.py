@@ -3090,6 +3090,31 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert hunk_reference_statistics["regular_disk_space"] > (first_table_iter + failure_count) * 10008
 
     @authors("akozhikhov")
+    def test_local_referenced_erasure_disk_space(self):
+        sync_create_cells(1)
+
+        self._create_table(path="//tmp/t")
+        sync_reshard_table("//tmp/t", 2)
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+            "read_quorum": 4,
+            "write_quorum": 5,
+            "erasure_codec": "isa_reed_solomon_3_3",
+            "replication_factor": 1,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 10000}]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        hunk_ref_statistics = get("//tmp/t/@hunk_reference_statistics")
+        assert hunk_ref_statistics["local_referenced_data_size"] * 2 == \
+            hunk_ref_statistics["local_referenced_erasure_disk_space"]
+
+    @authors("akozhikhov")
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_3_3"])
     def test_hunk_statistics_chunk_statistics(self, hunk_erasure_codec):
         sync_create_cells(1)
