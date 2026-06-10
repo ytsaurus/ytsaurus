@@ -44,10 +44,6 @@ NRpc::IChannelPtr GetCypressProxyChannelOrThrow(const NApi::NNative::IConnection
 
 void TClient::DoSetUserBanned(const std::string& user, bool isBanned, const TSetUserBannedOptions& options)
 {
-    ValidatePermissionsWithAcn(
-        EAccessControlObject::SetUserBanned,
-        EPermission::Use);
-
     auto channel = WrapChannel(GetCypressProxyChannelOrThrow(Connection_));
 
     TBanServiceProxy proxy(channel);
