@@ -39,6 +39,16 @@ using TAllocationInfoMap = THashMap<TAllocationId, TAllocationInfo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Allocation revived on a node that is not yet known to the policy.
+//! Holds the data needed to reconstruct its assignment once the node registers.
+struct TPendingRevivedAllocation
+{
+    TWeakPtr<TOperation> Operation;
+    std::string AllocationGroupName;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TModuleProfilingCounters
 {
     explicit TModuleProfilingCounters(const NProfiling::TProfiler& profiler);
@@ -167,7 +177,7 @@ private:
     TOperationMap DisabledOperations_;
 
     using TPendingRevivedAllocations =
-        TCompactFlatMap<TAllocationId, TWeakPtr<TOperation>, MaxNodeGpuCount>;
+        TCompactFlatMap<TAllocationId, TPendingRevivedAllocation, MaxNodeGpuCount>;
     THashMap<TNodeId, TPendingRevivedAllocations> PendingRevivedAllocations_;
 
     TInstant InitializationFromPersistentStateDeadline_;

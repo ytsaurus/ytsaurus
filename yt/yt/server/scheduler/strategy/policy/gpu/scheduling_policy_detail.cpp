@@ -18,12 +18,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Allocation group name assigned to assignments reconstructed during operation revival,
-//! when the original group name is not available.
-static const std::string RevivedAllocationGroupName = "revived";
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::optional<std::string> GetNodeModule(
     const std::optional<std::string>& nodeDataCenter,
     const std::optional<std::string>& nodeInfinibandCluster,
@@ -364,7 +358,13 @@ void TSchedulingPolicy::ReviveAllocation(
             /*assignment*/ TWeakPtr<TAssignment>{},
             resourceUsage);
         operation->AddOrphanAllocation(allocationState);
-        EmplaceOrCrash(PendingRevivedAllocations_[nodeId], allocationId, MakeWeak(operation));
+        EmplaceOrCrash(
+            PendingRevivedAllocations_[nodeId],
+            allocationId,
+            TPendingRevivedAllocation{
+                .Operation = MakeWeak(operation),
+                .AllocationGroupName = allocation->AllocationGroupName(),
+            });
 
         YT_LOG_DEBUG("Allocation revived as orphan (OperationId: %v, AllocationId: %v, NodeId: %v)",
             operation->GetId(),
@@ -385,7 +385,7 @@ void TSchedulingPolicy::ReviveAllocation(
         operation->AddRevivedAllocation(allocationState, assignment);
     } else {
         auto newAssignment = New<TAssignment>(
-            /*allocationGroupName*/ RevivedAllocationGroupName,
+            allocation->AllocationGroupName(),
             assignmentResources,
             operation.Get(),
             node.Get());
@@ -867,8 +867,8 @@ void TSchedulingPolicy::RevivePendingAllocations(const TNodePtr& node)
 
     const auto& [_, pendingAllocations] = *pendingIt;
 
-    for (const auto& [allocationId, operationWeak] : pendingAllocations) {
-        auto operation = operationWeak.Lock();
+    for (const auto& [allocationId, pendingAllocation] : pendingAllocations) {
+        auto operation = pendingAllocation.Operation.Lock();
         if (!operation) {
             YT_LOG_WARNING(
                 "Pending revived allocation references expired operation, skipping "
@@ -895,7 +895,7 @@ void TSchedulingPolicy::RevivePendingAllocations(const TNodePtr& node)
 
         // DiskQuota is not considered with non-preliminary assignments.
         auto assignment = New<TAssignment>(
-            /*allocationGroupName*/ RevivedAllocationGroupName,
+            pendingAllocation.AllocationGroupName,
             TJobResourcesWithQuota(currentUsage),
             operation.Get(),
             node.Get());
@@ -1467,6 +1467,8 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
 
         return scheduleAllocationResult;
     }
+
+    YT_VERIFY(scheduleAllocationResult->StartDescriptor->AllocationGroupName == assignment->AllocationGroupName);
 
     auto allocationId = scheduleAllocationResult->StartDescriptor->Id;
 

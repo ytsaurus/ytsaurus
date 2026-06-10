@@ -14,7 +14,7 @@ from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
     update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
     run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters,
-    print_debug, update_controller_agent_config,
+    print_debug, update_controller_agent_config, update_nodes_dynamic_config,
 )
 
 from yt_scheduler_helpers import (
@@ -1383,13 +1383,27 @@ class TestAllocatingGpuSchedulingPolicyPreemption(AllocatingGpuSchedulingPolicyB
     @authors("yaishenka")
     def test_disable_operation_removes_preliminary_assignments(self):
         scheduler_log_file = self._scheduler_log_file()
+
+        # Effectively stop node -> scheduler heartbeats so the scheduler never
+        # asks a node to start an allocation for the placed assignment. The GPU
+        # planner still places a preliminary assignment (its plan update is
+        # scheduler-side and independent of node heartbeats), but it is never
+        # realized into an allocation. This avoids holding an in-flight
+        # ScheduleAllocation in the CA, which made op.abort() flap.
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "scheduler_connector": {
+                    "heartbeat_executor": {
+                        "period": 1000000,  # 1000 sec
+                    },
+                },
+            },
+        })
+
         from_barrier = write_log_barrier(self._scheduler_address())
 
-        # Hold the CA's ScheduleAllocation inside its delay so the planner
-        # places a preliminary assignment but the heartbeat never realizes it.
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
-            spec={"testing": {"inside_schedule_allocation_delay": {"duration": 60000, "type": "sync"}}},
         )
 
         wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
@@ -2342,7 +2356,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         operation = get_operation_from_gpu_policy_orchid(op)
         assert len(operation["assignments"]) == 1
         rescued = operation["assignments"][0]
-        # Case A invariant: original group name preserved (not "revived").
+        # Case A invariant: original group name preserved.
         assert rescued["allocation_group_name"] == original_group_name
         assert rescued["node_address"] == original_node_address
         assert rescued["allocation_id"] == original_allocation_id
@@ -2359,9 +2373,9 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         # Scenario: operation with a running GPU allocation, scheduler restarts. Operation is
         # revived from snapshot. The GPU policy state is fresh (no prior assignments), so
         # RegisterAllocationsFromRevivedOperation runs Case B: synthesizes a fresh
-        # non-preliminary assignment via the standard preliminary->realized flow, with
-        # allocation_group_name set to "revived" (placeholder, since the controller->scheduler
-        # revival protocol doesn't currently propagate the original task name).
+        # non-preliminary assignment via the standard preliminary->realized flow. The
+        # controller->scheduler revival protocol propagates the original allocation group
+        # name, so the synthesized assignment keeps the original task name.
 
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
@@ -2374,6 +2388,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         original_assignment = operation["assignments"][0]
         original_allocation_id = list(operation["allocations"].keys())[0]
         original_node_address = original_assignment["node_address"]
+        original_group_name = original_assignment["allocation_group_name"]
         assert not original_assignment["reviving"]
 
         op.wait_for_fresh_snapshot()
@@ -2389,8 +2404,8 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
 
         operation = get_operation_from_gpu_policy_orchid(op)
         revived = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
-        # Case B invariant: synthesized assignment uses placeholder group name and is not flagged.
-        assert revived["allocation_group_name"] == "revived"
+        # Case B invariant: synthesized assignment keeps the original group name and is not flagged.
+        assert revived["allocation_group_name"] == original_group_name
         assert revived["node_address"] == original_node_address
         assert revived["allocation_id"] == original_allocation_id
         assert not revived["reviving"]
@@ -2419,7 +2434,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         # (c) the pending-map scrub block erases the PendingRevivedAllocations_ entry.
         # The operation is back to a clean state, the controller schedules a brand-new
         # allocation through the regular scheduling flow (not Case A/B), and the test
-        # verifies the new assignment uses a non-"revived" group name and a different
+        # verifies the new assignment uses the task group name and a different
         # allocation_id - confirming no orphan leaked into the new cycle.
 
         update_scheduler_config("node_registration_timeout", 1000)
@@ -2486,7 +2501,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
 
         operation = get_operation_from_gpu_policy_orchid(op)
         new_assignment = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
-        assert new_assignment["allocation_group_name"] != "revived"
+        assert new_assignment["allocation_group_name"] == "task"
         assert new_assignment["allocation_id"] != original_allocation_id
         assert not new_assignment["reviving"]
 
@@ -2585,7 +2600,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         assert not rescued["reviving"]
         # Don't assert total assignment count; CA may schedule a fresh replacement for the
         # stripped allocation through the regular flow, which would re-add an assignment
-        # with the original task group name (not "revived") and a brand-new allocation id
+        # with the original task group name and a brand-new allocation id
         # (different from both snapshotted_allocation_id and late_allocation_id).
 
         op.abort()
@@ -2631,7 +2646,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
 
         operation = get_operation_from_gpu_policy_orchid(op)
         new_assignment = operation["assignments"][0]
-        assert new_assignment["allocation_group_name"] != "revived"
+        assert new_assignment["allocation_group_name"] == "task"
         assert new_assignment["allocation_id"] != pre_restart_allocation_id
         assert not new_assignment["reviving"]
 
@@ -2688,8 +2703,9 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         # into Case C: AddOrphanAllocation parks the TAllocationState (null Assignment_)
         # in operation->AllocationIdToAllocationState_ and PendingRevivedAllocations_ records
         # the (nodeId, allocationId) pair. Once the delays are cleared the node re-registers,
-        # RevivePendingAllocations creates a "revived" assignment and links the orphan
-        # TAllocationState to it via SetAssignment. The test verifies that the allocation
+        # RevivePendingAllocations creates an assignment carrying the original allocation
+        # group name and links the orphan TAllocationState to it via SetAssignment. The
+        # test verifies that the allocation
         # appears in the orchid with creation_time earlier than its assignment's
         # creation_time — confirming it went through the orphan path (the allocation
         # state was created before the revived assignment) — and that the job is
@@ -2812,8 +2828,8 @@ class TestAllocationGpuSchedulingPolicyRevivalOnPolicySwitch(YTEnvSetup):
         # the GPU policy revives the operation from snapshot via Case B in
         # RegisterAllocationsFromRevivedOperation: no prior GPU-policy-side assignment
         # exists, so a fresh non-preliminary assignment is synthesized via the standard
-        # preliminary->realized flow with allocation_group_name == "revived" and the
-        # original allocation_id reattached.
+        # preliminary->realized flow with the original allocation group name (propagated
+        # by the revival protocol) and the original allocation_id reattached.
 
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
@@ -2843,14 +2859,15 @@ class TestAllocationGpuSchedulingPolicyRevivalOnPolicySwitch(YTEnvSetup):
 
         # Scheduler is back with the GPU policy. RegisterAllocationsFromRevivedOperation
         # runs Case B for the snapshotted allocation - no prior assignment, fresh GPU
-        # policy state, so it synthesizes a "revived" assignment.
+        # policy state, so it synthesizes an assignment carrying the original task group name.
         wait(lambda: get_operation_from_gpu_policy_orchid(op)["enabled"])
         wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
         wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
 
         operation = get_operation_from_gpu_policy_orchid(op)
         revived = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
-        assert revived["allocation_group_name"] == "revived"
+        # run_sleeping_vanilla creates a single task named "task".
+        assert revived["allocation_group_name"] == "task"
         assert revived["allocation_id"] == pre_switch_allocation_id
         assert revived["node_address"] == pre_switch_node_address
         assert not revived["reviving"]
