@@ -70,7 +70,7 @@ IF (NOT OPENSOURCE)
     # Containers images for porto tests.
     DATA(
         sbr://7033278227 # Layers.
-        sbr://7834385089 # Rootfs.
+        sbr://12330328300 # Rootfs.
     )
 ENDIF()
 

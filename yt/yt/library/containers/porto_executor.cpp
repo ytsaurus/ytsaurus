@@ -986,6 +986,7 @@ private:
 
         for (auto& spec : getResponse->volume()) {
             specs.emplace_back(TVolumeSpec{
+                .Id = spec.id(),
                 .Path = spec.path(),
                 .Backend = spec.backend(),
                 .State = spec.state(),

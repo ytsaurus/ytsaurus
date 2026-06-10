@@ -3172,54 +3172,6 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
         assert len(second_job_stderr) == 1
 
     @authors("pogorelov")
-    def test_root_volume_reused_with_allow_reusing(self):
-        self.setup_files()
-
-        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
-        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
-
-        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
-
-        # Test root volume reuse with allow_reusing=True.
-        # Both jobs should use the same root volume path ($YT_ROOT_FS),
-        # which indicates the volume is being reused.
-        op = map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            command="cat; echo $YT_ROOT_FS >&2",
-            spec={
-                "max_failed_job_count": 1,
-                "data_size_per_job": 1,
-                "enable_multiple_jobs_in_allocation": True,
-                "mapper": {
-                    "volumes": {
-                        "root": {
-                            "layers": [{"path": "//tmp/layer1"}],
-                            "allow_reusing": True,
-                        },
-                    },
-                    "job_volumes_mounts": [
-                        {"volume_id": "root", "mount_path": "/"},
-                    ],
-                },
-            },
-        )
-
-        job_ids = op.list_jobs()
-        assert len(job_ids) == 2
-
-        # Verify both jobs ran in the same allocation
-        allocation_ids = [get_allocation_id_from_job_id(job_id) for job_id in job_ids]
-        assert allocation_ids[0] == allocation_ids[1], "Both jobs should run in the same allocation"
-
-        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in job_ids]
-
-        # Both jobs should use the same root volume path - this means the volume is reused
-        assert stderrs[0] == stderrs[1], \
-            f"Both jobs should use the same root volume path, but got: {stderrs[0]} and {stderrs[1]}"
-        assert stderrs[0] != "", "Root volume path should not be empty"
-
-    @authors("pogorelov")
     def test_root_volume_not_reused_without_allow_reusing(self):
         self.setup_files()
 
@@ -3262,6 +3214,96 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
             f"Both jobs should use different root volume paths when allow_reusing=False, but got: {stderrs[0]}"
         assert stderrs[0] != "", "Root volume path should not be empty"
         assert stderrs[1] != "", "Root volume path should not be empty"
+
+
+class TestRootVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
+    # test_root_fs=False is required to exercise real root filesystem code paths
+    # (the root volume is actually used by job_proxy as job's rootfs). This
+    # configuration is intentionally scoped to this suite only: enabling it
+    # globally on _TestVolumeReuseInAllocationBase would affect unrelated
+    # volume-reuse tests that don't need a real rootfs.
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": False,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    def setup_files(self):
+        super().setup_files()
+        create("file", "//tmp/exec.tar.gz", attributes={"replication_factor": 1})
+        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+        create("file", "//tmp/rootfs.tar.gz", attributes={"replication_factor": 1})
+        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+    @authors("pogorelov")
+    def test_root_volume_reused_with_allow_reusing(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        # Test root volume reuse with allow_reusing=True.
+        # The first job writes a marker into the root volume. The second job must
+        # observe it; comparing $YT_ROOT_FS paths alone is insufficient since a
+        # removed volume can be recreated at the same path.
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=(
+                "cat; "
+                "if [ -f /yt_root_reuse_marker ]; then "
+                "  echo REUSED >&2; "
+                "else "
+                "  echo FRESH >&2; "
+                "  echo marker_content > /yt_root_reuse_marker; "
+                "fi"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [
+                                {"path": "//tmp/exec.tar.gz"},
+                                {"path": "//tmp/rootfs.tar.gz"},
+                            ],
+                            "allow_reusing": True,
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        # Verify both jobs ran in the same allocation.
+        allocation_ids = [get_allocation_id_from_job_id(job_id) for job_id in job_ids]
+        assert allocation_ids[0] == allocation_ids[1], "Both jobs should run in the same allocation"
+
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in job_ids]
+        assert stderrs.count("FRESH") == 1, f"Exactly one job should create the root marker, got: {stderrs}"
+        assert stderrs.count("REUSED") == 1, f"Exactly one job should observe the root marker, got: {stderrs}"
 
 
 class TestNestedVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):

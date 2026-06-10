@@ -3017,6 +3017,29 @@ void TJob::Cleanup()
         }
     }
 
+    if (const auto& slot = GetUserSlot()) {
+        try {
+            THashSet<std::string> preservedVolumePaths;
+            if (const auto& rootVolume = FSSecretary_->GetRootVolume()) {
+                preservedVolumePaths.insert(rootVolume->GetPath());
+            }
+            if (const auto& gpuCheckVolume = FSSecretary_->GetGpuCheckVolume()) {
+                preservedVolumePaths.insert(gpuCheckVolume->GetPath());
+            }
+            for (const auto& [_, volumeResult] : FSSecretary_->GetNonRootVolumes()) {
+                preservedVolumePaths.insert(volumeResult->Volume->GetPath());
+            }
+            YT_LOG_DEBUG(
+                "Clean user imported porto resources (SlotIndex: %v, PreservedVolumePaths: %v)",
+                slot->GetSlotIndex(),
+                preservedVolumePaths);
+            slot->CleanUserImportedPortoResources(preservedVolumePaths);
+        } catch (const std::exception& ex) {
+            // Errors during cleanup phase do not affect job outcome.
+            YT_LOG_ERROR(ex, "Failed to clean user imported porto resources (SlotIndex: %v)", slot->GetSlotIndex());
+        }
+    }
+
     // Remove non-reusable non-root volumes prior to root volume.
     // Reusable volumes are preserved for the next job in the allocation.
     for (auto& [_, volumeResult] : FSSecretary_->ReleaseNonReusableNonRootVolumes()) {
