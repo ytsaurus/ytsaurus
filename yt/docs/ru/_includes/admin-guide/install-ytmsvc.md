@@ -27,9 +27,21 @@
 3. Версия UI не меньше 3.6.0.
 4. Включена [загрузка снапшотов](../../admin-guide/persistence-uploader.md#uploading-snapshots-to-cypress) и [access-логов](../../admin-guide/logging.md#structured_log_delivery) мастера в Кипарис.
 
-  Настройка обоих процессов требует перезагрузки мастера с даунтаймом, поэтому с целью его минимизации рекомендуется производить применение настроек одновременно.
+  Настройка обоих процессов может потребовать перезагрузки мастера с даунтаймом, поэтому с целью его минимизации рекомендуется производить применение настроек одновременно.
 
-  Для включения этих функций добавьте соответствующие настройки сайдкаров и логирования в spec.primaryMasters:
+  Требуется, чтобы access-логи мастера поставлялись в формате `json`:
+
+  ```bash
+  kubectl -n <namespace> exec ms-0 -c ytserver -- tail /yt/master-logs/master.access.log.json -n2
+  ```
+
+  Ожидаемый формат содержимого:
+  ```jsonlines
+  {"user":"operations_client","user_tag":"","method":"List","type":"map_node","id":"5-1054a-1012f-95f8a449","path":"//sys/operations/0a","original_path":"//sys/operations/0a","instant":"2026-05-13 12:33:13,441","level":"info","category":"Access"}
+  {"user":"operations_client","user_tag":"","method":"List","type":"map_node","id":"3-1170f-1012f-df59bcac","path":"//sys/operations/17","original_path":"//sys/operations/17","instant":"2026-05-13 12:33:13,441","level":"info","category":"Access"}
+  ```
+
+  Для включения этих функций добавьте соответствующие настройки сайдкаров и логирования в `spec.primaryMasters`:
 
   ```yaml
   spec:
@@ -62,36 +74,36 @@
                 storage: 5Gi
   ```
 
-4. Установлен [Cron Helm-чарт](../../admin-guide/install-cron.md#process_master_snapshot), в котором включена задача `process_master_snapshot`. Эта задача должна отработать хотя бы один раз и создать необходимые директории и таблицы, а именно: `//sys/admin/snapshots/snapshot_exports` и `//sys/admin/snapshots/user_exports`.
-5. Установлен [CHYT](../../admin-guide/install-chyt.md) и [создана Клика](../../user-guide/data-processing/chyt/try-chyt.md). Сохраните название клики в переменную окружения `CHYT_CLIQUE_NAME`. Для простоты в примере будет использоваться клика с названием `ch_public`, создаваемая по умолчанию.
+5. Установлен [Cron Helm-чарт](../../admin-guide/install-cron.md#process_master_snapshot), в котором включена задача `process_master_snapshot`. Эта задача должна отработать хотя бы один раз и создать необходимые директории и таблицы, а именно: `//sys/admin/snapshots/snapshot_exports` и `//sys/admin/snapshots/user_exports`.
+6. Установлен [CHYT](../../admin-guide/install-chyt.md) и [создана Клика](../../user-guide/data-processing/chyt/try-chyt.md). Сохраните название клики в переменную окружения `CHYT_CLIQUE_NAME`. Для простоты в примере будет использоваться клика с названием `ch_public`, создаваемая по умолчанию.
 
-```bash
-export CHYT_CLIQUE_NAME=ch_public
-```
+  ```bash
+  export CHYT_CLIQUE_NAME=ch_public
+  ```
 
-Проверим статус задачи `process_master_snapshot`:
+  Проверим статус задачи `process_master_snapshot`:
 
-```bash
-kubectl -n <namespace> get cronjobs ytsaurus-cron-cron-chart-process-master-snapshot -o jsonpath='{.status}'
-```
+  ```bash
+  kubectl -n <namespace> get cronjobs ytsaurus-cron-cron-chart-process-master-snapshot -o jsonpath='{.status}'
+  ```
 
-Ожидаем ненулевой `lastSuccessfulTime`:
+  Ожидаем ненулевой `lastSuccessfulTime`:
 
-```json
-{
-  "lastScheduleTime": "2025-12-01T10:00:00Z",
-  "lastSuccessfulTime": "2025-12-01T10:05:09Z"
-}
-```
+  ```json
+  {
+    "lastScheduleTime": "2025-12-01T10:00:00Z",
+    "lastSuccessfulTime": "2025-12-01T10:05:09Z"
+  }
+  ```
 
-Проверим наличие необходимых директорий и таблиц:
+  Проверим наличие необходимых директорий и таблиц:
 
-```bash
-yt list //sys/admin/snapshots/snapshot_exports
-yt list //sys/admin/snapshots/user_exports
-```
+  ```bash
+  yt list //sys/admin/snapshots/snapshot_exports
+  yt list //sys/admin/snapshots/user_exports
+  ```
 
-Должны увидеть хотя бы один снапшот с именем вида `000000068.snapshot_3163fafb_unified_export` и `000000068.snapshot_3163fafb_user_export` соответственно.
+  Должны увидеть хотя бы один снапшот с именем вида `000000068.snapshot_3163fafb_unified_export` и `000000068.snapshot_3163fafb_user_export` соответственно.
 
 ## Подготовка и установка
 
