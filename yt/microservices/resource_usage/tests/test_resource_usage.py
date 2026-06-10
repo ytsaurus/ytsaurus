@@ -998,3 +998,115 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
 
         chunk_count = yt_client.get(f"{last_table_path}/@resource_usage/chunk_count")
         assert chunk_count > 1
+
+    @authors("ilyaibraev")
+    def test_table_held_by_zero_usage_transaction(self, yt_client: YtClient, home_ypath: str):
+        tx_title = 'Scheduler "input" transaction for operation 47b86be5-1e18c55f-42e03e8-ab61cbeb'
+        disk_space = 35340978063705
+
+        def build_rows(node_id: str, tx_id: str, orphaned: bool):
+            common = {
+                "id": node_id,
+                "path": "#" + node_id,
+                "account": "acc",
+                "type": "table",
+                "external": False,
+                "inherit_acl": True,
+                "ref_counter": 1,
+                "access_time": "2024-01-01T00:00:00.000000Z",
+                "creation_time": "2024-01-01T00:00:00.000000Z",
+                "modification_time": "2024-01-01T00:00:00.000000Z",
+                "resource_usage": {
+                    "chunk_count": 11006,
+                    "disk_space": disk_space,
+                    "node_count": 1,
+                    "tablet_count": 0,
+                    "master_memory": 0,
+                    "tablet_static_memory": 0,
+                    "chunk_host_cell_master_memory": 0,
+                    "disk_space_per_medium": {self.DEFAULT_MEDIUM: disk_space},
+                    "detailed_master_memory": {"attributes": 0, "chunks": 0, "nodes": 0, "schemas": 0, "tablets": 0},
+                },
+            }
+            row_a = dict(common)
+            row_a.update({
+                "cypress_transaction_id": tx_id,
+                "cypress_transaction_title": tx_title,
+                "versioned_resource_usage": {
+                    "row_count": 0,
+                    "erasure_disk_space": 0,
+                    "data_weight": 0,
+                    "regular_disk_space": 0,
+                    "compressed_data_size": 0,
+                    "chunk_count": 0,
+                    "uncompressed_data_size": 0,
+                },
+            })
+            row_b = dict(common)
+            row_b.update({
+                "orphaned": orphaned,
+            })
+            return row_a, row_b
+
+        def run_scenario(node_id: str, tx_id: str, rows: list[dict]):
+            resolved_path = f"{home_ypath}/held_table_{node_id}"
+            yt_client.insert_rows(
+                "//sys/admin/yt-microservices/node_id_dict/data",
+                [{"cluster": self.Env.get_http_proxy_address(), "node_id": node_id, "path": resolved_path}],
+            )
+            snapshot_ts = self.snapshot_runner.build_and_export_master_snapshot(
+                YtClient(self.Env.get_http_proxy_address()),
+                append_to_snapshot=rows,
+            )
+            self.run_preprocessing()
+
+            versioned_response = self._run_request(
+                "get-versioned-resource-usage",
+                {
+                    "cluster": "local",
+                    "account": "acc",
+                    "path": resolved_path,
+                    "timestamp": snapshot_ts,
+                    "timestamp_rounding_policy": "closest",
+                    "type": "table",
+                },
+            )
+            children_response = self._run_request(
+                "get-children-and-resource-usage",
+                {
+                    "cluster": "local",
+                    "account": "acc",
+                    "timestamp": snapshot_ts,
+                    "timestamp_rounding_policy": "closest",
+                    "row_filter": {"base_path": home_ypath},
+                },
+            )
+            items = [item for item in children_response["items"] if item["path"] == resolved_path]
+            assert len(items) == 1, str(children_response)
+            return versioned_response, items[0]
+
+        for node_id, tx_id, reversed_order in [
+            ("3570e-4e2506-4110191-6ff982f0", "e53b-34b34-4e490001-1e3b", False),
+            ("3570e-4e2506-4110191-6ff982f1", "e53b-34b34-4e490001-1e3c", True),
+        ]:
+            row_a, row_b = build_rows(node_id, tx_id, orphaned=True)
+            rows = [row_b, row_a] if reversed_order else [row_a, row_b]
+            versioned_response, item = run_scenario(node_id, tx_id, rows)
+
+            assert item["disk_space"] == disk_space, str(item)
+            assert item[f"medium:{self.DEFAULT_MEDIUM}"] == disk_space, str(item)
+
+            assert tx_id in versioned_response["transactions"], str(versioned_response)
+            assert versioned_response["transactions"][tx_id].get("transaction_title") == tx_title, str(versioned_response)
+
+            assert item["versioned_resource_usage"] is not None, str(item)
+            assert tx_id in item["versioned_resource_usage"], str(item)
+            assert item["versioned_resource_usage"][tx_id].get("transaction_title") == tx_title, str(item)
+
+        node_id, tx_id = "3570e-4e2506-4110191-6ff982f2", "e53b-34b34-4e490001-1e3d"
+        row_a, row_b = build_rows(node_id, tx_id, orphaned=False)
+        versioned_response, item = run_scenario(node_id, tx_id, [row_a, row_b])
+
+        assert item["disk_space"] == disk_space, str(item)
+        assert tx_id not in versioned_response["transactions"], str(versioned_response)
+        assert item["versioned_resource_usage"] is None, str(item)
