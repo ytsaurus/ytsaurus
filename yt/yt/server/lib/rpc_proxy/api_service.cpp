@@ -5478,7 +5478,7 @@ void TApiService::DoModifyRows(
             << TErrorAttribute("row_modification_types_size", request.row_modification_types_size());
     }
 
-    std::vector<TRowModification> modifications;
+    std::vector<NFuture::TRowModification> modifications;
     modifications.reserve(rowsetSize);
     for (ssize_t index = 0; index < rowsetSize; ++index) {
         TLockMask lockMask;
@@ -5498,11 +5498,31 @@ void TApiService::DoModifyRows(
             FromProto(&lockMask, request.row_locks(index));
         }
 
-        modifications.push_back({
-            FromProto<ERowModificationType>(request.row_modification_types(index)),
-            rowsetRows[index].ToTypeErasedRow(),
-            lockMask,
-        });
+        switch (request.row_modification_types(index))
+        {
+            case NApi::NRpcProxy::NProto::ERowModificationType::RMT_WRITE:
+                THROW_ERROR_EXCEPTION_IF(!lockMask.IsNone(),
+                    "Cannot perform lock by \"write\" modification type; use \"write_and_lock\"");
+
+                modifications.push_back(NFuture::NRowModifications::TWriteRow(rowsetRows[index]));
+                break;
+
+            case NApi::NRpcProxy::NProto::ERowModificationType::RMT_DELETE:
+                THROW_ERROR_EXCEPTION_IF(!lockMask.IsNone(),
+                    "Cannot perform lock by \"delete\" modification type; use \"write_and_lock\"");
+
+                modifications.push_back(NFuture::NRowModifications::TDeleteRow(rowsetRows[index]));
+                break;
+
+            case NApi::NRpcProxy::NProto::ERowModificationType::RMT_MODIFY:
+                modifications.push_back(NFuture::NRowModifications::TWriteAndLockRow(rowsetRows[index], std::move(lockMask)));
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unknown modification type")
+                    << TErrorAttribute("row_modification_type", request.row_modification_types(index))
+                    << TErrorAttribute("index", index);
+        }
     }
 
     TModifyRowsOptions options;
@@ -5523,7 +5543,7 @@ void TApiService::DoModifyRows(
         options.SequenceNumberSourceId = request.sequence_number_source_id();
     }
 
-    transaction->ModifyRows(
+    transaction->FutureModifyRows(
         path,
         rowset->GetNameTable(),
         MakeSharedRange(std::move(modifications), rowset),

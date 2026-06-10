@@ -52,6 +52,25 @@ const TIndexInfo DefaultIndexInfo = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ERowModificationType GetModificationType(const NFuture::TRowModification& modification)
+{
+    return Visit(modification,
+        [] (const NFuture::NRowModifications::TWriteRow&) {
+            return ERowModificationType::Write;
+        },
+        [] (const NFuture::NRowModifications::TDeleteRow&) {
+            return ERowModificationType::Delete;
+        },
+        [] (const NFuture::NRowModifications::TVersionedWriteRow&) {
+            return ERowModificationType::VersionedWrite;
+        },
+        [] (const NFuture::NRowModifications::TWriteAndLockRow&) {
+            return ERowModificationType::WriteAndLock;
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableMountInfoPtr MakeFrom(TTableSchemaPtr primarySchema)
 {
     auto mountInfo = New<TTableMountInfo>();
@@ -124,10 +143,13 @@ public:
             modifications.Size());
 
         auto indexModification = modifications[0];
-        THROW_ERROR_EXCEPTION_IF(indexModification.Type != ERowModificationType::Write,
-            "Expected a write modification, got %Qlv", indexModification.Type);
+        auto modificationType = GetModificationType(indexModification);
+        THROW_ERROR_EXCEPTION_IF(modificationType != ERowModificationType::Write,
+            "Expected a write modification, got %v",
+            modificationType);
 
-        for (auto val : TUnversionedRow(indexModification.Row)) {
+        const auto& indexWrite = std::get<NFuture::NRowModifications::TWriteRow>(indexModification);
+        for (auto val : indexWrite.Row) {
             auto primaryIndex = val.Id;
             if (primaryIndex >= columnCount) {
                 continue;
@@ -136,7 +158,7 @@ public:
         }
     }
 
-    TSharedRange<TRowModification> Run(
+    TSharedRange<NFuture::TRowModification> Run(
         TTableSchemaPtr tableSchema,
         TTableSchemaPtr indexSchema,
         TRange<TUnversionedSubmittedRow> tableModifications = {},
@@ -159,12 +181,12 @@ public:
         WaitForFast(modifier->LookupRows())
             .ThrowOnError();
 
-        TSharedRange<TRowModification> indexModifications;
+        TSharedRange<NFuture::TRowModification> indexModifications;
 
         WaitForFast(modifier->OnIndexModifications([&] (
                 NYPath::TYPath,
                 TNameTablePtr,
-                TSharedRange<TRowModification> modifications)
+                TSharedRange<NFuture::TRowModification> modifications)
             {
                 indexModifications = std::move(modifications);
             }))
@@ -618,19 +640,26 @@ TEST_F(TSecondaryIndexTest, OverwriteRow)
 
     ASSERT_EQ(indexModifications.Size(), 2ul);
     ASSERT_TRUE(
-        (indexModifications[0].Type == ERowModificationType::Delete) !=
-        (indexModifications[1].Type == ERowModificationType::Delete));
+        (GetModificationType(indexModifications[0]) == ERowModificationType::Delete) !=
+        (GetModificationType(indexModifications[1]) == ERowModificationType::Delete));
     ASSERT_TRUE(
-        (indexModifications[0].Type == ERowModificationType::Write) !=
-        (indexModifications[1].Type == ERowModificationType::Write));
+        (GetModificationType(indexModifications[0]) == ERowModificationType::Write) !=
+        (GetModificationType(indexModifications[1]) == ERowModificationType::Write));
 
     for (auto& im : indexModifications) {
-        if (im.Type == ERowModificationType::Write) {
-            EXPECT_EQ(TUnversionedRow(im.Row)[0].Data.Int64, 1);
-            EXPECT_EQ(TUnversionedRow(im.Row)[1].Data.Int64, 0);
+        if (const auto* indexWrite = std::get_if<NFuture::NRowModifications::TWriteRow>(&im);
+            indexWrite)
+        {
+            EXPECT_EQ(indexWrite->Row[0].Data.Int64, 1);
+            EXPECT_EQ(indexWrite->Row[1].Data.Int64, 0);
+
+        } else if (const auto* indexDelete = std::get_if<NFuture::NRowModifications::TDeleteRow>(&im);
+            indexDelete)
+        {
+            EXPECT_EQ(indexDelete->Key[0].Data.Int64, 0);
+            EXPECT_EQ(indexDelete->Key[1].Data.Int64, 0);
         } else {
-            EXPECT_EQ(TUnversionedRow(im.Row)[0].Data.Int64, 0);
-            EXPECT_EQ(TUnversionedRow(im.Row)[1].Data.Int64, 0);
+            GTEST_FAIL();
         }
     }
 }
