@@ -754,10 +754,12 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(10);
 
     registrar.Parameter("max_chunk_refresh_queue_wait_time", &TThis::MaxChunkRefreshQueueWaitTime)
-        .Default(TDuration::Minutes(10));
+        .Default(TDuration::Minutes(10))
+        .DontSerializeDefault();
 
     registrar.Parameter("max_global_chunk_refresh_queue_wait_time", &TThis::MaxGlobalChunkRefreshQueueWaitTime)
-        .Default(TDuration::Minutes(40));
+        .Default(TDuration::Minutes(40))
+        .DontSerializeDefault();
 
     registrar.Parameter("replicator_enabled_check_period", &TThis::ReplicatorEnabledCheckPeriod)
         .Default(TDuration::Seconds(30));
