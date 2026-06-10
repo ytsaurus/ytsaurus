@@ -73,10 +73,13 @@ public:
         int slotIndex,
         TChaosNodeConfigPtr config,
         IBootstrap* bootstrap,
-        TRegistry profiler)
-        : THood(Format("ChaosSlot/%v", slotIndex), profiler.GetRegistry())
+        const std::string& cellBundleName)
+        : THood(
+            Format("ChaosSlot/%v", slotIndex),
+            ChaosNodeProfiler.GetRegistry(),
+            TTagSet().WithTag(TTag("chaos_cell_bundle", cellBundleName)))
         , Config_(config)
-        , Profiler_(std::move(profiler))
+        , Profiler_(ChaosNodeProfiler.WithTag("chaos_cell_bundle", cellBundleName))
         , ShortcutSnapshotStore_(CreateShortcutSnapshotStore())
         , Bootstrap_(bootstrap)
         , SnapshotQueue_(New<TActionQueue>(
@@ -514,7 +517,7 @@ IChaosSlotPtr CreateChaosSlot(
         slotIndex,
         config,
         bootstrap,
-        ChaosNodeProfiler.WithTag("chaos_cell_bundle", cellBundleName));
+        cellBundleName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

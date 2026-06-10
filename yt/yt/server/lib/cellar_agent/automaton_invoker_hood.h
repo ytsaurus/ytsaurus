@@ -6,6 +6,7 @@
 
 #include <yt/yt/core/actions/public.h>
 
+#include <yt/yt/library/profiling/tag.h>
 #include <yt/yt/library/profiling/public.h>
 
 #include <library/cpp/yt/misc/enum.h>
@@ -20,7 +21,10 @@ template <typename EQueue>
 class TAutomatonInvokerHood
 {
 public:
-    TAutomatonInvokerHood(std::string threadName, NProfiling::IRegistryPtr registry = {});
+    TAutomatonInvokerHood(
+        std::string threadName,
+        NProfiling::IRegistryPtr registry = {},
+        const NProfiling::TTagSet& extraTags = {});
 
     IInvokerPtr GetAutomatonInvoker(EQueue queue = EQueue::Default) const;
     IInvokerPtr GetEpochAutomatonInvoker(EQueue queue = EQueue::Default) const;
