@@ -275,6 +275,24 @@ class TestP2PWithoutNodeDirectorySynchronizer(YTEnvSetup):
     def peer_counter(self, peer, path):
         return profiler_factory().at_node(peer).counter(path)
 
+    @authors("achains")
+    def test_peer_reads_without_node_directory_synchronizer(self):
+        throttled = self.seed_counter("data_node/p2p/throttled_bytes")
+        distributed = self.seed_counter("data_node/p2p/distributed_bytes")
+        peer_hit = [self.peer_counter(peer, "data_node/p2p/hit_bytes") for peer in self.non_seeds]
+
+        def check_distribution_started():
+            assert self.access_table() == [{"a": 1}]
+            return throttled.get_delta() > 0 and distributed.get_delta() > 0
+
+        wait(check_distribution_started)
+
+        def check_peer_hit():
+            assert self.access_table() == [{"a": 1}]
+            return sum(c.get_delta() for c in peer_hit) > 0
+
+        wait(check_peer_hit)
+
 
 class TestNodeDirectorySynchronizationOnTableRead(YTEnvSetup):
     NUM_MASTERS = 1
