@@ -74,6 +74,8 @@ TLayerLocation::TLayerLocation(
         .WithPrefix("/layer")
         .WithTag("location_id", Id_);
 
+    InitializeDiskLocationProfiling(profiler);
+
     PerformanceCounters_ = TLayerLocationPerformanceCounters{profiler};
 
     if (healthCheckerConfig) {
@@ -469,6 +471,12 @@ void TLayerLocation::OnDynamicConfigChanged(
     if (FastLayerExecutor_) {
         FastLayerExecutor_->OnDynamicConfigChanged(newConfig->LayerPortoExecutor);
     }
+
+    TDiskLocation::Reconfigure(std::invoke([&] {
+        auto diskLocationConfig = CloneYsonStruct<TDiskLocationConfig>(Config_);
+        diskLocationConfig->ApplyDynamicInplace(*newConfig->LocationConfigPatch);
+        return diskLocationConfig;
+    }));
 
     if (HealthChecker_) {
         HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*newConfig->DiskHealthChecker));

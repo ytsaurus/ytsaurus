@@ -62,6 +62,8 @@ public:
     template <class T>
     TFuture<T> RegisterAction(TCallback<TFuture<T>()> action);
 
+    ~TDiskLocation();
+
 protected:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StateChangingLock_);
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActionsContainerLock_);
@@ -79,12 +81,20 @@ protected:
 
     bool ChangeState(
         ELocationState newState,
-        std::optional<ELocationState> expectedState = std::nullopt);
+        std::optional<ELocationState> expectedState = std::nullopt,
+        const TError& disableReason = {});
+
+    // Must not be called concurrently with Reconfigure.
+    void InitializeDiskLocationProfiling(const NProfiling::TProfiler& profiler);
 
 private:
     const NServer::TDiskLocationConfigPtr StaticConfig_;
 
     TAtomicIntrusivePtr<NServer::TDiskLocationConfig> RuntimeConfig_;
+
+    class TProfiling;
+    TAtomicIntrusivePtr<TProfiling> Profiling_ = nullptr;
+    std::optional<NProfiling::TProfiler> Profiler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
