@@ -859,6 +859,9 @@ public:
 
     TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository()
     {
+        THROW_ERROR_EXCEPTION_IF(
+            !CypressDictionaryConfigRepository_,
+            "Clique doesn't have configured CypressDictionaryConfigRepository");
         return CypressDictionaryConfigRepository_;
     }
 
