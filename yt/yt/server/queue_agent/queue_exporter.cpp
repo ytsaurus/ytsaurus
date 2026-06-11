@@ -702,6 +702,24 @@ private:
                 return tabletProgressIt != currentExportProgress->Tablets.end() && tabletProgressIt->second->LastChunk == FromProto<TChunkId>(chunkSpec->chunk_id());
             });
 
+            if (lastExportedSpecIt != chunkSpecs.end()) {
+                auto* chunkSpec = *lastExportedSpecIt;
+                auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec->chunk_meta().extensions());
+                auto& tabletProgress = GetOrCrash(currentExportProgress->Tablets, tabletIndex);
+                bool rowCountMatches = chunkSpec->table_row_index() + miscExt.row_count() == tabletProgress->RowCount;
+                if (!rowCountMatches) {
+                    ProfilingCounters_->RowCountMismatches.Increment();
+                    if (DynamicConfig_.EnableRowCountCheck) {
+                        YT_LOG_ALERT_AND_THROW(
+                            "Mismatch between last chunk from tablet progress and row count from progress (TabletProgressLastChunk: %v, TabletProgressRowCount: %v, FoundChunkRowIndex: %v, FoundChunkRowCount: %v)",
+                            tabletProgress->LastChunk,
+                            tabletProgress->RowCount,
+                            chunkSpec->table_row_index(),
+                            miscExt.row_count());
+                    }
+                }
+            }
+
             // NB(apachee): Monotonically increasing export unix ts to provide intra-tablet chunk order.
             // It is required in case of weak commit ordering, as in this case latter chunks might have smaller max timestamps.
             ui64 accumulatedMinExportUnixTs = initialAccumulatedMinExportUnixTs;
@@ -1120,14 +1138,17 @@ DEFINE_REFCOUNTED_TYPE(TQueueExportTask)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueueExportProfilingCounters::TQueueExportProfilingCounters(const TProfiler& profiler)
-    : ExportedRows(profiler.Counter("/exported_rows"))
-    , ExportedChunks(profiler.Counter("/exported_chunks"))
-    , ExportedTables(profiler.Counter("/exported_tables"))
-    , SkippedTables(profiler.Counter("/skipped_tables"))
-    , ExportTaskErrors(profiler.Counter("/export_task_errors"))
-    , TimeLag(profiler.TimeGauge("/time_lag"))
-    , TableLag(profiler.Gauge("/table_lag"))
+TQueueExportProfilingCounters::TQueueExportProfilingCounters(
+    const TProfiler& queueProfiler,
+    const TProfiler& queuePassProfiler)
+    : ExportedRows(queueProfiler.Counter("/exported_rows"))
+    , ExportedChunks(queueProfiler.Counter("/exported_chunks"))
+    , ExportedTables(queueProfiler.Counter("/exported_tables"))
+    , SkippedTables(queueProfiler.Counter("/skipped_tables"))
+    , ExportTaskErrors(queueProfiler.Counter("/export_task_errors"))
+    , TimeLag(queueProfiler.TimeGauge("/time_lag"))
+    , TableLag(queueProfiler.Gauge("/table_lag"))
+    , RowCountMismatches(queuePassProfiler.Counter("/row_count_mismatches"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1157,7 +1178,7 @@ public:
         , Invoker_(std::move(invoker))
         , QueueExportManager_(std::move(queueExportManager))
         , AlertCollector_(std::move(alertCollector))
-        , ProfilingCounters_(New<TQueueExportProfilingCounters>(queueProfiler))
+        , ProfilingCounters_(New<TQueueExportProfilingCounters>(queueProfiler, queuePassProfiler))
         , PassProfiler_(queuePassProfiler)
         , Executor_(New<TPeriodicExecutor>(
             Invoker_,

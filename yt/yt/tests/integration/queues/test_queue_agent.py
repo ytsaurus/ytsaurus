@@ -4911,6 +4911,100 @@ class TestQueueExportTaskConfig(TestQueueStaticExportBase):
 
 
 @pytest.mark.enabled_multidaemon
+class TestQueueExportRowCountCheck(TestQueueStaticExportBase):
+    ENABLE_MULTIDAEMON = True
+
+    DELTA_LOCAL_YT_CONFIG = {
+        "default_abort_on_alert": False,
+    }
+
+    @authors("apachee")
+    @pytest.mark.parametrize("enable_row_count_check", [True, False])
+    def test_row_count_mismatch(self, enable_row_count_check):
+        self._switch_queue_exporter_implementation("new")
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "queue_exporter": {
+                        "enable_row_count_check": enable_row_count_check,
+                    },
+                },
+            },
+        })
+
+        queue_path = self.create_queue_path()
+        export_dir = f"{queue_path}-export"
+        export_period_seconds = 1
+
+        _, queue_id = self._create_queue(queue_path, partition_count=1)
+        self._create_export_destination(export_dir, queue_id)
+        self._wait_for_global_sync()
+
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": export_period_seconds * 1000,
+            },
+        })
+
+        expected_rows = ["foo"] * 3
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": data} for data in expected_rows])
+        self._flush_table(queue_path)
+        wait(lambda: len(ls(export_dir)) == 1)
+        self._check_export(export_dir, [expected_rows])
+        remove(f"{export_dir}/{ls(export_dir)[0]}")
+
+        queue_orchid = QueueAgentOrchid().get_queue_orchid(f"primary:{queue_path}")
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+
+        hosts = ls("//sys/queue_agents/instances")
+        profiler = profiler_factory().at_queue_agent(hosts[0])
+        mismatch_counter = profiler.counter(
+            "queue_agent/queue/static_export/row_count_mismatches",
+            tags={
+                "queue_cluster": "primary",
+                "queue_path": queue_path,
+                "queue_tag": "none",
+                "export_name": "default",
+                "leading": "true",
+            },
+        )
+
+        row_count = get(f"{export_dir}/@queue_static_export_progress/tablets/0/row_count")
+
+        # Patch the export progress to create a mismatch between the last exported chunk and the
+        # recorded row count. The exporter rewrites the whole progress (from a value it read at the
+        # start of the pass) on every pass, so we patch it under the exporter's own per-directory
+        # lock (a shared lock on the "queue_static_exporter" attribute, which the exporter uses as a
+        # non-waitable mutex) to keep a racing pass from reverting the patch.
+        tx = start_transaction()
+        lock_id = lock(export_dir, mode="shared", tx=tx, waitable=True, attribute_key="queue_static_exporter")["lock_id"]
+        wait(lambda: get(f"#{lock_id}/@state") == "acquired")
+        set(f"{export_dir}/@queue_static_export_progress/tablets/0/row_count", row_count - 1, tx=tx)
+        commit_transaction(tx)
+
+        expected_rows = ["bar"] * 3
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": data} for data in expected_rows])
+        self._flush_table(queue_path)
+
+        exporter_orchid.wait_fresh_invocation()
+        wait(lambda: mismatch_counter.get_delta() > 0)
+
+        if enable_row_count_check:
+            queue_orchid.get_alerts().assert_matching(
+                "queue_agent_queue_controller_static_export_failed",
+                text="Mismatch between last chunk from tablet progress and row count from progress",
+            )
+            assert len(ls(export_dir)) == 0
+        else:
+            assert len(queue_orchid.get_alerts()) == 0
+            assert len(ls(export_dir)) == 1
+            self._check_export(export_dir, [expected_rows], expected_removed_rows=3)
+
+        self.remove_export_destination(export_dir)
+
+
+@pytest.mark.enabled_multidaemon
 class TestQueueExportManager(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
