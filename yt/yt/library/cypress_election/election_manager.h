@@ -15,8 +15,8 @@ namespace NYT::NCypressElection {
 struct TCypressElectionManagerOptions
     : public TRefCounted
 {
-    TString GroupName;
-    TString MemberName;
+    std::string GroupName;
+    std::string MemberName;
     //! Additional attributes for the lock transaction.
     NYTree::IAttributeDictionaryPtr TransactionAttributes;
 };
