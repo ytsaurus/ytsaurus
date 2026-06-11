@@ -111,6 +111,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixPartitionsDispatchStatistics)       (302131))
     ((FixInputStreamDirectory)               (302132))
     ((HighThreadCountJobPerTask)             (302133))
+    ((PersistVanillaJobCounts)               (302134))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
