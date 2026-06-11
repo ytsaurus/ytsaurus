@@ -96,6 +96,11 @@ TTablePath ToTablePath(const TGenericObjectReference& genericRef)
     return TTablePath(genericRef.GetPath(), *MakeAttributesWithCluster(genericRef.GetCluster().value()));
 }
 
+TTablePath ToTablePath(const TNamedConsumerReference& namedRef)
+{
+    return TTablePath(namedRef.GetPath(), *MakeAttributesWithCluster(namedRef.GetCluster().value()));
+}
+
 TCrossClusterReference ToCrossClusterReference(const TTablePath& path)
 {
     return TCrossClusterReference(path.GetCluster().value(), path.GetPath());

@@ -60,7 +60,7 @@ class TMultiConsumerController
 {
 public:
     TMultiConsumerController(
-        const TIntrusivePtr<TConsumerTableRow>& row,
+        TConsumerTableRowConstPtr row,
         const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
         const TQueueControllerDynamicConfigPtr& dynamicConfig,
         const TProfiler& profiler,
@@ -113,7 +113,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        const auto& consumerRow = std::any_cast<const TIntrusivePtr<TConsumerTableRow>&>(row);
+        const auto& consumerRow = std::any_cast<TConsumerTableRowConstPtr>(row);
 
         auto oldRow = ConsumerRow_.Exchange(consumerRow);
         if (oldRow->QueueConsumerProfilingTag != consumerRow->QueueConsumerProfilingTag) {
@@ -201,7 +201,7 @@ private:
 
     const TProfiler BaseProfiler_;
 
-    TAtomicIntrusivePtr<TConsumerTableRow> ConsumerRow_;
+    TAtomicConsumerTableRowConstPtr ConsumerRow_;
     NThreading::TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
 
     using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;
@@ -419,7 +419,7 @@ private:
 //! Returns true if new controller was created.
 bool UpdateMultiConsumerController(
     IObjectControllerPtr& controller,
-    const TIntrusivePtr<NQueueClient::TConsumerTableRow>& row,
+    TConsumerTableRowConstPtr row,
     const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,
     const TQueueAgentClientDirectoryPtr& clientDirectory,
@@ -431,7 +431,7 @@ bool UpdateMultiConsumerController(
     }
 
     auto newController = New<TMultiConsumerController>(
-        row,
+        std::move(row),
         replicatedTableMappingRow,
         dynamicConfig,
         QueueAgentProfiler(),

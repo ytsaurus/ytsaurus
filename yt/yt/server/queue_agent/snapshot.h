@@ -88,10 +88,12 @@ DEFINE_REFCOUNTED_TYPE(TQueuePartitionSnapshot)
 struct TConsumerSnapshot
     : public TObjectSnapshotBase
 {
-    explicit TConsumerSnapshot(NQueueClient::TConsumerTableRow row);
+    TConsumerSnapshot(NQueueClient::TConsumerReference ref, NQueueClient::TConsumerTableRowConstPtr row);
+
+    NQueueClient::TConsumerReference Ref;
 
     // This field is always set.
-    NQueueClient::TConsumerTableRow Row;
+    NQueueClient::TConsumerTableRowConstPtr Row;
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
     std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
@@ -128,7 +130,7 @@ struct TMultiConsumerSnapshot
     : public TObjectSnapshotBase
 {
     // This field is always set, we are using intrusive pointer to avoid copying the row.
-    TIntrusivePtr<NQueueClient::TConsumerTableRow> Row;
+    NQueueClient::TConsumerTableRowConstPtr Row;
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
     THashSet<std::string> QueueConsumerNames;

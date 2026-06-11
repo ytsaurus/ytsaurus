@@ -1293,23 +1293,23 @@ private:
                 } else if (!consumerSnapshot->Error.IsOK()) {
                     THROW_ERROR_EXCEPTION(
                         "Trimming iteration skipped due to erroneous registered vital consumer %Qv",
-                        consumerSnapshot->Row.Path)
+                        consumerSnapshot->Ref)
                         << consumerSnapshot->Error;
                 }
                 auto it = consumerSnapshot->SubSnapshots.find(QueuePath);
                 if (it == consumerSnapshot->SubSnapshots.end()) {
                     THROW_ERROR_EXCEPTION(
                         "Trimming iteration skipped due to vital consumer %Qv snapshot not containing information about queue",
-                        consumerSnapshot->Row.Path);
+                        consumerSnapshot->Ref);
                 }
                 const auto& consumerSubSnapshot = it->second;
                 if (!consumerSubSnapshot->Error.IsOK()) {
                     THROW_ERROR_EXCEPTION(
                         "Trimming iteration skipped due to erroneous queue sub-snapshot in registered vital consumer %Qv",
-                        consumerSnapshot->Row.Path)
+                        consumerSnapshot->Ref)
                         << consumerSubSnapshot->Error;
                 }
-                VitalConsumerSubSnapshots[TConsumerReference(consumerSnapshot->Row.Path)] = consumerSubSnapshot;
+                VitalConsumerSubSnapshots[consumerSnapshot->Ref] = consumerSubSnapshot;
             }
 
             if (VitalConsumerSubSnapshots.empty() && !AggregatedQueueExportsProgress.HasExports) {
@@ -1577,7 +1577,7 @@ DEFINE_REFCOUNTED_TYPE(TOrderedDynamicTableController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TErrorQueueController = TErrorController<TQueueTableRow, TQueueSnapshot>;
+using TErrorQueueController = TErrorController<TQueueSnapshot>;
 DEFINE_REFCOUNTED_TYPE(TErrorQueueController)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1599,25 +1599,33 @@ bool UpdateQueueController(
     const auto Logger = QueueControllerLogger().WithTag("Queue: %v, Leading: %v", row.Path, leading);
 
     if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
-        controller = New<TErrorQueueController>(row, replicatedTableMappingRow, TError("Queue synchronization error") << *row.SynchronizationError);
-        YT_LOG_WARNING(row.SynchronizationError.value(), "Queue synchronization error");
+        auto snapshot = New<TQueueSnapshot>(row);
+        snapshot->Error = TError("Queue synchronization error") << *row.SynchronizationError;
+        snapshot->ReplicatedTableMappingRow = replicatedTableMappingRow;
+        YT_LOG_WARNING(snapshot->Error);
+
+        controller = New<TErrorQueueController>(std::move(snapshot));
         return true;
     }
 
-    auto queueFamily = DeduceQueueFamily(row, replicatedTableMappingRow);
-    if (!queueFamily.IsOK()) {
-        YT_LOG_WARNING(queueFamily, "Error while deducing queue family");
-        controller = New<TErrorQueueController>(row, replicatedTableMappingRow, queueFamily);
+    auto queueFamilyOrError = DeduceQueueFamily(row, replicatedTableMappingRow);
+    if (!queueFamilyOrError.IsOK()) {
+        auto snapshot = New<TQueueSnapshot>(row);
+        snapshot->Error = TError("Error while deducing queue family") << queueFamilyOrError;
+        snapshot->ReplicatedTableMappingRow = replicatedTableMappingRow;
+        YT_LOG_WARNING(snapshot->Error);
+
+        controller = New<TErrorQueueController>(std::move(snapshot));
         return true;
     }
 
     auto currentController = DynamicPointerCast<IQueueController>(controller);
-    if (currentController && currentController->GetFamily() == queueFamily.Value() && currentController->IsLeading() == leading) {
+    if (currentController && currentController->GetFamily() == queueFamilyOrError.Value() && currentController->IsLeading() == leading) {
         // Do not recreate the controller if it is of the same family and leader/follower status.
         return false;
     }
 
-    switch (queueFamily.Value()) {
+    switch (queueFamilyOrError.Value()) {
         case EQueueFamily::OrderedDynamicTable: {
             auto newController = New<TOrderedDynamicTableController>(
                 leading,

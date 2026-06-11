@@ -53,6 +53,8 @@ DECLARE_REFCOUNTED_CLASS(TQueueConsumerRegistrationManagerBase)
 
 struct TQueueTableRow;
 struct TConsumerTableRow;
+using TConsumerTableRowConstPtr = TIntrusivePtr<const TConsumerTableRow>;
+using TAtomicConsumerTableRowConstPtr = TAtomicIntrusivePtr<const TConsumerTableRow>;
 struct TConsumerRegistrationTableRow;
 struct TReplicatedTableMappingTableRow;
 
