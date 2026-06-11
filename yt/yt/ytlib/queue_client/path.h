@@ -59,6 +59,7 @@ std::weak_ordering operator<=>(const TGenericObjectReference& lhs, const TGeneri
 
 //! NB(panesher): The queue_consumer_name attribute is ignored during conversion.
 TTablePath ToTablePath(const TGenericObjectReference& genericRef);
+TTablePath ToTablePath(const TNamedConsumerReference& genericRef);
 
 TCrossClusterReference ToCrossClusterReference(const TTablePath& path);
 

@@ -12,7 +12,8 @@ namespace NYT::NQueueAgent {
 bool UpdateConsumerController(
     IObjectControllerPtr& controller,
     bool leading,
-    const NQueueClient::TConsumerTableRow& row,
+    NQueueClient::TConsumerReference reference,
+    NQueueClient::TConsumerTableRowConstPtr tableRow,
     const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,

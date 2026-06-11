@@ -1,3 +1,5 @@
+import pytest
+
 from yt_queue_agent_test_base import TestQueueAgentBase, QueueAgentOrchid, GenericObjectPath
 
 from yt_commands import (
@@ -201,3 +203,47 @@ class TestMultiConsumerController(TestQueueAgentBase):
             {"cluster": "primary", "path": path, "name": "my_1", "queue_agent_stage": "production"},
             {"cluster": "primary", "path": path, "name": "my_2", "queue_agent_stage": "production"},
         ]
+
+
+class TestNamedConsumerController(TestQueueAgentBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+        },
+    }
+
+    @pytest.mark.parametrize("partition_to_insert", [0, 1, 2])
+    @authors("panesher")
+    def test_consumer_controller(self, partition_to_insert):
+        queue_path = "//tmp/queue"
+        queue_ref = GenericObjectPath(queue_path, "primary")
+        self._create_queue(queue_path, partition_count=3)
+        insert_rows(queue_path, [{"$tablet_index": partition_to_insert, "data": "hello world"}] * 3)
+
+        consumer_path = "//tmp/consumer"
+        consumer_ref = self._create_registered_consumer(
+            consumer_path, queue_path, consumer_name="my_1")
+
+        partition_index_to_offset = {0: 0, 1: 0, 2: 0}
+        self._advance_consumers(consumer_ref, queue_ref, partition_index_to_offset)
+
+        self._wait_for_component_passes()
+
+        consumer_orch_id = QueueAgentOrchid().get_consumer_orchid(consumer_ref)
+        row = consumer_orch_id.get_row()
+        assert GenericObjectPath(row["consumer"]) == consumer_ref
+
+        consumer_orch_id.wait_fresh_pass()
+        status, partitions = consumer_orch_id.get_subconsumer(str(queue_ref))
+        assert status["partition_count"] == 3
+        assert partitions[partition_to_insert]["next_row_index"] == 0
+        assert partitions[partition_to_insert]["unread_row_count"] == 3
+
+        partition_index_to_offset[partition_to_insert] = 1
+        self._advance_consumers(consumer_ref, queue_ref, partition_index_to_offset)
+
+        consumer_orch_id.wait_fresh_pass()
+        status, partitions = consumer_orch_id.get_subconsumer(str(queue_ref))
+        assert status["partition_count"] == 3
+        assert partitions[partition_to_insert]["next_row_index"] == 1
+        assert partitions[partition_to_insert]["unread_row_count"] == 2

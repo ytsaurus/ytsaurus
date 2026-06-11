@@ -328,6 +328,26 @@ def wait_and_get_controller_incarnation(agent: str):
     return incarnation_id
 
 
+def wait_success(func, error_message=None, iter=None, sleep_backoff=None, timeout=None, ignore_exceptions=False):
+    result = None
+
+    def predicate():
+        nonlocal result
+        result = func()
+        return True
+
+    wait(
+        predicate,
+        error_message=error_message,
+        iter=iter,
+        sleep_backoff=sleep_backoff,
+        timeout=timeout,
+        ignore_exceptions=ignore_exceptions,
+    )
+
+    return result
+
+
 class MissingField:
     pass
 

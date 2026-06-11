@@ -19,6 +19,14 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TConsumerInfo
+{
+    NQueueClient::TConsumerReference Ref;
+    NQueueClient::TConsumerTableRowConstPtr Row;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTaggedProfilingCounters
 {
     NProfiling::TGauge Queues;
@@ -131,13 +139,13 @@ private:
     bool UpdateConsumerController(
         IObjectControllerPtr& controller,
         bool leading,
-        const NQueueClient::TConsumerTableRow& row,
+        const TConsumerInfo& info,
         const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
 
     bool UpdateMultiConsumerController(
         IObjectControllerPtr& controller,
         bool leading,
-        const TIntrusivePtr<NQueueClient::TConsumerTableRow>& row,
+        const NQueueClient::TConsumerTableRowConstPtr& row,
         const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
 
     bool UpdateQueueController(
