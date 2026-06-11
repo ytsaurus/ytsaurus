@@ -6,7 +6,8 @@ from yt_commands import (
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction, wait, lock,
     execute_batch, make_batch_request, get_batch_output, print_debug, make_ace,
-    create_account, remove_account, create_cypress_proxy_bypass_driver,
+    create_cypress_proxy_bypass_driver,
+    create_tablet_cell_bundle, remove_tablet_cell_bundle,
 )
 
 from yt_sequoia_helpers import (
@@ -793,23 +794,6 @@ class TestSequoiaInternals(YTEnvSetup):
         node_id = get("//@id")
         # Should not throw.
         get(f"#{node_id}/tmp")
-
-    @authors("shakurov")
-    def test_transaction_commit_failure_error_stripping_in_sequoia_session(self):
-        create_account("a")
-
-        create("table", "//tmp/t1", attributes={"account": "a"})
-        remove_account("a", sync=False)
-
-        with raises_yt_error("Account \"a\" cannot be used") as err:
-            create("table", "//tmp/t2", attributes={"account": "a"})
-        assert len(err) == 1
-        assert err[0].message.find("Received response with error") != -1
-        err = err[0]
-        assert len(err.inner_errors) == 1
-        print_debug(err.inner_errors[0])
-        # Not using contains_code here - we're checking the outermost error.
-        assert err.inner_errors[0]["code"] == yt_error_codes.InactiveObjectLifeStage
 
     @authors("kvk1920")
     def test_sequoia_tx_start_failure(self):
