@@ -6,7 +6,7 @@ To make it work, you need to do the following:
 
 1. Launch HTTP Proxy and Queue Agent on the cluster.
 
-2. Enable the recording of the required structured master log:
+2. Enable the recording of the required structured master log in JSON format:
 
 ```yaml
 spec:
