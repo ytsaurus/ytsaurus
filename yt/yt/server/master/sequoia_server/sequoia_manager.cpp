@@ -122,7 +122,7 @@ public:
         // | send StartSequoiaTransaction    |                                 |
         // |                                 | enqueue StartSequoiaTransaction |
         // | receive StartSequoiaTransaction | execute StartSequoiaTransaction |
-        // | send CommitTransaction          |                                 | <- Send next reques without waiting for mutation
+        // | send CommitTransaction          |                                 | <- Send next request without waiting for mutation
         // |                                 | enqueue CommitTransaction       |
         // |                                 | execute CommitTransaction       |
         if (config->EnableAsyncSequoiaTransactionStart) {
