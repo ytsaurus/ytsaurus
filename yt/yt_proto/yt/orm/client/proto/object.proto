@@ -833,7 +833,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31061.
+// Next field 31062.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -842,6 +842,11 @@ extend google.protobuf.FieldOptions
     optional string foreign_key = 31002;
     // Generate new-style reference in codegen output.
     optional bool convert_to_new_reference = 31057;
+    // List of suppressed error types for |convert_to_new_reference| option.
+    // Supported values: "nullable" — suppresses the error when the field has |nullable = false|,
+    // which is not natively supported by the new-style reference. The user is responsible for
+    // emulating the nullable behavior manually.
+    repeated string convert_to_new_reference_suppress_errors = 31061;
     optional string children_view = 31046;
     optional bool no_foreign_view = 31024;
     // A special type of reference for ancestor fields.
