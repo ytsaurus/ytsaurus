@@ -330,6 +330,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ReplicatedTableTracker_.Reset();
+        CoordinatorManager_.Reset();
         ChaosManager_.Reset();
         ChaosLeaseManager_.Reset();
         TransactionManager_.Reset();
