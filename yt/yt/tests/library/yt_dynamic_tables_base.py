@@ -476,12 +476,15 @@ class DynamicTablesBase(YTEnvSetup):
 
         return sensors[0]
 
-    def _insert_rows_with_hunk_storage(self, path, rows, retry_count=100):
+    def _insert_rows_with_hunk_storage(self, path, rows, tx=None, retry_count=100):
         iteration = 0
         while iteration < retry_count:
             iteration += 1
             try:
-                insert_rows(path, rows)
+                if tx is not None:
+                    insert_rows(path, rows, tx=tx)
+                else:
+                    insert_rows(path, rows)
                 return
             except YtError as e:
                 if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
