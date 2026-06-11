@@ -13,7 +13,6 @@ PY_SRCS(
     _experimental.py
     describe.py
     logs_k8s.py
-    remove_master_unrecognized_options.py
 )
 
 END()
@@ -25,5 +24,4 @@ RECURSE(
 
 RECURSE_FOR_TESTS(
     tests
-    tests/integration
 )
