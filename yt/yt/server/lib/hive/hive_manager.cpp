@@ -962,7 +962,7 @@ private:
 
         ApplyReliableIncomingMessages(mailbox, request);
 
-        for (const auto& subrequest : request->avenue_subrequests()) {
+        for (auto& subrequest : *request->mutable_avenue_subrequests()) {
             auto srcId = FromProto<TAvenueEndpointId>(subrequest.src_endpoint_id());
             auto* mailbox = AsTyped(FindMailbox(srcId));
             if (!mailbox) {
@@ -2234,7 +2234,7 @@ private:
         return true;
     }
 
-    void ApplyReliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqPostMessages* req)
+    void ApplyReliableIncomingMessages(TMailbox* mailbox, NHiveClient::NProto::TReqPostMessages* req)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -2244,7 +2244,7 @@ private:
             }
 
             auto messageId = req->first_message_id() + index;
-            ApplyReliableIncomingMessage(mailbox, messageId, req->messages(index));
+            ApplyReliableIncomingMessage(mailbox, messageId, std::move(*req->mutable_messages(index)));
 
             // Avenue endpoint was unregistered within current mutation,
             // now the time has come to destroy it.
@@ -2254,7 +2254,7 @@ private:
         }
     }
 
-    void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& message)
+    void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, TEncapsulatedMessage&& message)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -2288,7 +2288,7 @@ private:
             logicalTime,
             mutationContext->GetSequenceNumber());
 
-        ApplyMessage(message, mailbox->GetEndpointId());
+        ApplyMessage(std::move(message), mailbox->GetEndpointId());
 
         mailbox->GetPersistentState()->SetNextPersistentIncomingMessageId(messageId + 1);
 
@@ -2298,16 +2298,16 @@ private:
         }
     }
 
-    void ApplyUnreliableIncomingMessages(TCellMailbox* mailbox, const NHiveClient::NProto::TReqSendMessages* req)
+    void ApplyUnreliableIncomingMessages(TCellMailbox* mailbox, NHiveClient::NProto::TReqSendMessages* req)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        for (const auto& message : req->messages()) {
-            ApplyUnreliableIncomingMessage(mailbox, message);
+        for (auto& message : *req->mutable_messages()) {
+            ApplyUnreliableIncomingMessage(mailbox, std::move(message));
         }
     }
 
-    void ApplyUnreliableIncomingMessage(TCellMailbox* mailbox, const TEncapsulatedMessage& message)
+    void ApplyUnreliableIncomingMessage(TCellMailbox* mailbox, TEncapsulatedMessage&& message)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -2315,17 +2315,17 @@ private:
             mailbox->GetCellId(),
             SelfCellId_,
             message.type());
-        ApplyMessage(message, mailbox->GetCellId());
+        ApplyMessage(std::move(message), mailbox->GetCellId());
     }
 
-    void ApplyMessage(const TEncapsulatedMessage& message, TEndpointId endpointId)
+    void ApplyMessage(TEncapsulatedMessage&& message, TEndpointId endpointId)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMutationRequest request{
             .Reign = GetCurrentMutationContext()->Request().Reign,
-            .Type = message.type(),
-            .Data = TSharedRef::FromString(message.data())
+            .Type = std::move(*message.mutable_type()),
+            .Data = TSharedRef::FromString(std::move(*message.mutable_data())),
          };
 
         TMutationContext mutationContext(GetCurrentMutationContext(), &request);
