@@ -421,7 +421,8 @@ bool TContext::TryGetErrorFormat()
 
 bool TContext::TryAcquireConcurrencySemaphore()
 {
-    SemaphoreGuard_ = Api_->AcquireSemaphore(DriverRequest_.AuthenticatedUser, DriverRequest_.CommandName);
+    // TODO(babenko): migrate to std::string
+    SemaphoreGuard_ = Api_->AcquireSemaphore(DriverRequest_.AuthenticatedUser, TString(DriverRequest_.CommandName));
     if (!SemaphoreGuard_) {
         DispatchUnavailable(TError{
             NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
@@ -584,7 +585,8 @@ void TContext::SetContentDispositionAndMimeType()
 void TContext::LogRequest()
 {
     Parameters_ = ConvertToYsonString(
-        HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
+        // TODO(babenko): migrate to std::string
+        HideSecretParameters(TString(Descriptor_->CommandName), DriverRequest_.Parameters),
         EYsonFormat::Text).ToString();
     YT_LOG_INFO("Gathered request parameters (Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v, ErrorFormat: %v)",
         Descriptor_->CommandName,
@@ -899,7 +901,8 @@ void TContext::SetupCumulativeCpuProfiling()
             MakeWeak(this),
             TTraceContextPtr(TryGetCurrentTraceContext()),
             DriverRequest_.AuthenticatedUser,
-            DriverRequest_.CommandName),
+            // TODO(babenko): migrate to std::string
+            TString(DriverRequest_.CommandName)),
         Api_->GetConfig()->CpuUpdatePeriod);
 
     CumulativeCpuProfilingExecutor_->Start();
@@ -1040,9 +1043,10 @@ void TContext::LogAndProfile()
 
     LogStructuredRequest();
 
+    // TODO(babenko): migrate to std::string
     Api_->IncrementProfilingCounters(
         DriverRequest_.AuthenticatedUser,
-        DriverRequest_.CommandName,
+        TString(DriverRequest_.CommandName),
         Response_->GetStatus(),
         Error_.GetNonTrivialCode(),
         WallTime_,
