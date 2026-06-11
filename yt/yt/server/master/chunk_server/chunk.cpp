@@ -125,16 +125,18 @@ TChunkTreeStatistics TChunk::GetStatistics(bool includeReferencedHunkData) const
                     codecToDataSize[FromProto<NErasure::ECodec>(protoRef.erasure_codec())] += hunkDataSize;
                 }
 
-                for (auto codec : TEnumTraits<NErasure::ECodec>::GetDomainValues()) {
-                    if (codecToDataSize[codec] == 0) {
+                for (int index = 0; index < std::ssize(codecToDataSize); ++index) {
+                    auto codec = static_cast<NErasure::ECodec>(index);
+                    auto codecDataSize = codecToDataSize[codec];
+                    if (codecDataSize == 0) {
                         continue;
                     }
 
                     if (codec == NErasure::ECodec::None) {
-                        result.HunkRegularDiskSpace += codecToDataSize[codec];
+                        result.HunkRegularDiskSpace += codecDataSize;
                     } else {
                         // NB: Include size of parity parts to disk space statistics.
-                        result.HunkErasureDiskSpace += ComputeDiskSpaceFromDataSize(codecToDataSize[codec], codec);
+                        result.HunkErasureDiskSpace += ComputeDiskSpaceFromDataSize(codecDataSize, codec);
                     }
                 }
             }
