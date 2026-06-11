@@ -687,7 +687,7 @@ public:
         return TreeId_;
     }
 
-    TError CheckOperationIsStuck(
+    TError CheckIsOperationStuck(
         TOperationId operationId,
         const TOperationStuckCheckOptionsPtr& options) override
     {
@@ -763,8 +763,7 @@ public:
             }
         }
 
-        auto schedulingPolicyError = NPolicy::TSchedulingPolicyStaticCaller::CheckOperationIsStuck(
-            GetTreeSnapshot(),
+        auto schedulingPolicyError = GetTreeSnapshot()->CheckIsOperationStuck(
             element,
             now,
             activationTime,
@@ -3490,7 +3489,7 @@ private:
             .Item("user").Value(element->GetUserName())
             .Item("type").Value(element->GetOperationType())
             .Item("title").Value(element->GetTitle())
-            .Do(BIND(&NPolicy::TSchedulingPolicyStaticCaller::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
+            .Do(BIND(&TPoolTreeSnapshot::BuildOperationProgress, treeSnapshot, Unretained(element), strategyHost))
             .Do(BIND(&TPoolTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldFilter{}));
     }
 
@@ -3612,7 +3611,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "schedulable", element->IsSchedulable())
-            .Do(BIND(&NPolicy::TSchedulingPolicyStaticCaller::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
+            .Do(BIND(&TPoolTreeSnapshot::BuildElementYson, treeSnapshot, Unretained(element), filter));
     }
 
     void DoBuildEssentialFairShareInfo(const TPoolTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const

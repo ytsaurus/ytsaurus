@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
 
+#include <yt/yt/server/lib/scheduler/config.h>
+
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 
 #include <library/cpp/yt/misc/property.h>
@@ -29,6 +31,7 @@ struct TOperationSnapshotState
     std::optional<std::string> SchedulingModule;
     int RealizedAssignmentCount = 0;
     int PreliminaryAssignmentCount = 0;
+    TInstant LastScheduleAllocationSuccessTime;
 
     std::vector<TAllocationId> AllocationIds;
 };
@@ -66,6 +69,25 @@ public:
         TNodeSnapshotStateMap nodeStates,
         TAllocationSnapshotStateMap allocationStates,
         TInstant snapshotTime);
+
+    TError CheckIsOperationStuck(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        TInstant now,
+        TInstant activationTime,
+        const TOperationStuckCheckOptionsPtr& options) const override;
+
+    void BuildOperationProgress(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        IStrategyHost* strategyHost,
+        NYTree::TFluentMap fluent) const override;
+
+    void BuildElementYson(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeElement* element,
+        const TFieldFilter& filter,
+        NYTree::TFluentMap fluent) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

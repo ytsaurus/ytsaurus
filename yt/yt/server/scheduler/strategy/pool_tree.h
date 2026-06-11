@@ -154,7 +154,7 @@ struct IPoolTree
 
     virtual const std::string& GetId() const = 0;
 
-    virtual TError CheckOperationIsStuck(
+    virtual TError CheckIsOperationStuck(
         TOperationId operationId,
         const TOperationStuckCheckOptionsPtr& options) = 0;
 

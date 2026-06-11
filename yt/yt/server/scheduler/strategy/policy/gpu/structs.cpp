@@ -281,6 +281,7 @@ void TOperation::AddAllocation(const TAllocationStatePtr& allocation, const TAss
 
     --GetOrCrash(EmptyAssignmentCountPerGroup_, assignment->AllocationGroupName);
     EmplaceOrCrash(AllocationIdToAssignment_, allocationId, assignment);
+    LastScheduleAllocationSuccessTime_ = TInstant::Now();
 
     auto [it, inserted] = AllocationIdToAllocationState_.try_emplace(allocationId, allocation);
     YT_VERIFY(inserted || it->second == allocation);
@@ -329,6 +330,7 @@ TOperationSnapshotState TOperation::BuildSnapshotInfo() const
         .Starving = Starving_,
         .Enabled = Enabled_,
         .SchedulingModule = SchedulingModule_,
+        .LastScheduleAllocationSuccessTime = LastScheduleAllocationSuccessTime_,
     };
 
     for (const auto& assignment : Assignments_) {
