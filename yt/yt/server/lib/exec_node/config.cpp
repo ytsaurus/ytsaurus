@@ -189,6 +189,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
         .DefaultCtor([] {
             return NJobProxy::TJobEnvironmentConfig(NJobProxy::EJobEnvironmentType::Simple);
         });
+
+    registrar.Parameter("location_config_patch", &TThis::LocationConfigPatch)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,6 +233,9 @@ void TLayerCacheDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("tmpfs_cache", &TThis::TmpfsCache)
+        .DefaultNew();
+
+    registrar.Parameter("location_config_patch", &TThis::LocationConfigPatch)
         .DefaultNew();
 }
 

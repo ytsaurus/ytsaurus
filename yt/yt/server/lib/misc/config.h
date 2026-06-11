@@ -79,6 +79,8 @@ struct TDiskLocationConfig
     TString DiskFamily;
     static inline const TString UnknownDiskFamily = "UNKNOWN";
 
+    bool DisableProfiling;
+
     void ApplyDynamicInplace(const TDiskLocationDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TDiskLocationConfig);
@@ -94,6 +96,8 @@ struct TDiskLocationDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
     std::optional<i64> MinDiskSpace;
+
+    std::optional<bool> DisableProfiling;
 
     REGISTER_YSON_STRUCT(TDiskLocationDynamicConfig);
 
