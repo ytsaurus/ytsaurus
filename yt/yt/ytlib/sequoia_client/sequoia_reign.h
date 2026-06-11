@@ -41,6 +41,7 @@ DEFINE_ENUM(EGroundReign,
     ((AlterChunkReplicasTable)         (3))
     ((ReplicaStates)                   (4))
     ((SmallChunkIdHashInChunkReplicas) (5))
+    ((NodeIdHashInLocationReplicas)    (6))
 );
 
 static_assert(TEnumTraits<EGroundReign>::IsMonotonic, "Ground reign enum is not monotonic");
