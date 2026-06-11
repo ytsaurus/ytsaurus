@@ -218,6 +218,18 @@ IAttributeDictionaryPtr GetFlowStateObsoleteTableAttributes()
     return attributes;
 }
 
+IAttributeDictionaryPtr GetFlowControlTableAttributes()
+{
+    auto attributes = CreateDynamicTableAttributes(TTableSchema(
+        std::vector{
+            TColumnSchema("key", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("value", EValueType::Any),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true));
+    return attributes;
+}
+
 IAttributeDictionaryPtr GetPartitionTransactionsTableAttributes()
 {
     return CreateDynamicTableAttributes(TTableSchema(
@@ -278,6 +290,7 @@ auto GetTables()
         {ControllerLogsTableName, GetControllerLogsTableAttributes()},
         {FlowStateTableName, GetFlowStateTableAttributes()},
         {FlowStateObsoleteTableName, GetFlowStateObsoleteTableAttributes()},
+        {FlowControlTableName, GetFlowControlTableAttributes()},
         {PartitionTransactionsTableName, GetPartitionTransactionsTableAttributes()},
     };
 }
