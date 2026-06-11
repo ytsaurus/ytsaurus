@@ -484,6 +484,14 @@ void TVanillaController::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(2, Options_);
     PHOENIX_REGISTER_FIELD(3, Tasks_);
     PHOENIX_REGISTER_FIELD(4, TaskOutputTables_);
+    PHOENIX_REGISTER_FIELD(5, TotalTargetJobCount_,
+        .SinceVersion(ESnapshotVersion::PersistVanillaJobCounts)
+        // COMPAT(pogorelov)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            for (const auto& task : this_->Tasks_) {
+                this_->TotalTargetJobCount_ += task->GetTargetJobCount();
+            }
+        }));
 }
 
 void TVanillaController::CustomMaterialize()
@@ -1367,6 +1375,14 @@ void TGangOperationController::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TVanillaController>();
 
     PHOENIX_REGISTER_FIELD(1, Incarnation_);
+    PHOENIX_REGISTER_FIELD(2, TotalGangSize_,
+        .SinceVersion(ESnapshotVersion::PersistVanillaJobCounts)
+        // COMPAT(pogorelov)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            for (const auto& task : this_->Tasks_) {
+                this_->TotalGangSize_ += static_cast<const TGangTask*>(task.Get())->GetGangSize();
+            }
+        }));
 }
 
 bool TGangOperationController::OnJobCompleted(
