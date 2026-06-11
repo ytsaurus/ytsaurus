@@ -622,7 +622,7 @@ void ToProto(
         auto* file = GetOrCrash(layerPathToUserFile, layer->Path.GetPath());
 
         auto* descriptor = volumeProto->add_layers();
-        BuildFileSpec(descriptor, *file, /* copyFiles */ false, /* enableBypassArtifactCache*/ false);
+        BuildFileSpec(descriptor, *file, /*copyFiles*/ false, /*enableBypassArtifactCache*/ false);
     }
 }
 
