@@ -986,17 +986,21 @@ private:
                 return OKFuture;
             }
 
-            const auto& hunkTableInfo = TableSession_->GetHunkTableInfo();
-            RandomHunkTabletInfo_ = hunkTableInfo->GetRandomMountedTablet()
-                .ValueOrThrow();
+            // NB: We need to guarantee that for each tablet session, that is created later during submit
+            // and may contain rows from multiple modification requests, there is a unique assigned hunk tablet.
+            // As tablet session is created later on, we simply match a single hunk tablet to each table.
+            auto hunkTabletInfo = transaction->GetAssignedHunkTabletInfo(
+                TableSession_->GetInfo()->TableId,
+                TableSession_->GetHunkTableInfo(),
+                /*createIfMissing*/ true);
 
-            auto cellChannel = transaction->Client_->GetCellChannelOrThrow(RandomHunkTabletInfo_->CellId);
+            auto cellChannel = transaction->Client_->GetCellChannelOrThrow(hunkTabletInfo->CellId);
             TTabletServiceProxy proxy(cellChannel);
             // TODO(nadya02): Set the correct timeout here.
             proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
             auto req = proxy.WriteHunks();
-            ToProto(req->mutable_tablet_id(), RandomHunkTabletInfo_->TabletId);
-            req->set_mount_revision(ToProto(RandomHunkTabletInfo_->MountRevision));
+            ToProto(req->mutable_tablet_id(), hunkTabletInfo->TabletId);
+            req->set_mount_revision(ToProto(hunkTabletInfo->MountRevision));
 
             auto payloadCount = std::ssize(HunkPayloads_);
             auto payloadHolder = MakeSharedRangeHolder(std::move(transaction));
@@ -1130,12 +1134,15 @@ private:
 
                     auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                     if (modificationData.HunkCount > 0) {
-                        YT_VERIFY(RandomHunkTabletInfo_);
+                        auto hunkTabletInfo = transaction->GetAssignedHunkTabletInfo(
+                            TableSession_->GetInfo()->TableId,
+                            TableSession_->GetHunkTableInfo(),
+                            /*createIfMissing*/ false);
 
                         THunkChunksInfo hunkInfo{
-                            .CellId = RandomHunkTabletInfo_->CellId,
-                            .HunkTabletId = RandomHunkTabletInfo_->TabletId,
-                            .MountRevision = RandomHunkTabletInfo_->MountRevision
+                            .CellId = hunkTabletInfo->CellId,
+                            .HunkTabletId = hunkTabletInfo->TabletId,
+                            .MountRevision = hunkTabletInfo->MountRevision
                         };
 
                         int lastHunkDescriptorIndex = currentHunkDescriptorIndex + modificationData.HunkCount;
@@ -1160,7 +1167,7 @@ private:
                             HunkMemoryPool_);
 
                         session->MemorizeHunkInfo(hunkInfo);
-                        currentHunkDescriptorIndex += modificationData.HunkCount;
+                        currentHunkDescriptorIndex = lastHunkDescriptorIndex;
                     }
 
                     if (command == EWireProtocolCommand::WriteRow &&
@@ -1243,7 +1250,6 @@ private:
         };
         std::vector<TModificationData> ModificationsData_;
 
-        TTabletInfoPtr RandomHunkTabletInfo_;
         std::vector<TRef> HunkPayloads_;
         std::vector<THunkDescriptor> HunkDescriptors_;
 
@@ -1630,6 +1636,9 @@ private:
     //! Maintains per-tablet commit info.
     THashMap<TTabletId, ITabletCommitSessionPtr> TabletIdToSession_;
 
+    //! Maintains per-table info on corresponding hunk tablet in case of hunk writes.
+    THashMap<TTabletId, TTabletInfoPtr> TableIdToHunkTabletInfo_;
+
     //! Maintains per-cell commit info.
     ICellCommitSessionProviderPtr CellCommitSessionProvider_;
 
@@ -1823,6 +1832,25 @@ private:
                     tabletInfo,
                     tableInfo,
                     Logger)).first;
+        }
+        return it->second;
+    }
+
+    TTabletInfoPtr GetAssignedHunkTabletInfo(
+        TTableId tableId,
+        const TTableMountInfoPtr& hunkTableInfo,
+        bool createIfMissing)
+    {
+        auto it = TableIdToHunkTabletInfo_.find(tableId);
+        if (it == TableIdToHunkTabletInfo_.end()) {
+            YT_VERIFY(createIfMissing);
+
+            auto hunkTabletInfo = hunkTableInfo->GetRandomMountedTablet()
+                .ValueOrThrow();
+            it = EmplaceOrCrash(
+                TableIdToHunkTabletInfo_,
+                tableId,
+                hunkTabletInfo);
         }
         return it->second;
     }

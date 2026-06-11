@@ -3182,6 +3182,31 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         with raises_yt_error("cannot have attribute \"max_inline_hunk_size\""):
             sort(in_="//tmp/t2", out="//tmp/t2", sort_by=["key", "value"])
 
+    @authors("akozhikhov")
+    def test_multiple_modification_requests(self):
+        sync_create_cells(2)
+
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+            "tablet_count": 2,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        tx = start_transaction(type="tablet")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows, tx=tx)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows, tx=tx)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows, tx=tx)
+
+        commit_transaction(tx)
+
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows * 3)
+
 
 ################################################################################
 
