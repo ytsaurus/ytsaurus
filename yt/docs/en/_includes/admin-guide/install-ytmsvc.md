@@ -27,7 +27,19 @@ Before installation, make sure the following conditions are met:
 3. UI version from 3.6.0 and higher.
 4. Loading of master snapshots [into Cypress](../../admin-guide/persistence-uploader.md#uploading-snapshots-to-cypress) and master access logs [into Cypress](../../admin-guide/logging.md#structured_log_delivery) is enabled.
 
-Configuring both processes requires a master reboot with downtime. To minimize downtime, it is recommended to apply the settings simultaneously.
+Configuring both processes may require a master reboot with downtime. To minimize downtime, it is recommended to apply the settings simultaneously.
+
+The master access logs must be delivered in `json` format:
+
+```bash
+kubectl -n <namespace> exec ms-0 -c ytserver -- tail /yt/master-logs/master.access.log.json -n2
+```
+
+Expected content format:
+```jsonlines
+{"user":"operations_client","user_tag":"","method":"List","type":"map_node","id":"5-1054a-1012f-95f8a449","path":"//sys/operations/0a","original_path":"//sys/operations/0a","instant":"2026-05-13 12:33:13,441","level":"info","category":"Access"}
+{"user":"operations_client","user_tag":"","method":"List","type":"map_node","id":"3-1170f-1012f-df59bcac","path":"//sys/operations/17","original_path":"//sys/operations/17","instant":"2026-05-13 12:33:13,441","level":"info","category":"Access"}
+```
 
 To enable these features, add the appropriate sidecar and logging settings to `spec.primaryMasters`:
 
@@ -62,8 +74,9 @@ spec:
               storage: 5Gi
 ```
 
-1. The [Cron Helm chart](../../admin-guide/install-cron.md#process_master_snapshot) is installed, with the `process_master_snapshot` task enabled. This task must run at least once and create the necessary nodes and tables, namely: `//sys/admin/snapshots/snapshot_exports` and `//sys/admin/snapshots/user_exports`.
-1. [CHYT](../../admin-guide/install-chyt.md) is installed and [a clique is created](../../user-guide/data-processing/chyt/try-chyt.md). Save the clique name to the `CHYT_CLIQUE_NAME` environment variable. For the sake of clarity, our example uses the default clique `ch_public`.
+5. The [Cron Helm chart](../../admin-guide/install-cron.md#process_master_snapshot) is installed, with the `process_master_snapshot` task enabled. This task must run at least once and create the necessary nodes and tables, namely: `//sys/admin/snapshots/snapshot_exports` and `//sys/admin/snapshots/user_exports`.
+6. [CHYT](../../admin-guide/install-chyt.md) is installed and [a clique is created](../../user-guide/data-processing/chyt/try-chyt.md). Save the clique name to the `CHYT_CLIQUE_NAME` environment variable. For the sake of clarity, our example uses the default clique `ch_public`.
+
 
 ```bash
 export CHYT_CLIQUE_NAME=ch_public
@@ -95,7 +108,8 @@ We should see at least one snapshot with a name like `000000068.snapshot_3163faf
 
 ## Preparation and installation
 
-### Step 1: Preparing users and granting permissions (ACL)
+### Step 1: Preparing users, granting permissions (ACL), and setting up the environment
+
 
 Each microservice requires its own robot user:
 
@@ -105,6 +119,7 @@ Each microservice requires its own robot user:
 - `robot-msvc-resource-usage` for Resource Usage
 
 Create users [according to the instructions](../../user-guide/storage/auth.md):
+
 
 ```bash
 yt create user --attr "{name=robot-msvc-access-log-viewer}"
@@ -141,6 +156,7 @@ yt create map_node //sys/admin/yt-microservices/tmp/id_to_path_updater
 {% note info %}
 
 It is recommended to create a separate account for microservice working directories and grant `use` ACL to it for the respective robots. For simplicity, in this example, we will work with the `sys` account.
+
 
 {% endnote %}
 
@@ -188,6 +204,7 @@ yt set //sys/tablet_cell_bundles/sys/@acl/end '{action=allow; subjects=[robot-ms
 
 - For Access Log Viewer:
 
+
   Grant permissions to read and mark logs, write to the working directory of the microservice, use the account, and access the clique.
 
   ```bash
@@ -201,7 +218,9 @@ yt set //sys/tablet_cell_bundles/sys/@acl/end '{action=allow; subjects=[robot-ms
   yt set //sys/access_control_object_namespaces/chyt/$CHYT_CLIQUE_NAME/principal/@acl/end '{action=allow; subjects=[robot-msvc-access-log-viewer]; permissions=[use]}'
   ```
 
+
   Specify a [dictionary](../../user-guide/data-processing/chyt/reference/configuration.md#clickhouse_config) for the CHYT clique that will access Bulk ACL Checker:
+
 
   1. Add the `ACL` dictionary:
 
@@ -264,6 +283,7 @@ yt set //sys/tablet_cell_bundles/sys/@acl/end '{action=allow; subjects=[robot-ms
 
 By default, a single shared secret named `ytsaurus-msvc` is used. Each microservice and its preprocessing use a token from their own environment variable.
 
+
 - For Resource Usage: `YT_RESOURCE_USAGE_TOKEN`.
 - For Bulk ACL Checker: `YT_BULK_ACL_CHECKER_TOKEN`.
 - For Id To Path Updater: `YT_ID_TO_PATH_TOKEN`.
@@ -282,6 +302,7 @@ kubectl create secret generic ytsaurus-msvc \
 ```
 
 If necessary, you can create separate secrets by specifying them in `.microservices.<name>.secretRefs`.
+
 
 ### Step 3: Preparing `values.yaml`
 
@@ -395,7 +416,6 @@ If the tab does not appear or something goes wrong, check:
 - Microservice logs: `kubectl logs deployment/ytsaurus-msvc-ytmsvc-chart-resource-usage-api -n <namespace>`.
 
 {% endnote %}
-
 
 ## Detailed configuration {#detailed-config}
 
@@ -545,4 +565,3 @@ microservices:
   ```
 
 You can view all parameters in the [source code](https://github.com/ytsaurus/ytsaurus/blob/main/yt/docker/charts/ytmsvc-chart/values.yaml).
-
