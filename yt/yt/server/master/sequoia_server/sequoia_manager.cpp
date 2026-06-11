@@ -133,7 +133,7 @@ public:
             } else {
                 mutation
                     ->Commit()
-                    .Subscribe(BIND([transactionId] (TErrorOr<TMutationResponse> rsp) {
+                    .Subscribe(BIND([transactionId] (const TErrorOr<TMutationResponse>& rsp) {
                         if (!rsp.IsOK()) {
                             YT_LOG_ERROR(TError(rsp), "Failed to start Sequoia transaction (TransactionId: %v)",
                                 transactionId);
