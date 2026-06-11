@@ -121,6 +121,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((HunkStatistics)                        (302214))
     // 26.2 starts here
     ((BumpTo_26_2)                           (302300))
+    ((PersistVanillaJobCounts)               (302301))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
