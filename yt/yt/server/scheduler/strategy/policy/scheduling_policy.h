@@ -44,6 +44,25 @@ struct TPoolTreeSnapshotState
 {
     const EPolicyKind PolicyKind;
 
+    virtual TError CheckIsOperationStuck(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        TInstant now,
+        TInstant activationTime,
+        const TOperationStuckCheckOptionsPtr& options) const = 0;
+
+    virtual void BuildOperationProgress(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        IStrategyHost* strategyHost,
+        NYTree::TFluentMap fluent) const = 0;
+
+    virtual void BuildElementYson(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeElement* element,
+        const TFieldFilter& filter,
+        NYTree::TFluentMap fluent) const = 0;
+
 protected:
     explicit TPoolTreeSnapshotState(EPolicyKind policyKind);
 };
@@ -169,31 +188,6 @@ ISchedulingPolicyPtr CreateSchedulingPolicy(
     IStrategyHost* strategyHost,
     TStrategyTreeConfigPtr config,
     NProfiling::TProfiler profiler);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(yaishenka): YT-27597 Implement these methods in GPU policy and refactor it.
-struct TSchedulingPolicyStaticCaller
-{
-    static TError CheckOperationIsStuck(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeOperationElement* element,
-        TInstant now,
-        TInstant activationTime,
-        const TOperationStuckCheckOptionsPtr& options);
-
-    static void BuildOperationProgress(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeOperationElement* element,
-        IStrategyHost* strategyHost,
-        NYTree::TFluentMap fluent);
-
-    static void BuildElementYson(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeElement* element,
-        const TFieldFilter& filter,
-        NYTree::TFluentMap fluent);
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

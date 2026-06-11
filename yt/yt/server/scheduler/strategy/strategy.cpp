@@ -534,7 +534,7 @@ public:
             TError operationError("Operation scheduling is stuck");
 
             for (const auto& [treeId, _] : operationState->TreeIdToPoolNameMap()) {
-                auto error = GetTree(treeId)->CheckOperationIsStuck(operationId, Config_->OperationStuckCheck);
+                auto error = GetTree(treeId)->CheckIsOperationStuck(operationId, Config_->OperationStuckCheck);
                 if (error.IsOK()) {
                     hasTreeWithProgress = true;
                     break;

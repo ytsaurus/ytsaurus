@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "field_filter.h"
 #include "pool_tree_element.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/public.h>
@@ -54,6 +55,22 @@ public:
     TPoolTreeOperationElement* FindDisabledOperationElement(TOperationId operationId) const;
 
     bool IsElementEnabled(const TPoolTreeElement* element) const;
+
+    TError CheckIsOperationStuck(
+        const TPoolTreeOperationElement* element,
+        TInstant now,
+        TInstant activationTime,
+        const TOperationStuckCheckOptionsPtr& options) const;
+
+    void BuildOperationProgress(
+        const TPoolTreeOperationElement* element,
+        IStrategyHost* strategyHost,
+        NYTree::TFluentMap fluent) const;
+
+    void BuildElementYson(
+        const TPoolTreeElement* element,
+        const TFieldFilter& filter,
+        NYTree::TFluentMap fluent) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPoolTreeSnapshot)
