@@ -3,7 +3,7 @@ from yt.microservices.access_log_viewer.preprocessing.lib.operations import bulk
 
 DEFAULT_OUTPUT = "//sys/admin/yt-microservices/access_log_viewer"
 DEFAULT_TMP = "//sys/admin/yt-microservices/tmp/access-master-log/postprocessing"
-DEFAULT_NODE_ID_DICT_PATH = "//sys/admin/yt-microservices/node_id_dict"
+DEFAULT_NODE_ID_DICT_PATH = "//sys/admin/yt-microservices/node_id_dict/data"
 DEFAULT_TOKEN_ENV_VARIABLE = "YT_ACCESS_LOG_VIEWER_TOKEN"
 DEFAULT_MAX_PARALLEL_OPS = 50
 DEFAULT_MAX_TABLES_TO_PROCESS = 1
