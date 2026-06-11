@@ -242,8 +242,9 @@ def check_hierarchical_accounts():
         lambda: get("//sys/accounts/b2/@recursive_resource_usage/node_count") == 0
         and get("//sys/accounts/b2/@recursive_resource_usage/chunk_count") == 0
         and get("//sys/accounts/b2/@recursive_resource_usage/chunk_host_cell_master_memory") == 0
-        and get("//sys/accounts/b2/@resource_usage/master_memory/total") == 0
-        and get("//sys/accounts/b2/@resource_usage/detailed_master_memory/nodes") == 0
+        and get("//sys/accounts/b2/@recursive_resource_usage/master_memory/total") == 0
+        and get("//sys/accounts/b2/@recursive_resource_usage/detailed_master_memory/nodes") == 0
+        and get("//sys/accounts/b2/@recursive_resource_usage/detailed_master_memory/schemas") == 0
     )
     remove_account("b2", sync=False)
     wait(lambda: not exists("//sys/accounts/b2"))
