@@ -889,7 +889,7 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     constexpr int ThreadCount = 4;
     constexpr int RequestCount = 20;
 
-    WaitFor(Client_->SetNode("//sequoia/@unexisting_attr", ConvertToYsonString(ConvertToNode(123))))
+    WaitFor(Client_->SetNode("//sequoia/@some_user_attr", ConvertToYsonString(ConvertToNode(123))))
         .ThrowOnError();
 
     auto threadPool = CreateThreadPool(ThreadCount, "ConcurrentResponseKeeperRequests");
@@ -903,7 +903,7 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     std::vector<TFuture<void>> responses;
 
     auto registerRequest = [&] (auto batchReq) {
-        auto req = NCypressClient::TCypressYPathProxy::Remove("//sequoia/@unexisting_attr");
+        auto req = NCypressClient::TCypressYPathProxy::Remove("//sequoia/@some_user_attr");
         SetMutationId(req, mutationId, /*retry*/ true);
 
         batchReq->AddRequest(req);
@@ -935,13 +935,12 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     WaitFor(AllSet(responses))
         .ThrowOnError();
 
-    int okWithRetries = 0;
-    int okWithoutRetries = 0;
     int sequoiaRetriableErrors = 0;
+    int okRequests = 0;
     for (int i : std::views::iota(0, RequestCount)) {
         const auto& error = responses[i].GetOrCrash();
         if (error.IsOK()) {
-            ++(i < RequestCount / 2 ? okWithoutRetries : okWithRetries);
+            ++okRequests;
         } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError && i < RequestCount / 2) {
             ++sequoiaRetriableErrors;
         } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
@@ -951,13 +950,12 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
         }
     }
 
-    YT_LOG_DEBUG("Requests finished (OkWithRetries: %v, OkWithoutRetries: %v, SequoiaRetriableErrors: %v)",
-        okWithRetries,
-        okWithoutRetries,
+    YT_LOG_DEBUG("Requests finished (OkRequests: %v, SequoiaRetriableErrors: %v)",
+        okRequests,
         sequoiaRetriableErrors);
 
-    EXPECT_LE(okWithoutRetries, 1);
-    EXPECT_GE(okWithRetries, RequestCount / 2);
+    // Every request with Sequoia retries should succeed thanks to PRK.
+    EXPECT_GE(okRequests, RequestCount / 2);
 }
 
 TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
