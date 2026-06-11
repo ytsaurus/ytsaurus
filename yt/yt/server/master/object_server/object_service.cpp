@@ -1231,7 +1231,7 @@ private:
                 << TErrorAttribute("rootstock_node_id", resolveResult.RootstockNodeId)
                 << TErrorAttribute("rootstock_path", resolveResult.RootstockPath)));
         YT_LOG_DEBUG(
-            "Request redirected to Sequoia (Subrequest index: %v, TargetPath: %v, "
+            "Request redirected to Sequoia (SubrequestIndex: %v, TargetPath: %v, "
             "RootstockNodeId: %v, RootstockPath: %v)",
             subrequest->Index,
             subrequest->YPathExt->target_path(),
