@@ -84,7 +84,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                       hunk_erasure_codec="none",
                       schema=SCHEMA,
                       dynamic=True,
-                      enable_dynamic_store_read=False):
+                      enable_dynamic_store_read=False,
+                      replication_factor=3):
         create_table_function = self._create_simple_table if dynamic else self._create_simple_static_table
         schema = self._get_table_schema(schema, max_inline_hunk_size)
         if not dynamic:
@@ -113,7 +114,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             max_hunk_compaction_garbage_ratio=0.5,
             enable_lsm_verbose_logging=True,
             chunk_format=chunk_format,
-            hunk_erasure_codec=hunk_erasure_codec)
+            hunk_erasure_codec=hunk_erasure_codec,
+            replication_factor=replication_factor)
 
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
@@ -394,7 +396,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._separate_tablet_and_data_nodes()
 
         sync_create_cells(1)[0]
-        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_6_3")
+        # Store chunks are not erasure-coded, so bump their RF to survive banning three data nodes below.
+        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_6_3", replication_factor=4)
         if chunk_format == "table_versioned_indexed":
             self._enable_hash_chunk_index("//tmp/t")
 
