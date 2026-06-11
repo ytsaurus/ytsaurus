@@ -30,12 +30,21 @@ enum class EOperationHandler {
     ListSessions,
     PrepareOperation,
     WaitForOperations,
+    WaitForTasks,
 };
 
 // Holds the result of a WaitForOperations long-poll for the second DoReply pass.
 struct TWaitForOperationsPendingRequest: public TThrRefBase {
     using TPtr = TIntrusivePtr<TWaitForOperationsPendingRequest>;
     TMaybe<TWaitForOperationsResponse> Response;
+    std::exception_ptr Error;
+    TRequestReplier* Replier = nullptr;
+};
+
+// Holds the result of a WaitForTasks long-poll for the second DoReply pass.
+struct TWaitForTasksPendingRequest: public TThrRefBase {
+    using TPtr = TIntrusivePtr<TWaitForTasksPendingRequest>;
+    TMaybe<TWaitForTasksResponse> Response;
     std::exception_ptr Error;
     TRequestReplier* Replier = nullptr;
 };
@@ -77,6 +86,26 @@ public:
             return true;
         }
 
+        if (WaitTasksPending_) {
+            try {
+                if (WaitTasksPending_->Error) {
+                    std::rethrow_exception(WaitTasksPending_->Error);
+                }
+                YQL_ENSURE(WaitTasksPending_->Response.Defined());
+                auto protoResponse = WaitForTasksResponseToProto(*WaitTasksPending_->Response);
+                THttpResponse httpResponse(HTTP_OK);
+                httpResponse.SetContentType("application/x-protobuf");
+                httpResponse.SetContent(protoResponse.SerializeAsString());
+                params.Output << httpResponse;
+            } catch (...) {
+                YQL_CLOG(ERROR, FastMapReduce) << "WaitForTasks reply error: " << CurrentExceptionMessage();
+                THttpResponse response(HTTP_INTERNAL_SERVER_ERROR);
+                response.SetContent(CurrentExceptionMessage());
+                params.Output << response;
+            }
+            return true;
+        }
+
         TParsedHttpFull httpRequest(params.Input.FirstLine());
         auto handlerName = GetHandlerName(httpRequest);
         if (!handlerName) {
@@ -86,6 +115,10 @@ public:
 
         if (*handlerName == EOperationHandler::WaitForOperations) {
             return HandleWaitForOperations(params);
+        }
+
+        if (*handlerName == EOperationHandler::WaitForTasks) {
+            return HandleWaitForTasks(params);
         }
 
         try {
@@ -112,6 +145,7 @@ private:
     const std::vector<TTvmId> AllowedSourceTvmIds_;
     IFmrCoordinator::TPtr Coordinator_;
     TWaitForOperationsPendingRequest::TPtr WaitOpPending_;
+    TWaitForTasksPendingRequest::TPtr WaitTasksPending_;
 
     bool HandleWaitForOperations(const TReplyParams& params) {
         NProto::TWaitForOperationsRequest protoRequest;
@@ -135,6 +169,35 @@ private:
                 } catch (...) {
                     pending->Error = std::current_exception();
                     YQL_CLOG(ERROR, FastMapReduce) << "WaitForOperations error: " << CurrentExceptionMessage();
+                }
+                static_cast<IObjectInQueue*>(pending->Replier)->Process(nullptr);
+            });
+        // Tell the HTTP framework not to destroy this object yet.
+        return false;
+    }
+
+    bool HandleWaitForTasks(const TReplyParams& params) {
+        NProto::TWaitForTasksRequest protoRequest;
+        try {
+            YQL_ENSURE(protoRequest.ParseFromString(params.Input.ReadAll()));
+        } catch (...) {
+            YQL_CLOG(ERROR, FastMapReduce) << "WaitForTasks parse error: " << CurrentExceptionMessage();
+            THttpResponse response(HTTP_BAD_REQUEST);
+            response.SetContent(CurrentExceptionMessage());
+            params.Output << response;
+            return true;
+        }
+
+        WaitTasksPending_ = MakeIntrusive<TWaitForTasksPendingRequest>();
+        WaitTasksPending_->Replier = this;
+        auto pending = WaitTasksPending_;
+        Coordinator_->WaitForTasks(WaitForTasksRequestFromProto(protoRequest))
+            .Subscribe([pending](const NThreading::TFuture<TWaitForTasksResponse>& f) {
+                try {
+                    pending->Response = f.GetValue();
+                } catch (...) {
+                    pending->Error = std::current_exception();
+                    YQL_CLOG(ERROR, FastMapReduce) << "WaitForTasks error: " << CurrentExceptionMessage();
                 }
                 static_cast<IObjectInQueue*>(pending->Replier)->Process(nullptr);
             });
@@ -183,6 +246,9 @@ private:
         } else if (queryPath == "wait_for_operations") {
             YQL_ENSURE(httpRequest.Method == "POST");
             return EOperationHandler::WaitForOperations;
+        } else if (queryPath == "wait_for_tasks") {
+            YQL_ENSURE(httpRequest.Method == "POST");
+            return EOperationHandler::WaitForTasks;
         }
         return Nothing();
     }
