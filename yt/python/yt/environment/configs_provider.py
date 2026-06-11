@@ -1225,9 +1225,9 @@ def _build_node_configs(multidaemon_config_output,
                 "exec_node/job_proxy_log_manager/locations",
                 [
                     {
-                        "path": os.path.join(logs_dir, "disk{0}/job_proxy-{1}/cluster-data/job-proxy-logs".format(num, index)),
+                        "path": os.path.join(logs_dir, "job-proxy-log-location-{0}/job_proxy-{1}".format(num, index)),
                     }
-                    for num in range(3)
+                    for num in range(yt_config.job_proxy_log_location_count)
                 ]
             )
         # COMPAT(epsilond1): remove after 26.1

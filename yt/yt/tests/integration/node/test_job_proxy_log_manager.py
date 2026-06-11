@@ -115,6 +115,7 @@ class TestJobProxyLogging(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     JOB_PROXY_LOGGING = {"mode": "per_job_directory"}
+    JOB_PROXY_LOG_LOCATION_COUNT = 3
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
@@ -158,6 +159,7 @@ class TestJobProxyLogManagerBase(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     JOB_PROXY_LOGGING = {"mode": "per_job_directory"}
+    JOB_PROXY_LOG_LOCATION_COUNT = 3
 
     DELTA_NODE_CONFIG = {
         "exec_node": {

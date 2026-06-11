@@ -93,6 +93,7 @@ class LocalYtConfig(object):
     node_io_engine_type = attr.ib(None)
     node_use_direct_io_for_reads = attr.ib("never")
     node_network_names = attr.ib(factory=lambda: ["default"])
+    job_proxy_log_location_count = attr.ib(1)
     store_location_count = attr.ib(1)
     use_slot_user_id = attr.ib(True)
     cri_endpoint = attr.ib(None)
