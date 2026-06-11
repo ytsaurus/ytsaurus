@@ -623,7 +623,7 @@ private:
 
         static const auto allowedAttributes = [] {
             const auto& wellKnown = GetWellKnownRichYPathAttributes();
-            return THashSet<TString>(wellKnown.begin(), wellKnown.end());
+            return THashSet<std::string>(wellKnown.begin(), wellKnown.end());
         }();
 
         for (const auto& attributeName : Spec_->OutputTablePath.Attributes().ListKeys()) {
