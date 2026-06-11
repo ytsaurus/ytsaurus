@@ -96,6 +96,8 @@ TChunkLocationBase::TChunkLocationBase(
         .WithSparse()
         .WithTags(tagSet);
 
+    InitializeDiskLocationProfiling(Profiler_);
+
     IOFairShareQueue_ = CreateFairShareHierarchicalSlotQueue<std::string>(
         fairShareHierarchicalScheduler,
         Profiler_.WithPrefix("/fair_share_hierarchical_queue"));
@@ -652,7 +654,7 @@ void TChunkLocationBase::MarkUninitializedLocationDisabled(const TError& error)
     }
     ChunkCount_.store(0);
 
-    ChangeState(ELocationState::Disabled, ELocationState::Disabling);
+    ChangeState(ELocationState::Disabled, ELocationState::Disabling, error);
 }
 
 i64 TChunkLocationBase::GetAdditionalSpace() const
@@ -885,7 +887,7 @@ bool TChunkLocationBase::FinishDestroy(
             GetIndex(),
             StaticConfig_->DeviceName);
     } else {
-        if (!ChangeState(ELocationState::Disabled, ELocationState::Destroying)) {
+        if (!ChangeState(ELocationState::Disabled, ELocationState::Destroying, reason)) {
             return false;
         }
 

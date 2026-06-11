@@ -164,11 +164,16 @@ TSlotLocation::TSlotLocation(
         SlotManagerStaticConfig_->SlotLocationStatisticsUpdatePeriod))
     , LocationPath_(GetRealPath(Config_->Path))
     , MediumDescriptor_(New<NChunkClient::TDomesticMediumDescriptor>())
-{
-    ExecNodeProfiler().WithPrefix("/job_directory/artifacts")
+    , Profiler_(ExecNodeProfiler()
+        .WithPrefix("/slot_locations")
         .WithTag("device_name", Config_->DeviceName)
         .WithTag("disk_family", Config_->DiskFamily)
+        .WithTag("location_id", Id_))
+{
+    Profiler_
         .AddProducer("", MakeCopyMetricBuffer_);
+
+    InitializeDiskLocationProfiling(Profiler_);
 
     Bootstrap_->SubscribePopulateAlerts(BIND(&TSlotLocation::PopulateAlerts, MakeWeak(this)));
 }
@@ -178,6 +183,12 @@ void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& c
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     SlotManagerDynamicConfig_.Store(config);
+
+    TDiskLocation::Reconfigure(std::invoke([&] {
+        auto diskLocationConfig = CloneYsonStruct<TDiskLocationConfig>(Config_);
+        diskLocationConfig->ApplyDynamicInplace(*config->LocationConfigPatch);
+        return diskLocationConfig;
+    }));
 
     HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*config->DiskHealthChecker));
     JobDirectoryManager_->OnDynamicConfigChanged(config->JobDirectoryManager);
@@ -368,7 +379,7 @@ void TSlotLocation::DoRepair()
 
         YT_LOG_DEBUG("Location repaired (Location: %v)", Id_);
     } catch (const std::exception& ex) {
-        ChangeState(ELocationState::Disabled);
+        ChangeState(ELocationState::Disabled, std::nullopt, ex);
 
         auto error = TError("Failed to repair slot location %v", Config_->Path)
             << ex;
@@ -1211,7 +1222,7 @@ void TSlotLocation::Disable(const TError& error)
             YT_LOG_FATAL(alert);
         }
 
-        YT_VERIFY(ChangeState(ELocationState::Disabled, ELocationState::Disabling));
+        YT_VERIFY(ChangeState(ELocationState::Disabled, ELocationState::Disabling, error));
     })
     .AsyncVia(HeavyInvoker_)
     .Run());

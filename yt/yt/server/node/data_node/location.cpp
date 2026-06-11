@@ -457,7 +457,7 @@ bool TChunkLocation::Resurrect()
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error during location resurrection");
 
-            ChangeState(ELocationState::Disabled, ELocationState::Enabling);
+            ChangeState(ELocationState::Disabled, ELocationState::Enabling, ex);
         }
     })
         .AsyncVia(GetAuxPoolInvoker())
@@ -1812,7 +1812,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
             YT_LOG_FATAL(ex, "Location disabling error");
         }
 
-        auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling);
+        auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling, reason);
 
         if (!finish) {
             YT_LOG_ALERT("Detect location state racing (CurrentState: %v)",

@@ -38,6 +38,8 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NNode;
+using namespace NProfiling;
+using namespace NServer;
 using namespace NTools;
 using namespace NYTree;
 
@@ -71,6 +73,8 @@ TLayerLocation::TLayerLocation(
     auto profiler = NProfiling::TProfiler()
         .WithPrefix("/layer")
         .WithTag("location_id", Id_);
+
+    InitializeDiskLocationProfiling(profiler);
 
     PerformanceCounters_ = TLayerLocationPerformanceCounters{profiler};
 
@@ -461,6 +465,12 @@ void TLayerLocation::OnDynamicConfigChanged(
     if (FastLayerExecutor_) {
         FastLayerExecutor_->OnDynamicConfigChanged(newConfig->LayerPortoExecutor);
     }
+
+    TDiskLocation::Reconfigure(std::invoke([&] {
+        auto diskLocationConfig = CloneYsonStruct<TDiskLocationConfig>(Config_);
+        diskLocationConfig->ApplyDynamicInplace(*newConfig->LocationConfigPatch);
+        return diskLocationConfig;
+    }));
 
     if (HealthChecker_) {
         HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*newConfig->DiskHealthChecker));
