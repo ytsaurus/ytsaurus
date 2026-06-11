@@ -8,6 +8,74 @@ Is released as helm charts on [GitHub Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**v0.32.0**" %}
+
+**Release date:** 2026-05-29
+
+
+**Release page:** [v0.32.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.32.0)
+
+
+**Helm chart:** [0.32.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/902118332?tag=0.32.0)
+
+
+#### What's Changed
+* config/samples: add yt-scripts for cgroup-v2 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/762
+* EnableFullUpdate and UpdateSelector are removed by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/765
+* More verbose diagnostics for count of pods by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/789
+* API: add option imagePullSecret for job images in CRI-O by @Copilot in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/792
+* METAX GPU support by @futujaos in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/793
+* Wait until user is really get superusers permissions by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/795
+* Use json for logging by default by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/799
+* Add YQL agent option to enable DQ engine by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/804
+* Sanitize token operations by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/806
+* add PodMonitor support by @kruftik in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/807
+
+#### Rolling / OnDelete Update
+* Added onDelete strategy into tablet nodes by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/761
+* Added logic to skip tablet cells removal if tnd is in onDelete strategy by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/769
+* Added runsMasterSafetySteps componentManager status in order to skip safety steps when we're in onDelete mode by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/781
+* Upgrade masters before starting other components by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/790
+* Fixed pre-check failure triggering reconciler exponential backoff by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/797
+
+#### Secondary Master Cells
+* API: add cluster maintenance by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/747
+* API: Prepare for secondary master cells [1] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/782
+* API: cleanup master caches spec [2] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/785
+* Refactor master quorum / update possibility check [3] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/774
+* Secondary Masters Initialization [4] by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/791
+
+#### Fixes
+* Refactor init jobs by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/758
+* Fix applying global pod options for UI and strawberry by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/737
+* API: minReadyInstanceCount must be int32 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/746
+* Fixed proxie's bug with lack of tls volumes during the rolling update by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/751
+* Fix pod removal and readiness logic by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/756
+* Improved arePodsUpdatedToNewRevision for onDelete logic by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/759
+* Fixed rollingUpdate bug for exec-nodes and added e2e test by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/773
+* Construct ytsaurus client logger from controller logger by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/800
+
+#### Testing
+* Cleanup test for deprecated EnableAntiAffinity by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/745
+* test: add release 25.3 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/752
+* Update helm in workflows by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/733
+* test/r8r: fix race in collecting events by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/757
+* update canondata by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/767
+* Added github-actions-run-errors skill for claude by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/777
+* Add option for DEBUG build with sanitizers by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/750
+* Replace BeTrue/BeFalse with BeTrueBecause/BeFalseBecause in tests by @Copilot in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/771
+* run integration tests for all versions by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/779
+* test/e2e: more verbose waiting for operation status by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/784
+* Use chyt/query-tracker images without debuginfo in samples and compat test by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/778
+* test: upload logs snapshot as artifact by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/783
+* Add workflows to check that PR branch is up-to-date by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/794
+* Fix e2e tests by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/805
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/v0.31.0...v0.32.0
+
+{% endcut %}
+
+
 {% cut "**v0.31.0**" %}
 
 **Release date:** 2026-03-12

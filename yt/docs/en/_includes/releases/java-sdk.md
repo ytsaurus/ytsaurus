@@ -8,6 +8,25 @@ Is released as packages in [Maven Central](https://central.sonatype.com/artifact
 
 **Releases:**
 
+{% cut "**1.2.16**" %}
+
+**Release date:** 2026-05-25
+
+
+**Release page:** [1.2.16](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.16)
+
+
+**Maven Central:** [1.2.16](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.16)
+
+
+#### Features:
+- Move `YTreeSerializers` to `ytsaurus-client-core` module [55bf34b0a413399870c1c576fb634a04ed87b38b]
+- Add attributes filter to `GetJob` [05667697aa625b51df7055d9f737354d98b5055a]
+- Match `Tuple` and `Variant` to `COMPOSITE` type for typeV3 [9fd9d56162bb039ede5e1722ed2980a8bbcb92f9]
+
+{% endcut %}
+
+
 {% cut "**1.2.15**" %}
 
 **Release date:** 2026-04-29

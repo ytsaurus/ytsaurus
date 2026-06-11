@@ -8,6 +8,31 @@ Available as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.50**" %}
+
+**Release date:** 2026-05-29
+
+
+**Release page:** [0.13.50](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.50)
+
+
+**PyPI package:** [0.13.50](https://pypi.org/project/ytsaurus-client/0.13.50/)
+
+
+##### Features
+- Increase default `data_size_per_thread` for parallel file reading [99a0a95dee050b88a3415233d29214b0902ce3a9]
+- Support operation alias in YT CLI and Python API [12fc8945f15a20c645c87667fad287c606ea47ec]
+- Add `freeze-hydra-peer`, `truncate-changelog`, and `schedule-restart` commands to `yt-admin` [ae0cb902cca1e0caef31e7ed96983c0e05fd3126]
+- Add experimental `yt admin metrics` commands for Prometheus metrics dump and local replay via Docker [d6d286ce7d084eab62be0c545fc967aa2e190a64]
+- Support `omit_inaccessible_columns` and `omit_inaccessible_rows` in `read-table` [20d3bead559f0df0fa05d86a64b700e26c25fc14]
+
+##### Fixes
+- Use heavy proxy for `get_table_columnar_statistics` method [d8890491c7a333b0902f41e964fedcbe677a0781]
+
+
+{% endcut %}
+
+
 {% cut "**0.13.49**" %}
 
 **Release date:** 2026-04-30

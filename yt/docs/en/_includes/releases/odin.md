@@ -8,6 +8,25 @@ Is released as a docker image. Installation details are available in the [Odin i
 
 **Releases:**
 
+{% cut "**0.0.10**" %}
+
+**Release date:** 2026-06-01
+
+
+**Release page:** [0.0.10](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/odin/0.0.10)
+
+
+**Docker image:** [0.0.10](https://github.com/orgs/ytsaurus/packages/container/odin-chart/907524343?tag=0.0.10)
+
+
+#### Features:
+- Add `PrometheusRule` generation for Odin checks, read more in the [documentation](https://ytsaurus.tech/docs/en/admin-guide/install-odin) [f38559d4b90d72d63efae09085895d9b86045767]
+- Separate insufficient node resources alert into a new `scheduler_alerts_nodes_with_insufficient_resource_limits` check [8cd9141d5012e949aa42d30dad1506cbb5157684]
+
+
+{% endcut %}
+
+
 {% cut "**0.0.9**" %}
 
 **Release date:** 2026-04-20
