@@ -1430,6 +1430,11 @@ void TSlotLocation::PopulateAlerts(std::vector<TError>* alerts)
     }
 }
 
+TError TSlotLocation::GetDisableError() const
+{
+    return Error_.Load();
+}
+
 NNodeTrackerClient::NProto::TDiskLocationResources TSlotLocation::GetDiskResources() const
 {
     auto guard = ReaderGuard(DiskResourcesLock_);

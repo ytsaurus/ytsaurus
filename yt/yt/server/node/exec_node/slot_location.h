@@ -119,6 +119,10 @@ public:
 
     void Disable(const TError& error);
 
+    //! Returns the error that caused this location to be disabled,
+    //! or OK if the location is enabled.
+    TError GetDisableError() const;
+
     void InvokeUpdateDiskResources();
 
     std::string GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
