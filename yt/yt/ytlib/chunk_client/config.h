@@ -277,6 +277,7 @@ struct TMediumDirectorySynchronizerConfig
 {
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
+    bool UseCache;
 
     REGISTER_YSON_STRUCT(TMediumDirectorySynchronizerConfig);
 

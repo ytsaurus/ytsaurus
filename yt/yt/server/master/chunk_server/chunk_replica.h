@@ -237,6 +237,8 @@ struct TSequoiaChunkReplica
     NNodeTrackerClient::TChunkLocationIndex LocationIndex = NNodeTrackerClient::InvalidChunkLocationIndex;
     // Not persisted, used for getting StoredReplicas attribute.
     EChunkReplicaState ReplicaState = EChunkReplicaState::Generic;
+    // Not persisted (yet), used for master offshore replicas.
+    int MediumIndex = -1;
 
     std::strong_ordering operator<=>(const TSequoiaChunkReplica& other) const = default;
 

@@ -866,6 +866,8 @@ struct TDynamicChunkManagerConfig
     // COMPAT(koloshmet)
     bool UpdateHistoricallyNonVitalInUnexport;
 
+    bool AllowOffshoreMedia;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);
