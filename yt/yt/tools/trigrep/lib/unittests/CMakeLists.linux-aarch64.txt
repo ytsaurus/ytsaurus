@@ -55,6 +55,7 @@ target_link_options(unittester-tools-trigrep PRIVATE
 )
 
 target_sources(unittester-tools-trigrep PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/unittests/index_builder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/unittests/zstd_reader_ut.cpp
 )
 
