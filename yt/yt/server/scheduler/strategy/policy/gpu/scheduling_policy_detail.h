@@ -115,10 +115,9 @@ public:
         TPoolTreeOperationElement* element,
         std::vector<TAllocationPtr> allocations) override;
 
-    TProcessAllocationUpdateResult ProcessAllocationUpdate(
+    TFuture<std::vector<TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        TPoolTreeOperationElement* element,
-        const TAllocationUpdate& allocationUpdate) override;
+        const std::vector<TAllocationUpdate>& allocationUpdates) override;
 
     void BuildSchedulingAttributesStringForNode(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
@@ -275,13 +274,17 @@ private:
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const TJobResources& availableResources);
 
-    TProcessAllocationUpdateResult DoProcessAllocationUpdate(
+    std::vector<TProcessAllocationUpdateResult> DoProcessAllocationUpdates(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        TPoolTreeOperationElementPtr element,
+        const std::vector<TAllocationUpdate>& allocationUpdates);
+
+    TProcessAllocationUpdateResult ProcessAllocationUpdate(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        TPoolTreeOperationElement* element,
         const TAllocationUpdate& allocationUpdate);
 
-    TProcessAllocationUpdateResult DoProcessFinishedAllocation(
-        const TPoolTreeOperationElementPtr& element,
+    TProcessAllocationUpdateResult ProcessFinishedAllocation(
+        TPoolTreeOperationElement* element,
         const TAllocationUpdate& allocationUpdate,
         const TNodePtr& node,
         const TOperationPtr& operation,
@@ -347,10 +350,9 @@ public:
         TPoolTreeOperationElement* element,
         std::vector<TAllocationPtr> allocations) override;
 
-    TProcessAllocationUpdateResult ProcessAllocationUpdate(
+    TFuture<std::vector<TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        TPoolTreeOperationElement* element,
-        const TAllocationUpdate& allocationUpdate) override;
+        const std::vector<TAllocationUpdate>& allocationUpdates) override;
 
     void BuildSchedulingAttributesStringForNode(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,

@@ -23,7 +23,7 @@ public:
     bool ProcessAllocationUpdate(
         TPoolTreeOperationElement* operationElement,
         TAllocationId allocationId,
-        const TJobResources& resources,
+        const std::optional<TJobResources>& resources,
         bool resetAllocationPreemptibleProgress);
     bool ProcessAllocationPreemption(
         TPoolTreeOperationElement* operationElement,

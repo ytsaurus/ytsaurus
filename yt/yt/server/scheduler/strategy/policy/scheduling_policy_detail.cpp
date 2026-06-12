@@ -2764,6 +2764,53 @@ void TSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
     }
 }
 
+TFuture<std::vector<TProcessAllocationUpdateResult>> TSchedulingPolicy::ProcessAllocationUpdates(
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    const std::vector<TAllocationUpdate>& allocationUpdates)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    // The classic policy applies the batch synchronously, so hand back an already-set future. The strategy
+    // calls this on the node shard invoker under a context switch guard and drains each batch before the
+    // next one, which is what guarantees per-allocation update ordering within a given tree.
+    return MakeFuture(DoProcessAllocationUpdates(treeSnapshot, allocationUpdates));
+}
+
+std::vector<TProcessAllocationUpdateResult> TSchedulingPolicy::DoProcessAllocationUpdates(
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    const std::vector<TAllocationUpdate>& allocationUpdates)
+{
+    // No context switch is allowed while applying the batch: a context switch would let the next batch
+    // apply newer updates first. NB: this invariant is unconditional -- no testing hooks that may switch
+    // context are permitted inside the classic policy.
+    TForbidContextSwitchGuard contextSwitchGuard;
+
+    std::vector<TProcessAllocationUpdateResult> updateResults;
+    updateResults.reserve(allocationUpdates.size());
+    for (const auto& allocationUpdate : allocationUpdates) {
+        auto* element = treeSnapshot->FindEnabledOperationElement(allocationUpdate.OperationId);
+        if (!element) {
+            updateResults.push_back(TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Disabled,
+                .NeedToPostpone = true,
+            });
+            continue;
+        }
+
+        // NB: Should be filtered out on large clusters.
+        YT_LOG_DEBUG(
+            "Processing allocation update (OperationId: %v, AllocationId: %v, PreemptibleProgressStartTime: %v, Resources: %v)",
+            allocationUpdate.OperationId,
+            allocationUpdate.AllocationId,
+            allocationUpdate.PreemptibleProgressStartTime,
+            allocationUpdate.AllocationResources);
+
+        updateResults.push_back(ProcessAllocationUpdate(treeSnapshot, element, allocationUpdate));
+    }
+
+    return updateResults;
+}
+
 TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
     const TPoolTreeSnapshotPtr& treeSnapshot,
     TPoolTreeOperationElement* element,
@@ -2792,7 +2839,7 @@ TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
         };
     }
 
-    YT_VERIFY(allocationUpdate.ResourceUsageUpdated || allocationUpdate.PreemptibleProgressStartTime);
+    YT_VERIFY(allocationUpdate.AllocationResources || allocationUpdate.PreemptibleProgressStartTime);
 
     if (!operationSharedState->ProcessAllocationUpdate(
         element,

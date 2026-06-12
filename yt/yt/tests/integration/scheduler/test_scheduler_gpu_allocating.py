@@ -1,6 +1,8 @@
 import builtins
 import time
 
+from copy import deepcopy
+
 import yt.yson as yson
 
 from yt_env_setup import (
@@ -14,7 +16,7 @@ from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
     update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
     run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters,
-    print_debug, update_controller_agent_config, update_nodes_dynamic_config,
+    print_debug, update_controller_agent_config, update_nodes_dynamic_config, get_applied_node_dynamic_config,
 )
 
 from yt_scheduler_helpers import (
@@ -2540,7 +2542,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
 
         op.wait_for_fresh_snapshot()
 
-        update_pool_tree_config_option("gpu", "testing_options", {
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/testing_options", {
             "delay_inside_process_allocation_updates": {
                 "duration": 10000,
                 "type": "async",
@@ -2555,7 +2557,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         wait(lambda: original_allocation_id in get_operation_from_gpu_policy_orchid(op).get("allocations", {}))
         wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=0, exactly=True)
 
-        update_pool_tree_config_option("gpu", "testing_options", {
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/testing_options", {
             "delay_inside_process_allocation_updates": {
                 "duration": 0,
                 "type": "sync",
@@ -2955,5 +2957,187 @@ class TestAllocationGpuSchedulingPolicyRevivalOnPolicySwitch(YTEnvSetup):
 
         op.abort()
         wait_operation_unregistered(op.id)
+
+##################################################################
+
+
+class TestProcessAllocationUpdateAfterFinishRace(YTEnvSetup):
+    """Reproduces a race between a preemptible-progress-reset allocation update and a Finished update.
+
+    A reset update for a classic-tree allocation is swapped out of the node shard's submit map by a batch
+    that also carries gpu-tree updates. The gpu allocating policy parks the batch fiber (WaitFor hop to the
+    strategy control invoker, stretched by a testing delay). While the batch is parked, the allocation
+    finishes: UnregisterAllocation creates a fresh Finished entry, which a later batch processes first,
+    removing the allocation from the operation shared state. Pre-fix the parked batch then wakes and
+    processes the stale reset for the already-removed allocation, hitting the YT_VERIFY in
+    TOperationSharedState::GetAllocationProperties. Post-fix the classic reset is applied synchronously
+    before the batch parks, so it can never overtake the finish.
+    """
+
+    ENABLE_MULTIDAEMON = False  # Scheduler crash must not take down other components.
+    NUM_MASTERS = 1
+    NUM_NODES = 4
+    NUM_SCHEDULERS = 1
+
+    DATA_CENTER = "SAS"
+    RACK = "SAS1"
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            # Single shard: gpu and classic allocation updates must co-batch.
+            "node_shard_count": 1,
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+            # Frequent resource usage updates: every gpu heartbeat batch carries gpu updates and parks.
+            "running_allocations_update_period": 100,
+            "testing_options": {
+                # Keep the operation enabled in strategy after completion aborts its allocations.
+                "finish_operation_transition_delay": {"duration": 3000, "type": "async"},
+            },
+        }
+    }
+
+    # NB: The test environment already sets running_job_time_statistics_updates_send_period to 10ms
+    # (an alias of running_allocation_time_statistics_updates_send_period), so preemptible progress
+    # resets reach the scheduler quickly without an override here.
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8,
+                },
+            },
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "scheduler_connector": {
+                    # NB: the node's own heartbeats sweep the submit map, competing with parking gpu
+                    # batches for the sitting reset updates. setup_method re-splits this into
+                    # 200ms (gpu nodes) / 400ms (classic node) via tag-filtered config entries.
+                    "heartbeat_executor": {
+                        "period": 200,
+                    },
+                },
+                "controller_agent_connector": {
+                    # Load-bearing: resets are generated from running-job summaries on this channel.
+                    "heartbeat_executor": {
+                        "period": 100,
+                    },
+                },
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestProcessAllocationUpdateAfterFinishRace, self).setup_method(method)
+
+        # Disable the periodic submit executor: heartbeat-driven submits only, so reset updates
+        # sit in the member map until a (possibly parking) heartbeat batch sweeps them.
+        update_scheduler_config("node_shard_submit_allocations_to_strategy_period", 600000000)
+
+        update_pool_tree_config("default", {"node_tag_filter": "!gpu & !main"})
+
+        create_pool_tree("gpu", config={
+            "node_tag_filter": "gpu",
+            "main_resource": "gpu",
+            "gpu_scheduling_policy": {
+                "mode": "allocating",
+                "plan_update_period": 100,
+                "module_type": "data_center",
+                "modules": [self.DATA_CENTER],
+                # Stretch the park of every batch processing gpu-tree updates so it covers the captured
+                # reset's allocation finish (~1.0-2.7s after capture).
+                "testing_options": {
+                    "delay_inside_process_allocation_updates": {"duration": 1500, "type": "async"},
+                },
+            },
+            "policy_kind": "gpu",
+        })
+        create_pool_tree("main", config={
+            "node_tag_filter": "main",
+        })
+
+        set("//sys/pool_trees/@default_tree", "main")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/default_pool_tree", default=None) == "main")
+
+        create_data_center(self.DATA_CENTER)
+        create_rack(self.RACK)
+        set("//sys/racks/{}/@data_center".format(self.RACK), self.DATA_CENTER)
+
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes:
+            set("//sys/cluster_nodes/{}/@rack".format(node), self.RACK)
+        for node in nodes[:3]:
+            set("//sys/cluster_nodes/{}/@user_tags".format(node), ["gpu"])
+        set("//sys/cluster_nodes/{}/@user_tags".format(nodes[3]), ["main"])
+
+        # The classic node sweeps the submit map at 400ms while gpu nodes stay at 200ms: fewer classic
+        # sweeps mean more sitting reset updates are captured by parking gpu batches. Node dynamic config
+        # requires every node to match exactly one tag-filter entry and entries do not merge, so the
+        # "%true" defaults (enable_multiple_jobs, the connector periods, framework defaults) are cloned
+        # into both groups.
+        node_config = get("//sys/cluster_nodes/@config")
+        gpu_node_config = deepcopy(node_config["%true"])
+        classic_node_config = deepcopy(node_config["%true"])
+        classic_node_config["exec_node"]["scheduler_connector"]["heartbeat_executor"]["period"] = 400
+        set("//sys/cluster_nodes/@config", {"gpu": gpu_node_config, "!gpu": classic_node_config})
+
+        def get_scheduler_heartbeat_period(node):
+            applied = get_applied_node_dynamic_config(node)
+            return applied.get("exec_node", {}).get("scheduler_connector", {}).get("heartbeat_executor", {}).get("period")
+
+        wait(lambda: get_scheduler_heartbeat_period(nodes[3]) == 400)
+        for node in nodes[:3]:
+            wait(lambda: get_scheduler_heartbeat_period(node) == 200)
+
+        for node in nodes[:3]:
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center", default=None) == self.DATA_CENTER)
+
+        wait(lambda: get(scheduler_new_orchid_pool_tree_path("gpu") + "/node_count") == 3)
+        wait(lambda: get(scheduler_new_orchid_pool_tree_path("main") + "/node_count") == 1)
+
+    @authors("yaishenka")
+    def test_preemptible_progress_reset_races_allocation_finish(self):
+        # Long-running gpu operation: 6 allocations of 4 gpus are forced to spread 2 per node,
+        # producing resource usage updates in every gpu node heartbeat batch.
+        gpu_op = run_sleeping_vanilla(
+            job_count=6,
+            spec={"pool_trees": ["gpu"]},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(gpu_op.get_running_jobs()) == 6)
+
+        # Classic operations: 5 concurrent multi-job allocations, 2 jobs each — half of all resets are
+        # last-job resets, each racing the allocation's Finished update right after the second job ends.
+        for _ in range(8):
+            op = run_test_vanilla(
+                command="sleep 0.5",
+                job_count=10,
+                spec={"enable_multiple_jobs_in_allocation": True},
+                task_patch={"cpu_limit": 2.0},
+            )
+            op.track()
+
+        gpu_op.abort()
 
 ##################################################################
