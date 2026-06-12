@@ -8,15 +8,22 @@ Is released as packages in [Maven Central](https://central.sonatype.com/artifact
 
 **Releases:**
 
+{% cut "**1.2.16**" %}
+
+**Release date:** 2026-05-25
+
+
+#### Features:
+- Move `YTreeSerializers` to `ytsaurus-client-core` module [55bf34b0a413399870c1c576fb634a04ed87b38b]
+- Add attributes filter to `GetJob` [05667697aa625b51df7055d9f737354d98b5055a]
+- Match `Tuple` and `Variant` to `COMPOSITE` type for typeV3 [9fd9d56162bb039ede5e1722ed2980a8bbcb92f9]
+
+{% endcut %}
+
+
 {% cut "**1.2.15**" %}
 
 **Release date:** 2026-04-29
-
-
-**Release page:** [1.2.15](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.15)
-
-
-**Maven Central:** [1.2.15](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.15)
 
 
 #### Features:
@@ -33,12 +40,6 @@ Is released as packages in [Maven Central](https://central.sonatype.com/artifact
 {% cut "**1.2.14**" %}
 
 **Release date:** 2026-03-25
-
-
-**Release page:** [1.2.14](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.14)
-
-
-**Maven Central:** [1.2.14](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.14)
 
 
 #### Features:
@@ -60,12 +61,6 @@ Is released as packages in [Maven Central](https://central.sonatype.com/artifact
 **Release date:** 2026-02-16
 
 
-**Release page:** [1.2.13](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.13)
-
-
-**Maven Central:** [1.2.13](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.13)
-
-
 #### Features:
 - Support `Short` in `YTreeBuilder`.
 - Add `findByCode` to `YTsaurusErrorCode`.
@@ -83,12 +78,6 @@ Is released as packages in [Maven Central](https://central.sonatype.com/artifact
 **Release date:** 2025-12-11
 
 
-**Release page:** [1.2.12](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.12)
-
-
-**Maven Central:** [1.2.12](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.12)
-
-
 #### Features
 * Add methods lookupRowsV2, versionedLookupRowsV2 and multiLookupRowsV2 with partial result support.
 * Support 'omit\_inaccessible\_rows' flag in read\_table and read\_table\_partition API calls.
@@ -103,12 +92,6 @@ Is released as packages in [Maven Central](https://central.sonatype.com/artifact
 {% cut "**1.2.11**" %}
 
 **Release date:** 2025-10-23
-
-
-**Release page:** [1.2.11](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.11)
-
-
-**Maven Central:** [1.2.11](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.11)
 
 
 #### Features

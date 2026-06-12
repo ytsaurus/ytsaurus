@@ -8,15 +8,29 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.18.5**" %}
+
+**Release date:** 2026-06-09
+
+
+**Features:**
+
+* Support omit_inaccessible_rows (90b6b7ae985f849f63b876ae3d60b79217e65a03)
+* Separate thread pool for pull task routine (fa4c50776aed759301acf4ebc20fa6934d7ffe3f)
+
+**Fixes:**
+
+* Fix error on ytTables(<empty_arr>) (7787c0803dd9d654722f199220761f8aa857302a)
+* Use UTC timezone for ytListLogTables arguments (ab598fffbf0ce97f3a5c36e349edcfa09b9edc1a)
+
+
+
+{% endcut %}
+
+
 {% cut "**2.18.4**" %}
 
 **Release date:** 2026-05-15
-
-
-**Release page:** [2.18.4](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.4)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.18.4](https://github.com/orgs/ytsaurus/packages/container/chyt/873819001?tag=2.18.4)
 
 
 **Fixes:**
@@ -33,12 +47,6 @@ Is released as a docker image.
 **Release date:** 2026-04-02
 
 
-**Release page:** [2.18.3](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.3)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.3](https://github.com/orgs/ytsaurus/packages/container/chyt/785932269?tag=stable-2.18.3)
-
-
 **Fixes:**
 
 * Fix conversion of constant sets in read range inferrence (7bdb3cf)
@@ -53,12 +61,6 @@ Is released as a docker image.
 **Release date:** 2026-03-23
 
 
-**Release page:** [2.18.2](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.2)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.2](https://github.com/orgs/ytsaurus/packages/container/chyt/757077349?tag=stable-2.18.2)
-
-
 #### Fixes:
 * Fix distinct optimization reading not full block (056b99bd53dc92c2fdb2d59b8c0f30dafca9c80c)
 
@@ -68,12 +70,6 @@ Is released as a docker image.
 {% cut "**2.18.1**" %}
 
 **Release date:** 2026-03-04
-
-
-**Release page:** [2.18.1](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.1)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.1](https://github.com/orgs/ytsaurus/packages/container/chyt/721252481?tag=stable-2.18.1)
 
 
 **Fixes:**
@@ -87,9 +83,6 @@ Is released as a docker image.
 {% cut "**2.18.0**" %}
 
 **Release date:** 2026-01-20
-
-
-**Release page:** [2.18.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.0)
 
 
 #### Features:
@@ -116,12 +109,6 @@ Is released as a docker image.
 {% cut "**2.17.4**" %}
 
 **Release date:** 2025-09-23
-
-
-**Release page:** [2.17.4](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.17.4)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.17.4](https://github.com/orgs/ytsaurus/packages/container/chyt/524445395?tag=2.17.4)
 
 
 - Backport YT-25206: Set up Cypress Transaction Service on Cypress Proxies (Commit: eb104f198aeb5bd30208e0214c03fd50f0535655)
