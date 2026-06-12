@@ -3314,11 +3314,22 @@ class TestHealExecNode(YTEnvSetup):
 
     @authors("alexkolodezny")
     def test_heal_locations(self):
+        OK_ERROR = {"code": 0, "message": "", "attributes": {}}
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
 
         node_address = ls("//sys/cluster_nodes")[0]
 
         locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_node/slot_manager/locations".format(node_address))
+
+        def get_orchid_locations():
+            return get("//sys/cluster_nodes/{}/orchid/exec_node/slot_manager/locations".format(node_address))
+
+        # Before the disable: every configured location is present in the
+        # slot_manager orchid and reports enabled=true.
+        orchid_locations = get_orchid_locations()
+        for path, info in orchid_locations.items():
+            assert info["enabled"], "Location {} should be enabled".format(path)
+            assert info["disable_error"] == OK_ERROR
 
         for location in locations:
             with open("{}/disabled".format(location["path"]), "w") as f:
@@ -3328,6 +3339,15 @@ class TestHealExecNode(YTEnvSetup):
             return get(f"//sys/cluster_nodes/{node_address}/@resource_limits/user_slots") == 0
 
         wait(is_disabled)
+
+        # After the disable: the orchid mirrors it (per-location enabled=false
+        # and a non-OK disable_error).
+        orchid_locations = get_orchid_locations()
+        for location in locations:
+            info = orchid_locations[location["path"]]
+            assert not info["enabled"], "Location {} should be disabled".format(location["path"])
+            assert info["disable_error"] != OK_ERROR, \
+                "Location {} disable_error should be non-OK".format(location["path"])
 
         op = run_test_vanilla("sleep 0.1")
 
@@ -3345,6 +3365,9 @@ class TestHealExecNode(YTEnvSetup):
         heal_exec_node(node_address, ["slot0"])
 
         wait(lambda: not is_disabled())
+
+        # After the heal: every location is back to enabled=true in the orchid.
+        wait(lambda: all(info["enabled"] for info in get_orchid_locations().values()))
 
         op.track()
 

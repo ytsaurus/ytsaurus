@@ -721,6 +721,19 @@ TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
         }
     }
 
+    std::vector<TSlotLocationInfo> locations;
+    {
+        auto guard = ReaderGuard(LocationsLock_);
+        locations.reserve(Locations_.size());
+        for (const auto& location : Locations_) {
+            locations.push_back({
+                .Path = location->GetPath(),
+                .Enabled = location->IsEnabled(),
+                .DisableError = location->GetDisableError(),
+            });
+        }
+    }
+
     return {
         .SlotCount = SlotCount_,
         .FreeSlotCount = static_cast<int>(FreeSlots_.size()),
@@ -728,6 +741,7 @@ TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
         .IdlePolicyRequestedCpu = IdlePolicyRequestedCpu_,
         .NumaNodeStates = NumaNodeStates_,
         .Alerts = std::move(alerts),
+        .Locations = std::move(locations),
     };
 }
 
@@ -1150,6 +1164,15 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
                         fluent
                             .Item(FormatEnum(alertType)).Value(error);
                     }
+                })
+            .Item("locations").DoMapFor(
+                slotManagerInfo.Locations,
+                [&] (TFluentMap fluent, const TSlotLocationInfo& location) {
+                    fluent
+                        .Item(location.Path).BeginMap()
+                            .Item("enabled").Value(location.Enabled)
+                            .Item("disable_error").Value(location.DisableError)
+                        .EndMap();
                 })
             .DoIf(
                 rootVolumeManagerPresent,
