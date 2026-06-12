@@ -42,7 +42,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TReplicatorHintConfigFetcher)
 
-}  // namespace
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,4 +142,4 @@ IHintManagerPtr CreateHintManager(IBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NTabletNode
+} // namespace NYT::NTabletNode

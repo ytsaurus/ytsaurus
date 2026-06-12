@@ -145,4 +145,4 @@ void TMemoryWatchdog::UpdateConfig(TMemoryWatchdogConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} //namespace NYT::NControllerAgent
+} // namespace NYT::NControllerAgent

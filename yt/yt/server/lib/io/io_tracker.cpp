@@ -92,7 +92,7 @@ struct TAggregateTagsKey
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NIO
+} // namespace NYT::NIO
 
 template <>
 struct THash<NYT::NIO::TSortedIOTagList>
