@@ -191,19 +191,21 @@ public:
     //! Read size bytes from NBD chunk at offset.
     TFuture<TBlock> Read(i64 offset, i64 length, ui64 cookie) override
     {
-        YT_LOG_DEBUG("Started reading from NBD chunk (ChunkId: %v, Offset: %v, Length: %v, Cookie: %v)",
+        YT_LOG_DEBUG("Started reading from NBD chunk (ChunkId: %v, Offset: %v, Length: %v, Cookie: %x)",
             ChunkId_,
             offset,
             length,
             cookie);
 
         // Acquire a reader guard.
+        TWallTimer lockWaitTimer;
         return TAsyncLockReaderGuard::Acquire(&Lock_)
             .AsUnique()
             .Apply(
-                BIND([=, this, this_ = MakeStrong(this)] (TReadLockPtr&& guard) {
+                BIND([=, this, this_ = MakeStrong(this), lockWaitTimer = std::move(lockWaitTimer)] (TReadLockPtr&& guard) {
+                    auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
                     if (State_ != EState::Initialized) {
-                        YT_LOG_WARNING("Read from uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %v, State: %v)",
+                        YT_LOG_WARNING("Read from uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %x, State: %v)",
                             ChunkId_,
                             ChunkPath_,
                             ChunkSize_,
@@ -252,10 +254,11 @@ public:
                                 BIND([=, guard = std::move(guard), ioTimer = std::move(ioTimer), this, this_ = MakeStrong(this)] (const TReadResponse& response) {
                                     auto ioDuration = ioTimer.GetElapsedTime();
 
-                                    YT_LOG_DEBUG("Finished reading from NBD chunk (ChunkId: %v, Offset: %v, Length: %v, ThrottleDuration: %v, IODuration: %v, Cookie: %v)",
+                                    YT_LOG_DEBUG("Finished reading from NBD chunk (ChunkId: %v, Offset: %v, Length: %v, LockWaitDuration: %v, ThrottleDuration: %v, IODuration: %v, Cookie: %x)",
                                         ChunkId_,
                                         offset,
                                         length,
+                                        lockWaitDuration,
                                         throttleDuration,
                                         ioDuration,
                                         cookie);
@@ -273,19 +276,21 @@ public:
     //! Write buffer to NBD chunk at offset.
     TFuture<NIO::TIOCounters> Write(i64 offset, const TBlock& block, ui64 cookie) override
     {
-        YT_LOG_DEBUG("Started writing to NBD chunk (ChunkId: %v, Offset: %v, Length: %v, Cookie: %v)",
+        YT_LOG_DEBUG("Started writing to NBD chunk (ChunkId: %v, Offset: %v, Length: %v, Cookie: %x)",
             ChunkId_,
             offset,
             block.Size(),
             cookie);
 
         // Acquire a reader guard.
+        TWallTimer lockWaitTimer;
         return TAsyncLockReaderGuard::Acquire(&Lock_)
             .AsUnique()
             .Apply(
-                BIND([=, this, this_ = MakeStrong(this)] (TReadLockPtr&& guard) {
+                BIND([=, this, this_ = MakeStrong(this), lockWaitTimer = std::move(lockWaitTimer)] (TReadLockPtr&& guard) {
+                    auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
                     if (State_ != EState::Initialized) {
-                        YT_LOG_WARNING("Write to uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %v, State: %v)",
+                        YT_LOG_WARNING("Write to uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %x, State: %v)",
                             ChunkId_,
                             ChunkPath_,
                             ChunkSize_,
@@ -333,10 +338,11 @@ public:
                                 BIND([=, guard = std::move(guard), ioTimer = std::move(ioTimer), this, this_ = MakeStrong(this)] (const TWriteResponse& response) {
                                     auto ioDuration = ioTimer.GetElapsedTime();
 
-                                    YT_LOG_DEBUG("Finished writing to NBD chunk (ChunkId: %v, Offset: %v, Length: %v, ThrottleDuration: %v, IODuration: %v, Cookie: %v)",
+                                    YT_LOG_DEBUG("Finished writing to NBD chunk (ChunkId: %v, Offset: %v, Length: %v, LockWaitDuration: %v, ThrottleDuration: %v, IODuration: %v, Cookie: %x)",
                                         ChunkId_,
                                         offset,
                                         block.Size(),
+                                        lockWaitDuration,
                                         throttleDuration,
                                         ioDuration,
                                         cookie);
