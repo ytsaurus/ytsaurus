@@ -852,8 +852,13 @@ class TestSmoothMovement(SmoothMovementBase):
 
             # Command may start before cell is reconfigured at the client, thus stale invalid channel
             # for the cell will be used and the command will fail.
-            for _ in range(3):
-                exit_read_only(src_cell_id, timeout=5000)
+            for i in range(3):
+                try:
+                    exit_read_only(src_cell_id, timeout=5000)
+                    break
+                except YtError:
+                    if i == 2:
+                        raise
 
             def _is_cell_alive():
                 try:
