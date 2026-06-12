@@ -4,7 +4,7 @@ PY3_LIBRARY()
 
 PROVIDES(tornado)
 
-VERSION(6.5.5)
+VERSION(6.5.6)
 
 LICENSE(Apache-2.0)
 
