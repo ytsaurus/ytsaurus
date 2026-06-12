@@ -194,16 +194,16 @@ void TExecutionSettings::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_read_range_inferring", &TThis::EnableReadRangeInferring)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_distinct_read_optimization", &TThis::EnableOptimizeDistinctRead)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_min_max_optimization", &TThis::EnableMinMaxOptimization)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("allow_string_min_max_optimization", &TThis::AllowStringMinMaxOptimization)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("disable_read_time_estimation", &TThis::DisableReadTimeEstimation)
         .Default(true);
