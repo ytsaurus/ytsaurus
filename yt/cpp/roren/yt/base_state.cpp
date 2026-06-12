@@ -21,4 +21,4 @@ void InitializeYtPState(TRawPStateNodePtr rawPState, TString inStatePath, TStrin
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NRoren::NPrivate
+} // namespace NRoren::NPrivate

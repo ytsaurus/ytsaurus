@@ -64,7 +64,7 @@ struct TTimerContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NRoren::NPrivate
+} // namespace NRoren::NPrivate
 
 namespace NRoren {
 

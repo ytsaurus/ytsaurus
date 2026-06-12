@@ -257,7 +257,7 @@ std::unique_ptr<IChunkScraperQueue> CreateQueue(bool prioritizeUnavailableChunks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace
+} // namespace
 
 class TChunkScraper::TScraperTask
     : public TRefCounted

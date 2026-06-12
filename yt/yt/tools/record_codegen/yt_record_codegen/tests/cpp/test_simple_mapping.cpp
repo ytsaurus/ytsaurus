@@ -47,4 +47,4 @@ TEST(TSimpleMappingTest, CheckConversion)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-}  // namespace NYT::NTableClient::NTest
+} // namespace NYT::NTableClient::NTest
