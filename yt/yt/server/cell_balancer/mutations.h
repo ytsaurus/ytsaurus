@@ -80,6 +80,8 @@ public:
     THashMap<std::string, TBundleMutation<std::string>> ChangedNodeTagFilters;
     THashMap<std::string, TBundleConfigPtr> InitializedBundleTargetConfig;
 
+    THashMap<std::string, std::string> NodeConfigUpdateRequests;
+
     TBundleNameGuard MakeBundleNameGuard(std::string bundleName);
 
     int GetMutationCount() const;

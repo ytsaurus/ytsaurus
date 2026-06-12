@@ -133,6 +133,7 @@ void ApplyMutations(TSchedulerInputState* input, const TSchedulerMutations& muta
         ++appliedCount;
     }
     appliedCount += ssize(mutations.CellsToRemove);
+    appliedCount += ssize(mutations.NodeConfigUpdateRequests);
 
     ASSERT_EQ(appliedCount, mutations.GetMutationCount());
 }
@@ -352,9 +353,9 @@ TEST_P(TNoAllocatorTest, AllocationFromScratch)
 
         if (input.Config->DecommissionReleasedNodes) {
             EXPECT_EQ(1, ssize(mutations.ChangedDecommissionedFlag));
-            EXPECT_EQ(4, mutations.GetMutationCount());
+            EXPECT_EQ(5, mutations.GetMutationCount());
         } else {
-            EXPECT_EQ(3, mutations.GetMutationCount());
+            EXPECT_EQ(4, mutations.GetMutationCount());
         }
 
         ApplyMutations(&input, mutations);
@@ -366,7 +367,7 @@ TEST_P(TNoAllocatorTest, AllocationFromScratch)
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
-        EXPECT_EQ(0, mutations.GetMutationCount());
+        EXPECT_EQ(1, mutations.GetMutationCount());
 
         ApplyMutations(&input, mutations);
     }
@@ -486,9 +487,9 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
 
         if (input.Config->DecommissionReleasedNodes) {
             ValidateDecommissions(mutations, 2, true);
-            EXPECT_EQ(7, mutations.GetMutationCount());
+            EXPECT_EQ(9, mutations.GetMutationCount());
         } else {
-            EXPECT_EQ(5, mutations.GetMutationCount());
+            EXPECT_EQ(7, mutations.GetMutationCount());
         }
 
         ApplyMutations(&input, mutations);
@@ -503,7 +504,7 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
         ScheduleBundles(input, &mutations);
 
         ValidateDecommissions(mutations, 2, true);
-        EXPECT_EQ(2, mutations.GetMutationCount());
+        EXPECT_EQ(4, mutations.GetMutationCount());
 
         ApplyMutations(&input, mutations);
     }
@@ -519,7 +520,7 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
             EXPECT_EQ("", annotation->AllocatedForBundle);
         }
 
-        EXPECT_EQ(2, mutations.GetMutationCount());
+        EXPECT_EQ(4, mutations.GetMutationCount());
 
         ApplyMutations(&input, mutations);
     }
@@ -736,9 +737,9 @@ TEST_P(TNoAllocatorTest, PendingAssignmentsWithoutDcForbidDeallocation)
 
         if (input.Config->DecommissionReleasedNodes) {
             EXPECT_EQ(2, ssize(mutations.ChangedDecommissionedFlag));
-            EXPECT_EQ(5, mutations.GetMutationCount());
+            EXPECT_EQ(7, mutations.GetMutationCount());
         } else {
-            EXPECT_EQ(3, mutations.GetMutationCount());
+            EXPECT_EQ(5, mutations.GetMutationCount());
         }
 
         ApplyMutations(&input, mutations);
@@ -751,7 +752,7 @@ TEST_P(TNoAllocatorTest, PendingAssignmentsWithoutDcForbidDeallocation)
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
-        EXPECT_EQ(0, mutations.GetMutationCount());
+        EXPECT_EQ(2, mutations.GetMutationCount());
     }
 }
 
