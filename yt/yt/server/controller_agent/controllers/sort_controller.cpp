@@ -1886,6 +1886,8 @@ protected:
             return std::nullopt;
         } else if (Spec_->PartitionDataWeightForMerging.has_value()) {
             return *Spec_->PartitionDataWeightForMerging;
+        } else if (Spec_->PartitionDataWeight.has_value()) {
+            return Spec_->PartitionDataWeight;
         } else {
             return std::min(Options_->DefaultPartitionDataWeightForMerging, Spec_->DataWeightPerShuffleJob);
         }
