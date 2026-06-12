@@ -388,8 +388,6 @@ void TNodeShard::DoCleanup()
 
     RegisteredAgents_.clear();
     RegisteredAgentIncarnationIds_.clear();
-
-    SubmitAllocationsToStrategy();
 }
 
 void TNodeShard::RegisterOperation(
@@ -1577,14 +1575,11 @@ NStrategy::TAllocationUpdate& TNodeShard::AddAllocationUpdateToSubmitToStrategy(
             .OperationId = allocation->GetOperationId(),
             .AllocationId = allocation->GetId(),
             .TreeId = allocation->GetTreeId(),
-            .AllocationResources = allocation->ResourceUsage(),
             .AllocationDataCenter = allocation->GetNode()->NodeDescriptor().GetDataCenter(),
             .AllocationInfinibandCluster = allocation->GetNode()->GetInfinibandCluster(),
         };
 
         operationState->AllocationsToSubmitToStrategy.insert(allocation->GetId());
-    } else {
-        allocationToSubmitToStrategy.AllocationResources = allocation->ResourceUsage();
     }
 
     return allocationToSubmitToStrategy;
@@ -2325,7 +2320,7 @@ void TNodeShard::OnAllocationRunning(const TAllocationPtr& allocation, NProto::T
             allocation,
             operationState);
 
-        allocationToSubmitToStrategy.ResourceUsageUpdated = true;
+        allocationToSubmitToStrategy.AllocationResources = allocation->ResourceUsage();
     }
 }
 

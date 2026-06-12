@@ -24,6 +24,7 @@
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -1079,27 +1080,73 @@ public:
             return;
         }
 
-        for (const auto& [treeId, treeAllocationUpdates] : allocationUpdatesPerTree) {
-            auto it = idToTree.find(treeId);
-            if (it == idToTree.end()) {
-                for (const auto& allocationUpdates : treeAllocationUpdates) {
-                    if (allocationUpdates.Finished) {
-                        // Allocation is finished but tree does not exist, nothing to do.
-                        YT_LOG_DEBUG(
-                            "Dropping allocation update since pool tree is missing (OperationId: %v, AllocationId: %v)",
-                            allocationUpdates.OperationId,
-                            allocationUpdates.AllocationId);
-                    } else {
-                        // Allocation is orphaned (does not belong to any tree), aborting it.
-                        EmplaceOrCrash(*allocationsToAbort, allocationUpdates.AllocationId, EAbortReason::NonexistentPoolTree);
+        THashMap<std::string, TFuture<std::vector<NPolicy::TProcessAllocationUpdateResult>>> treeIdToUpdateFuture;
+        treeIdToUpdateFuture.reserve(allocationUpdatesPerTree.size());
+
+        {
+            // Process every per-tree batch before this fiber can be suspended: per-allocation update
+            // ordering relies on batches being applied (classic policy, synchronously here) or enqueued to
+            // the control invoker (GPU policy) in drain order. A context switch here would let a later
+            // batch overtake this one.
+            TForbidContextSwitchGuard contextSwitchGuard;
+
+            for (const auto& [treeId, treeAllocationUpdates] : allocationUpdatesPerTree) {
+                auto it = idToTree.find(treeId);
+                if (it == idToTree.end()) {
+                    for (const auto& allocationUpdate : treeAllocationUpdates) {
+                        if (allocationUpdate.Finished) {
+                            // Allocation is finished but tree does not exist, nothing to do.
+                            YT_LOG_DEBUG(
+                                "Dropping allocation update since pool tree is missing (OperationId: %v, AllocationId: %v)",
+                                allocationUpdate.OperationId,
+                                allocationUpdate.AllocationId);
+                        } else {
+                            // Allocation is orphaned (does not belong to any tree), aborting it.
+                            EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, EAbortReason::NonexistentPoolTree);
+                        }
                     }
+
+                    continue;
                 }
 
-                continue;
+                const auto& tree = it->second;
+                EmplaceOrCrash(treeIdToUpdateFuture, treeId, tree->ProcessAllocationUpdates(treeAllocationUpdates));
             }
+        }
 
-            const auto& tree = it->second;
-            tree->ProcessAllocationUpdates(treeAllocationUpdates, allocationsToPostpone, allocationsToAbort);
+        for (const auto& [treeId, future] : treeIdToUpdateFuture) {
+            const auto& treeAllocationUpdates = GetOrCrash(allocationUpdatesPerTree, treeId);
+            auto updateResults = WaitFor(future)
+                .ValueOrThrow();
+            YT_VERIFY(updateResults.size() == treeAllocationUpdates.size());
+
+            for (int index = 0; index < std::ssize(treeAllocationUpdates); ++index) {
+                const auto& allocationUpdate = treeAllocationUpdates[index];
+                const auto& updateResult = updateResults[index];
+
+                if (updateResult.NeedToAbort) {
+                    YT_LOG_DEBUG(
+                        "Aborting allocation update "
+                        "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, AbortReason: %v)",
+                        allocationUpdate.OperationId,
+                        allocationUpdate.AllocationId,
+                        updateResult.Status,
+                        updateResult.AbortReason);
+                    YT_VERIFY(updateResult.AbortReason.has_value());
+                    EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *updateResult.AbortReason);
+                }
+
+                if (updateResult.NeedToPostpone) {
+                    YT_LOG_DEBUG(
+                        "Postpone allocation update since operation is disabled or missing in snapshot "
+                        "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, NeedToAbort: %v)",
+                        allocationUpdate.OperationId,
+                        allocationUpdate.AllocationId,
+                        updateResult.Status,
+                        updateResult.NeedToAbort);
+                    allocationsToPostpone->insert(allocationUpdate.AllocationId);
+                }
+            }
         }
     }
 

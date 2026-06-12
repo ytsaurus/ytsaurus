@@ -230,6 +230,21 @@ DEFINE_REFCOUNTED_TYPE(TStrategySchedulingSegmentsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGpuSchedulingPolicyTestingOptions
+    : public NYTree::TYsonStruct
+{
+    //! Delays the processing of an allocation update batch in the GPU policy.
+    TDelayConfigPtr DelayInsideProcessAllocationUpdates;
+
+    REGISTER_YSON_STRUCT(TGpuSchedulingPolicyTestingOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuSchedulingPolicyTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TGpuSchedulingPolicyConfig
     : public NYTree::TYsonStruct
 {
@@ -253,6 +268,8 @@ struct TGpuSchedulingPolicyConfig
     TDuration InitializationTimeout;
 
     std::vector<TModuleShareAndNetworkPriority> ModuleShareToNetworkPriority;
+
+    TGpuSchedulingPolicyTestingOptionsPtr TestingOptions;
 
     REGISTER_YSON_STRUCT(TGpuSchedulingPolicyConfig);
 
@@ -321,8 +338,6 @@ struct TTreeTestingOptions
     TDelayConfigPtr DelayInsideFairShareUpdate;
 
     TDelayConfigPtr DelayInsidePoolPermissionsValidation;
-
-    TDelayConfigPtr DelayInsideProcessAllocationUpdates;
 
     std::optional<TDuration> ResourceTreeInitializeResourceUsageDelay;
     std::optional<TDuration> ResourceTreeReleaseResourcesRandomDelay;

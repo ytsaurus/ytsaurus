@@ -248,7 +248,6 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
         .OperationId = allocation->GetOperationId(),
         .AllocationId = allocation->GetId(),
         .TreeId = allocation->GetTreeId(),
-        .AllocationResources = TJobResources(),
         .AllocationDataCenter = std::nullopt,
         .AllocationInfinibandCluster = std::nullopt,
         .Finished = true,
