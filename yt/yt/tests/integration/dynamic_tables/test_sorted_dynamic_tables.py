@@ -2248,6 +2248,7 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
         set("//sys/rpc_proxies/@config", {
             "cluster_connection": {
                 "local_tablet_write_retry_count": retry_count,
+                "use_uniform_prepare_signatures": True,
             },
         })
 
@@ -2303,8 +2304,7 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
         assert action == ls("//sys/tablet_actions")[0]
         wait(lambda: get(f"#{action}/@state") == "completed")
 
-        with raises_yt_error("No such tablet .*"):
-            commit_transaction(tx1)
+        commit_transaction(tx1)
 
     @authors("alexelexa")
     def test_first_batch_write_retries(self):
@@ -2354,6 +2354,11 @@ class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
     def test_write_retries_stress(self):
         set("//sys/rpc_proxies/@config", {
             "cluster_connection": {
+                # NB: local_tablet_write_retry_count is incompatible with tablet_write_backoff
+                # since write retries repeat the whole write session while local retries only
+                # resend the first batch. Mixing them may cause transaction signatures to be
+                # computed incorrectly.
+                "local_tablet_write_retry_count": 0,
                 "tablet_write_backoff": {
                     "retry_count": 5,
                     "min_backoff": 10,
