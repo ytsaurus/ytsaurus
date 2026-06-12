@@ -3,6 +3,7 @@ GTEST(unittester-tools-trigrep)
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    index_builder_ut.cpp
     zstd_reader_ut.cpp
 )
 
