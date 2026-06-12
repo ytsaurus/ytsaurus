@@ -482,6 +482,21 @@ void TNodeResourceManager::OnInstanceLimitsUpdated(const NContainers::TInstanceL
     Limits_.Store(limits);
 }
 
+TFuture<void> TNodeResourceManager::SyncUpdateLimits()
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    if (!UpdateExecutor_->IsStarted()) {
+        return MakeFuture(TError("Node resource update executor is not started"));
+    }
+
+    YT_LOG_DEBUG("Requested out of band node limits update");
+
+    auto event = UpdateExecutor_->GetExecutedEvent();
+    UpdateExecutor_->ScheduleOutOfBand();
+    return event;
+}
+
 IYPathServicePtr TNodeResourceManager::GetOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

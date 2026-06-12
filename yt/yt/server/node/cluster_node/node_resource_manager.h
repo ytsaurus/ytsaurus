@@ -170,6 +170,11 @@ public:
 
     void OnInstanceLimitsUpdated(const NContainers::TInstanceLimits& limits);
 
+    //! Invoke out-of-band iteration of |UpdateLimits| and return a future
+    //! which becomes set when the invocation completes.
+    //! Returns error if update executor is not started.
+    TFuture<void> SyncUpdateLimits();
+
     NYTree::IYPathServicePtr GetOrchidService();
 
     DEFINE_SIGNAL(void(), JobsCpuLimitUpdated);
