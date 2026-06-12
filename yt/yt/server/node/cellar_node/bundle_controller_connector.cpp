@@ -8,6 +8,7 @@
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -26,6 +27,7 @@ namespace NYT::NCellarNode {
 
 using namespace NBundleController;
 using namespace NConcurrency;
+using namespace NTracing;
 
 using NYT::ToProto;
 
@@ -163,7 +165,9 @@ void TBundleControllerConnector::ProcessHeartbeatResponse(const TRspClientHeartb
 
 void TBundleControllerConnector::DoFullyUpdateBundlesDynamicConfig()
 {
-    YT_LOG_INFO("Started out of band cell move pipeline");
+    TTraceContextGuard guard(TTraceContext::NewRoot("OutOfBandDynamicConfigUpdate"));
+
+    YT_LOG_INFO("Started out of band dynamic config update pipeline");
 
     const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
     const auto& cellarNodeMasterConnector = Bootstrap_->GetMasterConnector();
@@ -179,6 +183,10 @@ void TBundleControllerConnector::DoFullyUpdateBundlesDynamicConfig()
     WaitFor(Bootstrap_->GetBundleDynamicConfigManager()->ScheduleOutOfBandUpdate())
         .ThrowOnError();
 
+    // Update node resource limits to apply new memory categories.
+    WaitFor(Bootstrap_->GetNodeResourceManager()->SyncUpdateLimits())
+        .ThrowOnError();
+
     // Report updated memory category statistics to master.
     clusterNodeMasterConnector->ScheduleMasterHeartbeats(primaryMasterCellTag);
 
@@ -187,7 +195,7 @@ void TBundleControllerConnector::DoFullyUpdateBundlesDynamicConfig()
 
     ExpectedTag_ = std::nullopt;
 
-    YT_LOG_INFO("Finished out of band bundle dynamic conifg update pipeline");
+    YT_LOG_INFO("Finished out of band bundle dynamic config update pipeline");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
