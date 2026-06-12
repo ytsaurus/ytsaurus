@@ -8,6 +8,79 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**3.13.0**" %}
+
+**Release date:** 2026-05-27
+
+
+**Release page:** [3.13.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.13.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.13.0](https://github.com/orgs/ytsaurus/packages/container/ui/896105506?tag=3.13.0)
+
+
+#### [3.13.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.12.2...ui-v3.13.0) (2026-05-26)
+
+
+#### Features
+
+* **PrometheusDashboard:** use //sys/interface_monitoring [YTFRONT-5802] ([96ddd54](https://github.com/ytsaurus/ytsaurus-ui/commit/96ddd547b1f4a6d3022313768739daa9274c3fea))
+
+
+#### Bug Fixes
+
+* **Dockerfile:** update nginx/1.30.1 [YTFRONT-5787] ([9eb8033](https://github.com/ytsaurus/ytsaurus-ui/commit/9eb8033bf22628f5263986d1f0d273558d393530))
+* **Queries/Timeline:** add durations background [YTFRONT-5811] ([7f7f10e](https://github.com/ytsaurus/ytsaurus-ui/commit/7f7f10e27bb6de505956e0f89f7469cf69ba7dc8))
+* **Queries/Timeline:** broken links [YTFRONT-5811] ([ed1f5a2](https://github.com/ytsaurus/ytsaurus-ui/commit/ed1f5a2e655ddb01b802e1982888bc60095f2cc6))
+* **Queries/Timeline:** interval problem [YTFRONT-5811] ([68e4afa](https://github.com/ytsaurus/ytsaurus-ui/commit/68e4afa8fe50a3559e4f18026c582e7871cb3964))
+* **UI:** data type theme [YTFRONT-5601] ([5f8bb0a](https://github.com/ytsaurus/ytsaurus-ui/commit/5f8bb0a3ecac9effc8547c20e2280aa7af1a5319))
+* **Components:** shift in clipboard button [YTFRONT-5799] ([7838626](https://github.com/ytsaurus/ytsaurus-ui/commit/783862668ad2fdc1b583693be023e79839eb39c8))
+
+{% endcut %}
+
+
+{% cut "**3.12.1**" %}
+
+**Release date:** 2026-05-15
+
+
+**Release page:** [3.12.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.12.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.12.1](https://github.com/orgs/ytsaurus/packages/container/ui/867156894?tag=3.12.1)
+
+
+#### [3.12.1](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.12.0...ui-v3.12.1) (2026-05-15)
+
+#### Features
+
+* **Queries/Navigation:** allow to edit navigation path ([5221504](https://github.com/ytsaurus/ytsaurus-ui/commit/5221504cc5700fe32301ecc862e743f4d61b600f))
+* **Queries:** sort result table [YTFRONT-5766] ([b91831c](https://github.com/ytsaurus/ytsaurus-ui/commit/b91831cbd4f0ec98196e416b1e17c1576d237938))
+* **Components/Node** update color pallete [YTFRONT-4270] ([4782884](https://github.com/ytsaurus/ytsaurus-ui/commit/4782884c79880a6537945e6c9f5febead945a483))
+* **Queries:** new spyt settings [YTFRONT-5378] ([a76ee3d](https://github.com/ytsaurus/ytsaurus-ui/commit/a76ee3da42282b072191e1e711b0d262c26535d3))
+* **Queries/Search:** add full search [YTFRONT-5697] ([806b52d](https://github.com/ytsaurus/ytsaurus-ui/commit/806b52d6d13af111b453188cbaebfd4a33f0fa2b))
+
+#### Bug Fixes
+
+* **Navigation/ReplicatedTable:** fix 'Table automatic mode switch' [YTFRONT-5784] ([44e6c66](https://github.com/ytsaurus/ytsaurus-ui/commit/44e6c662db6e623ec6b2c142fd904b1e633bb0a9))
+* **ACL/ManageAcl:** add 'name' parameter for updateAcl [YTFRONT-5762] ([7e636f0](https://github.com/ytsaurus/ytsaurus-ui/commit/7e636f05f8f5f8296c08668e1806cdf4e7ff1926))
+* **Navigation/QueryTracker:** always show share button [YTFRONT-5776] ([496267b](https://github.com/ytsaurus/ytsaurus-ui/commit/496267ba34aee07a54530967fe983e6bbad7b0c7))
+* **Navigation/ReplicatedTable:** add sorting in replicated tables and saving state in settings [YTFRONT-5703] ([818040f](https://github.com/ytsaurus/ytsaurus-ui/commit/818040f0adcb1ef23f02cd2ee5d178167d52c623))
+* **Navigation:** cell preview [YTFRONT-5751] ([92fc00f](https://github.com/ytsaurus/ytsaurus-ui/commit/92fc00fc5c976fd584b33b67e8c11cd532c1b362))
+* **PathEditor:** open suggest popup on input change ([51fa332](https://github.com/ytsaurus/ytsaurus-ui/commit/51fa332f5f66b81b38cedb32d0c3f4ebdddb10fa))
+* **Navigation/tablets:** correcting the sorting and display of fields [YTFRONT-5611] ([6dce89d](https://github.com/ytsaurus/ytsaurus-ui/commit/6dce89d553ace9bd4f9a1d94b066de7b9a774044))
+* **server/configure-app:** check clusterConfigPath,ytInterfaceSecret on start [YTFRONT-5764] ([05c6614](https://github.com/ytsaurus/ytsaurus-ui/commit/05c66146d17e731dcd37aabf4dbf5677df356fb7))
+* **Components:** remove role filter text capitalization [YTFRONT-5718] ([e794f63](https://github.com/ytsaurus/ytsaurus-ui/commit/e794f6324e1b00a6576faaff32216e8fd4720000))
+* **Modal,SimpleModal:** do not use deprecated 'onClose', 'onOutsideClick' [YTFRONT-5695] ([a95f480](https://github.com/ytsaurus/ytsaurus-ui/commit/a95f480aafa998525cef9ef7596629df7b71249c))
+* **Navigation/MapNode:** add 'Too many items selected' message [YTFRONT-5739] ([095feaf](https://github.com/ytsaurus/ytsaurus-ui/commit/095feaf75001b92a4e3fa378cadf39aeb953ad19))
+* **Navigation/Queue:** fix a mispring [YTFRONT-5746] ([414c956](https://github.com/ytsaurus/ytsaurus-ui/commit/414c956ec1dade0efec69d154d9b78196b8580db))
+* **Queries/Graph:** wrong cluster in link [YTFRONT-5723] ([e56f1a5](https://github.com/ytsaurus/ytsaurus-ui/commit/e56f1a5cdef86d832c8db15cf45d939932c1aa89))
+* **Jobs:** show all attributes of job [YTFRONT-4414] ([492e1fa](https://github.com/ytsaurus/ytsaurus-ui/commit/492e1fa593f2b2718c84b5a86f74148fbf7213dc))
+
+
+{% endcut %}
+
+
 {% cut "**3.9.0**" %}
 
 **Release date:** 2026-04-16
