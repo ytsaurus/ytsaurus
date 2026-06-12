@@ -21,6 +21,11 @@ struct ICellCommitSession
     virtual TTransactionSignatureGenerator* GetCommitSignatureGenerator() = 0;
 
     virtual void RegisterAction(NTransactionClient::TTransactionActionData data) = 0;
+    virtual bool HasRegisteredActions() const = 0;
+
+    virtual void RegisterTabletCommitSession(NTabletClient::TTabletId tabletId) = 0;
+    virtual void UnregisterTabletCommitSession(NTabletClient::TTabletId tabletId) = 0;
+    virtual bool HasRegisteredTabletCommitSessions() const = 0;
 
     virtual TFuture<void> Invoke() = 0;
 };
@@ -46,6 +51,7 @@ struct ICellCommitSessionProvider
     virtual ICellCommitSessionPtr GetOrCreateCellCommitSession(NHiveClient::TCellId cellId) = 0;
 
     virtual std::vector<NHiveClient::TCellId> GetParticipantCellIds() const = 0;
+    virtual void UnregisterUnusedParticipants() = 0;
 
     virtual TFuture<void> InvokeAll() = 0;
 
