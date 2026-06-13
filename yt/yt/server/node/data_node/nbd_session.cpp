@@ -68,7 +68,7 @@ TFuture<TBlock> TNbdSession::Read(i64 offset, i64 length, ui64 cookie)
     return throttleFuture.Apply(BIND([=, throttleTimer = std::move(throttleTimer), this, this_ = MakeStrong(this)] () {
         auto throttleDuration = throttleTimer.GetElapsedTime();
 
-        YT_LOG_DEBUG("Reading from NBD session (Offset: %v, Length: %v, ThrottleDuration: %v, Cookie: %v)",
+        YT_LOG_DEBUG("Reading from NBD session (Offset: %v, Length: %v, ThrottleDuration: %v, Cookie: %x)",
             offset,
             length,
             throttleDuration,
@@ -88,7 +88,7 @@ TFuture<NIO::TIOCounters> TNbdSession::Write(i64 offset, const TBlock& block, ui
     return throttleFuture.Apply(BIND([=, throttleTimer = std::move(throttleTimer), this, this_ = MakeStrong(this)] () {
         auto throttleDuration = throttleTimer.GetElapsedTime();
 
-        YT_LOG_DEBUG("Writing to NBD session (Offset: %v, Length: %v, ThrottleDuration: %v, Cookie: %v)",
+        YT_LOG_DEBUG("Writing to NBD session (Offset: %v, Length: %v, ThrottleDuration: %v, Cookie: %x)",
             offset,
             block.Size(),
             throttleDuration,
