@@ -266,6 +266,14 @@ const THashSet<std::string>& TStrategySchedulingSegmentsConfig::GetModules() con
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGpuSchedulingPolicyTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("delay_inside_process_allocation_updates", &TThis::DelayInsideProcessAllocationUpdates)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("mode", &TThis::Mode)
@@ -298,6 +306,9 @@ void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("module_share_to_network_priority", &TThis::ModuleShareToNetworkPriority)
         .Default();
+
+    registrar.Parameter("testing_options", &TThis::TestingOptions)
+        .DefaultNew();
 
     registrar.Postprocessor([&] (TGpuSchedulingPolicyConfig* config) {
         for (const auto& module : config->Modules) {
@@ -362,9 +373,6 @@ void TTreeTestingOptions::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("delay_inside_pool_permissions_validation", &TThis::DelayInsidePoolPermissionsValidation)
-        .Default();
-
-    registrar.Parameter("delay_inside_process_allocation_updates", &TThis::DelayInsideProcessAllocationUpdates)
         .Default();
 
     registrar.Parameter("resource_tree_initialize_resource_usage_delay", &TThis::ResourceTreeInitializeResourceUsageDelay)

@@ -2763,10 +2763,8 @@ private:
         return treeSnapshot->RootElement()->SchedulableElementCount();
     }
 
-    void ProcessAllocationUpdates(
-        const std::vector<TAllocationUpdate>& allocationUpdates,
-        THashSet<TAllocationId>* allocationsToPostpone,
-        THashMap<TAllocationId, EAbortReason>* allocationsToAbort) override
+    TFuture<std::vector<NPolicy::TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
+        const std::vector<TAllocationUpdate>& allocationUpdates) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -2774,61 +2772,7 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        MaybeDelay(Config_->TestingOptions->DelayInsideProcessAllocationUpdates);
-
-        for (const auto& allocationUpdate : allocationUpdates) {
-            auto updateResult = ProcessAllocationUpdate(treeSnapshot, allocationUpdate);
-
-            if (updateResult.NeedToAbort) {
-                YT_LOG_DEBUG(
-                    "Aborting allocation update "
-                    "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, AbortReason: %v)",
-                    allocationUpdate.OperationId,
-                    allocationUpdate.AllocationId,
-                    updateResult.Status,
-                    updateResult.AbortReason);
-                YT_VERIFY(updateResult.AbortReason.has_value());
-                EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *updateResult.AbortReason);
-            }
-
-            if (updateResult.NeedToPostpone) {
-                YT_LOG_DEBUG(
-                    "Postpone allocation update since operation is disabled or missing in snapshot "
-                    "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, NeedToAbort: %v)",
-                    allocationUpdate.OperationId,
-                    allocationUpdate.AllocationId,
-                    updateResult.Status,
-                    updateResult.NeedToAbort);
-                allocationsToPostpone->insert(allocationUpdate.AllocationId);
-            }
-        }
-    }
-
-    TProcessAllocationUpdateResult ProcessAllocationUpdate(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TAllocationUpdate& allocationUpdate)
-    {
-        auto* operationElement = treeSnapshot->FindEnabledOperationElement(allocationUpdate.OperationId);
-
-        if (!operationElement) {
-            return TProcessAllocationUpdateResult{
-                .Status = EAllocationUpdateStatus::Disabled,
-                .NeedToPostpone = true,
-            };
-        }
-
-        // NB: Should be filtered out on large clusters.
-        YT_LOG_DEBUG(
-            "Processing allocation update (OperationId: %v, AllocationId: %v, PreemptibleProgressStartTime: %v, Resources: %v)",
-            allocationUpdate.OperationId,
-            allocationUpdate.AllocationId,
-            allocationUpdate.PreemptibleProgressStartTime,
-            allocationUpdate.AllocationResources);
-
-        return SchedulingPolicy_->ProcessAllocationUpdate(
-            treeSnapshot,
-            operationElement,
-            allocationUpdate);
+        return SchedulingPolicy_->ProcessAllocationUpdates(treeSnapshot, allocationUpdates);
     }
 
     bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const override

@@ -403,26 +403,63 @@ void TSchedulingPolicy::ReviveAllocation(
         nodeId);
 }
 
-TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
+TFuture<std::vector<TProcessAllocationUpdateResult>> TSchedulingPolicy::ProcessAllocationUpdates(
     const TPoolTreeSnapshotPtr& treeSnapshot,
-    TPoolTreeOperationElement* element,
-    const TAllocationUpdate& allocationUpdate)
+    const std::vector<TAllocationUpdate>& allocationUpdates)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_VERIFY(Config_->Mode == EGpuSchedulingPolicyMode::Allocating);
 
-    auto processAllocationUpdate = BIND(
-        &TSchedulingPolicy::DoProcessAllocationUpdate,
+    // The GPU policy processes updates on the control thread; the FIFO order of the control invoker
+    // (dispatch order equals batch drain order) guarantees that updates for one allocation are applied
+    // in order. The caller is responsible for awaiting the future.
+    return BIND(
+        &TSchedulingPolicy::DoProcessAllocationUpdates,
         MakeStrong(this),
         treeSnapshot,
-        MakeStrong(element),
-        allocationUpdate)
+        allocationUpdates)
         .AsyncVia(StrategyHost_->GetControlInvoker(EControlQueue::Strategy))
         .Run();
+}
 
-    return WaitFor(processAllocationUpdate)
-        .ValueOrThrow();
+std::vector<TProcessAllocationUpdateResult> TSchedulingPolicy::DoProcessAllocationUpdates(
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    const std::vector<TAllocationUpdate>& allocationUpdates)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    // Testing-only delay; may switch context, so it must precede any context switch ban (the per-update
+    // ProcessAllocationUpdate takes TForbidContextSwitchGuard).
+    // NB: While this delay is active, the next batch can overtake this one, so strict batch ordering is
+    // intentionally relaxed when the knob is set. This is why the knob is gpu-only: the classic policy
+    // keeps the ordering invariant unconditionally.
+    MaybeDelay(Config_->TestingOptions->DelayInsideProcessAllocationUpdates);
+
+    std::vector<TProcessAllocationUpdateResult> updateResults;
+    updateResults.reserve(allocationUpdates.size());
+    for (const auto& allocationUpdate : allocationUpdates) {
+        auto* element = treeSnapshot->FindEnabledOperationElement(allocationUpdate.OperationId);
+        if (!element) {
+            updateResults.push_back(TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Disabled,
+                .NeedToPostpone = true,
+            });
+            continue;
+        }
+
+        // NB: Should be filtered out on large clusters.
+        YT_LOG_DEBUG(
+            "Processing allocation update (OperationId: %v, AllocationId: %v, PreemptibleProgressStartTime: %v, Resources: %v)",
+            allocationUpdate.OperationId,
+            allocationUpdate.AllocationId,
+            allocationUpdate.PreemptibleProgressStartTime,
+            allocationUpdate.AllocationResources);
+
+        updateResults.push_back(ProcessAllocationUpdate(treeSnapshot, element, allocationUpdate));
+    }
+
+    return updateResults;
 }
 
 // TODO(YT-27647): Save node info by NodeShards and don't switch to control here.
@@ -1556,9 +1593,9 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
     return scheduleAllocationResult;
 }
 
-TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
+TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-    TPoolTreeOperationElementPtr element,
+    TPoolTreeOperationElement* element,
     const TAllocationUpdate& allocationUpdate)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -1605,7 +1642,7 @@ TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
     auto assignment = allocation->Assignment().Lock();
 
     if (allocationUpdate.Finished) {
-        return DoProcessFinishedAllocation(
+        return ProcessFinishedAllocation(
             element,
             allocationUpdate,
             node,
@@ -1614,11 +1651,13 @@ TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
             allocation);
     }
 
-    YT_VERIFY(allocationUpdate.ResourceUsageUpdated || allocationUpdate.PreemptibleProgressStartTime);
+    YT_VERIFY(allocationUpdate.AllocationResources || allocationUpdate.PreemptibleProgressStartTime);
 
-    auto delta = allocation->UpdateResourceUsage(allocationUpdate.AllocationResources);
-    if (delta != TJobResources()) {
-        element->IncreaseHierarchicalResourceUsage(delta);
+    if (allocationUpdate.AllocationResources) {
+        auto delta = allocation->UpdateResourceUsage(*allocationUpdate.AllocationResources);
+        if (delta != TJobResources()) {
+            element->IncreaseHierarchicalResourceUsage(delta);
+        }
     }
 
     if (!assignment) {
@@ -1658,8 +1697,8 @@ TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
     };
 }
 
-TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessFinishedAllocation(
-    const TPoolTreeOperationElementPtr& element,
+TProcessAllocationUpdateResult TSchedulingPolicy::ProcessFinishedAllocation(
+    TPoolTreeOperationElement* element,
     const TAllocationUpdate& allocationUpdate,
     const TNodePtr& node,
     const TOperationPtr& operation,
@@ -1813,10 +1852,9 @@ void TNoopSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
     std::vector<TAllocationPtr> /*allocations*/)
 { }
 
-TProcessAllocationUpdateResult TNoopSchedulingPolicy::ProcessAllocationUpdate(
+TFuture<std::vector<TProcessAllocationUpdateResult>> TNoopSchedulingPolicy::ProcessAllocationUpdates(
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-    TPoolTreeOperationElement* /*element*/,
-    const TAllocationUpdate& /*allocationUpdate*/)
+    const std::vector<TAllocationUpdate>& /*allocationUpdates*/)
 {
     YT_UNIMPLEMENTED();
 }

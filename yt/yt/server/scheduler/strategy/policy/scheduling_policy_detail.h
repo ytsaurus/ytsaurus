@@ -591,10 +591,9 @@ public:
     void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,
         std::vector<TAllocationPtr> allocations) override;
-    TProcessAllocationUpdateResult ProcessAllocationUpdate(
+    TFuture<std::vector<TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        TPoolTreeOperationElement* element,
-        const TAllocationUpdate& allocationUpdate) override;
+        const std::vector<TAllocationUpdate>& allocationUpdates) override;
 
     //! Diagnostics.
     void BuildSchedulingAttributesStringForNode(
@@ -725,6 +724,17 @@ private:
     TPersistentOperationSchedulingSegmentStateMap InitialPersistentSchedulingSegmentOperationStates_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    //! Applies a single allocation update. Called in a loop by ProcessAllocationUpdates.
+    TProcessAllocationUpdateResult ProcessAllocationUpdate(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        TPoolTreeOperationElement* element,
+        const TAllocationUpdate& allocationUpdate);
+
+    //! Applies the whole batch on the node shard invoker. Must not suspend (see ProcessAllocationUpdates).
+    std::vector<TProcessAllocationUpdateResult> DoProcessAllocationUpdates(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        const std::vector<TAllocationUpdate>& allocationUpdates);
 
     //! Initialization.
     void InitSchedulingProfilingCounters();
