@@ -182,7 +182,7 @@ bool TProgram::ShouldAbortOnHungShutdown() noexcept
     return true;
 }
 
-void TProgram::OnError(const TString& message) noexcept
+void TProgram::OnError(const std::string& message) noexcept
 {
     try {
         Cerr << message << Endl;
@@ -226,7 +226,7 @@ const NLastGetopt::TOptsParseResult& TProgram::GetOptsParseResult() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProgramException::TProgramException(TString what)
+TProgramException::TProgramException(std::string what)
     : What_(std::move(what))
 { }
 
