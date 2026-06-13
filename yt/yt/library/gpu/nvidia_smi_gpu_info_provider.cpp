@@ -35,19 +35,19 @@ struct TGpuMetricsIndex
         , ClocksMaxSM(Register("clocks.max.sm"))
     { }
 
-    int Register(const TString& name)
+    int Register(const std::string& name)
     {
         int index = Names.size();
         Names.push_back(name);
         return index;
     }
 
-    TString GetQueryString() const
+    std::string GetQueryString() const
     {
         return JoinSeq(",", Names);
     }
 
-    std::vector<TString> Names;
+    std::vector<std::string> Names;
 
     int Uuid;
     int Name;

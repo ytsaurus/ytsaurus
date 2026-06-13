@@ -26,7 +26,7 @@ std::vector<TRdmaDeviceInfo> TGpuInfoProviderBase::GetRdmaDeviceInfos(TDuration 
     return {};
 }
 
-void TGpuInfoProviderBase::ApplyNetworkServiceLevel(const std::vector<TString>& /*deviceIds*/, TNetworkPriority /*serviceLevel*/, TDuration /*timeout*/)
+void TGpuInfoProviderBase::ApplyNetworkServiceLevel(const std::vector<std::string>& /*deviceIds*/, TNetworkPriority /*serviceLevel*/, TDuration /*timeout*/)
 { }
 
 std::vector<std::string> TGpuInfoProviderBase::GetRequiredHostPaths() const

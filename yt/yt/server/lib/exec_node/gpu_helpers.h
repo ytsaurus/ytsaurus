@@ -12,7 +12,7 @@ namespace NYT::NExecNode {
 
 struct TGpuDeviceDescriptor
 {
-    TString DeviceName;
+    std::string DeviceName;
     int DeviceIndex;
 };
 

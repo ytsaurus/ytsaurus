@@ -56,7 +56,7 @@ constinit const auto Logger = ExecNodeLogger;
 TGpuSlot::TGpuSlot(
     TGpuManagerPtr manager,
     int deviceIndex,
-    TString deviceName)
+    std::string deviceName)
     : Manager_(std::move(manager))
     , DeviceIndex_(deviceIndex)
     , DeviceName_(std::move(deviceName))
@@ -64,7 +64,7 @@ TGpuSlot::TGpuSlot(
     YT_VERIFY(Manager_);
 }
 
-TString TGpuSlot::GetDeviceName() const
+std::string TGpuSlot::GetDeviceName() const
 {
     return DeviceName_;
 }
@@ -818,7 +818,7 @@ void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPr
         return;
     }
 
-    std::vector<TString> rdmaDeviceIds;
+    std::vector<std::string> rdmaDeviceIds;
     {
         auto guard = Guard(SpinLock_);
         rdmaDeviceIds.reserve(RdmaDevices_.size());

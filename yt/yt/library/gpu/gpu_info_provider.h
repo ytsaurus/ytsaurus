@@ -21,7 +21,7 @@ struct TGpuInfo
     TInstant UpdateTime;
 
     int Index = -1;
-    TString Name;
+    std::string Name;
 
     double UtilizationGpuRate = 0.0;
     double UtilizationMemoryRate = 0.0;
@@ -55,8 +55,8 @@ void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer);
 
 struct TRdmaDeviceInfo
 {
-    TString Name;
-    TString DeviceId;
+    std::string Name;
+    std::string DeviceId;
     double RxByteRate = 0.0;
     double TxByteRate = 0.0;
 };
@@ -72,7 +72,7 @@ struct IGpuInfoProvider
     virtual std::vector<TGpuInfo> GetGpuInfos(TDuration timeout) const = 0;
     virtual std::vector<TRdmaDeviceInfo> GetRdmaDeviceInfos(TDuration timeout) const = 0;
 
-    virtual void ApplyNetworkServiceLevel(const std::vector<TString>& deviceIds, TNetworkPriority networkServiceLevel, TDuration timeout) = 0;
+    virtual void ApplyNetworkServiceLevel(const std::vector<std::string>& deviceIds, TNetworkPriority networkServiceLevel, TDuration timeout) = 0;
 
     virtual std::vector<std::string> GetRequiredHostPaths() const = 0;
 };
