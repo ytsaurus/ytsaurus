@@ -45,14 +45,14 @@ public:
     }
 
 protected:
-    virtual TString Dump() = 0;
+    virtual std::string Dump() = 0;
 };
 
 class TThreadsHandler
     : public THandlerBase
 {
 private:
-    TString Dump() override
+    std::string Dump() override
     {
         return FormatIntrospectionInfos(IntrospectThreads());
     }
@@ -62,7 +62,7 @@ class TFibersHandler
     : public THandlerBase
 {
 private:
-    TString Dump() override
+    std::string Dump() override
     {
         return FormatIntrospectionInfos(IntrospectFibers());
     }
@@ -70,7 +70,7 @@ private:
 
 void Register(
     const IRequestPathMatcherPtr& handlers,
-    const TString& prefix)
+    const std::string& prefix)
 {
     handlers->Add(prefix + "/threads", New<TThreadsHandler>());
     handlers->Add(prefix + "/fibers", New<TFibersHandler>());
@@ -78,7 +78,7 @@ void Register(
 
 void Register(
     const IServerPtr& server,
-    const TString& prefix)
+    const std::string& prefix)
 {
     Register(server->GetPathMatcher(), prefix);
 }
