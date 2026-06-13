@@ -51,12 +51,12 @@ public:
         TChunkId chunkId,
         TWorkloadDescriptor workloadDescriptor,
         TStoreLocationPtr storeLocation,
-        IInvokerPtr invoker)
+        IInvokerPtr ioInvoker)
     : ChunkSize_(chunkSize)
     , ChunkId_(chunkId)
     , WorkloadDescriptor_(std::move(workloadDescriptor))
     , StoreLocation_(std::move(storeLocation))
-    , Invoker_(std::move(invoker))
+    , IOInvoker_(std::move(ioInvoker))
     , ChunkPath_(StoreLocation_->GetChunkPath(ChunkId_))
     , IOEngine_(StoreLocation_->GetIOEngine())
     , ReadThrottler_(StoreLocation_->GetOutThrottler(WorkloadDescriptor_))
@@ -95,12 +95,9 @@ public:
                         .Apply(
                             BIND([guard = std::move(guard)] (TIOEngineHandlePtr&& ioEngineHandle) {
                                 // Return both guard and handler.
-                                return std::make_pair(std::move(guard), ioEngineHandle);
-                            })
-                            .AsyncVia(Invoker_));
-
-                })
-                .AsyncVia(Invoker_))
+                                return std::make_pair(std::move(guard), std::move(ioEngineHandle));
+                            }));
+                }))
             .AsUnique()
             .Apply(
                 BIND([this, this_ = MakeStrong(this)] (std::pair<TWriteLockPtr, TIOEngineHandlePtr>&& p) {
@@ -115,19 +112,15 @@ public:
                     return resizeFuture.Apply(
                         BIND([guard = std::move(guard), ioEngineHandle] {
                             return std::make_pair(std::move(guard), ioEngineHandle);
-                        })
-                        .AsyncVia(Invoker_));
-
-                })
-                .AsyncVia(Invoker_))
+                        }));
+                }))
             .AsUnique()
             .Apply(
                 BIND([this, this_ = MakeStrong(this)] (std::pair<TWriteLockPtr, TIOEngineHandlePtr>&& p) {
                     IOEngineHandle_ = std::move(p.second);
                     State_ = EState::Initialized;
                     // Guard is released here when it goes out of scope.
-                })
-                .AsyncVia(Invoker_));
+                }));
     }
 
     //! Close NBD file handler and remove NBD chunk file.
@@ -162,10 +155,8 @@ public:
                         .Apply(
                             BIND([guard = std::move(guard)] (TCloseResponse&&) {
                                 return std::move(guard);
-                            })
-                            .AsyncVia(Invoker_));
-                })
-                .AsyncVia(Invoker_))
+                            }));
+                }))
             .AsUnique()
             .Apply(
                 BIND([this, this_ = MakeStrong(this)] (TWriteLockPtr&&) {
@@ -185,7 +176,7 @@ public:
                         throw;
                     }
                 })
-                .AsyncVia(Invoker_));
+                .AsyncVia(IOInvoker_));
     }
 
     //! Read size bytes from NBD chunk at offset.
@@ -265,12 +256,9 @@ public:
 
                                     YT_VERIFY(response.OutputBuffers.size() == 1);
                                     return TBlock(response.OutputBuffers[0]);
-                                })
-                                .AsyncVia(Invoker_));
-                        })
-                        .AsyncVia(Invoker_));
-                })
-                .AsyncVia(Invoker_));
+                                }));
+                        }));
+                }));
     }
 
     //! Write buffer to NBD chunk at offset.
@@ -350,12 +338,9 @@ public:
                                     return NIO::TIOCounters {
                                         .Bytes = response.WrittenBytes,
                                         .IORequests = response.IOWriteRequests};
-                                })
-                                .AsyncVia(Invoker_));
-                        })
-                        .AsyncVia(Invoker_));
-                })
-                .AsyncVia(Invoker_));
+                                }));
+                        }));
+                }));
     }
 
 private:
@@ -366,7 +351,8 @@ private:
     const TChunkId ChunkId_;
     const TWorkloadDescriptor WorkloadDescriptor_;
     const TStoreLocationPtr StoreLocation_;
-    const IInvokerPtr Invoker_;
+    // Invoker for disk I/O requests (i.e. heavy storage operations).
+    const IInvokerPtr IOInvoker_;
     const TString ChunkPath_;
     const IIOEnginePtr IOEngine_;
     TIOEngineHandlePtr IOEngineHandle_;
@@ -385,14 +371,14 @@ INbdChunkHandlerPtr CreateNbdChunkHandler(
     TChunkId chunkId,
     TWorkloadDescriptor workloadDescriptor,
     TStoreLocationPtr storeLocation,
-    IInvokerPtr invoker)
+    IInvokerPtr ioInvoker)
 {
     return New<TNbdChunkHandler>(
         chunkSize,
         std::move(chunkId),
         std::move(workloadDescriptor),
         std::move(storeLocation),
-        std::move(invoker));
+        std::move(ioInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
