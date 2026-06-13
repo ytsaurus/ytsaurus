@@ -339,6 +339,7 @@ class YTEnvSetup(object):
     DRIVER_BACKEND = "native"
     NODE_PORT_SET_SIZE = None
     STORE_LOCATION_COUNT = 1
+    JOB_PROXY_LOG_LOCATION_COUNT = 1
     ARTIFACT_COMPONENTS = {}
     EXTRA_ARTIFACT_COMPONENTS = None
     FORCE_CREATE_ENVIRONMENT = False
@@ -774,6 +775,7 @@ class YTEnvSetup(object):
             log_compression_method="zstd" if cls.ENABLE_LOG_COMPRESSION else None,
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             store_location_count=cls.get_param("STORE_LOCATION_COUNT", index),
+            job_proxy_log_location_count=cls.get_param("JOB_PROXY_LOG_LOCATION_COUNT", index),
             node_io_engine_type=cls.get_param("NODE_IO_ENGINE_TYPE", index),
             node_use_direct_io_for_reads=cls.get_param("NODE_USE_DIRECT_IO_FOR_READS", index),
             cluster_name=cls.get_cluster_name(index),
