@@ -35,7 +35,7 @@ INbdChunkHandlerPtr CreateNbdChunkHandler(
     TChunkId chunkId,
     TWorkloadDescriptor workloadDescriptor,
     TStoreLocationPtr storeLocation,
-    IInvokerPtr invoker);
+    IInvokerPtr ioInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
