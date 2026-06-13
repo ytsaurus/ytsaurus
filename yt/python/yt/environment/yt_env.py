@@ -46,7 +46,7 @@ import stat
 import sys
 import traceback
 from collections import defaultdict, namedtuple, OrderedDict
-from threading import RLock
+from threading import RLock, Thread
 
 logger = logging.getLogger("YtLocal")
 
@@ -837,9 +837,23 @@ class YTInstance(object):
         wait_for_removing_file_lock(os.path.join(self.path, "lock_file"))
 
     def synchronize(self):
-        for func in self._wait_functions:
-            func()
+        exceptions = []
+
+        def run(func):
+            try:
+                func()
+            except Exception as e:
+                exceptions.append(e)
+
+        threads = [Thread(target=run, args=(func,)) for func in self._wait_functions]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
         self._wait_functions = []
+
+        if exceptions:
+            raise exceptions[0]
 
     def rewrite_master_configs(self):
         self._prepare_masters(self._cluster_configuration["master"], force_overwrite=True)
