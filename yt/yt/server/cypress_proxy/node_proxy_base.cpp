@@ -9,7 +9,6 @@ namespace NYT::NCypressProxy {
 using namespace NApi;
 using namespace NObjectClient;
 using namespace NRpc;
-using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,14 +65,8 @@ TCellId TNodeProxyBase::CellIdFromObjectId(TObjectId id)
     return CellIdFromCellTag(CellTagFromId(id));
 }
 
-void TNodeProxyBase::AbortSequoiaSessionForLaterForwardingToMaster(
-    std::optional<TSerializableAccessControlList> forwardEffectiveAcl)
+void TNodeProxyBase::AbortSequoiaSessionForLaterForwardingToMaster(TForwardToMasterPayload payload)
 {
-    TForwardToMasterPayload payload;
-    if (forwardEffectiveAcl) {
-        payload.EffectiveAcl = NYson::ConvertToYsonString(*forwardEffectiveAcl);
-    }
-
     InvokeResult_ = std::move(payload);
     SequoiaSession_->Abort();
 }

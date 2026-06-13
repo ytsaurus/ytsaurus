@@ -117,6 +117,16 @@ NYson::TYsonStringBuf TryGetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequest
     return NYson::TYsonStringBuf(TStringBuf(header.GetExtension(TSequoiaExt::target_node_effective_acl)));
 }
 
+void SetSequoiaNodeHasRowLevelAce(NRpc::NProto::TRequestHeader* header, bool value)
+{
+    header->SetExtension(TSequoiaExt::target_node_has_row_level_ace, value);
+}
+
+bool GetSequoiaNodeHasRowLevelAce(const NRpc::NProto::TRequestHeader& header)
+{
+    return header.GetExtension(TSequoiaExt::target_node_has_row_level_ace);
+}
+
 void SetResolveDepth(NRpc::NProto::TRequestHeader* header, int value)
 {
     header->SetExtension(TResolveDepthExt::resolve_depth, value);

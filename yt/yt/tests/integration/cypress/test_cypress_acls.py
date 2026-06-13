@@ -2029,7 +2029,6 @@ class TestCypressAcls(CheckPermissionBase):
         concatenate(["//tmp/t"], "//tmp/t2", authenticated_user="u1")
 
     @authors("coteeq")
-    @not_implemented_in_sequoia
     def test_full_read_validation(self):
         create_user("u")
         create("table", "//tmp/t")
@@ -2044,7 +2043,6 @@ class TestCypressAcls(CheckPermissionBase):
             set("//tmp/t/@acl", [make_ace("deny", "u", "full_read", columns=["a"])])
 
     @authors("coteeq")
-    @not_implemented_in_sequoia
     def test_full_read_simple(self):
         create_user("u")
         create_user("restricted")
@@ -2077,7 +2075,6 @@ class TestCypressAcls(CheckPermissionBase):
         copy("//tmp/t", "//tmp/t_copy", authenticated_user="restricted")
 
     @authors("coteeq")
-    @not_implemented_in_sequoia
     def test_full_read_and_deny_read(self):
         create_user("u")
 
@@ -2104,7 +2101,6 @@ class TestCypressAcls(CheckPermissionBase):
             copy("//tmp/t", "//tmp/t_copy", authenticated_user="u")
 
     @authors("coteeq")
-    @not_implemented_in_sequoia
     def test_absence_of_read_does_not_mention_full_read(self):
         # NB(coteeq): This is a test for the behaviour that is designed to
         # decrease entropy with the access control rules.
@@ -2128,7 +2124,6 @@ class TestCypressAcls(CheckPermissionBase):
             copy("//tmp/t", "//tmp/t_copy", authenticated_user="u")
 
     @authors("coteeq")
-    @not_implemented_in_sequoia
     def test_alter_requires_full_read(self):
         create_user("u")
         create_user("u_with_partial_read")
@@ -2706,9 +2701,24 @@ class TestRowAcls(YTEnvSetup):
         get("//tmp/t/@row_count")
 
 
+@authors("danilalexeev")
+@pytest.mark.enabled_multidaemon
+class TestRowAclsSequoia(TestRowAcls):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_NODES = 3
+    NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["sequoia_node_host"]},
+    }
+
+
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressAclsMulticell(TestCypressAcls):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 3
