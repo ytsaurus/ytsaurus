@@ -261,6 +261,9 @@ func encodeReflectStruct(value reflect.Value, indexMap map[NameTableEntry]uint16
 		if err != nil {
 			return nil, err
 		}
+		if f.aggregate {
+			value.Aggregate = f.aggregate
+		}
 
 		row = append(row, value)
 	}
