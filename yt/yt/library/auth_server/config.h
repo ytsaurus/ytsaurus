@@ -98,6 +98,20 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxTicketAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCachingTicketAuthenticatorConfig
+    : public virtual NYTree::TYsonStruct
+{
+    TAuthCacheConfigPtr Cache;
+
+    REGISTER_YSON_STRUCT(TCachingTicketAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingTicketAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCachingTokenAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -607,6 +621,7 @@ struct TAuthenticationManagerConfig
     TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
     TTvmServiceConfigPtr TvmService;
     TBlackboxTicketAuthenticatorConfigPtr BlackboxTicketAuthenticator;
+    TCachingTicketAuthenticatorConfigPtr CachingTicketAuthenticator;
     TCachingOAuthCookieAuthenticatorConfigPtr OAuthCookieAuthenticator;
     TCachingOAuthTokenAuthenticatorConfigPtr OAuthTokenAuthenticator;
     TOAuthServiceConfigPtr OAuthService;

@@ -82,6 +82,20 @@ void TBlackboxTicketAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCachingTicketAuthenticatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cache", &TThis::Cache)
+        .DefaultCtor([] {
+            auto config = New<TAuthCacheConfig>();
+            config->CacheTtl = TDuration::Seconds(30);
+            config->OptimisticCacheTtl = TDuration::Minutes(5);
+            config->ErrorTtl = TDuration::Seconds(15);
+            return config;
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCachingTokenAuthenticatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cache", &TThis::Cache)
@@ -523,6 +537,8 @@ void TAuthenticationManagerConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("blackbox_ticket_authenticator", &TThis::BlackboxTicketAuthenticator)
         .Optional();
+    registrar.Parameter("caching_ticket_authenticator", &TThis::CachingTicketAuthenticator)
+        .DefaultNew();
     registrar.Parameter("cypress_cookie_manager", &TThis::CypressCookieManager)
         .Default();
     registrar.Parameter("oauth_cookie_authenticator", &TThis::OAuthCookieAuthenticator)

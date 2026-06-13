@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -30,6 +32,11 @@ ITicketAuthenticatorPtr CreateBlackboxTicketAuthenticator(
     TBlackboxTicketAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackboxService,
     ITvmServicePtr tvmService);
+
+ITicketAuthenticatorPtr CreateCachingTicketAuthenticator(
+    TCachingTicketAuthenticatorConfigPtr config,
+    ITicketAuthenticatorPtr underlying,
+    NProfiling::TProfiler profiler = {});
 
 NRpc::IAuthenticatorPtr CreateTicketAuthenticatorWrapper(
     ITicketAuthenticatorPtr underlying);
