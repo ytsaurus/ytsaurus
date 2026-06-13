@@ -154,10 +154,13 @@ public:
         }
 
         if (blackboxService && config->BlackboxTicketAuthenticator) {
-            TicketAuthenticator_ = CreateBlackboxTicketAuthenticator(
-                config->BlackboxTicketAuthenticator,
-                blackboxService,
-                TvmService_);
+            TicketAuthenticator_ = CreateCachingTicketAuthenticator(
+                config->CachingTicketAuthenticator,
+                CreateBlackboxTicketAuthenticator(
+                    config->BlackboxTicketAuthenticator,
+                    blackboxService,
+                    TvmService_),
+                AuthProfiler().WithPrefix("/blackbox_ticket_authenticator/cache"));
             rpcAuthenticators.push_back(
                 CreateTicketAuthenticatorWrapper(TicketAuthenticator_));
         }
