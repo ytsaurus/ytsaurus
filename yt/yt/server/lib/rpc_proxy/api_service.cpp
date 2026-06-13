@@ -4505,6 +4505,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MultiLookup)
         request,
         &options);
 
+    options.AllowFailure = request->allow_failure();
+    if (request->has_subrequest_timeout()) {
+        options.SubrequestTimeout = FromProto<TDuration>(request->subrequest_timeout());
+    }
     std::vector<TMultiLookupSubrequest> subrequests;
     std::vector<TDetailedProfilingInfoPtr> profilingInfos;
     subrequests.reserve(subrequestCount);
@@ -4588,16 +4592,23 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MultiLookup)
             std::vector<int> rowCounts;
             rowCounts.reserve(subrequestCount);
             for (const auto& result : results) {
-                const auto& rowset = result.Rowset;
                 auto* subresponse = response->add_subresponses();
-                auto attachments = PrepareRowsetForAttachment(subresponse, rowset);
-                subresponse->set_attachment_count(attachments.size());
-                ToProto(subresponse->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
-                response->Attachments().insert(
-                    response->Attachments().end(),
-                    attachments.begin(),
-                    attachments.end());
-                rowCounts.push_back(rowset->GetRows().Size());
+                if (result.Error) {
+                    ToProto(subresponse->mutable_error(), *result.Error);
+                    subresponse->set_attachment_count(0);
+                    subresponse->mutable_rowset_descriptor();
+                    rowCounts.push_back(0);
+                } else {
+                    const auto& rowset = result.Rowset;
+                    auto attachments = PrepareRowsetForAttachment(subresponse, rowset);
+                    subresponse->set_attachment_count(attachments.size());
+                    ToProto(subresponse->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
+                    response->Attachments().insert(
+                        response->Attachments().end(),
+                        attachments.begin(),
+                        attachments.end());
+                    rowCounts.push_back(rowset->GetRows().Size());
+                }
             }
 
             for (const auto& detailedProfilingInfo : profilingInfos) {
