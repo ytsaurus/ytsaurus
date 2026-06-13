@@ -33,10 +33,10 @@ constexpr TStringBuf ErrorMessageTruncatedSuffix = "...<message truncated>";
 
 namespace {
 
-class TEnricherStorage
+struct TEnricherStorage
 {
-public:
-    static TEnricherStorage* Get() {
+    static TEnricherStorage* Get()
+    {
         return LeakySingleton<TEnricherStorage>();
     }
 
