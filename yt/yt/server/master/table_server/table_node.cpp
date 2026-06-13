@@ -702,7 +702,7 @@ void TTableNode::ValidateReshard(
         return;
     }
 
-    if (IsPhysicallyLog() && !IsLogicallyEmpty() && !IsSorted()) {
+    if (IsPhysicallyLog() && !IsLogicallyEmpty() && !(IsSorted() && IsReplicated())) {
         THROW_ERROR_EXCEPTION("Cannot reshard non-empty table of type %Qlv",
             GetType());
     }

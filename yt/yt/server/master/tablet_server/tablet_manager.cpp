@@ -4149,13 +4149,15 @@ private:
             }
         }
 
-        THashMap<TTabletId, i64> savedTrimmedRowCounts;
-        THashMap<TTabletId, THashMap<TTableReplicaId, TTableReplicaInfo>> savedReplicaInfos;
+        std::vector<i64> savedTrimmedRowCounts;
+        std::vector<THashMap<TTableReplicaId, TTableReplicaInfo>> savedReplicaInfos;
         if (table->IsReplicated() && table->IsSorted()) {
+            savedTrimmedRowCounts.reserve(oldTabletCount);
+            savedReplicaInfos.reserve(oldTabletCount);
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* tablet = tablets[index]->As<TTablet>();
-                savedTrimmedRowCounts[tablet->GetId()] = tablet->GetTrimmedRowCount();
-                auto& tabletSaved = savedReplicaInfos[tablet->GetId()];
+                savedTrimmedRowCounts.push_back(tablet->GetTrimmedRowCount());
+                auto& tabletSaved = savedReplicaInfos.emplace_back();
                 for (const auto& [replica, info] : tablet->Replicas()) {
                     tabletSaved[replica->GetId()] = info;
                 }
@@ -4164,7 +4166,7 @@ private:
 
         std::vector<TOwningKeyBound> oldPivotKeyBounds;
         std::vector<TTabletId> oldTabletIds;
-        oldTabletIds.reserve(lastTabletIndex - firstTabletIndex + 1);
+        oldTabletIds.reserve(oldTabletCount);
 
         // Drop old tablets.
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
@@ -4208,12 +4210,10 @@ private:
 
         if (table->IsReplicated() && table->IsSorted()) {
             auto comparator = table->GetSchema()->AsCompactTableSchema()->ToComparator();
-            int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
             int relativeNewTabletIndex = 0;
             for (int relativeOldTabletIndex = 0; relativeOldTabletIndex < oldTabletCount; ++relativeOldTabletIndex) {
-                auto originatorTabletId = oldTabletIds[relativeOldTabletIndex];
-                const auto& savedReplicas = GetOrCrash(savedReplicaInfos, originatorTabletId);
-                auto savedTrimmedRowCount = GetOrCrash(savedTrimmedRowCounts, originatorTabletId);
+                const auto& savedReplicas = savedReplicaInfos[relativeOldTabletIndex];
+                auto savedTrimmedRowCount = savedTrimmedRowCounts[relativeOldTabletIndex];
 
                 while (relativeNewTabletIndex < std::ssize(newTablets)) {
                     auto* newTablet = newTablets[relativeNewTabletIndex];
