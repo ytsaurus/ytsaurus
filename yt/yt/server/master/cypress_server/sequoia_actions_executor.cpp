@@ -19,6 +19,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/core/ypath/helpers.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -833,7 +835,7 @@ private:
             YT_LOG_ALERT_IF(path.empty(),
                 "Effective ACL was provided with empty relative path (NodeId: %v)",
                 nodeId);
-            SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), request->effective_acl());
+            SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), FromProto<TYsonString>(request->effective_acl()));
         }
 
         SyncExecuteVerb(
@@ -891,7 +893,7 @@ private:
         innerRequest->set_force(force);
         SetAccessTrackingOptions(innerRequest, accessTrackingOptions);
         if (request->has_effective_acl()) {
-            SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), request->effective_acl());
+            SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), FromProto<TYsonString>(request->effective_acl()));
         }
 
         SyncExecuteVerb(
@@ -956,7 +958,7 @@ private:
 
         auto innerRequest = TCypressYPathProxy::Remove(path);
         innerRequest->set_force(force);
-        SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), request->effective_acl());
+        SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), FromProto<TYsonString>(request->effective_acl()));
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),

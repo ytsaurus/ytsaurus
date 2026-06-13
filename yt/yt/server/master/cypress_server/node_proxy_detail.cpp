@@ -1071,7 +1071,7 @@ void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IYPathServiceContextPt
 {
     AccessTrackingSuppressed_ = GetSuppressAccessTracking(context->RequestHeader());
     ExpirationTimeoutRenewalSuppressed_ = GetSuppressExpirationTimeoutRenewal(context->RequestHeader());
-    SequoiaNodeEffectiveAcl_ = GetSequoiaNodeEffectiveAcl(context->RequestHeader());
+    SequoiaNodeEffectiveAcl_ = TryGetSequoiaNodeEffectiveAcl(context->RequestHeader());
     ValidateMethodWhitelistedForTransaction(context->GetMethod());
 
     TObjectProxyBase::BeforeInvoke(context);
@@ -1081,7 +1081,7 @@ void TNontemplateCypressNodeProxyBase::AfterInvoke(const IYPathServiceContextPtr
 {
     SetAccessed();
     SetTouched();
-    SequoiaNodeEffectiveAcl_.reset();
+    SequoiaNodeEffectiveAcl_ = {};
     SequoiaNodeDeserializedEffectiveAcl_.reset();
     TObjectProxyBase::AfterInvoke(context);
 }
@@ -1422,7 +1422,7 @@ TPermissionCheckResponse TNontemplateCypressNodeProxyBase::DoCheckPermission(
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     if (Object_->IsSequoia()) {
-        if (!SequoiaNodeEffectiveAcl_.has_value()) {
+        if (!SequoiaNodeEffectiveAcl_) {
             YT_LOG_ALERT(
                 "Missing effective ACL on permission validation for Sequoia node (NodeId: %v)",
                 TrunkNode_->GetId());
@@ -1431,7 +1431,7 @@ TPermissionCheckResponse TNontemplateCypressNodeProxyBase::DoCheckPermission(
         }
 
         if (!SequoiaNodeDeserializedEffectiveAcl_.has_value()) {
-            auto aclNode = ConvertToNode(TYsonStringBuf(*SequoiaNodeEffectiveAcl_));
+            auto aclNode = ConvertToNode(SequoiaNodeEffectiveAcl_);
             // After removed, the Sequoia ACL table still contains the subject
             // until the next GUQM sync.
             auto result = DeserializeAclGatherMissingAndPendingRemovalSubjectsOrThrow(
@@ -1501,7 +1501,7 @@ void TNontemplateCypressNodeProxyBase::ValidateAdHocPermission(
     }
 
     // TODO(danilalexeev): YT-24575. Remove this check.
-    if (!SequoiaNodeEffectiveAcl_.has_value()) {
+    if (!SequoiaNodeEffectiveAcl_) {
         return;
     }
 
