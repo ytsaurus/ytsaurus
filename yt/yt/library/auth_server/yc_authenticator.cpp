@@ -165,7 +165,7 @@ protected:
         }
 
         const auto& formattedResponse = jsonResponseChecker->GetFormattedResponse()->AsMap();
-        auto login = formattedResponse->GetChildValueOrThrow<TString>(AuthenticateLoginField);
+        auto login = formattedResponse->GetChildValueOrThrow<std::string>(AuthenticateLoginField);
         auto groups = formattedResponse->GetChildValueOrDefault<std::vector<std::string>>(
             AuthenticateGroupsField,
             std::vector<std::string>());
