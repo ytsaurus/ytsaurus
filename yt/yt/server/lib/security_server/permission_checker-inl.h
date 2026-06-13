@@ -294,7 +294,7 @@ void TSubtreePermissionChecker<TAccessControlEntry, TCallback>::TrackAce(
     }
 
     auto subjectId = MatchAceSubjectCallback_(*ace);
-    if (!subjectId) {
+    if (!subjectId && !ace->RowAccessPredicate) {
         return;
     }
 
