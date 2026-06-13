@@ -4438,9 +4438,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MultiLookup)
         request,
         &options);
 
-    if (request->has_allow_failure()) {
-        options.AllowFailure = request->allow_failure();
-    }
+    options.AllowFailure = request->allow_failure();
     if (request->has_subrequest_timeout()) {
         options.SubrequestTimeout = FromProto<TDuration>(request->subrequest_timeout());
     }
