@@ -626,7 +626,8 @@ private:
         }
 
         auto fileLogWriterConfig = ConvertTo<TFileLogWriterConfigPtr>(logWriterConfigNode);
-        return fileLogWriterConfig->FileName;
+        // TODO(babenko): migrate to std::string
+        return TString(fileLogWriterConfig->FileName);
     }
 
     TString GetShardingKey(TJobId jobId) const

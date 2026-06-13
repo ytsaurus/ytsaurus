@@ -3410,7 +3410,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
 
-            fileLogWriterConfig->FileName = jobProxyLogManager->AdjustLogPath(Id_, fileLogWriterConfig->FileName);
+            // TODO(babenko): migrate to std::string
+            fileLogWriterConfig->FileName = jobProxyLogManager->AdjustLogPath(Id_, TString(fileLogWriterConfig->FileName));
         }
 
         return ConvertTo<IMapNodePtr>(fileLogWriterConfig);
