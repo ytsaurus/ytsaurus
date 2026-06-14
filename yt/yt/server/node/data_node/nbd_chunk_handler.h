@@ -35,7 +35,9 @@ INbdChunkHandlerPtr CreateNbdChunkHandler(
     TChunkId chunkId,
     TWorkloadDescriptor workloadDescriptor,
     TStoreLocationPtr storeLocation,
-    IInvokerPtr ioInvoker);
+    IInvokerPtr ioInvoker,
+    NConcurrency::IThroughputThrottlerPtr readNetThrottler,
+    NConcurrency::IThroughputThrottlerPtr writeNetThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////
 
