@@ -43,6 +43,7 @@ struct TQueryEngineDynamicConfig
     std::optional<bool> EnableParallelizeUnorderedGroupBy;
     std::optional<int> ExpressionBuilderVersion;
     std::optional<NCodegen::EOptimizationLevel> OptimizationLevel;
+    std::optional<bool> AllowUdfObjectCodeCache;
     std::optional<bool> RewriteCardinalityIntoHyperLogLogWithPrecision; // COMPAT(dtorilov): Remove after 25.4.
     std::optional<bool> AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse;
     std::optional<int> TruncatedQueryLengthForTracing;

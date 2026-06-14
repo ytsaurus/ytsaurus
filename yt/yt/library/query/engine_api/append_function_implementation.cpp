@@ -17,6 +17,7 @@ Y_WEAK void AppendFunctionImplementation(
     TType /*functionRepeatedArgType*/,
     int /*functionRepeatedArgIndex*/,
     bool /*functionUseFunctionContext*/,
+    const TQueryOptions& /*options*/,
     const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& /*implementationFiles*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/append_function_implementation.cpp
