@@ -70,11 +70,6 @@ std::optional<TReplicatedTableMappingTableRow> GetReplicatedTableMappingRow(cons
     return {};
 }
 
-std::optional<TReplicatedTableMappingTableRow> GetReplicatedTableMappingRow(const THashMap<TTablePath, TReplicatedTableMappingTableRow>& replicatedTableMapping, const TGenericObjectReference& ref)
-{
-    return GetReplicatedTableMappingRow(replicatedTableMapping, ToTablePath(ref));
-}
-
 const TQueueTableRow& GetTableRow(const TQueueTableRow& row)
 {
     return row;
@@ -247,7 +242,7 @@ public:
         if (objectToHostIt == objectToHost.end()) {
             THROW_ERROR_EXCEPTION(
                 NQueueClient::EErrorCode::QueueAgentObjectIsNotMapped,
-                "Object %Qv is not mapped to any queue agent",
+                "Object %v is not mapped to any queue agent",
                 ref);
         }
 
@@ -255,7 +250,7 @@ public:
             // NB(apachee): It is possible to try to access queue using consumers orchid (and vice versa), e.g.
             // //queue_agent/consumers/<queue>, and previously that would've let to redirect, but
             // this condition short-circuits resolving of such paths.
-            THROW_ERROR_EXCEPTION("Type of the object %Qv does not match with the path used", ref);
+            THROW_ERROR_EXCEPTION("Type of the object %v does not match with the path used", ref);
         }
 
         const auto& objectAgentId = objectToHostIt->second;
@@ -280,7 +275,7 @@ public:
 
         auto it = objectMap.find(ref);
         if (it == objectMap.end()) {
-            THROW_ERROR_EXCEPTION("Object %Qv is missing", ref);
+            THROW_ERROR_EXCEPTION("Object %v is missing", ref);
         }
 
         return IYPathService::FromProducer(BIND(&IObjectController::BuildOrchid, it->second.Controller));
@@ -831,7 +826,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
 
             // We either recreate controller from scratch, or keep existing controller.
             // If we keep existing controller, we notify it of (potential) row change.
-            auto recreated = updateController(controller, leading, entity, GetReplicatedTableMappingRow(replicatedTableMapping, ref));
+            auto recreated = updateController(controller, leading, entity, GetReplicatedTableMappingRow(replicatedTableMapping, GetTableRow(entity).Path));
 
             YT_LOG_DEBUG(
                 "Controller updated (Kind: %v, Object: %v, Reused: %v, Recreated: %v, Leading: %v)",
@@ -982,7 +977,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
             } else {
                 object.Controller->OnRowUpdated(row);
             }
-            object.Controller->OnReplicatedTableMappingRowUpdated(GetReplicatedTableMappingRow(replicatedTableMapping, GetObjectReference(row)));
+            object.Controller->OnReplicatedTableMappingRowUpdated(GetReplicatedTableMappingRow(replicatedTableMapping, GetTableRow(row).Path));
         }
     };
 

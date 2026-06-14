@@ -216,7 +216,8 @@ THashMap<std::string, TQueueExportProgressPtr> DoGetQueueExportProgressFromObjec
     auto exportsPath = Format("/%v/status/exports", ToYPathLiteral(stringPath));
     auto queueExportsYson = WaitFor(AsyncYPathGet(queueService, exportsPath))
         .ValueOrThrow("Get request failed (Queue: %v, ExportsPath: %v)",
-            queuePath, exportsPath);
+            queuePath,
+            exportsPath);
 
     auto queueExportsNode = ConvertTo<IMapNodePtr>(queueExportsYson);
     if (auto error = queueExportsNode->FindChildValue<TError>("error")) {

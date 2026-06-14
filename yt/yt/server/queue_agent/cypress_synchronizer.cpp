@@ -738,7 +738,6 @@ private:
         WaitFor(AllSucceeded(std::vector{asyncQueues.AsVoid(), asyncConsumers.AsVoid(), asyncReplicatedTableMapping.AsVoid()}))
             .ThrowOnError();
 
-
         for (const auto& queue : asyncQueues.GetOrCrash().Value()) {
             ClusterToDynamicStateObjects_[queue.Path.GetCluster().value()].push_back({
                 queue.Path.GetPath(),

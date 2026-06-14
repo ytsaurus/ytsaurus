@@ -681,7 +681,7 @@ private:
             // Current implementation somewhat mirrors the old one, but not exactly, as both choose random corresponding CRT.
             // TODO(apachee): In case of chaos replicas only choose CRTs that own its replication card.
             auto replica = row.ReplicaPath;
-            replicaMapping.emplace(replica, std::move(row));
+            replicaMapping.insert_or_assign(replica, std::move(row));
         }
 
         std::vector<std::optional<TReplicaMappingTableRow>> result;
@@ -1336,7 +1336,8 @@ private:
         TConsumerReference resolvedConsumer) override
     {
         auto resultOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
-            std::move(resolvedQueue), std::move(resolvedConsumer))));
+            std::move(resolvedQueue),
+            std::move(resolvedConsumer))));
 
         if (!resultOrError.IsOK()) {
             // NB(apachee): Error for missing registration is handled in base class.
@@ -1376,7 +1377,8 @@ private:
         // NB(apachee): #TListRegistrationsCache is only used for listing registrations by queue or consumer.
         if (resolvedQueue && resolvedConsumer) {
             auto registrationOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
-                std::move(*resolvedQueue), std::move(*resolvedConsumer))));
+                std::move(*resolvedQueue),
+                std::move(*resolvedConsumer))));
 
             if (!registrationOrError.IsOK() && !registrationOrError.FindMatching(EErrorCode::DynamicStateMissingRow)) {
                 THROW_ERROR_EXCEPTION(registrationOrError);
@@ -1387,7 +1389,8 @@ private:
                 : std::vector<TConsumerRegistrationTableRow>();
         }
 
-        return WaitFor(ListRegistrationsCache_->Get(TListRegistrationsCacheKey(std::move(resolvedQueue), std::move(resolvedConsumer))))
+        TListRegistrationsCacheKey key(std::move(resolvedQueue), std::move(resolvedConsumer));
+        return WaitFor(ListRegistrationsCache_->Get(key))
             .ValueOrThrow();
     }
 

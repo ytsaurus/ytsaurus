@@ -29,7 +29,7 @@ void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& a
     TStringOutput output(attrString);
     TYsonWriter attrWriter(&output, EYsonFormat::Text, EYsonType::MapFragment);
 
-    std::ranges::sort(attributePairs, [](const auto& lhs, const auto& rhs) {
+    std::ranges::sort(attributePairs, [] (const auto& lhs, const auto& rhs) {
         return lhs.first < rhs.first;
     });
 

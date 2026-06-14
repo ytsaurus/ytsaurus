@@ -896,7 +896,7 @@ private:
         {
             auto replicaQueueObjectId = ReplicaSnapshot->Row.ObjectId;
             if (!replicaQueueObjectId) {
-                THROW_ERROR_EXCEPTION("Object id is not known for queue replica %Qv, trimming iteration skipped", Path);
+                THROW_ERROR_EXCEPTION("Object id is not known for queue replica %v, trimming iteration skipped", Path);
             }
             ObjectPath = FromObjectId(*replicaQueueObjectId);
 
@@ -933,7 +933,7 @@ private:
             TTablePath replicaPath{replica};
             auto replicaSnapshot = ObjectStore_->FindQueueSnapshot(replicaPath);
             if (!replicaSnapshot) {
-                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing snapshot for queue replica %Qv", replicaPath);
+                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing snapshot for queue replica %v", replicaPath);
             }
 
             auto& replicaContext = replicaContexts.emplace_back(replicaPath, replicaSnapshot);
@@ -963,7 +963,7 @@ private:
             TTablePath replicaPath(std::move(path));
             auto replicaSnapshot = ObjectStore_->FindQueueSnapshot(replicaPath);
             if (!replicaSnapshot) {
-                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing replica snapshot %Qv", replicaPath);
+                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing replica snapshot %v", replicaPath);
             }
             replicaContexts.emplace_back(replicaPath, replicaSnapshot);
         }
@@ -1003,7 +1003,7 @@ private:
         for (const auto& [replicaContext, safeTrimRowCountsOrError] : Zip(replicaContexts, asyncSafeTrimRowCountsOrErrors)) {
             if (!safeTrimRowCountsOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION(
-                    "Unable to get safe trim row counts for replica %Qv, trimming iteration skipped",
+                    "Unable to get safe trim row counts for replica %v, trimming iteration skipped",
                     replicaContext.Path)
                     << safeTrimRowCountsOrError;
             }
@@ -1042,12 +1042,13 @@ private:
             return;
         }
 
-        auto timestampProvider = ClientDirectory_->GetClientOrThrow(QueuePath_.GetCluster().value())->GetTimestampProvider();
+        auto cluster = QueuePath_.GetCluster().value();
+        auto timestampProvider = ClientDirectory_->GetClientOrThrow(cluster)->GetTimestampProvider();
         YT_VERIFY(timestampProvider);
 
         auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
         if (!currentTimestampOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Cannot generate timestamp for cluster %Qv, trimming iteration skipped", QueuePath_.GetCluster().value())
+            THROW_ERROR_EXCEPTION("Cannot generate timestamp for cluster %Qv, trimming iteration skipped", cluster)
                 << currentTimestampOrError;
         }
         auto currentTimestamp = currentTimestampOrError.Value();
@@ -1247,7 +1248,7 @@ private:
 
             if (QueueSnapshot->PartitionCount != Context.ReplicaSnapshot->PartitionCount) {
                 THROW_ERROR_EXCEPTION(
-                    "Cannot perform trimming iteration, control queue %Qv and replica queue %Qv do not "
+                    "Cannot perform trimming iteration, control queue %v and replica queue %v do not "
                     "have the same number of partitions: %v vs %v, respectively; this is probably a misconfiguration",
                     QueuePath,
                     Context.Path,
@@ -1288,24 +1289,24 @@ private:
                 auto consumerSnapshot = ObjectStore->FindConsumerSnapshot(registration.Consumer);
                 if (!consumerSnapshot) {
                     THROW_ERROR_EXCEPTION(
-                        "Trimming iteration skipped due to missing registered vital consumer %Qv",
+                        "Trimming iteration skipped due to missing registered vital consumer %v",
                         registration.Consumer);
                 } else if (!consumerSnapshot->Error.IsOK()) {
                     THROW_ERROR_EXCEPTION(
-                        "Trimming iteration skipped due to erroneous registered vital consumer %Qv",
+                        "Trimming iteration skipped due to erroneous registered vital consumer %v",
                         consumerSnapshot->Ref)
                         << consumerSnapshot->Error;
                 }
                 auto it = consumerSnapshot->SubSnapshots.find(QueuePath);
                 if (it == consumerSnapshot->SubSnapshots.end()) {
                     THROW_ERROR_EXCEPTION(
-                        "Trimming iteration skipped due to vital consumer %Qv snapshot not containing information about queue",
+                        "Trimming iteration skipped due to vital consumer %v snapshot not containing information about queue",
                         consumerSnapshot->Ref);
                 }
                 const auto& consumerSubSnapshot = it->second;
                 if (!consumerSubSnapshot->Error.IsOK()) {
                     THROW_ERROR_EXCEPTION(
-                        "Trimming iteration skipped due to erroneous queue sub-snapshot in registered vital consumer %Qv",
+                        "Trimming iteration skipped due to erroneous queue sub-snapshot in registered vital consumer %v",
                         consumerSnapshot->Ref)
                         << consumerSubSnapshot->Error;
                 }
@@ -1314,7 +1315,7 @@ private:
 
             if (VitalConsumerSubSnapshots.empty() && !AggregatedQueueExportsProgress.HasExports) {
                 THROW_ERROR_EXCEPTION(
-                    "Attempted trimming iteration on queue %Qv with no vital consumers and no configured static table exports",
+                    "Attempted trimming iteration on queue %v with no vital consumers and no configured static table exports",
                     QueuePath);
             }
         }
@@ -1377,7 +1378,7 @@ private:
                             }
                         } else {
                             partitionContext.Update({.PartitionError = TError(
-                                "Queue sub-snapshot for consumer %Qv does not contain a snapshot for partition %v",
+                                "Queue sub-snapshot for consumer %v does not contain a snapshot for partition %v",
                                 consumerPath,
                                 partitionIndex)});
                             break;
@@ -1422,7 +1423,7 @@ private:
             auto safeTrimRowCountsOrError = WaitFor(internalClient->GetOrderedTabletSafeTrimRowCount(safeTrimRowCountRequests));
             if (!safeTrimRowCountsOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION(
-                    "Unable to get safe trim row counts for replica %Qv to satisfy configured trimming parameters, trimming iteration skipped",
+                    "Unable to get safe trim row counts for replica %v to satisfy configured trimming parameters, trimming iteration skipped",
                     Context.Path)
                     << safeTrimRowCountsOrError;
             }
