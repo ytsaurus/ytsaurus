@@ -74,7 +74,7 @@ set_property(
   unittester-tools-trigrep
   PROPERTY
   LABELS
-  SMALL
+  MEDIUM
 )
 
 set_property(

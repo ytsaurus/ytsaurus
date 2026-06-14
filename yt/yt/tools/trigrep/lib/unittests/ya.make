@@ -1,5 +1,7 @@
 GTEST(unittester-tools-trigrep)
 
+SIZE(MEDIUM)
+
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
