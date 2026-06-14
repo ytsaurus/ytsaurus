@@ -1159,7 +1159,7 @@ class TQueueExporter
 public:
     TQueueExporter(
         TString exportName,
-        TCrossClusterReference queue,
+        TTablePath queue,
         TQueueStaticExportConfigPtr exportConfig,
         TQueueExporterDynamicConfig dynamicConfig,
         TClientDirectoryPtr clientDirectory,
@@ -1284,7 +1284,7 @@ private:
     std::atomic<ui64> LastSuccessfulExportUnixTs_ = 0;
 
     const TString ExportName_;
-    const TCrossClusterReference Queue_;
+    const TTablePath Queue_;
     const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
     const IQueueExportManagerPtr QueueExportManager_;
@@ -1387,9 +1387,9 @@ private:
         }
 
         TQueueExportTaskPtr exportTask = New<TQueueExportTask>(
-            ClientDirectory_->GetClientOrThrow(Queue_.Cluster),
+            ClientDirectory_->GetClientOrThrow(Queue_.GetCluster().value()),
             Invoker_,
-            Queue_.Path,
+            Queue_.GetPath(),
             exportConfig,
             std::move(dynamicConfig),
             isInitialInvocation,
@@ -1468,7 +1468,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueExporter)
 
 IQueueExporterPtr CreateQueueExporter(
     TString exportName,
-    TCrossClusterReference queue,
+    TTablePath queue,
     TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,
     TClientDirectoryPtr clientDirectory,

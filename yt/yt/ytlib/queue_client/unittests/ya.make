@@ -6,6 +6,7 @@ ALLOCATOR(TCMALLOC)
 
 SRCS(
     config_ut.cpp
+    path_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

@@ -81,8 +81,8 @@ auto GroupBy(F f, std::vector<T> values)
 
 struct TRegistrationCacheKey
 {
-    TCrossClusterReference Queue;
-    TCrossClusterReference Consumer;
+    TTablePath Queue;
+    TConsumerReference Consumer;
 
     std::strong_ordering operator<=>(const TRegistrationCacheKey&) const = default;
 };
@@ -101,17 +101,17 @@ void FormatValue(TStringBuilderBase* builder, const TRegistrationCacheKey& value
 //! Listing all registrations is forbidden.
 struct TListRegistrationsCacheKey
 {
-    std::optional<TCrossClusterReference> Queue;
-    std::optional<TCrossClusterReference> Consumer;
+    std::optional<TTablePath> Queue;
+    std::optional<TConsumerReference> Consumer;
 
-    explicit TListRegistrationsCacheKey(std::optional<TCrossClusterReference> queue, std::optional<TCrossClusterReference> consumer)
+    explicit TListRegistrationsCacheKey(std::optional<TTablePath> queue, std::optional<TConsumerReference> consumer)
         : Queue(std::move(queue))
         , Consumer(std::move(consumer))
     {
-        if (queue.has_value() && consumer.has_value()) {
+        if (Queue.has_value() && Consumer.has_value()) {
             THROW_ERROR_EXCEPTION("Internal failure: trivial list registrations requests should be resolved using TRegistrationLookupCache");
         }
-        if (!queue.has_value() && !consumer.has_value()) {
+        if (!Queue.has_value() && !Consumer.has_value()) {
             THROW_ERROR_EXCEPTION("Internal failure: listing all registrations is forbidden");
         }
     }
@@ -128,7 +128,7 @@ void FormatValue(TStringBuilderBase* builder, const TListRegistrationsCacheKey& 
 
 struct TReplicaMappingCacheKey
 {
-    TCrossClusterReference Replica;
+    TTablePath Replica;
     std::strong_ordering operator<=>(const TReplicaMappingCacheKey&) const = default;
 };
 
@@ -580,7 +580,7 @@ private:
     }
 
 private:
-    TFuture<THashMap<TCrossClusterReference, std::vector<TConsumerRegistrationTableRow>>> ListByQueue(const TConsumerRegistrationTablePtr& table) const
+    TFuture<THashMap<TTablePath, std::vector<TConsumerRegistrationTableRow>>> ListByQueue(const TConsumerRegistrationTablePtr& table) const
     {
         static const auto query = Format(
             "([%v], [%v]) IN {%v}",
@@ -591,7 +591,7 @@ private:
         std::vector<std::pair<TString, TString>> queues;
         for (const auto& key : Keys_) {
             if (auto queue = key.Queue; queue.has_value()) {
-                queues.emplace_back(queue->Cluster, queue->Path);
+                queues.emplace_back(queue->GetCluster().value(), queue->GetPath());
             }
         }
 
@@ -608,7 +608,7 @@ private:
             }));
     }
 
-    TFuture<THashMap<TCrossClusterReference, std::vector<TConsumerRegistrationTableRow>>> ListByConsumer(const TConsumerRegistrationTablePtr& table) const
+    TFuture<THashMap<TConsumerReference, std::vector<TConsumerRegistrationTableRow>>> ListByConsumer(const TConsumerRegistrationTablePtr& table) const
     {
         static const auto query = Format(
             "([%v], [%v]) IN {%v}",
@@ -619,7 +619,7 @@ private:
         std::vector<std::pair<TString, TString>> consumers;
         for (const auto& key : Keys_) {
             if (auto consumer = key.Consumer; consumer.has_value()) {
-                consumers.emplace_back(consumer->Cluster, consumer->Path);
+                consumers.emplace_back(consumer->GetCluster().value(), consumer->GetPath());
             }
         }
 
@@ -674,13 +674,13 @@ private:
 
         auto rows = WaitFor(table->Select(query, options))
             .ValueOrThrow();
-        THashMap<TCrossClusterReference, TReplicaMappingTableRow> replicaMapping;
+        THashMap<TTablePath, TReplicaMappingTableRow> replicaMapping;
         for (auto& row : rows) {
             // NB(apachee): This does not take into account that chaos replica might have 2 or more corresponding CRTs.
             // Current implementation somewhat mirrors the old one, but not exactly, as both choose random corresponding CRT.
             // TODO(apachee): In case of chaos replicas only choose CRTs that own its replication card.
-            auto replica = row.ReplicaRef;
-            replicaMapping[replica] = std::move(row);
+            auto replica = row.ReplicaPath;
+            replicaMapping.emplace(replica, std::move(row));
         }
 
         std::vector<std::optional<TReplicaMappingTableRow>> result;
@@ -1331,13 +1331,11 @@ private:
     TReplicaMappingLookupCachePtr ReplicaMappingLookupCache_;
 
     std::optional<TConsumerRegistrationTableRow> DoFindRegistration(
-        NYPath::TRichYPath resolvedQueue,
-        NYPath::TRichYPath resolvedConsumer) override
+        TTablePath resolvedQueue,
+        TConsumerReference resolvedConsumer) override
     {
-        auto resultOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey{
-            .Queue = TCrossClusterReference::FromRichYPath(resolvedQueue),
-            .Consumer = TCrossClusterReference::FromRichYPath(resolvedConsumer),
-        }));
+        auto resultOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
+            std::move(resolvedQueue), std::move(resolvedConsumer))));
 
         if (!resultOrError.IsOK()) {
             // NB(apachee): Error for missing registration is handled in base class.
@@ -1353,15 +1351,15 @@ private:
     }
 
     std::vector<TConsumerRegistrationTableRow> DoListRegistrations(
-        std::optional<NYPath::TRichYPath> resolvedQueue,
-        std::optional<NYPath::TRichYPath> resolvedConsumer) override
+        std::optional<TTablePath> resolvedQueue,
+        std::optional<TConsumerReference> resolvedConsumer) override
     {
         YT_VERIFY(resolvedQueue || resolvedConsumer);
 
         std::vector<TConsumerRegistrationTableRow> result;
 
         try {
-            result = DoListRegistrationsGuarded(resolvedQueue, resolvedConsumer);
+            result = DoListRegistrationsGuarded(std::move(resolvedQueue), std::move(resolvedConsumer));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to list queue consumer registrations")
                 << ex;
@@ -1371,15 +1369,13 @@ private:
     }
 
     std::vector<TConsumerRegistrationTableRow> DoListRegistrationsGuarded(
-        std::optional<NYPath::TRichYPath> resolvedQueue,
-        std::optional<NYPath::TRichYPath> resolvedConsumer)
+        std::optional<TTablePath> resolvedQueue,
+        std::optional<TConsumerReference> resolvedConsumer)
     {
         // NB(apachee): #TListRegistrationsCache is only used for listing registrations by queue or consumer.
         if (resolvedQueue && resolvedConsumer) {
-            auto registrationOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey{
-                .Queue = TCrossClusterReference::FromRichYPath(*resolvedQueue),
-                .Consumer = TCrossClusterReference::FromRichYPath(*resolvedConsumer),
-            }));
+            auto registrationOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
+                std::move(*resolvedQueue), std::move(*resolvedConsumer))));
 
             if (!registrationOrError.IsOK() && !registrationOrError.FindMatching(EErrorCode::DynamicStateMissingRow)) {
                 THROW_ERROR_EXCEPTION(registrationOrError);
@@ -1390,13 +1386,7 @@ private:
                 : std::vector<TConsumerRegistrationTableRow>();
         }
 
-        return WaitFor(ListRegistrationsCache_->Get(TListRegistrationsCacheKey(
-            resolvedQueue
-                ? std::optional(TCrossClusterReference::FromRichYPath(*resolvedQueue))
-                : std::nullopt,
-            resolvedConsumer
-                ? std::optional(TCrossClusterReference::FromRichYPath(*resolvedConsumer))
-                : std::nullopt)))
+        return WaitFor(ListRegistrationsCache_->Get(TListRegistrationsCacheKey(std::move(resolvedQueue), std::move(resolvedConsumer))))
             .ValueOrThrow();
     }
 
@@ -1420,7 +1410,7 @@ private:
         // TODO(apachee): Re-work this code for better clarity as mentioned above.
 
         auto resultOrError = WaitFor(ReplicaMappingLookupCache_->Get(TReplicaMappingCacheKey{
-            .Replica = TCrossClusterReference::FromRichYPath(objectPath),
+            .Replica = TTablePath::FromRichYPath(objectPath),
         }));
 
         if (tableMountInfo->UpstreamReplicaId != NullObjectId) {
@@ -1431,12 +1421,12 @@ private:
         }
 
         if (resultOrError.IsOK() && resultOrError.Value().has_value()) {
-            auto result = resultOrError.Value()->ReplicatedTableRef;
+            auto result = resultOrError.Value()->ReplicatedTablePath;
             YT_LOG_DEBUG(
                 "Using corresponding replicated table path in request instead of replica path (ReplicaPath: %v, ReplicatedTablePath: %v)",
                 objectPath,
                 result);
-            return result;
+            return TRichYPath(std::move(result));
         }
 
         if (tableMountInfo->UpstreamReplicaId != NullObjectId && throwOnFailure) {
@@ -1581,7 +1571,7 @@ size_t THash<NYT::NQueueClient::NDetail::TListRegistrationsCacheKey>::operator()
 size_t THash<NYT::NQueueClient::NDetail::TReplicaMappingCacheKey>::operator()(
     const NYT::NQueueClient::NDetail::TReplicaMappingCacheKey& key) const
 {
-    return THash<NYT::NQueueClient::TCrossClusterReference>()(key.Replica);
+    return THash<NYT::NQueueClient::TTablePath>()(key.Replica);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

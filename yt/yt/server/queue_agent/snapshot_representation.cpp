@@ -170,10 +170,10 @@ void BuildConsumerStatusYson(const TConsumerSnapshotPtr& snapshot, TFluentAny fl
             .Item("queue_agent_host").Value(GetLocalHostName())
             .Item("registrations").DoListFor(snapshot->Registrations, BuildRegistrationYson)
             .Item("queues").DoMapFor(snapshot->SubSnapshots, [] (TFluentMap fluent, auto pair) {
-                const auto& queueRef = pair.first;
+                const auto& queuePath = pair.first;
                 const auto& subSnapshot = pair.second;
                 fluent
-                    .Item(ToString(queueRef)).Do(std::bind(BuildSubConsumerStatusYson, subSnapshot, _1));
+                    .Item(ToString(queuePath)).Do(std::bind(BuildSubConsumerStatusYson, subSnapshot, _1));
             })
 
         .EndMap();
@@ -236,10 +236,10 @@ void BuildConsumerPartitionListYson(const TConsumerSnapshotPtr& snapshot, TFluen
 
     fluent
         .DoMapFor(snapshot->SubSnapshots, [&] (TFluentMap fluent, auto pair) {
-            const auto& queueRef = pair.first;
+            const auto& queuePath = pair.first;
             const auto& subSnapshot = pair.second;
             fluent
-                .Item(ToString(queueRef)).Do(std::bind(BuildSubConsumerPartitionListYson, subSnapshot, _1));
+                .Item(ToString(queuePath)).Do(std::bind(BuildSubConsumerPartitionListYson, subSnapshot, _1));
         });
 }
 

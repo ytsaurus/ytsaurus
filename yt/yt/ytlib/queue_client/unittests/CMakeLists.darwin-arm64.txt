@@ -48,6 +48,7 @@ target_link_options(unittester-queue-client PRIVATE
 
 target_sources(unittester-queue-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/config_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/path_ut.cpp
 )
 
 

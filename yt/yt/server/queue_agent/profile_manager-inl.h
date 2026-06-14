@@ -18,10 +18,10 @@ NProfiling::TTagSet CreateObjectProfilingTags(
     bool addObjectType,
     std::optional<bool> leading)
 {
-    auto pathTag = TrimProfilingTagValue(row.Ref.Path);
+    auto pathTag = TrimProfilingTagValue(row.Path.GetPath());
 
     NProfiling::TTagSet tags;
-    tags.AddRequiredTag({Format("%lv_cluster", Kind), row.Ref.Cluster});
+    tags.AddRequiredTag({Format("%lv_cluster", Kind), row.Path.GetCluster().value()});
 
     if (enablePathAggregation) {
         tags.AddTag({Format("%lv_path", Kind), pathTag}, /*parent*/ -1); // Parent is queue_cluster.
