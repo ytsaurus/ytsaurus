@@ -130,8 +130,7 @@ private:
         auto session = GetSessionOrThrow(sessionId);
         auto future = session->Read(offset, length, cookie).Apply(BIND([response] (const TBlock& block) {
             SetRpcAttachedBlocks(response, {block});
-        })
-        .AsyncVia(Bootstrap_->GetStorageLightInvoker()));
+        }));
 
         response->set_cookie(cookie);
         auto shouldCloseSession = ShouldCloseSession(session);

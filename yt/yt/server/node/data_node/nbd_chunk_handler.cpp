@@ -10,7 +10,10 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/core/actions/future.h>
+
 #include <yt/yt/core/concurrency/throughput_throttler.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <util/system/fs.h>
@@ -51,7 +54,9 @@ public:
         TChunkId chunkId,
         TWorkloadDescriptor workloadDescriptor,
         TStoreLocationPtr storeLocation,
-        IInvokerPtr ioInvoker)
+        IInvokerPtr ioInvoker,
+        IThroughputThrottlerPtr readNetThrottler,
+        IThroughputThrottlerPtr writeNetThrottler)
     : ChunkSize_(chunkSize)
     , ChunkId_(chunkId)
     , WorkloadDescriptor_(std::move(workloadDescriptor))
@@ -59,8 +64,10 @@ public:
     , IOInvoker_(std::move(ioInvoker))
     , ChunkPath_(StoreLocation_->GetChunkPath(ChunkId_))
     , IOEngine_(StoreLocation_->GetIOEngine())
-    , ReadThrottler_(StoreLocation_->GetOutThrottler(WorkloadDescriptor_))
-    , WriteThrottler_(StoreLocation_->GetInThrottler(WorkloadDescriptor_))
+    , ReadStoreThrottler_(StoreLocation_->GetOutThrottler(WorkloadDescriptor_))
+    , WriteStoreThrottler_(StoreLocation_->GetInThrottler(WorkloadDescriptor_))
+    , ReadNetThrottler_(std::move(readNetThrottler))
+    , WriteNetThrottler_(std::move(writeNetThrottler))
     { }
 
     //! Open NBD file handler and create NBD chunk file.
@@ -226,9 +233,12 @@ public:
                             << TErrorAttribute("state", State_);
                     }
 
-                    // Throttle disk read.
+                    // Throttle both network and disk read in parallel.
                     TWallTimer throttleTimer;
-                    auto throttleFuture = ReadThrottler_->Throttle(length);
+                    auto throttleFuture = AllSucceeded(std::vector<TFuture<void>>{
+                        ReadNetThrottler_->Throttle(length),
+                        ReadStoreThrottler_->Throttle(length)
+                    });
 
                     // Perform read and return result.
                     return throttleFuture.Apply(
@@ -308,9 +318,12 @@ public:
                             << TErrorAttribute("state", State_);
                     }
 
-                    // Throttle disk write.
+                    // Throttle both network and disk write in parallel.
                     TWallTimer throttleTimer;
-                    auto throttleFuture = WriteThrottler_->Throttle(block.Data.Size());
+                    auto throttleFuture = AllSucceeded(std::vector<TFuture<void>>{
+                        WriteNetThrottler_->Throttle(block.Data.Size()),
+                        WriteStoreThrottler_->Throttle(block.Data.Size())
+                    });
 
                     // Perform write and return result.
                     return throttleFuture.Apply(
@@ -356,8 +369,10 @@ private:
     const TString ChunkPath_;
     const IIOEnginePtr IOEngine_;
     TIOEngineHandlePtr IOEngineHandle_;
-    const IThroughputThrottlerPtr ReadThrottler_;
-    const IThroughputThrottlerPtr WriteThrottler_;
+    const IThroughputThrottlerPtr ReadStoreThrottler_;
+    const IThroughputThrottlerPtr WriteStoreThrottler_;
+    const IThroughputThrottlerPtr ReadNetThrottler_;
+    const IThroughputThrottlerPtr WriteNetThrottler_;
 
     EState State_ = EState::Uninitialized;
     // This lock is needed to create and destroy NBD chunk with exclusive access.
@@ -371,14 +386,18 @@ INbdChunkHandlerPtr CreateNbdChunkHandler(
     TChunkId chunkId,
     TWorkloadDescriptor workloadDescriptor,
     TStoreLocationPtr storeLocation,
-    IInvokerPtr ioInvoker)
+    IInvokerPtr ioInvoker,
+    IThroughputThrottlerPtr readNetThrottler,
+    IThroughputThrottlerPtr writeNetThrottler)
 {
     return New<TNbdChunkHandler>(
         chunkSize,
         std::move(chunkId),
         std::move(workloadDescriptor),
         std::move(storeLocation),
-        std::move(ioInvoker));
+        std::move(ioInvoker),
+        std::move(readNetThrottler),
+        std::move(writeNetThrottler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
