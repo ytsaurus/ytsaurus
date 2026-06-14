@@ -20,6 +20,8 @@
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
+#include <llvm/Object/Binary.h>
+#include <llvm/Object/ObjectFile.h>
 
 #ifdef DEFINED_DEBUG
 #  ifdef DEBUG
@@ -55,6 +57,10 @@ public:
 
     template <class TSignature>
     TCallback<TSignature> GetCompiledFunction(const std::string& name);
+
+    void AddObjectFile(llvm::object::OwningBinary<llvm::object::ObjectFile> owningObject);
+
+    llvm::object::OwningBinary<llvm::object::ObjectFile> BuildNativeObjectCode();
 
     bool IsSymbolLoaded(const std::string& symbol) const;
     void AddLoadedSymbol(const std::string& symbol);

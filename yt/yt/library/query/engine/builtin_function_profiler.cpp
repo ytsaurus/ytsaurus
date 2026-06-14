@@ -1666,10 +1666,16 @@ public:
         bool useFunctionContext) override
     {
         if (FunctionProfilers_) {
+            auto implementationFiles = GetUdfBytecode(implementationFile);
             FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
                 functionName,
                 symbolName,
-                GetUdfBytecode(implementationFile),
+                implementationFiles,
+#ifdef YT_ENABLE_UDF_NATIVE_OBJECT_CODE
+                MakeUdfNativeObjectCode(implementationFiles, functionName, {symbolName}),
+#else
+                /*nativeObjectCode*/ nullptr,
+#endif
                 GetCallingConvention(callingConvention),
                 TSharedRef(),
                 useFunctionContext));
@@ -1684,10 +1690,16 @@ public:
         ECallingConvention callingConvention) override
     {
         if (FunctionProfilers_) {
+            auto implementationFiles = GetUdfBytecode(implementationFile);
             FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
                 functionName,
                 functionName,
-                GetUdfBytecode(implementationFile),
+                implementationFiles,
+#ifdef YT_ENABLE_UDF_NATIVE_OBJECT_CODE
+                MakeUdfNativeObjectCode(implementationFiles, functionName, {functionName}),
+#else
+                /*nativeObjectCode*/ nullptr,
+#endif
                 GetCallingConvention(callingConvention),
                 TSharedRef(),
                 false));
@@ -1703,10 +1715,16 @@ public:
         TStringBuf implementationFile) override
     {
         if (FunctionProfilers_) {
+            auto implementationFiles = GetUdfBytecode(implementationFile);
             FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
                 functionName,
                 functionName,
-                GetUdfBytecode(implementationFile),
+                implementationFiles,
+#ifdef YT_ENABLE_UDF_NATIVE_OBJECT_CODE
+                MakeUdfNativeObjectCode(implementationFiles, functionName, {functionName}),
+#else
+                /*nativeObjectCode*/ nullptr,
+#endif
                 GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType),
                 TSharedRef(),
                 false));
@@ -1781,10 +1799,16 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
 
     result->emplace("if", New<NBuiltins::TIfFunctionCodegen>());
 
+    auto isPrefixImplementationFiles = GetUdfBytecode("is_prefix");
     result->emplace("is_prefix", New<TExternalFunctionCodegen>(
         "is_prefix",
         "is_prefix",
-        GetUdfBytecode("is_prefix"),
+        isPrefixImplementationFiles,
+#ifdef YT_ENABLE_UDF_NATIVE_OBJECT_CODE
+        MakeUdfNativeObjectCode(isPrefixImplementationFiles, "is_prefix", {"is_prefix"}),
+#else
+        /*nativeObjectCode*/ nullptr,
+#endif
         GetCallingConvention(ECallingConvention::Simple),
         TSharedRef()));
 

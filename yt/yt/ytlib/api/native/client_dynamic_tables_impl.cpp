@@ -1752,6 +1752,10 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
         }
     }
 
+    if (queryConfig && queryConfig->AllowUdfObjectCodeCache.has_value()) {
+        queryOptions.AllowUdfObjectCodeCache = *queryConfig->AllowUdfObjectCodeCache;
+    }
+
     queryOptions.EnableCodeCache = options.EnableCodeCache;
     queryOptions.MaxSubqueries = options.MaxSubqueries;
     queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;

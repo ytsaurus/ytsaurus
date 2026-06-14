@@ -604,7 +604,7 @@ private:
             FunctionImplCache_,
             ChunkReadOptions_,
             &sdk,
-            QueryOptions_.ExecutionBackend);
+            QueryOptions_);
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(Query_);
 

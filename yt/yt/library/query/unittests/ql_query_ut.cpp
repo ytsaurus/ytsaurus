@@ -8,6 +8,7 @@
 #include <yt/yt/library/query/base/functions.h>
 
 #include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
+#include <yt/yt/library/query/engine_api/append_function_implementation.h>
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/config.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
@@ -26,6 +27,8 @@
 #include <util/string/split.h>
 #include <util/string/strip.h>
 #include <util/string/subst.h>
+
+#include <library/cpp/resource/resource.h>
 
 #include <tuple>
 
@@ -46,6 +49,13 @@ using namespace NYson;
 using NCodegen::EExecutionBackend;
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TestLogger");
+
+TEnumIndexedArray<EExecutionBackend, TSharedRef> GetTestUdfImplementationFiles(TStringBuf name)
+{
+    auto result = TEnumIndexedArray<EExecutionBackend, TSharedRef>();
+    result[EExecutionBackend::Native] = TSharedRef::FromString(::NResource::Find(std::string("/llvm_bc/") + std::string(name)));
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -972,9 +982,14 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
             "short_invalid_ir",
             "short_invalid_ir",
             files,
+            /*nativeObjectCode*/ nullptr,
             GetCallingConvention(ECallingConvention::Simple),
             TSharedRef(),
             false));
+
+        EXPECT_THROW_THAT({
+            MakeUdfNativeObjectCode(files, "short_invalid_ir", {"short_invalid_ir"});
+        }, HasSubstr("LLVM bitcode"));
     }
 
     {
@@ -989,9 +1004,14 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
             "long_invalid_ir",
             "long_invalid_ir",
             files,
+            /*nativeObjectCode*/ nullptr,
             GetCallingConvention(ECallingConvention::Simple),
             TSharedRef(),
             false));
+
+        EXPECT_THROW_THAT({
+            MakeUdfNativeObjectCode(files, "long_invalid_ir", {"long_invalid_ir"});
+        }, HasSubstr("LLVM bitcode"));
     }
 
     auto bcImplementations = "test_udfs";
@@ -1081,6 +1101,84 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
             ParseAndPrepareExpression("abs_udf_double(s)", *schema, TypeInferrers_);
         }, HasSubstr("No matching function"));
     }
+}
+
+TEST_F(TQueryPrepareTest, AppendFunctionImplementationWithUdfObjectCodeCache)
+{
+    auto typeInferrers = New<TTypeInferrerMap>();
+    auto aggregateProfilers = New<TAggregateProfilerMap>();
+    auto firstFunctionProfilers = New<TFunctionProfilerMap>();
+    auto secondFunctionProfilers = New<TFunctionProfilerMap>();
+    StrictMock<TPrepareCallbacksMock> prepareMock(typeInferrers);
+
+    MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
+    MergeFrom(aggregateProfilers.Get(), *GetBuiltinAggregateProfilers());
+
+    const auto functionName = std::string("cached_abs_udf");
+    typeInferrers->emplace(functionName, CreateFunctionTypeInferrer(
+        EValueType::Int64,
+        std::vector<TType>{EValueType::Int64}));
+
+    auto implementationFiles = GetTestUdfImplementationFiles("test_udfs");
+    auto fingerprint = TSharedRef::FromString("append-function-implementation-test");
+
+    AppendFunctionImplementation(
+        firstFunctionProfilers,
+        aggregateProfilers,
+        /*functionIsAggregate*/ false,
+        functionName,
+        /*functionSymbolName*/ "abs_udf",
+        ECallingConvention::Simple,
+        fingerprint,
+        EValueType::Null,
+        /*functionRepeatedArgIndex*/ -1,
+        /*functionUseFunctionContext*/ false,
+        {.AllowUdfObjectCodeCache = true},
+        implementationFiles);
+
+    AppendFunctionImplementation(
+        secondFunctionProfilers,
+        aggregateProfilers,
+        /*functionIsAggregate*/ false,
+        functionName,
+        /*functionSymbolName*/ "abs_udf",
+        ECallingConvention::Simple,
+        fingerprint,
+        EValueType::Null,
+        /*functionRepeatedArgIndex*/ -1,
+        /*functionUseFunctionContext*/ false,
+        {.AllowUdfObjectCodeCache = true},
+        implementationFiles);
+
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
+        {"a", EValueType::Int64},
+    });
+
+    auto expr = ParseAndPrepareExpression("cached_abs_udf(a)", *schema, typeInferrers);
+
+    TCGVariables variables;
+    auto codegen = Profile(
+        expr,
+        schema,
+        nullptr,
+        &variables,
+        /*useCanonicalNullRelations*/ false,
+        EExecutionBackend::Native,
+        secondFunctionProfilers);
+    auto callback = codegen();
+
+    auto value = MakeUnversionedInt64Value(-42);
+    auto result = TValue{};
+    auto instance = callback.Instantiate();
+    instance.Run(
+        variables.GetLiteralValues(),
+        variables.GetOpaqueData(),
+        variables.GetOpaqueDataSizes(),
+        &result,
+        TRange<TValue>(&value, 1),
+        New<TRowBuffer>());
+
+    EXPECT_EQ(MakeUnversionedInt64Value(42), result);
 }
 
 TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
