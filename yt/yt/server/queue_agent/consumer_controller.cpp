@@ -143,7 +143,7 @@ private:
             if (!queueSnapshot) {
                 YT_LOG_DEBUG("Snapshot is missing for the queue while building subconsumer snapshot (Queue: %v)", queuePath);
                 auto errorQueueSnapshot = New<TQueueSnapshot>(TQueueTableRow{.Path = queuePath});
-                errorQueueSnapshot->Error = TError("Queue %Qv snapshot is missing", queuePath);
+                errorQueueSnapshot->Error = TError("Queue %v snapshot is missing", queuePath);
                 queueSnapshot = std::move(errorQueueSnapshot);
             }
             queuePaths.push_back(queuePath);
@@ -584,7 +584,7 @@ private:
     const IInvokerPtr Invoker_;
 
     using TConsumerSnapshotAtomicPtr = TAtomicIntrusivePtr<TConsumerSnapshot>;
-    TConsumerSnapshotAtomicPtr ConsumerSnapshot_ = nullptr;
+    TConsumerSnapshotAtomicPtr ConsumerSnapshot_;
 
     const TLogger Logger;
     const TPeriodicExecutorPtr PassExecutor_;
