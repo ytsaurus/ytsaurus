@@ -1277,6 +1277,106 @@ TEST_F(TScalarAttributesEqualitySuite, CompareAbsentInsideNestedMessage)
         TComparisonOptions{.CompareAbsentAsDefault = true}));
 }
 
+TEST_F(TScalarAttributesEqualitySuite, UnknownFields)
+{
+    // Field numbers 37-38 are reserved for unknown field tests in TMessage.
+    Message1.mutable_unknown_fields()->AddVarint(37, 42);
+    EXPECT_FALSE(AreEqual(""));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+
+    Message2.mutable_unknown_fields()->AddVarint(37, 42);
+    EXPECT_TRUE(AreEqual(""));
+    EXPECT_TRUE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_TRUE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+
+    // Comparison is insensitive to the order of unknown fields with different numbers.
+    Message1.mutable_unknown_fields()->AddLengthDelimited(38, "value");
+    Message2.Clear();
+    Message2.mutable_unknown_fields()->AddLengthDelimited(38, "value");
+    Message2.mutable_unknown_fields()->AddVarint(37, 42);
+    EXPECT_TRUE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_TRUE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+
+    Message2.mutable_unknown_fields()->AddVarint(37, 43);
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, UnknownFieldsNested)
+{
+    // Field numbers 5-6 are reserved for unknown field tests in TNestedMessage.
+    Message1.mutable_nested_message();
+    Message2.mutable_nested_message();
+    Message1.mutable_nested_message()->mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_FALSE(AreEqual(""));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+    EXPECT_FALSE(AreEqual("/nested_message"));
+    EXPECT_FALSE(AreEqual("/nested_message", TComparisonOptions{.CompareAbsentAsDefault = true}));
+
+    Message2.mutable_nested_message()->mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_TRUE(AreEqual(""));
+    EXPECT_TRUE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_TRUE(AreEqual("/nested_message"));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, UnknownFieldsOutsidePath)
+{
+    Message1.mutable_unknown_fields()->AddVarint(37, 42);
+    EXPECT_FALSE(AreEqual(""));
+    // Unknown fields outside the requested path do not affect the comparison.
+    EXPECT_TRUE(AreEqual("/nested_message"));
+    EXPECT_TRUE(AreEqual("/string_field"));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, UnknownFieldsPresenceMismatch)
+{
+    Message1.mutable_nested_message()->mutable_unknown_fields()->AddVarint(5, 42);
+
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+    EXPECT_FALSE(AreEqual("/nested_message", TComparisonOptions{.CompareAbsentAsDefault = true}));
+
+    // Message with unknown fields present on the rhs side only.
+    Message1.Swap(&Message2);
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.LhsAbsentEqualsRhsDefault = true}));
+    EXPECT_FALSE(AreEqual("/nested_message", TComparisonOptions{.CompareAbsentAsDefault = true}));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, UnknownFieldsInRepeated)
+{
+    Message1.add_repeated_nested_message();
+    Message2.add_repeated_nested_message();
+    Message1.mutable_repeated_nested_message(0)->mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_FALSE(AreEqual(""));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("/repeated_nested_message"));
+    EXPECT_FALSE(AreEqual("/repeated_nested_message/0", TComparisonOptions{.CompareAbsentAsDefault = true}));
+
+    Message2.mutable_repeated_nested_message(0)->mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_TRUE(AreEqual(""));
+    EXPECT_TRUE(AreEqual("/repeated_nested_message"));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, UnknownFieldsInMap)
+{
+    auto getMap = [] (NProto::TMessage& message) -> auto& {
+        return *message.mutable_nested_message_map();
+    };
+    getMap(Message1)["a"];
+    getMap(Message2)["a"];
+    getMap(Message1)["a"].mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_FALSE(AreEqual(""));
+    EXPECT_FALSE(AreEqual("", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    EXPECT_FALSE(AreEqual("/nested_message_map/a"));
+
+    getMap(Message2)["a"].mutable_unknown_fields()->AddVarint(5, 42);
+    EXPECT_TRUE(AreEqual(""));
+    EXPECT_TRUE(AreEqual("/nested_message_map/a"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TUnversionedValueProtoRoundTripTest, VectorOfMessages)
