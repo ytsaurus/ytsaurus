@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "disk_location.h"
 #endif
-#undef DISK_LOCATION_INL_H_
 
 #include <yt/yt/server/lib/misc/private.h>
 
