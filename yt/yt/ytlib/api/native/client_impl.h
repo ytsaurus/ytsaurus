@@ -1473,7 +1473,7 @@ private:
 
     THashMap<NScheduler::TOperationId, TOperation> LookupOperationsInArchiveTyped(
         const std::vector<NScheduler::TOperationId>& ids,
-        const THashSet<TString>& attributes,
+        const THashSet<std::string>& attributes,
         std::optional<TDuration> timeout,
         const NLogging::TLogger& Logger);
 
@@ -1576,7 +1576,7 @@ private:
 
     void AddSelectExpressions(
         NQueryClient::TQueryBuilder* builder,
-        const THashSet<TString>& attributes,
+        const THashSet<std::string>& attributes,
         int archiveVersion);
 
     TFuture<std::vector<TJobTraceMeta>> DoListJobTracesFromArchive(
@@ -1594,27 +1594,27 @@ private:
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TListJobsOptions& options,
-        const THashSet<TString>& attributes);
+        const THashSet<std::string>& attributes);
 
     TFuture<TListJobsFromControllerAgentResult> DoListJobsFromControllerAgentAsync(
         NScheduler::TOperationId operationId,
         const std::optional<std::string>& controllerAgentAddress,
         TInstant deadline,
         const TListJobsOptions& options,
-        const THashSet<TString>& attributes);
+        const THashSet<std::string>& attributes);
 
     std::optional<TJob> DoGetJobFromArchive(
         int archiveVersion,
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         TInstant deadline,
-        const THashSet<TString>& attributes);
+        const THashSet<std::string>& attributes);
 
     std::optional<TJob> DoGetJobFromControllerAgent(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         TInstant deadline,
-        const THashSet<TString>& attributes);
+        const THashSet<std::string>& attributes);
 
     NJobProberClient::TJobProberServiceProxy CreateNodeJobProberServiceProxy(
         NRpc::IChannelPtr nodeChannel);

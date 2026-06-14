@@ -37,8 +37,8 @@ struct TCountingFilterAttributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TCountByPoolTree = THashMap<TString, i64>;
-using TCountByPool = THashMap<TString, i64>;
+using TCountByPoolTree = THashMap<std::string, i64>;
+using TCountByPool = THashMap<std::string, i64>;
 using TCountByUser = THashMap<std::string, i64>;
 using TCountByType = TEnumIndexedArray<NScheduler::EOperationType, i64>;
 using TCountByState = TEnumIndexedArray<NScheduler::EOperationState, i64>;
@@ -106,7 +106,7 @@ public:
     template <typename TFunction>
     void ForEachOperationMutable(TFunction function);
 
-    [[nodiscard]] std::vector<TOperation> BuildOperations(const THashSet<TString>& attributes) const;
+    [[nodiscard]] std::vector<TOperation> BuildOperations(const THashSet<std::string>& attributes) const;
 
     [[nodiscard]] i64 GetCount() const;
 

@@ -90,11 +90,11 @@ void CheckWritePermission(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<TString> DeduceActualAttributes(
-    const std::optional<THashSet<TString>>& originalAttributes,
-    const THashSet<TString>& requiredAttributes,
-    const THashSet<TString>& defaultAttributes,
-    const THashSet<TString>& ignoredAttributes = {});
+THashSet<std::string> DeduceActualAttributes(
+    const std::optional<THashSet<std::string>>& originalAttributes,
+    const THashSet<std::string>& requiredAttributes,
+    const THashSet<std::string>& defaultAttributes,
+    const THashSet<std::string>& ignoredAttributes = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
