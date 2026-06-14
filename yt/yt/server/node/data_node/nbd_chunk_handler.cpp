@@ -59,8 +59,8 @@ public:
     , Invoker_(std::move(invoker))
     , ChunkPath_(StoreLocation_->GetChunkPath(ChunkId_))
     , IOEngine_(StoreLocation_->GetIOEngine())
-    , ReadThrottler_(StoreLocation_->GetInThrottler(WorkloadDescriptor_))
-    , WriteThrottler_(StoreLocation_->GetOutThrottler(WorkloadDescriptor_))
+    , ReadThrottler_(StoreLocation_->GetOutThrottler(WorkloadDescriptor_))
+    , WriteThrottler_(StoreLocation_->GetInThrottler(WorkloadDescriptor_))
     { }
 
     //! Open NBD file handler and create NBD chunk file.
