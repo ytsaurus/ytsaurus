@@ -63,6 +63,12 @@ void SetSequoiaNodeEffectiveAcl(NRpc::NProto::TRequestHeader* header, const NYso
 //! Gets target Sequoia node's effective ACL; returns a null TYsonStringBuf if absent.
 NYson::TYsonStringBuf TryGetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequestHeader& header);
 
+//! Sets whether the target Sequoia node has row-level ACEs in its effective ACL.
+void SetSequoiaNodeHasRowLevelAce(NRpc::NProto::TRequestHeader* header, bool value);
+
+//! Gets whether the target Sequoia node has row-level ACEs in its effective ACL.
+bool GetSequoiaNodeHasRowLevelAce(const NRpc::NProto::TRequestHeader& header);
+
 //! Gets allow resolve from Sequoia object flag.
 bool GetAllowResolveFromSequoiaObject(const NRpc::NProto::TRequestHeader& header);
 

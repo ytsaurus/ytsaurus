@@ -1072,6 +1072,7 @@ void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IYPathServiceContextPt
     AccessTrackingSuppressed_ = GetSuppressAccessTracking(context->RequestHeader());
     ExpirationTimeoutRenewalSuppressed_ = GetSuppressExpirationTimeoutRenewal(context->RequestHeader());
     SequoiaNodeEffectiveAcl_ = TryGetSequoiaNodeEffectiveAcl(context->RequestHeader());
+    SequoiaNodeHasRowLevelAce_ = GetSequoiaNodeHasRowLevelAce(context->RequestHeader());
     ValidateMethodWhitelistedForTransaction(context->GetMethod());
 
     TObjectProxyBase::BeforeInvoke(context);
@@ -1083,6 +1084,7 @@ void TNontemplateCypressNodeProxyBase::AfterInvoke(const IYPathServiceContextPtr
     SetTouched();
     SequoiaNodeEffectiveAcl_ = {};
     SequoiaNodeDeserializedEffectiveAcl_.reset();
+    SequoiaNodeHasRowLevelAce_ = false;
     TObjectProxyBase::AfterInvoke(context);
 }
 
@@ -1446,6 +1448,18 @@ TPermissionCheckResponse TNontemplateCypressNodeProxyBase::DoCheckPermission(
                 "(NodeId: %v, MissingSubjects: %v)",
                 TrunkNode_->GetId(),
                 result.MissingSubjects);
+        }
+
+        if (permission == EPermission::FullRead) {
+            if (options.Columns) {
+                THROW_ERROR_EXCEPTION(
+                    "Cannot specify columns for %Qlv permission check",
+                    permission)
+                    << TErrorAttribute("columns", options.Columns);
+            }
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& handler = objectManager->GetHandler(Object_);
+            options.Columns = handler->ListColumns(Object_);
         }
 
         return securityManager->CheckPermission(

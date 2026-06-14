@@ -115,6 +115,7 @@ protected:
 
     NYson::TYsonStringBuf SequoiaNodeEffectiveAcl_;
     std::optional<NSecurityServer::TAccessControlList> SequoiaNodeDeserializedEffectiveAcl_;
+    bool SequoiaNodeHasRowLevelAce_ = false;
 
     struct TLockResult
     {

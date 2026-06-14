@@ -18,6 +18,7 @@ struct TRequestExecutedPayload
 struct TForwardToMasterPayload
 {
     std::optional<NYson::TYsonString> EffectiveAcl;
+    bool HasRowLevelAce = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
