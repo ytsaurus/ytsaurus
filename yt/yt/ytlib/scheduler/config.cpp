@@ -51,7 +51,7 @@ using namespace NYson;
 using NVectorHdrf::EIntegralGuaranteeType;
 using NYT::ToProto;
 
-extern const TString OperationAliasPrefix;
+extern const std::string OperationAliasPrefix;
 
 ////////////////////////////////////////////////////////////////////////////////
 

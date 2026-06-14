@@ -429,13 +429,13 @@ TOperationId TClient::ParseOperationIdOrAlias(
         [&] (const TOperationId& id) {
             return id;
         },
-        [&] (const TString& alias) {
+        [&] (const std::string& alias) {
             return ResolveOperationAlias(alias, options, deadline);
         });
 }
 
 TOperationId TClient::ResolveOperationAlias(
-    const TString& alias,
+    const std::string& alias,
     const TMasterReadOptions& options,
     TInstant deadline)
 {
@@ -729,7 +729,7 @@ TOperation TClient::DoGetOperation(
         [&] (const TOperationId& id) {
             operationId = id;
         },
-        [&] (const TString& alias) {
+        [&] (const std::string& alias) {
             if (!options.IncludeRuntime) {
                 THROW_ERROR_EXCEPTION(
                     "Operation alias cannot be resolved without using runtime information; "

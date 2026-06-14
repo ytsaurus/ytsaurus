@@ -729,7 +729,7 @@ private:
             Logger);
     }
 
-    TString GetOperationAlias() const
+    std::string GetOperationAlias() const
     {
         return "*" + CliqueAlias_;
     }
