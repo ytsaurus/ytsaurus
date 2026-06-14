@@ -1270,7 +1270,7 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
 {
     OperationCache_ = New<TOperationCache>(
         Config_->OperationCache,
-        THashSet<TString>{"id", "runtime_parameters", "state", "suspended"},
+        THashSet<std::string>{"id", "runtime_parameters", "state", "suspended"},
         Client_,
         ClickHouseProxyProfiler().WithPrefix("/operation_cache"));
     PermissionCache_ = New<TPermissionCache>(

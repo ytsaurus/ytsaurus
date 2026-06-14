@@ -54,7 +54,7 @@ using NJobTrackerClient::NullJobId;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Attribute names allowed for 'get_operation' and 'list_operation' commands.
-static const THashSet<TString> SupportedOperationAttributes = {
+static const THashSet<std::string> SupportedOperationAttributes = {
     "id",
     "state",
     "authenticated_user",
@@ -91,7 +91,7 @@ static const THashMap<TString, int> CompatOperationAttributesToArchiveVersion = 
     {"scheduling_attributes_per_pool_tree", 52},
 };
 
-static const THashSet<TString> ArchiveOnlyAttributes = {
+static const THashSet<std::string> ArchiveOnlyAttributes = {
     "alert_events",
 };
 
@@ -137,9 +137,9 @@ std::optional<int> TClient::TryGetOperationsArchiveVersion()
 
 // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
 // commands to Cypress node attribute names.
-static std::vector<TString> CreateCypressOperationAttributes(const THashSet<TString>& attributes, bool needHeavyRuntimeParameters)
+static std::vector<std::string> CreateCypressOperationAttributes(const THashSet<std::string>& attributes, bool needHeavyRuntimeParameters)
 {
-    std::vector<TString> result;
+    std::vector<std::string> result;
     result.reserve(attributes.size());
     for (const auto& attribute : attributes) {
         if (!SupportedOperationAttributes.contains(attribute)) {
@@ -166,9 +166,9 @@ static std::vector<TString> CreateCypressOperationAttributes(const THashSet<TStr
 
 // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
 // commands to operations archive column names.
-static std::vector<TString> CreateArchiveOperationAttributes(const THashSet<TString>& attributes)
+static std::vector<std::string> CreateArchiveOperationAttributes(const THashSet<std::string>& attributes)
 {
-    std::vector<TString> result;
+    std::vector<std::string> result;
     // Plus 1 for 'id_lo' and 'id_hi' instead of 'id'.
     result.reserve(attributes.size() + 1);
     for (const auto& attribute : attributes) {
@@ -197,7 +197,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     NScheduler::TOperationId operationId,
     const TGetOperationOptions& options)
 {
-    std::optional<std::vector<TString>> cypressAttributes;
+    std::optional<std::vector<std::string>> cypressAttributes;
     if (options.Attributes) {
         cypressAttributes = CreateCypressOperationAttributes(
             *options.Attributes,
@@ -360,7 +360,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     return result;
 }
 
-static THashSet<TString> MakeIgnoredArchiveAttributes(THashSet<TString> ignoredAttributes, int archiveVersion)
+static THashSet<std::string> MakeIgnoredArchiveAttributes(THashSet<std::string> ignoredAttributes, int archiveVersion)
 {
     for (const auto& [attribute, version] : CompatOperationAttributesToArchiveVersion) {
         if (version > archiveVersion) {
@@ -384,7 +384,7 @@ std::optional<TOperation> TClient::DoGetOperationFromArchive(
     }
 
     try {
-        THashSet<TString> ignoredAttributes = MakeIgnoredArchiveAttributes(
+        THashSet<std::string> ignoredAttributes = MakeIgnoredArchiveAttributes(
             /*ignoredAttributes*/ {"suspended", "memory_usage", "has_failed_jobs"},
             *archiveVersion);
 
@@ -794,7 +794,7 @@ void TClient::DoListOperationsFromCypress(
     // the set of requested attributes an extra batch of "get" requests
     // (one for each operation satisfying filters) will be issued, so:
     // XXX(levysotsky): maintain this list up-to-date.
-    const THashSet<TString> LightAttributes = {
+    const THashSet<std::string> LightAttributes = {
         "authenticated_user",
         "brief_progress",
         "brief_spec",
@@ -811,9 +811,9 @@ void TClient::DoListOperationsFromCypress(
         "has_failed_jobs",
     };
 
-    const THashSet<TString> RequiredAttributes = {"id", "start_time"};
+    const THashSet<std::string> RequiredAttributes = {"id", "start_time"};
 
-    const THashSet<TString> DefaultAttributes = {
+    const THashSet<std::string> DefaultAttributes = {
         "authenticated_user",
         "brief_progress",
         "brief_spec",
@@ -827,7 +827,7 @@ void TClient::DoListOperationsFromCypress(
         "suspended",
     };
 
-    const THashSet<TString> IgnoredAttributes = {};
+    const THashSet<std::string> IgnoredAttributes = {};
 
     YT_LOG_DEBUG("Fetching operations from Cypress");
 
@@ -895,7 +895,7 @@ void TClient::DoListOperationsFromCypress(
     auto areAllRequestedAttributesReady = std::all_of(
         requestedAttributes.begin(),
         requestedAttributes.end(),
-        [&] (const TString& attribute) {
+        [&] (const std::string& attribute) {
             return filteringAttributes.contains(attribute);
         });
     if (requestedAttributes.contains("runtime_parameters") && !options.SubstrFilter) {
@@ -1037,7 +1037,7 @@ std::optional<T> TryFromUnversionedValue(TUnversionedRow row, std::optional<int>
 
 THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     const std::vector<TOperationId>& ids,
-    const THashSet<TString>& attributes,
+    const THashSet<std::string>& attributes,
     std::optional<TDuration> timeout,
     const TLogger& Logger)
 {
@@ -1319,8 +1319,8 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         ids.emplace_back(TGuid(record.Key.IdHi, record.Key.IdLo));
     }
 
-    const THashSet<TString> RequiredAttributes = {"id", "start_time"};
-    const THashSet<TString> DefaultAttributes = {
+    const THashSet<std::string> RequiredAttributes = {"id", "start_time"};
+    const THashSet<std::string> DefaultAttributes = {
         "authenticated_user",
         "brief_progress",
         "brief_spec",
@@ -1332,7 +1332,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         "state",
         "type",
     };
-    const THashSet<TString> IgnoredAttributes = MakeIgnoredArchiveAttributes(
+    const THashSet<std::string> IgnoredAttributes = MakeIgnoredArchiveAttributes(
         /*ignoredAttributes*/ {"suspended", "memory_usage"},
         archiveVersion);
 
@@ -1374,7 +1374,8 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     }
 
     if (options.SubstrFilter) {
-        options.SubstrFilter = to_lower(*options.SubstrFilter);
+        // TODO(babenko): migrate to std::string
+        options.SubstrFilter = to_lower(TString(*options.SubstrFilter));
     }
 
     // NB(aleksandr.gaev): This client is used to get subject closure (@member_of_closure) of a user, which is protected by an ACL.

@@ -336,8 +336,8 @@ TListUserTokensResult TClient::DoListUserTokens(
     }
     auto userId = ConvertTo<std::string>(userIdRspOrError.Value());
 
-    std::vector<TString> userTokens;
-    THashMap<TString, NYson::TYsonString> tokenMetadata;
+    std::vector<std::string> userTokens;
+    THashMap<std::string, NYson::TYsonString> tokenMetadata;
 
     auto tokens = ConvertTo<IListNodePtr>(rspOrError.Value());
     for (const auto& tokenNode : tokens->GetChildren()) {
@@ -354,7 +354,7 @@ TListUserTokensResult TClient::DoListUserTokens(
                         .Item("creation_time").Value(attributes.Find<std::string>("creation_time"))
                         .Item("effective_expiration").Value(attributes.GetYson("effective_expiration"))
                     .EndMap();
-                tokenMetadata[ConvertTo<TString>(tokenNode)] = ConvertToYsonString(metadata);
+                tokenMetadata[ConvertTo<std::string>(tokenNode)] = ConvertToYsonString(metadata);
             }
         }
     }
