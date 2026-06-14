@@ -2099,11 +2099,11 @@ IOperationControllerPtr CreateVanillaController(
     TOperation* operation)
 {
     auto options = CreateOperationOptions(config->VanillaOperationOptions, operation->GetOptionsPatch());
-    auto spec = ParseOperationSpec<TVanillaOperationSpec>(
-        UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    auto spec = ParseOperationSpec<TVanillaOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    auto providedSpec = ParseOperationSpec<TVanillaOperationSpec>(operation->GetProvidedSpec());
 
     for (const auto& [taskName, taskSpec] : spec->Tasks) {
-        EnrichLayers(config, spec, host, taskSpec.Get());
+        ValidateAndEnrichVolumeSpec(config, spec, host, taskSpec.Get(), taskSpec.Get());
     }
 
     for (const auto& [taskName, taskSpec] : spec->Tasks) {

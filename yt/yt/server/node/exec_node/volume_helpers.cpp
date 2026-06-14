@@ -103,4 +103,16 @@ TTmpfsVolumeResult::TTmpfsVolumeResult(std::string volumeId, EVolumeType volumeT
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TVolumeMount& volumeMount, NYT::NYson::IYsonConsumer* consumer)
+{
+    NYT::NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("volume_id").Value(volumeMount.VolumeId)
+            .Item("mount_path").Value(volumeMount.MountPath.Path())
+            .Item("read_only").Value(volumeMount.ReadOnly)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NExecNode

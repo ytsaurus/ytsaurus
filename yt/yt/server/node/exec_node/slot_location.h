@@ -45,7 +45,6 @@ public:
     TFuture<void> PrepareSandboxDirectories(
         int slotIndex,
         TUserSandboxOptions options,
-        const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
         bool ignoreQuota);
 
     //! Inform slot location about tmpfses to be used.
@@ -53,7 +52,7 @@ public:
         int slotIndex,
         const IVolumePtr& rootVolume,
         const std::vector<TVolumeResultPtr>& volumeResults,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
+        const std::vector<TVolumeMountPtr>& volumeMounts);
 
     TFuture<void> MakeSandboxCopy(
         TJobId jobId,
@@ -199,12 +198,12 @@ private:
     {
     public:
         bool IsInsideTmpfs(const std::string& path, const NLogging::TLogger& Logger) const;
-        void AddSandboxPath(std::string&& sandboxPath);
-        void AddVolumeInfo(std::string&& volumePath, EVolumeType volumeType);
+        void AddSandboxPath(TAbsoluteNormalizedPath&& sandboxPath);
+        void AddVolumeInfo(TAbsoluteNormalizedPath&& volumePath, EVolumeType volumeType);
 
     private:
-        std::set<std::string> SandboxPaths_;
-        std::map<std::string, EVolumeType> VolumePathToType_;
+        std::set<TAbsoluteNormalizedPath> SandboxPaths_;
+        std::map<TAbsoluteNormalizedPath, EVolumeType> VolumePathToType_;
     };
 
     THashMap<int, TSandboxTmpfsData> SandboxTmpfsData_;
@@ -262,7 +261,7 @@ private:
         int slotIndex,
         TUserSandboxOptions options,
         bool ignoreQuota,
-        bool sandboxInsideTmpfs);
+        bool sandboxInsideNonRootVolume);
 
     void BuildSlotRootDirectory(int slotIndex);
 

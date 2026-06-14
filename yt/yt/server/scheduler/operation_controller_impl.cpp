@@ -404,6 +404,7 @@ TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
     ToProto(descriptor->mutable_operation_id(), operation->GetId());
     descriptor->set_operation_type(ToProto(operation->GetType()));
     descriptor->set_spec(ToProto(operation->GetSpecString()));
+    descriptor->set_provided_spec(ToProto(operation->ProvidedSpecString()));
     descriptor->set_experiment_assignments(ToProto(ConvertToYsonString(operation->ExperimentAssignments())));
     descriptor->set_start_time(ToProto(operation->GetStartTime()));
     descriptor->set_authenticated_user(operation->GetAuthenticatedUser());

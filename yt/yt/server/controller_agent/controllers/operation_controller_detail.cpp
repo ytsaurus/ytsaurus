@@ -10585,7 +10585,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             }
 
             auto volume = New<TTmpfsVolumeConfig>();
-            volume->Path = volumeMount->MountPath;
+            volume->Path = volumeMount->MountPath.string();
             volume->Size = tmpfsDiskRequest->DiskSpace;
 
             YT_VERIFY(tmpfsDiskRequest->TmpfsIndex);

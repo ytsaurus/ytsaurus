@@ -94,6 +94,7 @@ message TOperationDescriptor
     optional string aco_name = 13;
     required bytes experiment_assignments = 11; // YSON
     required int32 controller_epoch = 12 [default = -1];
+    required bytes provided_spec = 14; // YSON
 
     reserved 7;
 }

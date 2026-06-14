@@ -61,7 +61,6 @@ struct IUserSlot
     //! Sets up quotas.
     virtual TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
-        const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
         bool ignoreQuota = false) = 0;
 
     virtual TFuture<void> MakeLink(
@@ -117,7 +116,7 @@ struct IUserSlot
         const IVolumePtr& rootVolume,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
+        const std::vector<TVolumeMountPtr>& volumeMounts,
         bool testRootFs) = 0;
 
     virtual TFuture<IVolumePtr> RbindRootVolume(
@@ -126,7 +125,7 @@ struct IUserSlot
     virtual TFuture<void> LinkVolumes(
         const IVolumePtr& rootVolume,
         const std::vector<TVolumeResultPtr>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
+        const std::vector<TVolumeMountPtr>& volumeMounts,
         bool testRootFs) = 0;
 
     virtual NBus::NTcp::TBusServerConfigPtr GetBusServerConfig() const = 0;

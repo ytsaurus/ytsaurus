@@ -1356,7 +1356,7 @@ struct TVolumeMount
     : public NYTree::TYsonStruct
 {
     std::string VolumeId;
-    std::string MountPath;
+    std::filesystem::path MountPath;
     bool ReadOnly;
 
     REGISTER_YSON_STRUCT(TVolumeMount);

@@ -5021,13 +5021,14 @@ IOperationControllerPtr CreateMapReduceController(
 {
     auto options = CreateOperationOptions(config->MapReduceOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    auto providedSpec = ParseOperationSpec<TMapReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetProvidedSpec()));
 
-    EnrichLayers(config, spec, host, spec->Reducer.Get());
+    ValidateAndEnrichVolumeSpec(config, spec, host, spec->Reducer.Get(), providedSpec->Reducer.Get());
     if (spec->Mapper) {
-        EnrichLayers(config, spec, host, spec->Mapper.Get());
+        ValidateAndEnrichVolumeSpec(config, spec, host, spec->Mapper.Get(), providedSpec->Reducer.Get());
     }
     if (spec->ReduceCombiner) {
-        EnrichLayers(config, spec, host, spec->ReduceCombiner.Get());
+        ValidateAndEnrichVolumeSpec(config, spec, host, spec->ReduceCombiner.Get(),  providedSpec->Reducer.Get());
     }
     AdjustSamplingFromConfig(spec, config);
     return New<TMapReduceController>(spec, config, options, host, operation);

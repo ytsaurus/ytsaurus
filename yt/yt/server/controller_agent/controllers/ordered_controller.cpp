@@ -949,7 +949,8 @@ IOperationControllerPtr CreateOrderedMapController(
 {
     auto options = CreateOperationOptions(config->MapOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
-    EnrichLayers(config, spec, host, spec->Mapper.Get());
+    auto providedSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetProvidedSpec());
+    ValidateAndEnrichVolumeSpec(config, spec, host, spec->Mapper.Get(), providedSpec->Mapper.Get());
     AdjustSamplingFromConfig(spec, config);
     return New<TOrderedMapController>(spec, config, options, host, operation);
 }
