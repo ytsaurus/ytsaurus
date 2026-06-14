@@ -1457,7 +1457,7 @@ private:
         TInstant deadline);
 
     NScheduler::TOperationId ResolveOperationAlias(
-        const TString& alias,
+        const std::string& alias,
         const TMasterReadOptions& options,
         TInstant deadline);
 

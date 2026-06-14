@@ -451,7 +451,7 @@ public:
                 auto it = IdToOperation_.find(id);
                 return it == IdToOperation_.end() ? nullptr : it->second;
             },
-            [&] (const TString& alias) -> TOperationPtr {
+            [&] (const std::string& alias) -> TOperationPtr {
                 auto it = OperationAliases_.find(alias);
                 return it == OperationAliases_.end() ? nullptr : it->second.Operation;
             });
