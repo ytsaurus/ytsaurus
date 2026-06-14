@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "request_session.h"
 #endif
-#undef REQUEST_SESSION_INL_H_
 
 #include "public.h"
 

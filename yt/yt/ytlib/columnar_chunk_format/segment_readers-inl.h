@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "segment_readers.h"
 #endif
-#undef SEGMENT_READERS_INL_H_
 
 #include <yt/yt/client/table_client/helpers.h>
 

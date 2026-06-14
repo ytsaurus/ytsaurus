@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "profile_manager.h"
 #endif
-#undef PROFILE_MANAGER_INL_H_
 
 #include "helpers.h"
 

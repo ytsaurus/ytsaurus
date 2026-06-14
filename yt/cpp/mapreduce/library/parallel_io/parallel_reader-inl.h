@@ -3,7 +3,6 @@
 #ifndef PARALLEL_READER_INL_H_
 #error "Direct inclusion of this file is not allowed, use parallel_reader.h"
 #endif
-#undef PARALLEL_READER_INL_H_
 
 #include "parallel_reader.h"
 
