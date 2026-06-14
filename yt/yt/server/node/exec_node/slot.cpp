@@ -496,21 +496,25 @@ public:
             return MakeFuture<void>(std::move(error));
         }
 
-        auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
+        auto rootPath = GetRootPath(rootVolume, testRootFs);
 
-        YT_LOG_DEBUG("Linking volumes into sandbox (UserSandboxPath: %v, Volumes: %v)",
-            userSandboxPath,
-            MakeFormattableView(volumeResults,
-                [] (auto* builder, const TVolumeResultPtr& result) {
-                    builder->AppendFormat("{VolumeId: %v}",
-                        result->VolumeId);
+        YT_LOG_DEBUG(
+            "Linking volumes into root (RootPath: %v, Volumes: %v)",
+            rootPath,
+            MakeFormattableView(volumeMounts,
+                [] (auto* builder, const TVolumeMountPtr& volumeMount) {
+                    builder->AppendFormat(
+                        "{VolumeId: %v, MountPath: %v}",
+                        volumeMount->VolumeId,
+                        volumeMount->MountPath);
                 }));
+
 
         return RunPreparationAction(
             /*actionName*/ "LinkVolumes",
             /*uncancelable*/ true,
-            [userSandboxPath = std::move(userSandboxPath), volumeResults, volumeMounts, this, this_ = MakeStrong(this)] {
-                return VolumeManager_->LinkVolumes(userSandboxPath, volumeResults, volumeMounts);
+            [rootPath = std::move(rootPath), volumeResults, volumeMounts, this, this_ = MakeStrong(this)] {
+                return VolumeManager_->LinkVolumes(rootPath, volumeResults, volumeMounts);
         });
     }
 
@@ -575,7 +579,6 @@ public:
 
     TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
-        const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
         bool ignoreQuota) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -590,7 +593,6 @@ public:
                 return Location_->PrepareSandboxDirectories(
                     SlotIndex_,
                     options,
-                    nonRootVolumeParams,
                     ignoreQuota);
             });
     }
@@ -730,6 +732,18 @@ public:
                 return Location_->GetSandboxPath(
                     SlotIndex_,
                     sandboxKind);
+        }
+    }
+
+    TString GetRootPath(const IVolumePtr& rootVolume, bool testRootFs) const
+    {
+        VerifyEnabled();
+
+        if (rootVolume && !testRootFs) {
+            YT_VERIFY(!rootVolume->GetPath().empty());
+            return TString(rootVolume->GetPath());
+        } else {
+            return Location_->GetSlotPath(SlotIndex_);
         }
     }
 

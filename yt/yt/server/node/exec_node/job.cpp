@@ -2992,7 +2992,7 @@ void TJob::Cleanup()
         const auto& jobVolumeMounts = FSSecretary_->GetJobVolumeMounts();
         for (auto it = jobVolumeMounts.rbegin(); it != jobVolumeMounts.rend(); ++it) {
             const auto& volumeMount = *it;
-            if (volumeMount->MountPath == "/") {
+            if (volumeMount->MountPath == TAbsoluteNormalizedPath("/")) {
                 continue;
             }
 

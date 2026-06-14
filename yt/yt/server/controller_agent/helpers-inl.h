@@ -4,6 +4,8 @@
 #include "helpers.h"
 #endif
 
+#include <yt/yt/core/misc/fs.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,70 +16,6 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::INodePtr specNode)
     auto spec = New<TSpec>();
     try {
         spec->Load(specNode);
-
-        auto checkVolumeRequest = [] (const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts, const THashMap<std::string, NScheduler::TVolumePtr>& volumes) {
-            THashSet<std::string> allVolumesMediums;
-            bool hasNonRootNbdVolume = false;
-            auto rootVolumeId = [&] () -> std::optional<std::string_view> {
-                for (const auto& volumeMount : volumeMounts) {
-                    if (volumeMount->MountPath == "/") {
-                        return volumeMount->VolumeId;
-                    }
-                }
-                return std::nullopt;
-            }();
-
-            for (const auto& [volumeId, volume] : volumes) {
-                if (!volume->DiskRequest) {
-                    continue;
-                }
-
-                if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NScheduler::TDiskRequestConfig>()) {
-                    if (diskRequest->MediumName) {
-                        allVolumesMediums.insert(*diskRequest->MediumName);
-                    }
-                }
-
-                if (rootVolumeId && volumeId == *rootVolumeId) {
-                    continue;
-                }
-
-                if (auto volumeType = volume->DiskRequest->GetCurrentType(); volumeType == NExecNode::EVolumeType::Nbd) {
-                    hasNonRootNbdVolume = true;
-                }
-            }
-
-            // TODO(krasovav): Delete after supporting multiple medium.
-            if (allVolumesMediums.size() > 1) {
-                THROW_ERROR_EXCEPTION("Disk requests with two or more different medium are not currently supported")
-                    << TErrorAttribute("volumes", volumes);
-            }
-
-            if (hasNonRootNbdVolume) {
-                THROW_ERROR_EXCEPTION("Non-root nbd are not currently supported")
-                    << TErrorAttribute("volumes", volumes);
-            }
-        };
-
-        if constexpr (std::is_same_v<TSpec, NScheduler::TVanillaTaskSpec>) {
-            checkVolumeRequest(spec->JobVolumeMounts, spec->Volumes);
-        } else if constexpr (std::is_same_v<TSpec, NScheduler::TMapOperationSpec>) {
-            checkVolumeRequest(spec->Mapper->JobVolumeMounts, spec->Mapper->Volumes);
-        } else if constexpr (std::is_same_v<TSpec, NScheduler::TReduceOperationSpec>) {
-            checkVolumeRequest(spec->Reducer->JobVolumeMounts, spec->Reducer->Volumes);
-        } else if constexpr (std::is_same_v<TSpec, NScheduler::TMapReduceOperationSpec>) {
-            checkVolumeRequest(spec->Reducer->JobVolumeMounts, spec->Reducer->Volumes);
-            if (spec->Mapper) {
-                checkVolumeRequest(spec->Mapper->JobVolumeMounts, spec->Mapper->Volumes);
-            }
-            if (spec->ReduceCombiner) {
-                checkVolumeRequest(spec->ReduceCombiner->JobVolumeMounts, spec->ReduceCombiner->Volumes);
-            }
-        } else if constexpr (std::is_same_v<TSpec, NScheduler::TVanillaOperationSpec>) {
-             for (const auto& [_, task] : spec->Tasks) {
-                checkVolumeRequest(task->JobVolumeMounts, task->Volumes);
-            }
-        }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing operation spec") << ex;
     }

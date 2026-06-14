@@ -484,7 +484,7 @@ private:
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
-        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, Context_.FSSecretary->GetNonRootVolumeParams())
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
             .Apply(BIND([this, this_ = MakeStrong(this)] {
                 MakeArtifactSymlinks();
 
@@ -949,7 +949,7 @@ private:
         // applied a quota to root volume and should not set it again within sandbox preparation.
         bool ignoreQuota = Context_.UserSandboxOptions.EnableRootVolumeDiskQuota && ResultHolder_.RootVolume;
 
-        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, Context_.FSSecretary->GetNonRootVolumeParams(), ignoreQuota)
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, ignoreQuota)
             .Apply(BIND([this, this_ = MakeStrong(this)] {
                 if (ResultHolder_.RootVolume && !Context_.TestRootFS) {
                     MakeFilesForArtifactBinds();
@@ -1334,7 +1334,7 @@ private:
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
-        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, Context_.FSSecretary->GetNonRootVolumeParams())
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
             .Apply(BIND([this, this_ = MakeStrong(this)] {
                 MakeFilesForArtifactBinds();
 
