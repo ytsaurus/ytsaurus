@@ -472,6 +472,148 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool AreUnknownFieldSetsEqual(
+    const NProtoBuf::UnknownFieldSet& lhs,
+    const NProtoBuf::UnknownFieldSet& rhs)
+{
+    using NProtoBuf::UnknownField;
+
+    if (lhs.field_count() != rhs.field_count()) {
+        return false;
+    }
+
+    auto collectSorted = [] (const NProtoBuf::UnknownFieldSet& set) {
+        std::vector<const UnknownField*> fields;
+        fields.reserve(set.field_count());
+        for (int index = 0; index < set.field_count(); ++index) {
+            fields.push_back(&set.field(index));
+        }
+        // Stable sort keeps the relative order of entries with the same number, which is
+        // significant for repeated fields.
+        std::ranges::stable_sort(fields, std::ranges::less{}, [] (const UnknownField* field) {
+            return std::pair(field->number(), field->type());
+        });
+        return fields;
+    };
+
+    auto lhsFields = collectSorted(lhs);
+    auto rhsFields = collectSorted(rhs);
+
+    for (int index = 0; index < std::ssize(lhsFields); ++index) {
+        const auto* lhsField = lhsFields[index];
+        const auto* rhsField = rhsFields[index];
+        if (lhsField->number() != rhsField->number() || lhsField->type() != rhsField->type()) {
+            return false;
+        }
+        switch (lhsField->type()) {
+            case UnknownField::TYPE_VARINT:
+                if (lhsField->varint() != rhsField->varint()) {
+                    return false;
+                }
+                break;
+            case UnknownField::TYPE_FIXED32:
+                if (lhsField->fixed32() != rhsField->fixed32()) {
+                    return false;
+                }
+                break;
+            case UnknownField::TYPE_FIXED64:
+                if (lhsField->fixed64() != rhsField->fixed64()) {
+                    return false;
+                }
+                break;
+            case UnknownField::TYPE_LENGTH_DELIMITED:
+                if (lhsField->length_delimited() != rhsField->length_delimited()) {
+                    return false;
+                }
+                break;
+            case UnknownField::TYPE_GROUP:
+                if (!AreUnknownFieldSetsEqual(lhsField->group(), rhsField->group())) {
+                    return false;
+                }
+                break;
+        }
+    }
+    return true;
+}
+
+bool HasUnknownFields(const Message& message)
+{
+    const auto* reflection = message.GetReflection();
+    if (!reflection->GetUnknownFields(message).empty()) {
+        return true;
+    }
+
+    std::vector<const FieldDescriptor*> fields;
+    reflection->ListFields(message, &fields);
+    for (const auto* fieldDescriptor : fields) {
+        if (fieldDescriptor->cpp_type() != FieldDescriptor::CPPTYPE_MESSAGE) {
+            continue;
+        }
+        if (fieldDescriptor->is_repeated()) {
+            int size = reflection->FieldSize(message, fieldDescriptor);
+            for (int index = 0; index < size; ++index) {
+                if (HasUnknownFields(reflection->GetRepeatedMessage(message, fieldDescriptor, index))) {
+                    return true;
+                }
+            }
+        } else if (HasUnknownFields(reflection->GetMessage(message, fieldDescriptor))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool AreUnknownFieldsEqualRecursively(const Message& lhs, const Message& rhs)
+{
+    const auto* lhsReflection = lhs.GetReflection();
+    const auto* rhsReflection = rhs.GetReflection();
+    if (!AreUnknownFieldSetsEqual(
+        lhsReflection->GetUnknownFields(lhs),
+        rhsReflection->GetUnknownFields(rhs)))
+    {
+        return false;
+    }
+
+    const auto* descriptor = lhs.GetDescriptor();
+    for (int i = 0; i < descriptor->field_count(); ++i) {
+        const auto* fieldDescriptor = descriptor->field(i);
+        if (fieldDescriptor->cpp_type() != FieldDescriptor::CPPTYPE_MESSAGE) {
+            continue;
+        }
+        if (fieldDescriptor->is_repeated()) {
+            int size = lhsReflection->FieldSize(lhs, fieldDescriptor);
+            if (size != rhsReflection->FieldSize(rhs, fieldDescriptor)) {
+                return false;
+            }
+            for (int index = 0; index < size; ++index) {
+                if (!AreUnknownFieldsEqualRecursively(
+                    lhsReflection->GetRepeatedMessage(lhs, fieldDescriptor, index),
+                    rhsReflection->GetRepeatedMessage(rhs, fieldDescriptor, index)))
+                {
+                    return false;
+                }
+            }
+        } else {
+            bool lhsHasField = lhsReflection->HasField(lhs, fieldDescriptor);
+            bool rhsHasField = rhsReflection->HasField(rhs, fieldDescriptor);
+            if (!lhsHasField && !rhsHasField) {
+                continue;
+            }
+            // GetMessage returns the default instance for an absent field; its unknown field
+            // set is empty.
+            if (!AreUnknownFieldsEqualRecursively(
+                lhsReflection->GetMessage(lhs, fieldDescriptor),
+                rhsReflection->GetMessage(rhs, fieldDescriptor)))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TComparisonVisitor final
     : public TProtoVisitor<const std::pair<const Message*, const Message*>&, TComparisonVisitor>
 {
@@ -494,6 +636,28 @@ protected:
     {
         Equal_ = false;
         StopIteration_ = true;
+    }
+
+    static const NProtoBuf::UnknownFieldSet& GetUnknownFields(const Message* message)
+    {
+        return message
+            ? message->GetReflection()->GetUnknownFields(*message)
+            : NProtoBuf::UnknownFieldSet::default_instance();
+    }
+
+    void VisitWholeMessage(
+        const std::pair<const Message*, const Message*>& message,
+        EVisitReason reason)
+    {
+        if (PathComplete() && !AreUnknownFieldSetsEqual(
+            GetUnknownFields(message.first),
+            GetUnknownFields(message.second)))
+        {
+            NotEqual();
+            return;
+        }
+
+        TProtoVisitor::VisitWholeMessage(message, reason);
     }
 
     void OnDescriptorError(
@@ -730,6 +894,17 @@ protected:
 
                 if (!AreFieldsEquivalent(defaultMessage, messageWithPresentField, fieldDescriptor)) {
                     NotEqual();
+                    return;
+                }
+
+                // AreFieldsEquivalent ignores unknown fields; a present message carrying unknown
+                // fields is not equal to an absent one.
+                if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE &&
+                    HasUnknownFields(messageWithPresentField->GetReflection()->GetMessage(
+                        *messageWithPresentField,
+                        fieldDescriptor)))
+                {
+                    NotEqual();
                 }
             }
             return;
@@ -771,7 +946,8 @@ bool AreProtoMessagesEqual(
         return AreProtoMessagesEqualByPath(lhs, rhs, /*path*/ "", options);
     }
     if (options.CompareAbsentAsDefault) {
-        return MessageDifferencer::Equivalent(lhs, rhs);
+        // MessageDifferencer ignores unknown fields in EQUIVALENT mode; compare them separately.
+        return MessageDifferencer::Equivalent(lhs, rhs) && AreUnknownFieldsEqualRecursively(lhs, rhs);
     } else {
         return MessageDifferencer::Equals(lhs, rhs);
     }
