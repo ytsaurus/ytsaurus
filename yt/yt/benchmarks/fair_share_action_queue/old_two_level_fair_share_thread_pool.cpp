@@ -10,7 +10,7 @@
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/ring_queue.h>
 
-#include <yt/yt/core/profiling/tscp.h>
+#include <library/cpp/yt/system/tscp.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
