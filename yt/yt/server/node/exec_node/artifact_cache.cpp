@@ -197,7 +197,7 @@ private:
     const TChunkLocationBasePtr Location_;
     const std::unique_ptr<IOutputStream> Underlying_;
     const bool TestLocationDisabling_ = false;
-    std::function<void()> Cleanup_;
+    const std::function<void()> Cleanup_;
 
     template <class... TArgs>
     void Check(
