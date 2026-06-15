@@ -8319,6 +8319,16 @@ void TOperationControllerBase::InferInputRanges()
     queryOptions.VerboseLogging = true;
     queryOptions.RangeExpansionLimit = Config_->MaxRangesOnTable;
 
+    auto hasDescSortOrder = [] (const auto& table) {
+        for (const auto& column : table->Schema->Columns()) {
+            if (column.SortOrder() == ESortOrder::Descending) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
     for (const auto& table : InputManager_->GetInputTables()) {
         yielder.TryYield();
 
@@ -8330,6 +8340,11 @@ void TOperationControllerBase::InferInputRanges()
         }
 
         if (!table->Schema->IsSorted()) {
+            continue;
+        }
+
+        // TODO(psushin): fix range inferrer to work with desc sort order columns.
+        if (hasDescSortOrder(table)) {
             continue;
         }
 
