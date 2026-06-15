@@ -3951,6 +3951,21 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/accounts/account/@resource_limits/chunk_count", 10000)
         wait_for_cells([cell_id])
 
+    @authors("ifsmirnov")
+    def test_cell_diagnostic_errors(self):
+        cell_id = sync_create_cells(1)[0]
+
+        def _check():
+            path = f"#{cell_id}/@peers/0/last_hydra_restart_reason"
+            if not exists(path):
+                return False
+            error = YtError.from_dict(get(path))
+            return error.find_matching_error(yt_error_codes.AccountLimitExceeded)
+
+        create_account("foo", empty=True)
+        set("//sys/tablet_cell_bundles/default/@options/changelog_account", "foo")
+        wait(_check)
+
 
 ##################################################################
 

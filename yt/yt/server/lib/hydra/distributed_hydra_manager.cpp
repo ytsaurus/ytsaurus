@@ -678,6 +678,13 @@ public:
         return DecoratedAutomaton_->GetSequenceNumber();
     }
 
+    TError GetLastRestartError() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        return LastRestartError_;
+    }
+
     TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -756,6 +763,8 @@ private:
     TAtomicIntrusivePtr<TEpochContext> AtomicEpochContext_;
 
     NThreading::TAtomicObject<TPeerIdSet> AlivePeerIds_;
+
+    TError LastRestartError_;
 
     class TOwnedHydraServiceBase
         : public THydraServiceBase
@@ -1862,6 +1871,8 @@ private:
     void ProfileRestart(const TError& error)
     {
         ProfileRestart(error.GetMessage());
+
+        LastRestartError_ = error;
     }
 
     void ScheduleRestart(const TEpochContextPtr& epochContext, const TError& error)

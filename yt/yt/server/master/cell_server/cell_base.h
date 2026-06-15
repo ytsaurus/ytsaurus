@@ -68,6 +68,9 @@ public:
         TError LastRevocationReason;
         NTransactionServer::TTransactionRawPtr PrerequisiteTransaction;
 
+        // Diagnostics only, not persisted.
+        TError LastHydraRestartReason;
+
         void Persist(const NCellMaster::TPersistenceContext& context);
     };
 
@@ -132,7 +135,7 @@ public:
 
     void AssignPeer(const NHiveClient::TCellPeerDescriptor& descriptor, int peerId);
     void RevokePeer(int peerId, const TError& reason);
-    void ExpirePeerRevocationReasons(TInstant deadline);
+    void ExpireDiagnosticErrors(TInstant deadline);
 
     void AttachPeer(NNodeTrackerServer::TNode* node, int peerId);
     void DetachPeer(NNodeTrackerServer::TNode* node);
