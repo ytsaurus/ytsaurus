@@ -108,6 +108,8 @@ struct TDataCenterRacksInfo
     THashMap<std::string, int> RackToBundleNodes;
     THashMap<std::string, int> RackToSpareNodes;
     int RequiredSpareNodeCount;
+    int BundleNodeCountWithoutRack;
+    int SpareNodeCountWithoutRack;
 
     REGISTER_YSON_STRUCT(TDataCenterRacksInfo);
 

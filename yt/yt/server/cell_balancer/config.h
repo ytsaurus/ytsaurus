@@ -153,6 +153,8 @@ struct TBundleControllerDynamicConfig
     std::optional<bool> AnnotateNewNodes;
     std::optional<bool> AnnotateNewProxies;
 
+    bool UseDataNodeRacks;
+
     REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
