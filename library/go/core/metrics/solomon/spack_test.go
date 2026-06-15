@@ -762,3 +762,165 @@ func BenchmarkSpackEncode_SharedLabels(b *testing.B) {
 	m := &Metrics{metrics: out}
 	benchmarkSpackEncode(b, m, CompressionNone)
 }
+
+func makeBenchGaugePoints(n int) []GaugePoint {
+	points := make([]GaugePoint, n)
+	base := time.Unix(1700000000, 0)
+	for i := 0; i < n; i++ {
+		points[i] = GaugePoint{
+			Timestamp: base.Add(time.Duration(i) * time.Second),
+			Value:     float64(i) * 0.5,
+		}
+	}
+	return points
+}
+
+func makeBenchCounterPoints(n int) []CounterPoint {
+	points := make([]CounterPoint, n)
+	base := time.Unix(1700000000, 0)
+	for i := 0; i < n; i++ {
+		points[i] = CounterPoint{
+			Timestamp: base.Add(time.Duration(i) * time.Second),
+			Value:     int64(i),
+		}
+	}
+	return points
+}
+
+func makeBenchIGaugePoints(n int) []IGaugePoint {
+	points := make([]IGaugePoint, n)
+	base := time.Unix(1700000000, 0)
+	for i := 0; i < n; i++ {
+		points[i] = IGaugePoint{
+			Timestamp: base.Add(time.Duration(i) * time.Second),
+			Value:     int64(i) * 3,
+		}
+	}
+	return points
+}
+
+func makeBenchGaugeSeries(numMetrics, pointsPerSeries int) []Metric {
+	out := make([]Metric, numMetrics)
+	for i := 0; i < numMetrics; i++ {
+		s := NewGaugeSeries(
+			fmt.Sprintf("mygauge_%d", i),
+			makeBenchGaugePoints(pointsPerSeries),
+			WithTags(map[string]string{
+				"host":    fmt.Sprintf("host-%d", i%16),
+				"dc":      []string{"man", "vla", "sas", "iva"}[i%4],
+				"service": fmt.Sprintf("svc-%d", i%8),
+			}),
+		)
+		out[i] = &s
+	}
+	return out
+}
+
+func makeBenchCounterSeries(numMetrics, pointsPerSeries int) []Metric {
+	out := make([]Metric, numMetrics)
+	for i := 0; i < numMetrics; i++ {
+		s := NewCounterSeries(
+			fmt.Sprintf("mycounter_%d", i),
+			makeBenchCounterPoints(pointsPerSeries),
+			WithTags(map[string]string{
+				"host":   fmt.Sprintf("host-%d", i%16),
+				"region": []string{"ru-central1", "ru-central2", "ru-central3"}[i%3],
+			}),
+		)
+		out[i] = &s
+	}
+	return out
+}
+
+func makeBenchIGaugeSeries(numMetrics, pointsPerSeries int) []Metric {
+	out := make([]Metric, numMetrics)
+	for i := 0; i < numMetrics; i++ {
+		s := NewIGaugeSeries(
+			fmt.Sprintf("myigauge_%d", i),
+			makeBenchIGaugePoints(pointsPerSeries),
+			WithTags(map[string]string{
+				"host":     fmt.Sprintf("host-%d", i%16),
+				"endpoint": fmt.Sprintf("/api/v1/path%d", i%32),
+			}),
+		)
+		out[i] = &s
+	}
+	return out
+}
+
+func makeBenchMixedSeries(numMetrics, pointsPerSeries int) []Metric {
+	g := makeBenchGaugeSeries(numMetrics/3, pointsPerSeries)
+	c := makeBenchCounterSeries(numMetrics/3, pointsPerSeries)
+	i := makeBenchIGaugeSeries(numMetrics-len(g)-len(c), pointsPerSeries)
+	out := make([]Metric, 0, numMetrics)
+	out = append(out, g...)
+	out = append(out, c...)
+	out = append(out, i...)
+	return out
+}
+
+var benchSeriesShapes = []struct {
+	numMetrics      int
+	pointsPerSeries int
+}{
+	{10, 10},
+	{100, 10},
+	{1000, 10},
+	{100, 60},
+	{100, 600},
+	{1000, 60},
+}
+
+func BenchmarkSpackEncode_GaugeSeries(b *testing.B) {
+	for _, s := range benchSeriesShapes {
+		m := &Metrics{metrics: makeBenchGaugeSeries(s.numMetrics, s.pointsPerSeries)}
+		b.Run(fmt.Sprintf("metrics=%d/points=%d", s.numMetrics, s.pointsPerSeries), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionNone)
+		})
+	}
+}
+
+func BenchmarkSpackEncode_CounterSeries(b *testing.B) {
+	for _, s := range benchSeriesShapes {
+		m := &Metrics{metrics: makeBenchCounterSeries(s.numMetrics, s.pointsPerSeries)}
+		b.Run(fmt.Sprintf("metrics=%d/points=%d", s.numMetrics, s.pointsPerSeries), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionNone)
+		})
+	}
+}
+
+func BenchmarkSpackEncode_IGaugeSeries(b *testing.B) {
+	for _, s := range benchSeriesShapes {
+		m := &Metrics{metrics: makeBenchIGaugeSeries(s.numMetrics, s.pointsPerSeries)}
+		b.Run(fmt.Sprintf("metrics=%d/points=%d", s.numMetrics, s.pointsPerSeries), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionNone)
+		})
+	}
+}
+
+func BenchmarkSpackEncode_MixedSeries(b *testing.B) {
+	for _, s := range benchSeriesShapes {
+		m := &Metrics{metrics: makeBenchMixedSeries(s.numMetrics, s.pointsPerSeries)}
+		b.Run(fmt.Sprintf("metrics=%d/points=%d", s.numMetrics, s.pointsPerSeries), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionNone)
+		})
+	}
+}
+
+func BenchmarkSpackEncode_GaugeSeries_LZ4(b *testing.B) {
+	for _, s := range benchSeriesShapes {
+		m := &Metrics{metrics: makeBenchGaugeSeries(s.numMetrics, s.pointsPerSeries)}
+		b.Run(fmt.Sprintf("metrics=%d/points=%d", s.numMetrics, s.pointsPerSeries), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionLz4)
+		})
+	}
+}
+
+func BenchmarkSpackEncode_GaugeSeries_Version12(b *testing.B) {
+	for _, s := range benchSeriesShapes {
+		m := &Metrics{metrics: makeBenchGaugeSeries(s.numMetrics, s.pointsPerSeries)}
+		b.Run(fmt.Sprintf("metrics=%d/points=%d", s.numMetrics, s.pointsPerSeries), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionNone, WithVersion12())
+		})
+	}
+}
