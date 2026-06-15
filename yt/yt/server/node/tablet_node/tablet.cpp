@@ -848,6 +848,12 @@ void TSmoothMovementData::Persist(const TPersistenceContext& context)
     Persist(context, SiblingCellId_);
     Persist(context, SiblingMountRevision_);
     Persist(context, SiblingAvenueEndpointId_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::SmoothMovementReignValidation) {
+        Persist(context, Reign_);
+    }
+
     Persist(context, CommonDynamicStoreIds_);
 
     // COMPAT(ifsmirnov)
@@ -864,6 +870,7 @@ void TSmoothMovementData::BuildOrchidYson(TFluentMap fluent) const
         .Item("sibling_cell_id").Value(GetSiblingCellId())
         .Item("sibling_mount_revision").Value(GetSiblingMountRevision())
         .Item("sibling_avenue_endpoint_id").Value(GetSiblingAvenueEndpointId())
+        .Item("reign").Value(GetReign())
         .Item("common_dynamic_store_ids").Value(CommonDynamicStoreIds())
         .Item("stage_change_scheduled").Value(GetStageChangeScheduled())
         .Item("last_stage_change_time").Value(GetLastStageChangeTime());

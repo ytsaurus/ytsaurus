@@ -3,6 +3,7 @@
 #include "config.h"
 #include "in_memory_manager.h"
 #include "private.h"
+#include "serialize.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
 #include "store_flusher.h"

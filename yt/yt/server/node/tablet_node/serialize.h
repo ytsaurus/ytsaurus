@@ -31,6 +31,11 @@ void SetCurrentReignOverride(NHydra::TReign reign);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr static const int MinTabletReign = 100000;
+constexpr static const int MaxTabletReign = 190000;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ETabletReign,
     // 24.2 starts here.
     ((Start_24_2)                                  (101000)) // ponasenko-rs
@@ -85,9 +90,20 @@ DEFINE_ENUM(ETabletReign,
     ((DropMaterializedMountConfigPersistence)      (101503)) // dave11ar
     ((SendTableTabletBalancerConfigToTablet)       (101504)) // navasardianna
     ((ExpectedPrepareSignature)                    (101505)) // atalmenev
+    ((SmoothMovementReignValidation)               (101506)) // ifsmirnov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
+
+static_assert(static_cast<int>(TEnumTraits<ETabletReign>::GetMinValue()) >= MinTabletReign);
+static_assert(static_cast<int>(TEnumTraits<ETabletReign>::GetMaxValue()) <= MaxTabletReign);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns effective reign of the current mutation. If the mutation was sent from
+//! a sibling servant during smooth tablet movement, returns the reign of the
+//! sender. Otherwise returns local mutation reign.
+ETabletReign GetCurrentMutationEffectiveReign();
 
 ////////////////////////////////////////////////////////////////////////////////
 

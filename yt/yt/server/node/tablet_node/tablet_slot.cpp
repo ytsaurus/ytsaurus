@@ -9,6 +9,7 @@
 #include "mutation_forwarder.h"
 #include "mutation_forwarder_thunk.h"
 #include "private.h"
+#include "serialize.h"
 #include "smooth_movement_tracker.h"
 #include "tablet.h"
 #include "tablet_cell_write_manager.h"
@@ -297,12 +298,13 @@ public:
     }
 
     void UnregisterSiblingTabletAvenue(
-        TAvenueEndpointId siblingEndpointId) override
+        TAvenueEndpointId siblingEndpointId,
+        bool allowDestructionInMessageToSelf = false) override
     {
         auto selfEndpointId = GetSiblingAvenueEndpointId(siblingEndpointId);
 
         GetAvenueDirectory()->UpdateEndpoint(siblingEndpointId, /*cellId*/ {});
-        GetHiveManager()->UnregisterAvenueEndpoint(selfEndpointId);
+        GetHiveManager()->UnregisterAvenueEndpoint(selfEndpointId, allowDestructionInMessageToSelf);
     }
 
     void CommitTabletMutation(const ::google::protobuf::MessageLite& message) override
@@ -579,9 +581,7 @@ public:
             ->AddChild("tablets", TabletManager_->GetTabletOrchidService())
             ->AddChild("per_cluster_tablet_replication_status", TabletManager_->GetTabletReplicationOrchidService())
             ->AddChild("hunk_tablets", HunkTabletManager_->GetOrchidService())
-            ->AddChild("reign", IYPathService::FromProducer(BIND([] (IYsonConsumer* consumer) {
-                consumer->OnInt64Scalar(GetCurrentReign());
-            })));
+            ->AddChild("reign", ConvertToNode(GetCurrentReign()));
     }
 
     const TRuntimeTabletCellDataPtr& GetRuntimeData() override

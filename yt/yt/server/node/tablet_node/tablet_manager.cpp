@@ -680,9 +680,12 @@ public:
     }
 
     void UnregisterSiblingTabletAvenue(
-        NHiveServer::TAvenueEndpointId siblingEndpointId) override
+        NHiveServer::TAvenueEndpointId siblingEndpointId,
+        bool allowDestructionInMessageToSelf = false) override
     {
-        Slot_->UnregisterSiblingTabletAvenue(siblingEndpointId);
+        Slot_->UnregisterSiblingTabletAvenue(
+            siblingEndpointId,
+            allowDestructionInMessageToSelf);
         Slot_->GetTransactionManager()->AbortTransactionsExternalizedToThisCell(
             TTransactionExternalizationToken(GetSiblingAvenueEndpointId(siblingEndpointId)));
     }
@@ -1433,6 +1436,7 @@ private:
             movementData.SetRole(ESmoothMovementRole::Target);
             movementData.SetStage(ESmoothMovementStage::TargetAllocated);
             movementData.SetSiblingMountRevision(siblingMountRevision);
+            movementData.SetReign(GetCurrentMutationEffectiveReign());
 
             movementData.SetSiblingAvenueEndpointId(siblingEndpointId);
             Slot_->RegisterSiblingTabletAvenue(siblingEndpointId, siblingCellId);
@@ -1600,6 +1604,35 @@ private:
         YT_VERIFY(movementData.GetRole() == ESmoothMovementRole::Target);
         YT_VERIFY(movementData.GetStage() == ESmoothMovementStage::TargetAllocated);
         YT_VERIFY(movementData.GetSiblingCellId());
+
+        // Check that source and target reigns are the same.
+        // NB: Target reign could have changed after target tablet was mounted. In this case
+        // reign mismatch is still reported.
+        auto mutationReign = static_cast<ETabletReign>(GetHiveMutationSenderReign());
+        if (movementData.GetReign() != mutationReign) {
+            YT_LOG_DEBUG("Got replicate tablet content request from servant with different reign "
+                "(%v, SenderReign: %v, ReceiverReign: %v)",
+                tablet->GetLoggingTag(),
+                movementData.GetReign(),
+                mutationReign);
+
+            Slot_->GetSmoothMovementTracker()->RejectMovement(
+                tablet,
+                TError("Replicated content reign %Qv differs from current reign %Qv",
+                    mutationReign,
+                    movementData.GetReign()));
+            return;
+        }
+
+        if (tablet->GetSettings().MountConfig->Testing.RejectReplicatedContentReceiving) {
+            YT_LOG_DEBUG("Target servant rejected replicated content for testing purposes (%v)",
+                tablet->GetLoggingTag());
+
+            Slot_->GetSmoothMovementTracker()->RejectMovement(
+                tablet,
+                TError("Smooth movement rejected by target for testing purposes"));
+            return;
+        }
 
         const auto& replicatableContent = request->replicatable_content();
 

@@ -1,11 +1,16 @@
 #include "serialize.h"
 
+#include <yt/yt/server/lib/hive/hive_manager.h>
+
+#include <yt/yt/server/lib/hydra/mutation_context.h>
+
 #include <yt/yt/server/lib/tablet_node/private.h>
 
 #include <util/generic/cast.h>
 
 namespace NYT::NTabletNode {
 
+using namespace NHiveServer;
 using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,6 +99,18 @@ void SetCurrentReignOverride(NHydra::TReign reign)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTesting
+
+////////////////////////////////////////////////////////////////////////////////
+
+ETabletReign GetCurrentMutationEffectiveReign()
+{
+    auto hiveReign = GetHiveMutationSenderReign();
+    if (hiveReign && hiveReign >= MinTabletReign && hiveReign <= MaxTabletReign) {
+        return static_cast<ETabletReign>(hiveReign);
+    } else {
+        return static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
