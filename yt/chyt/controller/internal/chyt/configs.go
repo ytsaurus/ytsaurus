@@ -228,10 +228,6 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 		configAsMap["worker_thread_count"] = *speclet.Resources.InstanceCPU
 	}
 
-	if _, ok := configAsMap["enable_dynamic_tables"]; !ok {
-		configAsMap["enable_dynamic_tables"] = true
-	}
-
 	if _, ok := configAsMap["query_sticky_group_size"]; !ok && speclet.EnableStickyQueryDistribution {
 		configAsMap["query_sticky_group_size"] = speclet.QueryStickyGroupSizeOrDefault()
 	}
