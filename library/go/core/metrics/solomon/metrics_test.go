@@ -61,6 +61,24 @@ func TestMetrics_with_timestamp_MarshalJSON(t *testing.T) {
 	assert.Equal(t, expected, b)
 }
 
+func TestMetrics_with_common_labels_MarshalJSON(t *testing.T) {
+	counter := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}))
+	gauge := NewGauge("mygauge", 42.24, WithTags(map[string]string{"oki": "toki"}))
+	s := &Metrics{
+		metrics:      []Metric{&counter, &gauge},
+		commonLabels: map[string]string{"host": "myhost"},
+	}
+
+	b, err := json.Marshal(s)
+	assert.NoError(t, err)
+
+	expected := []byte(`{"metrics":[` +
+		`{"type":"COUNTER","labels":{"ololo":"trololo","sensor":"mycounter"},"value":42},` +
+		`{"type":"DGAUGE","labels":{"oki":"toki","sensor":"mygauge"},"value":42.24}` +
+		`],"commonLabels":{"host":"myhost"}}`)
+	assert.Equal(t, expected, b)
+}
+
 func TestRated(t *testing.T) {
 	counter := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}))
 	counterRated := NewCounter("mycounter", 42, WithTags(map[string]string{"ololo": "trololo"}), WithRated(true))
