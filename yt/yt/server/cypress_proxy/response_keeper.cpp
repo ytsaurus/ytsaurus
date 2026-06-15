@@ -95,7 +95,7 @@ public:
         auto newEnable = newConfig->Enable;
         auto oldEnable = Config_.Exchange(newConfig)->Enable;
 
-        YT_LOG_DEBUG_IF(oldEnable != newEnable,
+        YT_LOG_INFO_IF(oldEnable != newEnable,
             "Sequoia response keeper %v", newEnable ? "enabled" : "disabled");
     }
 
