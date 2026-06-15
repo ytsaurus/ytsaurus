@@ -2645,7 +2645,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        // NB: Limit works for list, and not for get. This is a weird descion, but
+        // NB: Limit works for list, and not for get. This is a weird decision, but
         // let's just mirror the behaviour of Cypress here.
         auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
         context->SetRequestInfo("AttributeFilter: %v, Limit: %v",

@@ -751,7 +751,7 @@ public:
         const auto& dynamicConfig = GetDynamicConfig();
 
         if (hintId) {
-            YT_VERIFY(ValidateTransactionTypeCoherency(transactionType, hintId));
+            YT_VERIFY(CheckTransactionTypeCoherency(transactionType, hintId));
         }
 
         auto transactionObjectType = TransactionTypeToObjectType(
@@ -2790,7 +2790,7 @@ private:
         }
 
         auto transactionType = ObjectTypeToTransactionType(TypeFromId(hintId));
-        ValidateTransactionTypeCoherency(transactionType, hintId);
+        CheckTransactionTypeCoherency(transactionType, hintId);
 
         auto title = YT_OPTIONAL_FROM_PROTO(*request, title);
         auto* transaction = DoStartTransaction(
