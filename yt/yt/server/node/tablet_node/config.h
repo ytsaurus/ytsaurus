@@ -543,6 +543,24 @@ DEFINE_REFCOUNTED_TYPE(TOverloadReporterConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRowCacheControllerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enabled;
+    TDuration Period;
+    i64 MemoryLimitGapInBytes;
+    double MemoryLimitGapFraction;
+    double RotationMemoryThreshold;
+
+    REGISTER_YSON_STRUCT(TRowCacheControllerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRowCacheControllerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TErrorManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -722,6 +740,8 @@ struct TTabletNodeDynamicConfig
     TOverloadReporterConfigPtr OverloadReporter;
 
     TErrorManagerConfigPtr ErrorManager;
+
+    TRowCacheControllerDynamicConfigPtr RowCacheController;
 
     bool EnableChunkFragmentReaderThrottling;
 
