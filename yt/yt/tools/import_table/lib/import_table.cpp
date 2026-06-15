@@ -417,10 +417,10 @@ private:
     {
         metadataWeight = std::min(FileSize_, metadataWeight);
 
-        TString metadata;
+        std::string metadata;
         metadata.resize(metadataWeight);
 
-        ringBuffer.Read(std::max(static_cast<i64>(0), FileSize_ - metadataWeight), std::min(metadataWeight, FileSize_), metadata.begin());
+        ringBuffer.Read(std::max(static_cast<i64>(0), FileSize_ - metadataWeight), std::min(metadataWeight, FileSize_), metadata.data());
 
         i64 partIndex = 0;
         i64 currentSize = metadataWeight;
@@ -430,7 +430,7 @@ private:
             TNode outMetadataRow;
 
             outMetadataRow[FileIndexColumnName] = fileIndex;
-            outMetadataRow[MetadataColumnName] = metadata.substr(metadataOffset, partSize);
+            outMetadataRow[MetadataColumnName] = TString(metadata.substr(metadataOffset, partSize));
             outMetadataRow[StartMetadataOffsetColumnName] = FileSize_ - metadataWeight;
             outMetadataRow[PartIndexColumnName] = partIndex;
 
@@ -552,7 +552,7 @@ std::shared_ptr<arrow20::RecordBatchReader> MakeRecordBatchReaderAdapter(
 }
 
 TArrowRandomAccessFilePtr MakeFormatStreamAdapter(
-    const TString* metadata,
+    const std::string* metadata,
     i64 startMetadataOffset,
     const std::shared_ptr<IInputStream>& reader,
     EFileFormat fileFormat)
@@ -590,7 +590,7 @@ public:
         while (reader.IsValid()) {
             const auto& row = reader.GetRow();
             YT_VERIFY(reader.GetTableIndex() == 0);
-            TString metadata;
+            std::string metadata;
             auto startIndex = row[StartMetadataOffsetColumnName].AsInt64();
 
             while (reader.GetTableIndex() == 0) {
@@ -742,7 +742,7 @@ std::vector<TTempTable> CreateOutputParserTables(
 
     while (reader->IsValid()) {
         const auto& row = reader->GetRow();
-        TString metadata;
+        std::string metadata;
         auto currentFileIndex = row[FileIndexColumnName].AsInt64();
         auto metadataStartOffset = row[StartMetadataOffsetColumnName].AsInt64();
         i64 lastDataPartIndex = 0;
