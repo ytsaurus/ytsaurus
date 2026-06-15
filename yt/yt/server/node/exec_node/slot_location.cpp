@@ -169,10 +169,10 @@ TSlotLocation::TSlotLocation(
         .WithTag("device_name", Config_->DeviceName)
         .WithTag("disk_family", Config_->DiskFamily)
         .WithTag("location_id", Id_))
+    , CopyRate_(Profiler_.Gauge("/copy/rate"))
+    , CopyRateEma_(Profiler_.Gauge("/copy/rate_ema"))
+    , CopyRateAggregator_(SlotManagerDynamicConfig_.Acquire()->CopyRateAggregatorHalfLife)
 {
-    Profiler_
-        .AddProducer("", MakeCopyMetricBuffer_);
-
     InitializeDiskLocationProfiling(Profiler_);
 
     Bootstrap_->SubscribePopulateAlerts(BIND(&TSlotLocation::PopulateAlerts, MakeWeak(this)));
@@ -189,6 +189,13 @@ void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& c
         diskLocationConfig->ApplyDynamicInplace(*config->LocationConfigPatch);
         return diskLocationConfig;
     }));
+
+    {
+        auto guard = Guard(CopyRateAggregatorLock_);
+        CopyRateAggregator_.SetHalflife(
+            config->CopyRateAggregatorHalfLife,
+            /*resetOnNewHalflife*/ false);
+    }
 
     HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*config->DiskHealthChecker));
     JobDirectoryManager_->OnDynamicConfigChanged(config->JobDirectoryManager);
@@ -631,7 +638,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
 
             TFile sourceFile(sourcePath, OpenExisting | RdOnly | Seq | CloseOnExec);
 
-            auto copyFileStart = TInstant::Now().MicroSeconds();
+            auto copyFileStart = TInstant::Now();
 
             i64 bytesTransferred = 0;
             TError transferError;
@@ -682,13 +689,13 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 }
             }
 
-            if (SlotManagerStaticConfig_->EnableArtifactCopyTracking) {
-                auto length = bytesTransferred;
-                auto delta = TInstant::Now().MicroSeconds() - copyFileStart;
+            auto copyRate = bytesTransferred / ((TInstant::Now() - copyFileStart).NanoSeconds() * 1e-9);
+            CopyRate_.Update(copyRate);
 
-                MakeCopyMetricBuffer_->Update([=] (ISensorWriter* writer) {
-                    writer->AddGauge("/copy/rate", std::max(0.0, (1.0 * length / delta)));
-                });
+            {
+                auto guard = Guard(CopyRateAggregatorLock_);
+                CopyRateAggregator_.UpdateAt(TInstant::Now(), copyRate);
+                CopyRateEma_.Update(CopyRateAggregator_.GetAverage());
             }
 
             if (!transferError.IsOK()) {
