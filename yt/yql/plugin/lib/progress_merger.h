@@ -1,28 +1,31 @@
 #pragma once
 
-#include <yql/essentials/core/yql_execution.h>
 #include <yql/essentials/core/progress_merger/progress_merger.h>
+
+#include <yql/tools/yqlworker/interface/proto/task.pb.h>
+#include <yql/tools/yqlworker/interface/progress/task_node_progress.h>
 
 #include <library/cpp/yson/writer.h>
 
 namespace NYT::NYqlPlugin {
 
-using namespace NYql::NProgressMerger;
-using namespace NYson;
-
 //////////////////////////////////////////////////////////////////////////////
 
-class TNodeProgress : public TNodeProgressBase {
+class TNodeProgress
+    : public NYql::TNodeProgress
+{
 public:
-    TNodeProgress(const NYql::TOperationProgress& p);
+    using NYql::TNodeProgress::TNodeProgress;
+
     void Serialize(::NYson::TYsonWriter& yson) const;
 };
 
 //////////////////////////////////////////////////////////////////////////////
 
-class TProgressMerger : public ITaskProgressMerger {
+class TProgressMerger : public NYql::NProgressMerger::ITaskProgressMerger {
 public:
     void MergeWith(const NYql::TOperationProgress& progress) override;
+    void MergeWith(const NYql::NProto::TTaskProgress& taskProgress);
     void AbortAllUnfinishedNodes() override;
 
     bool HasChangesSinceLastFlush() const;

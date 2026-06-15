@@ -2,10 +2,11 @@
 #include "dq_gateway_with_offloading.h"
 #include "plugin.h"
 
-#include "error_helpers.h"
-#include "progress_merger.h"
 #include "provider_load.h"
 #include "secret_masker.h"
+
+#include <yt/yql/plugin/lib/error_helpers.h>
+#include <yt/yql/plugin/lib/progress_merger.h>
 
 #include <yt/yql/providers/yt/common/yql_names.h>
 #include <yt/yql/providers/yt/comp_nodes/dq/dq_yt_factory.h>
@@ -356,7 +357,7 @@ class TYqlPlugin
     : public IYqlPlugin
 {
 public:
-    TYqlPlugin(TYqlPluginOptions options)
+    TYqlPlugin(TYqlNativePluginOptions options)
         : DqManagerConfig_(options.DqManagerConfig ? NYTree::ConvertTo<TDqManagerConfigPtr>(options.DqManagerConfig) : nullptr)
         , StartDqManager_(options.StartDqManager)
     {
@@ -370,7 +371,7 @@ public:
 
             logger.SetDefaultPriority(ELogPriority::TLOG_DEBUG);
             for (int i = 0; i < NYql::NLog::TComponentHelpers::ToInt(NYql::NLog::EComponent::MaxValue); ++i) {
-                logger.SetComponentLevel((NYql::NLog::EComponent)i, NYql::NLog::ELevel::DEBUG);
+                logger.SetComponentLevel(NYql::NLog::EComponent(i), NYql::NLog::ELevel::DEBUG);
             }
 
             NYql::SetYtLoggerGlobalBackend(NYT::ILogger::ELevel::DEBUG);
@@ -1368,7 +1369,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IYqlPlugin> CreateYqlPlugin(TYqlPluginOptions options) noexcept
+std::unique_ptr<IYqlPlugin> CreateYqlPlugin(TYqlNativePluginOptions options) noexcept
 {
     return std::make_unique<NNative::TYqlPlugin>(std::move(options));
 }

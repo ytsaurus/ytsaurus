@@ -108,7 +108,7 @@ class TYqlPlugin
     , public IYqlPlugin
 {
 public:
-    explicit TYqlPlugin(TYqlPluginOptions options)
+    explicit TYqlPlugin(TYqlNativePluginOptions options)
         : TDynamicYqlPlugin(options.YqlPluginSharedLibrary)
     {
         TString singletonsConfig = options.SingletonsConfig ? options.SingletonsConfig.ToString() : "{}";
@@ -345,7 +345,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IYqlPlugin> CreateBridgeYqlPlugin(TYqlPluginOptions options) noexcept
+std::unique_ptr<IYqlPlugin> CreateBridgeYqlPlugin(TYqlNativePluginOptions options) noexcept
 {
     return std::make_unique<NBridge::TYqlPlugin>(std::move(options));
 }

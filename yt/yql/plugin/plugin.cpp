@@ -17,14 +17,14 @@ IMapNodePtr IYqlPlugin::GetOrchidNode() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYqlPluginOptions ConvertToOptions(
+TYqlNativePluginOptions ConvertToNativePluginOptions(
     TYqlPluginConfigPtr config,
     TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
     std::string maxSupportedYqlVersion,
     bool startDqManager)
 {
-    return TYqlPluginOptions {
+    auto options = TYqlNativePluginOptions {
         .SingletonsConfig = singletonsConfigString,
         .GatewayConfig = ConvertToYsonString(config->GatewayConfig),
         .DqGatewayConfig = config->EnableDQ ? ConvertToYsonString(config->DQGatewayConfig) : TYsonString(),
@@ -38,20 +38,25 @@ TYqlPluginOptions ConvertToOptions(
         .OperationAttributes = ConvertToYsonString(config->OperationAttributes),
         .Libraries = ConvertToYsonString(config->Libraries),
         .YTTokenPath = config->YTTokenPath,
-        .LogBackend = std::move(logBackend),
         .YqlPluginSharedLibrary = config->YqlPluginSharedLibrary,
         .MaxYqlLangVersion = maxSupportedYqlVersion,
         .StartDqManager = startDqManager,
     };
+
+    options.LogBackend = std::move(logBackend);
+    return options;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-Y_WEAK std::unique_ptr<IYqlPlugin> CreateYqlPlugin(TYqlPluginOptions /*options*/) noexcept
+TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(
+    TYqlNativePluginOptions nativeOptions,
+    THolder<TLogBackend> qtWorkerLogBackend,
+    int qtWorkerInspectorPort)
 {
-    std::cerr << "No YQL plugin implementation is available; link against either "
-              << "yt/yql/plugin/native or yt/yql/plugin/dynamic" << std::endl;
-    exit(1);
+    TYqlQTWorkerPluginOptions options;
+    static_cast<TYqlNativePluginOptions&>(options) = std::move(nativeOptions);
+    options.QtWorkerInspectorPort = qtWorkerInspectorPort;
+    options.QtWorkerLogBackend = std::move(qtWorkerLogBackend);
+    return options;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

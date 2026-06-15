@@ -41,6 +41,10 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("insecure_secret_path_subjects", &TThis::InsecureSecretPathSubjects)
         .Default();
+    registrar.Parameter("use_qtworker_yql_plugin", &TThis::UseQtWorkerYqlPlugin)
+        .Default(false);
+    registrar.Parameter("qtworker_inspector_port", &TThis::QtWorkerInspectorPort)
+        .Default(32391);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

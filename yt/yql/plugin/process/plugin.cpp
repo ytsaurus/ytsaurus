@@ -561,7 +561,7 @@ private:
 
     void InitializeDqControllerYqlPlugin(TSingletonsConfigPtr singletonsConfig, std::string maxSupportedYqlVersion)
     {
-        auto options = ConvertToOptions(
+        auto options = ConvertToNativePluginOptions(
             Config_,
             ConvertToYsonString(singletonsConfig),
             NYT::NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),

@@ -1,0 +1,79 @@
+message TvmServiceDescription {
+    optional string Name = 1;
+    optional int32 TvmId = 2;
+}
+
+message TvmConfig {
+    optional int32 SelfTvmId = 1;
+    optional string SelfTvmTokenFile = 2;
+    repeated TvmServiceDescription DstServices = 3;
+}
+
+message ClusterMappingConfig {
+    optional uint32 TimeoutMilliseconds = 2;
+    optional uint32 RepeatMilliseconds = 3;
+}
+
+message AutoCompleteApplicationConfig {
+    optional TvmConfig TvmConfig = 1;
+    optional ClusterMappingConfig ClusterMappingConfig = 2;
+    repeated string DisabledChecks = 3;
+}
+
+message CodeAssistTelemetryConfig {
+    optional string Url = 1;
+    optional uint32 TimeoutMilliseconds = 2;
+    optional uint32 MaxRequestBodyBytes = 3;
+}
+
+message AutoCompleteHandlerConfig {
+    optional CodeAssistTelemetryConfig CodeAssistTelemetryConfig = 1;
+}
+
+message BackendTvmConfig {
+    optional int32 SelfTvmId = 1;
+    repeated int32 TrustedSources = 2;
+}
+
+message YqlApiEndpointConfig {
+    optional string Server = 1 [default = "yql.yandex.net"];
+    optional uint32 Port = 2 [default = 443];
+}
+
+message FileLoggerBackendConfig {
+    optional string Path = 1;
+    optional string Format = 4;
+}
+
+message GrpcLoggerBackendConfig {
+    optional string Uri = 1;
+    optional string Format = 2;
+}
+
+message ConsoleLoggerBackendConfig {
+    optional string Format = 1;
+}
+
+message LoggerConfig {
+    optional string LoggerName = 1;
+    optional FileLoggerBackendConfig FileBackend = 2;
+    optional GrpcLoggerBackendConfig GrpcBackend = 3;
+    optional ConsoleLoggerBackendConfig ConsoleBackend = 4;
+}
+
+message YqlTornadoBackendConfig {
+    optional uint64 MaxBodySize = 1;
+    optional uint64 Processes = 2 [default = 12];
+    optional uint64 Bind = 3 [default = 443];
+    repeated LoggerConfig Loggers = 4;
+    optional string CertFile = 5;
+    optional string PkFile = 6;
+}
+
+message YqlTornadoConfig {
+    optional AutoCompleteApplicationConfig ApplicationConfig = 1;
+    optional AutoCompleteHandlerConfig AutoCompleteHandlerConfig = 2;
+    optional BackendTvmConfig BackendTvm = 3;
+    optional YqlApiEndpointConfig YqlApiEndpoint = 4;
+    optional YqlTornadoBackendConfig BackendConfig = 5;
+}

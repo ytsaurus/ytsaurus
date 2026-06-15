@@ -66,7 +66,7 @@ protected:
 
         YT_VERIFY(config->BusServer->UnixDomainSocketPath);
 
-        auto options = ConvertToOptions(
+        auto options = ConvertToNativePluginOptions(
             config->PluginConfig,
             NYson::ConvertToYsonString(config->SingletonsConfig),
             NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
