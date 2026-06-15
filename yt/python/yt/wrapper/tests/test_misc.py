@@ -9,7 +9,7 @@ from .helpers import (TEST_DIR, wait, get_default_resource_limits,
                       get_python, get_binary_path, get_environment_for_binary_test)
 
 from yt.subprocess_wrapper import Popen, PIPE
-from yt.wrapper.errors import YtRetriableError, YtConfigError, YtResponseError
+from yt.wrapper.errors import YtRetriableError, YtConfigError, YtResponseError, YtResolveError
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
 from yt.wrapper.spec_builders import MapSpecBuilder, MapperSpecBuilder
@@ -1325,6 +1325,15 @@ class TestGetSupportedFeatures(object):
         }
         assert expected_node_flavors == \
             expected_node_flavors.intersection(set(features["node_flavors"]))
+
+
+@pytest.mark.usefixtures("yt_env")
+class TestCheckClusterLiveness(object):
+    @authors("dagorokhov")
+    def test_check_cluster_liveness(self):
+        yt.check_cluster_liveness()
+        with pytest.raises(YtResolveError, match="Cluster liveness subrequest failed"):
+            yt.check_cluster_liveness(check_tablet_cell_bundle="b")
 
 
 @pytest.mark.usefixtures("yt_env")
