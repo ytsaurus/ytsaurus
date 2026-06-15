@@ -122,7 +122,7 @@ public:
         return Parent_;
     }
 
-    TString GetId() const override
+    std::string GetId() const override
     {
         return Id_;
     }

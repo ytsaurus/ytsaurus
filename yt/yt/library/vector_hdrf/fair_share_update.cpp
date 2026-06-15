@@ -1415,7 +1415,7 @@ void TRootElement::ValidatePoolConfigs(TFairShareUpdateContext* context)
     TCompositeElement::ValidatePoolConfigs(context);
 
     auto collectPoolIds = [] (const auto& poolCollection) {
-        std::vector<TString> poolIds;
+        std::vector<std::string> poolIds;
         poolIds.reserve(std::ssize(poolCollection));
         for (auto* pool : poolCollection) {
             poolIds.push_back(pool->GetId());

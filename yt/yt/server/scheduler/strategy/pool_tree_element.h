@@ -640,7 +640,7 @@ public:
 
     ESchedulerElementType GetType() const override;
 
-    TString GetId() const override;
+    std::string GetId() const override;
 
     void AttachParent(TPoolTreeCompositeElement* newParent);
     void ChangeParent(TPoolTreeCompositeElement* newParent);
@@ -842,7 +842,7 @@ public:
 
     TInstant GetStartTime() const;
 
-    TString GetId() const override;
+    std::string GetId() const override;
     TOperationId GetOperationId() const;
     std::optional<std::string> GetTitle() const;
 
@@ -1027,7 +1027,7 @@ public:
     TPoolTreeRootElement(const TPoolTreeRootElement& other);
 
     //! Common interface.
-    TString GetId() const override;
+    std::string GetId() const override;
 
     TPoolTreeRootElementPtr Clone();
 

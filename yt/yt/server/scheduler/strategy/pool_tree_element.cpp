@@ -1337,7 +1337,7 @@ std::optional<TDuration> TPoolTreePoolElement::GetSpecifiedWaitingForResourcesOn
     return Config_->WaitingForResourcesOnNodeTimeout;
 }
 
-TString TPoolTreePoolElement::GetId() const
+std::string TPoolTreePoolElement::GetId() const
 {
     return Id_;
 }
@@ -1993,7 +1993,7 @@ bool TPoolTreeOperationElement::AreDetailedLogsEnabled() const
     return RuntimeParameters_->EnableDetailedLogs || enabledDueToStarvation || enabledSinceSingleAllocation;
 }
 
-TString TPoolTreeOperationElement::GetId() const
+std::string TPoolTreeOperationElement::GetId() const
 {
     return ToString(OperationId_);
 }
@@ -2734,7 +2734,7 @@ const TSchedulingTagFilter& TPoolTreeRootElement::GetSchedulingTagFilter() const
     return EmptySchedulingTagFilter;
 }
 
-TString TPoolTreeRootElement::GetId() const
+std::string TPoolTreeRootElement::GetId() const
 {
     // TODO(babenko): migrate to std::string
     return TString(RootPoolName);
