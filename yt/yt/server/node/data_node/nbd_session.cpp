@@ -51,7 +51,9 @@ TNbdSession::TNbdSession(
         Id_.ChunkId,
         Options_.WorkloadDescriptor,
         StoreLocation_,
-        Bootstrap_->GetStorageHeavyInvoker());
+        Bootstrap_->GetStorageHeavyInvoker(),
+        Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor),
+        Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor));
 }
 
 /*
@@ -60,42 +62,22 @@ TNbdSession::TNbdSession(
 
 TFuture<TBlock> TNbdSession::Read(i64 offset, i64 length, ui64 cookie)
 {
-    // We are reading out some bytes to network so use out throttler.
-    auto readThrottler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
+    YT_LOG_DEBUG("Reading from NBD session (Offset: %v, Length: %v, Cookie: %x)",
+        offset,
+        length,
+        cookie);
 
-    TWallTimer throttleTimer;
-    auto throttleFuture = readThrottler->Throttle(length);
-    return throttleFuture.Apply(BIND([=, throttleTimer = std::move(throttleTimer), this, this_ = MakeStrong(this)] () {
-        auto throttleDuration = throttleTimer.GetElapsedTime();
-
-        YT_LOG_DEBUG("Reading from NBD session (Offset: %v, Length: %v, ThrottleDuration: %v, Cookie: %x)",
-            offset,
-            length,
-            throttleDuration,
-            cookie);
-
-        return NbdChunkHandler_->Read(offset, length, cookie);
-    }));
+    return NbdChunkHandler_->Read(offset, length, cookie);
 }
 
 TFuture<NIO::TIOCounters> TNbdSession::Write(i64 offset, const TBlock& block, ui64 cookie)
 {
-    // We are writing in some bytes from network so use in throttler.
-    auto writeThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
+    YT_LOG_DEBUG("Writing to NBD session (Offset: %v, Length: %v, Cookie: %x)",
+        offset,
+        block.Size(),
+        cookie);
 
-    TWallTimer throttleTimer;
-    auto throttleFuture = writeThrottler->Throttle(block.Size());
-    return throttleFuture.Apply(BIND([=, throttleTimer = std::move(throttleTimer), this, this_ = MakeStrong(this)] () {
-        auto throttleDuration = throttleTimer.GetElapsedTime();
-
-        YT_LOG_DEBUG("Writing to NBD session (Offset: %v, Length: %v, ThrottleDuration: %v, Cookie: %x)",
-            offset,
-            block.Size(),
-            throttleDuration,
-            cookie);
-
-        return NbdChunkHandler_->Write(offset, block, cookie);
-    }));
+    return NbdChunkHandler_->Write(offset, block, cookie);
 }
 
 //! Create NBD chunk and make filesystem on it.
