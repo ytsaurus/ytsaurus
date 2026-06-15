@@ -113,15 +113,15 @@ TInstant CalculateTtlCleanupExpected(
 }
 
 TInstant CalculateTooManyTimestamps(
-    const TVersionedRowDigestPtr& digest,
+    const std::vector<i64>& earliestNthTimestamp,
     const TTableMountConfigPtr& mountConfig,
     TInstant majorTimestamp = TInstant::Max())
 {
     ui32 timestampIndex = std::countr_zero<ui32>(mountConfig->CompactionHints->RowDigest->MaxTimestampsPerValue);
 
-    // TODO(dave11ar): YT-27427.
-    if (timestampIndex < ssize(digest->EarliestNthTimestamp)) {
-        auto compactionTimestamp = TInstant::Seconds(digest->EarliestNthTimestamp[timestampIndex]) + mountConfig->MinDataTtl;
+    if (timestampIndex < ssize(earliestNthTimestamp)) {
+        auto compactionTimestamp =
+            TInstant::Seconds(earliestNthTimestamp[timestampIndex]) + mountConfig->MinDataTtl;
 
         if (compactionTimestamp < majorTimestamp) {
             return compactionTimestamp;
@@ -151,7 +151,7 @@ void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDige
             recalculationFinalizer.TryApplyRecalculation(timestamp, EStoreCompactionReason::TtlCleanupExpected);
         }
     }
-    if (auto timestamp = CalculateTooManyTimestamps(digest, mountConfig)) {
+    if (auto timestamp = CalculateTooManyTimestamps(digest->EarliestNthTimestamp, mountConfig)) {
         recalculationFinalizer.TryApplyRecalculation(timestamp, EStoreCompactionReason::TooManyTimestamps);
     }
 }
@@ -194,7 +194,11 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::Aggregat
                 recalculationFinalizer.TryApplyRecalculationByPrefix(timestamp, EStoreCompactionReason::AggregateTtlCleanupExpected, prefixLength);
             }
         }
-        if (auto timestamp = CalculateTooManyTimestamps(cumulativeDigest, mountConfig, majorTimestamp)) {
+        if (auto timestamp = CalculateTooManyTimestamps(
+            cumulativeDigest->EarliestAggregateOrDeleteNthTimestamp,
+            mountConfig,
+            majorTimestamp))
+        {
             recalculationFinalizer.TryApplyRecalculationByPrefix(timestamp, EStoreCompactionReason::AggregateDeleteTooManyTimestamps, prefixLength);
         }
     }
