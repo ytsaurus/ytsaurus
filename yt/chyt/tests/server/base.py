@@ -368,12 +368,10 @@ class Clique(object):
 
         block_rows = 0
         for row in query_log_rows:
-            statistics = row['chyt_query_statistics']
-            if "secondary_query_source" not in statistics:
-                continue
-            if "block_rows" not in statistics["secondary_query_source"]:
-                continue
-            block_rows += statistics["secondary_query_source"]["block_rows"]["sum"]
+            statistics = row.get('chyt_query_statistics', {})
+            source = statistics.get("secondary_query_source", {})
+            block = source.get("block_rows", {})
+            block_rows += block.get("sum", 0)
 
         if exact is not None:
             assert block_rows == exact, f"Expected {exact} rows count, but get {block_rows}"
