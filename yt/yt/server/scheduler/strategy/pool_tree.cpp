@@ -942,7 +942,7 @@ public:
 
         std::vector<TPoolTreePoolElementPtr> staleEphemeralPools;
         for (const auto& [poolName, pool] : Pools_) {
-            if (pool->IsDefaultConfigured() && pool->GetId().Contains(TPoolName::Delimiter) && !pool->GetParent()->IsEphemeralHub()) {
+            if (pool->IsDefaultConfigured() && pool->GetId().contains(TPoolName::Delimiter) && !pool->GetParent()->IsEphemeralHub()) {
                 staleEphemeralPools.push_back(pool);
             }
         }
@@ -1415,7 +1415,7 @@ private:
 
     std::optional<TInstant> LastFairShareUpdateTime_;
 
-    THashMap<std::string, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
+    THashMap<std::string, THashSet<std::string>> UserToEphemeralPoolsInDefaultPool_;
 
     THashMap<TString, THashSet<int>> PoolToSpareSlotIndices_;
     THashMap<TString, int> PoolToMinUnusedSlotIndex_;
@@ -2118,7 +2118,7 @@ private:
         if (!poolName.GetParentPool()) {
             pool->SetEphemeralInDefaultParentPool();
             // TODO(babenko): migrate to std::string
-            UserToEphemeralPoolsInDefaultPool_[userName].insert(TString(poolName.GetPool()));
+            UserToEphemeralPoolsInDefaultPool_[userName].insert(std::string(poolName.GetPool()));
         }
 
         pool->SetUserName(userName);

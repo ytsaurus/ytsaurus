@@ -132,7 +132,7 @@ public:
     TPool* AsPool();
     TOperationElement* AsOperation();
 
-    virtual TString GetId() const = 0;
+    virtual std::string GetId() const = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
     virtual bool AreDetailedLogsEnabled() const = 0;
