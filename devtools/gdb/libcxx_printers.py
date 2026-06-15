@@ -953,7 +953,7 @@ class StdVariantPrinter(object):
         return [] if self.item is None else [('%s' % print_type(self.itemtype), self.item)]
 
     def to_string(self):
-        return self.val.type.name + (
+        return print_type(self.val.type) + (
                 ' (valueless by exception)' if self.item is None else '')
 
 
