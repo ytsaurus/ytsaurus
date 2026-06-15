@@ -143,15 +143,24 @@ public:
             }
         }
 
-        if (singleCellarType) {
-            static const std::string tabletCellBundleTagName("tablet_cell_bundle");
-            static const std::string cellBundleTagName("cell_bundle");
-            auto cellarType = *singleCellarType;
+        const auto& dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+        if (dynamicConfig->CellarNode->DeduceProfilingTagFromBundleName.value_or(
+            Bootstrap_->GetConfig()->CellarNode->DeduceProfilingTagFromBundleName))
+        {
+            if (singleCellarType) {
+                static const std::string tabletCellBundleTagName("tablet_cell_bundle");
+                static const std::string cellBundleTagName("cell_bundle");
+                auto cellarType = *singleCellarType;
 
-            SolomonTagAlert_ = UpdateSolomonTags(
-                cellarManager,
-                cellarType,
-                cellarType == ECellarType::Tablet ? tabletCellBundleTagName : cellBundleTagName);
+                SolomonTagAlert_ = UpdateSolomonTags(
+                    cellarManager,
+                    cellarType,
+                    cellarType == ECellarType::Tablet ? tabletCellBundleTagName : cellBundleTagName);
+            }
+        } else {
+            NProfiling::TSolomonRegistry::Get()->SetDynamicTags({});
+
+            SolomonTagAlert_ = {};
         }
     }
 
