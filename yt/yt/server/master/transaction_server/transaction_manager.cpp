@@ -1869,7 +1869,7 @@ public:
                     /*limit*/ 100));
         }
 
-        {
+        if (!IsRecovery()) {
             auto guard = WriterGuard(BarrierLock_);
 
             for (const auto& [tag, originalCookie] : transaction->GetBarrierCookies()) {
@@ -2584,7 +2584,7 @@ private:
     TLeasePersistentReferenceTracker LeasePersistentReferenceTracker_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BarrierLock_);
-    // This map is transient.
+    // This map is not saved to the snapshot and should not be updated during recovery.
     THashMap<std::string, TAsyncBarrier> TagToBarrier_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BarrierProfilingLock_);
@@ -3623,6 +3623,10 @@ private:
 
     void RemoveTransactionFromBarriers(TTransaction* transaction)
     {
+        if (IsRecovery()) {
+            return;
+        }
+
         const auto& barrierCookies = transaction->GetBarrierCookies();
         // Logging and validation, that can be removed once barriers are stable.
         if (!barrierCookies.empty()) {
@@ -4067,33 +4071,6 @@ private:
             }
         }
 
-        // Restore barriers.
-        for (auto [id, transaction] : TransactionMap_) {
-            if (!IsObjectAlive(transaction)) {
-                continue;
-            }
-
-            if (transaction->GetPersistentState() != ETransactionState::PersistentCommitPrepared &&
-                transaction->GetPersistentState() != ETransactionState::TransientCommitPrepared)
-            {
-                continue;
-            }
-
-            {
-                auto guard = WriterGuard(BarrierLock_);
-
-                for (auto [tag, _] : transaction->GetBarrierCookies()) {
-                    auto [it, emplaced] = TagToBarrier_.emplace(
-                        std::piecewise_construct,
-                        std::forward_as_tuple(tag),
-                        std::forward_as_tuple());
-
-                    auto cookie = it->second.Insert();
-                    transaction->RegisterBarrierCookie(tag, cookie);
-                }
-            }
-        }
-
         // COMPAT(h0pless): AbortStuckTransactions.
         for (auto [id, transaction] : TransactionMap_) {
             if (!IsCypressTransactionType(transaction->GetType())) {
@@ -4124,8 +4101,41 @@ private:
         }
     }
 
+    void RestoreBarriers()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        YT_LOG_DEBUG("Restoring transaction barriers");
+
+        for (auto [id, transaction] : TransactionMap_) {
+            if (!IsObjectAlive(transaction)) {
+                continue;
+            }
+
+            if (transaction->GetPersistentState() != ETransactionState::PersistentCommitPrepared) {
+                continue;
+            }
+
+            {
+                auto guard = WriterGuard(BarrierLock_);
+
+                for (auto [tag, _] : transaction->GetBarrierCookies()) {
+                    auto [it, emplaced] = TagToBarrier_.emplace(
+                        std::piecewise_construct,
+                        std::forward_as_tuple(tag),
+                        std::forward_as_tuple());
+
+                    auto cookie = it->second.Insert();
+                    transaction->RegisterBarrierCookie(tag, cookie);
+                }
+            }
+        }
+    }
+
     void ClearBarriers(TError error = TError(BarrierAbandonedError))
     {
+        YT_LOG_DEBUG("Clearing transaction barriers");
+
         auto guard = WriterGuard(BarrierLock_);
 
         YT_VERIFY(!error.IsOK());
@@ -4264,6 +4274,8 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         BufferedProducer_->SetEnabled(true);
+
+        RestoreBarriers();
     }
 
     TFuture<void> GetReadyToEnterReadOnlyMode() override
