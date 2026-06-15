@@ -1150,6 +1150,7 @@ class TestInputFetching(ClickHouseTestBase):
                 "settings": {
                     "execution": {
                         "enable_min_max_filtering": False,
+                        "enable_read_range_inferring": False,
                     }
                 }
             },

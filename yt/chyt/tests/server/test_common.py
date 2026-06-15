@@ -291,15 +291,19 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 self.make_query_and_check_block_rows(
                     clique, query_log_path, "select uniqCombined(a) from " + table_name, 3, [{"uniqCombined(a)": 2}]
                 )
+
+                # These test cases conflict with minimum/maximum optimization. Disable it explicitly.
+                settings = {"chyt.execution.enable_min_max_optimization": 0}
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select max(b) from " + table_name, 4, [{"max(b)": "c"}]
+                    clique, query_log_path, "select max(b) from " + table_name, 4, [{"max(b)": "c"}], settings=settings
                 )
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select min(b) from " + table_name, 4, [{"min(b)": "a"}]
+                    clique, query_log_path, "select min(b) from " + table_name, 4, [{"min(b)": "a"}], settings=settings
                 )
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select max(b), min(b) from " + table_name, 4, [{"max(b)": "c", "min(b)": "a"}]
+                    clique, query_log_path, "select max(b), min(b) from " + table_name, 4, [{"max(b)": "c", "min(b)": "a"}], settings=settings
                 )
+
                 self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
