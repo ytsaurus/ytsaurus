@@ -103,8 +103,6 @@ struct TSlotManagerConfig
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
 
-    bool EnableArtifactCopyTracking;
-
     //! If set, user job will not receive uid.
     //! For testing purposes only.
     bool DoNotSetUserId;
@@ -184,6 +182,8 @@ struct TSlotManagerDynamicConfig
 
     //! Copy artifacts without blocking any of the slot location IO invokers.
     bool EnableAsyncArtifactCopy;
+
+    TDuration CopyRateAggregatorHalfLife;
 
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;

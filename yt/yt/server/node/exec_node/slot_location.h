@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
+#include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/public.h>
 
@@ -225,7 +226,11 @@ private:
 
     const NProfiling::TProfiler Profiler_;
 
-    NProfiling::TBufferedProducerPtr MakeCopyMetricBuffer_ = New<NProfiling::TBufferedProducer>();
+    const NProfiling::TGauge CopyRate_;
+    const NProfiling::TGauge CopyRateEma_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CopyRateAggregatorLock_);
+    TAverageAdjustedExponentialMovingAverage CopyRateAggregator_;
 
     static void ValidateNotExists(const std::string& path);
 
