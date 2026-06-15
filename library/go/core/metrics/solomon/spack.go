@@ -138,10 +138,14 @@ func (s *spackMetric) writeLabel(se *spackEncoder, name string, value string) er
 }
 
 func (s *spackMetric) writeMetric(w io.Writer, version spackVersion, labelsBuf []byte) error {
-	metricValueType := valueTypeOneWithoutTS
+	_, isSeries := s.metric.(seriesMetric)
 
+	metricValueType := valueTypeOneWithoutTS
 	ts := s.metric.getTimestamp()
-	if ts != nil {
+	switch {
+	case isSeries:
+		metricValueType = valueTypeManyWithTS
+	case ts != nil:
 		metricValueType = valueTypeOneWithTS
 	}
 
@@ -168,7 +172,7 @@ func (s *spackMetric) writeMetric(w io.Writer, version spackVersion, labelsBuf [
 	if _, err := w.Write(labelsBuf[s.labelsStart:s.labelsEnd]); err != nil {
 		return xerrors.Errorf("write labels failed: %w", err)
 	}
-	if ts != nil {
+	if !isSeries && ts != nil {
 		if err := writeUint32LE(w, uint32(ts.Unix())); err != nil {
 			return xerrors.Errorf("write timestamp failed: %w", err)
 		}
@@ -415,6 +419,15 @@ func (se *spackEncoder) Encode(w io.Writer) (written int, err error) {
 }
 
 func (se *spackEncoder) writeHeader(w io.Writer) error {
+	var totalPoints uint32
+	for _, m := range se.metrics.metrics {
+		if sm, ok := m.(seriesMetric); ok {
+			totalPoints += sm.pointsCount()
+		} else {
+			totalPoints++
+		}
+	}
+
 	var buf [HeaderSize]byte
 	binary.LittleEndian.PutUint16(buf[0:2], 0x5053)                            // Magic.
 	binary.LittleEndian.PutUint16(buf[2:4], uint16(se.version))                // Version.
@@ -424,7 +437,7 @@ func (se *spackEncoder) writeHeader(w io.Writer) error {
 	binary.LittleEndian.PutUint32(buf[8:12], uint32(se.labelNamePool.Len()))   // Label names size.
 	binary.LittleEndian.PutUint32(buf[12:16], uint32(se.labelValuePool.Len())) // Label values size.
 	binary.LittleEndian.PutUint32(buf[16:20], uint32(len(se.metrics.metrics))) // Metrics count.
-	binary.LittleEndian.PutUint32(buf[20:24], uint32(len(se.metrics.metrics))) // Points count.
+	binary.LittleEndian.PutUint32(buf[20:24], totalPoints)                     // Points count.
 
 	if _, err := w.Write(buf[:]); err != nil {
 		return xerrors.Errorf("write header failed: %w", err)
