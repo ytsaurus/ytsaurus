@@ -274,7 +274,7 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
             YT_LOG_FATAL(ex, "Location disabling error");
         }
 
-        auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling);
+        auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling, reason);
 
         if (!finish) {
             YT_LOG_ALERT("Detect location state racing (CurrentState: %v)",

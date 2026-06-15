@@ -88,6 +88,7 @@ void TNativeServerBootstrapConfig::Register(TRegistrar registrar)
 void TDiskLocationConfig::ApplyDynamicInplace(const TDiskLocationDynamicConfig& dynamicConfig)
 {
     UpdateYsonStructField(MinDiskSpace, dynamicConfig.MinDiskSpace);
+    UpdateYsonStructField(DisableProfiling, dynamicConfig.DisableProfiling);
 }
 
 void TDiskLocationConfig::Register(TRegistrar registrar)
@@ -103,6 +104,8 @@ void TDiskLocationConfig::Register(TRegistrar registrar)
         .Default(UnknownDeviceName);
     registrar.Parameter("device_model", &TThis::DeviceModel)
         .Default(UnknownDeviceModel);
+    registrar.Parameter("disable_profiling", &TThis::DisableProfiling)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,6 +115,8 @@ void TDiskLocationDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_disk_space", &TThis::MinDiskSpace)
         .GreaterThanOrEqual(0)
         .Optional();
+    registrar.Parameter("disable_profiling", &TThis::DisableProfiling)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

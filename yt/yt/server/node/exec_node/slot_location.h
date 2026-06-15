@@ -216,6 +216,8 @@ private:
 
     NThreading::TAtomicObject<TError> Alert_;
 
+    const NProfiling::TProfiler Profiler_;
+
     NProfiling::TBufferedProducerPtr MakeCopyMetricBuffer_ = New<NProfiling::TBufferedProducer>();
 
     static void ValidateNotExists(const TString& path);
