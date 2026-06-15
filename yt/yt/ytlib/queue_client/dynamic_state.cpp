@@ -184,6 +184,31 @@ NRecords::TConsumerObject RecordFromRow(const TConsumerTableRow& row)
     };
 }
 
+TMultiConsumerNameTableRow RowFromRecord(const NRecords::TMultiConsumerNameObject& record)
+{
+    return TMultiConsumerNameTableRow{
+        .Ref = TNamedConsumerReference(record.Key.Path, *MakeConsumerAttributes(record.Key.Cluster, record.Key.Name)),
+        .QueueAgentStage = record.QueueAgentStage,
+    };
+}
+
+NRecords::TMultiConsumerNameObjectKey RecordKeyFromRow(const TMultiConsumerNameTableRow& row)
+{
+    return NRecords::TMultiConsumerNameObjectKey{
+        .Cluster = row.Ref.GetCluster().value(),
+        .Path = row.Ref.GetPath(),
+        .Name = row.Ref.GetQueueConsumerName().value(),
+    };
+}
+
+NRecords::TMultiConsumerNameObject RecordFromRow(const TMultiConsumerNameTableRow& row)
+{
+    return NRecords::TMultiConsumerNameObject{
+        .Key = RecordKeyFromRow(row),
+        .QueueAgentStage = row.QueueAgentStage,
+    };
+}
+
 TConsumerRegistrationTableRow RowFromRecord(const NRecords::TConsumerRegistration& record)
 {
     const auto& key = record.Key;
@@ -598,6 +623,23 @@ TConsumerTable::TConsumerTable(TYPath root, IClientPtr client)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TMultiConsumerNameTableRow& row, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("consumer").Value(row.Ref)
+            .Item("queue_agent_stage").Value(row.QueueAgentStage)
+        .EndMap();
+}
+
+template class TTableBase<TMultiConsumerNameTableRow, NRecords::TMultiConsumerNameObjectDescriptor>;
+
+TMultiConsumerNameTable::TMultiConsumerNameTable(TYPath root, IClientPtr client)
+    : TTableBase<TMultiConsumerNameTableRow, NRecords::TMultiConsumerNameObjectDescriptor>(root + "/" + NRecords::TMultiConsumerNameObjectDescriptor::Name, std::move(client))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 THashMap<TGenericObjectReference, std::string> TQueueAgentObjectMappingTable::ToMapping(
     const std::vector<TQueueAgentObjectMappingTableRow>& rows)
 {
@@ -726,12 +768,12 @@ std::vector<TRichYPath> TReplicatedTableMappingTableRow::GetReplicas(
 void TReplicatedTableMappingTableRow::Validate() const
 {
     if (!ObjectType) {
-        THROW_ERROR_EXCEPTION("Invalid replicated table mapping row for object %Qv: object type cannot be null", Path);
+        THROW_ERROR_EXCEPTION("Invalid replicated table mapping row for object %v: object type cannot be null", Path);
     }
 
     if (!Meta) {
         THROW_ERROR_EXCEPTION(
-            "Invalid replicated table mapping row for object %Qv of type %Qlv: meta cannot be null",
+            "Invalid replicated table mapping row for object %v of type %Qlv: meta cannot be null",
             Path,
             *ObjectType);
     }
@@ -740,18 +782,18 @@ void TReplicatedTableMappingTableRow::Validate() const
         case EObjectType::ReplicatedTable:
             THROW_ERROR_EXCEPTION_IF(
                 !Meta->ReplicatedTableMeta,
-                "Invalid replicated table mapping row for replicated table %Qv: replicated table meta cannot be null",
+                "Invalid replicated table mapping row for replicated table %v: replicated table meta cannot be null",
                 Path);
             break;
         case EObjectType::ChaosReplicatedTable:
             THROW_ERROR_EXCEPTION_IF(
                 !Meta->ChaosReplicatedTableMeta,
-                "Invalid replicated table mapping row for replicated table %Qv: chaos replicated table meta cannot be null",
+                "Invalid replicated table mapping row for replicated table %v: chaos replicated table meta cannot be null",
                 Path);
             break;
         default:
             THROW_ERROR_EXCEPTION(
-                "Invalid replicated table mapping row for object %Qv: incompatible type %Qlv",
+                "Invalid replicated table mapping row for object %v: incompatible type %Qlv",
                 Path,
                 *ObjectType);
     }
@@ -801,6 +843,7 @@ TDynamicState::TDynamicState(
     const TClientDirectoryPtr& clientDirectory)
     : Queues(New<TQueueTable>(config->Root, localClient))
     , Consumers(New<TConsumerTable>(config->Root, localClient))
+    , MultiConsumerNames(New<TMultiConsumerNameTable>(config->Root, localClient))
     , QueueAgentObjectMapping(New<TQueueAgentObjectMappingTable>(config->Root, localClient))
     , Registrations(New<TConsumerRegistrationTable>(
         config->ConsumerRegistrationTablePath.GetPath(),

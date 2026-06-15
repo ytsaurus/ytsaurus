@@ -381,7 +381,7 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::PushDownYtMapOverSorted
         return node;
     }
     auto path = section.Paths().Item(0);
-    if (!path.Columns().Maybe<TCoVoid>() || !path.Ranges().Maybe<TCoVoid>() || !path.QLFilter().Maybe<TCoVoid>()) {
+    if (!path.Columns().Maybe<TCoVoid>() || !path.Ranges().Maybe<TCoVoid>()) {
         return node;
     }
     auto maybeMerge = path.Table().Maybe<TYtOutput>().Operation().Maybe<TYtMerge>();
@@ -472,4 +472,4 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::PushDownYtMapOverSorted
         .Done();
 }
 
-}  // namespace NYql
+} // namespace NYql

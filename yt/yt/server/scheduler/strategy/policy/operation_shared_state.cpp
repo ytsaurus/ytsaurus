@@ -100,20 +100,21 @@ bool TOperationSharedState::CheckPacking(
 bool TOperationSharedState::ProcessAllocationUpdate(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId,
-    const TJobResources& resources,
+    const std::optional<TJobResources>& resources,
     bool resetPreemptibleProgress)
 {
     if (!IsEnabled()) {
         return false;
     }
 
-    auto delta = [&] {
+    TJobResources delta;
+    if (resources) {
         auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
-        return SetAllocationResourceUsage(
+        delta = SetAllocationResourceUsage(
             GetAllocationProperties(allocationId),
-            resources);
-    }();
+            *resources);
+    }
 
     if (delta != TJobResources()) {
         operationElement->IncreaseHierarchicalResourceUsage(delta);
@@ -729,17 +730,13 @@ TJobResources TOperationSharedState::SetAllocationResourceUsage(
 TOperationSharedState::TAllocationProperties*
 TOperationSharedState::GetAllocationProperties(TAllocationId allocationId)
 {
-    auto it = AllocationPropertiesMap_.find(allocationId);
-    YT_ASSERT(it != AllocationPropertiesMap_.end());
-    return &it->second;
+    return &GetIteratorOrCrash(AllocationPropertiesMap_, allocationId)->second;
 }
 
 const TOperationSharedState::TAllocationProperties*
 TOperationSharedState::GetAllocationProperties(TAllocationId allocationId) const
 {
-    auto it = AllocationPropertiesMap_.find(allocationId);
-    YT_ASSERT(it != AllocationPropertiesMap_.end());
-    return &it->second;
+    return &GetIteratorOrCrash(AllocationPropertiesMap_, allocationId)->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

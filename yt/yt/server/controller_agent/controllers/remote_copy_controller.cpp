@@ -623,7 +623,7 @@ private:
 
         static const auto allowedAttributes = [] {
             const auto& wellKnown = GetWellKnownRichYPathAttributes();
-            return THashSet<TString>(wellKnown.begin(), wellKnown.end());
+            return THashSet<std::string>(wellKnown.begin(), wellKnown.end());
         }();
 
         for (const auto& attributeName : Spec_->OutputTablePath.Attributes().ListKeys()) {
@@ -943,7 +943,7 @@ private:
         auto attributeKeys = systemAttributeKeys;
         if (Spec_->CopyAttributes) {
             // Filter out unneeded attributes.
-            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
+            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<std::string>>("user_attribute_keys");
             auto specAttributeKeys = Spec_->AttributeKeys.value_or(userAttributeKeys);
             attributeKeys.reserve(attributeKeys.size() + specAttributeKeys.size());
             for (const auto& key : specAttributeKeys) {
@@ -958,7 +958,8 @@ private:
                     // Do not duplicate system attributes' keys.
                     continue;
                 }
-                attributeKeys.push_back(key);
+                // TODO(babenko): migrate to std::string
+                attributeKeys.push_back(TString(key));
             }
         }
 

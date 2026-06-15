@@ -337,6 +337,7 @@ class TestYtflowBase(TestQueueAgentBase):
                 dict(name='LogbrokerTopicPartitionCount', value='3'),
                 dict(name='_LogbrokerMirrorToCluster', value='all_original'),
                 dict(name='_LogbrokerConfigManagerPollingPeriod', value='100ms'),
+                dict(name='_SwitchComputationNodeBufferSizeBytes', value='0'),
             ],
             cluster_mapping=[dict(
                 name=cls.Env.id,
@@ -806,6 +807,109 @@ select * from $stream;
 
         expected_data = [{"Value": row["Value"] + 1} for row in input_data]
         self._assert_yt_table_content(out_table_path, expected_data)
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    def test_complex_graph_with_several_maps(self, query_tracker, yql_agent, run_query):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "value", "type": "int64"},
+            ]),
+        ))
+        input_data = [{"value": value} for value in range(5)]
+        self._write_yt_table(input_table_path, input_data)
+
+        out_table_paths = [self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "value", "type": "int64"},
+            ]),
+        )) for _ in range(3)]
+
+        run_query(f"""
+$lambda = ($row) -> {{
+    $row_type = TypeOf($row);
+    $variant_type = Variant<$row_type, $row_type>;
+
+    return If(
+        $row.value == 3,
+        Variant($row, "0", $variant_type),
+        Variant($row, "1", $variant_type)
+    );
+}};
+
+$left_stream, $right_stream = process `{input_table_path}` using $lambda(TableRow());
+
+insert into `{out_table_paths[0]}`
+select value + 1 as value from $left_stream;
+
+insert into `{out_table_paths[1]}`
+select value + 2 as value from $left_stream;
+
+insert into `{out_table_paths[2]}`
+select * from $right_stream;
+""")
+
+        self._assert_yt_table_content(out_table_paths[0], [{"value": 4}])
+
+        self._assert_yt_table_content(out_table_paths[1], [{"value": 5}])
+
+        expected_data = [row for row in input_data if row["value"] != 3]
+        self._assert_yt_table_content(out_table_paths[2], expected_data)
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    def test_two_ytflow_maps_in_a_row(self, query_tracker, yql_agent, run_query):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "value", "type": "int64"},
+            ]),
+        ))
+        input_data = [{"value": value} for value in range(5)]
+        self._write_yt_table(input_table_path, input_data)
+
+        out_table_paths = [self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "value", "type": "int64"},
+            ]),
+        )) for _ in range(3)]
+
+        run_query(f"""
+$lambda = ($row) -> {{
+    $row_type = TypeOf($row);
+    $variant_type = Variant<$row_type, $row_type>;
+
+    return If(
+        $row.value == 3,
+        Variant($row, "0", $variant_type),
+        Variant($row, "1", $variant_type)
+    );
+}};
+
+$left_stream1, $right_stream1 = process `{input_table_path}` using $lambda(TableRow());
+
+insert into `{out_table_paths[0]}`
+select * from $left_stream1;
+
+$add_one_stream = select value + 1 as value from $right_stream1;
+
+$left_stream2, $right_stream2 = process $add_one_stream using $lambda(TableRow());
+
+insert into `{out_table_paths[1]}`
+select * from $left_stream2;
+
+$add_two_stream = select value + 2 as value from $right_stream2;
+
+insert into `{out_table_paths[2]}`
+select * from $add_two_stream;
+""")
+
+        expected_data = [{"value": 3}]
+        self._assert_yt_table_content(out_table_paths[0], expected_data)
+
+        self._assert_yt_table_content(out_table_paths[1], expected_data)
+
+        expected_data = [{"value": value} for value in [3, 4, 7]]
+        self._assert_yt_table_content(out_table_paths[2], expected_data)
 
 
 class TestYtflowLogbroker(TestYtflowBase):

@@ -110,13 +110,13 @@ struct TAllocationUpdate
     TOperationId OperationId;
     TAllocationId AllocationId;
     std::string TreeId;
-    // It is used to update allocation resources in case of EAllocationUpdateStatus::Running status.
-    TJobResources AllocationResources;
+    // Engaged when the allocation's resource usage changed (EAllocationUpdateStatus::Running);
+    // nullopt for preemptible-progress-reset-only or finish updates.
+    std::optional<TJobResources> AllocationResources;
     // It is used to determine whether the allocation should be aborted if the operation is running in a module-aware scheduling segment.
     std::optional<std::string> AllocationDataCenter;
     std::optional<std::string> AllocationInfinibandCluster;
 
-    bool ResourceUsageUpdated = false;
     bool Finished = false;
 
     // Is non-empty if preemptible progress has been reset.
@@ -151,6 +151,7 @@ struct INodeHeartbeatStrategyProxy
     virtual int GetSchedulingHeartbeatComplexity() const = 0;
 
     virtual void BuildSchedulingAttributesString(
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
 
     virtual void BuildSchedulingAttributesStringForOngoingAllocations(
@@ -181,7 +182,8 @@ struct IStrategy
         const TBooleanFormulaTags& tags,
         TMatchingTreeCookie cookie) const = 0;
 
-    //! Notify strategy about allocation updates.
+    //! Notify strategy about allocation updates. Synchronous: returns after all updates have been applied
+    //! (or postponed/sentenced to abort).
     virtual void ProcessAllocationUpdates(
         const std::vector<TAllocationUpdate>& allocationUpdates,
         THashSet<TAllocationId>* allocationsToPostpone,

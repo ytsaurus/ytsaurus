@@ -911,8 +911,9 @@ private:
         auto& header = *subrequest->RequestHeader;
         SetAllowResolveFromSequoiaObject(&header, true);
         if (payload.EffectiveAcl.has_value()) {
-            SetSequoiaNodeEffectiveAcl(&header, payload.EffectiveAcl->ToString());
+            SetSequoiaNodeEffectiveAcl(&header, *payload.EffectiveAcl);
         }
+        SetSequoiaNodeHasRowLevelAce(&header, payload.HasRowLevelAce);
 
         auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         // Replace "<unresolved-suffix>"" with "#<object-id>/<unresolved-suffix>".

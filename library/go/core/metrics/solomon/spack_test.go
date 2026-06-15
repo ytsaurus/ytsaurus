@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -582,4 +584,181 @@ func Test_metrics_encode(t *testing.T) {
 func setMetricsCount(header []byte, count int) {
 	header[16] = uint8(count)
 	header[20] = uint8(count)
+}
+
+func makeBenchGauges(n int) []Metric {
+	out := make([]Metric, n)
+	for i := 0; i < n; i++ {
+		g := NewGauge(
+			fmt.Sprintf("mygauge_%d", i),
+			float64(i),
+			WithTags(map[string]string{
+				"host":    fmt.Sprintf("host-%d", i%16),
+				"dc":      []string{"man", "vla", "sas", "iva"}[i%4],
+				"service": fmt.Sprintf("svc-%d", i%8),
+			}),
+		)
+		out[i] = &g
+	}
+	return out
+}
+
+func makeBenchCounters(n int) []Metric {
+	out := make([]Metric, n)
+	for i := 0; i < n; i++ {
+		c := NewCounter(
+			fmt.Sprintf("mycounter_%d", i),
+			int64(i),
+			WithTags(map[string]string{
+				"host":   fmt.Sprintf("host-%d", i%16),
+				"region": []string{"ru-central1", "ru-central2", "ru-central3"}[i%3],
+			}),
+		)
+		out[i] = &c
+	}
+	return out
+}
+
+func makeBenchHistograms(n int) []Metric {
+	bounds := []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 50}
+	out := make([]Metric, n)
+	for i := 0; i < n; i++ {
+		values := make([]int64, len(bounds))
+		for j := range values {
+			values[j] = int64((i + j) * 7)
+		}
+		h := NewHistogram(
+			fmt.Sprintf("myhist_%d", i),
+			bounds,
+			values,
+			int64(i),
+			WithTags(map[string]string{
+				"host":     fmt.Sprintf("host-%d", i%16),
+				"endpoint": fmt.Sprintf("/api/v1/path%d", i%32),
+			}),
+		)
+		out[i] = &h
+	}
+	return out
+}
+
+func makeBenchMixed(n int) []Metric {
+	g := makeBenchGauges(n / 3)
+	c := makeBenchCounters(n / 3)
+	h := makeBenchHistograms(n - len(g) - len(c))
+	out := make([]Metric, 0, n)
+	out = append(out, g...)
+	out = append(out, c...)
+	out = append(out, h...)
+	return out
+}
+
+func benchmarkSpackEncode(b *testing.B, metrics *Metrics, compression CompressionType, opts ...SpackOpts) {
+	ctx := context.Background()
+	b.ReportAllocs()
+	for b.Loop() {
+		enc := NewSpackEncoder(ctx, compression, metrics, opts...)
+		if _, err := enc.Encode(io.Discard); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkSpackEncode_Gauges(b *testing.B) {
+	for _, size := range []int{1, 10, 100, 1000, 10000} {
+		m := &Metrics{metrics: makeBenchGauges(size)}
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionNone)
+		})
+	}
+}
+
+func BenchmarkSpackEncode_Counters(b *testing.B) {
+	for _, size := range []int{1, 10, 100, 1000, 10000} {
+		m := &Metrics{metrics: makeBenchCounters(size)}
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionNone)
+		})
+	}
+}
+
+func BenchmarkSpackEncode_Histograms(b *testing.B) {
+	for _, size := range []int{1, 10, 100, 1000} {
+		m := &Metrics{metrics: makeBenchHistograms(size)}
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionNone)
+		})
+	}
+}
+
+func BenchmarkSpackEncode_Mixed(b *testing.B) {
+	for _, size := range []int{30, 300, 3000} {
+		m := &Metrics{metrics: makeBenchMixed(size)}
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionNone)
+		})
+	}
+}
+
+func BenchmarkSpackEncode_CommonLabels(b *testing.B) {
+	const size = 1000
+	m := &Metrics{
+		metrics: makeBenchGauges(size),
+		commonLabels: map[string]string{
+			"project": "solomon",
+			"cluster": "production",
+			"env":     "prod",
+		},
+	}
+	benchmarkSpackEncode(b, m, CompressionNone)
+}
+
+func BenchmarkSpackEncode_Version12(b *testing.B) {
+	for _, size := range []int{100, 1000, 10000} {
+		m := &Metrics{metrics: makeBenchGauges(size)}
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionNone, WithVersion12())
+		})
+	}
+}
+
+func BenchmarkSpackEncode_LZ4(b *testing.B) {
+	for _, size := range []int{100, 1000, 10000} {
+		m := &Metrics{metrics: makeBenchGauges(size)}
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			benchmarkSpackEncode(b, m, CompressionLz4)
+		})
+	}
+}
+
+func BenchmarkSpackEncode_HighLabelCardinality(b *testing.B) {
+	const size = 1000
+	out := make([]Metric, size)
+	for i := 0; i < size; i++ {
+		tags := make(map[string]string, 8)
+		for j := 0; j < 8; j++ {
+			tags[fmt.Sprintf("label_%d_%d", i, j)] = fmt.Sprintf("value_%d_%d", i, j)
+		}
+		g := NewGauge(fmt.Sprintf("metric_%d", i), float64(i), WithTags(tags))
+		out[i] = &g
+	}
+	m := &Metrics{metrics: out}
+	benchmarkSpackEncode(b, m, CompressionNone)
+}
+
+func BenchmarkSpackEncode_SharedLabels(b *testing.B) {
+	const size = 1000
+	sharedTags := map[string]string{
+		"host":    "host-0",
+		"dc":      "man",
+		"service": "svc-0",
+		"env":     "prod",
+	}
+	out := make([]Metric, size)
+	for i := 0; i < size; i++ {
+		g := NewGauge(fmt.Sprintf("metric_%d", i), float64(i), WithTags(sharedTags))
+		out[i] = &g
+	}
+	m := &Metrics{metrics: out}
+	benchmarkSpackEncode(b, m, CompressionNone)
 }

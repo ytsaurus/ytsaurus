@@ -398,6 +398,12 @@ void RemoveTablesFromBundle(const TBundleSnapshotPtr& bundleSnapshot, const THas
     }
 
     for (auto id : tableIdsToRemove) {
+        const auto& table = GetOrCrash(bundleSnapshot->Bundle->Tables, id);
+        auto it = bundleSnapshot->Bundle->TablesByPath.find(table->Path);
+        if (it != bundleSnapshot->Bundle->TablesByPath.end() && it->second->Id == id) {
+            bundleSnapshot->Bundle->TablesByPath.erase(it);
+        }
+
         EraseOrCrash(bundleSnapshot->Bundle->Tables, id);
     }
 
@@ -1580,7 +1586,7 @@ void TBundleState::BuildNewState(
             tableId,
             tableInfo->Path);
 
-        EmplaceOrCrash(bundle->TablesByPath, tableInfo->Path, tableInfo);
+        bundle->TablesByPath[tableInfo->Path] = tableInfo;
         EmplaceOrCrash(bundle->Tables, tableId, std::move(tableInfo));
     }
 
@@ -1656,6 +1662,12 @@ void TBundleState::FetchStatistics(
         EmplaceOrCrash(tableIds, id);
     }
     DropMissingKeys(bundle->Tables, tableIds);
+
+    THashSet<TYPath> alivePaths;
+    for (const auto& [id, table] : bundle->Tables) {
+        alivePaths.insert(table->Path);
+    }
+    DropMissingKeys(bundle->TablesByPath, alivePaths);
 
     THashSet<TTableId> tableIdsToFetch;
     THashSet<TTableId> tableIdsToFetchPivotKeys;

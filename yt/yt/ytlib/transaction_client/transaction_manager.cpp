@@ -618,6 +618,36 @@ public:
         }
     }
 
+    void UnregisterParticipant(TCellId cellId)
+    {
+        YT_VERIFY(TypeFromId(cellId) == EObjectType::TabletCell);
+
+        YT_VERIFY(!CoordinatorCellId_);
+
+        if (Atomicity_ != EAtomicity::Full) {
+            return;
+        }
+
+        auto guard = Guard(SpinLock_);
+        if (State_ != ETransactionState::Active) {
+            return;
+        }
+
+        if (!RegisteredParticipantIds_.erase(cellId)) {
+            YT_LOG_ALERT(
+                "Attempted to unregister nonexistent transaction participant, ignored (TransactionId: %v, CellId: %v)",
+                Id_,
+                cellId);
+            return;
+        }
+
+        bool prepareOnly = PrepareOnlyRegisteredParticipantIds_.erase(cellId) > 0;
+        YT_LOG_DEBUG("Transaction participant unregistered (TransactionId: %v, CellId: %v, PrepareOnly: %v)",
+            Id_,
+            cellId,
+            prepareOnly);
+    }
+
     void SetExpectedPrepareSignatures(THashMap<TCellId, TTransactionSignature> participantExpectedPrepareSignatures)
     {
         ParticipantExpectedPrepareSignatures_ = std::move(participantExpectedPrepareSignatures);
@@ -632,6 +662,18 @@ public:
         }
 
         CoordinatorCellId_ = DoChooseCoordinator(options);
+    }
+
+    void ChoosePreliminaryCoordinator(const TTransactionCommitOptions& options)
+    {
+        YT_VERIFY(!PreliminaryCoordinatorCellId_);
+        YT_VERIFY(!CoordinatorCellId_);
+
+        if (Atomicity_ != EAtomicity::Full || RegisteredParticipantIds_.empty()) {
+            return;
+        }
+
+        PreliminaryCoordinatorCellId_ = DoChooseCoordinator(options);
     }
 
     TFuture<void> ValidateNoDownedParticipants()
@@ -709,6 +751,8 @@ private:
     THashMap<TCellId, TTransactionSignature> ParticipantExpectedPrepareSignatures_;
 
     TCellId CoordinatorCellId_;
+    //! Preliminary transaction coordinator to use unless it is removed from the participant list.
+    TCellId PreliminaryCoordinatorCellId_;
 
     TError Error_;
 
@@ -1305,6 +1349,10 @@ private:
             THROW_ERROR_EXCEPTION("No coordinator can be chosen");
         }
 
+        if (std::find(candidateIds.begin(), candidateIds.end(), PreliminaryCoordinatorCellId_) != candidateIds.end()) {
+            return PreliminaryCoordinatorCellId_;
+        }
+
         return candidateIds[RandomNumber(candidateIds.size())];
     }
 
@@ -1321,15 +1369,19 @@ private:
             return OKFuture;
         }
 
-        YT_VERIFY(CoordinatorCellId_);
-        auto coordinatorChannel = GetParticipantChannelOrThrow(CoordinatorCellId_);
+        auto coordinatorCellId = CoordinatorCellId_
+            ? CoordinatorCellId_
+            : PreliminaryCoordinatorCellId_;
+        YT_VERIFY(coordinatorCellId);
+        auto coordinatorChannel = GetParticipantChannelOrThrow(coordinatorCellId);
+
         auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCheckDownedParticipantsRetryChecker());
         auto req = proxy.GetDownedParticipants();
         req->SetUser(Owner_->User_);
         ToProto(req->mutable_cell_ids(), participantIds);
 
         return req->Invoke().Apply(
-            BIND([this, this_ = MakeStrong(this), participantIds = std::move(participantIds)] (
+            BIND([this, this_ = MakeStrong(this), participantIds = std::move(participantIds), coordinatorCellId] (
                 const TTransactionSupervisorServiceProxy::TErrorOrRspGetDownedParticipantsPtr& rspOrError)
             {
                 if (rspOrError.IsOK()) {
@@ -1347,9 +1399,9 @@ private:
                     }
                 } else {
                     YT_LOG_WARNING("Error updating downed participants (CellId: %v)",
-                        CoordinatorCellId_);
+                        coordinatorCellId);
                     return TError("Error updating downed participants at cell %v",
-                        CoordinatorCellId_)
+                        coordinatorCellId)
                         << rspOrError;
                 }
                 return TError();
@@ -2041,9 +2093,19 @@ void TTransaction::RegisterParticipant(TCellId cellId)
     Impl_->RegisterParticipant(cellId);
 }
 
+void TTransaction::UnregisterParticipant(NObjectClient::TCellId cellId)
+{
+    Impl_->UnregisterParticipant(cellId);
+}
+
 void TTransaction::ChooseCoordinator(const TTransactionCommitOptions& options)
 {
     Impl_->ChooseCoordinator(options);
+}
+
+void TTransaction::ChoosePreliminaryCoordinator(const TTransactionCommitOptions& options)
+{
+    Impl_->ChoosePreliminaryCoordinator(options);
 }
 
 TFuture<void> TTransaction::ValidateNoDownedParticipants()

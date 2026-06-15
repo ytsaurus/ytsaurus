@@ -33,7 +33,7 @@ void ToProto(NProto::TScheduleAllocationRequest* protoRequest, const TScheduleAl
 ////////////////////////////////////////////////////////////////////////////////
 
 TControllerAgent::TControllerAgent(
-    const TString& id,
+    const TAgentId& id,
     const NNodeTrackerClient::TAddressMap& agentAddresses,
     THashSet<TString> tags,
     NRpc::IChannelPtr channel,

@@ -4,11 +4,17 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/ypath/helpers.h>
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -41,11 +47,13 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
     const NApi::NNative::IClientPtr& client,
     const IInvokerPtr& invoker,
     const TLogger& logger,
-    const NApi::TMasterReadOptions& options)
+    const TMasterReadOptions& masterReadOptions,
+    const TTransactionalOptions& transactionalOptions)
     : AttributeNames_(attributeNames)
     , Client_(client)
     , Invoker_(invoker)
-    , MasterReadOptions_(options)
+    , MasterReadOptions_(masterReadOptions)
+    , TransactionalOptions_(transactionalOptions)
     , Logger(logger)
 {
     YT_VERIFY(refreshRevisions.empty() || refreshRevisions.size() == paths.size());
@@ -61,6 +69,7 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
     for (const auto& [index, path] : Enumerate(paths)) {
         auto& entry = Entries_.emplace_back();
         entry.Index = index;
+        entry.Path = path;
         if (!refreshRevisions.empty()) {
             entry.RefreshRevision = refreshRevisions[index];
         }
@@ -90,22 +99,24 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
     size_t uniqueIndex = 0;
     for (size_t beginIndex = 0, endIndex = 0; beginIndex != Entries_.size(); beginIndex = endIndex) {
         endIndex = beginIndex + 1;
-        while (
-            endIndex != Entries_.size() &&
-            std::tie(Entries_[beginIndex].DirName, Entries_[beginIndex].BaseName) ==
-            std::tie(Entries_[endIndex].DirName, Entries_[endIndex].BaseName))
-        {
+        while (endIndex != Entries_.size() && Entries_[beginIndex].Path == Entries_[endIndex].Path) {
             DeduplicationReferenceTableIndices_[Entries_[endIndex].Index] = Entries_[beginIndex].Index;
             ++endIndex;
         }
-        Entries_[uniqueIndex++] = std::move(Entries_[beginIndex]);
+        // NB: Guard against self-move-assignment: it is NOT a no-op but rather leaves the string in a valid but unspecified state.
+        if (uniqueIndex != beginIndex) {
+            Entries_[uniqueIndex] = std::move(Entries_[beginIndex]);
+        }
+        ++uniqueIndex;
     }
     Entries_.resize(uniqueIndex);
 
     for (size_t beginIndex = 0, endIndex = 0; beginIndex != Entries_.size(); beginIndex = endIndex) {
         // Extract contiguous run of entries in same directory.
+        // Entry can point to object root so we additionaly check that DirName is not empty.
         endIndex = beginIndex + 1;
         while (endIndex != Entries_.size() &&
+            !Entries_[beginIndex].DirName.empty() &&
             Entries_[endIndex].DirName == Entries_[beginIndex].DirName &&
             Entries_[endIndex].RefreshRevision == Entries_[beginIndex].RefreshRevision &&
             Entries_[endIndex].Error.IsOK())
@@ -152,6 +163,8 @@ void TBatchAttributeFetcher::SetupBatchRequest(const TObjectServiceProxy::TReqEx
 void TBatchAttributeFetcher::SetupYPathRequest(const TYPathRequestPtr& req, NHydra::TRevision refreshRevision)
 {
     SetCachingHeader(req, Client_->GetNativeConnection(), MasterReadOptions_, refreshRevision);
+    SetTransactionId(req, TransactionalOptions_.TransactionId);
+    NObjectClient::SetSuppressUpstreamSync(&req->Header(), TransactionalOptions_.SuppressUpstreamSync);
 }
 
 void TBatchAttributeFetcher::FetchBatchCounts()
@@ -167,7 +180,9 @@ void TBatchAttributeFetcher::FetchBatchCounts()
     SetupBatchRequest(batchReq);
 
     for (auto& listEntry : ListEntries_) {
-        auto req = TYPathProxy::Get(listEntry.DirName + "/@count");
+        auto req = TYPathProxy::Get(Format("%v/@", listEntry.DirName));
+        static const std::vector<std::string> DirectoryAttributes = {"count", "id"};
+        ToProto(req->mutable_attributes()->mutable_keys(), DirectoryAttributes);
         SetupYPathRequest(req);
         req->Tag() = &listEntry;
         batchReq->AddRequest(req);
@@ -178,13 +193,21 @@ void TBatchAttributeFetcher::FetchBatchCounts()
 
     YT_LOG_DEBUG("Node counts collected");
 
-    for (const auto& [tag, countOrError] : result->GetTaggedResponses<TYPathProxy::TRspGet>()) {
+    for (const auto& [tag, attributesOrError] : result->GetTaggedResponses<TYPathProxy::TRspGet>()) {
         auto* listEntry = std::any_cast<TListEntry*>(tag);
-        if (countOrError.IsOK()) {
-            listEntry->DirNodeCount = ConvertTo<ui64>(TYsonString(countOrError.Value()->value()));
-            // If there are too many "useless" items except requested ones,
-            // perform fallback to regular Get requests.
-            if (listEntry->DirNodeCount - listEntry->RequestedEntryCount > MaxUnusedNodeCount) {
+        if (attributesOrError.IsOK()) {
+            auto attributes = ConvertToAttributes(TYsonString(attributesOrError.Value()->value()));
+            listEntry->DirNodeCount = attributes->Get<ui64>("count");
+
+            // Perform fallback to regular Get requests if:
+            // * directory corresponds to a Sequoia node, where List is equivalent to a batch of Gets
+            //   (since nodes may reside on different masters), making List-batching pointless;
+            // * there are too many "useless" items besides the requested ones.
+            if (IsSequoiaId(attributes->Get<TObjectId>("id"))) {
+                YT_LOG_DEBUG("Directory corresponds to Sequia node, falling back to singular get requests (DirName: %v)",
+                    listEntry->DirName);
+                listEntry->FetchAsBatch = false;
+            } else if (listEntry->DirNodeCount - listEntry->RequestedEntryCount > MaxUnusedNodeCount) {
                 YT_LOG_DEBUG(
                     "There are too many nodes in directory, falling back to singular get requests "
                     "(DirName: %v, RequestedNodeCount: %v, DirNodeCount: %v)",
@@ -192,13 +215,15 @@ void TBatchAttributeFetcher::FetchBatchCounts()
                     listEntry->RequestedEntryCount,
                     listEntry->DirNodeCount);
                 listEntry->FetchAsBatch = false;
+            }
+            if (!listEntry->FetchAsBatch) {
                 for (auto* entry : GetValues(listEntry->BaseNameToEntry)) {
                     entry->FetchAsBatch = false;
                 }
             }
         } else {
             for (auto* entry : GetValues(listEntry->BaseNameToEntry)) {
-                entry->Error = countOrError;
+                entry->Error = attributesOrError;
             }
         }
     }
@@ -228,7 +253,7 @@ void TBatchAttributeFetcher::FetchAttributes()
 
     for (auto& entry : Entries_) {
         if (!entry.FetchAsBatch && entry.Error.IsOK()) {
-            auto req = TYPathProxy::Get(entry.DirName + "/" + entry.BaseName + "/@");
+            auto req = TYPathProxy::Get(Format("%v/@", entry.Path));
             ToProto(req->mutable_attributes()->mutable_keys(), AttributeNames_);
             SetupYPathRequest(req, entry.RefreshRevision);
             req->Tag() = &entry;
@@ -305,7 +330,7 @@ void TBatchAttributeFetcher::FetchSymlinks()
         if (entry.Error.IsOK()) {
             YT_VERIFY(entry.Attributes);
             if (entry.Attributes->Get<EObjectType>(TypeAttributeName) == EObjectType::Link) {
-                auto req = TYPathProxy::Get(entry.DirName + "/" + entry.BaseName + "/@");
+                auto req = TYPathProxy::Get(Format("%v/@", entry.Path));
                 SetupYPathRequest(req);
                 ToProto(req->mutable_attributes()->mutable_keys(), AttributeNames_);
                 req->Tag() = &entry;

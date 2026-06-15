@@ -58,7 +58,7 @@ ISchedulingPolicyPtr CreateDryRunOrNoopSchedulingPolicy(
     }
 
     if (config->GpuSchedulingPolicy->Mode == EGpuSchedulingPolicyMode::DryRun) {
-        YT_ASSERT(config->PolicyKind == EPolicyKind::Classic);
+        YT_VERIFY(config->PolicyKind == EPolicyKind::Classic);
     }
 
     return CreateGpuSchedulingPolicy(

@@ -24,11 +24,12 @@ void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& a
         return;
     }
 
+    // TODO(babenko): migrate to std::string
     TString attrString;
     TStringOutput output(attrString);
     TYsonWriter attrWriter(&output, EYsonFormat::Text, EYsonType::MapFragment);
 
-    std::ranges::sort(attributePairs, [](const auto& lhs, const auto& rhs) {
+    std::ranges::sort(attributePairs, [] (const auto& lhs, const auto& rhs) {
         return lhs.first < rhs.first;
     });
 
@@ -95,6 +96,11 @@ TTablePath ToTablePath(const TGenericObjectReference& genericRef)
     return TTablePath(genericRef.GetPath(), *MakeAttributesWithCluster(genericRef.GetCluster().value()));
 }
 
+TTablePath ToTablePath(const TNamedConsumerReference& namedRef)
+{
+    return TTablePath(namedRef.GetPath(), *MakeAttributesWithCluster(namedRef.GetCluster().value()));
+}
+
 TCrossClusterReference ToCrossClusterReference(const TTablePath& path)
 {
     return TCrossClusterReference(path.GetCluster().value(), path.GetPath());
@@ -121,6 +127,11 @@ void FormatValue(TStringBuilderBase* builder, const TGenericObjectReference& ref
     FormatValue(builder, ToCrossClusterReference(ref), spec);
 }
 
+void FormatValue(TStringBuilderBase* builder, const TNamedConsumerReference& ref, TStringBuf spec)
+{
+    FormatValue(builder, TGenericObjectReference(ref), spec);
+}
+
 void Serialize(const TTablePath& path, NYson::IYsonConsumer* consumer)
 {
     Serialize(ToCrossClusterReference(path), consumer);
@@ -133,6 +144,11 @@ void Serialize(const TGenericObjectReference& ref, NYson::IYsonConsumer* consume
         return;
     }
     Serialize(ToCrossClusterReference(ref), consumer);
+}
+
+void Serialize(const TNamedConsumerReference& ref, NYson::IYsonConsumer* consumer)
+{
+    Serialize(TGenericObjectReference(ref), consumer);
 }
 
 IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster)

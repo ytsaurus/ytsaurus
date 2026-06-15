@@ -3,5 +3,6 @@ IF (NOT OPENSOURCE)
         components
         job_tools
         unn-docs
+        retry_wrapper
     )
 ENDIF()

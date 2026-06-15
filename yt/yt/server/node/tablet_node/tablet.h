@@ -325,6 +325,8 @@ struct TTabletSnapshot
 
     TTabletSizeMetrics TabletSizeMetrics;
 
+    std::vector<NTabletServer::TOriginatorTablet> OriginatorTablets;
+
     std::atomic<bool> Unregistered = false;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
@@ -570,7 +572,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TPromise<void>, TargetActivationPromise);
 
 public:
-    void ValidateWriteToTablet() const;
+    void ValidateWriteToTablet(TTabletId tabletId) const;
     bool IsTabletStoresUpdateAllowed(bool isCommonFlush) const;
     bool ShouldForwardMutation() const;
 

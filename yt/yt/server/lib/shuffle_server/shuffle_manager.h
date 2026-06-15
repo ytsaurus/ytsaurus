@@ -22,7 +22,8 @@ struct IShuffleManager
         bool usePushBasedShuffle,
         std::string account,
         std::string medium,
-        int replicationFactor) = 0;
+        int replicationFactor,
+        NPushBasedShuffleClient::TPushShuffleConfigPtr pushConfig) = 0;
 
     virtual TFuture<void> FinishShuffle(NObjectClient::TTransactionId transactionId) = 0;
 

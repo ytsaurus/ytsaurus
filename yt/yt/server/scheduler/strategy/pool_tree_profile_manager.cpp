@@ -551,7 +551,8 @@ void TPoolTreeProfileManager::ProfilePools(const TPoolTreeSnapshotPtr& treeSnaps
     ProfilePool(
         treeSnapshot->RootElement().Get(),
         treeSnapshot->TreeConfig(),
-        findPoolBufferedProducer(RootPoolName));
+        // TODO(babenko): migrate to std::string
+        findPoolBufferedProducer(TString(RootPoolName)));
 }
 
 void TPoolTreeProfileManager::ProfileDistributedResources(const TPoolTreeSnapshotPtr& treeSnapshot)

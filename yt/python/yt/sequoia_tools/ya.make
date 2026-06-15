@@ -26,6 +26,7 @@ PY_SRCS(
     migrations/m0003.py
     migrations/m0004.py
     migrations/m0005.py
+    migrations/m0006.py
 
     __init__.py
     action_builder.py
@@ -36,6 +37,7 @@ PY_SRCS(
     helpers.py
     initialization.py
     migration.py
+    pivots.py
     utils.py
 )
 

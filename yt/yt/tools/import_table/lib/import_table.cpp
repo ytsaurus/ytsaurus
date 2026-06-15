@@ -800,7 +800,7 @@ std::vector<TTempTable> CreateOutputParserTables(
 
 void ImportFilesFromSource(
     const TString& proxy,
-    const std::vector<TString>& fileIds,
+    const std::vector<std::string>& fileIds,
     const TString& resultTable,
     const std::optional<TString>& networkProject,
     const TSourceConfig& sourceConfig,
@@ -839,7 +839,7 @@ void ImportFilesFromSource(
         }
         if (re2::RE2::PartialMatch(fileName, *regex)) {
             // TODO(babenko): migrate to std::string
-            writer->AddRow(TNode()(TString(FileIdColumnName), fileName)(TString(FileIndexColumnName), fileIndex));
+            writer->AddRow(TNode()(TString(FileIdColumnName), TString(fileName))(TString(FileIndexColumnName), fileIndex));
             ++fileIndex;
         }
     }
@@ -1063,7 +1063,8 @@ void ImportFilesFromS3(
 
     ImportFilesFromSource(
         proxy,
-        fileKeys,
+        // TODO(babenko): migrate to std::string
+        std::vector<std::string>(fileKeys.begin(), fileKeys.end()),
         resultTable,
         networkProject,
         TSourceConfig{

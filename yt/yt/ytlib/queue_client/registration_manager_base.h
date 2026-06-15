@@ -123,4 +123,4 @@ DEFINE_REFCOUNTED_TYPE(TQueueConsumerRegistrationManagerBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NQueueClient
+} // namespace NYT::NQueueClient

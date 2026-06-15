@@ -31,6 +31,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
+    DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, ProvidedSpec);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RO_PROPERTY(std::string, AuthenticatedUser);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);

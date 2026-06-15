@@ -43,7 +43,7 @@ public:
 
 protected:
     NLastGetopt::TOpts Opts_;
-    TString Argv0_;
+    std::string Argv0_;
     bool PrintYTVersion_ = false;
     bool PrintVersion_ = false;
     bool PrintBuild_ = false;
@@ -52,7 +52,7 @@ protected:
 
     virtual void DoRun() = 0;
 
-    virtual void OnError(const TString& message) noexcept;
+    virtual void OnError(const std::string& message) noexcept;
 
     virtual bool ShouldAbortOnHungShutdown() noexcept;
 
@@ -105,12 +105,12 @@ class TProgramException
     : public std::exception
 {
 public:
-    explicit TProgramException(TString what);
+    explicit TProgramException(std::string what);
 
     const char* what() const noexcept override;
 
 private:
-    const TString What_;
+    const std::string What_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

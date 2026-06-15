@@ -5,6 +5,25 @@ import click
 from yt.admin.ytsaurus_ci import enums
 
 
+def print_tasks_list(data):
+    tasks = data.get("tasks", [])
+    total = data.get("total", len(tasks))
+
+    click.echo()
+    click.secho(f"  Tasks ({total}):", bold=True)
+    click.secho("  " + "─" * 50, fg="bright_black")
+
+    if not tasks:
+        click.secho("  No tasks found", fg="yellow")
+        click.echo()
+        return
+
+    for job_id in tasks:
+        click.secho(f"    • {job_id}", fg="blue")
+
+    click.echo()
+
+
 def print_job_info(data, job_id):
     status, status_color = _format_job_status(data.get("status", ""))
 

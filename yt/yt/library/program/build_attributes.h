@@ -14,9 +14,9 @@ namespace NYT {
 struct TBuildInfo
     : public NYTree::TYsonStruct
 {
-    std::optional<TString> Name;
-    TString Version;
-    TString BuildHost;
+    std::optional<std::string> Name;
+    std::string Version;
+    std::string BuildHost;
     std::optional<TInstant> BuildTime;
     TInstant StartTime;
 

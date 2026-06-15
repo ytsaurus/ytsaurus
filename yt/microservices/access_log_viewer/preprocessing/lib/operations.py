@@ -281,7 +281,7 @@ def remove_tables(cluster, token, result_root, excess):
     batch_client.commit_batch()
 
 
-def import_table(cluster, network_project, pool, token, log_root, tmp_root, out_root, log_duration, log_name, node_id_dict_path, users_to_ignore):
+def import_table(cluster, network_project, pool, token, log_root, tmp_root, out_root, log_duration, log_name, node_id_dict_path, users_to_ignore, recompute_stale):
     if token is None:
         raise Exception("YT_TOKEN is empty")
     client = yt.YtClient(cluster, token=token, config=yt.default_config.get_config_from_env())
@@ -300,16 +300,44 @@ def import_table(cluster, network_project, pool, token, log_root, tmp_root, out_
             batch_client.create(
                 "map_node", f"{root}/{out_cluster}/{log_duration}", recursive=True, ignore_existing=True
             )
+    exists_requests = {
+        out_cluster: batch_client.exists(f"{out_dir}/{out_cluster}/{log_name}")
+        for out_cluster in all_clusters
+    }
+    stored_mtime_requests = {}
+    if recompute_stale:
+        stored_mtime_requests = {
+            out_cluster: batch_client.get(f"{out_dir}/{out_cluster}/{log_name}/@source_modification_time")
+            for out_cluster in all_clusters
+        }
     batch_client.commit_batch()
 
-    exist_checks = [batch_client.exists(f"{out_dir}/{out_cluster}/{log_name}") for out_cluster in all_clusters]
-    batch_client.commit_batch()
+    source_mtime = None
 
-    if all([check.get_result() for check in exist_checks]):
+    def skip_import(reason):
         return aops.Function(
-            lambda: logger.info("Skipping import of table %s, it already exists", log_path),
-            title=f"Skipping import of table {log_path}, it already exists",
+            lambda: logger.info("Skipping import of table %s, %s", log_path, reason),
+            title=f"Skipping import of table {log_path}, {reason}",
         )
+
+    if recompute_stale:
+        source_mtime = client.get(f"{log_path}/@modification_time")
+        all_up_to_date = True
+        for out_cluster in all_clusters:
+            if not exists_requests[out_cluster].get_result():
+                all_up_to_date = False
+                continue
+            stored_mtime_request = stored_mtime_requests[out_cluster]
+            # No stored @source_modification_time: treat as up to date, don't recompute.
+            if not stored_mtime_request.is_ok():
+                continue
+            if stored_mtime_request.get_result() != source_mtime:
+                all_up_to_date = False
+        if all_up_to_date:
+            return skip_import("it is up to date")
+    else:
+        if all(exists_requests[out_cluster].get_result() for out_cluster in all_clusters):
+            return skip_import("it already exists")
 
     table_schema = {field["name"] for field in client.get("{}/@schema".format(log_path))}
     columns = list(set(RawAccessLogRecord.__dataclass_fields__).intersection(table_schema))
@@ -495,22 +523,38 @@ def import_table(cluster, network_project, pool, token, log_root, tmp_root, out_
             title="Sorting access-logs for all clusters",
         )
 
+    def get_set_source_mtime_op():
+        def do_set():
+            if not recompute_stale:
+                return
+            batch_client = client.create_batch_client()
+            for out_cluster in all_clusters:
+                batch_client.set(
+                    f"{out_dir}/{out_cluster}/{log_name}/@source_modification_time",
+                    source_mtime,
+                )
+            batch_client.commit_batch()
+        return aops.Function(
+            do_set,
+            title=f"Set source_modification_time for {log_name}",
+        )
+
     def get_v1_ops():
-        return (get_deduplicate_op(), get_deduplicated_sort_op(), get_reduce_op(), get_sort_result_op(),)
+        return (get_deduplicate_op(), get_deduplicated_sort_op(), get_reduce_op(), get_sort_result_op(), get_set_source_mtime_op(),)
 
     def get_v2_ops():
-        return (get_deduplicate_op(), get_sortreduce_op(), get_sort_result_op(),)
+        return (get_deduplicate_op(), get_sortreduce_op(), get_sort_result_op(), get_set_source_mtime_op(),)
 
     def get_v3_ops():
-        return (get_mapreduce_op(), get_sort_result_op(),)
+        return (get_mapreduce_op(), get_sort_result_op(), get_set_source_mtime_op(),)
 
     return aops.Workspace(
         yt_client=client,
-        paths=[f"{out_dir}/{cluster}/{log_name}" for cluster in all_clusters],
+        paths=[f"{out_dir}/{out_cluster}/{log_name}" for out_cluster in all_clusters],
         remove=False,
         gen=aops.Workspace(
             yt_client=client,
-            paths=[f"{tmp_dir}/{cluster}/{log_name}" for cluster in all_clusters] + [deduplicated_table_path, deduplicated_sorted_table_path,],
+            paths=[f"{tmp_dir}/{out_cluster}/{log_name}" for out_cluster in all_clusters] + [deduplicated_table_path, deduplicated_sorted_table_path,],
             remove=True,
             gen=aops.Chain(
                 *get_v2_ops(),
@@ -524,7 +568,7 @@ def import_table(cluster, network_project, pool, token, log_root, tmp_root, out_
     )
 
 
-def find_diff(cluster, token, log_root, res_root, period, store_from):
+def find_diff(cluster, token, log_root, res_root, period, store_from, check_stale):
     """
     :param cluster: YT cluster
     :param token: YT token
@@ -532,7 +576,9 @@ def find_diff(cluster, token, log_root, res_root, period, store_from):
     :param res_root: map_node in which results must be stored
     :param period: None, 1d or 30min to select which part of logs to process
     :param store_from: None, or string in same form as 1d log names
-    :return: missing tables, excess tables
+    :param check_stale: if True, also detect outputs whose @source_modification_time
+        differs from the input's @modification_time
+    :return: (missing tables, excess tables, stale tables)
     """
 
     def path_filter(path, period, store_from=None):
@@ -582,10 +628,47 @@ def find_diff(cluster, token, log_root, res_root, period, store_from):
         excess.extend((cluster_from_table, *table) for table in tables.difference(log_tables))
     #     missing.update(log_tables.difference(tables))
     missing.update(log_tables.difference(res_tables[cluster]))
-    return sorted(missing), sorted(excess)
+
+    stale = []
+    if check_stale:
+        existing = log_tables.difference(missing)
+        if existing:
+            batch_client = yt_client.create_batch_client()
+            source_mtime_requests = {
+                key: batch_client.get(f"{log_root}/{key[0]}/{key[1]}/@modification_time")
+                for key in existing
+            }
+            output_attr_requests = {
+                (out_cluster, key): batch_client.get(
+                    f"{res_root}/{out_cluster}/{key[0]}/{key[1]}/@source_modification_time"
+                )
+                for key in existing
+                for out_cluster in clusters
+            }
+            batch_client.commit_batch()
+
+            for key in existing:
+                source_request = source_mtime_requests[key]
+                if not source_request.is_ok():
+                    continue
+                source_mtime = source_request.get_result()
+                is_stale = False
+                for out_cluster in clusters:
+                    output_request = output_attr_requests[(out_cluster, key)]
+                    # No stored @source_modification_time (table predates the feature):
+                    # treat as up to date, don't recompute.
+                    if not output_request.is_ok():
+                        continue
+                    if output_request.get_result() != source_mtime:
+                        is_stale = True
+                        break
+                if is_stale:
+                    stale.append(key)
+
+    return sorted(missing), sorted(excess), sorted(stale)
 
 
-def bulk(cluster, log_root, tmp_root, result_root, n_threads, period, pool, max_tables, store_for, network_project, node_id_dict_path, users_to_ignore, token_env_variable):
+def bulk(cluster, log_root, tmp_root, result_root, n_threads, period, pool, max_tables, store_for, network_project, node_id_dict_path, users_to_ignore, token_env_variable, recompute_stale):
     store_from = None
     if store_for is not None:
         store_from = (datetime.datetime.now() + dateutil.relativedelta(months=-6)).strftime("%Y-%m-%d")
@@ -593,19 +676,21 @@ def bulk(cluster, log_root, tmp_root, result_root, n_threads, period, pool, max_
     logger.level = logging.DEBUG
     token = os.environ.get(token_env_variable)
 
-    new, excess = find_diff(cluster, token, log_root, result_root, period, store_from)
+    new, excess, stale = find_diff(cluster, token, log_root, result_root, period, store_from, recompute_stale)
     logger.info("New version")
     logger.info("Processing access-logs src: %s -> tmp: %s -> dst: %s.", log_root, tmp_root, result_root)
     logger.info("Missing in dst:\n%s", "\n".join(f"    {str(item)}" for item in new))
     logger.info("Excess in dst:\n%s", "\n".join(f"    {str(item)}" for item in excess))
-    new = new[:max_tables]
-    logger.info("Process:\n%s", "\n".join(f"    {str(item)}" for item in new))
+    if recompute_stale:
+        logger.info("Stale in dst:\n%s", "\n".join(f"    {str(item)}" for item in stale))
+    to_process = (new + stale)[:max_tables]
+    logger.info("Process:\n%s", "\n".join(f"    {str(item)}" for item in to_process))
     remove_tables(cluster, token, result_root, excess)
     aops.PipelineWatcher(
         aops.Parallel(
             *(
-                import_table(cluster, network_project, pool, token, log_root, tmp_root, result_root, *path, node_id_dict_path, users_to_ignore)
-                for path in new
+                import_table(cluster, network_project, pool, token, log_root, tmp_root, result_root, *path, node_id_dict_path, users_to_ignore, recompute_stale)
+                for path in to_process
             ),
             title="Import new access-logs.",
         ),
@@ -614,13 +699,13 @@ def bulk(cluster, log_root, tmp_root, result_root, n_threads, period, pool, max_
     ).wait(abort_concurrent_on_fail=False)
 
 
-def import_single(cluster, pool, log_root, tmp_root, result_root, n_threads, path, network_project, node_id_dict_path, users_to_ignore, token_env_variable):
+def import_single(cluster, pool, log_root, tmp_root, result_root, n_threads, path, network_project, node_id_dict_path, users_to_ignore, token_env_variable, recompute_stale):
     logger.addHandler(logging.StreamHandler())
     logger.level = logging.DEBUG
     token = os.environ.get(token_env_variable)
     aops.PipelineWatcher(
         import_table(
-            cluster, network_project, pool, token, log_root, tmp_root, result_root, *(path.rsplit("/", 2)[-2:]), node_id_dict_path, users_to_ignore
+            cluster, network_project, pool, token, log_root, tmp_root, result_root, *(path.rsplit("/", 2)[-2:]), node_id_dict_path, users_to_ignore, recompute_stale
         ),
         logger,
         max_concurrent_operations=n_threads,
@@ -629,5 +714,5 @@ def import_single(cluster, pool, log_root, tmp_root, result_root, n_threads, pat
 
 def clear(cluster, log_root, result_root, store_from, token_env_variable):
     token = os.environ.get(token_env_variable)
-    _, excess = find_diff(cluster, token, log_root, result_root, None, store_from)
+    _, excess, _ = find_diff(cluster, token, log_root, result_root, None, store_from, False)
     remove_tables(cluster, token, result_root, excess)

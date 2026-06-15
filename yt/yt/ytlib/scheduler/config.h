@@ -58,20 +58,20 @@ class TPoolName
 {
 public:
     TPoolName() = default;
-    TPoolName(TString pool, std::optional<TString> parent);
+    TPoolName(std::string pool, std::optional<std::string> parent);
 
     static const char Delimiter;
 
     TString ToString() const;
-    static TPoolName FromString(const TString& value);
+    static TPoolName FromString(const std::string& value);
 
-    const TString& GetPool() const;
-    const std::optional<TString>& GetParentPool() const;
-    const TString& GetSpecifiedPoolName() const;
+    const std::string& GetPool() const;
+    const std::optional<std::string>& GetParentPool() const;
+    const std::string& GetSpecifiedPoolName() const;
 
 private:
-    TString Pool_;
-    std::optional<TString> ParentPool_;
+    std::string Pool_;
+    std::optional<std::string> ParentPool_;
 };
 
 void Deserialize(TPoolName& value, NYTree::INodePtr node);
@@ -151,7 +151,7 @@ DEFINE_REFCOUNTED_TYPE(TPoolPreemptionConfig)
 struct TOffloadingPoolSettingsConfig
     : public NYTree::TYsonStruct
 {
-    std::optional<TString> Pool;
+    std::optional<std::string> Pool;
 
     std::optional<double> Weight;
 
@@ -167,7 +167,7 @@ struct TOffloadingPoolSettingsConfig
 DECLARE_REFCOUNTED_TYPE(TOffloadingPoolSettingsConfig)
 DEFINE_REFCOUNTED_TYPE(TOffloadingPoolSettingsConfig)
 
-using TOffloadingSettings = THashMap<TString, TOffloadingPoolSettingsConfigPtr>;
+using TOffloadingSettings = THashMap<std::string, TOffloadingPoolSettingsConfigPtr>;
 
 static const inline TOffloadingSettings EmptyOffloadingSettings = {};
 
@@ -196,7 +196,7 @@ struct TSchedulableConfig
 struct TExtendedSchedulableConfig
     : public TSchedulableConfig
 {
-    std::optional<TString> Pool;
+    std::optional<std::string> Pool;
 
     REGISTER_YSON_STRUCT(TExtendedSchedulableConfig);
 
@@ -287,7 +287,7 @@ struct TPoolConfig
 
     std::optional<TDuration> HistoricUsageAggregationPeriod;
 
-    THashSet<TString> AllowedProfilingTags;
+    THashSet<std::string> AllowedProfilingTags;
 
     std::optional<bool> EnableByUserProfiling;
 
@@ -297,16 +297,16 @@ struct TPoolConfig
 
     bool EnableDetailedLogs;
 
-    std::vector<TString> ConfigPresets;
+    std::vector<std::string> ConfigPresets;
     // COMPAT(omgronny)
-    std::optional<TString> ConfigPreset;
+    std::optional<std::string> ConfigPreset;
 
     // Overrides the same option in tree config.
     std::optional<bool> EnableFairShareTruncationInFifoPool;
 
     bool EnableStepFunctionForGangOperations;
 
-    THashMap<TString, TString> MeteringTags;
+    THashMap<std::string, std::string> MeteringTags;
 
     TOffloadingSettings OffloadingSettings;
 
@@ -327,7 +327,7 @@ struct TPoolConfig
 
     bool AllowChildrenGuarantees;
 
-    void Validate(const TString& poolName);
+    void Validate(const std::string& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);
 
@@ -423,16 +423,16 @@ struct TStrategyOperationSpec
     , public TCommonPreemptionConfig
     , public virtual NPhoenix::TPolymorphicBase
 {
-    std::optional<TString> Pool;
+    std::optional<std::string> Pool;
 
     //! This options have higher priority than Pool and other options
     //! defined in this class.
-    THashMap<TString, TExtendedSchedulableConfigPtr> SchedulingOptionsPerPoolTree;
+    THashMap<std::string, TExtendedSchedulableConfigPtr> SchedulingOptionsPerPoolTree;
 
     //! Pool trees to schedule operation in.
     //! Operation will be scheduled in default tree (if any) if this parameter
     //! is not specified.
-    std::optional<THashSet<TString>> PoolTrees;
+    std::optional<THashSet<std::string>> PoolTrees;
 
     // NB(eshcherbin): This limit is only checked once every fair share update. Finer throttling is achieved
     // via the "per node shard" limit in controller config.
@@ -465,7 +465,7 @@ struct TStrategyOperationSpec
 
     int UpdatePreemptibleAllocationsListLoggingPeriod;
 
-    std::optional<TString> CustomProfilingTag;
+    std::optional<std::string> CustomProfilingTag;
 
     // COMPAT(eshcherbin)
     std::optional<int> MaxUnpreemptibleRunningAllocationCount;
@@ -775,7 +775,7 @@ struct TTmpfsVolumeConfig
     : public NYTree::TYsonStruct
 {
     i64 Size;
-    TString Path;
+    std::string Path;
 
     REGISTER_YSON_STRUCT(TTmpfsVolumeConfig);
 
@@ -842,9 +842,9 @@ DEFINE_REFCOUNTED_TYPE(TDeprecatedDiskRequestConfig)
 struct TJobShell
     : public NYTree::TYsonStruct
 {
-    TString Name;
+    std::string Name;
 
-    TString Subcontainer;
+    std::string Subcontainer;
 
     std::vector<std::string> Owners;
 
@@ -863,7 +863,7 @@ struct TUserJobMonitoringConfig
     bool Enable;
 
     //! Requests a set of sensors.
-    std::vector<TString> SensorNames;
+    std::vector<std::string> SensorNames;
 
     //! Shortcut to request all GPU sensors.
     bool RequestGpuMonitoring;
@@ -875,7 +875,7 @@ struct TUserJobMonitoringConfig
     static void Register(TRegistrar registrar);
 
 private:
-    static const std::vector<TString>& GetDefaultSensorNames();
+    static const std::vector<std::string>& GetDefaultSensorNames();
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
@@ -944,7 +944,7 @@ struct TJobExperimentConfig
     : public NYTree::TYsonStruct
 {
     //! The base layer used in the treatment jobs of the experiment.
-    std::optional<TString> BaseLayerPath;
+    std::optional<std::string> BaseLayerPath;
 
     //! The network project used in the treatment jobs of the experiment.
     std::optional<std::string> NetworkProject;
@@ -973,9 +973,9 @@ DEFINE_REFCOUNTED_TYPE(TJobExperimentConfig)
 struct TCudaProfilerEnvironment
     : public NYTree::TYsonStruct
 {
-    TString PathEnvironmentVariableName;
+    std::string PathEnvironmentVariableName;
 
-    TString PathEnvironmentVariableValue;
+    std::string PathEnvironmentVariableValue;
 
     REGISTER_YSON_STRUCT(TCudaProfilerEnvironment);
 
@@ -1127,7 +1127,7 @@ struct TOperationSpecBase
     //! in the option below.
     bool IssueTemporaryToken;
     //! Key to be used for adding temporary token to the secure vault. Defaults to YT_TOKEN.
-    TString TemporaryTokenEnvironmentVariableName;
+    std::string TemporaryTokenEnvironmentVariableName;
 
     //! Suspend operation in case of jobs failed due to account limit exceeded.
     bool SuspendOperationIfAccountLimitExceeded;
@@ -1195,7 +1195,7 @@ struct TOperationSpecBase
 
     //! If set, operation will be accessible through the scheduler API calls under this name
     //! (it should start with an asterisk).
-    std::optional<TString> Alias;
+    std::optional<std::string> Alias;
 
     //! If true, then omits columns that are inaccessible due to columnar ACL restriction instead of
     //! failing the operation.
@@ -1235,7 +1235,7 @@ struct TOperationSpecBase
     std::optional<bool> EnableDynamicStoreRead;
 
     //! Describes suitable controller agent tag for operation.
-    TString ControllerAgentTag;
+    std::string ControllerAgentTag;
 
     //! Description of possible shells for operation jobs.
     std::vector<TJobShellPtr> JobShells;
@@ -1243,7 +1243,7 @@ struct TOperationSpecBase
     TJobSplitterConfigPtr JobSplitter;
 
     //! Explicitly specified names of experiments.
-    std::optional<std::vector<TString>> ExperimentOverrides;
+    std::optional<std::vector<std::string>> ExperimentOverrides;
 
     //! Enable trace log level for operation controller.
     bool EnableTraceLogging;
@@ -1283,7 +1283,7 @@ struct TOperationSpecBase
     std::vector<TJobProfilerSpecPtr> Profilers;
 
     //! Default base layer used if no other layers are requested.
-    std::optional<TString> DefaultBaseLayerPath;
+    std::optional<std::string> DefaultBaseLayerPath;
 
     //! The setup for the experimental jobs.
     TJobExperimentConfigPtr JobExperiment;
@@ -1299,7 +1299,7 @@ struct TOperationSpecBase
     std::optional<bool> BypassHunkRemoteCopyProhibition;
 
     //! Options for cuda profiler.
-    std::optional<TString> CudaProfilerLayerPath;
+    std::optional<std::string> CudaProfilerLayerPath;
 
     THashMap<std::string, std::string> CudaProfilerEnvironmentVariables;
     // COMPAT(omgronnny)
@@ -1356,7 +1356,7 @@ struct TVolumeMount
     : public NYTree::TYsonStruct
 {
     std::string VolumeId;
-    std::string MountPath;
+    std::filesystem::path MountPath;
     bool ReadOnly;
 
     REGISTER_YSON_STRUCT(TVolumeMount);
@@ -1416,14 +1416,14 @@ DEFINE_REFCOUNTED_TYPE(TGracefulShutdownSpec)
 struct TSidecarJobSpec
     : public NYTree::TYsonStruct
 {
-    TString Command;
+    std::string Command;
 
     std::optional<double> CpuLimit;
     std::optional<i64> MemoryLimit;
 
     //! If this field is unset, the system will try to use the DockerImage of
     //! the main job.
-    std::optional<TString> DockerImage;
+    std::optional<std::string> DockerImage;
 
     ESidecarRestartPolicy RestartPolicy;
 
@@ -1554,9 +1554,9 @@ struct TUserJobSpec
     : public NYTree::TYsonStruct
     , public virtual NPhoenix::TPolymorphicBase
 {
-    TString Command;
+    std::string Command;
 
-    TString TaskTitle;
+    std::string TaskTitle;
 
     std::vector<NYPath::TRichYPath> FilePaths;
     // COMPAT(krasovav)
@@ -1570,7 +1570,7 @@ struct TUserJobSpec
 
     std::optional<bool> EnableInputTableIndex;
 
-    THashMap<TString, TString> Environment;
+    THashMap<std::string, std::string> Environment;
 
     double CpuLimit;
     int GpuLimit;
@@ -1600,7 +1600,7 @@ struct TUserJobSpec
 
     // COMPAT(ignat)
     std::optional<i64> TmpfsSize;
-    std::optional<TString> TmpfsPath;
+    std::optional<std::string> TmpfsPath;
 
     // COMPAT(krasovav)
     std::vector<TTmpfsVolumeConfigPtr> DeprecatedTmpfsVolumes;
@@ -1630,13 +1630,13 @@ struct TUserJobSpec
     //! This option should not be used outside tests.
     bool ForceCoreDump;
 
-    std::optional<TString> InterruptionSignal;
+    std::optional<std::string> InterruptionSignal;
     bool SignalRootProcessOnly;
 
     bool EnableSetupCommands;
     bool EnableGpuLayers;
 
-    std::optional<TString> CudaToolkitVersion;
+    std::optional<std::string> CudaToolkitVersion;
 
     //! Enables running GPU check.
     //! This option applicable only in case of separate root volume.
@@ -1674,10 +1674,10 @@ struct TUserJobSpec
     //! Describes user job monitoring settings.
     TUserJobMonitoringConfigPtr Monitoring;
 
-    std::optional<TString> SystemLayerPath;
+    std::optional<std::string> SystemLayerPath;
 
     //! The docker image to use in the operation.
-    std::optional<TString> DockerImage;
+    std::optional<std::string> DockerImage;
 
     //! If set, overrides |Profilers| from operation spec.
     std::optional<std::vector<TJobProfilerSpecPtr>> Profilers;
@@ -1703,7 +1703,7 @@ struct TUserJobSpec
     bool EnableFixedUserId;
 
     //! Map consisting of pairs <sidecar_name, sidecar_spec>.
-    THashMap<TString, TSidecarJobSpecPtr> Sidecars;
+    THashMap<std::string, TSidecarJobSpecPtr> Sidecars;
 
     //! Restrict places allowed for porto volumes and layers.
     bool RestrictPortoPlace;
@@ -1837,7 +1837,7 @@ class TInputlyQueryableSpec
     : public virtual NYTree::TYsonStruct
 {
 public:
-    std::optional<TString> InputQuery;
+    std::optional<std::string> InputQuery;
     std::optional<NTableClient::TTableSchema> InputSchema;
     TInputQueryFilterOptionsPtr InputQueryFilterOptions;
     TInputQueryOptionsPtr InputQueryOptions;
@@ -2307,14 +2307,14 @@ struct TRemoteCopyOperationSpec
     : public TSimpleOperationSpecBase
 {
     std::optional<std::string> ClusterName;
-    std::optional<TString> NetworkName;
+    std::optional<std::string> NetworkName;
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
     // TODO(max42): do we still need this?
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     bool CopyAttributes;
-    std::optional<std::vector<TString>> AttributeKeys;
+    std::optional<std::vector<std::string>> AttributeKeys;
     // COMPAT(coteeq): Gentle runtime switch.
     bool ForceCopySystemAttributes;
 
@@ -2362,7 +2362,7 @@ struct TVanillaOperationSpec
     , public TOperationWithUserJobSpec
 {
     //! Map consisting of pairs <task_name, task_spec>.
-    THashMap<TString, TVanillaTaskSpecPtr> Tasks;
+    THashMap<std::string, TVanillaTaskSpecPtr> Tasks;
 
     REGISTER_YSON_STRUCT(TVanillaOperationSpec);
 
@@ -2426,10 +2426,10 @@ struct TOperationRuntimeParameters
     NSecurityClient::TSerializableAccessControlList Acl;
     std::optional<std::string> AcoName;
     TJobShellOptionsMap OptionsPerJobShell;
-    THashMap<TString, TOperationPoolTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
+    THashMap<std::string, TOperationPoolTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     TBooleanFormula SchedulingTagFilter;
     NYTree::IMapNodePtr Annotations;
-    TString ControllerAgentTag;
+    std::string ControllerAgentTag;
 
     // Erased trees of operation, should be used only for information purposes.
     std::vector<std::string> ErasedTrees;
@@ -2449,7 +2449,7 @@ struct TOperationPoolTreeRuntimeParametersUpdate
     : public NYTree::TYsonStruct
 {
     std::optional<double> Weight;
-    std::optional<TString> Pool;
+    std::optional<std::string> Pool;
     TJobResourcesConfigPtr ResourceLimits;
     // Can only be set by an administrator.
     std::optional<bool> EnableDetailedLogs;
@@ -2467,14 +2467,14 @@ struct TOperationRuntimeParametersUpdate
     : public NYTree::TYsonStruct
 {
     std::optional<double> Weight;
-    std::optional<TString> Pool;
+    std::optional<std::string> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
     std::optional<std::string> AcoName;
     THashMap<std::string, TOperationPoolTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
     std::optional<TBooleanFormula> SchedulingTagFilter;
     TJobShellOptionsUpdateMap OptionsPerJobShell;
     std::optional<NYTree::IMapNodePtr> Annotations;
-    std::optional<TString> ControllerAgentTag;
+    std::optional<std::string> ControllerAgentTag;
 
 
     bool ContainsPool() const;

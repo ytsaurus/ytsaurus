@@ -17,6 +17,7 @@ class CloudFunctionClient:
     SUBMIT_TASK_ID = "d4ee6v3cr3udu6bpnova"
     RUN_TASK_ID = "d4ei35u5bejcoiccbkcf"
     GET_TASK_ID = "d4ev9b826qs0dsnt006q"
+    LIST_TASKS_ID = "d4ef48hr1t9ll3mbioil"
 
     def __init__(self, auth: YCFunctionAuth, max_retries: int = 3, backoff_factor: int = 1.0):
         self._base_url = auth.cloud_function_url
@@ -66,3 +67,18 @@ class CloudFunctionClient:
         response.raise_for_status()
 
         return json.loads(response.json()["body"])
+
+    def list_tasks(self, status=None, components_key_filter=None, passed=None):
+        payload = {}
+        if status:
+            payload["status"] = status
+        if components_key_filter:
+            payload["components_key_filter"] = components_key_filter
+        if passed is not None:
+            payload["passed"] = passed
+
+        req = self._prepare(payload, self.LIST_TASKS_ID, "get")
+        response = self._session.send(req)
+        response.raise_for_status()
+
+        return response.json()

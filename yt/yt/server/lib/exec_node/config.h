@@ -188,6 +188,9 @@ struct TSlotManagerDynamicConfig
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
 
+    //! This is applied to all locations.
+    NServer::TDiskLocationDynamicConfigPtr LocationConfigPatch;
+
     REGISTER_YSON_STRUCT(TSlotManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -248,6 +251,8 @@ struct TLayerCacheDynamicConfig
     NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
 
     TTmpfsLayerCacheDynamicConfigPtr TmpfsCache;
+
+    NServer::TDiskLocationDynamicConfigPtr LocationConfigPatch;
 
     REGISTER_YSON_STRUCT(TLayerCacheDynamicConfig);
 

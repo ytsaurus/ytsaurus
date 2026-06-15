@@ -509,6 +509,25 @@ TRANSFORMS[7] = [
     ),
 ]
 
+# Add multi consumer names table.
+TRANSFORMS[8] = [
+    Conversion(
+        "multi_consumer_names",
+        table_info=TableInfo(
+            [
+                ("cluster", "string"),
+                ("path", "string"),
+                ("name", "string"),
+            ],
+            [
+                ("queue_agent_stage", "string"),
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES_WITH_OLD_BUNDLE,
+        ),
+    ),
+]
+
 MIGRATION = Migration(
     initial_table_infos=INITIAL_TABLE_INFOS,
     initial_version=INITIAL_VERSION,
@@ -533,6 +552,8 @@ REGISTRATION_TABLE_SCHEMA = MIGRATION_SCHEMAS["consumer_registrations"]
 REPLICATED_TABLE_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["replicated_table_mapping"]
 
 REPLICA_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["replica_mapping"]
+
+MULTI_CONSUMER_NAMES_TABLE_SCHEMA = MIGRATION_SCHEMAS["multi_consumer_names"]
 
 CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META = [
     {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},

@@ -876,7 +876,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "job_volumes_mounts" : [
                                 {
                                     "volume_id": "a",
-                                    "mount_path": "tmpfs",
+                                    "mount_path": "/sandbox/tmpfs",
                                 },
                             ],
                         }
@@ -896,7 +896,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "job_volumes_mounts" : [
                                 {
                                     "volume_id": "nbd",
-                                    "mount_path": "nbd",
+                                    "mount_path": "/sandbox/nbd",
                                 },
                             ],
                             "volumes" : {
@@ -2614,6 +2614,96 @@ class TestGangOperations(YTEnvSetup):
                 "max_failed_job_count": 1,
             }
         )
+        op.track()
+
+    @authors("pogorelov")
+    def test_total_gang_size_persisted_after_revival(self):
+        # Wait at breakpoint, then verify YT_GANG_SIZE.
+        # After revival + abort_job, gang policy spawns new joblets — they read TotalGangSize_
+        # from the controller. Without persistence the value is 0 and the check fails.
+        command = with_breakpoint('BREAKPOINT ; [[ "$YT_GANG_SIZE" -eq 2 ]] || exit 42')
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "a": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                    "b": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                },
+                "max_failed_job_count": 1,
+                "fail_on_job_restart": False,
+            },
+        )
+
+        first_job_ids = wait_breakpoint(job_count=2)
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        # Wait until the controller agent re-attaches to the preserved jobs after revival.
+        self._get_running_jobs(op, 2)
+
+        abort_job(first_job_ids[0])
+
+        # Wait until both first-iteration jobs are gone (gang policy aborts the whole gang
+        # and starts a new incarnation).
+        wait(lambda: all(job_id not in op.get_running_jobs() for job_id in first_job_ids))
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("pogorelov")
+    def test_total_target_job_count_persisted_after_revival(self):
+        # Same scenario as test_total_gang_size_persisted_after_revival but for YT_JOB_COUNT,
+        # which is derived from TotalTargetJobCount_ on TVanillaController.
+        command = with_breakpoint('BREAKPOINT ; [[ "$YT_JOB_COUNT" -eq 2 ]] || exit 42')
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "a": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                    "b": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                },
+                "max_failed_job_count": 1,
+                "fail_on_job_restart": False,
+            },
+        )
+
+        first_job_ids = wait_breakpoint(job_count=2)
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        self._get_running_jobs(op, 2)
+
+        abort_job(first_job_ids[0])
+
+        wait(lambda: all(job_id not in op.get_running_jobs() for job_id in first_job_ids))
+
+        release_breakpoint()
+
         op.track()
 
     @authors("pogorelov")

@@ -470,7 +470,11 @@ TEST(TPushBasedShuffleWriterTest, WriteFutureDeferredWhenInFlightBudgetFull)
     // With a tight memory budget and lots of rows, the flush(es) will fill
     // InFlightBytes beyond InFlightBudget and trigger backpressure.
     TWriterHarness h;
-    auto writer = h.CreateWriter(PartitionCount, /*memoryBudget*/ 128_KB);
+    auto writer = h.CreateWriter(
+        PartitionCount,
+        /*memoryBudget*/ 128_KB,
+        /*mapperId*/ 17,
+        /*buildersBudgetFraction*/ 0.8);
 
     std::vector<TUnversionedRow> rows;
     for (int rowIndex = 0; rowIndex < 50000; ++rowIndex) {

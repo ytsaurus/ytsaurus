@@ -11,6 +11,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_service_proxy.h>
 
+#include <yt/yt/library/cypress_election/election_manager.h>
+
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -270,11 +272,16 @@ private:
         auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
         auto nodeAddress = FromProto<std::string>(request->node_address());
 
-        Bootstrap_->GetNodeTracker()->ProcessNodeHeartbeat(&context->Request(), &context->Response());
-
         context->SetRequestInfo("NodeId: %v, NodeAddress: %v",
             nodeId,
             nodeAddress);
+
+        if (!Bootstrap_->GetElectionManager()->IsLeader()) {
+            THROW_ERROR_EXCEPTION("Bundle controller instance is not leading");
+        }
+
+        Bootstrap_->GetNodeTracker()->ProcessNodeHeartbeat(&context->Request(), &context->Response());
+
         context->Reply();
     }
 };

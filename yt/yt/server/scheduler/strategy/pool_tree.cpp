@@ -252,6 +252,7 @@ auto GetSchedulingPolicyBuilder(const TStrategyTreeConfigPtr& config)
         case EPolicyKind::Gpu:
             return NPolicy::NGpu::CreateAllocatingSchedulingPolicy;
     }
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -686,7 +687,7 @@ public:
         return TreeId_;
     }
 
-    TError CheckOperationIsStuck(
+    TError CheckIsOperationStuck(
         TOperationId operationId,
         const TOperationStuckCheckOptionsPtr& options) override
     {
@@ -762,8 +763,7 @@ public:
             }
         }
 
-        auto schedulingPolicyError = NPolicy::TSchedulingPolicyStaticCaller::CheckOperationIsStuck(
-            GetTreeSnapshot(),
+        auto schedulingPolicyError = GetTreeSnapshot()->CheckIsOperationStuck(
             element,
             now,
             activationTime,
@@ -1493,7 +1493,8 @@ private:
             tokenizer.Advance();
             tokenizer.Expect(NYPath::ETokenType::Literal);
 
-            const auto& poolName = tokenizer.GetLiteralValue();
+            // TODO(babenko): migrate to std::string
+            TString poolName(tokenizer.GetLiteralValue());
             if (poolName != RootPoolName && !poolTreeSnapshot->PoolMap().contains(poolName)) {
                 // TODO(omgronny): rewrite it properly
                 if (context->GetMethod() == "Exists") {
@@ -1535,7 +1536,8 @@ private:
 
             std::vector<TString> result;
             result.reserve(std::ssize(poolMap) + 1);
-            result.push_back(RootPoolName);
+            // TODO(babenko): migrate to std::string
+            result.push_back(TString(RootPoolName));
             for (const auto& [name, _] : poolMap) {
                 result.push_back(name);
             }
@@ -2085,7 +2087,8 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto pool = FindPool(poolName.GetPool());
+        // TODO(babenko): migrate to std::string
+        auto pool = FindPool(TString(poolName.GetPool()));
         if (pool) {
             return pool;
         }
@@ -2094,7 +2097,8 @@ private:
         auto poolConfig = New<TPoolConfig>();
 
         TPoolTreeCompositeElement* parent = poolName.GetParentPool()
-            ? GetPool(*poolName.GetParentPool()).Get()
+            // TODO(babenko): migrate to std::string
+            ? GetPool(TString(*poolName.GetParentPool())).Get()
             : GetDefaultParentPoolForUser(userName).Get();
 
         ApplyEphemeralSubpoolConfig(parent, poolConfig);
@@ -2102,7 +2106,8 @@ private:
         pool = New<TPoolTreePoolElement>(
             StrategyHost_,
             this,
-            poolName.GetPool(),
+            // TODO(babenko): migrate to std::string
+            TString(poolName.GetPool()),
             TGuid(),
             poolConfig,
             /*defaultConfigured*/ true,
@@ -2112,7 +2117,8 @@ private:
 
         if (!poolName.GetParentPool()) {
             pool->SetEphemeralInDefaultParentPool();
-            UserToEphemeralPoolsInDefaultPool_[userName].insert(poolName.GetPool());
+            // TODO(babenko): migrate to std::string
+            UserToEphemeralPoolsInDefaultPool_[userName].insert(TString(poolName.GetPool()));
         }
 
         pool->SetUserName(userName);
@@ -2446,14 +2452,16 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        TPoolTreeCompositeElementPtr pool = FindPool(poolName.GetPool());
+        // TODO(babenko): migrate to std::string
+        TPoolTreeCompositeElementPtr pool = FindPool(TString(poolName.GetPool()));
         if (pool) {
             return pool;
         }
         if (!poolName.GetParentPool()) {
             return GetDefaultParentPoolForUser(userName);
         }
-        pool = FindPool(*poolName.GetParentPool());
+        // TODO(babenko): migrate to std::string
+        pool = FindPool(TString(*poolName.GetParentPool()));
         if (!pool) {
             THROW_ERROR_EXCEPTION("Parent pool %Qv does not exist", poolName.GetParentPool());
         }
@@ -2537,7 +2545,8 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto pool = FindPool(poolName.GetPool());
+        // TODO(babenko): migrate to std::string
+        auto pool = FindPool(TString(poolName.GetPool()));
         if (pool) {
             return;
         }
@@ -2604,7 +2613,8 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        const TPoolTreeCompositeElement* pool = FindPool(poolName.GetPool()).Get();
+        // TODO(babenko): migrate to std::string
+        const TPoolTreeCompositeElement* pool = FindPool(TString(poolName.GetPool())).Get();
         // NB: Check is not performed if operation is started in default or unknown pool.
         if (pool && pool->AreImmediateOperationsForbidden()) {
             THROW_ERROR_EXCEPTION("Starting operations immediately in pool %Qv is forbidden", poolName.GetPool());
@@ -2762,10 +2772,8 @@ private:
         return treeSnapshot->RootElement()->SchedulableElementCount();
     }
 
-    void ProcessAllocationUpdates(
-        const std::vector<TAllocationUpdate>& allocationUpdates,
-        THashSet<TAllocationId>* allocationsToPostpone,
-        THashMap<TAllocationId, EAbortReason>* allocationsToAbort) override
+    TFuture<std::vector<NPolicy::TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
+        const std::vector<TAllocationUpdate>& allocationUpdates) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -2773,61 +2781,7 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        MaybeDelay(Config_->TestingOptions->DelayInsideProcessAllocationUpdates);
-
-        for (const auto& allocationUpdate : allocationUpdates) {
-            auto updateResult = ProcessAllocationUpdate(treeSnapshot, allocationUpdate);
-
-            if (updateResult.NeedToAbort) {
-                YT_LOG_DEBUG(
-                    "Abort allocation update since operation is disabled or missing in snapshot "
-                    "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, NeedToAbort: %v)",
-                    allocationUpdate.OperationId,
-                    allocationUpdate.AllocationId,
-                    updateResult.Status,
-                    updateResult.NeedToAbort);
-                YT_VERIFY(updateResult.AbortReason.has_value());
-                EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *updateResult.AbortReason);
-            }
-
-            if (updateResult.NeedToPostpone) {
-                YT_LOG_DEBUG(
-                    "Postpone allocation update since operation is disabled or missing in snapshot "
-                    "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, NeedToAbort: %v)",
-                    allocationUpdate.OperationId,
-                    allocationUpdate.AllocationId,
-                    updateResult.Status,
-                    updateResult.NeedToAbort);
-                allocationsToPostpone->insert(allocationUpdate.AllocationId);
-            }
-        }
-    }
-
-    TProcessAllocationUpdateResult ProcessAllocationUpdate(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TAllocationUpdate& allocationUpdate)
-    {
-        auto* operationElement = treeSnapshot->FindEnabledOperationElement(allocationUpdate.OperationId);
-
-        if (!operationElement) {
-            return TProcessAllocationUpdateResult{
-                .Status = EAllocationUpdateStatus::Disabled,
-                .NeedToPostpone = true,
-            };
-        }
-
-        // NB: Should be filtered out on large clusters.
-        YT_LOG_DEBUG(
-            "Processing allocation update (OperationId: %v, AllocationId: %v, PreemptibleProgressStartTime: %v, Resources: %v)",
-            allocationUpdate.OperationId,
-            allocationUpdate.AllocationId,
-            allocationUpdate.PreemptibleProgressStartTime,
-            allocationUpdate.AllocationResources);
-
-        return SchedulingPolicy_->ProcessAllocationUpdate(
-            treeSnapshot,
-            operationElement,
-            allocationUpdate);
+        return SchedulingPolicy_->ProcessAllocationUpdates(treeSnapshot, allocationUpdates);
     }
 
     bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const override
@@ -2955,9 +2909,15 @@ private:
         *customMeteringTags = treeSnapshot->TreeConfig()->MeteringTags;
     }
 
-    void BuildSchedulingAttributesStringForNode(TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+    void BuildSchedulingAttributesStringForNode(
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        TNodeId nodeId,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const override
     {
-        SchedulingPolicy_->BuildSchedulingAttributesStringForNode(nodeId, delimitedBuilder);
+        SchedulingPolicy_->BuildSchedulingAttributesStringForNode(
+            schedulingHeartbeatContext,
+            nodeId,
+            delimitedBuilder);
     }
 
     void BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const override
@@ -3473,7 +3433,7 @@ private:
             .Item("user").Value(element->GetUserName())
             .Item("type").Value(element->GetOperationType())
             .Item("title").Value(element->GetTitle())
-            .Do(BIND(&NPolicy::TSchedulingPolicyStaticCaller::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
+            .Do(BIND(&TPoolTreeSnapshot::BuildOperationProgress, treeSnapshot, Unretained(element), strategyHost))
             .Do(BIND(&TPoolTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldFilter{}));
     }
 
@@ -3595,7 +3555,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "schedulable", element->IsSchedulable())
-            .Do(BIND(&NPolicy::TSchedulingPolicyStaticCaller::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
+            .Do(BIND(&TPoolTreeSnapshot::BuildElementYson, treeSnapshot, Unretained(element), filter));
     }
 
     void DoBuildEssentialFairShareInfo(const TPoolTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const

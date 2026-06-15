@@ -25,4 +25,4 @@ IHintManagerPtr CreateHintManager(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NTabletNode
+} // namespace NYT::NTabletNode

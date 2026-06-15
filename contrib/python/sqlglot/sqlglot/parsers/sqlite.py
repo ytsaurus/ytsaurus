@@ -7,7 +7,7 @@ from sqlglot.parser import binary_range_parser
 from sqlglot.tokens import TokenType
 
 
-def _build_strftime(args: t.List) -> exp.Anonymous | exp.TimeToStr:
+def _build_strftime(args: list) -> exp.Anonymous | exp.TimeToStr:
     if len(args) == 1:
         args.append(exp.CurrentTimestamp())
     if len(args) == 2:
@@ -37,10 +37,17 @@ class SQLiteParser(parser.Parser):
         "TIME": lambda args: exp.Anonymous(this="TIME", expressions=args),
     }
 
+    PROPERTY_PARSERS = {
+        **parser.Parser.PROPERTY_PARSERS,
+        "USING": lambda self, **kwargs: self._parse_module_property(),
+        "VIRTUAL": lambda self: self.expression(exp.VirtualProperty()),
+    }
+
     STATEMENT_PARSERS = {
         **parser.Parser.STATEMENT_PARSERS,
         TokenType.ATTACH: lambda self: self._parse_attach_detach(),
         TokenType.DETACH: lambda self: self._parse_attach_detach(is_attach=False),
+        TokenType.PRAGMA: lambda self: self._parse_pragma(),
     }
 
     RANGE_PARSERS = {
@@ -56,6 +63,32 @@ class SQLiteParser(parser.Parser):
             return self.expression(exp.UniqueColumnConstraint())
 
         return super()._parse_unique()
+
+    def _parse_module_property(self, **kwargs: t.Any) -> exp.ModuleProperty:
+        name = self._parse_id_var()
+        expressions = (
+            self._parse_wrapped_csv(self._parse_id_var)
+            if self._match(TokenType.L_PAREN, advance=False)
+            else None
+        )
+        return self.expression(exp.ModuleProperty(this=name, expressions=expressions))
+
+    def _parse_pragma(self) -> exp.Pragma:
+        name = self._parse_var(any_token=True)
+
+        if self._match(TokenType.DOT):
+            name = exp.Dot(this=name, expression=self._parse_var(any_token=True))
+
+        self._match(TokenType.EQ)
+
+        value = self._parse_wrapped(
+            lambda: self._parse_unary() or self._parse_var(any_token=True), optional=True
+        )
+
+        if value:
+            return self.expression(exp.Pragma(this=exp.EQ(this=name, expression=value)))
+
+        return self.expression(exp.Pragma(this=name))
 
     def _parse_attach_detach(self, is_attach=True) -> exp.Attach | exp.Detach:
         self._match(TokenType.DATABASE)

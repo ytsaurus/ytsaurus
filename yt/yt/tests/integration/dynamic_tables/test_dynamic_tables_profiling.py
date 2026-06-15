@@ -1,3 +1,4 @@
+
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 from yt_dynamic_tables_base import SmoothMovementHelper
@@ -11,6 +12,7 @@ from yt_commands import (
 )
 
 from yt_helpers import profiler_factory
+from yt_type_helpers import struct_type, optional_type
 
 from yt.common import YtError
 from yt.yson import YsonEntity
@@ -553,49 +555,34 @@ class TestStatisticsReporterBase:
         def make_struct(name):
             return {
                 "name": name,
-                "type_v3": {
-                    "type_name": "struct",
-                    "members": [
-                        {"name": "count", "type": "int64"},
-                        {"name": "rate", "type": "double"},
-                        {"name": "rate_10m", "type": "double"},
-                        {"name": "rate_1h", "type": "double"},
-                    ],
-                }
+                "type_v3": optional_type(struct_type([
+                    ("count", "int64"),
+                    ("rate", "double"),
+                    ("rate_10m", "double"),
+                    ("rate_1h", "double"),
+                ])),
             }
+
+        nodes = ls("//sys/tablet_nodes")
+        node_address = nodes[0]
+        keys = get("//sys/cluster_nodes/" + node_address + "/orchid/performance_counter_names")
+
+        schema = [
+            {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
+            {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
+        ] + [
+            make_struct(name) for name in keys
+        ] + [
+            {"name": "uncompressed_data_size", "type_v3": optional_type("int64")},
+            {"name": "compressed_data_size", "type_v3": optional_type("int64")},
+        ]
 
         create(
             "table",
             table_path,
             attributes={
                 "dynamic": True,
-                "schema": [
-                    {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
-                    {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
-                    make_struct("dynamic_row_read"),
-                    make_struct("dynamic_row_read_data_weight"),
-                    make_struct("dynamic_row_lookup"),
-                    make_struct("dynamic_row_lookup_data_weight"),
-                    make_struct("dynamic_row_write"),
-                    make_struct("dynamic_row_write_data_weight"),
-                    make_struct("dynamic_row_delete"),
-                    make_struct("static_chunk_row_read"),
-                    make_struct("static_chunk_row_read_data_weight"),
-                    make_struct("static_hunk_chunk_row_read_data_weight"),
-                    make_struct("static_chunk_row_lookup"),
-                    make_struct("static_chunk_row_lookup_data_weight"),
-                    make_struct("static_hunk_chunk_row_lookup_data_weight"),
-                    make_struct("user_data_bytes_transmitted"),
-                    make_struct("system_data_bytes_transmitted"),
-                    make_struct("compaction_data_weight"),
-                    make_struct("partitioning_data_weight"),
-                    make_struct("lookup_error"),
-                    make_struct("write_error"),
-                    make_struct("lookup_cpu_time"),
-                    make_struct("select_cpu_time"),
-                    {"name": "uncompressed_data_size", "type_v3": "int64"},
-                    {"name": "compressed_data_size", "type_v3": "int64"},
-                ],
+                "schema": schema,
                 "mount_config": {
                     "min_data_ttl": 0,
                     "max_data_ttl": 86400000,
@@ -717,6 +704,105 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         _check_dynamic_row_write_counter_after_unmount(
             expected_value=9,
             rows=[{"key": i, "value": "F"} for i in range(3, 10)])
+
+    @authors("dave11ar")
+    def test_update_statistics_in_statistics_reporter_after_reshard(self):
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "enable_compaction_and_partitioning": False,
+                "dynamic_store_auto_flush_period": YsonEntity(),
+            })
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        original_tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _write_and_flush(begin, end):
+            insert_rows("//tmp/t", [{"key": i, "value": "v"} for i in range(begin, end)])
+            sync_flush_table("//tmp/t")
+
+        _write_and_flush(0, 50)
+        _write_and_flush(50, 100)
+        _write_and_flush(100, 150)
+        _write_and_flush(150, 200)
+
+        expected_counter = 200
+        threshold = 5
+
+        wait(lambda: self._get_counter(
+            table_id,
+            original_tablet_id,
+            "dynamic_row_write") == expected_counter)
+
+        new_tablet_ids = []
+
+        def _check_sum_counter():
+            sum_counter = sum(filter(
+                None,
+                (self._get_counter(table_id, tablet_id, "dynamic_row_write") for tablet_id in new_tablet_ids)))
+
+            return abs(expected_counter - sum_counter) <= threshold
+
+        def _reshard_and_check(pivots):
+            sync_unmount_table("//tmp/t")
+            sync_reshard_table("//tmp/t", pivots)
+            sync_mount_table("//tmp/t")
+
+            nonlocal new_tablet_ids
+            new_tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+
+            wait(_check_sum_counter)
+
+        _reshard_and_check([[], [50], [100], [150]])
+        _reshard_and_check([[], [50], [150]])
+        _reshard_and_check([[], [100]])
+        _reshard_and_check([[]])
+
+    @authors("dave11ar")
+    def test_statistics_reporter_table_reshard(self):
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "v"}])
+        sync_flush_table("//tmp/t")
+
+        def _set_enable(enable):
+            update_nodes_dynamic_config({
+                "tablet_node" : {
+                    "statistics_reporter" : {
+                        "enable": enable
+                    }
+                }
+            })
+
+        def _wait_counter():
+            wait(lambda: self._get_counter(
+                table_id,
+                tablet_id,
+                "dynamic_row_write") == 1)
+
+        _wait_counter()
+
+        _set_enable(False)
+
+        sync_unmount_table("//tmp/t")
+
+        insert_rows(
+            self.STATISTICS_TABLE_PATH,
+            [{"table_id": table_id, "tablet_id": tablet_id, "dynamic_row_write": None}],
+            update=True)
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "v"}])
+
+        _set_enable(True)
+
+        _wait_counter()
 
     @authors("atalmenev")
     def test_performance_counters_after_smooth_move(self):

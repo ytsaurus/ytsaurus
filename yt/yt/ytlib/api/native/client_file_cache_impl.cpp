@@ -26,7 +26,7 @@ namespace {
 constexpr int FileCacheHashDigitCount = 2;
 constexpr int MD5HashDigitCount = 32;
 
-TYPath GetFilePathInCache(const TString& md5, const TYPath& cachePath)
+TYPath GetFilePathInCache(const std::string& md5, const TYPath& cachePath)
 {
     YT_VERIFY(std::size(md5) == MD5HashDigitCount);
 
@@ -66,7 +66,7 @@ void TClient::SetTouchedAttribute(
 }
 
 TGetFileFromCacheResult TClient::DoGetFileFromCache(
-    const TString& md5,
+    const std::string& md5,
     const TGetFileFromCacheOptions& options)
 {
     TGetFileFromCacheResult result;
@@ -130,7 +130,7 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
 
 TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
     const TYPath& path,
-    const TString& expectedMD5,
+    const std::string& expectedMD5,
     const TPutFileToCacheOptions& options,
     NLogging::TLogger logger)
 {
@@ -256,7 +256,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
 
 TPutFileToCacheResult TClient::DoPutFileToCache(
     const TYPath& path,
-    const TString& expectedMD5,
+    const std::string& expectedMD5,
     const TPutFileToCacheOptions& options)
 {
     auto Logger = this->Logger().WithTag("Path: %v, Command: PutFileToCache", path);

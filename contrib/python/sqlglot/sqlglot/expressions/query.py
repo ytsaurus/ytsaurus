@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import typing as t
 
-from sqlglot._typing import E
 from sqlglot.errors import ParseError
 from sqlglot.helper import trait, ensure_list
 from sqlglot.expressions.core import (
     Aliases,
+    Column,
     Condition,
     Distinct,
     Dot,
@@ -40,6 +40,8 @@ if t.TYPE_CHECKING:
     from sqlglot.expressions.constraints import ColumnConstraint
     from sqlglot.expressions.ddl import Create
     from sqlglot.expressions.array import Unnest
+    from sqlglot._typing import E, ParserArgs, ParserNoDialectArgs
+    from typing_extensions import Unpack
 
     S = t.TypeVar("S", bound="SetOperation")
     Q = t.TypeVar("Q", bound="Query")
@@ -49,13 +51,13 @@ def _apply_cte_builder(
     instance: E,
     alias: ExpOrStr,
     as_: ExpOrStr,
-    recursive: t.Optional[bool] = None,
-    materialized: t.Optional[bool] = None,
+    recursive: bool | None = None,
+    materialized: bool | None = None,
     append: bool = True,
     dialect: DialectType = None,
     copy: bool = True,
-    scalar: t.Optional[bool] = None,
-    **opts,
+    scalar: bool | None = None,
+    **opts: Unpack[ParserNoDialectArgs],
 ) -> E:
     alias_expression = maybe_parse(alias, dialect=dialect, into=TableAlias, **opts)
     as_expression = maybe_parse(as_, dialect=dialect, copy=copy, **opts)
@@ -77,15 +79,15 @@ def _apply_cte_builder(
 @trait
 class Selectable(Expr):
     @property
-    def selects(self) -> t.List[Expr]:
+    def selects(self) -> list[Expr]:
         raise NotImplementedError("Subclasses must implement selects")
 
     @property
-    def named_selects(self) -> t.List[str]:
+    def named_selects(self) -> list[str]:
         return _named_selects(self)
 
 
-def _named_selects(self: Expr) -> t.List[str]:
+def _named_selects(self: Expr) -> list[str]:
     selectable = t.cast(Selectable, self)
     return [select.output_name for select in selectable.selects]
 
@@ -93,7 +95,7 @@ def _named_selects(self: Expr) -> t.List[str]:
 @trait
 class DerivedTable(Selectable):
     @property
-    def selects(self) -> t.List[Expr]:
+    def selects(self) -> list[Expr]:
         this = self.this
         return this.selects if isinstance(this, Query) else []
 
@@ -101,7 +103,7 @@ class DerivedTable(Selectable):
 @trait
 class UDTF(DerivedTable):
     @property
-    def selects(self) -> t.List[Expr]:
+    def selects(self) -> list[Expr]:
         alias = self.args.get("alias")
         return alias.columns if alias else []
 
@@ -111,21 +113,21 @@ class Query(Selectable):
     """Trait for any SELECT/UNION/etc. query expression."""
 
     @property
-    def ctes(self) -> t.List[CTE]:
+    def ctes(self) -> list[CTE]:
         with_ = self.args.get("with_")
         return with_.expressions if with_ else []
 
     def select(
         self: Q,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Q:
         raise NotImplementedError("Query objects must implement `select`")
 
-    def subquery(self, alias: t.Optional[ExpOrStr] = None, copy: bool = True) -> Subquery:
+    def subquery(self, alias: ExpOrStr | None = None, copy: bool = True) -> Subquery:
         """
         Returns a `Subquery` that wraps around this query.
 
@@ -145,7 +147,11 @@ class Query(Selectable):
         return Subquery(this=instance, alias=alias)
 
     def limit(
-        self: Q, expression: ExpOrStr | int, dialect: DialectType = None, copy: bool = True, **opts
+        self: Q,
+        expression: ExpOrStr | int,
+        dialect: DialectType = None,
+        copy: bool = True,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Q:
         """
         Adds a LIMIT clause to this query.
@@ -179,7 +185,11 @@ class Query(Selectable):
         )
 
     def offset(
-        self: Q, expression: ExpOrStr | int, dialect: DialectType = None, copy: bool = True, **opts
+        self: Q,
+        expression: ExpOrStr | int,
+        dialect: DialectType = None,
+        copy: bool = True,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Q:
         """
         Set the OFFSET expression.
@@ -214,11 +224,11 @@ class Query(Selectable):
 
     def order_by(
         self: Q,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Q:
         """
         Set the ORDER BY expression.
@@ -254,11 +264,11 @@ class Query(Selectable):
 
     def where(
         self: Q,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Q:
         """
         Append to or set the WHERE expressions.
@@ -295,13 +305,13 @@ class Query(Selectable):
         self: Q,
         alias: ExpOrStr,
         as_: ExpOrStr,
-        recursive: t.Optional[bool] = None,
-        materialized: t.Optional[bool] = None,
+        recursive: bool | None = None,
+        materialized: bool | None = None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        scalar: t.Optional[bool] = None,
-        **opts,
+        scalar: bool | None = None,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Q:
         """
         Append to or set the common table expressions.
@@ -341,7 +351,12 @@ class Query(Selectable):
         )
 
     def union(
-        self, *expressions: ExpOrStr, distinct: bool = True, dialect: DialectType = None, **opts
+        self,
+        *expressions: ExpOrStr,
+        distinct: bool = True,
+        dialect: DialectType = None,
+        copy: bool = True,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Union:
         """
         Builds a UNION expression.
@@ -361,10 +376,15 @@ class Query(Selectable):
         Returns:
             The new Union expression.
         """
-        return union(self, *expressions, distinct=distinct, dialect=dialect, **opts)
+        return union(self, *expressions, distinct=distinct, dialect=dialect, copy=copy, **opts)
 
     def intersect(
-        self, *expressions: ExpOrStr, distinct: bool = True, dialect: DialectType = None, **opts
+        self,
+        *expressions: ExpOrStr,
+        distinct: bool = True,
+        dialect: DialectType = None,
+        copy: bool = True,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Intersect:
         """
         Builds an INTERSECT expression.
@@ -384,10 +404,15 @@ class Query(Selectable):
         Returns:
             The new Intersect expression.
         """
-        return intersect(self, *expressions, distinct=distinct, dialect=dialect, **opts)
+        return intersect(self, *expressions, distinct=distinct, dialect=dialect, copy=copy, **opts)
 
     def except_(
-        self, *expressions: ExpOrStr, distinct: bool = True, dialect: DialectType = None, **opts
+        self,
+        *expressions: ExpOrStr,
+        distinct: bool = True,
+        dialect: DialectType = None,
+        copy: bool = True,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Except:
         """
         Builds an EXCEPT expression.
@@ -407,7 +432,7 @@ class Query(Selectable):
         Returns:
             The new Except expression.
         """
-        return except_(self, *expressions, distinct=distinct, dialect=dialect, **opts)
+        return except_(self, *expressions, distinct=distinct, dialect=dialect, copy=copy, **opts)
 
 
 class QueryBand(Expression):
@@ -444,7 +469,7 @@ class TableAlias(Expression):
     arg_types = {"this": False, "columns": False}
 
     @property
-    def columns(self) -> t.List[t.Any]:
+    def columns(self) -> list[t.Any]:
         return self.args.get("columns") or []
 
 
@@ -486,11 +511,11 @@ class ColumnDef(Expression):
     }
 
     @property
-    def constraints(self) -> t.List[ColumnConstraint]:
+    def constraints(self) -> list[ColumnConstraint]:
         return self.args.get("constraints") or []
 
     @property
-    def kind(self) -> t.Optional[DataType]:
+    def kind(self) -> DataType | None:
         return self.args.get("kind")
 
 
@@ -682,11 +707,11 @@ class Join(Expression):
 
     def on(
         self,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Join:
         """
         Append to or set the ON expressions.
@@ -726,11 +751,11 @@ class Join(Expression):
 
     def using(
         self,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Join:
         """
         Append to or set the USING expressions.
@@ -864,10 +889,10 @@ class Tuple(Expression):
     def isin(
         self,
         *expressions: t.Any,
-        query: t.Optional[ExpOrStr] = None,
-        unnest: t.Optional[ExpOrStr] | t.Collection[ExpOrStr] = None,
+        query: ExpOrStr | None = None,
+        unnest: ExpOrStr | None | list[ExpOrStr] | tuple[ExpOrStr, ...] = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserArgs],
     ) -> In:
         return In(
             this=maybe_copy(self, copy),
@@ -876,8 +901,8 @@ class Tuple(Expression):
             unnest=(
                 Unnest(
                     expressions=[
-                        maybe_parse(t.cast(ExpOrStr, e), copy=copy, **opts)
-                        for e in ensure_list(unnest)
+                        maybe_parse(e, copy=copy, **opts)
+                        for e in t.cast(list[ExpOrStr], ensure_list(unnest))
                     ]
                 )
                 if unnest
@@ -949,17 +974,17 @@ class Table(Expression, Selectable):
         return self.text("catalog")
 
     @property
-    def selects(self) -> t.List[Expr]:
+    def selects(self) -> list[Expr]:
         return []
 
     @property
-    def named_selects(self) -> t.List[str]:
+    def named_selects(self) -> list[str]:
         return []
 
     @property
-    def parts(self) -> t.List[Expr]:
+    def parts(self) -> list[Expr]:
         """Return the parts of a table in order catalog, db, table."""
-        parts: t.List[Expr] = []
+        parts: list[Expr] = []
 
         for arg in ("catalog", "db", "this"):
             part = self.args.get(arg)
@@ -1003,11 +1028,11 @@ class SetOperation(Expression, Query):
 
     def select(
         self: S,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> S:
         this = maybe_copy(self, copy)
         this.this.unnest().select(*expressions, append=append, dialect=dialect, copy=False, **opts)
@@ -1017,7 +1042,7 @@ class SetOperation(Expression, Query):
         return this
 
     @property
-    def named_selects(self) -> t.List[str]:
+    def named_selects(self) -> list[str]:
         expr: Expr = self
         while isinstance(expr, SetOperation):
             expr = expr.this.unnest()
@@ -1028,7 +1053,7 @@ class SetOperation(Expression, Query):
         return self.this.is_star or self.expression.is_star
 
     @property
-    def selects(self) -> t.List[Expr]:
+    def selects(self) -> list[Expr]:
         expr: Expr = self
         while isinstance(expr, SetOperation):
             expr = expr.this.unnest()
@@ -1110,7 +1135,11 @@ class Select(Expression, Query):
     }
 
     def from_(
-        self, expression: ExpOrStr, dialect: DialectType = None, copy: bool = True, **opts
+        self,
+        expression: ExpOrStr,
+        dialect: DialectType = None,
+        copy: bool = True,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Select:
         """
         Set the FROM expression.
@@ -1143,11 +1172,11 @@ class Select(Expression, Query):
 
     def group_by(
         self,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Select:
         """
         Set the GROUP BY expression.
@@ -1187,11 +1216,11 @@ class Select(Expression, Query):
 
     def sort_by(
         self,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Select:
         """
         Set the SORT BY expression.
@@ -1227,11 +1256,11 @@ class Select(Expression, Query):
 
     def cluster_by(
         self,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Select:
         """
         Set the CLUSTER BY expression.
@@ -1267,11 +1296,11 @@ class Select(Expression, Query):
 
     def select(
         self,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Select:
         return _apply_list_builder(
             *expressions,
@@ -1286,11 +1315,11 @@ class Select(Expression, Query):
 
     def lateral(
         self,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Select:
         """
         Append to or set the LATERAL expressions.
@@ -1326,14 +1355,14 @@ class Select(Expression, Query):
     def join(
         self,
         expression: ExpOrStr,
-        on: t.Optional[ExpOrStr | t.List[ExpOrStr]] = None,
-        using: t.Optional[ExpOrStr | t.Collection[ExpOrStr]] = None,
+        on: ExpOrStr | list[ExpOrStr] | tuple[ExpOrStr, ...] | None = None,
+        using: ExpOrStr | list[ExpOrStr] | tuple[ExpOrStr, ...] | None = None,
         append: bool = True,
-        join_type: t.Optional[str] = None,
-        join_alias: t.Optional[Identifier | str] = None,
+        join_type: str | None = None,
+        join_alias: Identifier | str | None = None,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Select:
         """
         Append to or set the JOIN expressions.
@@ -1368,8 +1397,7 @@ class Select(Expression, Query):
         Returns:
             Select: the modified expression.
         """
-        parse_args: t.Dict[str, t.Any] = {"dialect": dialect, **opts}
-
+        parse_args: ParserArgs = {"dialect": dialect, **opts}
         try:
             expression = maybe_parse(expression, into=Join, prefix="JOIN", **parse_args)
         except ParseError:
@@ -1381,7 +1409,7 @@ class Select(Expression, Query):
             join.this.replace(join.this.subquery())
 
         if join_type:
-            new_join = maybe_parse(f"FROM _ {join_type} JOIN _", **parse_args).find(Join)
+            new_join: Join = maybe_parse(f"FROM _ {join_type} JOIN _", **parse_args).find(Join)
             method = new_join.method
             side = new_join.side
             kind = new_join.kind
@@ -1394,14 +1422,14 @@ class Select(Expression, Query):
                 join.set("kind", kind)
 
         if on:
-            on = and_(
-                *t.cast(t.List[ExpOrStr], ensure_list(on)), dialect=dialect, copy=copy, **opts
-            )
+            on_exprs: list[ExpOrStr] = ensure_list(on)
+            on = and_(*on_exprs, dialect=dialect, copy=copy, **opts)
             join.set("on", on)
 
         if using:
+            using_exprs: list[ExpOrStr] = ensure_list(using)
             join = _apply_list_builder(
-                *ensure_list(using),
+                *using_exprs,
                 instance=join,
                 arg="using",
                 append=append,
@@ -1424,11 +1452,11 @@ class Select(Expression, Query):
 
     def having(
         self,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Select:
         """
         Append to or set the HAVING expressions.
@@ -1463,11 +1491,11 @@ class Select(Expression, Query):
 
     def window(
         self,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Select:
         return _apply_list_builder(
             *expressions,
@@ -1482,11 +1510,11 @@ class Select(Expression, Query):
 
     def qualify(
         self,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Select:
         return _apply_conjunction_builder(
             *expressions,
@@ -1499,9 +1527,7 @@ class Select(Expression, Query):
             **opts,
         )
 
-    def distinct(
-        self, *ons: t.Optional[ExpOrStr], distinct: bool = True, copy: bool = True
-    ) -> Select:
+    def distinct(self, *ons: ExpOrStr | None, distinct: bool = True, copy: bool = True) -> Select:
         """
         Set the OFFSET expression.
 
@@ -1525,10 +1551,10 @@ class Select(Expression, Query):
     def ctas(
         self,
         table: ExpOrStr,
-        properties: t.Optional[t.Dict] = None,
+        properties: dict | None = None,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Create:
         """
         Convert this expression to a CREATE TABLE AS statement.
@@ -1614,7 +1640,7 @@ class Select(Expression, Query):
         return inst
 
     @property
-    def named_selects(self) -> t.List[str]:
+    def named_selects(self) -> list[str]:
         selects = []
 
         for e in self.expressions:
@@ -1629,7 +1655,7 @@ class Select(Expression, Query):
         return any(expression.is_star for expression in self.expressions)
 
     @property
-    def selects(self) -> t.List[Expr]:
+    def selects(self) -> list[Expr]:
         return self.expressions
 
 
@@ -1657,11 +1683,11 @@ class Subquery(Expression, DerivedTable, Query):
 
     def select(
         self,
-        *expressions: t.Optional[ExpOrStr],
+        *expressions: ExpOrStr | None,
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        **opts,
+        **opts: Unpack[ParserNoDialectArgs],
     ) -> Subquery:
         this = maybe_copy(self, copy)
         inner = this.unnest()
@@ -1734,8 +1760,77 @@ class Pivot(Expression):
         return bool(self.args.get("unpivot"))
 
     @property
-    def fields(self) -> t.List[Expr]:
+    def fields(self) -> list[Expr]:
         return self.args.get("fields", [])
+
+    def output_columns(self, pre_pivot_columns: t.Iterable[str]) -> dict[str, str]:
+        """
+        Returns an ordered map of post-rename output column name -> pre-rename
+        source-side name, in the order the (UN)PIVOT produces them.
+
+        For callers that just want the names, iterate the dict (or call .keys()):
+            >>> from sqlglot import parse_one, exp
+            >>> piv = parse_one("SELECT * FROM t UNPIVOT(val FOR name IN (a, b))").find(exp.Pivot)
+            >>> list(piv.output_columns(["a", "b", "c"]))
+            ['c', 'name', 'val']
+
+        AST shape:
+            PIVOT(SUM(val) FOR name IN ('a', 'b')):
+                expressions: aggregate(s), e.g. [Sum(this=Column(val))]
+                fields:      [In(this=Column(name), expressions=[Literal('a'), Literal('b')])]
+                columns:     optional explicit output identifiers (e.g. set by Snowflake)
+
+            UNPIVOT(val FOR name IN (a, b)):
+                expressions: value Identifier(s), or Tuple(Identifiers) for multi-value
+                fields:      [In(this=Identifier(name), expressions=[Column(a), Column(b)])]
+                             For literal-aliased entries (`a AS 'x'`) the IN expressions
+                             are wrapped in PivotAlias(this=Column, alias=Literal).
+
+        Args:
+            pre_pivot_columns: Columns visible to the operator before it runs
+                (e.g. the source table or subquery's projections).
+        """
+        if self.unpivot:
+            excluded: set[str] = set()
+            name_columns: list[Identifier] = []
+            for field in self.fields:
+                if not isinstance(field, In):
+                    continue
+                if isinstance(field.this, Identifier):
+                    name_columns.append(field.this)
+                for e in field.expressions:
+                    excluded.update(c.output_name for c in e.find_all(Column))
+            value_columns = [
+                ident
+                for e in self.expressions
+                for ident in (e.expressions if isinstance(e, Tuple) else [e])
+                if isinstance(ident, Identifier)
+            ]
+            outputs = [i.name for i in name_columns + value_columns]
+        else:
+            excluded = {c.output_name for c in self.find_all(Column)}
+            outputs = [c.output_name for c in self.args.get("columns") or []]
+            if not outputs:
+                outputs = [c.alias_or_name for c in self.expressions]
+
+        if not excluded or not outputs:
+            return {}
+
+        pre_rename = [c for c in pre_pivot_columns if c not in excluded] + outputs
+
+        alias = self.args.get("alias")
+        renames = alias.args.get("columns") if alias else None
+
+        # `PIVOT(...) AS alias(c1, c2, ...)` renames the operator's output columns
+        # positionally from the front (DuckDB, Snowflake): the user's names cover
+        # the leading N output columns, remaining columns keep their auto names.
+        if renames:
+            rename_names = [r.name for r in renames]
+            post_rename = rename_names + pre_rename[len(rename_names) :]
+        else:
+            post_rename = pre_rename
+
+        return dict(zip(post_rename, pre_rename))
 
 
 class UnpivotColumns(Expression):
@@ -1931,6 +2026,7 @@ class JSONColumnDef(Expression):
         "path": False,
         "nested_schema": False,
         "ordinality": False,
+        "format_json": False,
     }
 
 
@@ -1987,7 +2083,9 @@ class Semicolon(Expression):
 
 
 class TableColumn(Expression):
-    pass
+    @property
+    def output_name(self) -> str:
+        return self.name
 
 
 class Variadic(Expression):
@@ -2022,7 +2120,7 @@ def union(
     distinct: bool = True,
     dialect: DialectType = None,
     copy: bool = True,
-    **opts,
+    **opts: Unpack[ParserNoDialectArgs],
 ) -> Union:
     """
     Initializes a syntax tree for the `UNION` operation.
@@ -2053,7 +2151,7 @@ def intersect(
     distinct: bool = True,
     dialect: DialectType = None,
     copy: bool = True,
-    **opts,
+    **opts: Unpack[ParserNoDialectArgs],
 ) -> Intersect:
     """
     Initializes a syntax tree for the `INTERSECT` operation.
@@ -2084,7 +2182,7 @@ def except_(
     distinct: bool = True,
     dialect: DialectType = None,
     copy: bool = True,
-    **opts,
+    **opts: Unpack[ParserNoDialectArgs],
 ) -> Except:
     """
     Initializes a syntax tree for the `EXCEPT` operation.

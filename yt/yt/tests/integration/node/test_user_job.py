@@ -140,6 +140,38 @@ class TestSandboxTmpfs(YTEnvSetup):
         words = content.strip().split()
         assert ["file", "content"] == words
 
+    @authors("krasovav")
+    def test_resulting_spec_contains_volumes_for_tmpfs_volumes(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            task_patch={
+                "tmpfs_size": 1024 * 1024,
+                "tmpfs_path": "tmpfs",
+            },
+            track=False,
+        )
+
+        wait_breakpoint()
+
+        full_spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        task_spec = full_spec["tasks"]["task"]
+
+        assert "tmpfs_volumes" in task_spec
+        assert len(task_spec["tmpfs_volumes"]) == 1
+        assert "job_volumes_mounts" in task_spec
+        assert len(task_spec["job_volumes_mounts"]) == 2
+        assert "volumes" in task_spec
+        assert len(task_spec["volumes"]) == 2
+
+        tmpfs_volumes = [
+            volume
+            for volume in task_spec["volumes"].values()
+            if "disk_request" in volume is not None and volume["disk_request"]["type"] == "tmpfs"
+        ]
+
+        assert len(tmpfs_volumes) == 1
+        assert tmpfs_volumes[0]["disk_request"]["tmpfs_index"] == 0
+
     @authors("ignat")
     def test_tmpfs_profiling(self):
         create("table", "//tmp/t_input")
@@ -223,7 +255,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                             "job_volumes_mounts" : [
                                 {
                                     "volume_id": "non-root",
-                                    "mount_path": "tmpfs",
+                                    "mount_path": "/sandbox/tmpfs",
                                 }
                             ],
                         }
@@ -423,6 +455,40 @@ class TestSandboxTmpfs(YTEnvSetup):
                     }
                 },
             )
+
+    @authors("krasovav")
+    @pytest.mark.parametrize("incorrect_path", ["/abc/abc/../../..", "abc", "."])
+    def test_incorrect_volume_mount_path_spec(self, incorrect_path):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        with pytest.raises(YtError) as err:
+            map(
+                command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "volumes": {
+                            "first": {
+                                "disk_request": {
+                                    "disk_space": 1024 * 1024,
+                                    "type": "tmpfs",
+                                }
+                            }
+                        },
+                        "job_volumes_mounts": [
+                            {
+                                "mount_path": incorrect_path,
+                                "volume_id": "first",
+                            },
+                        ]
+                    }
+                },
+            )
+
+        assert "Option \"mount_path\" must be absolute path" in str(err)
 
     @authors("ignat")
     def test_tmpfs_remove_failed(self):
@@ -3314,11 +3380,22 @@ class TestHealExecNode(YTEnvSetup):
 
     @authors("alexkolodezny")
     def test_heal_locations(self):
+        OK_ERROR = {"code": 0, "message": "", "attributes": {}}
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
 
         node_address = ls("//sys/cluster_nodes")[0]
 
         locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_node/slot_manager/locations".format(node_address))
+
+        def get_orchid_locations():
+            return get("//sys/cluster_nodes/{}/orchid/exec_node/slot_manager/locations".format(node_address))
+
+        # Before the disable: every configured location is present in the
+        # slot_manager orchid and reports enabled=true.
+        orchid_locations = get_orchid_locations()
+        for path, info in orchid_locations.items():
+            assert info["enabled"], "Location {} should be enabled".format(path)
+            assert info["disable_error"] == OK_ERROR
 
         for location in locations:
             with open("{}/disabled".format(location["path"]), "w") as f:
@@ -3328,6 +3405,15 @@ class TestHealExecNode(YTEnvSetup):
             return get(f"//sys/cluster_nodes/{node_address}/@resource_limits/user_slots") == 0
 
         wait(is_disabled)
+
+        # After the disable: the orchid mirrors it (per-location enabled=false
+        # and a non-OK disable_error).
+        orchid_locations = get_orchid_locations()
+        for location in locations:
+            info = orchid_locations[location["path"]]
+            assert not info["enabled"], "Location {} should be disabled".format(location["path"])
+            assert info["disable_error"] != OK_ERROR, \
+                "Location {} disable_error should be non-OK".format(location["path"])
 
         op = run_test_vanilla("sleep 0.1")
 
@@ -3345,6 +3431,9 @@ class TestHealExecNode(YTEnvSetup):
         heal_exec_node(node_address, ["slot0"])
 
         wait(lambda: not is_disabled())
+
+        # After the heal: every location is back to enabled=true in the orchid.
+        wait(lambda: all(info["enabled"] for info in get_orchid_locations().values()))
 
         op.track()
 

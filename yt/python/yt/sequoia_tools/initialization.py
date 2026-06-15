@@ -42,7 +42,8 @@ def initialize_ground(app: sequoia_app.SequoiaTool, target_reign: int) -> None:
                     ctx.name,
                     ctx.parent_path,
                     ctx.descriptor.schema,
-                    ctx.attributes)
+                    ctx.attributes,
+                    ctx.pivot_keys)
             ])
         .then()
         .build())

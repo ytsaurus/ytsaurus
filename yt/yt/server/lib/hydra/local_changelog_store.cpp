@@ -135,9 +135,17 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
-        return UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
+        return UnderlyingChangelog_->EstimateWriteSize(payloadSize);
+    }
+
+    i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        return UnderlyingChangelog_->EstimateReadSize(firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Append(TRange<TSharedRef> records) override
@@ -257,9 +265,17 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
-        return UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
+        return UnderlyingChangelog_->EstimateWriteSize(payloadSize);
+    }
+
+    i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        return UnderlyingChangelog_->EstimateReadSize(firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Append(TRange<TSharedRef> records) override

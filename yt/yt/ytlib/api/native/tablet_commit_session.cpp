@@ -13,6 +13,8 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/core/misc/backoff_strategy.h>
@@ -21,6 +23,7 @@ namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
 using namespace NLogging;
+using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -34,7 +37,11 @@ bool IsRetryableFirstBatchError(const TError& error)
 {
     static const THashSet<TErrorCode> retryableCodes = {
         NTabletClient::EErrorCode::NoSuchTablet,
+        NTabletClient::EErrorCode::TabletNotMounted,
         NTabletClient::EErrorCode::TestingFailureBeforeWrite,
+        NTabletClient::EErrorCode::ReadOnlySmoothMovementStage,
+        NRpc::EErrorCode::NoSuchService,
+        NRpc::EErrorCode::NoSuchRealm,
     };
 
     return error.FindMatching(retryableCodes).has_value();
@@ -62,8 +69,9 @@ public:
         , Config_(Client_->GetNativeConnection()->GetConfig())
         , Options_(std::move(options))
         , Transaction_(std::move(transaction))
-        , CellCommitSession_(cellCommitSessionProvider->GetOrCreateCellCommitSession(tabletInfo->CellId))
+        , CellCommitSessionProvider_(std::move(cellCommitSessionProvider))
         , Logger(logger.WithTag("TabletId: %v", tabletInfo->TabletId))
+        , CellCommitSession_(CellCommitSessionProvider_->GetOrCreateCellCommitSession(tabletInfo->CellId))
         , TabletInfo_(std::move(tabletInfo))
         , TableInfo_(std::move(tableInfo))
     {
@@ -82,6 +90,8 @@ public:
             },
             TableInfo_->Schemas[ETableSchemaKind::Primary],
             std::move(columnEvaluator));
+
+        CellCommitSession_->RegisterTabletCommitSession(TabletInfo_->TabletId);
     }
 
     void SubmitUnversionedRow(
@@ -115,7 +125,7 @@ public:
         auto prepared = Batcher_->PrepareBatches();
         Batches_ = std::move(prepared.Batches);
 
-        auto batchCount = std::ssize(Batches_);
+        int batchCount = std::ssize(Batches_);
         CellCommitSession_
             ->GetPrepareSignatureGenerator()
             ->RegisterRequests(batchCount);
@@ -179,9 +189,10 @@ private:
     const TConnectionDynamicConfigPtr Config_;
     const TTabletCommitOptions Options_;
     const TWeakPtr<TTransaction> Transaction_;
-    const ICellCommitSessionPtr CellCommitSession_;
+    const ICellCommitSessionProviderPtr CellCommitSessionProvider_;
     const TLogger Logger;
 
+    ICellCommitSessionPtr CellCommitSession_;
     TTabletInfoPtr TabletInfo_;
     TTableMountInfoPtr TableInfo_;
 
@@ -342,7 +353,10 @@ private:
         }
     }
 
-    TError ProcessUpdatedMountInfo(TTableMountInfoPtr tableMountInfo, const TError& firstBatchError)
+    TError ProcessUpdatedMountInfo(
+        TCommitContextPtr commitContext,
+        TTableMountInfoPtr tableMountInfo,
+        const TError& firstBatchError)
     {
         auto newTabletInfo = tableMountInfo->FindTabletById(TabletInfo_->TabletId);
         if (!newTabletInfo) {
@@ -350,27 +364,84 @@ private:
             return firstBatchError << TErrorAttribute("retry_skip_reason", "no_such_tablet");
         }
 
-        // TODO(alexelexa): Compare logical mount revision here.
-        if (newTabletInfo->MountRevision != TabletInfo_->MountRevision) {
-            YT_LOG_DEBUG("Cannot retry sending transaction rows because mount revision changed "
+        if (newTabletInfo->LogicalMountRevision != TabletInfo_->LogicalMountRevision) {
+            YT_LOG_DEBUG("Cannot retry sending transaction rows because logical mount revision changed "
                 "(OldMountRevision: %x, NewMountRevision: %x, OldLogicalMountRevision: %x, NewLogicalMountRevision: %x)",
                 TabletInfo_->MountRevision,
                 newTabletInfo->MountRevision,
                 TabletInfo_->LogicalMountRevision,
                 newTabletInfo->LogicalMountRevision);
-            return firstBatchError << TErrorAttribute("retry_skip_reason", "mount_revision_changed");
+            return firstBatchError << TErrorAttribute("retry_skip_reason", "logical_mount_revision_changed");
         }
 
-        if (TabletInfo_->CellId != newTabletInfo->CellId) {
-            YT_LOG_DEBUG("Cannot retry sending transaction rows because tablet has moved to different cell "
-                "(OldCellId: %v, NewCellId: %v)",
-                TabletInfo_->CellId,
-                newTabletInfo->CellId);
-            return firstBatchError << TErrorAttribute("retry_skip_reason", "tablet_moved");
+        auto updateMountInfo = [&] (auto&& tabletInfo, auto&& tableInfo, bool cellChanged) {
+            YT_LOG_DEBUG("Retrying sending transaction rows after %v "
+                "(LogicalMountRevision: %x, OldMountRevision: %x, NewMountRevision: %x%v)",
+                cellChanged ? "tablet moved to a different cell" : "mount revision changed",
+                TabletInfo_->LogicalMountRevision,
+                TabletInfo_->MountRevision,
+                newTabletInfo->MountRevision,
+                MakeFormatterWrapper([&] (auto* builder) {
+                    if (cellChanged) {
+                        builder->AppendFormat(", OldCellId: %v, NewCellId: %v",
+                            TabletInfo_->CellId,
+                            newTabletInfo->CellId);
+                    } else {
+                        builder->AppendFormat(", CellId: %v", TabletInfo_->CellId);
+                    }
+                }));
+
+            TabletInfo_ = std::move(tabletInfo);
+            TableInfo_ = std::move(tableInfo);
+        };
+
+        if (TabletInfo_->CellId == newTabletInfo->CellId) {
+            updateMountInfo(std::move(newTabletInfo), std::move(tableMountInfo), /*cellChanged*/ false);
+            return {};
         }
 
-        TabletInfo_ = std::move(newTabletInfo);
-        TableInfo_ = std::move(tableMountInfo);
+        auto validateCellCommitSession = [&] (const auto& cellCommitSession, auto cellId) -> TError {
+            if (cellCommitSession->HasRegisteredActions()) {
+                YT_LOG_DEBUG("Cannot retry sending transaction rows because cell commit session "
+                    "has registered transaction actions (CellId: %v)",
+                    cellId);
+                return firstBatchError << TErrorAttribute("retry_skip_reason", "has_transaction_actions");
+            }
+
+            if (TypeFromId(cellId) != EObjectType::TabletCell) {
+                YT_LOG_ALERT("Cannot retry sending transaction rows because cell has unexpected type (CellId: %v, CellType: %v)",
+                    cellId,
+                    TypeFromId(cellId));
+                return firstBatchError << TErrorAttribute("retry_skip_reason", "invalid_cell_type");
+            }
+            return {};
+        };
+
+        if (auto error = validateCellCommitSession(CellCommitSession_, TabletInfo_->CellId); !error.IsOK()) {
+            return error;
+        }
+
+        if (!Config_->UseUniformPrepareSignatures) {
+            YT_LOG_DEBUG("Cannot retry sending transaction rows because uniform prepare signature is disabled");
+            return firstBatchError << TErrorAttribute("retry_skip_reason", "uniform_prepare_signature_disabled");
+        }
+
+        int batchCount = std::ssize(Batches_);
+        CellCommitSession_->GetPrepareSignatureGenerator()->UnregisterRequests(batchCount);
+        CellCommitSession_->UnregisterTabletCommitSession(TabletInfo_->TabletId);
+        //TODO(alexelexa, kvk1920): update commit signatures as well.
+
+        const auto& cellCommitSession = CellCommitSessionProvider_->GetOrCreateCellCommitSession(newTabletInfo->CellId);
+        if (auto error = validateCellCommitSession(cellCommitSession, newTabletInfo->CellId); !error.IsOK()) {
+            return error;
+        }
+
+        cellCommitSession->GetPrepareSignatureGenerator()->RegisterRequests(batchCount);
+        cellCommitSession->RegisterTabletCommitSession(TabletInfo_->TabletId);
+        commitContext->CellChannel = Client_->GetCellChannelOrThrow(newTabletInfo->CellId);
+
+        CellCommitSession_ = std::move(cellCommitSession);
+        updateMountInfo(std::move(newTabletInfo), std::move(tableMountInfo), /*cellChanged*/ true);
         return {};
     }
 
@@ -412,7 +483,7 @@ private:
                                 return;
                             }
 
-                            auto error = ProcessUpdatedMountInfo(tableMountInfo.Value(), firstBatchError);
+                            auto error = ProcessUpdatedMountInfo(commitContext, tableMountInfo.Value(), firstBatchError);
                             if (!error.IsOK()) {
                                 OnFirstBatchRetryFailed(commitContext, error);
                                 return;

@@ -18,12 +18,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Allocation group name assigned to assignments reconstructed during operation revival,
-//! when the original group name is not available.
-static const std::string RevivedAllocationGroupName = "revived";
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::optional<std::string> GetNodeModule(
     const std::optional<std::string>& nodeDataCenter,
     const std::optional<std::string>& nodeInfinibandCluster,
@@ -47,7 +41,7 @@ TAllocationInfoMap CollectRunningAllocationInfos(
 
     runningAllocationInfos.reserve(std::size(schedulingHeartbeatContext->RunningAllocations()));
 
-    for (auto allocation : schedulingHeartbeatContext->RunningAllocations()) {
+    for (const auto& allocation : schedulingHeartbeatContext->RunningAllocations()) {
         runningAllocationInfos.emplace(
             allocation->GetId(),
             TAllocationInfo{
@@ -57,6 +51,16 @@ TAllocationInfoMap CollectRunningAllocationInfos(
     }
 
     return runningAllocationInfos;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGpuScheduleAllocationsStatisticsPtr GetScheduleAllocationsStatistics(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
+{
+    auto statistics = DynamicPointerCast<TGpuScheduleAllocationsStatistics>(schedulingHeartbeatContext->GetSchedulingStatistics());
+    YT_VERIFY(statistics);
+
+    return statistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -364,7 +368,13 @@ void TSchedulingPolicy::ReviveAllocation(
             /*assignment*/ TWeakPtr<TAssignment>{},
             resourceUsage);
         operation->AddOrphanAllocation(allocationState);
-        EmplaceOrCrash(PendingRevivedAllocations_[nodeId], allocationId, MakeWeak(operation));
+        EmplaceOrCrash(
+            PendingRevivedAllocations_[nodeId],
+            allocationId,
+            TPendingRevivedAllocation{
+                .Operation = MakeWeak(operation),
+                .AllocationGroupName = allocation->AllocationGroupName(),
+            });
 
         YT_LOG_DEBUG("Allocation revived as orphan (OperationId: %v, AllocationId: %v, NodeId: %v)",
             operation->GetId(),
@@ -385,7 +395,7 @@ void TSchedulingPolicy::ReviveAllocation(
         operation->AddRevivedAllocation(allocationState, assignment);
     } else {
         auto newAssignment = New<TAssignment>(
-            /*allocationGroupName*/ RevivedAllocationGroupName,
+            allocation->AllocationGroupName(),
             assignmentResources,
             operation.Get(),
             node.Get());
@@ -403,30 +413,68 @@ void TSchedulingPolicy::ReviveAllocation(
         nodeId);
 }
 
-TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
+TFuture<std::vector<TProcessAllocationUpdateResult>> TSchedulingPolicy::ProcessAllocationUpdates(
     const TPoolTreeSnapshotPtr& treeSnapshot,
-    TPoolTreeOperationElement* element,
-    const TAllocationUpdate& allocationUpdate)
+    const std::vector<TAllocationUpdate>& allocationUpdates)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_VERIFY(Config_->Mode == EGpuSchedulingPolicyMode::Allocating);
 
-    auto processAllocationUpdate = BIND(
-        &TSchedulingPolicy::DoProcessAllocationUpdate,
+    // The GPU policy processes updates on the control thread; the FIFO order of the control invoker
+    // (dispatch order equals batch drain order) guarantees that updates for one allocation are applied
+    // in order. The caller is responsible for awaiting the future.
+    return BIND(
+        &TSchedulingPolicy::DoProcessAllocationUpdates,
         MakeStrong(this),
         treeSnapshot,
-        MakeStrong(element),
-        allocationUpdate)
+        allocationUpdates)
         .AsyncVia(StrategyHost_->GetControlInvoker(EControlQueue::Strategy))
         .Run();
+}
 
-    return WaitFor(processAllocationUpdate)
-        .ValueOrThrow();
+std::vector<TProcessAllocationUpdateResult> TSchedulingPolicy::DoProcessAllocationUpdates(
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    const std::vector<TAllocationUpdate>& allocationUpdates)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    // Testing-only delay; may switch context, so it must precede any context switch ban (the per-update
+    // ProcessAllocationUpdate takes TForbidContextSwitchGuard).
+    // NB: While this delay is active, the next batch can overtake this one, so strict batch ordering is
+    // intentionally relaxed when the knob is set. This is why the knob is gpu-only: the classic policy
+    // keeps the ordering invariant unconditionally.
+    MaybeDelay(Config_->TestingOptions->DelayInsideProcessAllocationUpdates);
+
+    std::vector<TProcessAllocationUpdateResult> updateResults;
+    updateResults.reserve(allocationUpdates.size());
+    for (const auto& allocationUpdate : allocationUpdates) {
+        auto* element = treeSnapshot->FindEnabledOperationElement(allocationUpdate.OperationId);
+        if (!element) {
+            updateResults.push_back(TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Disabled,
+                .NeedToPostpone = true,
+            });
+            continue;
+        }
+
+        // NB: Should be filtered out on large clusters.
+        YT_LOG_DEBUG(
+            "Processing allocation update (OperationId: %v, AllocationId: %v, PreemptibleProgressStartTime: %v, Resources: %v)",
+            allocationUpdate.OperationId,
+            allocationUpdate.AllocationId,
+            allocationUpdate.PreemptibleProgressStartTime,
+            allocationUpdate.AllocationResources);
+
+        updateResults.push_back(ProcessAllocationUpdate(treeSnapshot, element, allocationUpdate));
+    }
+
+    return updateResults;
 }
 
 // TODO(YT-27647): Save node info by NodeShards and don't switch to control here.
 void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     TNodeId nodeId,
     TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
@@ -435,8 +483,9 @@ void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(
     Y_UNUSED(WaitFor(BIND(
         &TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode,
         MakeWeak(this),
+        schedulingHeartbeatContext,
         nodeId,
-        &delimitedBuilder)
+        std::addressof(delimitedBuilder))
         .AsyncVia(StrategyHost_->GetControlInvoker(EControlQueue::Strategy))
         .Run()));
 }
@@ -798,7 +847,7 @@ void TSchedulingPolicy::PreemptAllOperationAssignments(
 void TSchedulingPolicy::RemoveAllOperationAssignments(const TOperationPtr& operation)
 {
     for (const auto& assignment : GetItems(operation->Assignments())) {
-        RemoveAssignment(assignment, true);
+        RemoveAssignment(assignment, /*strict*/ true);
     }
 }
 
@@ -867,8 +916,8 @@ void TSchedulingPolicy::RevivePendingAllocations(const TNodePtr& node)
 
     const auto& [_, pendingAllocations] = *pendingIt;
 
-    for (const auto& [allocationId, operationWeak] : pendingAllocations) {
-        auto operation = operationWeak.Lock();
+    for (const auto& [allocationId, pendingAllocation] : pendingAllocations) {
+        auto operation = pendingAllocation.Operation.Lock();
         if (!operation) {
             YT_LOG_WARNING(
                 "Pending revived allocation references expired operation, skipping "
@@ -895,7 +944,7 @@ void TSchedulingPolicy::RevivePendingAllocations(const TNodePtr& node)
 
         // DiskQuota is not considered with non-preliminary assignments.
         auto assignment = New<TAssignment>(
-            /*allocationGroupName*/ RevivedAllocationGroupName,
+            pendingAllocation.AllocationGroupName,
             TJobResourcesWithQuota(currentUsage),
             operation.Get(),
             node.Get());
@@ -1087,7 +1136,7 @@ void TSchedulingPolicy::ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatis
     ProfilingCounters_.FullHostModuleBoundOperations.Update(fullHostModuleBoundOperations);
 }
 
-TLogger TSchedulingPolicy::GetNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor)
+TLogger TSchedulingPolicy::MakeNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor)
 {
     YT_VERIFY(nodeDescriptor);
 
@@ -1108,8 +1157,7 @@ void TSchedulingPolicy::DoProcessSchedulingHeartbeat(
         .ValueOrThrow();
 
     const auto& nodeDescriptor = schedulingHeartbeatContext->GetNodeDescriptor();
-    const auto Logger = GetNodeLogger(nodeDescriptor);
-
+    const auto Logger = MakeNodeLogger(nodeDescriptor);
     auto node = GetOrDefault(Nodes_, nodeDescriptor->Id);
 
     if (!node) {
@@ -1123,11 +1171,24 @@ void TSchedulingPolicy::DoProcessSchedulingHeartbeat(
         return;
     }
 
+    const auto statistics = New<TGpuScheduleAllocationsStatistics>();
+    schedulingHeartbeatContext->SetSchedulingStatistics(statistics);
+
     PreemptAllocations(node, schedulingHeartbeatContext, treeSnapshot);
 
     if (!skipScheduleAllocations && node->IsSchedulable()) {
         ScheduleAllocations(node, schedulingHeartbeatContext, treeSnapshot);
     }
+
+    statistics->ScheduledAllocationCount = std::ssize(schedulingHeartbeatContext->StartedAllocations());
+    statistics->PreemptedAllocationCount = std::ssize(schedulingHeartbeatContext->PreemptedAllocations());
+    statistics->PreemptibleAllocationCount = std::ranges::count_if(
+        node->AllocationIdToAssignment() | std::views::values,
+        &TAssignment::Preemptible);
+
+    statistics->ResourceLimits = schedulingHeartbeatContext->ResourceLimits();
+    statistics->ResourceUsage = schedulingHeartbeatContext->ResourceUsage();
+    node->LastSchedulingHeartbeatStatistics() = statistics;
 }
 
 void TSchedulingPolicy::PreemptAllocations(
@@ -1137,7 +1198,7 @@ void TSchedulingPolicy::PreemptAllocations(
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    const auto Logger = GetNodeLogger(node->Descriptor());
+    const auto Logger = MakeNodeLogger(node->Descriptor());
 
     auto runningAllocationInfos = CollectRunningAllocationInfos(schedulingHeartbeatContext, treeSnapshot);
 
@@ -1202,7 +1263,7 @@ void TSchedulingPolicy::ScheduleAllocations(
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    const auto NodeLogger = GetNodeLogger(node->Descriptor());
+    const auto NodeLogger = MakeNodeLogger(node->Descriptor());
 
     auto nodeShardId = StrategyHost_->GetNodeShardId(node->GetId());
     const auto& nodeShardInvoker = StrategyHost_->GetNodeShardInvokers()[nodeShardId];
@@ -1237,8 +1298,8 @@ void TSchedulingPolicy::ScheduleAllocations(
         }
 
         if (!operation->Assignments().contains(assignment)) {
-            YT_LOG_WARNING("Assignment doesn't belong to operation anymore");
-            RemoveAssignment(assignment, true);
+            YT_LOG_WARNING("Assignment does not belong to operation anymore");
+            RemoveAssignment(assignment, /*strict*/ true);
             continue;
         }
 
@@ -1386,7 +1447,7 @@ bool TSchedulingPolicy::PreemptAllocation(
             preemptionReason = preemptionInfo->Reason;
             allocation->SetPreemptionReason(preemptionInfo->Description);
             if (preemptionInfo->PreemptedForOperationId) {
-                allocation->SetPreemptedFor(TPreemptedFor{.OperationId = *preemptionInfo->PreemptedForOperationId});
+                allocation->SetPreemptedFor(TPreemptedFor{.OperationId = preemptionInfo->PreemptedForOperationId});
             }
         }
 
@@ -1434,7 +1495,7 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    const auto NodeLogger = GetNodeLogger(node->Descriptor());
+    const auto NodeLogger = MakeNodeLogger(node->Descriptor());
     const auto Logger = NodeLogger.WithTag("OperationId: %v", operationElement->GetOperationId());
 
     auto nodeShardId = StrategyHost_->GetNodeShardId(node->GetId());
@@ -1451,7 +1512,7 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
         assignment->AllocationGroupName)
         .AsyncVia(nodeShardInvoker)
         .Run();
-
+    ++GetScheduleAllocationsStatistics(schedulingHeartbeatContext)->ControllerScheduleAllocationCount;
 
     auto scheduleAllocationResult = WaitFor(scheduleAllocationFuture)
         .ValueOrThrow();
@@ -1459,6 +1520,7 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
     if (!scheduleAllocationResult->StartDescriptor) {
         if (scheduleAllocationResult->Failed[NControllerAgent::EScheduleFailReason::Timeout] > 0) {
             YT_LOG_WARNING("Allocation scheduling timed out");
+            ++GetScheduleAllocationsStatistics(schedulingHeartbeatContext)->ControllerScheduleAllocationTimedOutCount;
 
             YT_UNUSED_FUTURE(StrategyHost_->SetOperationAlert(
                 operationElement->GetOperationId(),
@@ -1470,27 +1532,29 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
         return scheduleAllocationResult;
     }
 
+    YT_VERIFY(scheduleAllocationResult->StartDescriptor->AllocationGroupName == assignment->AllocationGroupName);
+
     auto allocationId = scheduleAllocationResult->StartDescriptor->Id;
 
     // NB(yaishenka): After wait above node can be unregistered, operation can be disabled (and maybe enabled again)
     if (!node->Assignments().contains(assignment) || !operation->IsEnabled()) {
         YT_LOG_DEBUG(
-                "Aborting allocation with deleted assignment "
-                "(AllocationId: %v, AllocationResources: %v, NodeAssignedResources: %v, NodeResourceLimits: %v)",
-                allocationId,
-                FormatResources(scheduleAllocationResult->StartDescriptor->ResourceLimits.ToJobResources()),
-                FormatResources(node->AssignedResourceUsage()),
-                FormatResources(node->Descriptor()->ResourceLimits));
+            "Aborting allocation with deleted assignment "
+            "(AllocationId: %v, AllocationResources: %v, NodeAssignedResources: %v, NodeResourceLimits: %v)",
+            allocationId,
+            FormatResources(scheduleAllocationResult->StartDescriptor->ResourceLimits.ToJobResources()),
+            FormatResources(node->AssignedResourceUsage()),
+            FormatResources(node->Descriptor()->ResourceLimits));
 
-            operationElement->AbortAllocation(
-                allocationId,
-                EAbortReason::SchedulingResourceOvercommit,
-                scheduleAllocationResult->ControllerEpoch);
+        operationElement->AbortAllocation(
+            allocationId,
+            EAbortReason::SchedulingResourceOvercommit,
+            scheduleAllocationResult->ControllerEpoch);
 
-            scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
-            scheduleAllocationResult->RecordFail(NControllerAgent::EScheduleFailReason::NoCandidateTasks);
+        scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
+        scheduleAllocationResult->RecordFail(NControllerAgent::EScheduleFailReason::NoCandidateTasks);
 
-            return scheduleAllocationResult;
+        return scheduleAllocationResult;
     }
 
     auto delta = assignment->UpdateResourceUsage(scheduleAllocationResult->StartDescriptor->ResourceLimits);
@@ -1502,7 +1566,7 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
         case EResourceTreeIncreaseResult::Success:
             break;
         case EResourceTreeIncreaseResult::AdditionalResourceLimitExceeded:
-            // NB(yaishenka): we don't provide additional resource limits, so we don't expect this value
+            // NB(yaishenka): We do not provide additional resource limits, so we do not expect this value.
             YT_ABORT();
         case EResourceTreeIncreaseResult::ResourceLimitExceeded: {
             YT_LOG_DEBUG(
@@ -1556,9 +1620,9 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
     return scheduleAllocationResult;
 }
 
-TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
+TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-    TPoolTreeOperationElementPtr element,
+    TPoolTreeOperationElement* element,
     const TAllocationUpdate& allocationUpdate)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -1605,7 +1669,7 @@ TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
     auto assignment = allocation->Assignment().Lock();
 
     if (allocationUpdate.Finished) {
-        return DoProcessFinishedAllocation(
+        return ProcessFinishedAllocation(
             element,
             allocationUpdate,
             node,
@@ -1614,11 +1678,13 @@ TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
             allocation);
     }
 
-    YT_VERIFY(allocationUpdate.ResourceUsageUpdated || allocationUpdate.PreemptibleProgressStartTime);
+    YT_VERIFY(allocationUpdate.AllocationResources || allocationUpdate.PreemptibleProgressStartTime);
 
-    auto delta = allocation->UpdateResourceUsage(allocationUpdate.AllocationResources);
-    if (delta != TJobResources()) {
-        element->IncreaseHierarchicalResourceUsage(delta);
+    if (allocationUpdate.AllocationResources) {
+        auto delta = allocation->UpdateResourceUsage(*allocationUpdate.AllocationResources);
+        if (delta != TJobResources()) {
+            element->IncreaseHierarchicalResourceUsage(delta);
+        }
     }
 
     if (!assignment) {
@@ -1658,8 +1724,8 @@ TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
     };
 }
 
-TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessFinishedAllocation(
-    const TPoolTreeOperationElementPtr& element,
+TProcessAllocationUpdateResult TSchedulingPolicy::ProcessFinishedAllocation(
+    TPoolTreeOperationElement* element,
     const TAllocationUpdate& allocationUpdate,
     const TNodePtr& node,
     const TOperationPtr& operation,
@@ -1730,11 +1796,15 @@ void TSchedulingPolicy::DoBuildSchedulingAttributesForNode(TNodeId nodeId, TFlue
 
     fluent
         .Item("module").Value(node->SchedulingModule())
-        .Item("assignments").List(node->Assignments());
+        .Item("assignments").List(node->Assignments())
+        .OptionalItem("last_heartbeat_statistics", node->LastSchedulingHeartbeatStatistics());
 }
 
 // TODO(YT-27867): consider to add more info here
-void TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode(TNodeId nodeId, TStringBuilderBase* builder) const
+void TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode(
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    TNodeId nodeId,
+    TDelimitedStringBuilderWrapper* builderWrapper) const
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -1743,10 +1813,19 @@ void TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode(TNodeId nodeId,
         return;
     }
 
+    auto& builder = *builderWrapper;
     builder->AppendFormat(
         "SchedulingModule: %v, AssignedUsage: %v",
         node->SchedulingModule(),
         node->AssignedResourceUsage());
+
+    auto statistics = DynamicPointerCast<TGpuScheduleAllocationsStatistics>(schedulingHeartbeatContext->GetSchedulingStatistics());
+    if (statistics) {
+        builder->AppendFormat(
+            "ControllerScheduleAllocationCount: %v, ControllerScheduleAllocationTimedOutCount: %v",
+            statistics->ControllerScheduleAllocationCount,
+            statistics->ControllerScheduleAllocationTimedOutCount);
+    }
 }
 
 void TSchedulingPolicy::RemovePendingRevivedAllocation(TNodeId nodeId, TAllocationId allocationId)
@@ -1813,15 +1892,15 @@ void TNoopSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
     std::vector<TAllocationPtr> /*allocations*/)
 { }
 
-TProcessAllocationUpdateResult TNoopSchedulingPolicy::ProcessAllocationUpdate(
+TFuture<std::vector<TProcessAllocationUpdateResult>> TNoopSchedulingPolicy::ProcessAllocationUpdates(
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-    TPoolTreeOperationElement* /*element*/,
-    const TAllocationUpdate& /*allocationUpdate*/)
+    const std::vector<TAllocationUpdate>& /*allocationUpdates*/)
 {
     YT_UNIMPLEMENTED();
 }
 
 void TNoopSchedulingPolicy::BuildSchedulingAttributesStringForNode(
+    const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
     TNodeId /*nodeId*/,
     TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
 { }

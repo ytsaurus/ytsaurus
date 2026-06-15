@@ -191,27 +191,17 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
 
     TStringBuilder schedulingAttributesBuilder;
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
-    strategyProxy->BuildSchedulingAttributesString(delimitedSchedulingAttributesBuilder);
+    strategyProxy->BuildSchedulingAttributesString(schedulingHeartbeatContext, delimitedSchedulingAttributesBuilder);
 
-    const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
     YT_LOG_DEBUG(
         "Heartbeat finished "
         "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
-        "StartedJobs: %v, PreemptedJobs: %v, "
-        "AllocationsScheduledDuringPreemption: %v, PreemptibleAllocationCount: %v, Discount: %v, "
-        "ControllerScheduleAllocationCount: %v, ScheduleAllocationAttemptCountPerStage: %v, "
-        "OperationCountByPreemptionPriority: %v, %v)",
+        "StartedJobs: %v, PreemptedJobs: %v, %v)",
         event.Time,
         event.NodeId,
         node->GetDefaultAddress(),
         schedulingHeartbeatContext->StartedAllocations().size(),
         schedulingHeartbeatContext->PreemptedAllocations().size(),
-        statistics.ScheduledDuringPreemption,
-        statistics.PreemptibleAllocationCount,
-        FormatResources(statistics.ResourceUsageDiscount),
-        statistics.ControllerScheduleAllocationCount,
-        statistics.ScheduleAllocationAttemptCountPerStage,
-        statistics.OperationCountByPreemptionPriority,
         schedulingAttributesBuilder.Flush());
 }
 
@@ -258,7 +248,6 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
         .OperationId = allocation->GetOperationId(),
         .AllocationId = allocation->GetId(),
         .TreeId = allocation->GetTreeId(),
-        .AllocationResources = TJobResources(),
         .AllocationDataCenter = std::nullopt,
         .AllocationInfinibandCluster = std::nullopt,
         .Finished = true,

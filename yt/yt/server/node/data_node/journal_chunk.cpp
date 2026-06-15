@@ -499,27 +499,35 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         TWallTimer timer;
 
-        auto readBytesLimit = Context_->DataNodeConfig->MaxBytesPerRead;
+        auto maxBytesPerRead = Context_->DataNodeConfig->MaxBytesPerRead;
+
+        // NB: The actual read request is still bounded by the config limit; the estimate
+        // is only used to size the memory reservation, avoiding gross over-reservation
+        // (a flat #maxBytesPerRead per read) for small chunks.
+        auto readBytesEstimate = changelog->EstimateReadSize(
+            firstBlockIndex,
+            blockCount,
+            maxBytesPerRead);
 
         // NB: For recovery we do not enforce any limits to favor it over other workloads.
         TLocationMemoryGuard locationMemoryGuard;
         if (session->Options.WorkloadDescriptor.Category == EWorkloadCategory::SystemTabletRecovery) {
             auto memoryGuard = TMemoryUsageTrackerGuard::Acquire(
                 Location_->GetReadMemoryTracker(),
-                readBytesLimit);
+                readBytesEstimate);
 
             locationMemoryGuard = Location_->AcquireLocationMemory(
                 /*useLegacyUsedMemory*/ false,
                 std::move(memoryGuard),
                 EIODirection::Read,
                 session->Options.WorkloadDescriptor,
-                readBytesLimit);
+                readBytesEstimate);
         } else {
             auto memoryGuardOrError = Location_->TryAcquireLocationMemory(
                 /*useLegacyUsedMemory*/ false,
                 EIODirection::Read,
                 session->Options.WorkloadDescriptor,
-                readBytesLimit);
+                readBytesEstimate);
             if (!memoryGuardOrError.IsOK()) {
                 Location_->ReportThrottledRead();
                 auto error = TError("Read session aborted due to memory pressure");
@@ -542,7 +550,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
         auto blocksFuture = changelog->Read(
             firstBlockIndex,
             std::min(blockCount, Context_->DataNodeConfig->MaxBlocksPerRead),
-            readBytesLimit);
+            maxBytesPerRead);
         session->ChangelogReadFuture.Store(blocksFuture.As<void>());
 
         auto blocksOrError = WaitFor(std::move(blocksFuture));
@@ -568,10 +576,10 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
             block = TrackMemory(session->Options.MemoryUsageTracker, std::move(block), true);
         }
 
-        if (bytesRead > readBytesLimit) {
-            locationMemoryGuard.IncreaseSize(bytesRead - readBytesLimit);
-        } else if (bytesRead < readBytesLimit) {
-            locationMemoryGuard.DecreaseSize(readBytesLimit - bytesRead);
+        if (bytesRead > readBytesEstimate) {
+            locationMemoryGuard.IncreaseSize(bytesRead - readBytesEstimate);
+        } else if (bytesRead < readBytesEstimate) {
+            locationMemoryGuard.DecreaseSize(readBytesEstimate - bytesRead);
         }
 
         auto readTime = timer.GetElapsedTime();

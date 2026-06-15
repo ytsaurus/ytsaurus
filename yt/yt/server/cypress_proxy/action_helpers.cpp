@@ -107,7 +107,7 @@ TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
     // transaction.
     YT_VERIFY(!cypressTransactionIds.Empty());
     auto mangledPath = rootPath.ToMangledSequoiaPath();
-    auto whereConjuncts = std::vector<TString>{
+    auto whereConjuncts = std::vector<std::string>{
         Format("is_prefix(%Qv, path)", mangledPath),
         BuildMultipleTransactionSelectCondition(cypressTransactionIds),
     };

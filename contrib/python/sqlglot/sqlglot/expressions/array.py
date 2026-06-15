@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import typing as t
 
 from sqlglot.expressions.core import (
     Expression,
@@ -190,7 +189,11 @@ class Flatten(Expression, Func):
 
 class StringToArray(Expression, Func):
     arg_types = {"this": True, "expression": False, "null": False}
-    _sql_names = ["STRING_TO_ARRAY", "SPLIT_BY_STRING", "STRTOK_TO_ARRAY"]
+    _sql_names = ["STRING_TO_ARRAY", "SPLIT_BY_STRING"]
+
+
+class StrtokToArray(Expression, Func):
+    arg_types = {"this": True, "expression": False}
 
 
 # Higher-order / lambda
@@ -262,7 +265,7 @@ class Unnest(Expression, Func, UDTF):
     }
 
     @property
-    def selects(self) -> t.List[Expr]:
+    def selects(self) -> list[Expr]:
         columns = super().selects
         offset = self.args.get("offset")
         if offset:
@@ -277,12 +280,12 @@ class Map(Expression, Func):
     arg_types = {"keys": False, "values": False}
 
     @property
-    def keys(self) -> t.List[Expr]:
+    def keys(self) -> list[Expr]:
         keys = self.args.get("keys")
         return keys.expressions if keys else []
 
     @property
-    def values(self) -> t.List[Expr]:
+    def values(self) -> list[Expr]:
         values = self.args.get("values")
         return values.expressions if values else []
 
@@ -334,11 +337,11 @@ class VarMap(Expression, Func):
     is_var_len_args = True
 
     @property
-    def keys(self) -> t.List[Expr]:
+    def keys(self) -> list[Expr]:
         return self.args["keys"].expressions
 
     @property
-    def values(self) -> t.List[Expr]:
+    def values(self) -> list[Expr]:
         return self.args["values"].expressions
 
 
@@ -362,5 +365,5 @@ class StDistance(Expression, Func):
 
 
 class StPoint(Expression, Func):
-    arg_types = {"this": True, "expression": True, "null": False}
+    arg_types = {"this": True, "expression": True, "z": False, "m": False}
     _sql_names = ["ST_POINT", "ST_MAKEPOINT"]

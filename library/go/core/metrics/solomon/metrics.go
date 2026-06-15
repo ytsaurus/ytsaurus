@@ -6,6 +6,7 @@ import (
 	"encoding"
 	"encoding/json"
 	"fmt"
+	"io"
 	"slices"
 	"time"
 
@@ -109,6 +110,8 @@ type Metric interface {
 	getTimestamp() *time.Time
 	isMemOnly() bool
 	getID() string
+
+	writeSpackValue(w io.Writer) error
 }
 
 // Rated marks given Solomon metric or vector as rated.

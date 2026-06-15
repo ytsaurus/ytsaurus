@@ -247,6 +247,11 @@ public:
         StrongOrderingManager_.OnProfiling(buffer);
     }
 
+    TFuture<void> GetReadyToEnterReadOnlyMode() override
+    {
+        return StrongOrderingManager_.WaitUntilPreparedCommitsFinish();
+    }
+
 private:
     const TTransactionSupervisorConfigPtr Config_;
     const IHydraManagerPtr HydraManager_;
@@ -560,6 +565,25 @@ private:
             TCommit* commit,
             F func)
         {
+            auto identity = commit->AuthenticationIdentity();
+
+            return BIND(&TWrappedParticipant::DoEnqueueRequest<F>,
+                MakeStrong(this),
+                succeedOnUnregistered,
+                mustSendImmediately,
+                std::move(identity),
+                std::move(func))
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .Run();
+        }
+
+        template <class F>
+        TFuture<void> DoEnqueueRequest(
+            bool succeedOnUnregistered,
+            bool mustSendImmediately,
+            NRpc::TAuthenticationIdentity identity,
+            F func)
+        {
             auto promise = NewPromise<void>();
 
             auto guard = Guard(SpinLock_);
@@ -572,15 +596,13 @@ private:
 
             // Fast path.
             if (Up_ && underlying->GetState() == ETransactionParticipantState::Valid) {
-                // Make a copy, commit may die.
-                auto identity = commit->AuthenticationIdentity();
+                guard.Release();
                 NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
-
                 return func(underlying);
             }
 
             // Slow path.
-            auto sender = [=, this, this_ = MakeStrong(this), underlying = std::move(underlying), identity = commit->AuthenticationIdentity()] {
+            auto sender = [=, this, this_ = MakeStrong(this), underlying = std::move(underlying), identity = std::move(identity)] {
                 NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
                 switch (underlying->GetState()) {
                     case ETransactionParticipantState::Valid:
@@ -610,6 +632,7 @@ private:
                 sender();
             } else {
                 if (mustSendImmediately) {
+                    guard.Release();
                     return MakeFuture<void>(MakeDownError());
                 }
                 PendingSenders_.push_back(BIND(std::move(sender)));
@@ -1449,6 +1472,15 @@ private:
     {
         YT_VERIFY(!commit->GetPersistent());
 
+        // NB: of course, it would be great to wait every 2PC. But there are 3
+        // reasons to not do it:
+        // 1) only active Sequoia transactions leads to stuck requests in
+        //    read-only mode;
+        // 2) read-only mode for tablet cell Hydra is unlikely to be used;
+        // 3) transaction supervisor knows only aboud a part of 2PC: it knows
+        //    nothing about foreign transactions. Therefore, to properly wait
+        //    all 2PC in tablet cells would require some changes in tablet node
+        //    transaction manager and it is not what we want to touch.
         if (HydraManager_->IsEnteringReadOnlyMode() && !commit->StrongOrderingTags().empty()) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,

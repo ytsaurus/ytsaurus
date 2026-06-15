@@ -928,6 +928,39 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"a": r["a"], "b": r["b"]} for r in rows]) == [{"a": i, "b": -i, "c": i, "mul": yson.YsonEntity()} for i in range(1, 4)]
         assert select_rows("mul from [//tmp/t]") == [{"mul": yson.YsonEntity()} for i in range(1, 4)]
 
+    @authors("dtorilov")
+    def test_yt_28005_01(self):
+        sync_create_cells(1)
+
+        create_dynamic_table("//tmp/t1", schema=[
+            {"name": "k0", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(k2)"},
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "v0", "type": "int64"},
+        ])
+        sync_mount_table("//tmp/t1")
+
+        create_dynamic_table("//tmp/t2", schema=[
+            {"name": "k0", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(k2)"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "v0", "type": "int64"},
+        ])
+        sync_mount_table("//tmp/t2")
+
+        insert_rows("//tmp/t1", [{"k1": 1, "k2": 2, "v0": 42}])
+        insert_rows("//tmp/t2", [{"k1": 1, "k2": 2, "v0": 42}])
+
+        rows_t1 = select_rows("* from [//tmp/t1]")
+        rows_t2 = select_rows("* from [//tmp/t2]")
+
+        assert len(rows_t1) == 1
+        assert len(rows_t2) == 1
+
+        farm_hash_of_2 = yson.YsonUint64(3427386618069609762)
+        assert rows_t1[0]["k0"] == farm_hash_of_2
+        assert rows_t2[0]["k0"] == farm_hash_of_2
+
     @authors("sabdenovch")
     def test_validate_reshard_complexity(self):
         sync_create_cells(1)

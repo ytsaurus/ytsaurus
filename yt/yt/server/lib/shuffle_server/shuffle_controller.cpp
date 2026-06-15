@@ -8,12 +8,14 @@
 #include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_pool.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/helpers.h>
 
-#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/push_based_shuffle_client/config.h>
+
+#include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/transaction.h>
 
-#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/serialized_invoker.h>
 
 namespace NYT::NShuffleServer {
 
@@ -21,6 +23,7 @@ using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
+using namespace NPushBasedShuffleClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,7 +194,8 @@ public:
         ITransactionPtr transaction,
         std::string account,
         std::string medium,
-        int replicationFactor)
+        int replicationFactor,
+        TPushShuffleConfigPtr pushConfig)
         : PartitionCount_(partitionCount)
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
         , Transaction_(std::move(transaction))
@@ -214,10 +218,20 @@ public:
         writerOptions->ReadQuorum = quorums.ReadQuorum;
         writerOptions->WriteQuorum = quorums.WriteQuorum;
 
-        auto writerConfig = New<TJournalChunkWriterConfig>();
-        writerConfig->SetDefaults();
-        auto poolConfig = New<TDistributedChunkSessionPoolConfig>();
-        poolConfig->SetDefaults();
+        // The journal writer config (sequencer batch/flush knobs) and pool config (e.g.
+        // max_active_sessions_per_slot) come from the handle's push config when set; otherwise
+        // defaults. The quorums above stay derived from the replication factor regardless.
+        TJournalChunkWriterConfigPtr writerConfig;
+        TDistributedChunkSessionPoolConfigPtr poolConfig;
+        if (pushConfig) {
+            writerConfig = pushConfig->JournalWriterConfig;
+            poolConfig = pushConfig->SessionPoolConfig;
+        } else {
+            writerConfig = New<TJournalChunkWriterConfig>();
+            writerConfig->SetDefaults();
+            poolConfig = New<TDistributedChunkSessionPoolConfig>();
+            poolConfig->SetDefaults();
+        }
         auto controllerConfig = New<TDistributedChunkSessionControllerConfig>();
         controllerConfig->SetDefaults();
         controllerConfig->Account = std::move(account);
@@ -231,9 +245,21 @@ public:
             std::move(writerOptions),
             std::move(writerConfig),
             SerializedInvoker_);
+
+        for (int partitionIndex = 0; partitionIndex < PartitionCount_; ++partitionIndex) {
+            Pool_->GetSession(partitionIndex)
+                .Subscribe(BIND_NO_PROPAGATE([partitionIndex] (const TErrorOr<TSessionDescriptor>& sessionOrError) {
+                    if (!sessionOrError.IsOK()) {
+                        YT_LOG_DEBUG(
+                            sessionOrError,
+                            "Failed to eagerly start partition write session (PartitionIndex: %v)",
+                            partitionIndex);
+                    }
+                }));
+        }
     }
 
-    TFuture<i32> RegisterMapper(
+    TFuture<TMapperRegistration> RegisterMapper(
         std::optional<int> writerIndex,
         bool overwriteExistingWriterData) override
     {
@@ -288,7 +314,7 @@ private:
     THashSet<i32> ValidMapperIds_;
     bool ReadPhaseStarted_ = false;
 
-    i32 DoRegisterMapper(std::optional<int> writerIndex, bool overwriteExistingWriterData)
+    TFuture<TMapperRegistration> DoRegisterMapper(std::optional<int> writerIndex, bool overwriteExistingWriterData)
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
@@ -315,7 +341,14 @@ private:
             WriterIndexToMapperIds_[*writerIndex].push_back(mapperId);
         }
         ValidMapperIds_.insert(mapperId);
-        return mapperId;
+
+        return Pool_->GetReadySessions()
+            .Apply(BIND_NO_PROPAGATE([mapperId] (std::vector<TReadySession> readySessions) {
+                return TMapperRegistration{
+                    .MapperId = mapperId,
+                    .ReadySessions = std::move(readySessions),
+                };
+            }));
     }
 
     TFuture<TSessionDescriptor> DoGetPartitionWriteSession(
@@ -425,7 +458,8 @@ IPushBasedShuffleControllerPtr CreatePushBasedShuffleController(
     ITransactionPtr transaction,
     std::string account,
     std::string medium,
-    int replicationFactor)
+    int replicationFactor,
+    TPushShuffleConfigPtr pushConfig)
 {
     return New<TPushBasedShuffleController>(
         partitionCount,
@@ -434,7 +468,8 @@ IPushBasedShuffleControllerPtr CreatePushBasedShuffleController(
         std::move(transaction),
         std::move(account),
         std::move(medium),
-        replicationFactor);
+        replicationFactor,
+        std::move(pushConfig));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

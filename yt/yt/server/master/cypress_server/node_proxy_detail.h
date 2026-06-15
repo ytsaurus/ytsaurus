@@ -112,8 +112,9 @@ protected:
     bool AccessTrackingSuppressed_ = false;
     bool ExpirationTimeoutRenewalSuppressed_ = false;
 
-    std::optional<TStringBuf> SequoiaNodeEffectiveAcl_;
+    NYson::TYsonStringBuf SequoiaNodeEffectiveAcl_;
     std::optional<NSecurityServer::TAccessControlList> SequoiaNodeDeserializedEffectiveAcl_;
+    bool SequoiaNodeHasRowLevelAce_ = false;
 
     struct TLockResult
     {

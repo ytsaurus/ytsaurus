@@ -2065,6 +2065,7 @@ void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
             continue;
         }
 
+        YT_VERIFY(tmpfsDiskRequest->TmpfsIndex);
         auto maxUsedTmpfsSize = FindNumericValue(
             statistics,
             SlashedStatisticPath(Format("/user_job/tmpfs_volumes/%v/max_size", tmpfsDiskRequest->TmpfsIndex)).ValueOrThrow()); // COMPAT

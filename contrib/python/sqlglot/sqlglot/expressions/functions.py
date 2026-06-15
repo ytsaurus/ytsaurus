@@ -24,6 +24,8 @@ from sqlglot.expressions.json import *  # noqa: F401,F403
 
 if t.TYPE_CHECKING:
     from sqlglot.expressions.datatypes import DataType, DATA_TYPE
+    from typing_extensions import Unpack
+    from sqlglot._typing import ParserArgs
 
 
 # Cast / type conversion
@@ -94,7 +96,13 @@ class If(Expression, Func):
 class Case(Expression, Func):
     arg_types = {"this": False, "ifs": True, "default": False}
 
-    def when(self, condition: ExpOrStr, then: ExpOrStr, copy: bool = True, **opts) -> Case:
+    def when(
+        self,
+        condition: ExpOrStr,
+        then: ExpOrStr,
+        copy: bool = True,
+        **opts: Unpack[ParserArgs],
+    ) -> Case:
         instance = maybe_copy(self, copy)
         instance.append(
             "ifs",
@@ -105,7 +113,7 @@ class Case(Expression, Func):
         )
         return instance
 
-    def else_(self, condition: ExpOrStr, copy: bool = True, **opts) -> Case:
+    def else_(self, condition: ExpOrStr, copy: bool = True, **opts: Unpack[ParserArgs]) -> Case:
         instance = maybe_copy(self, copy)
         instance.set("default", maybe_parse(condition, copy=copy, **opts))
         return instance
@@ -138,6 +146,10 @@ class Least(Expression, Func):
 
 class Nullif(Expression, Func):
     arg_types = {"this": True, "expression": True}
+
+
+class ObjectTransform(Expression, Func):
+    arg_types = {"this": True, "keep": False, "set_": False}
 
 
 class Nvl2(Expression, Func):
@@ -293,6 +305,10 @@ class CurrentUser(Expression, Func):
     arg_types = {"this": False}
 
 
+class CurrentUserId(Expression, Func):
+    arg_types = {}
+
+
 class CurrentVersion(Expression, Func):
     arg_types = {}
 
@@ -313,6 +329,24 @@ class AIClassify(Expression, Func):
     _sql_names = ["AI_CLASSIFY"]
 
 
+class AIEmbed(Expression, Func):
+    arg_types = {"expressions": True}
+    is_var_len_args = True
+    _sql_names = ["AI_EMBED"]
+
+
+class AISimilarity(Expression, Func):
+    arg_types = {"expressions": True}
+    is_var_len_args = True
+    _sql_names = ["AI_SIMILARITY"]
+
+
+class AIGenerate(Expression, Func):
+    arg_types = {"expressions": True}
+    is_var_len_args = True
+    _sql_names = ["AI_GENERATE"]
+
+
 class FeaturesAtTime(Expression, Func):
     arg_types = {"this": True, "time": False, "num_rows": False, "ignore_feature_nulls": False}
 
@@ -321,8 +355,43 @@ class GenerateEmbedding(Expression, Func):
     arg_types = {"this": True, "expression": True, "params_struct": False, "is_text": False}
 
 
+class GenerateText(Expression, Func):
+    arg_types = {"this": True, "expression": False, "params_struct": False}
+
+
+class GenerateTable(Expression, Func):
+    arg_types = {"this": True, "expression": False, "params_struct": False}
+
+
+class GenerateBool(Expression, Func):
+    arg_types = {"this": True, "expression": False, "params_struct": False}
+
+
+class GenerateInt(Expression, Func):
+    arg_types = {"this": True, "expression": False, "params_struct": False}
+
+
+class GenerateDouble(Expression, Func):
+    arg_types = {"this": True, "expression": False, "params_struct": False}
+
+
 class MLForecast(Expression, Func):
     arg_types = {"this": True, "expression": False, "params_struct": False}
+
+
+class AIForecast(Expression, Func):
+    arg_types = {
+        "this": True,
+        "data_col": False,
+        "timestamp_col": False,
+        "model": False,
+        "id_cols": False,
+        "horizon": False,
+        "forecast_end_timestamp": False,
+        "confidence_level": False,
+        "output_historical_time_series": False,
+        "context_window": False,
+    }
 
 
 class MLTranslate(Expression, Func):

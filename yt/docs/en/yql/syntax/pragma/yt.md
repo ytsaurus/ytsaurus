@@ -1162,6 +1162,14 @@ Sets the [primary medium in {{product-name}}]({{yt-docs-root}}/user-guide/storag
 
 Includes hybrid query execution via DQ
 
+## yt.StaticNetworkProject
+
+| Value type | Default | Static /<br/>Dynamic |
+| --- | --- | --- |
+| String | - | Static, [per‑cluster](#settings) |
+
+Specifies the use of the specified network project in jobs for all map‑reduce operations in the query (including the evaluation stage).
+
 ## yt.NetworkProject
 
 | Value type | Default value | Static/<br/>dynamic |
@@ -1210,13 +1218,42 @@ Sets the maximum number of columnar groups per intermediate query table. If the 
 
 Sets the `"force_job_size_adjuster"` option in the operation settings.
 
-## yt.OmitInaccessibleRows
+## yt.DontForceTransformForInputTables
 
-| Value type | Default value | Static/<br/>dynamic |
+| Value type | Default | Static /<br/>Dynamic |
 | --- | --- | --- |
 | Flag | false | Static |
 
-Allows to read tables which have [row-level ACLs]({{yt-docs-root}}/user-guide/storage/row-level-security) set.
+Disables forced data transformation for user tables with storage settings (`erasure_codec`, `compression_codec`, `primary_medium`, `media`, column‑based groups) that differ from the default settings.
 
+Forced transformation is applied to input tables if they are used to write to output tables only via the YtMerge operation.
+
+## yt.OmitInaccessibleRows {#yt.OmitInaccessibleRows}
+
+Controls the behavior when reading tables with [row‑level ACL]({{yt-docs-root}}/user-guide/storage/row-level-security) (RLS).
+
+By default, reading a table with row‑level ACL enabled results in an authorization error if the user does not have the `full_read` permission. The `yt.OmitInaccessibleRows` pragma changes this behavior: when enabled, rows without access are skipped and the query completes successfully. Only rows allowed by the RLS predicate are included in the result.
+
+| Value type | Default | Static /<br/>Dynamic |
+| --- | --- | --- |
+| Flag | false | Static |
+
+#### Example {#yt.OmitInaccessibleRows-example}
+
+```yql
+PRAGMA yt.OmitInaccessibleRows = "true";
+SELECT *
+FROM `//path/to/table_with_rls`;
+```
+
+#### Result {#yt.OmitInaccessibleRows-result}
+
+The query returns only rows accessible to the current user according to row‑level ACL. Rows without access are skipped without an error.
+
+#### Restrictions {#yt.OmitInaccessibleRows-restrictions}
+
+- You cannot specify `row_index` in `ranges` when reading a table with row‑level ACL — the query will fail. Row indices in `ranges` are counted relative to physical rows on disk, not to rows accessible to the user. For example, `//path/to/table[:#100]` will return up to 100 rows from disk, some of which may be inaccessible and will be filtered out.
+- RLS is not supported for dynamic tables — any read operation will return an error.
 
 [*eph-pool]: A pool that is present in the specification but doesn't have an explicit node in Cypress.
+

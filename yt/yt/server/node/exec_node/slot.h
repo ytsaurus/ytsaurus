@@ -39,6 +39,14 @@ struct IUserSlot
     //! Kill all possibly running processes and clean sandboxes.
     virtual TFuture<void> CleanProcesses() = 0;
 
+    //! Remove Porto volumes and layers imported into porto place by the user job,
+    //! preserving the volumes mounted at the given paths (e.g. reusable root volume).
+    virtual void CleanUserImportedPortoResources(
+        const THashSet<std::string>& preservedVolumePaths = {}) = 0;
+
+    //! Remove the porto place directory. Called during allocation cleanup.
+    virtual void CleanPortoPlace() = 0;
+
     virtual void CleanSandbox() = 0;
 
     virtual void CancelPreparation() = 0;
@@ -53,7 +61,6 @@ struct IUserSlot
     //! Sets up quotas.
     virtual TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
-        const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
         bool ignoreQuota = false) = 0;
 
     virtual TFuture<void> MakeLink(
@@ -109,7 +116,7 @@ struct IUserSlot
         const IVolumePtr& rootVolume,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
+        const std::vector<TVolumeMountPtr>& volumeMounts,
         bool testRootFs) = 0;
 
     virtual TFuture<IVolumePtr> RbindRootVolume(
@@ -118,7 +125,7 @@ struct IUserSlot
     virtual TFuture<void> LinkVolumes(
         const IVolumePtr& rootVolume,
         const std::vector<TVolumeResultPtr>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
+        const std::vector<TVolumeMountPtr>& volumeMounts,
         bool testRootFs) = 0;
 
     virtual NBus::NTcp::TBusServerConfigPtr GetBusServerConfig() const = 0;

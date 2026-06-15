@@ -6,6 +6,7 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/public.h>
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_heartbeat_context.h>
 #include <yt/yt/server/scheduler/strategy/policy/structs.h>
 
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
@@ -39,7 +40,7 @@ struct TAssignment final
     // Marks assignment with allocation waiting for revival.
     bool Reviving = false;
 
-    std::optional<TAllocationId> AllocationId;
+    TAllocationId AllocationId;
     std::optional<TInstant> PreemptibleProgressStartTime;
 
     TAssignment(
@@ -64,7 +65,7 @@ struct TPreemptionInfo
 {
     const EAllocationPreemptionReason Reason;
     const std::string Description;
-    const std::optional<TOperationId> PreemptedForOperationId;
+    const TOperationId PreemptedForOperationId;
 };
 
 void Serialize(const TPreemptionInfo& preemptionInfo, NYson::IYsonConsumer* consumer);
@@ -155,6 +156,8 @@ public:
 
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Enabled);
 
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastScheduleAllocationSuccessTime);
+
     DEFINE_BYREF_RO_PROPERTY(TAllocationIdToAssignment, AllocationIdToAssignment);
     DEFINE_BYREF_RO_PROPERTY(TAllocationIdToAllocationState, AllocationIdToAllocationState);
 
@@ -228,6 +231,18 @@ DEFINE_REFCOUNTED_TYPE(TOperation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGpuScheduleAllocationsStatistics
+    : public TScheduleAllocationsStatistics
+{
+    int ScheduledAllocationCount = 0;
+    int PreemptedAllocationCount = 0;
+};
+using TGpuScheduleAllocationsStatisticsPtr = TIntrusivePtr<TGpuScheduleAllocationsStatistics>;
+
+void Serialize(const TGpuScheduleAllocationsStatisticsPtr& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNode final
 {
 public:
@@ -243,6 +258,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AssignedResourceUsage);
 
     DEFINE_BYREF_RO_PROPERTY(TAllocationIdToAssignment, AllocationIdToAssignment);
+    DEFINE_BYREF_RW_PROPERTY(TGpuScheduleAllocationsStatisticsPtr, LastSchedulingHeartbeatStatistics);
 
     using TAllocationIdSet = TCompactSet<TAllocationId, MaxNodeGpuCount>;
     DEFINE_BYREF_RO_PROPERTY(TAllocationIdSet, AllocationsToPreempt);
@@ -263,7 +279,7 @@ public:
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason reason,
         std::string description,
-        std::optional<TOperationId> preemptedForOperationId = {});
+        TOperationId preemptedForOperationId = {});
 
     void SetDescriptor(TExecNodeDescriptorPtr descriptor);
 

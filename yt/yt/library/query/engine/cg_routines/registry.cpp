@@ -3112,7 +3112,7 @@ void ListHasIntersection(
         auto element = rhsNodeList[i];
         switch (element->GetType()) {
             case ENodeType::String:
-                found = ListHasIntersectionImpl<ENodeType::String, TString>(lhsNode, rhsNode);
+                found = ListHasIntersectionImpl<ENodeType::String, std::string>(lhsNode, rhsNode);
                 break;
             case ENodeType::Int64:
                 found = ListHasIntersectionImpl<ENodeType::Int64, i64>(lhsNode, rhsNode);
@@ -4094,7 +4094,7 @@ void CompositeMemberAccessorHelper(
             break;
 
         case EValueType::String:
-            if (auto parsed = TryParseValue<TString>(&cursor)) {
+            if (auto parsed = TryParseValue<std::string>(&cursor)) {
                 NDetail::CopyStringLike(context, result, *parsed, EValueType::String);
             }
             break;

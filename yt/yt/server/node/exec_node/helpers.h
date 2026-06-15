@@ -96,7 +96,7 @@ TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
+const TAbsoluteNormalizedPath& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<TVolumeMountPtr>& volumeMounts);
 const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volumeId, const std::vector<TVolumeResultPtr>& volumes);
 
 ////////////////////////////////////////////////////////////////////////////////

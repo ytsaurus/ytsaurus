@@ -1262,6 +1262,39 @@
             "uri": "https://{canondata_backend}/1773845/92e5a4847840a3b438b2f77123fc26ad0f92be07/resource.tar.gz#test.test_lineage-join_as_struct--Results_/Output.yqlrun.txt.attr"
         }
     ],
+    "test.test[lineage-math--Debug]": [
+        {
+            "checksum": "e60d238e2d2a8fe71de0f60b7dfb99b2",
+            "size": 2600,
+            "uri": "https://{canondata_backend}/1871002/56176c6ae2e8fd28cc545b1644038b877740ac0d/resource.tar.gz#test.test_lineage-math--Debug_/opt.yql"
+        }
+    ],
+    "test.test[lineage-math--Lineage]": [
+        {
+            "checksum": "71f53ecf85d7f6a689df99df1ca1e5f2",
+            "size": 5836,
+            "uri": "https://{canondata_backend}/1871002/56176c6ae2e8fd28cc545b1644038b877740ac0d/resource.tar.gz#test.test_lineage-math--Lineage_/results.txt"
+        }
+    ],
+    "test.test[lineage-math--Plan]": [
+        {
+            "checksum": "96000468d3144ff2bc3103bfbae3144b",
+            "size": 8533,
+            "uri": "https://{canondata_backend}/1871002/56176c6ae2e8fd28cc545b1644038b877740ac0d/resource.tar.gz#test.test_lineage-math--Plan_/plan.txt"
+        }
+    ],
+    "test.test[lineage-math--Results]": [
+        {
+            "checksum": "f1a9295556176312f4ceab0c78cee02f",
+            "size": 298,
+            "uri": "https://{canondata_backend}/1871002/56176c6ae2e8fd28cc545b1644038b877740ac0d/resource.tar.gz#test.test_lineage-math--Results_/Output.txt"
+        },
+        {
+            "checksum": "994fa0e5bde0e2bb306becaec3c66908",
+            "size": 1664,
+            "uri": "https://{canondata_backend}/1871002/56176c6ae2e8fd28cc545b1644038b877740ac0d/resource.tar.gz#test.test_lineage-math--Results_/Output.yqlrun.txt.attr"
+        }
+    ],
     "test.test[lineage-select_table_row-default.txt-Debug]": [
         {
             "checksum": "50a843be250299c197735ec161c4e42f",

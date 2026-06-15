@@ -3199,7 +3199,7 @@ private:
         }
 
         if (needResetRowCache) {
-            YT_LOG_ALERT_IF(IsLeader() && tablet->IsActiveServant(),
+            YT_LOG_DEBUG_IF(IsLeader() && tablet->IsActiveServant(),
                 "Store that was not flushed to row cache is detected "
                 "at the leading cell peer, row cache will be reset (%v)",
                 tablet->GetLoggingTag());
@@ -3701,7 +3701,7 @@ private:
         }
 
         if (tablet->IsActiveServant()) {
-            tablet->SmoothMovementData().ValidateWriteToTablet();
+            tablet->SmoothMovementData().ValidateWriteToTablet(tabletId);
         }
 
         chaosData->PreparedWritePulledRowsTransactionId.Store(transaction->GetId());
@@ -3901,7 +3901,7 @@ private:
         }
 
         if (tablet->IsActiveServant()) {
-            tablet->SmoothMovementData().ValidateWriteToTablet();
+            tablet->SmoothMovementData().ValidateWriteToTablet(tabletId);
         }
 
         chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(transaction->GetId());

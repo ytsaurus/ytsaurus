@@ -300,4 +300,4 @@ IHedgingManagerRegistryPtr CreateHedgingManagerRegistry(IInvokerPtr invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NTabletNode
+} // namespace NYT::NTabletNode

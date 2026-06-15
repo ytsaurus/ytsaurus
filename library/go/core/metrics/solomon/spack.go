@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
-	"sync"
+	"math"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 )
+
+const HeaderSize = 24
 
 type spackVersion uint16
 
@@ -23,41 +25,51 @@ const (
 	memOnlyFlag spackFlag = 0b0000_0001
 )
 
-type errWriter struct {
-	w   io.Writer
-	err error
+func writeUint8(w io.Writer, v uint8) error {
+	if bw, ok := w.(io.ByteWriter); ok {
+		return bw.WriteByte(v)
+	}
+	_, err := w.Write([]byte{v})
+	return err
 }
 
-func (ew *errWriter) binaryWrite(data any) {
-	if ew.err != nil {
-		return
-	}
-	switch t := data.(type) {
-	case uint8:
-		ew.err = binary.Write(ew.w, binary.LittleEndian, data.(uint8))
-	case uint16:
-		ew.err = binary.Write(ew.w, binary.LittleEndian, data.(uint16))
-	case uint32:
-		ew.err = binary.Write(ew.w, binary.LittleEndian, data.(uint32))
-	default:
-		ew.err = xerrors.Errorf("binaryWrite not supported type %v", t)
-	}
+func writeUint32LE(w io.Writer, v uint32) error {
+	var buf [4]byte
+	binary.LittleEndian.PutUint32(buf[:], v)
+	_, err := w.Write(buf[:])
+	return err
+}
+
+func writeUint64LE(w io.Writer, v uint64) error {
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], v)
+	_, err := w.Write(buf[:])
+	return err
+}
+
+func writeFloat64LE(w io.Writer, v float64) error {
+	return writeUint64LE(w, math.Float64bits(v))
 }
 
 func writeULEB128(w io.Writer, value uint32) error {
-	remaining := value >> 7
-	for remaining != 0 {
-		err := binary.Write(w, binary.LittleEndian, uint8(value&0x7f|0x80))
-		if err != nil {
-			return xerrors.Errorf("binary.Write failed: %w", err)
+	if bw, ok := w.(io.ByteWriter); ok {
+		for value >= 0x80 {
+			if err := bw.WriteByte(byte(value) | 0x80); err != nil {
+				return err
+			}
+			value >>= 7
 		}
-		value = remaining
-		remaining >>= 7
+		return bw.WriteByte(byte(value))
 	}
-	err := binary.Write(w, binary.LittleEndian, uint8(value&0x7f))
-	if err != nil {
-		return xerrors.Errorf("binary.Write failed: %w", err)
+	var buf [5]byte
+	i := 0
+	for value >= 0x80 {
+		buf[i] = byte(value) | 0x80
+		i++
+		value >>= 7
 	}
+	buf[i] = byte(value)
+	_, err := w.Write(buf[:i+1])
 	return err
 }
 
@@ -66,145 +78,104 @@ type spackMetric struct {
 
 	nameValueIndex uint32
 	labelsCount    uint32
-	labels         bytes.Buffer
+	labelsStart    uint32
+	labelsEnd      uint32
 
 	metric Metric
 }
 
-func (se *spackEncoder) addValue(value string) error {
-	if _, ok := se.valuesIdx[value]; ok {
-		return nil
+func (se *spackEncoder) addValue(value string) (uint32, error) {
+	if idx, ok := se.valuesIdx[value]; ok {
+		return idx, nil
 	}
-
+	idx := se.valueCounter
 	se.valuesIdx[value] = se.valueCounter
 	se.valueCounter++
 
 	if _, err := se.labelValuePool.WriteString(value); err != nil {
-		return err
+		return 0, err
 	}
 	if err := se.labelValuePool.WriteByte(0); err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return idx, nil
 }
 
-func (se *spackEncoder) addName(name string) error {
-	if _, ok := se.namesIdx[name]; ok {
-		return nil
+func (se *spackEncoder) addName(name string) (uint32, error) {
+	if idx, ok := se.namesIdx[name]; ok {
+		return idx, nil
 	}
-
-	se.namesIdx[name] = se.nameCounter
+	idx := se.nameCounter
+	se.namesIdx[name] = idx
 	se.nameCounter++
 
 	if _, err := se.labelNamePool.WriteString(name); err != nil {
-		return err
+		return 0, err
 	}
 	if err := se.labelNamePool.WriteByte(0); err != nil {
-		return err
+		return 0, err
 	}
-
-	return nil
-}
-
-// addToLabelPools adds a label name and value to the encoder's label pools if they don't already exist.
-// This method is used to deduplicate label names and values across all metrics.
-func (se *spackEncoder) addToLabelPools(name, value string) error {
-	err := se.addName(name)
-	if err != nil {
-		return err
-	}
-
-	err = se.addValue(value)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return idx, nil
 }
 
 func (s *spackMetric) writeLabel(se *spackEncoder, name string, value string) error {
 	s.labelsCount++
 
-	err := se.addToLabelPools(name, value)
+	nameIdx, err := se.addName(name)
+	if err != nil {
+		return err
+	}
+	valueIdx, err := se.addValue(value)
 	if err != nil {
 		return err
 	}
 
-	err = writeULEB128(&s.labels, se.namesIdx[name])
-	if err != nil {
+	if err := writeULEB128(&se.labelsBuf, nameIdx); err != nil {
 		return err
 	}
-	err = writeULEB128(&s.labels, se.valuesIdx[value])
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return writeULEB128(&se.labelsBuf, valueIdx)
 }
 
-func (s *spackMetric) writeMetric(w io.Writer, version spackVersion) error {
+func (s *spackMetric) writeMetric(w io.Writer, version spackVersion, labelsBuf []byte) error {
 	metricValueType := valueTypeOneWithoutTS
-	if s.metric.getTimestamp() != nil {
+
+	ts := s.metric.getTimestamp()
+	if ts != nil {
 		metricValueType = valueTypeOneWithTS
 	}
-	// library/cpp/monlib/encode/spack/spack_v1_encoder.cpp?rev=r9098142#L190
-	types := uint8(s.metric.getType()<<2) | uint8(metricValueType)
-	err := binary.Write(w, binary.LittleEndian, types)
-	if err != nil {
-		return xerrors.Errorf("binary.Write types failed: %w", err)
+
+	mType := s.metric.getType()
+	types := uint8(mType<<2) | uint8(metricValueType)
+
+	var hdr [2]byte
+	hdr[0] = types
+	hdr[1] = s.flags
+	if _, err := w.Write(hdr[:]); err != nil {
+		return xerrors.Errorf("write types and flags failed: %w", err)
 	}
 
-	err = binary.Write(w, binary.LittleEndian, s.flags)
-	if err != nil {
-		return xerrors.Errorf("binary.Write flags failed: %w", err)
-	}
 	if version >= version12 {
-		err = writeULEB128(w, s.nameValueIndex)
-		if err != nil {
-			return xerrors.Errorf("writeULEB128 name value index: %w", err)
+		if err := writeULEB128(w, s.nameValueIndex); err != nil {
+			return xerrors.Errorf("write name value index failed: %w", err)
 		}
 	}
-	err = writeULEB128(w, s.labelsCount)
-	if err != nil {
-		return xerrors.Errorf("writeULEB128 labels count failed: %w", err)
+
+	if err := writeULEB128(w, s.labelsCount); err != nil {
+		return xerrors.Errorf("write labels count failed: %w", err)
 	}
 
-	_, err = w.Write(s.labels.Bytes()) // s.writeLabels(w)
-	if err != nil {
+	if _, err := w.Write(labelsBuf[s.labelsStart:s.labelsEnd]); err != nil {
 		return xerrors.Errorf("write labels failed: %w", err)
 	}
-	if s.metric.getTimestamp() != nil {
-		err = binary.Write(w, binary.LittleEndian, uint32(s.metric.getTimestamp().Unix()))
-		if err != nil {
+	if ts != nil {
+		if err := writeUint32LE(w, uint32(ts.Unix())); err != nil {
 			return xerrors.Errorf("write timestamp failed: %w", err)
 		}
 	}
 
-	switch s.metric.getType() {
-	case typeGauge:
-		err = binary.Write(w, binary.LittleEndian, s.metric.Value().(float64))
-		if err != nil {
-			return xerrors.Errorf("binary.Write gauge value failed: %w", err)
-		}
-	case typeIGauge:
-		err = binary.Write(w, binary.LittleEndian, s.metric.Value().(int64))
-		if err != nil {
-			return xerrors.Errorf("binary.Write igauge value failed: %w", err)
-		}
-	case typeCounter, typeRated:
-		err = binary.Write(w, binary.LittleEndian, uint64(s.metric.Value().(int64)))
-		if err != nil {
-			return xerrors.Errorf("binary.Write counter value failed: %w", err)
-		}
-	case typeHistogram, typeRatedHistogram:
-		h := s.metric.Value().(histogram)
-		err = h.writeHistogram(w)
-		if err != nil {
-			return xerrors.Errorf("writeHistogram failed: %w", err)
-		}
-	default:
-		return xerrors.Errorf("unknown metric type: %v", s.metric.getType())
+	if err := s.metric.writeSpackValue(w); err != nil {
+		return xerrors.Errorf("write metric value failed: %w", err)
 	}
 	return nil
 }
@@ -227,20 +198,17 @@ func (s *spackMetric) getMetricNameValue(name string) string {
 	return value
 }
 
-func (s *spackMetric) reset() {
-	s.flags = 0
-	s.nameValueIndex = 0
-	s.labelsCount = 0
-	s.labels.Reset()
-	s.metric = nil
-}
-
 type SpackOpts func(*spackEncoder)
 
 func WithVersion12() func(*spackEncoder) {
 	return func(se *spackEncoder) {
 		se.version = version12
 	}
+}
+
+type labelIdxPair struct {
+	nameIdx  uint32
+	valueIdx uint32
 }
 
 type spackEncoder struct {
@@ -253,30 +221,34 @@ type spackEncoder struct {
 
 	labelNamePool  bytes.Buffer
 	labelValuePool bytes.Buffer
+	labelsBuf      bytes.Buffer
 
 	namesIdx  map[string]uint32
 	valuesIdx map[string]uint32
 
-	metrics     Metrics
-	metricsPool *sync.Pool
+	commonLabelIdx []labelIdxPair
+
+	metrics Metrics
 }
 
 func NewSpackEncoder(ctx context.Context, compression CompressionType, metrics *Metrics, opts ...SpackOpts) *spackEncoder {
 	if metrics == nil {
 		metrics = &Metrics{}
 	}
+
+	namesHint := 16
+	valuesHint := len(metrics.metrics) + namesHint
+
 	se := &spackEncoder{
 		context:     ctx,
 		compression: uint8(compression),
 		version:     version11,
 		metrics:     *metrics,
-		namesIdx:    make(map[string]uint32),
-		valuesIdx:   make(map[string]uint32),
-		metricsPool: &sync.Pool{
-			New: func() any {
-				return &spackMetric{}
-			},
-		},
+		namesIdx:    make(map[string]uint32, namesHint),
+		valuesIdx:   make(map[string]uint32, valuesHint),
+	}
+	if n := len(metrics.metrics); n > 0 {
+		se.labelsBuf.Grow(n * namesHint)
 	}
 	for _, op := range opts {
 		op(se)
@@ -284,18 +256,16 @@ func NewSpackEncoder(ctx context.Context, compression CompressionType, metrics *
 	return se
 }
 
-func (se *spackEncoder) writeLabels() ([]*spackMetric, error) {
+func (se *spackEncoder) writeLabels() ([]spackMetric, error) {
 	if err := se.processCommonLabels(); err != nil {
 		return nil, err
 	}
 
-	spackMetrics := make([]*spackMetric, len(se.metrics.metrics))
+	spackMetrics := make([]spackMetric, len(se.metrics.metrics))
 	for idx, metric := range se.metrics.metrics {
-		sMetric, err := se.processMetric(metric)
-		if err != nil {
+		if err := se.processMetric(&spackMetrics[idx], metric); err != nil {
 			return nil, err
 		}
-		spackMetrics[idx] = sMetric
 	}
 
 	return spackMetrics, nil
@@ -303,39 +273,54 @@ func (se *spackEncoder) writeLabels() ([]*spackMetric, error) {
 
 func (se *spackEncoder) processCommonLabels() error {
 	commonLabels := se.metrics.CommonLabels()
+	if len(commonLabels) == 0 {
+		return nil
+	}
+	se.commonLabelIdx = make([]labelIdxPair, 0, len(commonLabels))
 	for name, value := range commonLabels {
-		if err := se.addToLabelPools(name, value); err != nil {
+		nameIdx, err := se.addName(name)
+		if err != nil {
 			return err
 		}
+		valueIdx, err := se.addValue(value)
+		if err != nil {
+			return err
+		}
+		se.commonLabelIdx = append(se.commonLabelIdx, labelIdxPair{nameIdx: nameIdx, valueIdx: valueIdx})
 	}
 	return nil
 }
 
-func (se *spackEncoder) processMetric(metric Metric) (*spackMetric, error) {
-	m := se.metricsPool.Get().(*spackMetric)
+func (se *spackEncoder) processMetric(m *spackMetric, metric Metric) error {
 	m.metric = metric
 	m.flags = m.calculateMetricFlags()
+	m.labelsStart = uint32(se.labelsBuf.Len())
 
 	if err := se.processMetricNameTag(m); err != nil {
-		return nil, err
+		return err
 	}
 
-	for name, value := range metric.Labels() {
-		if name == metric.getNameTag() {
+	labels := metric.Labels()
+	nameTag := metric.getNameTag()
+	commonLabels := se.metrics.CommonLabels()
+
+	for name, value := range labels {
+		if name == nameTag {
 			continue
 		}
 		if se.version == version12 && name == "name" {
 			continue
 		}
-		if cValue, ok := se.metrics.CommonLabels()[name]; ok && cValue == value {
+		if cValue, ok := commonLabels[name]; ok && cValue == value {
 			continue
 		}
 		if err := m.writeLabel(se, name, value); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return m, nil
+	m.labelsEnd = uint32(se.labelsBuf.Len())
+	return nil
 }
 
 func (se *spackEncoder) processMetricNameTag(m *spackMetric) error {
@@ -358,26 +343,25 @@ func (se *spackEncoder) processNameTagV11(m *spackMetric) error {
 func (se *spackEncoder) processNameTagV12(m *spackMetric) error {
 	value := m.getMetricNameValue("name")
 
-	err := se.addValue(value)
+	idx, err := se.addValue(value)
 	if err != nil {
 		return err
 	}
 
-	m.nameValueIndex = se.valuesIdx[value]
+	m.nameValueIndex = idx
 	return nil
 }
 
 func (se *spackEncoder) Encode(w io.Writer) (written int, err error) {
+	if cerr := se.context.Err(); cerr != nil {
+		return 0, xerrors.Errorf("streamSpack context error: %w", cerr)
+	}
+
 	spackMetrics, err := se.writeLabels()
 	if err != nil {
 		return written, xerrors.Errorf("writeLabels failed: %w", err)
 	}
-	defer func() {
-		for _, m := range spackMetrics {
-			m.reset()
-			se.metricsPool.Put(m)
-		}
-	}()
+
 	err = se.writeHeader(w)
 	if err != nil {
 		return written, xerrors.Errorf("writeHeader failed: %w", err)
@@ -386,6 +370,9 @@ func (se *spackEncoder) Encode(w io.Writer) (written int, err error) {
 	compression := CompressionType(se.compression)
 
 	cw := newCompressedWriter(w, compression)
+	if lz4cw, ok := cw.(*lz4CompressionWriteCloser); ok {
+		defer releaseLZ4Writer(lz4cw)
+	}
 
 	err = se.writeLabelNamesPool(cw)
 	if err != nil {
@@ -428,29 +415,24 @@ func (se *spackEncoder) Encode(w io.Writer) (written int, err error) {
 }
 
 func (se *spackEncoder) writeHeader(w io.Writer) error {
-	if se.context.Err() != nil {
-		return xerrors.Errorf("streamSpack context error: %w", se.context.Err())
-	}
-	ew := &errWriter{w: w}
-	ew.binaryWrite(uint16(0x5053))                  // Magic
-	ew.binaryWrite(uint16(se.version))              // Version
-	ew.binaryWrite(uint16(24))                      // HeaderSize
-	ew.binaryWrite(uint8(0))                        // TimePrecision(SECONDS)
-	ew.binaryWrite(uint8(se.compression))           // CompressionAlg
-	ew.binaryWrite(uint32(se.labelNamePool.Len()))  // LabelNamesSize
-	ew.binaryWrite(uint32(se.labelValuePool.Len())) // LabelValuesSize
-	ew.binaryWrite(uint32(len(se.metrics.metrics))) // MetricsCount
-	ew.binaryWrite(uint32(len(se.metrics.metrics))) // PointsCount
-	if ew.err != nil {
-		return xerrors.Errorf("binaryWrite failed: %w", ew.err)
+	var buf [HeaderSize]byte
+	binary.LittleEndian.PutUint16(buf[0:2], 0x5053)                            // Magic.
+	binary.LittleEndian.PutUint16(buf[2:4], uint16(se.version))                // Version.
+	binary.LittleEndian.PutUint16(buf[4:6], HeaderSize)                        // Header size.
+	buf[6] = 0                                                                 // TimePrecision = SECONDS
+	buf[7] = se.compression                                                    // CompressionAlg
+	binary.LittleEndian.PutUint32(buf[8:12], uint32(se.labelNamePool.Len()))   // Label names size.
+	binary.LittleEndian.PutUint32(buf[12:16], uint32(se.labelValuePool.Len())) // Label values size.
+	binary.LittleEndian.PutUint32(buf[16:20], uint32(len(se.metrics.metrics))) // Metrics count.
+	binary.LittleEndian.PutUint32(buf[20:24], uint32(len(se.metrics.metrics))) // Points count.
+
+	if _, err := w.Write(buf[:]); err != nil {
+		return xerrors.Errorf("write header failed: %w", err)
 	}
 	return nil
 }
 
 func (se *spackEncoder) writeLabelNamesPool(w io.Writer) error {
-	if se.context.Err() != nil {
-		return xerrors.Errorf("streamSpack context error: %w", se.context.Err())
-	}
 	_, err := w.Write(se.labelNamePool.Bytes())
 	if err != nil {
 		return xerrors.Errorf("write labelNamePool failed: %w", err)
@@ -459,10 +441,6 @@ func (se *spackEncoder) writeLabelNamesPool(w io.Writer) error {
 }
 
 func (se *spackEncoder) writeLabelValuesPool(w io.Writer) error {
-	if se.context.Err() != nil {
-		return xerrors.Errorf("streamSpack context error: %w", se.context.Err())
-	}
-
 	_, err := w.Write(se.labelValuePool.Bytes())
 	if err != nil {
 		return xerrors.Errorf("write labelValuePool failed: %w", err)
@@ -471,67 +449,45 @@ func (se *spackEncoder) writeLabelValuesPool(w io.Writer) error {
 }
 
 func (se *spackEncoder) writeCommonTime(w io.Writer) error {
-	if se.context.Err() != nil {
-		return xerrors.Errorf("streamSpack context error: %w", se.context.Err())
+	var ts uint32
+	if se.metrics.timestamp != nil {
+		ts = uint32(se.metrics.timestamp.Unix())
 	}
-
-	if se.metrics.timestamp == nil {
-		return binary.Write(w, binary.LittleEndian, uint32(0))
-	}
-	return binary.Write(w, binary.LittleEndian, uint32(se.metrics.timestamp.Unix()))
+	return writeUint32LE(w, ts)
 }
 
 func (se *spackEncoder) writeCommonLabels(w io.Writer) error {
-	if se.context.Err() != nil {
-		return xerrors.Errorf("streamSpack context error: %w", se.context.Err())
+	if len(se.commonLabelIdx) == 0 {
+		return writeUint8(w, 0)
 	}
 
-	commonLabels := se.metrics.CommonLabels()
-	if len(commonLabels) == 0 {
-		_, err := w.Write([]byte{0})
-		if err != nil {
-			return xerrors.Errorf("write commonLabels failed: %w", err)
-		}
-		return nil
-	}
-
-	err := writeULEB128(w, uint32(len(commonLabels)))
-	if err != nil {
+	if err := writeULEB128(w, uint32(len(se.commonLabelIdx))); err != nil {
 		return xerrors.Errorf("write commonLabels count failed: %w", err)
 	}
 
-	for name, value := range commonLabels {
-		nameIdx, nameOk := se.namesIdx[name]
-		if !nameOk {
-			return xerrors.Errorf("commonLabel name not found in pool: name=%s", name)
-		}
-
-		err = writeULEB128(w, nameIdx)
-		if err != nil {
+	for _, pair := range se.commonLabelIdx {
+		if err := writeULEB128(w, pair.nameIdx); err != nil {
 			return xerrors.Errorf("write commonLabel name index failed: %w", err)
 		}
-
-		valueIdx, valueOk := se.valuesIdx[value]
-		if !valueOk {
-			return xerrors.Errorf("commonLabel value not found in pool: name=%s value=%s", name, value)
-		}
-
-		err = writeULEB128(w, valueIdx)
-		if err != nil {
+		if err := writeULEB128(w, pair.valueIdx); err != nil {
 			return xerrors.Errorf("write commonLabel value index failed: %w", err)
 		}
 	}
 	return nil
 }
 
-func (se *spackEncoder) writeMetricsData(w io.Writer, metrics []*spackMetric) error {
-	for _, s := range metrics {
-		if se.context.Err() != nil {
-			return xerrors.Errorf("streamSpack context error: %w", se.context.Err())
+func (se *spackEncoder) writeMetricsData(w io.Writer, metrics []spackMetric) error {
+	labelsBuf := se.labelsBuf.Bytes()
+	for i := range metrics {
+		// Check context once per 63 iterations.
+		// i&0x3f effectively equals to i%63 but compiles to 1 assembly instruction instead of 6.
+		if i&0x3f == 0 {
+			if err := se.context.Err(); err != nil {
+				return xerrors.Errorf("streamSpack context error: %w", err)
+			}
 		}
 
-		err := s.writeMetric(w, se.version)
-		if err != nil {
+		if err := metrics[i].writeMetric(w, se.version, labelsBuf); err != nil {
 			return xerrors.Errorf("write metric failed: %w", err)
 		}
 	}

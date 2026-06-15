@@ -616,6 +616,16 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     if (clonedTrunkNode->IsTrackedQueueObject()) {
         tableManager->RegisterQueue(clonedTrunkNode);
     }
+
+    if (clonedTrunkNode->IsForeign()) {
+        tableManager->ScheduleStatisticsUpdate(
+            clonedTrunkNode,
+            TStatisticsUpdateRequest{
+                .UpdateDataStatistics = true,
+                .UpdateTabletResourceUsage = true,
+                .UseNativeContentRevisionCas = true,
+            });
+    }
 }
 
 template <class TImpl>

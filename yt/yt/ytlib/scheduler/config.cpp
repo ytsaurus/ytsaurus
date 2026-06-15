@@ -51,7 +51,7 @@ using namespace NYson;
 using NVectorHdrf::EIntegralGuaranteeType;
 using NYT::ToProto;
 
-extern const TString OperationAliasPrefix;
+extern const std::string OperationAliasPrefix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,7 +168,7 @@ void RegisterNbdDisk(TYsonStructRegistrar<TConfig>& registrar)
 
 static constexpr int MaxAllowedProfilingTagCount = 200;
 
-TPoolName::TPoolName(TString pool, std::optional<TString> parent)
+TPoolName::TPoolName(std::string pool, std::optional<std::string> parent)
 {
     if (parent) {
         Pool_ = *parent +  Delimiter + pool;
@@ -180,24 +180,24 @@ TPoolName::TPoolName(TString pool, std::optional<TString> parent)
 
 const char TPoolName::Delimiter = '$';
 
-const TString& TPoolName::GetPool() const
+const std::string& TPoolName::GetPool() const
 {
     return Pool_;
 }
 
-const std::optional<TString>& TPoolName::GetParentPool() const
+const std::optional<std::string>& TPoolName::GetParentPool() const
 {
     return ParentPool_;
 }
 
-const TString& TPoolName::GetSpecifiedPoolName() const
+const std::string& TPoolName::GetSpecifiedPoolName() const
 {
     return ParentPool_ ? *ParentPool_ : Pool_;
 }
 
-TPoolName TPoolName::FromString(const TString& value)
+TPoolName TPoolName::FromString(const std::string& value)
 {
-    std::vector<TString> parts;
+    std::vector<std::string> parts;
     StringSplitter(value).Split(Delimiter).AddTo(&parts);
     switch (parts.size()) {
         case 1:
@@ -213,20 +213,21 @@ TPoolName TPoolName::FromString(const TString& value)
 
 TString TPoolName::ToString() const
 {
-    return Pool_;
+    // TODO(babenko): migrate to std::string
+    return TString(Pool_);
 }
 
 void Deserialize(TPoolName& value, INodePtr node)
 {
     // TODO(babenko): migrate to std::string
-    value = TPoolName::FromString(TString(node->AsString()->GetValue()));
+    value = TPoolName::FromString(std::string(node->AsString()->GetValue()));
 }
 
 void Deserialize(TPoolName& value, TYsonPullParserCursor* cursor)
 {
     MaybeSkipAttributes(cursor);
     EnsureYsonToken("TPoolName", *cursor, EYsonItemType::StringValue);
-    value = TPoolName::FromString(ExtractTo<TString>(cursor));
+    value = TPoolName::FromString(ExtractTo<std::string>(cursor));
 }
 
 void Serialize(const TPoolName& value, IYsonConsumer* consumer)
@@ -599,8 +600,11 @@ void TStorageRequestBase::Register(TRegistrar registrar)
     RegisterDiskSpace(registrar);
 }
 
-void TTmpfsStorageRequest::Register(TRegistrar /*registrar*/)
-{ }
+void TTmpfsStorageRequest::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tmpfs_index", &TThis::TmpfsIndex)
+        .Default();
+}
 
 void TDiskRequestConfig::Register(TRegistrar registrar)
 {
@@ -654,9 +658,9 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
         .Default(false);
 }
 
-const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
+const std::vector<std::string>& TUserJobMonitoringConfig::GetDefaultSensorNames()
 {
-    static const std::vector<TString> DefaultSensorNames = {
+    static const std::vector<std::string> DefaultSensorNames = {
         "cpu/burst",
         "cpu/user",
         "cpu/system",
@@ -1091,7 +1095,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
             NControllerAgent::ValidateEnvironmentVariableName(spec->TemporaryTokenEnvironmentVariableName);
         }
 
-        if (spec->Alias && !spec->Alias->StartsWith(OperationAliasPrefix)) {
+        if (spec->Alias && !spec->Alias->starts_with(OperationAliasPrefix)) {
             THROW_ERROR_EXCEPTION("Operation alias should start with %Qv", OperationAliasPrefix)
                 << TErrorAttribute("operation_alias", spec->Alias);
         }
@@ -1128,7 +1132,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         ValidateProfilers(spec->Profilers);
 
         {
-            THashSet<TString> jobShellNames;
+            THashSet<std::string> jobShellNames;
             for (const auto& jobShell : spec->JobShells) {
                 if (!jobShellNames.emplace(jobShell->Name).second) {
                     THROW_ERROR_EXCEPTION("Job shell names should be distinct")
@@ -1488,26 +1492,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
             spec->TmpfsPath = std::nullopt;
             spec->TmpfsSize = std::nullopt;
         }
-
-        std::vector<TTmpfsVolumeConfigPtr> tmpDeprecatedTmpfsVolumes;
-        TDeprecatedDiskRequestConfigPtr tmpDeprecatedDiskRequestConfig;
-        std::vector<NYPath::TRichYPath> tmpDeprecatedLayerPaths;
-
-        // This is necessary so that the fields("disk_request", "tmpfs", "layers") are not removed from the specification,
-        // so that the user is not afraid of not seeing them there.
-        if (spec->IsFirstIterationPostprocessorComplete) {
-            tmpDeprecatedTmpfsVolumes = std::move(spec->DeprecatedTmpfsVolumes);
-            tmpDeprecatedDiskRequestConfig = std::move(spec->DeprecatedDiskRequest);
-            tmpDeprecatedLayerPaths = std::move(spec->DeprecatedLayerPaths);
-        }
-
-        if (!spec->DeprecatedTmpfsVolumes.empty() && !spec->Volumes.empty()) {
-            THROW_ERROR_EXCEPTION(
-                "Option \"tmpfs_volumes\" cannot be specified simultaneously with \"volumes\"")
-                << TErrorAttribute("tmpfs_volumes", spec->DeprecatedTmpfsVolumes)
-                << TErrorAttribute("volumes", spec->Volumes);
-        }
-
         if (spec->DiskSpaceLimit && spec->DeprecatedDiskRequest) {
             THROW_ERROR_EXCEPTION(
                 "Options \"disk_space_limit\" and \"inode_limit\" cannot be specified "
@@ -1515,174 +1499,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
                 << TErrorAttribute("disk_space_limit", spec->DiskSpaceLimit)
                 << TErrorAttribute("inode_limit", spec->InodeLimit)
                 << TErrorAttribute("disk_request", spec->DeprecatedDiskRequest);
-        }
-
-
-        if (spec->DiskSpaceLimit && !spec->Volumes.empty()) {
-            THROW_ERROR_EXCEPTION(
-                "Options \"disk_space_limit\" cannot be specified "
-                "together with \"volumes\" which contains not only tmpfs volumes")
-                << TErrorAttribute("disk_space_limit", spec->DiskSpaceLimit)
-                << TErrorAttribute("inode_limit", spec->InodeLimit)
-                << TErrorAttribute("volumes", spec->Volumes);
-        }
-
-        if (spec->DeprecatedDiskRequest && !spec->Volumes.empty()) {
-            THROW_ERROR_EXCEPTION(
-                "Option \"disk_request\" cannot be specified simultaneously with \"volumes\"")
-                << TErrorAttribute("disk_request", spec->DeprecatedDiskRequest)
-                << TErrorAttribute("volumes", spec->Volumes);
-        }
-
-        if (!spec->DeprecatedLayerPaths.empty() && !spec->Volumes.empty()) {
-            THROW_ERROR_EXCEPTION(
-                "Option \"layer_paths\" cannot be specified simultaneously with \"volumes\"")
-                << TErrorAttribute("layer_paths", spec->DeprecatedDiskRequest)
-                << TErrorAttribute("volumes", spec->Volumes);
-        }
-
-        {
-            THashSet<std::string> requestedVolumeIds;
-            for (const auto& volumeMount : spec->JobVolumeMounts) {
-                requestedVolumeIds.insert(volumeMount->VolumeId);
-                if (!spec->Volumes.contains(volumeMount->VolumeId)) {
-                    THROW_ERROR_EXCEPTION("Volume was requested but not described")
-                        << TErrorAttribute("volume_id", volumeMount->VolumeId);
-                }
-            }
-
-            for (const auto& [id, volume] : spec->Volumes) {
-                if (!requestedVolumeIds.contains(id)) {
-                    THROW_ERROR_EXCEPTION("Volume was described but not used")
-                        << TErrorAttribute("volume_id", id);
-                }
-            }
-        }
-
-        auto makeNewNameForVolume = [index = 0] () mutable {
-            return ToString(index++);
-        };
-
-        TVolumePtr newVolume;
-        TVolumeMountPtr newVolumeMount;
-        std::optional<std::string> newNameForNewVolume = makeNewNameForVolume();
-
-        bool hasRootFSInJobVolumeMounts = [&] () {
-            auto it = std::find_if(spec->JobVolumeMounts.begin(), spec->JobVolumeMounts.end(), [] (const auto& volumeMount) {
-                return volumeMount->MountPath == "/";
-            });
-            return it != spec->JobVolumeMounts.end();
-        }();
-        if (!hasRootFSInJobVolumeMounts) {
-            newVolume = New<TVolume>();
-
-            newVolumeMount = New<TVolumeMount>();
-            newVolumeMount->MountPath = "/";
-            newVolumeMount->VolumeId = *newNameForNewVolume;
-            newVolumeMount->ReadOnly = false;
-        }
-
-        if (spec->DeprecatedDiskRequest) {
-            if (spec->DeprecatedDiskRequest->NbdDisk) {
-                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
-                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Nbd>();
-                *diskRequest = spec->DeprecatedDiskRequest;
-            } else {
-                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
-                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
-                *diskRequest = spec->DeprecatedDiskRequest;
-            }
-        }
-
-        for (const auto& volumeFromOldSpec : spec->DeprecatedTmpfsVolumes) {
-            auto nameForNewVolume = makeNewNameForVolume();
-
-            auto volumeMount = New<TVolumeMount>();
-            volumeMount->MountPath = volumeFromOldSpec->Path;
-            volumeMount->VolumeId = nameForNewVolume;
-            volumeMount->ReadOnly = false;
-            spec->JobVolumeMounts.push_back(std::move(volumeMount));
-
-            auto newVolume = New<TVolume>();
-            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Tmpfs);
-            (*newVolume->DiskRequest)->DiskSpace = volumeFromOldSpec->Size;
-            spec->Volumes[nameForNewVolume] = std::move(newVolume);
-        }
-
-        for (const auto& volumeMount : spec->JobVolumeMounts) {
-            auto it = spec->Volumes.find(volumeMount->VolumeId);
-            if (!IsDiskRequestTmpfs(it->second->DiskRequest)) {
-                continue;
-            }
-
-            if (!NFS::IsPathRelativeAndInvolvesNoTraversal(volumeMount->MountPath)) {
-                THROW_ERROR_EXCEPTION("Tmpfs path %v does not point inside the sandbox directory",
-                    volumeMount->MountPath);
-            }
-        }
-
-        i64 totalTmpfsSize = 0;
-        int tmpfsVolumeIndex = 0;
-        for (auto& [_, volume] : spec->Volumes) {
-            if (!IsDiskRequestTmpfs(volume->DiskRequest)) {
-                continue;
-            }
-            totalTmpfsSize += (*volume->DiskRequest)->DiskSpace;
-
-            // COMPAT (krasovav)
-            volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()->TmpfsIndex = tmpfsVolumeIndex++;
-        }
-
-        // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
-        if (totalTmpfsSize > spec->MemoryLimit) {
-            THROW_ERROR_EXCEPTION("Total size of tmpfs volumes must be less than or equal to memory limit")
-                << TErrorAttribute("tmpfs_size", totalTmpfsSize)
-                << TErrorAttribute("memory_limit", spec->MemoryLimit);
-        }
-
-        std::vector<std::string_view> tmpfsPaths;
-        tmpfsPaths.reserve(spec->Volumes.size());
-        for (const auto& volumeMount : spec->JobVolumeMounts) {
-            auto leftVolumeIt = spec->Volumes.find(volumeMount->VolumeId);
-            if (!IsDiskRequestTmpfs(leftVolumeIt->second->DiskRequest)) {
-                continue;
-            }
-
-            tmpfsPaths.push_back(volumeMount->MountPath);
-        }
-
-        if (spec->MemoryReserveFactor &&
-            (*spec->MemoryReserveFactor == 1.0 || !spec->IgnoreMemoryReserveFactorLessThanOne))
-        {
-            spec->UserJobMemoryDigestLowerBound = spec->UserJobMemoryDigestDefaultValue = *spec->MemoryReserveFactor;
-        }
-
-        auto memoryDigestLowerLimit = static_cast<double>(totalTmpfsSize) / spec->MemoryLimit;
-        spec->UserJobMemoryDigestDefaultValue = std::min(
-            1.0,
-            std::max(spec->UserJobMemoryDigestDefaultValue, memoryDigestLowerLimit));
-        spec->UserJobMemoryDigestLowerBound = std::min(
-            1.0,
-            std::max(spec->UserJobMemoryDigestLowerBound, memoryDigestLowerLimit));
-        spec->UserJobMemoryDigestDefaultValue = std::max(spec->UserJobMemoryDigestLowerBound, spec->UserJobMemoryDigestDefaultValue);
-
-        for (const auto& [variableName, _] : spec->Environment) {
-            NControllerAgent::ValidateEnvironmentVariableName(variableName);
-        }
-
-        if (!spec->DiskSpaceLimit && spec->InodeLimit) {
-            THROW_ERROR_EXCEPTION("Option \"inode_limit\" can be specified only with \"disk_space_limit\"");
-        }
-
-        if (spec->DiskSpaceLimit) {
-            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
-            auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
-
-            diskRequest->DiskSpace = *spec->DiskSpaceLimit;
-            diskRequest->InodeCount = spec->InodeLimit;
-
-            spec->DiskSpaceLimit = std::nullopt;
-            spec->InodeLimit = std::nullopt;
         }
 
         if (spec->Profilers) {
@@ -1697,59 +1513,11 @@ void TUserJobSpec::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("Option \"enable_shuffle_service_in_job_proxy\" cannot be enabled when \"enable_rpc_proxy_in_job_proxy\" is disabled");
         }
 
-        auto copyLayersToVolume = [] (TVolumePtr& volume, const std::vector<NYPath::TRichYPath>& layerPaths) {
-            volume->Layers.reserve(layerPaths.size());
-            for (const auto& layerPath : layerPaths) {
-                auto newLayer = New<TLayer>();
-                newLayer->Path = layerPath;
-                volume->Layers.push_back(std::move(newLayer));
-            }
-        };
-
-        if (!spec->DeprecatedLayerPaths.empty()) {
-            copyLayersToVolume(newVolume, spec->DeprecatedLayerPaths);
+        for (const auto& [variableName, _] : spec->Environment) {
+            NControllerAgent::ValidateEnvironmentVariableName(variableName);
         }
 
-        if (newVolume) {
-            spec->Volumes[*newNameForNewVolume] = std::move(newVolume);
-            spec->JobVolumeMounts.push_back(std::move(newVolumeMount));
-        }
-
-        std::optional<std::string> rootVolumeId;
-        for (const auto& volumeMount : spec->JobVolumeMounts) {
-            if (volumeMount->MountPath == "/") {
-                rootVolumeId = volumeMount->VolumeId;
-                break;
-            }
-        }
-
-        for (const auto& [volumeId, volume] : spec->Volumes) {
-            if (volumeId == rootVolumeId) {
-                continue;
-            }
-            if (!volume->DiskRequest) {
-                THROW_ERROR_EXCEPTION("Options \"volumes\" must contains disk_request for non-root volume")
-                    << TErrorAttribute("volume_id", volumeId);
-            }
-        }
-
-        {
-            THashSet<std::string_view> allUniqueVolumeMountPaths;
-            for (const auto& volumeMount : spec->JobVolumeMounts) {
-                allUniqueVolumeMountPaths.insert(volumeMount->MountPath);
-            }
-            if (allUniqueVolumeMountPaths.size() != spec->JobVolumeMounts.size()) {
-                THROW_ERROR_EXCEPTION("Options \"job_volume_mounts\" must contains only unique mount path")
-                    << TErrorAttribute("job_volume_mounts", spec->JobVolumeMounts);
-            }
-        }
-
-        if (!spec->IsFirstIterationPostprocessorComplete) {
-            spec->DeprecatedTmpfsVolumes = std::move(tmpDeprecatedTmpfsVolumes);
-            spec->DeprecatedDiskRequest = std::move(tmpDeprecatedDiskRequestConfig);
-            spec->DeprecatedLayerPaths = std::move(tmpDeprecatedLayerPaths);
-        }
-        spec->IsFirstIterationPostprocessorComplete = true;
+        // If you want to perform any actions on the volumes, it’s best to do them in the ValidateAndEnrichVolumeSpec function.
     });
 }
 
@@ -1772,7 +1540,7 @@ void TOptionalUserJobSpec::Register(TRegistrar registrar)
 
 bool TOptionalUserJobSpec::IsNontrivial() const
 {
-    return Command != TString();
+    return Command != std::string();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2406,13 +2174,13 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([] (TMapReduceOperationSpec* spec) {
-        auto throwError = [] (NTableClient::EControlAttribute attribute, const TString& jobType) {
+        auto throwError = [] (NTableClient::EControlAttribute attribute, const std::string& jobType) {
             THROW_ERROR_EXCEPTION(
                 "%Qlv control attribute is not supported by %Qlv jobs in map-reduce operation",
                 attribute,
                 jobType);
         };
-        auto validateControlAttributes = [&] (const NFormats::TControlAttributesConfigPtr& attributes, const TString& jobType) {
+        auto validateControlAttributes = [&] (const NFormats::TControlAttributesConfigPtr& attributes, const std::string& jobType) {
             if (attributes->EnableRowIndex) {
                 throwError(NTableClient::EControlAttribute::RowIndex, jobType);
             }
@@ -3000,7 +2768,7 @@ void TPoolConfig::Register(TRegistrar registrar)
     });
 }
 
-void TPoolConfig::Validate(const TString& poolName)
+void TPoolConfig::Validate(const std::string& poolName)
 {
     Postprocess();
 
@@ -3246,13 +3014,13 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     if (auto acl = mapNode->FindChild("acl")) {
         Deserialize(parameters.Acl, acl);
     }
-    parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationPoolTreeRuntimeParametersPtr>>(
+    parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<std::string, TOperationPoolTreeRuntimeParametersPtr>>(
         mapNode->GetChildOrThrow("scheduling_options_per_pool_tree"));
     if (auto child = mapNode->FindChild("scheduling_tag_filter")) {
         Deserialize(parameters.SchedulingTagFilter, child);
     }
     if (auto optionsPerJobShell = mapNode->FindChild("options_per_job_shell")) {
-        parameters.OptionsPerJobShell = ConvertTo<THashMap<TString, TOperationJobShellRuntimeParametersPtr>>(optionsPerJobShell);
+        parameters.OptionsPerJobShell = ConvertTo<THashMap<std::string, TOperationJobShellRuntimeParametersPtr>>(optionsPerJobShell);
     }
     if (auto annotations = mapNode->FindChild("annotations")) {
         Deserialize(parameters.Annotations, annotations);

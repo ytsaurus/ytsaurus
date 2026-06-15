@@ -1,4 +1,4 @@
-GTEST(cell-balancer-unittests)
+GTEST(unittester-cell-balancer)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 

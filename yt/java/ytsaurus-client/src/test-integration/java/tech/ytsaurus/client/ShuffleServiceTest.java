@@ -24,6 +24,8 @@ import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.typeinfo.TiType;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeMapNode;
 
 public class ShuffleServiceTest extends YTsaurusClientTestBase {
 
@@ -136,6 +138,27 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
         }
     }
 
+    @Test
+    public void testPushBasedShuffleWithConfig() throws Exception {
+        try (var transaction = ytClient.startTransaction(StartTransaction.master()).join()) {
+            var txId = transaction.getId();
+
+            // fake push config just for serialization check
+            YTreeMapNode pushConfig = YTree.mapBuilder()
+                    .key("max_partition_buffer_size").value(8L * 1024 * 1024)
+                    .key("enable_data_compression").value(true)
+                    .buildMap();
+
+            ShuffleHandle shuffleHandle = startShuffle(txId, SHUFFLE_SCHEMA, true, pushConfig);
+
+            writeAllMappers(shuffleHandle);
+
+            for (int partition = 0; partition < NUM_PARTITIONS; partition++) {
+                readAndCheckPartition(shuffleHandle, partition, 0, NUM_MAPPERS, EXPECTED_PARTITION_SIZE);
+            }
+        }
+    }
+
     private void writeAllMappers(ShuffleHandle shuffleHandle) {
         for (int mapperId = 0; mapperId < NUM_MAPPERS; mapperId++) {
             CreateShuffleWriter shuffleWriterReq = CreateShuffleWriter.builder()
@@ -155,6 +178,15 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
     }
 
     private ShuffleHandle startShuffle(GUID txId, TableSchema schema, boolean usePushBasedShuffle) {
+        return startShuffle(txId, schema, usePushBasedShuffle, null);
+    }
+
+    private ShuffleHandle startShuffle(
+            GUID txId,
+            TableSchema schema,
+            boolean usePushBasedShuffle,
+            YTreeMapNode pushConfig
+    ) {
         StartShuffle startShuffleReq = StartShuffle.builder()
                 .setAccount("intermediate")
                 .setPartitionCount(NUM_PARTITIONS)
@@ -162,6 +194,7 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
                 .setReplicationFactor(1)
                 .setSchema(schema)
                 .setUsePushBasedShuffle(usePushBasedShuffle)
+                .setPushConfig(pushConfig)
                 .build();
         return ytClient.startShuffle(startShuffleReq).join();
     }

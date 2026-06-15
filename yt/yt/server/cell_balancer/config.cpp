@@ -169,6 +169,9 @@ void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("annotate_new_proxies", &TThis::AnnotateNewProxies)
         .Default();
+
+    registrar.Parameter("use_data_node_racks", &TThis::UseDataNodeRacks)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

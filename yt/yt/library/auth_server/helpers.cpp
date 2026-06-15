@@ -42,7 +42,7 @@ std::string FormatUserIP(const TNetworkAddress& address)
         // Sometimes userIP is missing (e.g. user is connecting
         // from job using unix socket), but it is required by
         // Blackbox. Put placeholder in place of a real IP.
-        static const TString LocalUserIP = "127.0.0.1";
+        static const std::string LocalUserIP = "127.0.0.1";
         return LocalUserIP;
     }
     return ToString(
@@ -78,7 +78,7 @@ std::string GetLoginForTvmId(TTvmId tvmId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const THashSet<TString> PrivateUrlParams{
+static const THashSet<std::string> PrivateUrlParams{
     "userip",
     "oauth_token",
     "sessionid",

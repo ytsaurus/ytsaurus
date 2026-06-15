@@ -54,13 +54,16 @@ public:
     TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> PreliminaryCheckPermissions(
         const std::vector<NYPath::TYPath>& paths,
         const TString& user);
-    //! Get the names of the attributes that the local cache is configured for.
-    //! NB: This is the state of THost, not some global variable,
-    //! because the set of attributes may depend on the config.
-    const std::vector<std::string>& GetObjectAttributeNamesToFetch() const;
 
+    //! Get object attributes directly from specified master channel.
+    TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> GetObjectAttributesDirect(
+        const std::vector<NYPath::TYPath>& paths,
+        const std::vector<NHydra::TRevision>& revisions,
+        const NApi::NNative::IClientPtr& client,
+        const NApi::TMasterReadOptions& masterReadOptions,
+        const NApi::TTransactionalOptions& transactionalOptions = {});
     //! Get object attributes via local cache.
-    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributesCached(
         const std::vector<NYPath::TYPath>& paths,
         const NApi::NNative::IClientPtr& client);
     //! Invalidate object attribute entries in local cache.

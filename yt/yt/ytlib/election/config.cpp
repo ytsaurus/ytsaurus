@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <util/string/ascii.h>
+
 namespace NYT::NElection {
 
 using namespace NYson;
@@ -92,10 +94,9 @@ int TCellConfig::CountVotingPeers() const
 
 int TCellConfig::FindPeerId(const std::string& address) const
 {
-    auto canonicalAddress = to_lower(TString(address));
     for (int id = 0; id < std::ssize(Peers); ++id) {
         const auto& peerAddress = Peers[id]->Address;
-        if (peerAddress && to_lower(TString(*peerAddress)) == canonicalAddress) {
+        if (peerAddress && AsciiEqualsIgnoreCase(*peerAddress, address)) {
             return id;
         }
     }

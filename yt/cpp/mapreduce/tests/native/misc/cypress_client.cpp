@@ -758,7 +758,7 @@ TEST(CypressClient, TestPrerequisiteRevisions)
 
     // Success (valid revision)
     auto getOptions = TGetOptions().PrerequisiteRevisions({
-        TPrerequisiteRevisionOptions()
+        TPrerequisiteRevision()
             .Revision(revisionBefore.AsUint64())
             .Path(workingDir + "/node")});
     EXPECT_EQ(client->Get(workingDir + "/node", getOptions), TNode::CreateMap());
@@ -777,10 +777,10 @@ TEST(CypressClient, TestPrerequisiteRevisions)
 
     // Fail (no revision set)
     getOptions = TGetOptions().PrerequisiteRevisions({
-        TPrerequisiteRevisionOptions()
+        TPrerequisiteRevision()
             .Path(workingDir + "/node")});
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         client->Get(workingDir + "/node", getOptions),
         TApiUsageError,
-        "Revision for TPrerequisiteRevisionOptions must be explicitly specified");
+        "Revision for TPrerequisiteRevision must be explicitly specified");
 }

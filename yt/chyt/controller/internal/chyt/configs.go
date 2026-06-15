@@ -294,6 +294,20 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 		sqlUDFStorage["enabled"] = true
 	}
 
+	if dictConfig, ok := configAsMap["dictionary_repository"]; ok {
+		dictionaryRepository, convertErr := asMapNode(dictConfig)
+		if convertErr != nil {
+			err = fmt.Errorf("invalid dictionary_repository config: %v", convertErr)
+			return
+		}
+		if _, ok := dictionaryRepository["root_path"]; ok {
+			err = fmt.Errorf("root_path in dictionary_repository config cannot be set by user")
+			return
+		} else {
+			dictionaryRepository["root_path"] = c.storageArtifactsDir(oplet.Alias())
+		}
+	}
+
 	const always_blocked_headers = "authentication|x-clickhouse-user"
 	if val, ok := configAsMap["http_header_blacklist"]; !ok {
 		configAsMap["http_header_blacklist"] = always_blocked_headers
@@ -402,6 +416,10 @@ func (c Controller) sqlUDFDir(alias string) ypath.Path {
 
 func (c Controller) systemLogTableRootDir(alias string) ypath.Path {
 	return c.artifactDir(alias).Child("system_log_tables")
+}
+
+func (c Controller) storageArtifactsDir(alias string) ypath.Path {
+	return c.root.Child(alias).Child("storage_artifacts")
 }
 
 func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {

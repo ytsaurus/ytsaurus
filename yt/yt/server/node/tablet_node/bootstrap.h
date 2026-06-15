@@ -48,6 +48,7 @@ struct IBootstrap
     virtual const IInvokerPtr& GetTabletLookupPoolInvoker() const = 0;
     virtual const IInvokerPtr& GetTabletFetchPoolInvoker() const = 0;
     virtual const IInvokerPtr& GetTableRowFetchPoolInvoker() const = 0;
+    virtual const IInvokerPtr& GetTabletStatisticsInvoker() const = 0;
 
     virtual IInvokerPtr GetQueryPoolInvoker(
         const std::string& poolName,

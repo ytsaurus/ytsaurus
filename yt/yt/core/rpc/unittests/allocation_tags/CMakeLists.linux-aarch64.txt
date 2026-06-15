@@ -14,10 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(core-rpc-allocation-tags)
+add_executable(unittester-core-rpc-allocation-tags)
 
 
-target_compile_options(core-rpc-allocation-tags PRIVATE
+target_compile_options(unittester-core-rpc-allocation-tags PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -27,7 +27,7 @@ target_compile_options(core-rpc-allocation-tags PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(core-rpc-allocation-tags PUBLIC
+target_link_libraries(unittester-core-rpc-allocation-tags PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -44,11 +44,11 @@ target_link_libraries(core-rpc-allocation-tags PUBLIC
   cpp-testing-common
 )
 
-target_allocator(core-rpc-allocation-tags
+target_allocator(unittester-core-rpc-allocation-tags
   cpp-malloc-tcmalloc
 )
 
-target_link_options(core-rpc-allocation-tags PRIVATE
+target_link_options(unittester-core-rpc-allocation-tags PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -59,21 +59,21 @@ target_link_options(core-rpc-allocation-tags PRIVATE
   -lutil
 )
 
-target_sources(core-rpc-allocation-tags PRIVATE
+target_sources(unittester-core-rpc-allocation-tags PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_allocation_tags_ut.cpp
 )
 
 
 add_test(
   NAME
-  core-rpc-allocation-tags
+  unittester-core-rpc-allocation-tags
   COMMAND
-  core-rpc-allocation-tags
+  unittester-core-rpc-allocation-tags
 )
 
 set_property(
   TEST
-  core-rpc-allocation-tags
+  unittester-core-rpc-allocation-tags
   PROPERTY
   LABELS
   MEDIUM
@@ -81,16 +81,16 @@ set_property(
 
 set_property(
   TEST
-  core-rpc-allocation-tags
+  unittester-core-rpc-allocation-tags
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(core-rpc-allocation-tags)
+vcs_info(unittester-core-rpc-allocation-tags)
 
 set_property(
   TEST
-  core-rpc-allocation-tags
+  unittester-core-rpc-allocation-tags
   PROPERTY
   PROCESSORS
   1

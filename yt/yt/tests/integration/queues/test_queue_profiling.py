@@ -250,6 +250,47 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         assert lag_rows["tags"]["queue_tag"] == queue_tag
         assert lag_rows["tags"]["consumer_tag"] == consumer_tag
 
+    @authors("panesher")
+    def test_multi_consumer_profiling(self):
+        orchid = QueueAgentOrchid()
+
+        multi_consumer_path = self.create_consumer_path()
+        self._create_consumer(multi_consumer_path, multi_consumer=True, queue_agent_stage="production")
+
+        self._wait_for_component_passes()
+
+        multi_consumer_orchid = orchid.get_multi_consumer_orchid(f"primary:{multi_consumer_path}")
+        multi_consumer_orchid.wait_fresh_pass()
+
+        profiler = get_profiler()
+
+        def get_consumers_gauge():
+            return profiler.gauge(
+                "queue_agent/multi_consumer/consumers",
+                fixed_tags={
+                    "multi_consumer_cluster": "primary",
+                    "multi_consumer_path": multi_consumer_path,
+                },
+            ).get_all()
+
+        wait(lambda: int(get_consumers_gauge()[0]["value"]) == 0, ignore_exceptions=True)
+
+        names = ["consumer_1", "consumer_2", "consumer_3"]
+        insert_rows(multi_consumer_path, [
+            {
+                "queue_consumer_name": name,
+                "queue_cluster": "primary",
+                "queue_path": "//tmp/any_queue",
+                "partition_index": 0,
+                "offset": 0,
+            }
+            for name in names
+        ])
+
+        multi_consumer_orchid.wait_fresh_pass()
+
+        wait(lambda: int(get_consumers_gauge()[0]["value"]) == len(names), ignore_exceptions=True)
+
 
 class TestQueueAgentQueueProfiling(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {

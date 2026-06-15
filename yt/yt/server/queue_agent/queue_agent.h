@@ -19,14 +19,25 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TConsumerInfo
+{
+    NQueueClient::TConsumerReference Ref;
+    NQueueClient::TConsumerTableRowConstPtr Row;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTaggedProfilingCounters
 {
     NProfiling::TGauge Queues;
     NProfiling::TGauge Consumers;
+    NProfiling::TGauge MultiConsumers;
+    NProfiling::TGauge MultiConsumerNames;
     NProfiling::TGauge Partitions;
     NProfiling::TGauge TrimmedQueues;
     NProfiling::TGauge ErroneousQueues;
     NProfiling::TGauge ErroneousConsumers;
+    NProfiling::TGauge ErroneousMultiConsumers;
 
     explicit TTaggedProfilingCounters(NProfiling::TProfiler profiler);
 };
@@ -124,6 +135,24 @@ private:
     //! One iteration of state polling and object store updating.
     void Pass();
     void GuardedPass(const NLogging::TLogger& Logger);
+
+    bool UpdateConsumerController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const TConsumerInfo& info,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
+
+    bool UpdateMultiConsumerController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const NQueueClient::TConsumerTableRowConstPtr& row,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
+
+    bool UpdateQueueController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const NQueueClient::TQueueTableRow& row,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
 
     TTaggedProfilingCounters& GetOrCreateTaggedProfilingCounters(const NQueueClient::TProfilingTags& profilingTags);
 

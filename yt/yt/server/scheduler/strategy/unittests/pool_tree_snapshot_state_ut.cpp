@@ -229,7 +229,7 @@ TEST_F(TPoolTreeSnapshotStateTest, NodeSnapshotReflectsPreemptionBuckets)
 
     node->PreemptAssignment(firstAssignment, EAllocationPreemptionReason::Preemption, "");
     node->PreemptAssignment(secondAssignment, EAllocationPreemptionReason::Preemption, "");
-    node->PreemptAllocation(*secondAssignment->AllocationId);
+    node->PreemptAllocation(secondAssignment->AllocationId);
 
     auto info = node->BuildSnapshotInfo();
     EXPECT_EQ(1, info.AllocationsToPreemptCount);

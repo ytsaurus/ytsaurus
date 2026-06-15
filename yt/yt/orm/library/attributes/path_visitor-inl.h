@@ -310,7 +310,8 @@ void TPathVisitor<TSelf>::VisitMap(
     } else {
         Self()->Expect(NYPath::ETokenType::Literal);
 
-        TString key = Self()->GetLiteralValue();
+        // TODO(babenko): migrate to std::string
+        TString key(Self()->GetLiteralValue());
         Self()->AdvanceOver(key);
 
         typename std::remove_reference_t<TVisitParam>::key_type mapKey;

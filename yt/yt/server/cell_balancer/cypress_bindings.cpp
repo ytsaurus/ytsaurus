@@ -540,6 +540,20 @@ bool TTabletNodeInfo::IsOnline() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDataNodeInfo::Register(TRegistrar registrar)
+{
+    registrar.Parameter("host", &TThis::Host)
+        .Default();
+    registrar.Parameter("switch", &TThis::Switch)
+        .Default();
+    registrar.Parameter("state", &TThis::State)
+        .Default();
+    registrar.Parameter("last_seen_time", &TThis::LastSeenTime)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TMediumThroughputLimits::Register(TRegistrar registrar)
 {
     registrar.Parameter("write_byte_rate", &TThis::WriteByteRate)

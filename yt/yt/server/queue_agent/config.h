@@ -126,6 +126,9 @@ struct TQueueExporterDynamicConfig
     */
     TExponentialBackoffOptions RetryBackoff;
 
+    //! If true, the queue exporter will check that #LastChunk and #RowCount in tablet progress refer to the same chunk.
+    bool EnableRowCountCheck;
+
     NConcurrency::TPeriodicExecutorOptions GetPeriodicExecutorOptions() const;
 
     bool operator==(const TQueueExporterDynamicConfig&) const = default;

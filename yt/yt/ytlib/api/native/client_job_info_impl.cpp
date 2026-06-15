@@ -102,7 +102,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 // All job's attributes.
-static const THashSet<TString> SupportedJobsAttributes = {
+static const THashSet<std::string> SupportedJobsAttributes = {
     "operation_id",
     "job_id",
     "type",
@@ -144,7 +144,7 @@ static const THashSet<TString> SupportedJobsAttributes = {
 // Some attributes are required for 'list_jobs' command regardless of user's demand.
 // They are used for internal operations (e.g. sorting, calculating other attributes).
 // So we always fetch these lightweight attributes but exclude them at the end (if necessary).
-static const THashSet<TString> LightAttributes = {
+static const THashSet<std::string> LightAttributes = {
     "job_id",
     "type",
     "state",
@@ -156,12 +156,12 @@ static const THashSet<TString> LightAttributes = {
 };
 
 // Attributes which we return for every job in 'list_jobs' command.
-static const THashSet<TString> RequiredListJobsAttributes = {
+static const THashSet<std::string> RequiredListJobsAttributes = {
     "job_id",
 };
 
 // COMPAT(bystrovserg)
-static const THashSet<TString> DefaultListJobsAttributes = {
+static const THashSet<std::string> DefaultListJobsAttributes = {
     "job_id",
     "type",
     "state",
@@ -195,7 +195,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "gang_rank",
 };
 
-static const THashSet<TString> DefaultGetJobAttributes = [] {
+static const THashSet<std::string> DefaultGetJobAttributes = [] {
     auto attributes = DefaultListJobsAttributes;
     attributes.insert("operation_id");
     attributes.insert("statistics");
@@ -243,7 +243,7 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"controller_error", 67},
 };
 
-static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion)
+static bool DoesArchiveContainAttribute(const std::string& attribute, int archiveVersion)
 {
     auto it = JobAttributeToMinArchiveVersion.find(attribute);
     if (it == JobAttributeToMinArchiveVersion.end()) {
@@ -2007,7 +2007,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
 
 void TClient::AddSelectExpressions(
     TQueryBuilder* builder,
-    const THashSet<TString>& attributes,
+    const THashSet<std::string>& attributes,
     int archiveVersion)
 {
     bool needFullStatisticsForBriefStatistics = GetNativeConnection()->GetConfig()->RequestFullStatisticsForBriefStatisticsInListJobs;
@@ -2115,7 +2115,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     TOperationId operationId,
     TInstant deadline,
     const TListJobsOptions& options,
-    const THashSet<TString>& attributes)
+    const THashSet<std::string>& attributes)
 {
     auto builder = GetListJobsQueryBuilder(archiveVersion, operationId, options);
 
@@ -2149,7 +2149,7 @@ static void ParseJobsFromControllerAgentResponse(
     TOperationId operationId,
     const std::vector<std::pair<std::string, INodePtr>>& jobNodes,
     const std::function<bool(const INodePtr&)>& filter,
-    const THashSet<TString>& attributes,
+    const THashSet<std::string>& attributes,
     std::vector<TJob>* jobs)
 {
     auto needJobId = attributes.contains("job_id");
@@ -2288,7 +2288,7 @@ static void ParseJobsFromControllerAgentResponse(
     TOperationId operationId,
     const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
     const std::string& key,
-    const THashSet<TString>& attributes,
+    const THashSet<std::string>& attributes,
     const TListJobsOptions& options,
     std::vector<TJob>* jobs,
     int* totalCount,
@@ -2367,7 +2367,7 @@ TFuture<TListJobsFromControllerAgentResult> TClient::DoListJobsFromControllerAge
     const std::optional<std::string>& controllerAgentAddress,
     TInstant deadline,
     const TListJobsOptions& options,
-    const THashSet<TString>& attributes)
+    const THashSet<std::string>& attributes)
 {
     if (!controllerAgentAddress) {
         return MakeFuture(TListJobsFromControllerAgentResult{});
@@ -2640,7 +2640,7 @@ static void FillIsStale(bool operationFinished, std::vector<TJob>* jobs)
     }
 }
 
-static void ValidateRequestedAttributes(const THashSet<TString>& attributes)
+static void ValidateRequestedAttributes(const THashSet<std::string>& attributes)
 {
     for (const auto& attribute : attributes) {
         if (!SupportedJobsAttributes.contains(attribute)) {
@@ -2652,7 +2652,7 @@ static void ValidateRequestedAttributes(const THashSet<TString>& attributes)
     }
 }
 
-static void RemoveUnneededLightAttributes(const THashSet<TString>& attributes, std::vector<TJob>* jobs)
+static void RemoveUnneededLightAttributes(const THashSet<std::string>& attributes, std::vector<TJob>* jobs)
 {
     for (auto& job : *jobs) {
         auto filterAttribute = [&] (std::string attributeName, auto TJob::* attribute) {
@@ -2828,9 +2828,9 @@ TListJobsResult TClient::DoListJobs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes, int archiveVersion)
+static std::vector<std::string> MakeJobArchiveAttributes(const THashSet<std::string>& attributes, int archiveVersion)
 {
-    std::vector<TString> result;
+    std::vector<std::string> result;
     for (const auto& attribute : attributes) {
         if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
             continue;
@@ -2869,7 +2869,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     TOperationId operationId,
     TJobId jobId,
     TInstant deadline,
-    const THashSet<TString>& attributes)
+    const THashSet<std::string>& attributes)
 {
     auto operationIdAsGuid = operationId.Underlying();
     auto jobIdAsGuid = jobId.Underlying();
@@ -2927,7 +2927,7 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
     TOperationId operationId,
     TJobId jobId,
     TInstant deadline,
-    const THashSet<TString>& attributes)
+    const THashSet<std::string>& attributes)
 {
     auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
         operationId,

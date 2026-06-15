@@ -347,6 +347,9 @@ TChunkReplicator::TChunkReplicator(
         Config_->RepairQueueBalancerWeightDecayFactor,
         Config_->RepairQueueBalancerWeightDecayInterval)
 {
+    BlobRefreshQueueWaitTimeCounter_ = ChunkServerProfiler().TimeCounter("/blob_refresh_queue_wait_time");
+    JournalRefreshQueueWaitTimeCounter_ = ChunkServerProfiler().TimeCounter("/journal_refresh_queue_wait_time");
+
     for (int i = 0; i < MaxMediumCount; ++i) {
         // We "balance" medium indexes, not the repair queues themselves.
         MissingPartChunkRepairQueueBalancer_.AddContender(i);
@@ -2987,26 +2990,65 @@ void TChunkReplicator::OnRefresh()
         int* const totalCount,
         int* const aliveCount,
         int* const replicasErrorCount,
-        int maxChunksPerRefresh)
+        int maxChunksPerRefresh,
+        NProfiling::TTimeCounter& refreshQueueWaitTimeCounter)
     {
         std::vector<TEphemeralObjectPtr<TChunk>> chunksToRefresh;
         THashMap<TChunkId, int> chunkIdToErrorCount;
+        THashMap<TChunkId, std::optional<NProfiling::TCpuInstant>> chunkIdToEnqueueInstant;
         while (*totalCount < maxChunksPerRefresh && scanner->HasUnscannedChunk(deadline)) {
             ++(*totalCount);
             auto [chunk, errorCount] = scanner->DequeueChunk(deadline);
             if (!IsObjectAlive(chunk)) {
                 continue;
             }
+
+            auto enqueueInstant = scanner->GetLastDequeuedChunkEnqueueInstant();
+            if (enqueueInstant) {
+                auto now = GetCpuInstant();
+                auto globalRefreshStartTime = scanner->GetGlobalScanStartTime();
+                auto allowedWaitTime = config->MaxChunkRefreshQueueWaitTime;
+                if (globalRefreshStartTime < now && CpuDurationToDuration(now - globalRefreshStartTime) < config->MaxGlobalChunkRefreshQueueWaitTime) {
+                    allowedWaitTime += config->MaxGlobalChunkRefreshQueueWaitTime;
+                }
+                auto waitTime = CpuDurationToDuration(now - *enqueueInstant);
+                refreshQueueWaitTimeCounter.Add(waitTime);
+                if (waitTime > allowedWaitTime) {
+                    YT_LOG_ALERT(
+                        "Chunk has been waiting in refresh queue for too long "
+                        "(ChunkId: %v, WaitTime: %v, AllowedWaitTime: %v)",
+                        chunk->GetId(),
+                        waitTime,
+                        allowedWaitTime);
+                } else {
+                    YT_LOG_TRACE("Chunk has been dequeued from refresh queue (ChunkId: %v, WaitTime: %v, AllowedWaitTime: %v)",
+                    chunk->GetId(),
+                    waitTime,
+                    allowedWaitTime);
+                }
+            }
+
             if (!chunk->IsConfirmed()) {
                 continue;
             }
+
             if (config->DelayRecentlyConfirmedChunksRefresh && chunkManager->IsChunkRecentlyConfirmed(chunk->GetId())) {
-                scanner->EnqueueChunk({chunk, errorCount}, DurationToCpuDuration(config->ReplicaApproveTimeout));
+                auto delay = DurationToCpuDuration(config->ReplicaApproveTimeout);
+                YT_LOG_DEBUG("Chunk refresh is delayed (ChunkId: %v, Delay: %v)",
+                    chunk->GetId(),
+                    delay);
+                scanner->EnqueueChunk(
+                    {chunk, errorCount},
+                    delay,
+                    enqueueInstant);
                 continue;
             }
 
             chunksToRefresh.emplace_back(chunk);
             chunkIdToErrorCount[chunk->GetId()] = errorCount;
+            if (enqueueInstant) {
+                chunkIdToEnqueueInstant[chunk->GetId()] = enqueueInstant;
+            }
         }
 
         auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToRefresh, /*includeUnapproved*/ false);
@@ -3030,7 +3072,12 @@ void TChunkReplicator::OnRefresh()
                         refreshErrorCount,
                         replicasOrError);
                 }
-                scanner->EnqueueChunk({chunk.Get(), refreshErrorCount});
+                auto it = chunkIdToEnqueueInstant.find(chunk->GetId());
+                // TODO(aleksandra-zh): GetOrCrash is valid here, but all maps will become one, so whatever.
+                scanner->EnqueueChunk(
+                    {chunk.Get(), refreshErrorCount},
+                    {},
+                    it != chunkIdToEnqueueInstant.end() ? it->second : std::nullopt);
                 ++(*replicasErrorCount);
                 continue;
             }
@@ -3055,13 +3102,15 @@ void TChunkReplicator::OnRefresh()
             &totalBlobCount,
             &aliveBlobCount,
             &replicasErrorCount,
-            config->MaxBlobChunksPerRefresh);
+            config->MaxBlobChunksPerRefresh,
+            BlobRefreshQueueWaitTimeCounter_);
         doRefreshChunks(
             JournalRefreshScanner_,
             &totalJournalCount,
             &aliveJournalCount,
             &journalReplicasErrorCount,
-            config->MaxJournalChunksPerRefresh);
+            config->MaxJournalChunksPerRefresh,
+            JournalRefreshQueueWaitTimeCounter_);
     }
 
     FlushEndorsementQueue();
@@ -3231,6 +3280,7 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuff
     buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/journal_requisition_update_queue_size", JournalRequisitionUpdateScanner_->GetQueueSize());
+
     buffer->AddGauge("/awaiting_requisition_update_scheduling_chunk_count", ChunksAwaitingRequisitionUpdateScheduling_->GetQueueSize());
 
     buffer->AddGauge("/lost_chunk_count", LostChunks_.size());

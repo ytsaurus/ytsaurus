@@ -72,7 +72,8 @@ void LogAndThrowAuthorizationError(
         resultSubjectName = subject->Name;
     }
 
-    auto errorPath = nodeAncestry.Back().Path.ToRealPath().Underlying();
+    // TODO(babenko): think about proper cast
+    auto errorPath = TYPath(nodeAncestry.Back().Path.ToRealPath().Underlying());
     NSecurityServer::LogAndThrowAuthorizationError(
         Logger(),
         target,
@@ -187,7 +188,7 @@ TPermissionCheckResponse CheckPermissionForNode(
     return std::move(checker).GetResponse();
 }
 
-void ValidatePermissionForNode(
+TPermissionValidationResult ValidatePermissionForNode(
     const TSequoiaSessionPtr& sequoiaSession,
     TNodeAncestry nodeAncestry,
     EPermission permission,
@@ -201,7 +202,7 @@ void ValidatePermissionForNode(
         options,
         userDirectory);
     if (response.Action == ESecurityAction::Allow) {
-        return;
+        return TPermissionValidationResult{.HasRowLevelAce = response.HasRowLevelAce};
     }
 
     auto user = sequoiaSession->GetCurrentAuthenticatedUser();
@@ -211,6 +212,7 @@ void ValidatePermissionForNode(
         std::move(user),
         std::move(userDirectory),
         nodeAncestry);
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

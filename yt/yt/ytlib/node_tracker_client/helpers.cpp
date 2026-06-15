@@ -26,7 +26,7 @@ using namespace NNodeTrackerClient::NProto;
 
 namespace {
 
-TString FormatMemoryUsage(i64 memoryUsage)
+std::string FormatMemoryUsage(i64 memoryUsage)
 {
     TStringBuf prefix = "";
     if (memoryUsage < 0) {
@@ -46,7 +46,7 @@ TString FormatMemoryUsage(i64 memoryUsage)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatResources(
+std::string FormatResources(
     const TNodeResources& usage,
     const TNodeResources& limits)
 {
@@ -108,7 +108,7 @@ TString FormatResources(
         limits.reincarnation_slots());
 }
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TNodeResources& usage,
     const TNodeResources& limits)
 {
@@ -133,7 +133,7 @@ TString ToString(const NProto::TDiskResources& diskResources, const NChunkClient
         }));
 }
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TNodeResources& usage,
     const TNodeResources& limits,
     const TDiskResources& diskResources)
@@ -141,7 +141,7 @@ TString FormatResourceUsage(
     return Format("{%v, DiskResources: %v}", FormatResources(usage, limits), diskResources);
 }
 
-TString FormatResources(const TNodeResources& resources)
+std::string FormatResources(const TNodeResources& resources)
 {
     return Format(
         "{"

@@ -29,9 +29,9 @@ public:
     TGpuSlot(
         TGpuManagerPtr manager,
         int deviceIndex,
-        TString deviceName);
+        std::string deviceName);
 
-    TString GetDeviceName() const;
+    std::string GetDeviceName() const;
     int GetDeviceIndex() const;
 
     void ResetState() override;
@@ -41,7 +41,7 @@ public:
 private:
     const TGpuManagerPtr Manager_;
     const int DeviceIndex_;
-    const TString DeviceName_;
+    const std::string DeviceName_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuSlot)

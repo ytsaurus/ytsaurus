@@ -373,6 +373,7 @@ private:
         std::shared_ptr<const TSerializableAccessControlList> Acl;
         TEffectiveExpiration Expiration;
         IConstAttributeDictionaryPtr InheritableAttributes;
+        bool HasRowLevelAce = false;
 
         static TInheritedState CreateEmpty()
         {
@@ -382,6 +383,7 @@ private:
                 .Acl = std::make_shared<TSerializableAccessControlList>(),
                 .Expiration = TEffectiveExpiration{},
                 .InheritableAttributes = EmptyAttributes().Clone(),
+                .HasRowLevelAce = false,
             };
 
             return EmptyState;
@@ -453,6 +455,10 @@ private:
                 }
                 case EInternedAttributeKey::EffectiveInheritableAttributes: {
                     InheritEffectiveInheritableAttributes(&state.InheritableAttributes, node, serialize);
+                    break;
+                }
+                case EInternedAttributeKey::HasRowLevelAce: {
+                    InheritHasRowLevelAceAttribute(&state.HasRowLevelAce, node, serialize);
                     break;
                 }
                 default:
@@ -598,6 +604,27 @@ private:
             node->Set(key, *inheritedState);
         }
     }
+
+    static void InheritHasRowLevelAceAttribute(
+        bool* inheritedState,
+        IAttributeDictionary* node,
+        bool serialize)
+    {
+        bool inherit = node->Get<bool>(EInternedAttributeKey::InheritAcl.Unintern());
+        auto acl = node->Get<TSerializableAccessControlList>(EInternedAttributeKey::SequoiaAcl.Unintern());
+
+        bool hasOwnRowLevelAce = std::ranges::any_of(
+            acl.Entries,
+            [] (const TSerializableAccessControlEntry& ace) {
+                return ace.RowAccessPredicate.has_value();
+            });
+
+        *inheritedState = (inherit && *inheritedState) || hasOwnRowLevelAce;
+
+        if (serialize) {
+            node->Set(EInternedAttributeKey::HasRowLevelAce.Unintern(), *inheritedState);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -682,6 +709,7 @@ private:
             EInternedAttributeKey::EffectiveAcl,
             EInternedAttributeKey::EffectiveExpiration,
             EInternedAttributeKey::EffectiveInheritableAttributes,
+            EInternedAttributeKey::HasRowLevelAce,
         };
 
         std::vector<std::string> effectiveAttributes;
@@ -716,6 +744,11 @@ private:
                 }
                 case EInternedAttributeKey::EffectiveInheritableAttributes: {
                     EffectiveBaseAttributes_.push_back(EInternedAttributeKey::EffectiveInheritableAttributes.Unintern());
+                    break;
+                }
+                case EInternedAttributeKey::HasRowLevelAce: {
+                    EffectiveBaseAttributes_.push_back(EInternedAttributeKey::SequoiaAcl.Unintern());
+                    EffectiveBaseAttributes_.push_back(EInternedAttributeKey::InheritAcl.Unintern());
                     break;
                 }
                 default:

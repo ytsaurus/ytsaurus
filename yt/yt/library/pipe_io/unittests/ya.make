@@ -1,4 +1,4 @@
-GTEST()
+GTEST(unittester-library-pipe-io)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 

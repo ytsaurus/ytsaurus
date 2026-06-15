@@ -39,13 +39,12 @@ public:
         int slotCount,
         std::function<int(int)> slotIndexToUserId);
 
-    TFuture<void> Initialize();
+    TFuture<void> Initialize(IVolumeManagerPtr volumeManager = nullptr);
 
     //! Apply disk quotas.
     TFuture<void> PrepareSandboxDirectories(
         int slotIndex,
         TUserSandboxOptions options,
-        const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
         bool ignoreQuota);
 
     //! Inform slot location about tmpfses to be used.
@@ -53,7 +52,7 @@ public:
         int slotIndex,
         const IVolumePtr& rootVolume,
         const std::vector<TVolumeResultPtr>& volumeResults,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
+        const std::vector<TVolumeMountPtr>& volumeMounts);
 
     TFuture<void> MakeSandboxCopy(
         TJobId jobId,
@@ -97,6 +96,8 @@ public:
 
     TFuture<void> CleanSandboxes(int slotIndex);
 
+    TFuture<void> CleanPortoPlace(int slotIndex);
+
     std::string GetSlotPath(int slotIndex) const;
 
     TDiskStatistics GetDiskStatistics(int slotIndex) const;
@@ -116,6 +117,10 @@ public:
     NNodeTrackerClient::NProto::TSlotLocationStatistics GetSlotLocationStatistics() const;
 
     void Disable(const TError& error);
+
+    //! Returns the error that caused this location to be disabled,
+    //! or OK if the location is enabled.
+    TError GetDisableError() const;
 
     void InvokeUpdateDiskResources();
 
@@ -145,6 +150,15 @@ public:
 
     //! Get path to slot location (not to slot location of a particular index).
     std::string GetPath() const;
+
+    //! Remove volumes from porto place for a specific slot, excluding the given porto mount paths.
+    void RemoveVolumesFromPortoPlace(
+        int slotIndex,
+        const IVolumeManagerPtr& volumeManager,
+        const THashSet<std::string>& preservedVolumePaths = {});
+
+    //! Remove layers from porto place for a specific slot.
+    void RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager);
 
 private:
     const TSlotLocationConfigPtr Config_;
@@ -184,12 +198,12 @@ private:
     {
     public:
         bool IsInsideTmpfs(const std::string& path, const NLogging::TLogger& Logger) const;
-        void AddSandboxPath(std::string&& sandboxPath);
-        void AddVolumeInfo(std::string&& volumePath, EVolumeType volumeType);
+        void AddSandboxPath(TAbsoluteNormalizedPath&& sandboxPath);
+        void AddVolumeInfo(TAbsoluteNormalizedPath&& volumePath, EVolumeType volumeType);
 
     private:
-        std::set<std::string> SandboxPaths_;
-        std::map<std::string, EVolumeType> VolumePathToType_;
+        std::set<TAbsoluteNormalizedPath> SandboxPaths_;
+        std::map<TAbsoluteNormalizedPath, EVolumeType> VolumePathToType_;
     };
 
     THashMap<int, TSandboxTmpfsData> SandboxTmpfsData_;
@@ -208,6 +222,8 @@ private:
     NThreading::TAtomicObject<TError> Error_;
 
     NThreading::TAtomicObject<TError> Alert_;
+
+    const NProfiling::TProfiler Profiler_;
 
     NProfiling::TBufferedProducerPtr MakeCopyMetricBuffer_ = New<NProfiling::TBufferedProducer>();
 
@@ -237,7 +253,7 @@ private:
         const std::optional<std::string>& destinationPath,
         bool canUseLightInvoker);
 
-    void DoInitialize();
+    void DoInitialize(IVolumeManagerPtr volumeManager);
 
     void DoRepair();
 
@@ -245,7 +261,7 @@ private:
         int slotIndex,
         TUserSandboxOptions options,
         bool ignoreQuota,
-        bool sandboxInsideTmpfs);
+        bool sandboxInsideNonRootVolume);
 
     void BuildSlotRootDirectory(int slotIndex);
 

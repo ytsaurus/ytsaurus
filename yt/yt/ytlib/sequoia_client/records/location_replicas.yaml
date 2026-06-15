@@ -20,6 +20,15 @@ types:
         column_type: Uint16
         sort_order: Ascending
 
+      {% if version >= 6 %}
+      - cpp_name: NodeIdHash
+        cpp_type: ui64
+        column_name: node_id_hash
+        column_type: Uint64
+        sort_order: Ascending
+        expression: farm_hash(node_id)
+      {% endif %}
+
       - cpp_name: NodeId
         cpp_type: NNodeTrackerClient::TNodeId
         column_name: node_id

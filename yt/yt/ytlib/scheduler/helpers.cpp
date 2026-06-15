@@ -99,7 +99,7 @@ const std::vector<std::string>& TJobShellInfo::GetOwners()
     return JobShell_->Owners;
 }
 
-const TString& TJobShellInfo::GetSubcontainerName()
+const std::string& TJobShellInfo::GetSubcontainerName()
 {
     return JobShell_->Subcontainer;
 }
@@ -161,7 +161,7 @@ TYPath GetSchedulerOrchidOperationPath(TOperationId operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
-TYPath GetSchedulerOrchidAliasPath(const TString& alias)
+TYPath GetSchedulerOrchidAliasPath(const std::string& alias)
 {
     return
         "//sys/scheduler/orchid/scheduler/operations/" +
@@ -211,7 +211,7 @@ std::optional<std::string> FindControllerAgentAddressFromCypress(
     }
 
     const auto& response = responseOrError.ValueOrThrow();
-    return ConvertTo<TString>(TYsonString(response->value()));
+    return ConvertTo<std::string>(TYsonString(response->value()));
 }
 
 TYPath GetSnapshotPath(TOperationId operationId)
@@ -231,9 +231,9 @@ TYPath GetSecureVaultPath(TOperationId operationId)
 NYPath::TYPath GetJobPath(
     TOperationId operationId,
     TJobId jobId,
-    const TString& resourceName)
+    const std::string& resourceName)
 {
-    TString suffix;
+    std::string suffix;
     if (!resourceName.empty()) {
         suffix = "/" + resourceName;
     }
@@ -473,7 +473,7 @@ TSerializableAccessControlList TAccessControlRule::GetOrLookupAcl(const NApi::NN
     }
 }
 
-TString TAccessControlRule::GetAclString() const
+std::string TAccessControlRule::GetAclString() const
 {
     if (IsAcoName()) {
         return GetAcoName();
@@ -967,24 +967,6 @@ void ToProto(
     }
 }
 
-void ToProto(NControllerAgent::NProto::TVolume* volumeProto, const TVolume& volume)
-{
-    if (volume.DiskRequest) {
-        if (auto nbdDiskRequest = volume.DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
-            auto protoDiskRequest = volumeProto->mutable_nbd_disk_request();
-            ToProto(protoDiskRequest, *nbdDiskRequest);
-        } else if (auto localDiskRequest = volume.DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
-            auto protoDiskRequest = volumeProto->mutable_local_disk_request();
-            ToProto(protoDiskRequest, *localDiskRequest);
-        } else if (auto tmpfsDiskRequest = volume.DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()) {
-            ToProto(volumeProto->mutable_tmpfs_storage_request(), *tmpfsDiskRequest);
-        } else {
-            YT_ABORT();
-        }
-    }
-    volumeProto->set_allow_reusing(volume.AllowReusing);
-}
-
 void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeProto)
 {
     using TProtoMessage = NControllerAgent::NProto::TVolume::DiskRequestCase;
@@ -1018,7 +1000,7 @@ void FromProto(
     const NControllerAgent::NProto::TVolumeMount& volumeMountProto)
 {
     volumeMount->VolumeId = volumeMountProto.volume_id();
-    volumeMount->MountPath = volumeMountProto.mount_path();
+    volumeMount->MountPath = std::filesystem::path(std::string(volumeMountProto.mount_path()));
     volumeMount->ReadOnly = volumeMountProto.read_only();
 }
 

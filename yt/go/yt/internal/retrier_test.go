@@ -74,6 +74,28 @@ func TestReadRetrierRetriesGet(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestReadRetrierHeavyRequestHasNoLightTimeout(t *testing.T) {
+	r := &Retrier{Config: &yt.Config{}} // default LightRequestTimeout is non-zero.
+
+	checkDeadline := func(params Params, wantDeadline bool) {
+		call := &Call{
+			Params:  params,
+			Backoff: &backoff.ZeroBackOff{},
+		}
+		_, err := r.Intercept(context.Background(), call, func(ctx context.Context, _ *Call) (*CallResult, error) {
+			_, hasDeadline := ctx.Deadline()
+			assert.Equal(t, wantDeadline, hasDeadline)
+			return &CallResult{}, nil
+		})
+		require.NoError(t, err)
+	}
+
+	// Light request gets the light-request timeout.
+	checkDeadline(NewGetNodeParams(ypath.Root, nil), true)
+	// Heavy request (buffered write_table) must not inherit the light-request timeout.
+	checkDeadline(NewWriteTableParams(ypath.Root, nil), false)
+}
+
 func TestReadRetrierIgnoresMutations(t *testing.T) {
 	r := &Retrier{Config: &yt.Config{}}
 

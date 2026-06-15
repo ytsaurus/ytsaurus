@@ -46,7 +46,7 @@ import stat
 import sys
 import traceback
 from collections import defaultdict, namedtuple, OrderedDict
-from threading import RLock
+from threading import RLock, Thread
 
 logger = logging.getLogger("YtLocal")
 
@@ -837,9 +837,23 @@ class YTInstance(object):
         wait_for_removing_file_lock(os.path.join(self.path, "lock_file"))
 
     def synchronize(self):
-        for func in self._wait_functions:
-            func()
+        exceptions = []
+
+        def run(func):
+            try:
+                func()
+            except Exception as e:
+                exceptions.append(e)
+
+        threads = [Thread(target=run, args=(func,)) for func in self._wait_functions]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
         self._wait_functions = []
+
+        if exceptions:
+            raise exceptions[0]
 
     def rewrite_master_configs(self):
         self._prepare_masters(self._cluster_configuration["master"], force_overwrite=True)
@@ -2322,6 +2336,9 @@ class YTInstance(object):
     def start_http_proxy(self, sync=True):
         self._run_builtin_yt_component("http-proxy", name="http_proxy")
 
+        client = self._create_cluster_client()
+        expected_endpoints = set(self.get_http_proxy_addresses())
+
         def proxy_ready():
             self._validate_processes_are_running("http_proxy")
 
@@ -2332,6 +2349,15 @@ class YTInstance(object):
                     resp.raise_for_status()
             except (requests.exceptions.RequestException, socket.error):
                 return False, traceback.format_exc()
+
+            try:
+                registered = set(client.list("//sys/http_proxies"))
+            except Exception:
+                return False, traceback.format_exc()
+
+            if not expected_endpoints.issubset(registered):
+                missing = expected_endpoints - registered
+                return False, "HTTP proxies not yet fully registered; waiting for {0}".format(missing)
 
             return True
 
@@ -2358,7 +2384,7 @@ class YTInstance(object):
 
         client = self._create_cluster_client()
 
-        proxies_with_discovery_count = 0
+        expected_endpoints = set()
         proxies_ports = []
         for proxy in self.configs["rpc_proxy"]:
             proxies_ports.append(proxy["rpc_port"])
@@ -2368,18 +2394,25 @@ class YTInstance(object):
             discovery_service_config = get_value(proxy.get("discovery_service"), {})
             discovery_service_enabled = get_value(discovery_service_config.get("enable"), True)
             if discovery_service_enabled:
-                proxies_with_discovery_count += 1
+                expected_endpoints.add("{0}:{1}".format(self.yt_config.fqdn, proxy["rpc_port"]))
 
         def rpc_proxy_ready():
             self._validate_processes_are_running("rpc_proxy")
 
-            proxies_from_discovery = client.get("//sys/rpc_proxies")
-            proxies_discovery_ready = len(proxies_from_discovery) == proxies_with_discovery_count and \
-                all("alive" in proxy for proxy in proxies_from_discovery.values())
+            try:
+                proxies_from_discovery = client.get("//sys/rpc_proxies")
+            except Exception:
+                return False, traceback.format_exc()
+
+            alive = {addr for addr, attrs in proxies_from_discovery.items() if "alive" in attrs}
+
+            if not expected_endpoints.issubset(alive):
+                missing = expected_endpoints - alive
+                return False, "RPC proxies not yet fully registered; waiting for {0}".format(missing)
 
             proxies_ports_ready = all(is_port_opened(port) for port in proxies_ports)
 
-            return proxies_discovery_ready and proxies_ports_ready
+            return proxies_ports_ready
 
         self._wait_for_component(
             "rpc_proxy",

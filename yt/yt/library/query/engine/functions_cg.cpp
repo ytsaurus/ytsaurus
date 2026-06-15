@@ -6,8 +6,10 @@
 
 #include <yt/yt/client/table_client/row_base.h>
 
+#include <yt/yt/library/codegen/object_code.h>
 #include <yt/yt/library/codegen/llvm_migrate_helpers.h>
 #include <yt/yt/library/codegen/routine_registry.h>
+#include <yt/yt/library/query/engine/cg_routines/registry.h>
 
 #include <llvm/IR/DiagnosticPrinter.h>
 #include <llvm/IR/DiagnosticInfo.h>
@@ -16,10 +18,13 @@
 
 #include <llvm/Linker/Linker.h>
 
+#include <llvm/Support/Error.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/SourceMgr.h>
 
 #include <llvm/ADT/FoldingSet.h>
+
+#include <llvm/Object/ObjectFile.h>
 
 using namespace llvm;
 
@@ -36,6 +41,30 @@ using NCodegen::DemangleSymbol;
 static const char* ExecutionContextStructName = "struct.TExpressionContext";
 static const char* FunctionContextStructName = "struct.NYT::NQueryClient::TFunctionContext";
 static const char* UnversionedValueStructName = "struct.TUnversionedValue";
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TObjectCode)
+
+class TObjectCode
+    : public NCodegen::IObjectCode
+{
+public:
+    TObjectCode(
+        const TSharedRef& ir,
+        const std::string& functionName,
+        const std::vector<std::string>& requiredSymbols);
+
+    llvm::object::OwningBinary<llvm::object::ObjectFile> CreateBinaryFile() const;
+
+    const std::map<std::string, std::string>& GetSymbolNameToFunctionTypeMapping() const;
+
+private:
+    llvm::object::OwningBinary<llvm::object::ObjectFile> Data_;
+    std::map<std::string, std::string> SymbolNameToFunctionType_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TObjectCode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,6 +162,23 @@ void CheckCallee(
                 ToString(*expected),
                 ToString(actual->getType()));
         }
+    }
+}
+
+void CheckCalleeFromNativeObjectCode(
+    std::string_view symbolName,
+    std::string_view actualSerializedType,
+    llvm::FunctionType* functionType)
+{
+    THROW_ERROR_EXCEPTION_IF(actualSerializedType.empty(), "Symbol %Qv not found in native object code", symbolName);
+
+    auto expectedSerializedType = ToString(static_cast<llvm::Type*>(functionType));
+    if (actualSerializedType != expectedSerializedType) {
+        THROW_ERROR_EXCEPTION(
+            "Wrong function type in native object code for symbol %Qv: expected %Qv, got %Qv",
+            symbolName,
+            expectedSerializedType,
+            actualSerializedType);
     }
 }
 
@@ -515,12 +561,13 @@ ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention)
 ////////////////////////////////////////////////////////////////////////////////
 
 void LoadLlvmBitcode(
-    TCGBaseContext& builder,
+    const TCGModulePtr& module,
+    LLVMContext& context,
     const std::string& functionName,
     const std::vector<std::string>& requiredSymbols,
     TSharedRef implementationFile)
 {
-    if (builder.Module->IsModuleLoaded(implementationFile)) {
+    if (module->IsModuleLoaded(implementationFile)) {
         return;
     }
 
@@ -544,7 +591,7 @@ void LoadLlvmBitcode(
         ToStringRef(TRef(implementationBuffer.Begin(), implementationFile.Size())),
         StringRef("implementation"));
 
-    auto implementationModule = parseIR(implementationBufferRef, diag, builder->getContext());
+    auto implementationModule = parseIR(implementationBufferRef, diag, context);
 
     if (!implementationModule) {
         THROW_ERROR_EXCEPTION("Could not parse LLVM bitcode for function %Qv", functionName)
@@ -568,7 +615,7 @@ void LoadLlvmBitcode(
     for (auto& function : implementationModule->getFunctionList()) {
         auto name = function.getName();
         auto nameString = std::string(name.begin(), name.size());
-        if (builder.Module->IsSymbolLoaded(nameString)) {
+        if (module->IsSymbolLoaded(nameString)) {
             THROW_ERROR_EXCEPTION(
                 "LLVM bitcode for function %Qv redefines already defined symbol %Qv",
                 functionName,
@@ -576,7 +623,7 @@ void LoadLlvmBitcode(
         }
     }
 
-    auto cgModule = builder.Module->GetModule();
+    auto cgModule = module->GetModule();
 
     std::string what;
     bool linkerFailed;
@@ -628,10 +675,10 @@ void LoadLlvmBitcode(
             << TErrorAttribute("message", what.c_str());
     }
 
-    builder.Module->AddLoadedModule(implementationFile);
+    module->AddLoadedModule(implementationFile);
 }
 
-void LoadLlvmFunctions(
+void LoadLlvmFunctionsFromIR(
     TCGBaseContext& builder,
     const std::string& functionName,
     std::vector<std::pair<std::string, llvm::FunctionType*>> functions,
@@ -651,7 +698,8 @@ void LoadLlvmFunctions(
     }
 
     LoadLlvmBitcode(
-        builder,
+        builder.Module,
+        builder->getContext(),
         functionName,
         requiredSymbols,
         implementationFile);
@@ -677,6 +725,34 @@ void BuildPrototypesForFunctions(
     }
 }
 
+void LoadLlvmFunctionsFromNativeObjectCode(
+    TCGBaseContext& builder,
+    const std::string& functionName,
+    std::vector<std::pair<std::string, llvm::FunctionType*>> functions,
+    const NCodegen::IObjectCodePtr& objectCode)
+{
+    if (builder.Module->IsFunctionLoaded(functionName)) {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION_IF(!objectCode, "UDF object code is not available in this context");
+
+    const auto* objectCodeInstance = dynamic_cast<const TObjectCode*>(objectCode.Get());
+    THROW_ERROR_EXCEPTION_IF(!objectCodeInstance, "Unexpected object code type");
+
+    const auto& symbolNameToFunctionType = objectCodeInstance->GetSymbolNameToFunctionTypeMapping();
+    for (const auto& function : functions) {
+        auto it = symbolNameToFunctionType.find(function.first);
+        auto serializedType = it != symbolNameToFunctionType.end() ? it->second : std::string{};
+        CheckCalleeFromNativeObjectCode(function.first, serializedType, function.second);
+    }
+
+    builder.Module->AddObjectFile(objectCodeInstance->CreateBinaryFile());
+
+    BuildPrototypesForFunctions(builder, functions);
+    builder.Module->AddLoadedFunction(functionName);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCodegenExpression TExternalFunctionCodegen::Profile(
@@ -693,6 +769,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
 
     if (id) {
         id->AddString(ToStringRef(Fingerprint_));
+        id->AddBoolean(NativeObjectCode_ != nullptr);
     }
 
     int functionContextIndex = -1;
@@ -736,11 +813,19 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
                     innerBuilder,
                     {std::pair(SymbolName_, functionType)});
             } else {
-                LoadLlvmFunctions(
-                    innerBuilder,
-                    FunctionName_,
-                    { std::pair(SymbolName_, functionType) },
-                    ImplementationFiles_[EExecutionBackend::Native]);
+                if (NativeObjectCode_) {
+                    LoadLlvmFunctionsFromNativeObjectCode(
+                        innerBuilder,
+                        FunctionName_,
+                        { std::pair(SymbolName_, functionType) },
+                        NativeObjectCode_);
+                } else {
+                    LoadLlvmFunctionsFromIR(
+                        innerBuilder,
+                        FunctionName_,
+                        { std::pair(SymbolName_, functionType) },
+                        ImplementationFiles_[EExecutionBackend::Native]);
+                }
             }
 
             auto callee = innerBuilder.Module->GetModule()->getFunction(
@@ -868,7 +953,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             if (executionBackend == EExecutionBackend::WebAssembly) {
                 BuildPrototypesForFunctions(builder, aggregateFunctions);
             } else {
-                LoadLlvmFunctions(
+                LoadLlvmFunctionsFromIR(
                     builder,
                     AggregateName_,
                     aggregateFunctions,
@@ -993,6 +1078,99 @@ TModuleBytecode TExternalAggregateCodegen::GetWebAssemblyBytecodeFile() const
         .Data = ImplementationFiles_[EExecutionBackend::WebAssembly],
         .ObjectCode = TSharedRef(),
     };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void ValidateObjectCodeExportsSymbols(
+    const llvm::object::ObjectFile* objectFile,
+    const std::string& functionName,
+    const std::vector<std::string>& requiredSymbols)
+{
+    auto exportedGlobalSymbols = std::set<std::string>();
+    for (const auto& symbol : objectFile->symbols()) {
+        auto flagsOrErr = symbol.getFlags();
+        if (!flagsOrErr || !(*flagsOrErr & llvm::object::SymbolRef::SF_Global)) {
+            continue;
+        }
+        auto nameOrErr = symbol.getName();
+        if (nameOrErr) {
+            exportedGlobalSymbols.emplace(nameOrErr->str());
+        }
+    }
+
+    for (const auto& symbol : requiredSymbols) {
+        THROW_ERROR_EXCEPTION_IF(
+            !exportedGlobalSymbols.contains(symbol),
+            "Symbol %Qv is not globally exported from native object code for UDF %Qv",
+            symbol,
+            functionName);
+    }
+}
+
+} // namespace
+
+TObjectCode::TObjectCode(
+    const TSharedRef& ir,
+    const std::string& functionName,
+    const std::vector<std::string>& requiredSymbols)
+{
+    auto buffer = NCodegen::TCGModule::Create(
+        GetQueryRoutineRegistry(EExecutionBackend::Native),
+        EExecutionBackend::Native);
+
+    LoadLlvmBitcode(buffer, buffer->GetContext(), functionName, requiredSymbols, ir);
+
+    for (const auto& symbol : requiredSymbols) {
+        buffer->ExportSymbol(symbol);
+    }
+
+    for (const auto& symbol : requiredSymbols) {
+        auto* callee = buffer->GetModule()->getFunction(symbol);
+        THROW_ERROR_EXCEPTION_IF(!callee, "Function %Qv not found in object code for UDF %Qv", symbol, functionName);
+        callee->setVisibility(llvm::GlobalValue::DefaultVisibility);
+        auto* type = callee->getFunctionType();
+        SymbolNameToFunctionType_[symbol] = ToString(static_cast<llvm::Type*>(type));
+    }
+
+    Data_ = buffer->BuildNativeObjectCode();
+    ValidateObjectCodeExportsSymbols(Data_.getBinary(), functionName, requiredSymbols);
+}
+
+const std::map<std::string, std::string>& TObjectCode::GetSymbolNameToFunctionTypeMapping() const
+{
+    return SymbolNameToFunctionType_;
+}
+
+llvm::object::OwningBinary<llvm::object::ObjectFile> TObjectCode::CreateBinaryFile() const
+{
+    auto buffer = llvm::MemoryBuffer::getMemBufferCopy(
+        Data_.getBinary()->getData(),
+        Data_.getBinary()->getFileName());
+
+    auto objectFileOrErr = llvm::object::ObjectFile::createObjectFile(buffer->getMemBufferRef());
+    if (!objectFileOrErr) {
+        THROW_ERROR_EXCEPTION("Failed to parse native object code: %v",
+            llvm::toString(objectFileOrErr.takeError()));
+    }
+
+    return llvm::object::OwningBinary<llvm::object::ObjectFile>(
+        std::move(*objectFileOrErr),
+        std::move(buffer));
+}
+
+NCodegen::IObjectCodePtr MakeUdfNativeObjectCode(
+    const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
+    const std::string& functionName,
+    const std::vector<std::string>& requiredSymbols)
+{
+    if (implementationFiles[NCodegen::EExecutionBackend::Native]) {
+        return New<TObjectCode>(implementationFiles[NCodegen::EExecutionBackend::Native], functionName, requiredSymbols);
+    }
+
+    return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

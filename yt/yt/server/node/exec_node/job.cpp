@@ -2992,7 +2992,7 @@ void TJob::Cleanup()
         const auto& jobVolumeMounts = FSSecretary_->GetJobVolumeMounts();
         for (auto it = jobVolumeMounts.rbegin(); it != jobVolumeMounts.rend(); ++it) {
             const auto& volumeMount = *it;
-            if (volumeMount->MountPath == "/") {
+            if (volumeMount->MountPath == TAbsoluteNormalizedPath("/")) {
                 continue;
             }
 
@@ -3014,6 +3014,29 @@ void TJob::Cleanup()
                 volumeMount->VolumeId,
                 volumeMount->MountPath,
                 volumeResult->Volume->GetPath());
+        }
+    }
+
+    if (const auto& slot = GetUserSlot()) {
+        try {
+            THashSet<std::string> preservedVolumePaths;
+            if (const auto& rootVolume = FSSecretary_->GetRootVolume()) {
+                preservedVolumePaths.insert(rootVolume->GetPath());
+            }
+            if (const auto& gpuCheckVolume = FSSecretary_->GetGpuCheckVolume()) {
+                preservedVolumePaths.insert(gpuCheckVolume->GetPath());
+            }
+            for (const auto& [_, volumeResult] : FSSecretary_->GetNonRootVolumes()) {
+                preservedVolumePaths.insert(volumeResult->Volume->GetPath());
+            }
+            YT_LOG_DEBUG(
+                "Clean user imported porto resources (SlotIndex: %v, PreservedVolumePaths: %v)",
+                slot->GetSlotIndex(),
+                preservedVolumePaths);
+            slot->CleanUserImportedPortoResources(preservedVolumePaths);
+        } catch (const std::exception& ex) {
+            // Errors during cleanup phase do not affect job outcome.
+            YT_LOG_ERROR(ex, "Failed to clean user imported porto resources (SlotIndex: %v)", slot->GetSlotIndex());
         }
     }
 
@@ -3387,7 +3410,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
 
-            fileLogWriterConfig->FileName = jobProxyLogManager->AdjustLogPath(Id_, fileLogWriterConfig->FileName);
+            // TODO(babenko): migrate to std::string
+            fileLogWriterConfig->FileName = jobProxyLogManager->AdjustLogPath(Id_, TString(fileLogWriterConfig->FileName));
         }
 
         return ConvertTo<IMapNodePtr>(fileLogWriterConfig);
@@ -3410,7 +3434,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
             *proxyInternalConfig->ExecutorStderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyInternalConfig->ExecutorStderrPath);
             YT_LOG_DEBUG("Executor stderr path replaced (NewPath: %v)", *proxyInternalConfig->ExecutorStderrPath);
-
         }
     }
 

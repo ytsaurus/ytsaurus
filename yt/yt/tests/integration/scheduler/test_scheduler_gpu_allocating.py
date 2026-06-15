@@ -1,6 +1,8 @@
 import builtins
 import time
 
+from copy import deepcopy
+
 import yt.yson as yson
 
 from yt_env_setup import (
@@ -14,7 +16,7 @@ from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
     update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
     run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters,
-    print_debug, update_controller_agent_config,
+    print_debug, update_controller_agent_config, update_nodes_dynamic_config, get_applied_node_dynamic_config,
 )
 
 from yt_scheduler_helpers import (
@@ -30,7 +32,7 @@ from yt_gpu_scheduler_helpers import (
     get_operation_from_gpu_policy_orchid, get_node_from_gpu_policy_orchid, get_operation_gpu_assignments_from_gpu_policy_orchid,
     wait_for_operations_in_gpu_policy_orchid, wait_for_assignments_in_gpu_policy_orchid, check_assignment_from_gpu_policy_orchid, check_operation_from_gpu_policy_orchid,
     check_gpu_allocations_from_gpu_policy_orchid, wait_for_gpu_allocations_empty_in_gpu_policy_orchid,
-    wait_for_allocation_preempted, wait_for_gpu_event, read_gpu_events,
+    wait_for_allocation_preempted, wait_for_gpu_event, read_gpu_events, is_default_guid,
 )
 
 
@@ -1050,7 +1052,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
         # would not match the assignment's allocation_group_name.
         allocation_id_to_group_name = {}
         for assignment in operation["assignments"]:
-            assert assignment["allocation_id"] != yson.YsonEntity()
+            assert not is_default_guid(assignment["allocation_id"])
             allocation_id_to_group_name[assignment["allocation_id"]] = assignment["allocation_group_name"]
 
         running_by_task = {"task_small": 0, "task_big": 0}
@@ -1105,6 +1107,84 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         # Verify the scheduler survived — would time out if YT_VERIFY crashed the process.
         wait_operation_unregistered(op.id)
+
+    @authors("yaishenka")
+    def test_stuck_gpu_operation_is_aborted(self):
+        update_scheduler_config("operation_stuck_check/period", 500)
+        update_scheduler_config("operation_stuck_check/safe_timeout", 3000)
+
+        # A scheduling tag filter that no node matches: the op is starving and feasible
+        # but can never place an allocation, so it stays continuously starving with zero
+        # realized allocations until the stuck check aborts it.
+        op = run_test_vanilla(
+            command="sleep 1000",
+            spec={
+                "pool_trees": ["gpu"],
+                "scheduling_options_per_pool_tree": {
+                    "gpu": {"scheduling_tag_filter": "nonexistent_tag"},
+                },
+            },
+            task_patch={"gpu_limit": 8},
+            track=False,
+        )
+
+        wait(lambda: op.get_state() == "failed", timeout=30)
+
+        error_text = str(op.get_error()).lower()
+        assert (
+            "stuck" in error_text
+            or "no successful scheduled allocations" in error_text
+        )
+
+    @authors("yaishenka")
+    def test_healthy_gpu_operation_is_not_aborted_as_stuck(self):
+        update_scheduler_config("operation_stuck_check/period", 500)
+        update_scheduler_config("operation_stuck_check/safe_timeout", 2000)
+
+        op = run_test_vanilla(
+            command="sleep 30",
+            spec={"pool_trees": ["gpu"]},
+            task_patch={"gpu_limit": 8},
+            track=False,
+        )
+
+        wait(lambda: op.get_state() == "running", timeout=20)
+
+        # Wait > 2x safe_timeout to give the periodic stuck-check at least
+        # two opportunities to fire. Healthy op must stay running.
+        time.sleep(5)
+
+        assert op.get_state() == "running", \
+            "Healthy GPU op was wrongly aborted as stuck (state={})".format(op.get_state())
+
+    @authors("yaishenka")
+    def test_gpu_build_operation_progress_emits_expected_fields(self):
+        op = run_test_vanilla(
+            command="sleep 30",
+            spec={"pool_trees": ["gpu"]},
+            task_patch={"gpu_limit": 8},
+            track=False,
+        )
+        wait(lambda: op.get_state() == "running", timeout=20)
+
+        op_orchid_path = scheduler_orchid_operation_path(op.id, tree="gpu")
+        wait(lambda: exists(op_orchid_path))
+        wait(lambda: get(op_orchid_path + "/realized_assignment_count", default=0) >= 1)
+
+        progress = get(op_orchid_path)
+        for field in [
+            "scheduling_module",
+            "realized_assignment_count",
+            "preliminary_assignment_count",
+            "preemptible",
+            "starving",
+            "enabled",
+        ]:
+            assert field in progress, \
+                "Missing field {} in GPU operation Orchid: {}".format(field, list(progress.keys()))
+
+        assert progress["enabled"]
+        assert progress["realized_assignment_count"] >= 1
 
 
 ##################################################################
@@ -1383,19 +1463,33 @@ class TestAllocatingGpuSchedulingPolicyPreemption(AllocatingGpuSchedulingPolicyB
     @authors("yaishenka")
     def test_disable_operation_removes_preliminary_assignments(self):
         scheduler_log_file = self._scheduler_log_file()
+
+        # Effectively stop node -> scheduler heartbeats so the scheduler never
+        # asks a node to start an allocation for the placed assignment. The GPU
+        # planner still places a preliminary assignment (its plan update is
+        # scheduler-side and independent of node heartbeats), but it is never
+        # realized into an allocation. This avoids holding an in-flight
+        # ScheduleAllocation in the CA, which made op.abort() flap.
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "scheduler_connector": {
+                    "heartbeat_executor": {
+                        "period": 1000000,  # 1000 sec
+                    },
+                },
+            },
+        })
+
         from_barrier = write_log_barrier(self._scheduler_address())
 
-        # Hold the CA's ScheduleAllocation inside its delay so the planner
-        # places a preliminary assignment but the heartbeat never realizes it.
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
-            spec={"testing": {"inside_schedule_allocation_delay": {"duration": 60000, "type": "sync"}}},
         )
 
         wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
 
         assignment = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
-        assert assignment.get("allocation_id", yson.YsonEntity()) == yson.YsonEntity(), \
+        assert is_default_guid(assignment.get("allocation_id")), \
             "assignment should still be preliminary at this point"
 
         op.abort()
@@ -2342,7 +2436,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         operation = get_operation_from_gpu_policy_orchid(op)
         assert len(operation["assignments"]) == 1
         rescued = operation["assignments"][0]
-        # Case A invariant: original group name preserved (not "revived").
+        # Case A invariant: original group name preserved.
         assert rescued["allocation_group_name"] == original_group_name
         assert rescued["node_address"] == original_node_address
         assert rescued["allocation_id"] == original_allocation_id
@@ -2359,9 +2453,9 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         # Scenario: operation with a running GPU allocation, scheduler restarts. Operation is
         # revived from snapshot. The GPU policy state is fresh (no prior assignments), so
         # RegisterAllocationsFromRevivedOperation runs Case B: synthesizes a fresh
-        # non-preliminary assignment via the standard preliminary->realized flow, with
-        # allocation_group_name set to "revived" (placeholder, since the controller->scheduler
-        # revival protocol doesn't currently propagate the original task name).
+        # non-preliminary assignment via the standard preliminary->realized flow. The
+        # controller->scheduler revival protocol propagates the original allocation group
+        # name, so the synthesized assignment keeps the original task name.
 
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
@@ -2374,6 +2468,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         original_assignment = operation["assignments"][0]
         original_allocation_id = list(operation["allocations"].keys())[0]
         original_node_address = original_assignment["node_address"]
+        original_group_name = original_assignment["allocation_group_name"]
         assert not original_assignment["reviving"]
 
         op.wait_for_fresh_snapshot()
@@ -2389,8 +2484,8 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
 
         operation = get_operation_from_gpu_policy_orchid(op)
         revived = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
-        # Case B invariant: synthesized assignment uses placeholder group name and is not flagged.
-        assert revived["allocation_group_name"] == "revived"
+        # Case B invariant: synthesized assignment keeps the original group name and is not flagged.
+        assert revived["allocation_group_name"] == original_group_name
         assert revived["node_address"] == original_node_address
         assert revived["allocation_id"] == original_allocation_id
         assert not revived["reviving"]
@@ -2419,7 +2514,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         # (c) the pending-map scrub block erases the PendingRevivedAllocations_ entry.
         # The operation is back to a clean state, the controller schedules a brand-new
         # allocation through the regular scheduling flow (not Case A/B), and the test
-        # verifies the new assignment uses a non-"revived" group name and a different
+        # verifies the new assignment uses the task group name and a different
         # allocation_id - confirming no orphan leaked into the new cycle.
 
         update_scheduler_config("node_registration_timeout", 1000)
@@ -2447,7 +2542,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
 
         op.wait_for_fresh_snapshot()
 
-        update_pool_tree_config_option("gpu", "testing_options", {
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/testing_options", {
             "delay_inside_process_allocation_updates": {
                 "duration": 10000,
                 "type": "async",
@@ -2462,7 +2557,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         wait(lambda: original_allocation_id in get_operation_from_gpu_policy_orchid(op).get("allocations", {}))
         wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=0, exactly=True)
 
-        update_pool_tree_config_option("gpu", "testing_options", {
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/testing_options", {
             "delay_inside_process_allocation_updates": {
                 "duration": 0,
                 "type": "sync",
@@ -2486,7 +2581,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
 
         operation = get_operation_from_gpu_policy_orchid(op)
         new_assignment = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
-        assert new_assignment["allocation_group_name"] != "revived"
+        assert new_assignment["allocation_group_name"] == "task"
         assert new_assignment["allocation_id"] != original_allocation_id
         assert not new_assignment["reviving"]
 
@@ -2585,7 +2680,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         assert not rescued["reviving"]
         # Don't assert total assignment count; CA may schedule a fresh replacement for the
         # stripped allocation through the regular flow, which would re-add an assignment
-        # with the original task group name (not "revived") and a brand-new allocation id
+        # with the original task group name and a brand-new allocation id
         # (different from both snapshotted_allocation_id and late_allocation_id).
 
         op.abort()
@@ -2631,7 +2726,7 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
 
         operation = get_operation_from_gpu_policy_orchid(op)
         new_assignment = operation["assignments"][0]
-        assert new_assignment["allocation_group_name"] != "revived"
+        assert new_assignment["allocation_group_name"] == "task"
         assert new_assignment["allocation_id"] != pre_restart_allocation_id
         assert not new_assignment["reviving"]
 
@@ -2688,8 +2783,9 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         # into Case C: AddOrphanAllocation parks the TAllocationState (null Assignment_)
         # in operation->AllocationIdToAllocationState_ and PendingRevivedAllocations_ records
         # the (nodeId, allocationId) pair. Once the delays are cleared the node re-registers,
-        # RevivePendingAllocations creates a "revived" assignment and links the orphan
-        # TAllocationState to it via SetAssignment. The test verifies that the allocation
+        # RevivePendingAllocations creates an assignment carrying the original allocation
+        # group name and links the orphan TAllocationState to it via SetAssignment. The
+        # test verifies that the allocation
         # appears in the orchid with creation_time earlier than its assignment's
         # creation_time — confirming it went through the orphan path (the allocation
         # state was created before the revived assignment) — and that the job is
@@ -2812,8 +2908,8 @@ class TestAllocationGpuSchedulingPolicyRevivalOnPolicySwitch(YTEnvSetup):
         # the GPU policy revives the operation from snapshot via Case B in
         # RegisterAllocationsFromRevivedOperation: no prior GPU-policy-side assignment
         # exists, so a fresh non-preliminary assignment is synthesized via the standard
-        # preliminary->realized flow with allocation_group_name == "revived" and the
-        # original allocation_id reattached.
+        # preliminary->realized flow with the original allocation group name (propagated
+        # by the revival protocol) and the original allocation_id reattached.
 
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
@@ -2843,14 +2939,15 @@ class TestAllocationGpuSchedulingPolicyRevivalOnPolicySwitch(YTEnvSetup):
 
         # Scheduler is back with the GPU policy. RegisterAllocationsFromRevivedOperation
         # runs Case B for the snapshotted allocation - no prior assignment, fresh GPU
-        # policy state, so it synthesizes a "revived" assignment.
+        # policy state, so it synthesizes an assignment carrying the original task group name.
         wait(lambda: get_operation_from_gpu_policy_orchid(op)["enabled"])
         wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
         wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
 
         operation = get_operation_from_gpu_policy_orchid(op)
         revived = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
-        assert revived["allocation_group_name"] == "revived"
+        # run_sleeping_vanilla creates a single task named "task".
+        assert revived["allocation_group_name"] == "task"
         assert revived["allocation_id"] == pre_switch_allocation_id
         assert revived["node_address"] == pre_switch_node_address
         assert not revived["reviving"]
@@ -2860,5 +2957,187 @@ class TestAllocationGpuSchedulingPolicyRevivalOnPolicySwitch(YTEnvSetup):
 
         op.abort()
         wait_operation_unregistered(op.id)
+
+##################################################################
+
+
+class TestProcessAllocationUpdateAfterFinishRace(YTEnvSetup):
+    """Reproduces a race between a preemptible-progress-reset allocation update and a Finished update.
+
+    A reset update for a classic-tree allocation is swapped out of the node shard's submit map by a batch
+    that also carries gpu-tree updates. The gpu allocating policy parks the batch fiber (WaitFor hop to the
+    strategy control invoker, stretched by a testing delay). While the batch is parked, the allocation
+    finishes: UnregisterAllocation creates a fresh Finished entry, which a later batch processes first,
+    removing the allocation from the operation shared state. Pre-fix the parked batch then wakes and
+    processes the stale reset for the already-removed allocation, hitting the YT_VERIFY in
+    TOperationSharedState::GetAllocationProperties. Post-fix the classic reset is applied synchronously
+    before the batch parks, so it can never overtake the finish.
+    """
+
+    ENABLE_MULTIDAEMON = False  # Scheduler crash must not take down other components.
+    NUM_MASTERS = 1
+    NUM_NODES = 4
+    NUM_SCHEDULERS = 1
+
+    DATA_CENTER = "SAS"
+    RACK = "SAS1"
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            # Single shard: gpu and classic allocation updates must co-batch.
+            "node_shard_count": 1,
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+            # Frequent resource usage updates: every gpu heartbeat batch carries gpu updates and parks.
+            "running_allocations_update_period": 100,
+            "testing_options": {
+                # Keep the operation enabled in strategy after completion aborts its allocations.
+                "finish_operation_transition_delay": {"duration": 3000, "type": "async"},
+            },
+        }
+    }
+
+    # NB: The test environment already sets running_job_time_statistics_updates_send_period to 10ms
+    # (an alias of running_allocation_time_statistics_updates_send_period), so preemptible progress
+    # resets reach the scheduler quickly without an override here.
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8,
+                },
+            },
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "scheduler_connector": {
+                    # NB: the node's own heartbeats sweep the submit map, competing with parking gpu
+                    # batches for the sitting reset updates. setup_method re-splits this into
+                    # 200ms (gpu nodes) / 400ms (classic node) via tag-filtered config entries.
+                    "heartbeat_executor": {
+                        "period": 200,
+                    },
+                },
+                "controller_agent_connector": {
+                    # Load-bearing: resets are generated from running-job summaries on this channel.
+                    "heartbeat_executor": {
+                        "period": 100,
+                    },
+                },
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestProcessAllocationUpdateAfterFinishRace, self).setup_method(method)
+
+        # Disable the periodic submit executor: heartbeat-driven submits only, so reset updates
+        # sit in the member map until a (possibly parking) heartbeat batch sweeps them.
+        update_scheduler_config("node_shard_submit_allocations_to_strategy_period", 600000000)
+
+        update_pool_tree_config("default", {"node_tag_filter": "!gpu & !main"})
+
+        create_pool_tree("gpu", config={
+            "node_tag_filter": "gpu",
+            "main_resource": "gpu",
+            "gpu_scheduling_policy": {
+                "mode": "allocating",
+                "plan_update_period": 100,
+                "module_type": "data_center",
+                "modules": [self.DATA_CENTER],
+                # Stretch the park of every batch processing gpu-tree updates so it covers the captured
+                # reset's allocation finish (~1.0-2.7s after capture).
+                "testing_options": {
+                    "delay_inside_process_allocation_updates": {"duration": 1500, "type": "async"},
+                },
+            },
+            "policy_kind": "gpu",
+        })
+        create_pool_tree("main", config={
+            "node_tag_filter": "main",
+        })
+
+        set("//sys/pool_trees/@default_tree", "main")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/default_pool_tree", default=None) == "main")
+
+        create_data_center(self.DATA_CENTER)
+        create_rack(self.RACK)
+        set("//sys/racks/{}/@data_center".format(self.RACK), self.DATA_CENTER)
+
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes:
+            set("//sys/cluster_nodes/{}/@rack".format(node), self.RACK)
+        for node in nodes[:3]:
+            set("//sys/cluster_nodes/{}/@user_tags".format(node), ["gpu"])
+        set("//sys/cluster_nodes/{}/@user_tags".format(nodes[3]), ["main"])
+
+        # The classic node sweeps the submit map at 400ms while gpu nodes stay at 200ms: fewer classic
+        # sweeps mean more sitting reset updates are captured by parking gpu batches. Node dynamic config
+        # requires every node to match exactly one tag-filter entry and entries do not merge, so the
+        # "%true" defaults (enable_multiple_jobs, the connector periods, framework defaults) are cloned
+        # into both groups.
+        node_config = get("//sys/cluster_nodes/@config")
+        gpu_node_config = deepcopy(node_config["%true"])
+        classic_node_config = deepcopy(node_config["%true"])
+        classic_node_config["exec_node"]["scheduler_connector"]["heartbeat_executor"]["period"] = 400
+        set("//sys/cluster_nodes/@config", {"gpu": gpu_node_config, "!gpu": classic_node_config})
+
+        def get_scheduler_heartbeat_period(node):
+            applied = get_applied_node_dynamic_config(node)
+            return applied.get("exec_node", {}).get("scheduler_connector", {}).get("heartbeat_executor", {}).get("period")
+
+        wait(lambda: get_scheduler_heartbeat_period(nodes[3]) == 400)
+        for node in nodes[:3]:
+            wait(lambda: get_scheduler_heartbeat_period(node) == 200)
+
+        for node in nodes[:3]:
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center", default=None) == self.DATA_CENTER)
+
+        wait(lambda: get(scheduler_new_orchid_pool_tree_path("gpu") + "/node_count") == 3)
+        wait(lambda: get(scheduler_new_orchid_pool_tree_path("main") + "/node_count") == 1)
+
+    @authors("yaishenka")
+    def test_preemptible_progress_reset_races_allocation_finish(self):
+        # Long-running gpu operation: 6 allocations of 4 gpus are forced to spread 2 per node,
+        # producing resource usage updates in every gpu node heartbeat batch.
+        gpu_op = run_sleeping_vanilla(
+            job_count=6,
+            spec={"pool_trees": ["gpu"]},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(gpu_op.get_running_jobs()) == 6)
+
+        # Classic operations: 5 concurrent multi-job allocations, 2 jobs each — half of all resets are
+        # last-job resets, each racing the allocation's Finished update right after the second job ends.
+        for _ in range(8):
+            op = run_test_vanilla(
+                command="sleep 0.5",
+                job_count=10,
+                spec={"enable_multiple_jobs_in_allocation": True},
+                task_patch={"cpu_limit": 2.0},
+            )
+            op.track()
+
+        gpu_op.abort()
 
 ##################################################################

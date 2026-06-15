@@ -15,6 +15,7 @@
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
+#include <yt/yt/ytlib/cypress_client/batch_attribute_fetcher.h>
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -473,7 +474,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             }
             case ETableReadLockMode::None: {
                 auto preliminaryCheckPermissionResultsFuture = Host->PreliminaryCheckPermissions(pathsToFetch, User);
-                auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
+                auto attributes = Host->GetObjectAttributesCached(pathsToFetch, Client());
                 auto preliminaryCheckPermissionResults = WaitForFast(preliminaryCheckPermissionResultsFuture.AsUnique())
                     .ValueOrThrow();
                 AddAttributesToSnapshot(
@@ -521,7 +522,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             pathsToFetchUnderTx,
             userToCheckPermissionsFor);
 
-        auto attributesFromCache = Host->GetObjectAttributes(pathsToFetchFromCache, Client());
+        auto attributesFromCache = Host->GetObjectAttributesCached(pathsToFetchFromCache, Client());
 
         WaitFor(
             AllSucceeded(
@@ -784,7 +785,7 @@ void TQueryContext::LockAndFetchAttributesSync(std::vector<TYPath> pathsToFetch)
 void TQueryContext::LockAndFetchAttributesBestEffort(std::vector<TYPath> pathsToFetch)
 {
     auto preliminaryCheckPermissionResultsFuture = Host->PreliminaryCheckPermissions(pathsToFetch, User);
-    auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
+    auto attributes = Host->GetObjectAttributesCached(pathsToFetch, Client());
     std::vector<TYPath> pathsToLock;
 
     for (size_t index = 0; index < pathsToFetch.size(); ++index) {
@@ -971,7 +972,6 @@ TQueryFinishInfo TQueryContext::GetQueryFinishInfo()
     return result;
 }
 
-// TODO(gudqeit): use TBatchAttributeFetcher.
 TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTableAttributesAsync(
     const std::vector<TYPath>& paths,
     TTransactionId transactionId)
@@ -980,39 +980,20 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTabl
         return MakeFuture(std::vector<TErrorOr<IAttributeDictionaryPtr>>{});
     }
 
-    auto client = Client();
-    auto connection = client->GetNativeConnection();
-    TMasterReadOptions masterReadOptions = *SessionSettings->CypressReadOptions;
+    std::vector<TYPath> resolvedPaths(paths.size());
+    std::ranges::transform(paths, resolvedPaths.begin(), [&] (const TYPath& path) {
+        return GetNodeIdOrPath(path);
+    });
 
-    auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
-    auto batchReq = proxy.ExecuteBatch();
-    SetBalancingHeader(batchReq, connection, masterReadOptions);
+    TTransactionalOptions transactionalOptions{};
+    transactionalOptions.TransactionId = transactionId;
 
-    for (int index = 0; index < std::ssize(paths); ++index) {
-        const auto& path = paths[index];
-        auto nodeIdOrPath = GetNodeIdOrPath(path);
-        auto req = TYPathProxy::Get(Format("%v/@", nodeIdOrPath));
-        req->Tag() = index;
-        NYT::ToProto(req->mutable_attributes()->mutable_keys(), Host->GetObjectAttributeNamesToFetch());
-        SetTransactionId(req, transactionId);
-        SetCachingHeader(req, connection, masterReadOptions);
-
-        batchReq->AddRequest(req);
-    }
-
-    return batchReq->Invoke()
-        .Apply(BIND([pathCount = paths.size()] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
-            std::vector<TErrorOr<IAttributeDictionaryPtr>> attributes(pathCount);
-            for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspGet>()) {
-                auto index = std::any_cast<int>(tag);
-                if (rspOrError.IsOK()) {
-                    attributes[index] = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
-                } else {
-                    attributes[index] = TError(rspOrError);
-                }
-            }
-            return attributes;
-        }));
+    return Host->GetObjectAttributesDirect(
+        resolvedPaths,
+        /*revisions*/ {},
+        Client(),
+        *SessionSettings->CypressReadOptions,
+        transactionalOptions);
 }
 
 std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttributes(

@@ -3,8 +3,6 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/yt/client/federated/public.h>
-
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/misc/cache_config.h>
@@ -39,7 +37,7 @@ struct TLookupSessionConfig
 {
     std::string User;
     NYPath::TRichYPath Table;
-    NClient::NFederated::TFederationConfigPtr FederationConfig;
+    std::optional<int> SuccessfulLookupsRequired;
 
     bool operator==(const TLookupSessionConfig&) const;
 };
@@ -83,7 +81,7 @@ DEFINE_REFCOUNTED_TYPE(TCompoundStateLookupCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NDetail
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,10 +154,9 @@ struct TQueueConsumerRegistrationManagerCacheConfig
     TEnumIndexedArray<EQueueConsumerRegistrationManagerCacheKind, TAsyncExpiringCacheDynamicConfigPtr> Delta;
     //! Config for batching all lookups, except periodic updates (for those look into #BatchUpdate in #Base or #Delta).
     TQueueConsumerRegistrationManagerBatchLookupConfigPtr BatchLookup;
-    //! Federated client config for state lookups.
-    NClient::NFederated::TFederationConfigPtr FederationConfig;
-    //! Tablet cell bundle used to override tablet cell bundle of federation config for each cache kind.
-    TEnumIndexedArray<EQueueConsumerRegistrationManagerCacheKind, std::optional<std::string>> CacheKindToBundleName;
+    //! Specifies the minimum number of lookups to replicas to be considered successful for each cache kind.
+    //! Null or omitted values means that value of `max(1, replicaCount - 1)` is used, i.e. at least one success and at most one failure are required.
+    TEnumIndexedArray<EQueueConsumerRegistrationManagerCacheKind, std::optional<int>> CacheKindToSuccessfulLookupsRequired;
 
     REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerCacheConfig);
 
@@ -231,6 +228,8 @@ struct TQueueConsumerRegistrationManagerConfig
     //! Config for internally used async expiring caches.
     //! \note If legacy implementation is used, this field is ignored.
     TQueueConsumerRegistrationManagerCacheConfigPtr Cache;
+
+    NYPath::TRichYPath GetCachePath(EQueueConsumerRegistrationManagerCacheKind kind) const;
 
     REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerConfig);
 

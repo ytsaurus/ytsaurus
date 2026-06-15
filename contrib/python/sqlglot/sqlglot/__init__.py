@@ -1,4 +1,4 @@
-# ruff: noqa: F401, E402
+# ruff: noqa: F401
 """
 .. include:: ../README.md
 
@@ -7,22 +7,8 @@
 
 from __future__ import annotations
 
-# bootstrap mypyc runtime: compiled .so modules do a top-level `import HASH__mypyc`,
-# but the runtime .so lives inside sqlglot/. Pre-load it into sys.modules.
-# this is only needed for editable builds
-import sys
-from pathlib import Path
-
-for path in Path(__file__).parent.glob("*__mypyc*.so"):
-    name = path.stem.split(".")[0]
-    if name not in sys.modules:
-        import importlib.util
-
-        spec = importlib.util.spec_from_file_location(name, path)
-        if spec and spec.loader:
-            mod = importlib.util.module_from_spec(spec)
-            sys.modules[name] = mod
-            spec.loader.exec_module(mod)
+from collections.abc import Collection
+from builtins import type as Type
 
 import logging
 import typing as t
@@ -69,7 +55,8 @@ from sqlglot.schema import MappingSchema as MappingSchema, Schema as Schema
 from sqlglot.tokens import Token as Token, Tokenizer as Tokenizer, TokenType as TokenType
 
 if t.TYPE_CHECKING:
-    from sqlglot._typing import E
+    from sqlglot._typing import E, GeneratorArgs, ParserNoDialectArgs
+    from typing_extensions import Unpack
     from sqlglot.dialects.dialect import DialectType as DialectType
 
 logger = logging.getLogger("sqlglot")
@@ -87,7 +74,7 @@ pretty = False
 """Whether to format generated SQL by default."""
 
 
-def tokenize(sql: str, read: DialectType = None, dialect: DialectType = None) -> t.List[Token]:
+def tokenize(sql: str, read: DialectType = None, dialect: DialectType = None) -> list[Token]:
     """
     Tokenizes the given SQL string.
 
@@ -103,8 +90,11 @@ def tokenize(sql: str, read: DialectType = None, dialect: DialectType = None) ->
 
 
 def parse(
-    sql: str, read: DialectType = None, dialect: DialectType = None, **opts
-) -> t.List[t.Optional[Expr]]:
+    sql: str,
+    read: DialectType = None,
+    dialect: DialectType = None,
+    **opts: Unpack[ParserNoDialectArgs],
+) -> list[Expr | None]:
     """
     Parses the given SQL string into a collection of syntax trees, one per parsed SQL statement.
 
@@ -121,19 +111,32 @@ def parse(
 
 
 @t.overload
-def parse_one(sql: str, *, into: t.Type[E], **opts) -> E: ...
+def parse_one(
+    sql: str,
+    *,
+    read: DialectType = ...,
+    dialect: DialectType = ...,
+    into: Type[E],
+    **opts: Unpack[ParserNoDialectArgs],
+) -> E: ...
 
 
 @t.overload
-def parse_one(sql: str, **opts) -> Expr: ...
+def parse_one(
+    sql: str,
+    read: DialectType = ...,
+    dialect: DialectType = ...,
+    into: exp.IntoType | None = ...,
+    **opts: Unpack[ParserNoDialectArgs],
+) -> Expr: ...
 
 
 def parse_one(
     sql: str,
     read: DialectType = None,
     dialect: DialectType = None,
-    into: t.Optional[exp.IntoType] = None,
-    **opts,
+    into: exp.IntoType | None = None,
+    **opts: Unpack[ParserNoDialectArgs],
 ) -> Expr:
     """
     Parses the given SQL string and returns a syntax tree.
@@ -167,9 +170,9 @@ def transpile(
     read: DialectType = None,
     write: DialectType = None,
     identity: bool = True,
-    error_level: t.Optional[ErrorLevel] = None,
-    **opts,
-) -> t.List[str]:
+    error_level: ErrorLevel | None = None,
+    **opts: Unpack[GeneratorArgs],
+) -> list[str]:
     """
     Parses the given SQL string in accordance with the source dialect and returns a list of SQL strings transformed
     to conform to the target dialect. Each string in the returned list represents a single transformed SQL statement.

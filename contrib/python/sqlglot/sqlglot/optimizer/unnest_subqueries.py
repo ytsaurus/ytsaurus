@@ -1,9 +1,11 @@
+from __future__ import annotations
 from sqlglot import exp
 from sqlglot.helper import name_sequence
 from sqlglot.optimizer.scope import ScopeType, find_in_scope, traverse_scope
+from sqlglot._typing import E
 
 
-def unnest_subqueries(expression):
+def unnest_subqueries(expression: E) -> E:
     """
     Rewrite sqlglot AST to convert some predicates with subqueries into joins.
 
@@ -303,11 +305,11 @@ def decorrelate(select, parent_select, external_columns, next_alias_name):
     )
 
 
-def _replace(expression, condition):
+def _replace(expression: exp.Expr, condition: exp.ExpOrStr) -> exp.Expr:
     return expression.replace(exp.condition(condition))
 
 
-def _other_operand(expression):
+def _other_operand(expression: object) -> exp.Expr | None:
     if isinstance(expression, exp.In):
         return expression.this
 

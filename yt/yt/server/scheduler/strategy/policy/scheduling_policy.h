@@ -10,6 +10,8 @@
 
 #include <yt/yt/library/profiling/producer.h>
 
+#include <yt/yt/core/actions/future.h>
+
 namespace NYT::NScheduler::NStrategy::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +45,25 @@ struct TPoolTreeSnapshotState
     : public TRefCounted
 {
     const EPolicyKind PolicyKind;
+
+    virtual TError CheckIsOperationStuck(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        TInstant now,
+        TInstant activationTime,
+        const TOperationStuckCheckOptionsPtr& options) const = 0;
+
+    virtual void BuildOperationProgress(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        IStrategyHost* strategyHost,
+        NYTree::TFluentMap fluent) const = 0;
+
+    virtual void BuildElementYson(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeElement* element,
+        const TFieldFilter& filter,
+        NYTree::TFluentMap fluent) const = 0;
 
 protected:
     explicit TPoolTreeSnapshotState(EPolicyKind policyKind);
@@ -97,15 +118,20 @@ struct ISchedulingPolicy
         TPoolTreeOperationElement* element,
         std::vector<TAllocationPtr> allocations) = 0;
 
+    //! Processes a batch of allocation updates that all belong to this tree. The returned future is set to
+    //! a result per update, index-aligned with |allocationUpdates|. The classic policy applies the batch
+    //! synchronously and returns an already-set future; the GPU policy dispatches it to the control invoker
+    //! and returns a pending future. Per-allocation update ordering is guaranteed by the caller draining
+    //! each batch before submitting the next one (see TStrategy::ProcessAllocationUpdates).
     //! Thread affinity: Any.
-    virtual TProcessAllocationUpdateResult ProcessAllocationUpdate(
+    virtual TFuture<std::vector<TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        TPoolTreeOperationElement* element,
-        const TAllocationUpdate& allocationUpdate) = 0;
+        const std::vector<TAllocationUpdate>& allocationUpdates) = 0;
 
     //! Diagnostics.
     //! Thread affinity: Any.
     virtual void BuildSchedulingAttributesStringForNode(
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         NNodeTrackerClient::TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
     virtual void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const = 0;
@@ -170,28 +196,5 @@ ISchedulingPolicyPtr CreateSchedulingPolicy(
     NProfiling::TProfiler profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// TODO(yaishenka): YT-27597 Implement this methods in GPU policy and refactor it.
-struct TSchedulingPolicyStaticCaller
-{
-    static TError CheckOperationIsStuck(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeOperationElement* element,
-        TInstant now,
-        TInstant activationTime,
-        const TOperationStuckCheckOptionsPtr& options);
-
-    static void BuildOperationProgress(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeOperationElement* element,
-        IStrategyHost* const strategyHost,
-        NYTree::TFluentMap fluent);
-
-    static void BuildElementYson(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeElement* element,
-        const TFieldFilter& filter,
-        NYTree::TFluentMap fluent);
-};
 
 } // namespace NYT::NScheduler::NStrategy::NPolicy

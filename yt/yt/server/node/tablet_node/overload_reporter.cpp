@@ -93,7 +93,6 @@ public:
     TOverloadReporter(IBootstrap* const bootstrap)
         : Bootstrap_(bootstrap)
         , Logger(TabletNodeLogger().WithTag("OverloadReporter"))
-        , ActionQueue_(New<TActionQueue>("TabOverloadReporter"))
         , Config_(Bootstrap_->GetTabletNodeDynamicConfig()->OverloadReporter)
         , EvaluatorCache_(Config_.Acquire()->MaxEvaluatorCacheSize)
     { }
@@ -107,7 +106,7 @@ public:
         auto config = Config_.Acquire();
 
         Executor_ = New<TPeriodicExecutor>(
-            ActionQueue_->GetInvoker(),
+            Bootstrap_->GetTabletStatisticsInvoker(),
             BIND(&TOverloadReporter::DoReportOverload, MakeWeak(this)),
             config->PeriodicExecutor);
 
@@ -143,8 +142,6 @@ private:
 
     const TLogger Logger;
 
-    const NConcurrency::TActionQueuePtr ActionQueue_;
-
     TAtomicIntrusivePtr<TOverloadReporterConfig> Config_;
     NConcurrency::TPeriodicExecutorPtr Executor_;
 
@@ -162,12 +159,12 @@ private:
         const TTabletBalancerServiceProxy::TErrorOrRspRequestBalancingPtr& rspOrError) const
     {
         if (rspOrError.IsOK()) {
-            YT_LOG_DEBUG(rspOrError, "Failed to send balancing request caused by tablets overload"
+            YT_LOG_DEBUG("Successfully sent balancing request caused by tablets overload "
                 "(BundleName: %v, TabletCount: %v)",
                 bundleName,
                 tabletIds.size());
         } else {
-            YT_LOG_DEBUG("Successfully sent balancing request caused by tablets overload "
+            YT_LOG_DEBUG(rspOrError, "Failed to send balancing request caused by tablets overload "
                 "(BundleName: %v, TabletCount: %v)",
                 bundleName,
                 tabletIds.size());
@@ -176,7 +173,7 @@ private:
 
     void DoReportOverload()
     {
-        YT_ASSERT_INVOKER_AFFINITY(ActionQueue_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetTabletStatisticsInvoker());
 
         auto config = Config_.Acquire();
 
@@ -232,7 +229,7 @@ private:
         const TTabletSnapshotPtr& tabletSnapshot,
         const TBundleTabletBalancerConfigPtr& bundleConfig)
     {
-        YT_ASSERT_INVOKER_AFFINITY(ActionQueue_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetTabletStatisticsInvoker());
 
         auto parameters = GetOverloadReporterParameters(
             tabletSnapshot,

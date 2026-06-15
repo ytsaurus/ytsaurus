@@ -90,4 +90,4 @@ bool TBaseOperationElement::IsGangLike() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NVectorHdrf
+} // namespace NYT::NVectorHdrf

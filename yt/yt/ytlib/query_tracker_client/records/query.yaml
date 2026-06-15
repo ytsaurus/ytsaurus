@@ -66,7 +66,7 @@ types:
         lock: client
 
       - cpp_name: FilterFactors
-        cpp_type: TString
+        cpp_type: std::string
         column_name: filter_factors
         column_type: String
         lock: client
@@ -313,7 +313,7 @@ types:
         column_type: String
 
       - cpp_name: FilterFactors
-        cpp_type: TString
+        cpp_type: std::string
         column_name: filter_factors
         column_type: String
 
@@ -363,7 +363,7 @@ types:
         column_type: String
 
       - cpp_name: FilterFactors
-        cpp_type: TString
+        cpp_type: std::string
         column_name: filter_factors
         column_type: String
 
@@ -408,7 +408,7 @@ types:
         column_type: String
 
       - cpp_name: FilterFactors
-        cpp_type: TString
+        cpp_type: std::string
         column_name: filter_factors
         column_type: String
 
@@ -447,7 +447,7 @@ types:
         column_type: Any
 
       - cpp_name: Rowset
-        cpp_type: std::optional<TString>
+        cpp_type: std::optional<std::string>
         column_name: rowset
         column_type: String
 

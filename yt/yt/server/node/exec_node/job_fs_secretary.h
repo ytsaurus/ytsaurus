@@ -33,11 +33,11 @@ struct TJobFSDescription
     std::vector<TArtifactKey> RootVolumeLayerArtifactKeys;
     std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys;
     std::optional<TString> DockerImage;
-    std::optional<int> RootVolumeDiskSpace;
-    std::optional<int64_t> RootVolumeInodeLimit;
+    std::optional<i64> RootVolumeDiskSpace;
+    std::optional<i64> RootVolumeInodeLimit;
     bool RootVolumeAllowReusing = false;
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams;
-    std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts;
+    std::vector<TVolumeMountPtr> JobVolumeMounts;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
 };
 
@@ -101,15 +101,15 @@ public:
     const std::optional<TVirtualSandboxData>& GetVirtualSandboxData() const;
     void SetVirtualSandboxReader(NNbd::IImageReaderPtr reader);
 
-    const std::optional<int>& GetRootVolumeDiskSpace() const;
-    const std::optional<int64_t>& GetRootVolumeInodeLimit() const;
+    const std::optional<i64>& GetRootVolumeDiskSpace() const;
+    const std::optional<i64>& GetRootVolumeInodeLimit() const;
     bool IsRootVolumeReusable() const;
     IVolumePtr ReleaseRootVolumeIfNeeded();
     std::vector<IVolumePtr> ReleaseVolumes();
 
     const std::vector<TBaseVolumeParamsPtr>& GetNonRootVolumeParams() const;
 
-    const std::vector<NScheduler::TVolumeMountPtr>& GetJobVolumeMounts() const;
+    const std::vector<TVolumeMountPtr>& GetJobVolumeMounts() const;
 
     const TArtifactDescription& GetUserArtifact(const TString& name) const;
 
@@ -155,12 +155,12 @@ private:
     THashMap<std::string, TVolumeResultPtr> NonRootVolumes_;
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
     // COMPAT(krasovav)
-    std::optional<int> RootVolumeDiskSpace_;
+    std::optional<i64> RootVolumeDiskSpace_;
     // COMPAT(krasovav)
-    std::optional<int64_t> RootVolumeInodeLimit_;
+    std::optional<i64> RootVolumeInodeLimit_;
     bool RootVolumeReusingAllowed_ = false;
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams_;
-    std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts_;
+    std::vector<TVolumeMountPtr> JobVolumeMounts_;
     bool HasVirtualSandboxArtifacts_ = false;
     bool ArtifactsCached_ = false;
 

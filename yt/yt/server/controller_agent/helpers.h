@@ -33,7 +33,7 @@ TOptions CreateOperationOptions(const TOptions& options, const NYTree::INodePtr&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TrimCommandForBriefSpec(const TString& command);
+TString TrimCommandForBriefSpec(const std::string& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,11 +189,19 @@ NScheduler::TDiskQuota CreateDiskQuota(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void EnrichLayers(
+void ValidateAndEnrichVolumeSpec(
     const TControllerAgentConfigPtr& config,
     const TOperationSpecBasePtr& operationSpec,
     const IOperationControllerHostPtr& host,
-    TNonNullPtr<NScheduler::TUserJobSpec> spec);
+    TNonNullPtr<NScheduler::TUserJobSpec> spec,
+    TNonNullPtr<NScheduler::TUserJobSpec> providedSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NControllerAgent::NProto::TVolume* volumeProto,
+    const NScheduler::TVolume& volume,
+    const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile);
 
 ////////////////////////////////////////////////////////////////////////////////
 

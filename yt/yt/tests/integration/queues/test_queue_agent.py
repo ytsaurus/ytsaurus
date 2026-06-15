@@ -1,5 +1,5 @@
 from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
-from yt_queue_agent_test_base import (OrchidWithRegularPasses, QueueStaticExportHelpers, TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
+from yt_queue_agent_test_base import (GenericObjectPath, OrchidWithRegularPasses, QueueStaticExportHelpers, TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
 
@@ -401,15 +401,23 @@ class TestQueueController(TestQueueAgentBase):
 
     @authors("max42", "nadya73")
     @pytest.mark.parametrize("trim", [False, True])
-    @pytest.mark.parametrize("without_meta", [True, False])
-    def test_consumer_status(self, trim, without_meta):
+    @pytest.mark.parametrize(["without_meta", "consumer_name"], [
+        (False, None),
+        (True, None),
+        (False, "my_consumer"),
+    ])
+    def test_consumer_status(self, trim, without_meta, consumer_name):
+        if not self._is_multi_consumer_supported() and consumer_name:
+            pytest.skip("Multi consumer controller is not supported in this version.")
+
         orchid = QueueAgentOrchid()
 
         queue_path = self.create_queue_path()
         consumer_path = self.create_consumer_path()
 
         self._create_queue(queue_path, partition_count=2)
-        self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
+        consumer_ref = self._create_registered_consumer(
+            consumer_path, queue_path, consumer_name=consumer_name, without_meta=without_meta)
 
         self._wait_for_component_passes()
 
@@ -422,48 +430,53 @@ class TestQueueController(TestQueueAgentBase):
         timestamps = [timestamps[0], timestamps[2]]
         print_debug(self._timestamp_to_iso_str(timestamps[0]), self._timestamp_to_iso_str(timestamps[1]))
 
-        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
-        consumer_status = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_status()["queues"][f"primary:{queue_path}"]
+        self._advance_consumer(consumer_ref, queue_path, 0, 0)
+        consumer_orchid = orchid.get_consumer_orchid(consumer_ref)
+        consumer_orchid.wait_fresh_pass(ignore_exceptions=True)
+        consumer_status = consumer_orchid.get_status()["queues"][f"primary:{queue_path}"]
         assert consumer_status["partition_count"] == 2
 
-        time.sleep(1.5)
-        self._advance_consumer(consumer_path, queue_path, 0, 0)
-        time.sleep(1.5)
-        self._advance_consumer(consumer_path, queue_path, 1, 0)
+        self._advance_consumer(consumer_ref, queue_path, 1, 0)
 
         def assert_partition(partition, next_row_index):
             assert partition["next_row_index"] == next_row_index
             assert partition["unread_row_count"] == max(0, 2 - next_row_index)
-            assert partition["unread_data_weight"] == (YsonEntity() if next_row_index == 0 else (partition["unread_row_count"] * 20))
+            # unread_data_weight is null when the consumed cumulative weight has no source:
+            # nothing consumed yet (next_row_index == 0), or a meta-less consumer whose preceding
+            # row (next_row_index - 1) was trimmed away (here only the first row of each partition is trimmed).
+            # NB: when all rows are read and trimmed (next_row_index == 2) the value is 0, not null.
+            unread_data_weight_is_null = next_row_index == 0 or (next_row_index < 2 and without_meta and trim)
+            assert partition["unread_data_weight"] == (
+                YsonEntity() if unread_data_weight_is_null else partition["unread_row_count"] * 20)
             assert partition["next_row_commit_time"] == (self._timestamp_to_iso_str(timestamps[next_row_index])
                                                          if next_row_index < 2 else YsonEntity())
             assert (partition["processing_lag"] > 0) == (next_row_index < 2)
 
-        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
-        consumer_partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
+        consumer_orchid.wait_fresh_pass()
+        consumer_partitions = consumer_orchid.get_partitions()[f"primary:{queue_path}"]
         assert_partition(consumer_partitions[0], 0)
         assert_partition(consumer_partitions[1], 0)
 
-        self._advance_consumer(consumer_path, queue_path, 0, 1)
+        self._advance_consumer(consumer_ref, queue_path, 0, 1)
 
-        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        consumer_orchid.wait_fresh_pass()
 
         if trim:
             trim_rows(queue_path, 0, 1)
 
         orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
-        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
-        consumer_partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
+        consumer_orchid.wait_fresh_pass()
+        consumer_partitions = consumer_orchid.get_partitions()[f"primary:{queue_path}"]
         assert_partition(consumer_partitions[0], 1)
 
-        self._advance_consumer(consumer_path, queue_path, 1, 2)
+        self._advance_consumer(consumer_ref, queue_path, 1, 2)
 
         if trim:
             trim_rows(queue_path, 1, 1)
 
         orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
-        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
-        consumer_partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
+        consumer_orchid.wait_fresh_pass()
+        consumer_partitions = consumer_orchid.get_partitions()[f"primary:{queue_path}"]
 
         assert_partition(consumer_partitions[1], 2)
 
@@ -492,15 +505,23 @@ class TestQueueController(TestQueueAgentBase):
         assert orchid.get_consumer_orchid(f"primary:{consumer_path}").get_status()["queues"][f"primary:{queue_path}"]["partition_count"] == 1
 
     @authors("max42", "nadya73")
-    @pytest.mark.parametrize("without_meta", [True, False])
-    def test_consumer_partition_disposition(self, without_meta):
+    @pytest.mark.parametrize(["without_meta", "consumer_name"], [
+        (False, None),
+        (True, None),
+        (False, "my_consumer"),
+    ])
+    def test_consumer_partition_disposition(self, without_meta, consumer_name):
+        if not self._is_multi_consumer_supported() and consumer_name:
+            pytest.skip("Multi consumer controller is not supported in this version.")
+
         orchid = QueueAgentOrchid()
 
         queue_path = self.create_queue_path()
         consumer_path = self.create_consumer_path()
 
         self._create_queue(queue_path)
-        self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
+        consumer_ref = self._create_registered_consumer(
+            consumer_path, queue_path, consumer_name=consumer_name, without_meta=without_meta)
 
         self._wait_for_component_passes()
 
@@ -508,37 +529,47 @@ class TestQueueController(TestQueueAgentBase):
         trim_rows(queue_path, 0, 1)
         orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
+        consumer_orchid = orchid.get_consumer_orchid(consumer_ref)
         expected_dispositions = ["expired", "pending_consumption", "pending_consumption", "up_to_date", "ahead"]
         for offset, expected_disposition in enumerate(expected_dispositions):
-            self._advance_consumer(consumer_path, queue_path, 0, offset)
-            orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
-            partition = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"][0]
+            self._advance_consumer(consumer_ref, queue_path, 0, offset)
+            consumer_orchid.wait_fresh_pass(ignore_exceptions=True)
+            partition = consumer_orchid.get_partitions()[f"primary:{queue_path}"][0]
             assert partition["disposition"] == expected_disposition
             assert partition["unread_row_count"] == 3 - offset
 
     @authors("max42", "nadya73")
-    @pytest.mark.parametrize("without_meta", [True, False])
-    def test_inconsistent_partitions_in_consumer_table(self, without_meta):
+    @pytest.mark.parametrize(["without_meta", "consumer_name"], [
+        (False, None),
+        (True, None),
+        (False, "my_consumer"),
+    ])
+    def test_inconsistent_partitions_in_consumer_table(self, without_meta, consumer_name):
+        if not self._is_multi_consumer_supported() and consumer_name:
+            pytest.skip("Multi consumer controller is not supported in this version.")
+
         orchid = QueueAgentOrchid()
 
         queue_path = self.create_queue_path()
         consumer_path = self.create_consumer_path()
 
         self._create_queue(queue_path, partition_count=2)
-        self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
+        consumer_ref = self._create_registered_consumer(
+            consumer_path, queue_path, consumer_name=consumer_name, without_meta=without_meta)
 
         self._wait_for_component_passes()
 
         insert_rows(queue_path, [{"data": "foo"}] * 2)
         orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        self._advance_consumer(consumer_path, queue_path, 1, 1, via_insert=True)
-        self._advance_consumer(consumer_path, queue_path, 2 ** 63 - 1, 1, via_insert=True)
-        self._advance_consumer(consumer_path, queue_path, 2 ** 64 - 1, 1, via_insert=True)
+        self._advance_consumer(consumer_ref, queue_path, 1, 1, via_insert=True)
+        self._advance_consumer(consumer_ref, queue_path, 2 ** 63 - 1, 1, via_insert=True)
+        self._advance_consumer(consumer_ref, queue_path, 2 ** 64 - 1, 1, via_insert=True)
 
-        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        consumer_orchid = orchid.get_consumer_orchid(consumer_ref)
+        consumer_orchid.wait_fresh_pass(ignore_exceptions=True)
 
-        partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
+        partitions = consumer_orchid.get_partitions()[f"primary:{queue_path}"]
         assert len(partitions) == 2
         assert partitions[0]["next_row_index"] == 0
 
@@ -663,13 +694,26 @@ class TestAutomaticTrimming(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
     @authors("achulkov2", "nadya73")
-    def test_basic(self):
+    @pytest.mark.parametrize("consumer_paths_and_names", [
+        [("//tmp/c1", None), ("//tmp/c2", None), ("//tmp/c3", None)],
+        [("//tmp/c1", "my_consumer_1"), ("//tmp/c2", None), ("//tmp/c3", "my_consumer_3")],
+        [("//tmp/c1", "my_consumer_1"), ("//tmp/c1", "my_consumer_2"), ("//tmp/c2", None)],
+        [("//tmp/c1", "my_consumer_1"), ("//tmp/c2", None), ("//tmp/c1", "my_consumer_2")],
+        [("//tmp/c1", "my_consumer_1"), ("//tmp/c1", "my_consumer_2"), ("//tmp/c1", "my_consumer_3")],
+    ])
+    def test_basic(self, consumer_paths_and_names):
+        if not self._is_multi_consumer_supported() and sum(map(lambda x: x[1] is not None, consumer_paths_and_names)):
+            pytest.skip("Multi consumer controller is not supported in this version.")
+
         queue_agent_orchid = QueueAgentOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
-        self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
-        self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
-        self._create_registered_consumer("//tmp/c3", "//tmp/q", vital=True)
+        assert len(consumer_paths_and_names) == 3
+        consumer_refs = []
+        for i, (consumer_path, consumer_name) in enumerate(consumer_paths_and_names):
+            vital = False if i == 1 else True
+            consumer_refs.append(self._create_registered_consumer(
+                consumer_path, "//tmp/q", vital=vital, consumer_name=consumer_name))
 
         set("//tmp/q/@auto_trim_config", {"enable": True})
 
@@ -679,35 +723,35 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "bar"}] * 7)
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
 
-        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 3)
-        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 5)
-        # Vital consumer c3 was not advanced, so nothing should be trimmed.
+        self._advance_consumer(consumer_refs[0], "//tmp/q", 0, 3)
+        self._advance_consumer(consumer_refs[1], "//tmp/q", 0, 5)
+        # Vital consumer 2 was not advanced, so nothing should be trimmed.
 
-        self._advance_consumer("//tmp/c1", "//tmp/q", 1, 3)
-        self._advance_consumer("//tmp/c2", "//tmp/q", 1, 1)
-        self._advance_consumer("//tmp/c3", "//tmp/q", 1, 2)
-        # Consumer c2 is non-vital, only c1 and c3 should be considered.
+        self._advance_consumer(consumer_refs[0], "//tmp/q", 1, 3)
+        self._advance_consumer(consumer_refs[1], "//tmp/q", 1, 1)
+        self._advance_consumer(consumer_refs[2], "//tmp/q", 1, 2)
+        # Consumer 1 is non-vital, only 0 and 2 should be considered.
 
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
 
         self._wait_for_row_count("//tmp/q", 1, 5)
         self._wait_for_row_count("//tmp/q", 0, 5)
 
-        # Consumer c3 is the farthest behind.
-        self._advance_consumer("//tmp/c3", "//tmp/q", 0, 2)
+        # Consumer 2 is the farthest behind.
+        self._advance_consumer(consumer_refs[2], "//tmp/q", 0, 2)
 
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
         self._wait_for_row_count("//tmp/q", 0, 3)
 
-        # Now c1 is the farthest behind.
-        self._advance_consumer("//tmp/c3", "//tmp/q", 0, 4)
+        # Now 0 is the farthest behind.
+        self._advance_consumer(consumer_refs[2], "//tmp/q", 0, 4)
 
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
         self._wait_for_row_count("//tmp/q", 0, 2)
 
         # Both vital consumers are at the same offset.
-        self._advance_consumer("//tmp/c1", "//tmp/q", 1, 6)
-        self._advance_consumer("//tmp/c3", "//tmp/q", 1, 6)
+        self._advance_consumer(consumer_refs[0], "//tmp/q", 1, 6)
+        self._advance_consumer(consumer_refs[2], "//tmp/q", 1, 6)
 
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
         self._wait_for_row_count("//tmp/q", 1, 1)
@@ -1355,12 +1399,13 @@ class TestMultipleAgents(TestQueueAgentBase):
             wait_for_tablet_state(path, "mounted", **kwargs)
 
     @staticmethod
-    def _add_registration(registrations, queue, consumer, vital=False):
+    def _add_registration(registrations, queue, consumer, vital=False, consumer_name=None):
         registrations.append({
             "queue_cluster": "primary",
             "queue_path": queue,
             "consumer_cluster": "primary",
             "consumer_path": consumer,
+            "consumer_name": consumer_name,
             "vital": vital,
         })
 
@@ -1489,38 +1534,44 @@ class TestMultipleAgents(TestQueueAgentBase):
             perform_checks(ignore_instances=(victim,))
 
     @authors("achulkov2", "nadya73")
+    @pytest.mark.parametrize("consumer_paths_and_names", [
+        [[f"//tmp/c{i}", None] for i in range(10)],
+        [[f"//tmp/c{i % 2}", f"consumer_{i}"] for i in range(10)],
+    ])
     @pytest.mark.timeout(120)
-    def test_trimming_with_sharded_objects(self):
-        consumer_count = 10
-
+    def test_trimming_with_sharded_objects(self, consumer_paths_and_names):
         queue = "//tmp/q"
         self._create_queue(queue, mount=False)
-        consumers = ["//tmp/c{}".format(i) for i in range(consumer_count)]
+        table_is_multi_consumer = dict((x[0], bool(x[1])) for x in consumer_paths_and_names)
+        consumer_tables = list(table_is_multi_consumer.keys())
+        for consumer_path, is_multi_consumer in table_is_multi_consumer.items():
+            self._create_consumer(consumer_path, mount=False, multi_consumer=is_multi_consumer)
 
         registrations = []
 
-        for i in range(len(consumers)):
-            self._create_consumer(consumers[i], mount=False)
-            self._add_registration(registrations, queue, consumers[i], vital=True)
+        for consumer_path, consumer_name in consumer_paths_and_names:
+            self._add_registration(registrations, queue, consumer_path, vital=True, consumer_name=consumer_name)
 
         # Save test execution time by bulk performing bulk registrations.
         insert_rows("//sys/queue_agents/consumer_registrations", registrations)
 
-        self._sync_mount_tables([queue] + consumers)
+        self._sync_mount_tables([queue] + consumer_tables)
 
         set(queue + "/@auto_trim_config", {"enable": True})
 
         self._wait_for_global_sync()
 
-        insert_rows("//tmp/q", [{"data": "foo"}] * len(consumers))
+        insert_rows("//tmp/q", [{"data": "foo"}] * len(consumer_paths_and_names))
 
-        for i, consumer in enumerate(consumers):
-            self._advance_consumer(consumer, queue, 0, i)
+        for i, (consumer_path, consumer_name) in enumerate(consumer_paths_and_names):
+            consumer_ref = GenericObjectPath(consumer_path, "primary", consumer_name)
+            self._advance_consumer(consumer_ref, queue, 0, i)
 
         # No trimming is performed when none of the consumers are vital, so we don't touch the last one.
-        for i in range(len(consumers) - 1):
-            register_queue_consumer(queue, consumers[i], vital=False)
-            self._wait_for_row_count(queue, 0, len(consumers) - i - 1)
+        for i, (consumer_path, consumer_name) in enumerate(consumer_paths_and_names[:-1]):
+            consumer_ref = GenericObjectPath(consumer_path, "primary", consumer_name)
+            register_queue_consumer(queue, consumer_ref, vital=False)
+            self._wait_for_row_count(queue, 0, len(consumer_paths_and_names) - i - 1)
 
     @authors("achulkov2", "nadya73")
     def test_queue_agent_sharding_manager_alerts(self):
@@ -4868,6 +4919,99 @@ class TestQueueExportTaskConfig(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
 
+class TestQueueExportRowCountCheck(TestQueueStaticExportBase):
+    ENABLE_MULTIDAEMON = True
+
+    DELTA_LOCAL_YT_CONFIG = {
+        "default_abort_on_alert": False,
+    }
+
+    @authors("apachee")
+    @pytest.mark.parametrize("enable_row_count_check", [True, False])
+    def test_row_count_mismatch(self, enable_row_count_check):
+        self._switch_queue_exporter_implementation("new")
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "queue_exporter": {
+                        "enable_row_count_check": enable_row_count_check,
+                    },
+                },
+            },
+        })
+
+        queue_path = self.create_queue_path()
+        export_dir = f"{queue_path}-export"
+        export_period_seconds = 1
+
+        _, queue_id = self._create_queue(queue_path, partition_count=1)
+        self._create_export_destination(export_dir, queue_id)
+        self._wait_for_global_sync()
+
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": export_period_seconds * 1000,
+            },
+        })
+
+        expected_rows = ["foo"] * 3
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": data} for data in expected_rows])
+        self._flush_table(queue_path)
+        wait(lambda: len(ls(export_dir)) == 1)
+        self._check_export(export_dir, [expected_rows])
+        remove(f"{export_dir}/{ls(export_dir)[0]}")
+
+        queue_orchid = QueueAgentOrchid().get_queue_orchid(f"primary:{queue_path}")
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+
+        hosts = ls("//sys/queue_agents/instances")
+        profiler = profiler_factory().at_queue_agent(hosts[0])
+        mismatch_counter = profiler.counter(
+            "queue_agent/queue/static_export/row_count_mismatches",
+            tags={
+                "queue_cluster": "primary",
+                "queue_path": queue_path,
+                "queue_tag": "none",
+                "export_name": "default",
+                "leading": "true",
+            },
+        )
+
+        row_count = get(f"{export_dir}/@queue_static_export_progress/tablets/0/row_count")
+
+        # Patch the export progress to create a mismatch between the last exported chunk and the
+        # recorded row count. The exporter rewrites the whole progress (from a value it read at the
+        # start of the pass) on every pass, so we patch it under the exporter's own per-directory
+        # lock (a shared lock on the "queue_static_exporter" attribute, which the exporter uses as a
+        # non-waitable mutex) to keep a racing pass from reverting the patch.
+        tx = start_transaction()
+        lock_id = lock(export_dir, mode="shared", tx=tx, waitable=True, attribute_key="queue_static_exporter")["lock_id"]
+        wait(lambda: get(f"#{lock_id}/@state") == "acquired")
+        set(f"{export_dir}/@queue_static_export_progress/tablets/0/row_count", row_count - 1, tx=tx)
+        commit_transaction(tx)
+
+        expected_rows = ["bar"] * 3
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": data} for data in expected_rows])
+        self._flush_table(queue_path)
+
+        exporter_orchid.wait_fresh_invocation()
+        wait(lambda: mismatch_counter.get_delta() > 0)
+
+        if enable_row_count_check:
+            queue_orchid.get_alerts().assert_matching(
+                "queue_agent_queue_controller_static_export_failed",
+                text="Mismatch between last chunk from tablet progress and row count from progress",
+            )
+            assert len(ls(export_dir)) == 0
+        else:
+            assert len(queue_orchid.get_alerts()) == 0
+            assert len(ls(export_dir)) == 1
+            self._check_export(export_dir, [expected_rows], expected_removed_rows=3)
+
+        self.remove_export_destination(export_dir)
+
+
 class TestQueueExportManager(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -5870,6 +6014,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
+            "multi_consumer_count": 0,
         })
 
         inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
@@ -5909,6 +6054,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
+            "multi_consumer_count": 0,
         })
 
         inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
@@ -6014,6 +6160,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
+            "multi_consumer_count": 0,
         })
 
         set("//tmp/q/@queue_agent_banned", "whatever", driver=get_driver(cluster=cluster))
@@ -6023,6 +6170,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 1,
             "consumer_count": 0,
+            "multi_consumer_count": 0,
         })
 
         set("//tmp/c/@queue_agent_banned", "whatever", driver=get_driver(cluster=cluster))
@@ -6032,6 +6180,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 1,
             "consumer_count": 1,
+            "multi_consumer_count": 0,
         })
 
         remove("//tmp/q/@queue_agent_banned", driver=get_driver(cluster=cluster))
@@ -6041,6 +6190,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 1,
+            "multi_consumer_count": 0,
         })
 
         remove("//tmp/c/@queue_agent_banned", driver=get_driver(cluster=cluster))
@@ -6050,6 +6200,7 @@ class TestControllerInfo(TestQueueAgentBase):
         check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
+            "multi_consumer_count": 0,
         })
 
 
@@ -6509,32 +6660,10 @@ class TestMultiConsumerForwardCompatibility(TestQueueAgentBase):
     }
 
     @authors("panesher")
-    def test_multi_consumer_compatibility(self):
-        path = "//tmp/consumer"
-        create(
-            "table",
-            path,
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "queue_consumer_name", "type": "string", "sort_order": "ascending"},
-                    {"name": "test", "type": "string"},
-                    {"name": "key", "type": "string"},
-                ],
-                "treat_as_queue_consumer": True,
-                "queue_agent_stage": "production",
-            },
-        )
-        sync_mount_table(path)
-
-        self._wait_for_component_passes()
-
-        assert f"primary:{path}" in [row["object"] for row in select_rows("* from [//sys/queue_agents/queue_agent_object_mapping]")]
-        consumer_orchid = QueueAgentOrchid().get_consumer_orchid(f"primary:{path}")
-        assert consumer_orchid.get_status()["error"]["message"] == "Multi-consumer are not supported yet"
-
-    @authors("panesher")
     def test_part_of_multi_consumer_compatibility(self):
+        if self._is_multi_consumer_supported():
+            pytest.skip("Starting from version 26, multi consumer controller is introduced.")
+
         path = "//tmp/consumer"
         create(
             "table",

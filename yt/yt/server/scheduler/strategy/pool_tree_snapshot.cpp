@@ -2,6 +2,8 @@
 
 #include "pool_tree.h"
 
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
+
 namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,6 +62,44 @@ bool TPoolTreeSnapshot::IsElementEnabled(const TPoolTreeElement* element) const
         return static_cast<bool>(FindEnabledOperationElement(operationElement->GetOperationId()));
     }
     return true;
+}
+
+TError TPoolTreeSnapshot::CheckIsOperationStuck(
+    const TPoolTreeOperationElement* element,
+    TInstant now,
+    TInstant activationTime,
+    const TOperationStuckCheckOptionsPtr& options) const
+{
+    return SchedulingPolicyState_->CheckIsOperationStuck(
+        *this,
+        element,
+        now,
+        activationTime,
+        options);
+}
+
+void TPoolTreeSnapshot::BuildOperationProgress(
+    const TPoolTreeOperationElement* element,
+    IStrategyHost* strategyHost,
+    NYTree::TFluentMap fluent) const
+{
+    SchedulingPolicyState_->BuildOperationProgress(
+        *this,
+        element,
+        strategyHost,
+        fluent);
+}
+
+void TPoolTreeSnapshot::BuildElementYson(
+    const TPoolTreeElement* element,
+    const TFieldFilter& filter,
+    NYTree::TFluentMap fluent) const
+{
+    SchedulingPolicyState_->BuildElementYson(
+        *this,
+        element,
+        filter,
+        fluent);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

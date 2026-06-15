@@ -84,7 +84,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                       hunk_erasure_codec="none",
                       schema=SCHEMA,
                       dynamic=True,
-                      enable_dynamic_store_read=False):
+                      enable_dynamic_store_read=False,
+                      replication_factor=3):
         create_table_function = self._create_simple_table if dynamic else self._create_simple_static_table
         schema = self._get_table_schema(schema, max_inline_hunk_size)
         if not dynamic:
@@ -113,7 +114,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             max_hunk_compaction_garbage_ratio=0.5,
             enable_lsm_verbose_logging=True,
             chunk_format=chunk_format,
-            hunk_erasure_codec=hunk_erasure_codec)
+            hunk_erasure_codec=hunk_erasure_codec,
+            replication_factor=replication_factor)
 
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
@@ -394,7 +396,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._separate_tablet_and_data_nodes()
 
         sync_create_cells(1)[0]
-        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_6_3")
+        # Store chunks are not erasure-coded, so bump their RF to survive banning three data nodes below.
+        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_6_3", replication_factor=4)
         if chunk_format == "table_versioned_indexed":
             self._enable_hash_chunk_index("//tmp/t")
 
@@ -2677,7 +2680,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/h")
         sync_mount_table("//tmp/t")
 
-        rows = [{"$tablet_index": random.randint(0, 2), "key": 0, "value": "a" * 100} for i in range(10)]
+        rows = [{"$tablet_index": i, "key": 0, "value": "a" * 100} for i in range(3)]
+        rows += [{"$tablet_index": random.randint(0, 2), "key": 0, "value": "a" * 100} for i in range(10)]
         self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
@@ -2785,7 +2789,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         rows = [{"key": 0, "value": "a" * 100} for i in range(3000)]
         insert_count = 0
         iter_count = 0
-        while iter_count < 3 and insert_count < 1:
+        while iter_count < 3 or insert_count < 1:
             iter_count += 1
             try:
                 self._insert_rows_with_hunk_storage("//tmp/t", rows)
@@ -3089,6 +3093,31 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert hunk_reference_statistics["regular_disk_space"] > (first_table_iter + failure_count) * 10008
 
     @authors("akozhikhov")
+    def test_local_referenced_erasure_disk_space(self):
+        sync_create_cells(1)
+
+        self._create_table(path="//tmp/t")
+        sync_reshard_table("//tmp/t", 2)
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+            "read_quorum": 4,
+            "write_quorum": 5,
+            "erasure_codec": "isa_reed_solomon_3_3",
+            "replication_factor": 1,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 10000}]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        hunk_ref_statistics = get("//tmp/t/@hunk_reference_statistics")
+        assert hunk_ref_statistics["local_referenced_data_size"] * 2 == \
+            hunk_ref_statistics["local_referenced_erasure_disk_space"]
+
+    @authors("akozhikhov")
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_3_3"])
     def test_hunk_statistics_chunk_statistics(self, hunk_erasure_codec):
         sync_create_cells(1)
@@ -3152,6 +3181,31 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         merge(in_="//tmp/t", out="//tmp/t2", mode="ordered", spec={"force_transform": True, "combine_chunks": True})
         with raises_yt_error("cannot have attribute \"max_inline_hunk_size\""):
             sort(in_="//tmp/t2", out="//tmp/t2", sort_by=["key", "value"])
+
+    @authors("akozhikhov")
+    def test_multiple_modification_requests(self):
+        sync_create_cells(2)
+
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+            "tablet_count": 2,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        tx = start_transaction(type="tablet")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows, tx=tx)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows, tx=tx)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows, tx=tx)
+
+        commit_transaction(tx)
+
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows * 3)
 
 
 ################################################################################

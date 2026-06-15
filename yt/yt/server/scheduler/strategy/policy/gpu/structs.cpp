@@ -223,7 +223,7 @@ void TOperation::RemoveAssignment(const TAssignmentPtr& assignment)
     AssignedResourceUsage_ -= assignment->ResourceUsage;
 
     if (assignment->AllocationId) {
-        EraseOrCrash(AllocationIdToAssignment_, *assignment->AllocationId);
+        EraseOrCrash(AllocationIdToAssignment_, assignment->AllocationId);
     } else {
         auto it = GetIteratorOrCrash(EmptyAssignmentCountPerGroup_, assignment->AllocationGroupName);
         YT_VERIFY(it->second > 0);
@@ -281,6 +281,7 @@ void TOperation::AddAllocation(const TAllocationStatePtr& allocation, const TAss
 
     --GetOrCrash(EmptyAssignmentCountPerGroup_, assignment->AllocationGroupName);
     EmplaceOrCrash(AllocationIdToAssignment_, allocationId, assignment);
+    LastScheduleAllocationSuccessTime_ = TInstant::Now();
 
     auto [it, inserted] = AllocationIdToAllocationState_.try_emplace(allocationId, allocation);
     YT_VERIFY(inserted || it->second == allocation);
@@ -298,7 +299,7 @@ void TOperation::AddRevivedAllocation(
 {
     YT_VERIFY(Assignments_.contains(assignment));
     YT_VERIFY(assignment->AllocationId == allocation->GetId());
-    YT_VERIFY(GetOrCrash(AllocationIdToAssignment_, *assignment->AllocationId) == assignment);
+    YT_VERIFY(GetOrCrash(AllocationIdToAssignment_, assignment->AllocationId) == assignment);
     EmplaceOrCrash(AllocationIdToAllocationState_, allocation->GetId(), allocation);
 }
 
@@ -329,6 +330,7 @@ TOperationSnapshotState TOperation::BuildSnapshotInfo() const
         .Starving = Starving_,
         .Enabled = Enabled_,
         .SchedulingModule = SchedulingModule_,
+        .LastScheduleAllocationSuccessTime = LastScheduleAllocationSuccessTime_,
     };
 
     for (const auto& assignment : Assignments_) {
@@ -429,7 +431,7 @@ void TNode::RemoveAssignment(const TAssignmentPtr& assignment)
     AssignedResourceUsage_ -= assignment->ResourceUsage;
 
     if (assignment->AllocationId) {
-        EraseOrCrash(AllocationIdToAssignment_, *assignment->AllocationId);
+        EraseOrCrash(AllocationIdToAssignment_, assignment->AllocationId);
     }
 }
 
@@ -437,19 +439,19 @@ void TNode::PreemptAssignment(
     const TAssignmentPtr& assignment,
     EAllocationPreemptionReason reason,
     std::string description,
-    std::optional<TOperationId> preemptedForOperationId)
+    TOperationId preemptedForOperationId)
 {
     if (assignment->AllocationId) {
         const auto& allocation = GetOrCrash(
             assignment->Operation->AllocationIdToAllocationState(),
-            *assignment->AllocationId);
+            assignment->AllocationId);
         allocation->PreemptionInfo().emplace(TPreemptionInfo{
             .Reason = reason,
             .Description = std::move(description),
             .PreemptedForOperationId = preemptedForOperationId,
         });
 
-        InsertOrCrash(AllocationsToPreempt_, *assignment->AllocationId);
+        InsertOrCrash(AllocationsToPreempt_, assignment->AllocationId);
     }
 
     RemoveAssignment(assignment);
@@ -497,6 +499,7 @@ void Serialize(const TNode& node, NYson::IYsonConsumer* consumer)
             .Item("assignments").List(node.Assignments())
             .Item("scheduling_module").Value(node.SchedulingModule())
             .Item("assigned_resource_usage").Value(node.AssignedResourceUsage())
+            .OptionalItem("last_heartbeat_statistics", node.LastSchedulingHeartbeatStatistics())
             .DoIf(static_cast<bool>(node.Descriptor()), [&] (auto fluent) {
                 fluent
                     .Item("resource_limits").Value(node.Descriptor()->ResourceLimits)
@@ -514,6 +517,18 @@ void Serialize(const TGpuModuleStatistics& statistic, NYson::IYsonConsumer* cons
             .Item("node_count").Value(statistic.TotalNodes)
             .Item("unreserved_node_count").Value(statistic.UnreservedNodes)
             .Item("full_host_bound_operation_count").Value(statistic.FullHostModuleBoundOperations)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TGpuScheduleAllocationsStatisticsPtr& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Do(std::bind(&BuildScheduleAllocationsStatisticsCommon, statistics, std::placeholders::_1))
+            .Item("scheduled_allocation_count").Value(statistics->ScheduledAllocationCount)
+            .Item("preempted_allocation_count").Value(statistics->PreemptedAllocationCount)
         .EndMap();
 }
 

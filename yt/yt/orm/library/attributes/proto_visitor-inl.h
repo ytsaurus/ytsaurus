@@ -81,7 +81,8 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRegularMessage(
     } else {
         Self()->Expect(NYPath::ETokenType::Literal);
 
-        TString name = Self()->GetLiteralValue();
+        // TODO(babenko): migrate to std::string
+        TString name(Self()->GetLiteralValue());
         Self()->AdvanceOver(name);
         const auto* fieldDescriptor = descriptor->FindFieldByName(name);
         if (fieldDescriptor) {
@@ -488,7 +489,8 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitMapField(
     } else {
         Self()->Expect(NYPath::ETokenType::Literal);
 
-        TString key = Self()->GetLiteralValue();
+        // TODO(babenko): migrate to std::string
+        TString key(Self()->GetLiteralValue());
         Self()->AdvanceOver(key);
 
         auto keyMessage = MakeMapKeyMessage(fieldDescriptor, key).ValueOrThrow();

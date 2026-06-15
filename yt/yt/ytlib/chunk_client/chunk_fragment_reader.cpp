@@ -146,7 +146,7 @@ TProbingPenalty PenalizeBannedNode(TProbingPenalty penalty)
     return {penalty.first, penalty.second + 1e20};
 }
 
-}  // namespace
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

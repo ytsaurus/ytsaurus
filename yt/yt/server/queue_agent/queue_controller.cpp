@@ -116,8 +116,8 @@ public:
                 QueueSnapshot_->BannedSince = QueueSnapshot_->PassInstant;
             }
 
-            QueueSnapshot_->Error = TError("Queue is banned by \"queue_agent_banned\" attribute (BannedSince: %v)",
-                QueueSnapshot_->BannedSince);
+            QueueSnapshot_->Error = TError("Queue is banned by \"queue_agent_banned\" attribute")
+                << TErrorAttribute("banned_since", QueueSnapshot_->BannedSince);
 
             return QueueSnapshot_;
         }
@@ -157,7 +157,7 @@ private:
         // TODO(achulkov2): Check schema for chaos_replicated_table object (we only check for a sync replica below)?
 
         QueueSnapshot_->Family = EQueueFamily::OrderedDynamicTable;
-        auto syncClientContext = ClientDirectory_->GetNativeSyncClient(QueueSnapshot_);
+        auto syncClientContext = ClientDirectory_->GetNativeSyncClient(QueueSnapshot_->Row, QueueSnapshot_->ReplicatedTableMappingRow);
         const auto& tableMountCache = syncClientContext.Client->GetTableMountCache();
         const auto& cellDirectory = syncClientContext.Client->GetNativeConnection()->GetCellDirectory();
 
@@ -281,7 +281,7 @@ private:
             }
         }
 
-        auto clientContext = ClientDirectory_->GetDataReadContext(QueueSnapshot_);
+        auto clientContext = ClientDirectory_->GetDataReadContext(QueueSnapshot_->Row, QueueSnapshot_->ReplicatedTableMappingRow);
 
         auto params = TCollectPartitionRowInfoParams{
             .HasCumulativeDataWeightColumn = true,
@@ -896,7 +896,7 @@ private:
         {
             auto replicaQueueObjectId = ReplicaSnapshot->Row.ObjectId;
             if (!replicaQueueObjectId) {
-                THROW_ERROR_EXCEPTION("Object id is not known for queue replica %Qv, trimming iteration skipped", Path);
+                THROW_ERROR_EXCEPTION("Object id is not known for queue replica %v, trimming iteration skipped", Path);
             }
             ObjectPath = FromObjectId(*replicaQueueObjectId);
 
@@ -933,7 +933,7 @@ private:
             TTablePath replicaPath{replica};
             auto replicaSnapshot = ObjectStore_->FindQueueSnapshot(replicaPath);
             if (!replicaSnapshot) {
-                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing snapshot for queue replica %Qv", replicaPath);
+                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing snapshot for queue replica %v", replicaPath);
             }
 
             auto& replicaContext = replicaContexts.emplace_back(replicaPath, replicaSnapshot);
@@ -963,7 +963,7 @@ private:
             TTablePath replicaPath(std::move(path));
             auto replicaSnapshot = ObjectStore_->FindQueueSnapshot(replicaPath);
             if (!replicaSnapshot) {
-                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing replica snapshot %Qv", replicaPath);
+                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing replica snapshot %v", replicaPath);
             }
             replicaContexts.emplace_back(replicaPath, replicaSnapshot);
         }
@@ -1003,7 +1003,7 @@ private:
         for (const auto& [replicaContext, safeTrimRowCountsOrError] : Zip(replicaContexts, asyncSafeTrimRowCountsOrErrors)) {
             if (!safeTrimRowCountsOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION(
-                    "Unable to get safe trim row counts for replica %Qv, trimming iteration skipped",
+                    "Unable to get safe trim row counts for replica %v, trimming iteration skipped",
                     replicaContext.Path)
                     << safeTrimRowCountsOrError;
             }
@@ -1042,12 +1042,13 @@ private:
             return;
         }
 
-        auto timestampProvider = ClientDirectory_->GetClientOrThrow(QueuePath_.GetCluster().value())->GetTimestampProvider();
+        auto cluster = QueuePath_.GetCluster().value();
+        auto timestampProvider = ClientDirectory_->GetClientOrThrow(cluster)->GetTimestampProvider();
         YT_VERIFY(timestampProvider);
 
         auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
         if (!currentTimestampOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Cannot generate timestamp for cluster %Qv, trimming iteration skipped", QueuePath_.GetCluster().value())
+            THROW_ERROR_EXCEPTION("Cannot generate timestamp for cluster %Qv, trimming iteration skipped", cluster)
                 << currentTimestampOrError;
         }
         auto currentTimestamp = currentTimestampOrError.Value();
@@ -1247,7 +1248,7 @@ private:
 
             if (QueueSnapshot->PartitionCount != Context.ReplicaSnapshot->PartitionCount) {
                 THROW_ERROR_EXCEPTION(
-                    "Cannot perform trimming iteration, control queue %Qv and replica queue %Qv do not "
+                    "Cannot perform trimming iteration, control queue %v and replica queue %v do not "
                     "have the same number of partitions: %v vs %v, respectively; this is probably a misconfiguration",
                     QueuePath,
                     Context.Path,
@@ -1288,33 +1289,33 @@ private:
                 auto consumerSnapshot = ObjectStore->FindConsumerSnapshot(registration.Consumer);
                 if (!consumerSnapshot) {
                     THROW_ERROR_EXCEPTION(
-                        "Trimming iteration skipped due to missing registered vital consumer %Qv",
+                        "Trimming iteration skipped due to missing registered vital consumer %v",
                         registration.Consumer);
                 } else if (!consumerSnapshot->Error.IsOK()) {
                     THROW_ERROR_EXCEPTION(
-                        "Trimming iteration skipped due to erroneous registered vital consumer %Qv",
-                        consumerSnapshot->Row.Path)
+                        "Trimming iteration skipped due to erroneous registered vital consumer %v",
+                        consumerSnapshot->Ref)
                         << consumerSnapshot->Error;
                 }
                 auto it = consumerSnapshot->SubSnapshots.find(QueuePath);
                 if (it == consumerSnapshot->SubSnapshots.end()) {
                     THROW_ERROR_EXCEPTION(
-                        "Trimming iteration skipped due to vital consumer %Qv snapshot not containing information about queue",
-                        consumerSnapshot->Row.Path);
+                        "Trimming iteration skipped due to vital consumer %v snapshot not containing information about queue",
+                        consumerSnapshot->Ref);
                 }
                 const auto& consumerSubSnapshot = it->second;
                 if (!consumerSubSnapshot->Error.IsOK()) {
                     THROW_ERROR_EXCEPTION(
-                        "Trimming iteration skipped due to erroneous queue sub-snapshot in registered vital consumer %Qv",
-                        consumerSnapshot->Row.Path)
+                        "Trimming iteration skipped due to erroneous queue sub-snapshot in registered vital consumer %v",
+                        consumerSnapshot->Ref)
                         << consumerSubSnapshot->Error;
                 }
-                VitalConsumerSubSnapshots[TConsumerReference(consumerSnapshot->Row.Path)] = consumerSubSnapshot;
+                VitalConsumerSubSnapshots[consumerSnapshot->Ref] = consumerSubSnapshot;
             }
 
             if (VitalConsumerSubSnapshots.empty() && !AggregatedQueueExportsProgress.HasExports) {
                 THROW_ERROR_EXCEPTION(
-                    "Attempted trimming iteration on queue %Qv with no vital consumers and no configured static table exports",
+                    "Attempted trimming iteration on queue %v with no vital consumers and no configured static table exports",
                     QueuePath);
             }
         }
@@ -1377,7 +1378,7 @@ private:
                             }
                         } else {
                             partitionContext.Update({.PartitionError = TError(
-                                "Queue sub-snapshot for consumer %Qv does not contain a snapshot for partition %v",
+                                "Queue sub-snapshot for consumer %v does not contain a snapshot for partition %v",
                                 consumerPath,
                                 partitionIndex)});
                             break;
@@ -1422,7 +1423,7 @@ private:
             auto safeTrimRowCountsOrError = WaitFor(internalClient->GetOrderedTabletSafeTrimRowCount(safeTrimRowCountRequests));
             if (!safeTrimRowCountsOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION(
-                    "Unable to get safe trim row counts for replica %Qv to satisfy configured trimming parameters, trimming iteration skipped",
+                    "Unable to get safe trim row counts for replica %v to satisfy configured trimming parameters, trimming iteration skipped",
                     Context.Path)
                     << safeTrimRowCountsOrError;
             }
@@ -1577,7 +1578,7 @@ DEFINE_REFCOUNTED_TYPE(TOrderedDynamicTableController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TErrorQueueController = TErrorController<TQueueTableRow, TQueueSnapshot>;
+using TErrorQueueController = TErrorController<TQueueSnapshot>;
 DEFINE_REFCOUNTED_TYPE(TErrorQueueController)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1599,25 +1600,33 @@ bool UpdateQueueController(
     const auto Logger = QueueControllerLogger().WithTag("Queue: %v, Leading: %v", row.Path, leading);
 
     if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
-        controller = New<TErrorQueueController>(row, replicatedTableMappingRow, TError("Queue synchronization error") << *row.SynchronizationError);
-        YT_LOG_WARNING(row.SynchronizationError.value(), "Queue synchronization error");
+        auto snapshot = New<TQueueSnapshot>(row);
+        snapshot->Error = TError("Queue synchronization error") << *row.SynchronizationError;
+        snapshot->ReplicatedTableMappingRow = replicatedTableMappingRow;
+        YT_LOG_WARNING(snapshot->Error);
+
+        controller = New<TErrorQueueController>(std::move(snapshot));
         return true;
     }
 
-    auto queueFamily = DeduceQueueFamily(row, replicatedTableMappingRow);
-    if (!queueFamily.IsOK()) {
-        YT_LOG_WARNING(queueFamily, "Error while deducing queue family");
-        controller = New<TErrorQueueController>(row, replicatedTableMappingRow, queueFamily);
+    auto queueFamilyOrError = DeduceQueueFamily(row, replicatedTableMappingRow);
+    if (!queueFamilyOrError.IsOK()) {
+        auto snapshot = New<TQueueSnapshot>(row);
+        snapshot->Error = TError("Error while deducing queue family") << queueFamilyOrError;
+        snapshot->ReplicatedTableMappingRow = replicatedTableMappingRow;
+        YT_LOG_WARNING(snapshot->Error);
+
+        controller = New<TErrorQueueController>(std::move(snapshot));
         return true;
     }
 
     auto currentController = DynamicPointerCast<IQueueController>(controller);
-    if (currentController && currentController->GetFamily() == queueFamily.Value() && currentController->IsLeading() == leading) {
+    if (currentController && currentController->GetFamily() == queueFamilyOrError.Value() && currentController->IsLeading() == leading) {
         // Do not recreate the controller if it is of the same family and leader/follower status.
         return false;
     }
 
-    switch (queueFamily.Value()) {
+    switch (queueFamilyOrError.Value()) {
         case EQueueFamily::OrderedDynamicTable: {
             auto newController = New<TOrderedDynamicTableController>(
                 leading,

@@ -216,7 +216,8 @@ THashMap<std::string, TQueueExportProgressPtr> DoGetQueueExportProgressFromObjec
     auto exportsPath = Format("/%v/status/exports", ToYPathLiteral(stringPath));
     auto queueExportsYson = WaitFor(AsyncYPathGet(queueService, exportsPath))
         .ValueOrThrow("Get request failed (Queue: %v, ExportsPath: %v)",
-            queuePath, exportsPath);
+            queuePath,
+            exportsPath);
 
     auto queueExportsNode = ConvertTo<IMapNodePtr>(queueExportsYson);
     if (auto error = queueExportsNode->FindChildValue<TError>("error")) {
@@ -324,6 +325,36 @@ TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<std::string
         result.MergeWith(TAggregatedQueueExportsProgress::FromQueueExportProrgess(exportProgress));
     }
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateConsumer(
+    const TConsumerTableRow& row,
+    const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow)
+{
+    if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
+        THROW_ERROR_EXCEPTION("Consumer synchronization failed")
+            << *row.SynchronizationError;
+    }
+
+    if (!row.RowRevision) {
+        THROW_ERROR_EXCEPTION("Consumer is not in-sync yet");
+    }
+    if (!row.ObjectType) {
+        THROW_ERROR_EXCEPTION("Consumer object type is not known yet");
+    }
+    if (!row.Schema) {
+        THROW_ERROR_EXCEPTION("Consumer schema is not known yet");
+    }
+
+    if (IsReplicatedTableObjectType(row.ObjectType) && !replicatedTableMappingRow) {
+        THROW_ERROR_EXCEPTION("No replicated table mapping row is known for replicated consumer");
+    }
+
+    if (replicatedTableMappingRow) {
+        replicatedTableMappingRow->Validate();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

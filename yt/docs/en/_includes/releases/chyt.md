@@ -8,6 +8,26 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.18.4**" %}
+
+**Release date:** 2026-05-15
+
+
+**Release page:** [2.18.4](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.4)
+
+
+**Docker image:** [ghcr.io/ytsaurus/chyt:2.18.4](https://github.com/orgs/ytsaurus/packages/container/chyt/873819001?tag=2.18.4)
+
+
+**Fixes:**
+
+* Add missing extractKeyValuePairs functions to CHYT target (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
+* Use FetcherInvoker for TableAttributeCache (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
+
+
+{% endcut %}
+
+
 {% cut "**2.18.3**" %}
 
 **Release date:** 2026-04-02
@@ -39,7 +59,8 @@ Is released as a docker image.
 **Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.2](https://github.com/orgs/ytsaurus/packages/container/chyt/757077349?tag=stable-2.18.2)
 
 
-No description
+#### Fixes:
+* Fix distinct optimization reading not full block (056b99bd53dc92c2fdb2d59b8c0f30dafca9c80c)
 
 {% endcut %}
 

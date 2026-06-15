@@ -90,7 +90,7 @@ public:
         const TJobId& jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         std::vector<std::vector<TOverlayData>> /*perVolumeOverlayData*/,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) override
+        const std::vector<TVolumeMountPtr>& volumeMounts) override
     {
         YT_VERIFY(sandboxPath);
         // Create debug tag.
@@ -101,7 +101,7 @@ public:
         result->reserve(volumes.size());
         for (const auto& volume : volumes) {
             YT_VERIFY(volume->VolumeType == EVolumeType::Tmpfs);
-            auto mountPath = GetVolumeMountPathByVolumeId(volume->VolumeId, volumeMounts);
+            auto mountPath(GetVolumeMountPathByVolumeId(volume->VolumeId, volumeMounts));
             future = future
                 .Apply(BIND([tag, jobId, sandboxPath, volume, mountPath, result, this, this_ = MakeStrong(this)] {
                     return CreateTmpfsVolume(tag, jobId, *sandboxPath, StaticPointerCast<TTmpfsVolumeParams>(volume), mountPath)
@@ -128,12 +128,15 @@ public:
     TFuture<void> LinkVolumes(
         const std::string&,
         const std::vector<TVolumeResultPtr>&,
-        const std::vector<NScheduler::TVolumeMountPtr>&) override
+        const std::vector<TVolumeMountPtr>&) override
     {
         YT_UNIMPLEMENTED("LinkVolumes is not implemented for SimpleVolumeManager");
     }
 
-    TFuture<void> RemoveVolumes(const std::string& place, TDuration timeout) override
+    TFuture<void> RemoveVolumes(
+        const std::string& place,
+        TDuration timeout,
+        const THashSet<std::string>& /*excludedVolumePaths*/) override
     {
         YT_LOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager (Place: %v, Timeout: %v)",
             place,
@@ -231,7 +234,7 @@ private:
         const TJobId& jobId,
         const std::string& sandboxPath,
         const TTmpfsVolumeParamsPtr& volume,
-        const std::string& mountPath)
+        const TAbsoluteNormalizedPath& mountPath)
     {
         YT_VERIFY(!sandboxPath.empty());
 
@@ -240,7 +243,7 @@ private:
             /*Cypress path*/ "n/a");
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
-        auto path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, mountPath));
+        auto path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, mountPath.Path().string()));
 
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
@@ -608,7 +611,7 @@ public:
         const TJobId& jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
-        const std::vector<NScheduler::TVolumeMountPtr>&) override
+        const std::vector<TVolumeMountPtr>&) override
     {
         YT_VERIFY(volumes.size() == perVolumeOverlayData.size());
 
@@ -671,18 +674,18 @@ public:
     TFuture<void> LinkVolumes(
         const std::string& destinationDirectory,
         const std::vector<TVolumeResultPtr>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) override
+        const std::vector<TVolumeMountPtr>& volumeMounts) override
     {
         // Create debug tag.
         auto tag = TGuid::Create();
 
         TFuture<void> future = OKFuture;
         for (const auto& volumeMount : volumeMounts) {
-            if (volumeMount->MountPath == "/") {
+            if (volumeMount->MountPath == TAbsoluteNormalizedPath("/")) {
                 continue;
             }
             auto volume = GetNonRootVolumeResultByVolumeId(volumeMount->VolumeId, volumes);
-            auto target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, volumeMount->MountPath));
+            auto target = NFS::GetRealPath(NFS::JoinPaths(destinationDirectory, volumeMount->MountPath.Path().string()));
 
             future = future
                 .Apply(
@@ -736,19 +739,24 @@ public:
         return location->RbindRootVolume(volume, slotPath);
     }
 
-    //! Remove volumes planted at a given place.
-    TFuture<void> RemoveVolumes(const std::string& place, TDuration timeout) override
+    //! Remove volumes planted at a given place, excluding the given porto mount paths.
+    TFuture<void> RemoveVolumes(
+        const std::string& place,
+        TDuration timeout,
+        const THashSet<std::string>& excludedVolumePaths) override
     {
         auto location = LayerCache_->PickRandomLocation();
         return BIND(
             [
                 location,
                 place,
-                timeout
+                timeout,
+                excludedVolumePaths
             ] {
                 return location->RemoveVolumes(
                     place,
-                    timeout);
+                    timeout,
+                    excludedVolumePaths);
             })
             .AsyncVia(GetCurrentInvoker())
             .Run();

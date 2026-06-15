@@ -1,8 +1,7 @@
-from helpers import get_scheduling_options
 
 from yt_commands import (create, create_access_control_object, create_access_control_object_namespace,
-                         write_file, ls, start_op, get, exists, update_op_parameters, create_user,
-                         sync_create_cells, print_debug, get_driver, remove, make_ace, set as yt_set, select_rows)
+                         write_file, ls, start_op, get, exists, create_user, sync_create_cells, print_debug,
+                         get_driver, remove, make_ace, set as yt_set, select_rows, patch_op_spec)
 
 from yt.clickhouse import get_clique_spec_builder
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config
@@ -24,6 +23,8 @@ import yt.yson as yson
 
 if is_tsan_build():
     import yatest.common
+
+from gdb_helpers import attach_gdb
 
 from threading import Thread
 import os
@@ -92,7 +93,14 @@ class Clique(object):
     query_log_table_path = None
     dictionaries_path = None
 
-    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, alias=None, export_query_log=False, **kwargs):
+    def __init__(self, instance_count,
+                 max_failed_job_count=0,
+                 config_patch=None,
+                 cpu_limit=None,
+                 alias=None,
+                 export_query_log=False,
+                 enable_dictionary_repository=True,
+                 **kwargs):
         """
         alias: str
             Alias for the database. With or without asterisk: both forms are legal.
@@ -166,12 +174,13 @@ class Clique(object):
         config["yt"]["user_defined_sql_objects_storage"]["path"] = self.sql_udf_path
         config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
 
-        config["yt"]["dictionary_repository"] = dict()
-        self.dictionaries_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
-        config["yt"]["dictionary_repository"]["root_path"] = self.dictionaries_path
-        create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
-            "acl": [ace],
-        })
+        if enable_dictionary_repository:
+            config["yt"]["dictionary_repository"] = dict()
+            self.dictionaries_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
+            config["yt"]["dictionary_repository"]["root_path"] = self.dictionaries_path
+            create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
+                "acl": [ace],
+            })
 
         spec = {"pool": None}
         self.is_tracing = False
@@ -359,12 +368,10 @@ class Clique(object):
 
         block_rows = 0
         for row in query_log_rows:
-            statistics = row['chyt_query_statistics']
-            if "secondary_query_source" not in statistics:
-                continue
-            if "block_rows" not in statistics["secondary_query_source"]:
-                continue
-            block_rows += statistics["secondary_query_source"]["block_rows"]["sum"]
+            statistics = row.get('chyt_query_statistics', {})
+            source = statistics.get("secondary_query_source", {})
+            block = source.get("block_rows", {})
+            block_rows += block.get("sum", 0)
 
         if exact is not None:
             assert block_rows == exact, f"Expected {exact} rows count, but get {block_rows}"
@@ -756,7 +763,7 @@ class Clique(object):
         return self.get_profiler(instance_id).gauge(sensor)
 
     def resize(self, size):
-        update_op_parameters(self.op.id, parameters=get_scheduling_options(user_slots=size))
+        patch_op_spec(self.op.id, patches=[{"path": "/tasks/instances/job_count", "value": size}])
         wait(lambda: self.get_active_instance_count() == size)
 
     def get_clique_id(self):
@@ -817,6 +824,13 @@ class Clique(object):
         wait(get_and_validate_query_log_rows)
 
         return result
+
+    def attach_gdb(self, ex, instance_cookie=0, autoresume=True):
+        instances = self.get_active_instances()
+
+        for inst in instances:
+            if inst.attributes['job_cookie'] == instance_cookie:
+                attach_gdb(inst.attributes['pid'], ex, autoresume=autoresume)
 
 
 class ClickHouseTestBase(YTEnvSetup):

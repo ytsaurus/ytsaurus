@@ -24,6 +24,7 @@
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -534,7 +535,7 @@ public:
             TError operationError("Operation scheduling is stuck");
 
             for (const auto& [treeId, _] : operationState->TreeIdToPoolNameMap()) {
-                auto error = GetTree(treeId)->CheckOperationIsStuck(operationId, Config_->OperationStuckCheck);
+                auto error = GetTree(treeId)->CheckIsOperationStuck(operationId, Config_->OperationStuckCheck);
                 if (error.IsOK()) {
                     hasTreeWithProgress = true;
                     break;
@@ -675,7 +676,8 @@ public:
         }
 
         for (const auto& [treeId, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
-            const auto& offloadingSettings = GetTree(treeId)->GetOffloadingSettingsFor(options->Pool.GetSpecifiedPoolName(), user);
+            // TODO(babenko): migrate to std::string
+            const auto& offloadingSettings = GetTree(treeId)->GetOffloadingSettingsFor(TString(options->Pool.GetSpecifiedPoolName()), user);
             if (offloadingSettings.empty()) {
                 continue;
             }
@@ -707,7 +709,8 @@ public:
                         auto treeParams = New<TOperationPoolTreeRuntimeParameters>();
                         treeParams->Weight = offloadingPoolSettings->Weight;
                         const auto& poolName = offloadingPoolSettings->Pool.value_or(options->Pool.GetSpecifiedPoolName());
-                        treeParams->Pool = tree->CreatePoolName(poolName, user);
+                        // TODO(babenko): migrate to std::string
+                        treeParams->Pool = tree->CreatePoolName(TString(poolName), user);
                         treeParams->Tentative = offloadingPoolSettings->Tentative;
                         treeParams->ResourceLimits = offloadingPoolSettings->ResourceLimits;
                         treeParams->Offloading = true;
@@ -726,7 +729,7 @@ public:
         YT_VERIFY(origin);
 
         for (auto& [poolTree, treeParams] : origin->SchedulingOptionsPerPoolTree) {
-            std::optional<TString> newPoolName = update->Pool;
+            std::optional<std::string> newPoolName = update->Pool;
             auto treeUpdateIt = update->SchedulingOptionsPerPoolTree.find(poolTree);
             if (treeUpdateIt != update->SchedulingOptionsPerPoolTree.end()) {
                 newPoolName = treeUpdateIt->second->Pool;
@@ -738,7 +741,8 @@ public:
                 treeParams->Weight = *update->Weight;
             }
             if (newPoolName) {
-                treeParams->Pool = GetTree(poolTree)->CreatePoolName(*newPoolName, user);
+                // TODO(babenko): migrate to std::string
+                treeParams->Pool = GetTree(poolTree)->CreatePoolName(TString(*newPoolName), user);
             }
         }
     }
@@ -1076,27 +1080,73 @@ public:
             return;
         }
 
-        for (const auto& [treeId, treeAllocationUpdates] : allocationUpdatesPerTree) {
-            auto it = idToTree.find(treeId);
-            if (it == idToTree.end()) {
-                for (const auto& allocationUpdates : treeAllocationUpdates) {
-                    if (allocationUpdates.Finished) {
-                        // Allocation is finished but tree does not exist, nothing to do.
-                        YT_LOG_DEBUG(
-                            "Dropping allocation update since pool tree is missing (OperationId: %v, AllocationId: %v)",
-                            allocationUpdates.OperationId,
-                            allocationUpdates.AllocationId);
-                    } else {
-                        // Allocation is orphaned (does not belong to any tree), aborting it.
-                        EmplaceOrCrash(*allocationsToAbort, allocationUpdates.AllocationId, EAbortReason::NonexistentPoolTree);
+        THashMap<std::string, TFuture<std::vector<NPolicy::TProcessAllocationUpdateResult>>> treeIdToUpdateFuture;
+        treeIdToUpdateFuture.reserve(allocationUpdatesPerTree.size());
+
+        {
+            // Process every per-tree batch before this fiber can be suspended: per-allocation update
+            // ordering relies on batches being applied (classic policy, synchronously here) or enqueued to
+            // the control invoker (GPU policy) in drain order. A context switch here would let a later
+            // batch overtake this one.
+            TForbidContextSwitchGuard contextSwitchGuard;
+
+            for (const auto& [treeId, treeAllocationUpdates] : allocationUpdatesPerTree) {
+                auto it = idToTree.find(treeId);
+                if (it == idToTree.end()) {
+                    for (const auto& allocationUpdate : treeAllocationUpdates) {
+                        if (allocationUpdate.Finished) {
+                            // Allocation is finished but tree does not exist, nothing to do.
+                            YT_LOG_DEBUG(
+                                "Dropping allocation update since pool tree is missing (OperationId: %v, AllocationId: %v)",
+                                allocationUpdate.OperationId,
+                                allocationUpdate.AllocationId);
+                        } else {
+                            // Allocation is orphaned (does not belong to any tree), aborting it.
+                            EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, EAbortReason::NonexistentPoolTree);
+                        }
                     }
+
+                    continue;
                 }
 
-                continue;
+                const auto& tree = it->second;
+                EmplaceOrCrash(treeIdToUpdateFuture, treeId, tree->ProcessAllocationUpdates(treeAllocationUpdates));
             }
+        }
 
-            const auto& tree = it->second;
-            tree->ProcessAllocationUpdates(treeAllocationUpdates, allocationsToPostpone, allocationsToAbort);
+        for (const auto& [treeId, future] : treeIdToUpdateFuture) {
+            const auto& treeAllocationUpdates = GetOrCrash(allocationUpdatesPerTree, treeId);
+            auto updateResults = WaitFor(future)
+                .ValueOrThrow();
+            YT_VERIFY(updateResults.size() == treeAllocationUpdates.size());
+
+            for (int index = 0; index < std::ssize(treeAllocationUpdates); ++index) {
+                const auto& allocationUpdate = treeAllocationUpdates[index];
+                const auto& updateResult = updateResults[index];
+
+                if (updateResult.NeedToAbort) {
+                    YT_LOG_DEBUG(
+                        "Aborting allocation update "
+                        "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, AbortReason: %v)",
+                        allocationUpdate.OperationId,
+                        allocationUpdate.AllocationId,
+                        updateResult.Status,
+                        updateResult.AbortReason);
+                    YT_VERIFY(updateResult.AbortReason.has_value());
+                    EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *updateResult.AbortReason);
+                }
+
+                if (updateResult.NeedToPostpone) {
+                    YT_LOG_DEBUG(
+                        "Postpone allocation update since operation is disabled or missing in snapshot "
+                        "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, NeedToAbort: %v)",
+                        allocationUpdate.OperationId,
+                        allocationUpdate.AllocationId,
+                        updateResult.Status,
+                        updateResult.NeedToAbort);
+                    allocationsToPostpone->insert(allocationUpdate.AllocationId);
+                }
+            }
         }
     }
 
@@ -1292,7 +1342,8 @@ public:
             // then its demand and guaranteed resources ratio are considered to be zero.
             TResourceVector currentDemandShare;
             TResourceVector estimatedGuaranteeShare;
-            if (auto poolStateSnapshot = tree->GetMaybeStateSnapshotForPool(poolName.GetPool())) {
+            // TODO(babenko): migrate to std::string
+            if (auto poolStateSnapshot = tree->GetMaybeStateSnapshotForPool(TString(poolName.GetPool()))) {
                 currentDemandShare = poolStateSnapshot->DemandShare;
                 estimatedGuaranteeShare = poolStateSnapshot->EstimatedGuaranteeShare;
             }
@@ -2522,10 +2573,11 @@ private:
         }
 
         void BuildSchedulingAttributesString(
+            const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
             TDelimitedStringBuilderWrapper& delimitedBuilder) const override
         {
             if (Tree_) {
-                Tree_->BuildSchedulingAttributesStringForNode(NodeId_, delimitedBuilder);
+                Tree_->BuildSchedulingAttributesStringForNode(schedulingHeartbeatContext, NodeId_, delimitedBuilder);
             }
         }
 

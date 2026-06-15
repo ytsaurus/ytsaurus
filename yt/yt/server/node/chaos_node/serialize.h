@@ -49,6 +49,9 @@ DEFINE_ENUM(EChaosReign,
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");
 
+static_assert(static_cast<int>(TEnumTraits<EChaosReign>::GetMinValue()) >= NHydra::MinChaosReign);
+static_assert(static_cast<int>(TEnumTraits<EChaosReign>::GetMaxValue()) <= NHydra::MaxChaosReign);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSaveContext

@@ -29,7 +29,7 @@ struct IVolumeManager
         const TJobId& jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
+        const std::vector<TVolumeMountPtr>& volumeMounts) = 0;
 
     //! Prepare overlay layers (download/import) for a set of artifact keys.
     //! Returns one future per layer; each resolves to TOverlayData.
@@ -47,10 +47,13 @@ struct IVolumeManager
     virtual TFuture<void> LinkVolumes(
         const std::string& destinationDirectory,
         const std::vector<TVolumeResultPtr>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
+        const std::vector<TVolumeMountPtr>& volumeMounts) = 0;
 
-    //! Remove volumes planted at a given place.
-    virtual TFuture<void> RemoveVolumes(const std::string& place, TDuration timeout) = 0;
+    //! Remove volumes planted at a given place, excluding the given porto mount paths.
+    virtual TFuture<void> RemoveVolumes(
+        const std::string& place,
+        TDuration timeout,
+        const THashSet<std::string>& excludedVolumePaths = {}) = 0;
 
     //! Remove layers planted at a given place.
     virtual TFuture<void> RemoveLayers(const std::string& place, TDuration timeout) = 0;

@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "serializer.h"
 #endif
-#undef SERIALIZER_INL_H_
 
 #include <yt/yt/core/ytree/convert.h>
 

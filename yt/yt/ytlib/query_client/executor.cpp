@@ -89,14 +89,7 @@ namespace {
 
 void MarkMountCacheInvalidationExhausted(TError* error)
 {
-    auto isMountCacheRetryableCode = [] (TErrorCode code) {
-        return std::find(
-            TableMountCacheRetryableCodes.begin(),
-            TableMountCacheRetryableCodes.end(),
-            code) != TableMountCacheRetryableCodes.end();
-    };
-
-    if (error->Attributes().Contains("tablet_id") && isMountCacheRetryableCode(error->GetCode())) {
+    if (error->Attributes().Contains("tablet_id") && TableMountCacheRetryableCodes.contains(error->GetCode())) {
         (*error) <<= TErrorAttribute("mount_cache_invalidation_exhausted", true);
     }
 
@@ -700,7 +693,7 @@ private:
             FunctionImplCache_,
             chunkReadOptions,
             &sdk,
-            options.ExecutionBackend);
+            options);
 
         auto executePlanCallback = GetExecutePlanCallback(
             externalCGInfo,
@@ -784,7 +777,7 @@ private:
             FunctionImplCache_,
             chunkReadOptions,
             &sdk,
-            options.ExecutionBackend);
+            options);
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(query);
 

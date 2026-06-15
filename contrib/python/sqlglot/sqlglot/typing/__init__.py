@@ -2,8 +2,9 @@ import typing as t
 
 from sqlglot import exp
 from sqlglot.helper import subclasses
+from builtins import type as Type
 
-ExprMetadataType = t.Dict[type[exp.Expr], t.Dict[str, t.Any]]
+ExprMetadataType = dict[Type[exp.Expr], dict[str, t.Any]]
 
 TIMESTAMP_EXPRESSIONS = {
     exp.CurrentTimestamp,
@@ -21,7 +22,9 @@ EXPRESSION_METADATA: ExprMetadataType = {
     },
     **{
         expr_type: {"annotator": lambda self, e: self._annotate_unary(e)}
-        for expr_type in subclasses(exp.__name__, (exp.Unary, exp.Alias))
+        for expr_type in subclasses(
+            exp.__name__, (exp.Unary, exp.Alias, exp.IgnoreNulls, exp.RespectNulls)
+        )
     },
     **{
         expr_type: {"returns": exp.DType.BIGINT}
@@ -251,6 +254,7 @@ EXPRESSION_METADATA: ExprMetadataType = {
             exp.ArrayReverse,
             exp.ArraySlice,
             exp.Filter,
+            exp.FirstValue,
             exp.HavingMax,
             exp.LastValue,
             exp.Limit,
@@ -334,10 +338,10 @@ EXPRESSION_METADATA: ExprMetadataType = {
         "annotator": lambda self, e: self._annotate_by_args(e, "start", "end", "step", array=True)
     },
     exp.GenerateDateArray: {
-        "annotator": lambda self, e: self._set_type(e, exp.DataType.build("ARRAY<DATE>"))
+        "annotator": lambda self, e: self._set_type(e, exp.DataType.from_str("ARRAY<DATE>"))
     },
     exp.GenerateTimestampArray: {
-        "annotator": lambda self, e: self._set_type(e, exp.DataType.build("ARRAY<TIMESTAMP>"))
+        "annotator": lambda self, e: self._set_type(e, exp.DataType.from_str("ARRAY<TIMESTAMP>"))
     },
     exp.If: {"annotator": lambda self, e: self._annotate_by_args(e, "true", "false")},
     exp.Literal: {"annotator": lambda self, e: self._annotate_literal(e)},

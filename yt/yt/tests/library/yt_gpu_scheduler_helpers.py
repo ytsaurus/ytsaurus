@@ -13,6 +13,18 @@ import builtins
 
 GPU_STRUCTURED_LOG_CATEGORY = "SchedulerGpuStructuredLog"
 
+NULL_GUID = "0-0-0-0"
+
+
+def is_default_guid(guid):
+    """Whether a guid read from the orchid/structured log is the default (null) guid.
+
+    A strong-typedef guid with a null state (e.g. an unrealized assignment's
+    allocation_id) serializes as the all-zero "0-0-0-0" string rather than an entity,
+    so an absent value (None) and "0-0-0-0" both mean "no id".
+    """
+    return guid is None or guid == NULL_GUID
+
 
 def gpu_scheduler_orchid_operation_path(operation_id, tree="gpu"):
     return scheduler_new_orchid_pool_tree_path(tree) + f"/gpu_assignment_plan/operations/{operation_id}"
@@ -176,7 +188,7 @@ def wait_for_assignment_preempted_preliminary(scheduler_log_file, from_barrier, 
         assignment = event.get("assignment", {}) or {}
         if assignment.get("operation_id") != (op.id if hasattr(op, "id") else op):
             return False
-        return not assignment.get("allocation_id")
+        return is_default_guid(assignment.get("allocation_id"))
 
     def check():
         events = read_gpu_events(

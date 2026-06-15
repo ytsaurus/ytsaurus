@@ -88,6 +88,50 @@ using namespace NQueueClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTypeErasedRow GetTypeErasedRow(const NFuture::TRowModification& modification)
+{
+    return Visit(modification,
+        [] (const NFuture::NRowModifications::TWriteRow& modification) {
+            return modification.Row.ToTypeErasedRow();
+        },
+        [] (const NFuture::NRowModifications::TDeleteRow& modification) {
+            return modification.Key.ToTypeErasedRow();
+        },
+        [] (const NFuture::NRowModifications::TVersionedWriteRow& modification) {
+            return modification.Row;
+        },
+        [] (const NFuture::NRowModifications::TWriteAndLockRow& modification) {
+            return modification.Row.ToTypeErasedRow();
+        });
+}
+
+TLockMask ExtractLocks(const NFuture::TRowModification& modification)
+{
+    return Visit(modification,
+        [] (const NFuture::NRowModifications::TWriteRow&) -> TLockMask {
+            return {};
+        },
+        [] (const NFuture::NRowModifications::TDeleteRow&) -> TLockMask {
+            return {};
+        },
+        [] (const NFuture::NRowModifications::TVersionedWriteRow&) -> TLockMask {
+            return {};
+        },
+        [] (const NFuture::NRowModifications::TWriteAndLockRow& modification) {
+            return std::move(modification.Locks);
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ETransactionState,
     (Active)
     (Committing)
@@ -398,10 +442,10 @@ public:
             .Run(producerPath, queuePath, sessionId, epoch, nameTable, serializedRows, options);
     }
 
-    void ModifyRows(
+    void FutureModifyRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        TSharedRange<TRowModification> modifications,
+        TSharedRange<NFuture::TRowModification> modifications,
         const TModifyRowsOptions& options) override
     {
         ValidateTabletTransactionId(GetId());
@@ -677,7 +721,7 @@ private:
             TYPath path,
             TNameTablePtr nameTable,
             TChunkedMemoryPool* memoryPool,
-            TSharedRange<TRowModification> modifications,
+            TSharedRange<NFuture::TRowModification> modifications,
             const TModifyRowsOptions& options)
             : Transaction_(transaction)
             , Connection_(std::move(connection))
@@ -755,7 +799,7 @@ private:
                     if (syncReplica.Transaction) {
                         YT_LOG_DEBUG("Submitting remote sync replication modifications (Count: %v)",
                             Modifications_.Size());
-                        syncReplica.Transaction->ModifyRows(
+                        syncReplica.Transaction->FutureModifyRows(
                             syncReplica.ReplicaInfo->ReplicaPath,
                             NameTable_,
                             Modifications_,
@@ -817,24 +861,17 @@ private:
                 &columnIndexToLockIndex);
 
             for (const auto& modification : Modifications_) {
-                switch (modification.Type) {
-                    case ERowModificationType::Write:
-                        if (!modification.Locks.IsNone()) {
-                            THROW_ERROR_EXCEPTION("Cannot perform lock by %Qlv modification type, use %Qlv",
-                                ERowModificationType::Write,
-                                ERowModificationType::WriteAndLock);
-                        }
-
+                Visit(modification,
+                    [&] (const NFuture::NRowModifications::TWriteRow& modification) {
                         ValidateClientDataRow(
-                            TUnversionedRow(modification.Row),
+                            modification.Row,
                             *writeSchema,
                             writeIdMapping,
                             NameTable_,
                             tabletIndexColumnId,
                             Options_.AllowMissingKeyColumns);
-                        break;
-
-                    case ERowModificationType::VersionedWrite:
+                    },
+                    [&] (const NFuture::NRowModifications::TVersionedWriteRow& modification) {
                         if (tableInfo->IsReplicated()) {
                             THROW_ERROR_EXCEPTION(
                                 NTabletClient::EErrorCode::TableMustNotBeReplicated,
@@ -857,9 +894,8 @@ private:
                                 tabletIndexColumnId,
                                 Options_.AllowMissingKeyColumns);
                         }
-                        break;
-
-                    case ERowModificationType::Delete:
+                    },
+                    [&] (const NFuture::NRowModifications::TDeleteRow& modification) {
                         if (!tableInfo->IsSorted()) {
                             THROW_ERROR_EXCEPTION(
                                 NTabletClient::EErrorCode::TableMustBeSorted,
@@ -867,14 +903,13 @@ private:
                                 tableInfo->Path);
                         }
                         ValidateClientKey(
-                            TUnversionedRow(modification.Row),
+                            modification.Key,
                             *deleteSchema,
                             deleteIdMapping,
                             NameTable_,
                             Options_.AllowMissingKeyColumns);
-                        break;
-
-                    case ERowModificationType::WriteAndLock: {
+                    },
+                    [&] (const NFuture::NRowModifications::TWriteAndLockRow& modification) {
                         if (!tableInfo->IsSorted()) {
                             THROW_ERROR_EXCEPTION(
                                 NTabletClient::EErrorCode::TableMustBeSorted,
@@ -882,10 +917,8 @@ private:
                                 tableInfo->Path);
                         }
 
-                        auto row = TUnversionedRow(modification.Row);
-
                         bool hasNonKeyColumns = ValidateNonKeyColumnsAgainstLock(
-                            row,
+                            modification.Row,
                             modification.Locks,
                             *writeSchema,
                             writeIdMapping, // NB: Should be consistent with columnIndexToLockIndex.
@@ -895,7 +928,7 @@ private:
                         if (hasNonKeyColumns) {
                             // Lock with write.
                             ValidateClientDataRow(
-                                row,
+                                modification.Row,
                                 *writeSchema,
                                 writeIdMapping,
                                 NameTable_,
@@ -904,17 +937,12 @@ private:
                         } else {
                             // Lock without write.
                             ValidateClientKey(
-                                row,
+                                modification.Row,
                                 *deleteSchema,
                                 deleteIdMapping,
                                 NameTable_);
                         }
-                        break;
-                    }
-
-                    default:
-                        YT_ABORT();
-                }
+                    });
             }
 
             const auto& rowBuffer = transaction->RowBuffer_;
@@ -923,29 +951,26 @@ private:
             for (int modificationIndex = 0; modificationIndex < std::ssize(Modifications_); ++modificationIndex) {
                 const auto& modification = Modifications_[modificationIndex];
                 auto& modificationsData = ModificationsData_[modificationIndex];
-                switch (modification.Type) {
-                    case ERowModificationType::Write:
-                    case ERowModificationType::Delete:
-                    case ERowModificationType::WriteAndLock: {
-                        modificationsData.CapturedRow = rowBuffer->CaptureAndPermuteRow(
-                            TUnversionedRow(modification.Row),
-                            *modificationSchema,
-                            modificationSchema->GetKeyColumnCount(),
-                            modificationIdMapping,
-                            /*validateDuplicateAndRequiredValueColumns*/ modification.Type == ERowModificationType::Write);
 
-                        if (tableInfo->HunkStorageId) {
-                            auto rowPayloads = ExtractHunks(modificationsData.CapturedRow, modificationSchema);
-                            modificationsData.HunkCount = std::ssize(rowPayloads);
-                            HunkPayloads_.insert(
-                                HunkPayloads_.end(),
-                                std::make_move_iterator(rowPayloads.begin()),
-                                std::make_move_iterator(rowPayloads.end()));
-                        }
-                        break;
+                if (std::holds_alternative<NFuture::NRowModifications::TWriteRow>(modification) ||
+                    std::holds_alternative<NFuture::NRowModifications::TDeleteRow>(modification) ||
+                    std::holds_alternative<NFuture::NRowModifications::TWriteAndLockRow>(modification))
+                {
+                    modificationsData.CapturedRow = rowBuffer->CaptureAndPermuteRow(
+                        TUnversionedRow(GetTypeErasedRow(modification)),
+                        *modificationSchema,
+                        modificationSchema->GetKeyColumnCount(),
+                        modificationIdMapping,
+                        /*validateDuplicateAndRequiredValueColumns*/ std::holds_alternative<NFuture::NRowModifications::TWriteRow>(modification));
+
+                    if (tableInfo->HunkStorageId) {
+                        auto rowPayloads = ExtractHunks(modificationsData.CapturedRow, modificationSchema);
+                        modificationsData.HunkCount = std::ssize(rowPayloads);
+                        HunkPayloads_.insert(
+                            HunkPayloads_.end(),
+                            std::make_move_iterator(rowPayloads.begin()),
+                            std::make_move_iterator(rowPayloads.end()));
                     }
-                    default:
-                        break;
                 }
             }
         }
@@ -961,17 +986,21 @@ private:
                 return OKFuture;
             }
 
-            const auto& hunkTableInfo = TableSession_->GetHunkTableInfo();
-            RandomHunkTabletInfo_ = hunkTableInfo->GetRandomMountedTablet()
-                .ValueOrThrow();
+            // NB: We need to guarantee that for each tablet session, that is created later during submit
+            // and may contain rows from multiple modification requests, there is a unique assigned hunk tablet.
+            // As tablet session is created later on, we simply match a single hunk tablet to each table.
+            auto hunkTabletInfo = transaction->GetAssignedHunkTabletInfo(
+                TableSession_->GetInfo()->TableId,
+                TableSession_->GetHunkTableInfo(),
+                /*createIfMissing*/ true);
 
-            auto cellChannel = transaction->Client_->GetCellChannelOrThrow(RandomHunkTabletInfo_->CellId);
+            auto cellChannel = transaction->Client_->GetCellChannelOrThrow(hunkTabletInfo->CellId);
             TTabletServiceProxy proxy(cellChannel);
             // TODO(nadya02): Set the correct timeout here.
             proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
             auto req = proxy.WriteHunks();
-            ToProto(req->mutable_tablet_id(), RandomHunkTabletInfo_->TabletId);
-            req->set_mount_revision(ToProto(RandomHunkTabletInfo_->MountRevision));
+            ToProto(req->mutable_tablet_id(), hunkTabletInfo->TabletId);
+            req->set_mount_revision(ToProto(hunkTabletInfo->MountRevision));
 
             auto payloadCount = std::ssize(HunkPayloads_);
             auto payloadHolder = MakeSharedRangeHolder(std::move(transaction));
@@ -1060,147 +1089,143 @@ private:
                 const auto& modification = Modifications_[modificationIndex];
                 auto& modificationData = ModificationsData_[modificationIndex];
 
-                switch (modification.Type) {
-                    case ERowModificationType::Write:
-                    case ERowModificationType::Delete:
-                    case ERowModificationType::WriteAndLock: {
-                        auto capturedRow = std::move(modificationData.CapturedRow);
+                if (std::holds_alternative<NFuture::NRowModifications::TWriteRow>(modification) ||
+                    std::holds_alternative<NFuture::NRowModifications::TDeleteRow>(modification) ||
+                    std::holds_alternative<NFuture::NRowModifications::TWriteAndLockRow>(modification))
+                {
+                    auto capturedRow = std::move(modificationData.CapturedRow);
 
-                        TTabletInfoPtr tabletInfo;
-                        if (tableInfo->IsSorted()) {
-                            if (evaluator) {
-                                evaluator->EvaluateKeys(capturedRow, rowBuffer, /*preserveColumnsIds*/ false);
-                            }
-                            tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
-                        } else {
-                            tabletInfo = GetOrderedTabletForRow(
-                                tableInfo,
-                                randomTabletInfo,
-                                tabletIndexColumnId,
-                                TUnversionedRow(modification.Row),
-                                true);
+                    TTabletInfoPtr tabletInfo;
+                    if (tableInfo->IsSorted()) {
+                        if (evaluator) {
+                            evaluator->EvaluateKeys(capturedRow, rowBuffer, /*preserveColumnsIds*/ false);
                         }
+                        tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
+                    } else {
+                        tabletInfo = GetOrderedTabletForRow(
+                            tableInfo,
+                            randomTabletInfo,
+                            tabletIndexColumnId,
+                            TUnversionedRow(GetTypeErasedRow(modification)),
+                            true);
+                    }
 
-                        auto modificationType = modification.Type;
-                        auto locks = modification.Locks;
-                        if (!tableInfo->Indices.empty()) {
-                            for (int index = 0; index < locks.GetSize(); ++index) {
-                                THROW_ERROR_EXCEPTION_IF(locks.Get(index) == ELockType::SharedWrite,
-                                    "Unsupported %Qlv lock for table %v with a secondary index",
-                                    ELockType::SharedWrite,
-                                    tableInfo->Path);
-                            }
+                    auto command = GetCommand(modification);
+                    auto locks = ExtractLocks(modification);
+
+                    if (!tableInfo->Indices.empty()) {
+                        for (int index = 0; index < locks.GetSize(); ++index) {
+                            THROW_ERROR_EXCEPTION_IF(locks.Get(index) == ELockType::SharedWrite,
+                                "Unsupported %Qlv lock for table %v with a secondary index",
+                                ELockType::SharedWrite,
+                                tableInfo->Path);
                         }
-                        if (tableInfo->IsPhysicallyLog() && modificationType == ERowModificationType::WriteAndLock) {
-                            if (tableInfo->IsChaosReplica() &&
-                                capturedRow.GetCount() == static_cast<ui32>(modificationSchema->GetKeyColumnCount()))
-                            {
-                                break;
-                            }
-
-                            modificationType = ERowModificationType::Write;
-                            locks = TLockMask();
-                        }
-
-                        auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
-                        if (modificationData.HunkCount > 0) {
-                            YT_VERIFY(RandomHunkTabletInfo_);
-
-                            THunkChunksInfo hunkInfo{
-                                .CellId = RandomHunkTabletInfo_->CellId,
-                                .HunkTabletId = RandomHunkTabletInfo_->TabletId,
-                                .MountRevision = RandomHunkTabletInfo_->MountRevision
-                            };
-
-                            int lastHunkDescriptorIndex = currentHunkDescriptorIndex + modificationData.HunkCount;
-                            YT_VERIFY(lastHunkDescriptorIndex <= std::ssize(HunkDescriptors_));
-
-                            std::vector<THunkDescriptor> descriptors(
-                                HunkDescriptors_.begin() + currentHunkDescriptorIndex,
-                                HunkDescriptors_.begin() + lastHunkDescriptorIndex);
-
-                            for (const auto& descriptor : descriptors) {
-                                auto& ref = hunkInfo.HunkChunkRefs[descriptor.ChunkId];
-                                ref.ChunkId = descriptor.ChunkId;
-                                ++ref.HunkCount;
-                                ref.TotalHunkLength += descriptor.Length - sizeof(THunkPayloadHeader);
-                                ref.ErasureCodec = descriptor.ErasureCodec;
-                            }
-
-                            ReplaceHunks(
-                                capturedRow,
-                                modificationSchema,
-                                std::move(descriptors),
-                                HunkMemoryPool_);
-
-                            session->MemorizeHunkInfo(hunkInfo);
-                            currentHunkDescriptorIndex += modificationData.HunkCount;
-                        }
-
-                        auto command = GetCommand(modificationType);
-
-                        if (modificationType == ERowModificationType::Write &&
-                            tableInfo->IsSorted() &&
-                            !tableInfo->IsPhysicallyLog())
+                    }
+                    if (tableInfo->IsPhysicallyLog() && command == EWireProtocolCommand::WriteAndLockRow) {
+                        if (tableInfo->IsChaosReplica() &&
+                            capturedRow.GetCount() == static_cast<ui32>(modificationSchema->GetKeyColumnCount()))
                         {
-                            YT_VERIFY(locks.IsNone());
-                            for (const auto& value : TUnversionedRow(modification.Row)) {
-                                int mappedId = ApplyIdMapping(value, &primaryIdMapping);
-
-                                auto lockIndex = columnIndexToLockIndex[mappedId];
-                                if (lockIndex == -1) {
-                                    continue;
-                                }
-
-                                locks.Set(lockIndex, ELockType::Exclusive);
-                            }
-
-                            command = GetCommand(ERowModificationType::WriteAndLock);
+                            continue;
                         }
 
-                        session->SubmitUnversionedRow(command, capturedRow, std::move(locks));
-
-                        break;
+                        command = EWireProtocolCommand::WriteRow;
+                        locks = {};
                     }
 
-                    case ERowModificationType::VersionedWrite: {
-                        TTypeErasedRow row;
-                        TTabletInfoPtr tabletInfo;
-                        if (tableInfo->IsSorted()) {
-                            auto capturedRow = rowBuffer->CaptureAndPermuteRow(
-                                TVersionedRow(modification.Row),
-                                *primarySchema,
-                                primaryIdMapping,
-                                /*validateDuplicateAndRequiredValueColumns*/ true,
-                                Options_.AllowMissingKeyColumns);
-                            if (evaluator) {
-                                evaluator->EvaluateKeys(capturedRow, rowBuffer, /*preserveColumnsIds*/ false);
-                            }
-                            row = capturedRow.ToTypeErasedRow();
-                            tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
-                        } else {
-                            auto capturedRow = rowBuffer->CaptureAndPermuteRow(
-                                TUnversionedRow(modification.Row),
-                                *primarySchema,
-                                primarySchema->GetKeyColumnCount(),
-                                primaryIdMapping,
-                                /*validateDuplicateAndRequiredValueColumns*/ true);
-                            row = capturedRow.ToTypeErasedRow();
-                            tabletInfo = GetOrderedTabletForRow(
-                                tableInfo,
-                                randomTabletInfo,
-                                tabletIndexColumnId,
-                                TUnversionedRow(modification.Row),
-                                true);
+                    auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
+                    if (modificationData.HunkCount > 0) {
+                        auto hunkTabletInfo = transaction->GetAssignedHunkTabletInfo(
+                            TableSession_->GetInfo()->TableId,
+                            TableSession_->GetHunkTableInfo(),
+                            /*createIfMissing*/ false);
+
+                        THunkChunksInfo hunkInfo{
+                            .CellId = hunkTabletInfo->CellId,
+                            .HunkTabletId = hunkTabletInfo->TabletId,
+                            .MountRevision = hunkTabletInfo->MountRevision
+                        };
+
+                        int lastHunkDescriptorIndex = currentHunkDescriptorIndex + modificationData.HunkCount;
+                        YT_VERIFY(lastHunkDescriptorIndex <= std::ssize(HunkDescriptors_));
+
+                        std::vector<THunkDescriptor> descriptors(
+                            HunkDescriptors_.begin() + currentHunkDescriptorIndex,
+                            HunkDescriptors_.begin() + lastHunkDescriptorIndex);
+
+                        for (const auto& descriptor : descriptors) {
+                            auto& ref = hunkInfo.HunkChunkRefs[descriptor.ChunkId];
+                            ref.ChunkId = descriptor.ChunkId;
+                            ++ref.HunkCount;
+                            ref.TotalHunkLength += descriptor.Length - sizeof(THunkPayloadHeader);
+                            ref.ErasureCodec = descriptor.ErasureCodec;
                         }
 
-                        auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
-                        session->SubmitVersionedRow(row);
-                        break;
+                        ReplaceHunks(
+                            capturedRow,
+                            modificationSchema,
+                            std::move(descriptors),
+                            HunkMemoryPool_);
+
+                        session->MemorizeHunkInfo(hunkInfo);
+                        currentHunkDescriptorIndex = lastHunkDescriptorIndex;
                     }
 
-                    default:
-                        YT_ABORT();
+                    if (command == EWireProtocolCommand::WriteRow &&
+                        tableInfo->IsSorted() &&
+                        !tableInfo->IsPhysicallyLog())
+                    {
+                        YT_VERIFY(locks.IsNone());
+                        for (const auto& value : TUnversionedRow(GetTypeErasedRow(modification))) {
+                            int mappedId = ApplyIdMapping(value, &primaryIdMapping);
+
+                            auto lockIndex = columnIndexToLockIndex[mappedId];
+                            if (lockIndex == -1) {
+                                continue;
+                            }
+
+                            locks.Set(lockIndex, ELockType::Exclusive);
+                        }
+
+                        command = EWireProtocolCommand::WriteAndLockRow;
+                    }
+
+                    session->SubmitUnversionedRow(command, capturedRow, std::move(locks));
+                } else {
+                    const auto* versionedWrite = std::get_if<NFuture::NRowModifications::TVersionedWriteRow>(&modification);
+                    YT_VERIFY(versionedWrite);
+
+                    TTypeErasedRow row;
+                    TTabletInfoPtr tabletInfo;
+                    if (tableInfo->IsSorted()) {
+                        auto capturedRow = rowBuffer->CaptureAndPermuteRow(
+                            TVersionedRow(versionedWrite->Row),
+                            *primarySchema,
+                            primaryIdMapping,
+                            /*validateDuplicateAndRequiredValueColumns*/ true,
+                            Options_.AllowMissingKeyColumns);
+                        if (evaluator) {
+                            evaluator->EvaluateKeys(capturedRow, rowBuffer, /*preserveColumnsIds*/ false);
+                        }
+                        row = capturedRow.ToTypeErasedRow();
+                        tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
+                    } else {
+                        auto capturedRow = rowBuffer->CaptureAndPermuteRow(
+                            TUnversionedRow(versionedWrite->Row),
+                            *primarySchema,
+                            primarySchema->GetKeyColumnCount(),
+                            primaryIdMapping,
+                            /*validateDuplicateAndRequiredValueColumns*/ true);
+                        row = capturedRow.ToTypeErasedRow();
+                        tabletInfo = GetOrderedTabletForRow(
+                            tableInfo,
+                            randomTabletInfo,
+                            tabletIndexColumnId,
+                            TUnversionedRow(versionedWrite->Row),
+                            true);
+                    }
+
+                    auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
+                    session->SubmitVersionedRow(row);
                 }
             }
             YT_VERIFY(currentHunkDescriptorIndex == std::ssize(HunkDescriptors_));
@@ -1212,7 +1237,7 @@ private:
         const TYPath Path_;
         const TNameTablePtr NameTable_;
         TChunkedMemoryPool* HunkMemoryPool_;
-        const TSharedRange<TRowModification> Modifications_;
+        const TSharedRange<NFuture::TRowModification> Modifications_;
         const TModifyRowsOptions Options_;
 
         const NLogging::TLogger& Logger;
@@ -1225,28 +1250,24 @@ private:
         };
         std::vector<TModificationData> ModificationsData_;
 
-        TTabletInfoPtr RandomHunkTabletInfo_;
         std::vector<TRef> HunkPayloads_;
         std::vector<THunkDescriptor> HunkDescriptors_;
 
-        static EWireProtocolCommand GetCommand(ERowModificationType modificationType)
+        static EWireProtocolCommand GetCommand(const NFuture::TRowModification& modification)
         {
-            switch (modificationType) {
-                case ERowModificationType::Write:
+            return Visit(modification,
+                [] (const NFuture::NRowModifications::TWriteRow&) {
                     return EWireProtocolCommand::WriteRow;
-
-                case ERowModificationType::VersionedWrite:
-                    return EWireProtocolCommand::VersionedWriteRow;
-
-                case ERowModificationType::Delete:
+                },
+                [] (const NFuture::NRowModifications::TDeleteRow&) {
                     return EWireProtocolCommand::DeleteRow;
-
-                case ERowModificationType::WriteAndLock:
+                },
+                [] (const NFuture::NRowModifications::TVersionedWriteRow&) {
+                    return EWireProtocolCommand::VersionedWriteRow;
+                },
+                [] (const NFuture::NRowModifications::TWriteAndLockRow&) {
                     return EWireProtocolCommand::WriteAndLockRow;
-
-                default:
-                    YT_ABORT();
-            }
+                });
         }
 
         const TNameTableToSchemaIdMapping& GetColumnIdMapping(
@@ -1615,6 +1636,9 @@ private:
     //! Maintains per-tablet commit info.
     THashMap<TTabletId, ITabletCommitSessionPtr> TabletIdToSession_;
 
+    //! Maintains per-table info on corresponding hunk tablet in case of hunk writes.
+    THashMap<TTabletId, TTabletInfoPtr> TableIdToHunkTabletInfo_;
+
     //! Maintains per-cell commit info.
     ICellCommitSessionProviderPtr CellCommitSessionProvider_;
 
@@ -1808,6 +1832,25 @@ private:
                     tabletInfo,
                     tableInfo,
                     Logger)).first;
+        }
+        return it->second;
+    }
+
+    TTabletInfoPtr GetAssignedHunkTabletInfo(
+        TTableId tableId,
+        const TTableMountInfoPtr& hunkTableInfo,
+        bool createIfMissing)
+    {
+        auto it = TableIdToHunkTabletInfo_.find(tableId);
+        if (it == TableIdToHunkTabletInfo_.end()) {
+            YT_VERIFY(createIfMissing);
+
+            auto hunkTabletInfo = hunkTableInfo->GetRandomMountedTablet()
+                .ValueOrThrow();
+            it = EmplaceOrCrash(
+                TableIdToHunkTabletInfo_,
+                tableId,
+                hunkTabletInfo);
         }
         return it->second;
     }
@@ -2111,7 +2154,7 @@ private:
                 modifier->OnIndexModifications([&, modifyRowsOptions = std::move(modifyRowsOptions)] (
                     TYPath path,
                     TNameTablePtr nameTable,
-                    TSharedRange<TRowModification> modifications)
+                    TSharedRange<NFuture::TRowModification> modifications)
                 {
                     EnqueueModificationRequest(std::make_unique<TModificationRequest>(
                         this,
@@ -2365,7 +2408,7 @@ private:
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] {
-                    Transaction_->ChooseCoordinator(CommitOptions_);
+                    Transaction_->ChoosePreliminaryCoordinator(CommitOptions_);
 
                     return Transaction_->ValidateNoDownedParticipants();
                 }).AsyncVia(SerializedInvoker_))
@@ -2384,6 +2427,9 @@ private:
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TTransactionFlushResult>& results) {
                     THashMap<TCellId, TTransactionSignature> participantExpectedPrepareSignatures;
+
+                    CellCommitSessionProvider_->UnregisterUnusedParticipants();
+                    Transaction_->ChooseCoordinator(CommitOptions_);
 
                     for (const auto& result : results) {
                         for (auto [cellId, signature] : Zip(result.ParticipantCellIds, result.ExpectedPrepareSignatures)) {
@@ -2461,6 +2507,8 @@ private:
                                 << error;
                         }
                     }
+
+                    CellCommitSessionProvider_->UnregisterUnusedParticipants();
 
                     TTransactionFlushResult result;
                     auto cellToCommitSession = CellCommitSessionProvider_->GetCellCommitSessions();

@@ -1195,14 +1195,20 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
             return true;
 
-        case EInternedAttributeKey::HasRowLevelAce:
+        case EInternedAttributeKey::HasRowLevelAce: {
             if (!isNative) {
                 break;
             }
+
+            auto value = Object_->IsSequoia()
+                ? SequoiaNodeHasRowLevelAce_
+                : Bootstrap_->GetSecurityManager()->HasRowLevelAce(Object_);
+
             BuildYsonFluently(consumer)
-                .Value(Bootstrap_->GetSecurityManager()->HasRowLevelAce(Object_));
+                .Value(value);
 
             return true;
+        }
 
         case EInternedAttributeKey::HunkReferenceStatistics: {
             if (isExternal) {
@@ -2133,6 +2139,9 @@ void TTableNodeProxy::RemoveSelf(TReqRemove* request, TRspRemove* response, cons
 
 bool TTableNodeProxy::ShouldHideRowCount() const
 {
+    if (Object_->IsSequoia()) {
+        return SequoiaNodeHasRowLevelAce_;
+    }
     // NB(coteeq): CachedHasRowLevelAce_ may be null if we did not check permissions for the subject.
     // This may happen if the subject is a superuser.
     return CachedHasRowLevelAce_.value_or(false);

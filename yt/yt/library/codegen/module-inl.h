@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "module.h"
 #endif
-#undef CODEGEN_MODULE_INL_H_
 
 #include "caller.h"
 

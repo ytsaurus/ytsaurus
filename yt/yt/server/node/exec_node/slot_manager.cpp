@@ -36,6 +36,8 @@
 
 #include <yt/yt/core/utilex/random.h>
 
+#include <library/cpp/yt/system/process_id.h>
+
 namespace NYT::NExecNode {
 
 using namespace NContainers;
@@ -60,7 +62,7 @@ TSlotManager::TSlotManager(IBootstrap* bootstrap)
     , StaticConfig_(Bootstrap_->GetConfig()->ExecNode->SlotManager)
     , DynamicConfig_(New<TSlotManagerDynamicConfig>())
     , SlotCount_(Bootstrap_->GetConfig()->JobResourceManager->ResourceLimits->UserSlots)
-    , NodeTag_(Format("yt-node-%v-%v", Bootstrap_->GetConfig()->RpcPort, GetCurrentProcessId()))
+    , NodeTag_(Format("yt-node-%v-%v", Bootstrap_->GetConfig()->RpcPort, GetProcessId()))
     , PortoHealthChecker_(New<TPortoHealthChecker>(
         New<TPortoExecutorDynamicConfig>(),
         Bootstrap_->GetControlInvoker(),
@@ -76,6 +78,11 @@ bool TSlotManager::IsJobEnvironmentResurrectionEnabled()
 {
     return DynamicConfig_.Acquire()
         ->EnableJobEnvironmentResurrection;
+}
+
+IVolumeManagerPtr TSlotManager::GetVolumeManager() const
+{
+    return VolumeManager_.Acquire();
 }
 
 void TSlotManager::OnContainerDevicesCheckFinished(const TError& error)
@@ -718,6 +725,19 @@ TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
         }
     }
 
+    std::vector<TSlotLocationInfo> locations;
+    {
+        auto guard = ReaderGuard(LocationsLock_);
+        locations.reserve(Locations_.size());
+        for (const auto& location : Locations_) {
+            locations.push_back({
+                .Path = location->GetPath(),
+                .Enabled = location->IsEnabled(),
+                .DisableError = location->GetDisableError(),
+            });
+        }
+    }
+
     return {
         .SlotCount = SlotCount_,
         .FreeSlotCount = static_cast<int>(FreeSlots_.size()),
@@ -725,6 +745,7 @@ TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
         .IdlePolicyRequestedCpu = IdlePolicyRequestedCpu_,
         .NumaNodeStates = NumaNodeStates_,
         .Alerts = std::move(alerts),
+        .Locations = std::move(locations),
     };
 }
 
@@ -1148,6 +1169,15 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
                             .Item(FormatEnum(alertType)).Value(error);
                     }
                 })
+            .Item("locations").DoMapFor(
+                slotManagerInfo.Locations,
+                [&] (TFluentMap fluent, const TSlotLocationInfo& location) {
+                    fluent
+                        .Item(location.Path).BeginMap()
+                            .Item("enabled").Value(location.Enabled)
+                            .Item("disable_error").Value(location.DisableError)
+                        .EndMap();
+                })
             .DoIf(
                 rootVolumeManagerPresent,
                 [rootVolumeManager = std::move(rootVolumeManager)] (TFluentMap fluent){
@@ -1250,22 +1280,6 @@ void TSlotManager::AsyncInitialize()
 
     YT_LOG_INFO("Slot manager async initialization started");
 
-    std::vector<TFuture<void>> initLocationFutures;
-    for (const auto& location : Locations_) {
-        initLocationFutures.push_back(location->Initialize());
-    }
-
-    YT_LOG_INFO("Waiting for all locations to initialize");
-
-    {
-        auto error = WaitFor(AllSet(initLocationFutures));
-        YT_LOG_FATAL_UNLESS(
-            error.IsOK(),
-            error,
-            "Shutdown encountered");
-    }
-    YT_LOG_INFO("Locations initialization finished");
-
     auto dynamicConfig = DynamicConfig_.Acquire();
     auto timeout = dynamicConfig->SlotReleaseTimeout;
     auto slotSync = WaitFor(Bootstrap_->GetJobController()->GetAllJobsCleanupFinishedFuture()
@@ -1273,7 +1287,7 @@ void TSlotManager::AsyncInitialize()
 
     YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");
 
-    // To this moment all old processed must have been killed, so we can safely clean up old volumes
+    // To this moment all old processes must have been killed, so we can safely clean up old volumes
     // during root volume manager initialization.
     JobEnvironmentType_ = StaticConfig_->JobEnvironment.GetCurrentType();
     if (JobEnvironmentType_ == NJobProxy::EJobEnvironmentType::Porto) {
@@ -1287,6 +1301,22 @@ void TSlotManager::AsyncInitialize()
     auto jobEnvironment = JobEnvironment_;
     auto volumeManager = jobEnvironment->CreateVolumeManager(StaticConfig_->Locations);
     VolumeManager_.Store(volumeManager);
+
+    std::vector<TFuture<void>> initLocationFutures;
+    for (const auto& location : Locations_) {
+        initLocationFutures.push_back(location->Initialize(volumeManager));
+    }
+
+    YT_LOG_INFO("Waiting for all locations to initialize");
+
+    {
+        auto error = WaitFor(AllSet(initLocationFutures));
+        YT_LOG_FATAL_UNLESS(
+            error.IsOK(),
+            error,
+            "Shutdown encountered");
+    }
+    YT_LOG_INFO("Locations initialization finished");
 
     NumaNodeStates_.clear();
 

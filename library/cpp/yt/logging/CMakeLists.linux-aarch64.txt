@@ -37,6 +37,7 @@ target_link_libraries(cpp-yt-logging PUBLIC
   cpp-yt-assert
   cpp-yt-memory
   cpp-yt-misc
+  cpp-yt-system
   cpp-yt-yson_string
 )
 

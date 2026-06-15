@@ -238,12 +238,12 @@ private:
         Exit(ToUnderlying(EProgramExitCode::ExecveError));
     }
 
-    void OnError(const TString& message) noexcept
+    void OnError(const std::string& message) noexcept
     {
         LogToStderr(message);
     }
 
-    void LogToStderr(const TString& message)
+    void LogToStderr(const std::string& message)
     {
         auto logRecord = Format("%v (JobId: %v)\n", message, JobId_);
 

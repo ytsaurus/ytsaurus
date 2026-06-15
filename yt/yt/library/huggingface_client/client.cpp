@@ -22,7 +22,7 @@ using namespace NHttp;
 
 namespace {
 
-const TString DefaultHuggingfaceUrl = "https://huggingface.co";
+const std::string DefaultHuggingfaceUrl = "https://huggingface.co";
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "HuggingFace");
 
 NHttp::IClientPtr CreateHttpClient(
@@ -43,16 +43,16 @@ NHttp::IClientPtr CreateHttpClient(
 THuggingfaceClient::THuggingfaceClient(
     const std::optional<std::string>& token,
     IPollerPtr poller,
-    const std::optional<TString>& urlOverride)
+    const std::optional<std::string>& urlOverride)
     : Url_(urlOverride.value_or(DefaultHuggingfaceUrl))
     , Token_(token)
     , Client_(CreateHttpClient(
         std::move(poller),
         MaxRedirectCount,
-        /*allowHttp*/ Url_.StartsWith("http://")))
+        /*allowHttp*/ Url_.starts_with("http://")))
 { }
 
-std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& dataset, const TString& subset, const TString& split)
+std::vector<std::string> THuggingfaceClient::GetParquetFileUrls(const std::string& dataset, const std::string& subset, const std::string& split)
 {
     auto headers = New<THeaders>();
     if (Token_) {
@@ -97,13 +97,13 @@ IAsyncZeroCopyInputStreamPtr THuggingfaceClient::DownloadFile(const std::string&
     return response;
 }
 
-std::vector<TString> THuggingfaceClient::ParseParquetFileUrls(TStringBuf data)
+std::vector<std::string> THuggingfaceClient::ParseParquetFileUrls(TStringBuf data)
 {
     NJson::TJsonValue jsonValue;
     if (!NJson::ReadJsonTree(data, &jsonValue) || !jsonValue.IsArray()) {
         THROW_ERROR_EXCEPTION("Invalid HTTP response: cannot parse http body to JSON list");
     }
-    std::vector<TString> result;
+    std::vector<std::string> result;
     for (const auto& fileUrl : jsonValue.GetArray()) {
         if (!fileUrl.IsString()) {
             THROW_ERROR_EXCEPTION("Invalid HTTP response: expected string element in JSON list");

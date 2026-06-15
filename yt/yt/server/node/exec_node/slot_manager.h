@@ -207,6 +207,8 @@ public:
 
     bool IsJobEnvironmentResurrectionEnabled();
 
+    IVolumeManagerPtr GetVolumeManager() const;
+
     void OnContainerDevicesCheckFinished(const TError& error);
 
 private:
@@ -322,6 +324,13 @@ private:
 
     int DefaultMediumIndex_ = NChunkClient::DefaultSlotsMediumIndex;
 
+    struct TSlotLocationInfo
+    {
+        std::string Path;
+        bool Enabled;
+        TError DisableError;
+    };
+
     struct TSlotManagerInfo
     {
         int SlotCount;
@@ -333,6 +342,8 @@ private:
         std::vector<TNumaNodeState> NumaNodeStates;
 
         TEnumIndexedArray<ESlotManagerAlertType, TError> Alerts;
+
+        std::vector<TSlotLocationInfo> Locations;
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);

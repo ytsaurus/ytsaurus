@@ -46,12 +46,14 @@ public:
                 .Item("offshore_data_gateway").Value(true)
                 .Item("cluster").Value(connection->GetClusterName())
             .EndMap()))
-        , RefreshChannelExecutor_(New<TPeriodicExecutor>(
-            GetCurrentInvoker(),
-            BIND(&TOffshoreDataGatewayChannelProvider::RefreshChannel, MakeWeak(this)),
-            TDuration::Seconds(1)))
     {
-        RefreshChannelExecutor_->Start();
+        if (Config_->DataGatewayUpdatePeriod) {
+            RefreshChannelExecutor_ = New<TPeriodicExecutor>(
+                GetCurrentInvoker(),
+                BIND(&TOffshoreDataGatewayChannelProvider::RefreshChannel, MakeWeak(this)),
+                *Config_->DataGatewayUpdatePeriod);
+            RefreshChannelExecutor_->Start();
+        }
     }
 
     const std::string& GetEndpointDescription() const override

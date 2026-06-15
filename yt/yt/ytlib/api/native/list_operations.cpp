@@ -147,7 +147,7 @@ void TListOperationsCountingFilter::MergeFrom(const TListOperationsCountingFilte
 class TConstructingOperationConsumer
 {
 public:
-    TConstructingOperationConsumer(TOperation& operation, const THashSet<TString>& attributes)
+    TConstructingOperationConsumer(TOperation& operation, const THashSet<std::string>& attributes)
         : Operation_(operation)
         , Attributes_(attributes)
     { }
@@ -317,7 +317,7 @@ public:
 
 private:
     TOperation& Operation_;
-    const THashSet<TString>& Attributes_;
+    const THashSet<std::string>& Attributes_;
 
     TYsonString Annotations_;
     TYsonString HeavyRuntimeParameters_;
@@ -814,7 +814,7 @@ TListOperationsFilter::TListOperationsFilter(
     , Logger(logger)
 { }
 
-std::vector<TOperation> TListOperationsFilter::BuildOperations(const THashSet<TString>& attributes) const
+std::vector<TOperation> TListOperationsFilter::BuildOperations(const THashSet<std::string>& attributes) const
 {
     YT_LOG_DEBUG("Building final operations result");
 

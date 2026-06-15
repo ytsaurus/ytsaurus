@@ -13,6 +13,7 @@ namespace NYT::NAuth {
 DECLARE_REFCOUNTED_STRUCT(TAuthCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TBlackboxServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TBlackboxTicketAuthenticatorConfig)
+DECLARE_REFCOUNTED_STRUCT(TCachingTicketAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TBlackboxTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TCachingBlackboxTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressTokenAuthenticatorConfig)

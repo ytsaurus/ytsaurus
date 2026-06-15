@@ -3,14 +3,14 @@
 #include <yt/yt/core/concurrency/private.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/invoker_queue.h>
-#include <yt/yt/core/concurrency/profiling_helpers.h>
+#include <yt/yt/core/concurrency/helpers.h>
 #include <yt/yt/core/concurrency/scheduler_thread.h>
 #include <yt/yt/core/concurrency/thread_pool_detail.h>
 
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/ring_queue.h>
 
-#include <yt/yt/core/profiling/tscp.h>
+#include <library/cpp/yt/system/tscp.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

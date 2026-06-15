@@ -46,7 +46,7 @@ TRelativePath TRelativePath::MakeCanonicalPathOrThrow(TStringBuf path)
     return TRelativePath(builder.Flush());
 }
 
-TRelativePath TRelativePath::UnsafeMakeCanonicalPath(TString&& path) noexcept
+TRelativePath TRelativePath::UnsafeMakeCanonicalPath(NYPath::TYPath&& path) noexcept
 {
     return TRelativePath(std::move(path));
 }
@@ -78,7 +78,7 @@ TAbsolutePath TAbsolutePath::MakeCanonicalPathOrThrow(TStringBuf path)
     return TAbsolutePath(builder.Flush());
 }
 
-TAbsolutePath TAbsolutePath::UnsafeMakeCanonicalPath(TString&& path) noexcept
+TAbsolutePath TAbsolutePath::UnsafeMakeCanonicalPath(NYPath::TYPath&& path) noexcept
 {
     return TAbsolutePath(std::move(path));
 }

@@ -102,14 +102,15 @@ constinit const auto Logger = CypressProxyLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(danilalexeev): YT-25988. Maintain effective ACL for unreachable nodes.
-const TSerializableAccessControlList UnreachableNodeAcl = {
-    .Entries = {
-        TSerializableAccessControlEntry(
-            ESecurityAction::Allow,
-            /*subjects*/ {EveryoneGroupName},
-            EPermission::Read)
-    },
-};
+static const auto UnreachableNodeSerializedAcl = NYson::ConvertToYsonString(
+    TSerializableAccessControlList{
+        .Entries = {
+            TSerializableAccessControlEntry(
+                ESecurityAction::Allow,
+                /*subjects*/ {EveryoneGroupName},
+                EPermission::Read)
+        },
+    });
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,6 +206,7 @@ protected:
     const std::vector<TResolvedPrerequisiteRevision> ResolvedPrerequisiteRevisions_;
 
     TSuppressableAccessTrackingOptions AccessTrackingOptions_;
+    TPermissionValidationResult PermissionValidationResult_;
 
     DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, MultisetAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
@@ -307,7 +309,7 @@ protected:
             return;
         }
 
-        ValidatePermissionForNode(
+        PermissionValidationResult_ = ValidatePermissionForNode(
             SequoiaSession_,
             ResolveResult_.NodeAncestry,
             permission,
@@ -399,16 +401,16 @@ protected:
         }
     }
 
-    TSerializableAccessControlList GetThisEffectiveAcl()
+    NYson::TYsonString GetThisSerializedEffectiveAcl()
     {
         // TODO(danilalexeev): YT-25988. Maintain effective ACL for unreachable nodes.
         if (IsSnapshot() && std::ssize(ResolveResult_.NodeAncestry) == 1) {
-            return UnreachableNodeAcl;
+            return UnreachableNodeSerializedAcl;
         }
 
-        return ComputeEffectiveAclForNode(
+        return NYson::ConvertToYsonString(ComputeEffectiveAclForNode(
             SequoiaSession_,
-            ResolveResult_.NodeAncestry);
+            ResolveResult_.NodeAncestry));
     }
 
     std::tuple<ESecurityAction, TMatchAceSubjectCallback, TIntermediateReadPermissionCheckResult>
@@ -851,7 +853,9 @@ protected:
         }
 
         if (!HasSpecialAttributes(attributeFilter)) {
-            AbortSequoiaSessionForLaterForwardingToMaster();
+            AbortSequoiaSessionForLaterForwardingToMaster({
+                .HasRowLevelAce = PermissionValidationResult_.HasRowLevelAce,
+            });
             return;
         }
 
@@ -923,7 +927,7 @@ protected:
             TYPathBuf("/@" + path),
             TYsonString(request->value()),
             force,
-            ConvertToYsonString(GetThisEffectiveAcl()),
+            GetThisSerializedEffectiveAcl(),
             AccessTrackingOptions_);
 
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
@@ -946,7 +950,7 @@ protected:
             Id_,
             TYPathBuf("/@" + path),
             force,
-            ConvertToYsonString(GetThisEffectiveAcl()));
+            GetThisSerializedEffectiveAcl());
 
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
@@ -1085,7 +1089,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
         targetPath,
         subrequests,
         force,
-        ConvertToYsonString(GetThisEffectiveAcl()),
+        GetThisSerializedEffectiveAcl(),
         AccessTrackingOptions_);
 
     FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
@@ -1101,7 +1105,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
     // Permission validation is handled by master.
-    AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());
+    AbortSequoiaSessionForLaterForwardingToMaster({
+        .EffectiveAcl = GetThisSerializedEffectiveAcl(),
+    });
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CheckPermission)
@@ -1131,7 +1137,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CheckPermission)
         tokenizer.Expect(NYPath::ETokenType::Literal);
     }
 
-    AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());
+    AbortSequoiaSessionForLaterForwardingToMaster({
+        .EffectiveAcl = GetThisSerializedEffectiveAcl(),
+    });
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Fetch)
@@ -1569,7 +1577,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Alter)
         YT_OPTIONAL_FROM_PROTO(*request, clip_timestamp, TTimestamp));
 
     // Permission validation is handled by master.
-    AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());
+    AbortSequoiaSessionForLaterForwardingToMaster({
+        .EffectiveAcl = GetThisSerializedEffectiveAcl(),
+    });
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
@@ -2759,7 +2769,9 @@ private:
             vital,
             ignoreSafeMode);
 
-        AbortSequoiaSessionForLaterForwardingToMaster(/*forwardEffectiveAcl*/ UnreachableNodeAcl);
+        AbortSequoiaSessionForLaterForwardingToMaster({
+            .EffectiveAcl = UnreachableNodeSerializedAcl,
+        });
     }
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override

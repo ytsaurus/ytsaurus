@@ -124,15 +124,33 @@ public:
         }
     }
 
-    void CleanSandbox() override
+    void CleanUserImportedPortoResources(const THashSet<std::string>& preservedVolumePaths) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
-        RemoveVolumesFromPortoPlace();
+        YT_VERIFY(VolumeManager_);
 
-        RemoveLayersFromPortoPlace();
+        Location_->RemoveVolumesFromPortoPlace(SlotIndex_, VolumeManager_, preservedVolumePaths);
+        Location_->RemoveLayersFromPortoPlace(SlotIndex_, VolumeManager_);
+    }
+
+    void CleanPortoPlace() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
+
+        WaitFor(Location_->CleanPortoPlace(SlotIndex_))
+            .ThrowOnError();
+    }
+
+    void CleanSandbox() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
 
         WaitFor(Location_->CleanSandboxes(
             SlotIndex_))
@@ -478,21 +496,25 @@ public:
             return MakeFuture<void>(std::move(error));
         }
 
-        auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
+        auto rootPath = GetRootPath(rootVolume, testRootFs);
 
-        YT_LOG_DEBUG("Linking volumes into sandbox (UserSandboxPath: %v, Volumes: %v)",
-            userSandboxPath,
-            MakeFormattableView(volumeResults,
-                [] (auto* builder, const TVolumeResultPtr& result) {
-                    builder->AppendFormat("{VolumeId: %v}",
-                        result->VolumeId);
+        YT_LOG_DEBUG(
+            "Linking volumes into root (RootPath: %v, Volumes: %v)",
+            rootPath,
+            MakeFormattableView(volumeMounts,
+                [] (auto* builder, const TVolumeMountPtr& volumeMount) {
+                    builder->AppendFormat(
+                        "{VolumeId: %v, MountPath: %v}",
+                        volumeMount->VolumeId,
+                        volumeMount->MountPath);
                 }));
+
 
         return RunPreparationAction(
             /*actionName*/ "LinkVolumes",
             /*uncancelable*/ true,
-            [userSandboxPath = std::move(userSandboxPath), volumeResults, volumeMounts, this, this_ = MakeStrong(this)] {
-                return VolumeManager_->LinkVolumes(userSandboxPath, volumeResults, volumeMounts);
+            [rootPath = std::move(rootPath), volumeResults, volumeMounts, this, this_ = MakeStrong(this)] {
+                return VolumeManager_->LinkVolumes(rootPath, volumeResults, volumeMounts);
         });
     }
 
@@ -557,7 +579,6 @@ public:
 
     TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
-        const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
         bool ignoreQuota) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -572,7 +593,6 @@ public:
                 return Location_->PrepareSandboxDirectories(
                     SlotIndex_,
                     options,
-                    nonRootVolumeParams,
                     ignoreQuota);
             });
     }
@@ -715,6 +735,18 @@ public:
         }
     }
 
+    TString GetRootPath(const IVolumePtr& rootVolume, bool testRootFs) const
+    {
+        VerifyEnabled();
+
+        if (rootVolume && !testRootFs) {
+            YT_VERIFY(!rootVolume->GetPath().empty());
+            return TString(rootVolume->GetPath());
+        } else {
+            return Location_->GetSlotPath(SlotIndex_);
+        }
+    }
+
     void ValidateEnabled() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -794,75 +826,6 @@ private:
             Format("%v-job-proxy-grpc-%v", NodeTag_, SlotIndex_)});
     }
 
-    //! Remove volumes planted in porto place.
-    void RemoveVolumesFromPortoPlace()
-    {
-        auto portoPlacePath = Location_->GetSandboxPath(SlotIndex_, ESandboxKind::PortoPlace);
-
-        if (!VolumeManager_) {
-            YT_LOG_DEBUG(
-                "Volume manager is not available, skipping porto place cleanup (PortoPlace: %v)",
-                portoPlacePath);
-            return;
-        }
-
-        auto timeout = Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager->RemoveVolumesFromPortoPlaceTimeout;
-
-        YT_LOG_DEBUG(
-            "Cleaning up volumes from porto place (PortoPlace: %v, Timeout: %v)",
-            portoPlacePath,
-            timeout);
-
-        auto removeVolumesResult = WaitFor(VolumeManager_->RemoveVolumes(portoPlacePath, timeout));
-        if (!removeVolumesResult.IsOK()) {
-            auto error = TError("Failed to remove volumes from porto place")
-                << TErrorAttribute("porto_place", portoPlacePath)
-                << removeVolumesResult;
-            YT_LOG_ERROR(error);
-            // It would be nice to disable just this particular slot index, not the whole slot.
-            Location_->Disable(error);
-            THROW_ERROR error;
-        }
-
-        YT_LOG_DEBUG(
-            "Cleaned up volumes from porto place (PortoPlace: %v)",
-            portoPlacePath);
-    }
-
-    //! Remove layers planted in porto place.
-    void RemoveLayersFromPortoPlace()
-    {
-        auto portoPlacePath = Location_->GetSandboxPath(SlotIndex_, ESandboxKind::PortoPlace);
-
-        if (!VolumeManager_) {
-            YT_LOG_DEBUG(
-                "Volume manager is not available, skipping porto place layer cleanup (PortoPlace: %v)",
-                portoPlacePath);
-            return;
-        }
-
-        auto timeout = Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager->RemoveLayersFromPortoPlaceTimeout;
-
-        YT_LOG_DEBUG(
-            "Cleaning up layers from porto place (PortoPlace: %v, Timeout: %v)",
-            portoPlacePath,
-            timeout);
-
-        auto removeLayersResult = WaitFor(VolumeManager_->RemoveLayers(portoPlacePath, timeout));
-        if (!removeLayersResult.IsOK()) {
-            auto error = TError("Failed to remove layers from porto place")
-                << TErrorAttribute("porto_place", portoPlacePath)
-                << removeLayersResult;
-            YT_LOG_ERROR(error);
-            // It would be nice to disable just this particular slot index, not the whole slot.
-            Location_->Disable(error);
-            THROW_ERROR error;
-        }
-
-        YT_LOG_DEBUG(
-            "Cleaned up layers from porto place (PortoPlace: %v)",
-            portoPlacePath);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

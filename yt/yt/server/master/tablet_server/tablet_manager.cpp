@@ -593,7 +593,7 @@ public:
         table->ValidateNotBackup("Cannot alter replica of a backup table");
 
         if (table->GetAggregatedTabletBackupState() != ETabletBackupState::None) {
-            THROW_ERROR_EXCEPTION("Canont alter replica since its table is being backed up")
+            THROW_ERROR_EXCEPTION("Cannot alter replica since its table is being backed up")
                 << TErrorAttribute("table_id", table->GetId())
                 << TErrorAttribute("tablet_backup_state", table->GetAggregatedTabletBackupState());
         }
@@ -2668,7 +2668,7 @@ public:
 
         for (auto* node : owningNodes) {
             // NB: We skip hunk storage here, because there shall not be any shared chunk lists,
-            // also tablet (both regular and cumulatve) statistics does not make sence anyway, because
+            // also tablet (both regular and cumulative) statistics does not make sense anyway, because
             // sealed journal hunk chunks get removed from corresponding chunk lists almost immediately.
             if (!IsTableType(node->GetType())) {
                 continue;
@@ -2697,7 +2697,7 @@ public:
         }
 
         // NB: We accumulate statistics to ancestors before copying shared chunk lists, because otherwise
-        // statistics are copied incorrectly as chunk manager is anaware of which chunk has just been sealed.
+        // statistics are copied incorrectly as chunk manager is unaware of which chunk has just been sealed.
         VisitAllAncestorsInHunkTree(chunk, [&] (TChunkList* chunkList, bool /*firstOccurrence*/) {
             chunkList->AccumulateHunkStatistics(chunk);
         });

@@ -263,6 +263,7 @@ func (a *API) versionedResourceUsageHandler(w http.ResponseWriter, r *http.Reque
 // @Failure 401 {object} GetResourceUsageResponse
 // @Failure 500 {object} GetResourceUsageResponse
 // @Router /get-resource-usage [post]
+// @Router /get-children-and-resource-usage [post]
 func (a *API) resourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, ok := ctx.Value(access.AuthInfoKey).(access.AuthInfo)
@@ -343,6 +344,7 @@ func (a *API) resourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} GetResourceUsageDiffResponse
 // @Failure 403 {object} GetResourceUsageDiffResponse
 // @Router /get-resource-usage-diff [post]
+// @Router /get-children-and-resource-usage-diff [post]
 func (a *API) resourceUsageDiffHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, ok := ctx.Value(access.AuthInfoKey).(access.AuthInfo)

@@ -9,6 +9,7 @@ PY_SRCS(
 
     __init__.py
     tool_runner_mcp.py
+    server.py
     tools/helpers.py
     # tools
     tools/__init__.py
