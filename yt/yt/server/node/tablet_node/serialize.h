@@ -31,11 +31,6 @@ void SetCurrentReignOverride(NHydra::TReign reign);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr static const int MinTabletReign = 100000;
-constexpr static const int MaxTabletReign = 190000;
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM(ETabletReign,
     // 24.2 starts here.
     ((Start_24_2)                                  (101000)) // ponasenko-rs
@@ -95,8 +90,8 @@ DEFINE_ENUM(ETabletReign,
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
 
-static_assert(static_cast<int>(TEnumTraits<ETabletReign>::GetMinValue()) >= MinTabletReign);
-static_assert(static_cast<int>(TEnumTraits<ETabletReign>::GetMaxValue()) <= MaxTabletReign);
+static_assert(static_cast<int>(TEnumTraits<ETabletReign>::GetMinValue()) >= NHydra::MinTabletReign);
+static_assert(static_cast<int>(TEnumTraits<ETabletReign>::GetMaxValue()) <= NHydra::MaxTabletReign);
 
 ////////////////////////////////////////////////////////////////////////////////
 
