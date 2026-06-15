@@ -6,6 +6,7 @@ SRCS(
     yql_expr_providers_ut.cpp
     yql_rewrite_io_ut.cpp
     yql_qplayer_ut.cpp
+    yql_view_ut.cpp
     yql_walk_folders_ut.cpp
 )
 
