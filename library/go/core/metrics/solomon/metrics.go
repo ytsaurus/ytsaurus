@@ -166,9 +166,10 @@ type Metrics struct {
 // MarshalJSON implements json.Marshaler.
 func (s Metrics) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Metrics   []Metric `json:"metrics"`
-		Timestamp *int64   `json:"ts,omitempty"`
-	}{s.metrics, tsAsRef(s.timestamp)})
+		Metrics      []Metric          `json:"metrics"`
+		Timestamp    *int64            `json:"ts,omitempty"`
+		CommonLabels map[string]string `json:"commonLabels,omitempty"`
+	}{s.metrics, tsAsRef(s.timestamp), s.commonLabels})
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler.
