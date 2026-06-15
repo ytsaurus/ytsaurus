@@ -13,6 +13,7 @@ PY_SRCS(
     _experimental.py
     describe.py
     logs_k8s.py
+    remove_master_unrecognized_options.py
 )
 
 END()
@@ -22,6 +23,8 @@ RECURSE(
     metrics
 )
 
-RECURSE_FOR_TESTS(
-    tests
-)
+IF (NOT OPENSOURCE OR OPENSOURCE_PROJECT == "yt")
+    RECURSE_FOR_TESTS(
+        tests
+    )
+ENDIF()
