@@ -687,7 +687,7 @@ private:
             FunctionImplCache_,
             chunkReadOptions,
             &sdk,
-            options.ExecutionBackend);
+            options);
 
         auto executePlanCallback = GetExecutePlanCallback(
             externalCGInfo,
@@ -771,7 +771,7 @@ private:
             FunctionImplCache_,
             chunkReadOptions,
             &sdk,
-            options.ExecutionBackend);
+            options);
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(query);
 

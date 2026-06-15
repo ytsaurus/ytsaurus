@@ -216,6 +216,7 @@ struct TQueryOptions
     bool AdaptiveOrderedSchemafulReader = true;
     // COMPAT(sabdenovch)
     bool UseOrderByInJoinSubqueries = false;
+    bool AllowUdfObjectCodeCache = false;
 
     std::optional<i64> JoinCacheSize;
 

@@ -45,6 +45,9 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("codegen_optimization_level", &TThis::OptimizationLevel)
         .Optional();
 
+    registrar.Parameter("allow_udf_object_code_cache", &TThis::AllowUdfObjectCodeCache)
+        .Optional();
+
     registrar.Parameter("rewrite_cardinality_into_hyper_log_log_with_precision", &TThis::RewriteCardinalityIntoHyperLogLogWithPrecision)
         .Optional();
 
