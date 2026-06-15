@@ -1002,6 +1002,37 @@ class TestJobQuery(YTEnvSetup):
         _test("[#2:#4]", "a where a <= 10", [{"a": 2}, {"a": 10}], 2)
         _test("[10]", "a where a > 0", [{"a": 10}], 1)
 
+    @authors("psushin")
+    def test_query_range_inference_descending(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "descending"}]},
+        )
+        create("table", "//tmp/t_out")
+        # Write 3 chunks in descending order: [22,21,20], [12,11,10], [2,1,0].
+        for i in range(2, -1, -1):
+            write_table("<append=%true>//tmp/t", [{"a": i * 10 + j} for j in range(2, -1, -1)])
+        assert get("//tmp/t/@chunk_count") == 3
+
+        def _test(query, rows):
+            op = map(
+                in_="//tmp/t",
+                out="//tmp/t_out",
+                command="cat",
+                spec={"input_query": query, "job_count": 1},
+            )
+            assert_items_equal(read_table("//tmp/t_out"), rows)
+            # Range inferrer does not support descending sort order, so all 3 chunks are read.
+            wait(lambda: assert_statistics(
+                op,
+                key="data.input.chunk_count",
+                assertion=lambda actual_chunk_count: actual_chunk_count == 3))
+
+        _test("a where a between 5 and 15", [{"a": i} for i in [10, 11, 12]])
+        _test("a where a >= 15", [{"a": i} for i in [20, 21, 22]])
+        _test("a where a <= 15", [{"a": i} for i in [0, 1, 2, 10, 11, 12]])
+
     @authors("savrus")
     def test_query_range_inference_with_computed_columns(self):
         create(
