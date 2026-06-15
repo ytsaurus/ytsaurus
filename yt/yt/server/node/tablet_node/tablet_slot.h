@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "row_cache_controller.h"
 
 #include <yt/yt/server/node/tablet_node/tablet_memory_statistics.h>
 
@@ -126,6 +127,8 @@ struct ITabletSlot
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
 
     virtual TFuture<TTabletCellMemoryStatistics> GetMemoryStatistics() = 0;
+
+    virtual TFuture<TRowCacheControllerContext> GetRowCacheControllerContext() = 0;
 
     virtual bool IsTabletEpochActive() const = 0;
 
