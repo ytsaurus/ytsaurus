@@ -1,13 +1,4 @@
-PY3TEST()
-
-SIZE(SMALL)
-
-PEERDIR(
-    yt/python/client_with_admin
+RECURSE_FOR_TESTS(
+    integration
+    unit
 )
-
-TEST_SRCS(
-    test_metrics.py
-)
-
-END()
