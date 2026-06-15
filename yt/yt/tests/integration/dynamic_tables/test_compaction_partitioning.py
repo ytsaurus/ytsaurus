@@ -546,7 +546,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 "dynamic_store_flush_period_splay": 0,
                 "compaction_hints": {
                     "row_digest": {
-                        "enable_non_aggregates": True,
+                        "enable_aggregates": True,
                     },
                 },
                 "min_data_ttl": 0,
@@ -567,11 +567,11 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         self._update_compaction_hint_fetcher_config("versioned_row_digest", 1)
 
-        # Create a large chunk that will not be compacted will smaller ones and thus will prevent
+        # Create a large chunk that will not be compacted with smaller ones and thus will prevent
         # purging delete tombstones by major timestamp.
         insert_rows("//tmp/t", [{"key": 1, "value": "a" * 16 * 2**20}])
 
-        wait(lambda: get_chunk_ids())
+        wait(get_chunk_ids)
         large_chunk_id = get_singular_chunk_id("//tmp/t")
 
         # Insert many delete timestamps and see how chunks are compacted but to no avail.
@@ -589,7 +589,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert len(get_chunk_ids()) > 1
 
         set("//tmp/t/@mount_config/compaction_hints/row_digest", {
-            "enable_non_aggregates": True,
+            "enable_aggregates": True,
             "max_obsolete_timestamp_ratio": 1,
             "max_timestamps_per_value": 1 << (delete_ts_count // 4).bit_length(),
         })
@@ -601,6 +601,65 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         if lookup_result:
             delete_timestamps = lookup_result[0].attributes["delete_timestamps"]
             assert len(delete_timestamps) < delete_ts_count
+
+    @authors("navasardianna")
+    def test_timestamp_digest_too_many_aggregate_timestamps(self):
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64", "aggregate": "sum"},
+            ],
+            mount_config={
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+                "min_data_ttl": 0,
+                "compaction_hints": {
+                    "row_digest": {
+                        "chunk_writer": {},
+                    },
+                },
+                "enable_lsm_verbose_logging": True,
+            },
+            compression_codec="none"
+        )
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        # We use node orchid to prevent situation when update tablet stores was commited only on master as coordinator.
+        # Can check only stores in partition, because there are no chunks in eden due to disabled always_flush_to_eden.
+        def get_chunk_ids():
+            return get(f"//sys/tablets/{tablet_id}/orchid/partitions/0/stores")
+
+        self._update_compaction_hint_fetcher_config("versioned_row_digest", 1)
+
+        insert_rows("//tmp/t", [{"key": 1, "value": 0}])
+        sync_flush_table("//tmp/t")
+
+        wait(get_chunk_ids)
+        large_chunk_id = get_singular_chunk_id("//tmp/t")
+
+        timestamp_count = 8
+        for _ in range(timestamp_count):
+            insert_rows("//tmp/t", [{"key": 1, "value": 1}], aggregate=True)
+
+        sync_flush_table("//tmp/t")
+
+        sleep(3)
+
+        assert large_chunk_id in get_chunk_ids()
+        assert len(get_chunk_ids()) == 2
+
+        set("//tmp/t/@mount_config/compaction_hints/row_digest", {
+            "enable_aggregates": True,
+            "max_obsolete_timestamp_ratio": 1,
+            "max_timestamps_per_value": 4,
+        })
+        remount_table("//tmp/t")
+
+        wait(lambda: large_chunk_id not in get_chunk_ids())
+        assert len(get_chunk_ids()) == 1
 
     @authors("ifsmirnov")
     def test_flush_to_eden(self):
