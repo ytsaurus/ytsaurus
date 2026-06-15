@@ -116,7 +116,7 @@ class TOrcAdapter
     : public arrow20::io::RandomAccessFile
 {
 public:
-    TOrcAdapter(const TString* metadata, i64 startMetadataOffset, i64 maxStripeSize, std::shared_ptr<IInputStream> reader)
+    TOrcAdapter(const std::string* metadata, i64 startMetadataOffset, i64 maxStripeSize, std::shared_ptr<IInputStream> reader)
         : Metadata_(metadata)
         , StartMetadataOffset_(startMetadataOffset)
         , Reader_(std::move(reader))
@@ -149,7 +149,7 @@ public:
         }
 
         auto metadataOffset = FilePosition_ - StartMetadataOffset_;
-        memcpy(out, Metadata_->begin() + metadataOffset, nbytes);
+        memcpy(out, Metadata_->data() + metadataOffset, nbytes);
         FilePosition_ += nbytes;
         return nbytes;
     }
@@ -199,7 +199,7 @@ public:
     }
 
 private:
-    const TString* const Metadata_;
+    const std::string* const Metadata_;
     const i64 StartMetadataOffset_;
     const std::shared_ptr<IInputStream> Reader_;
 
@@ -212,7 +212,7 @@ class TParquetAdapter
     : public arrow20::io::RandomAccessFile
 {
 public:
-    TParquetAdapter(const TString* metadata, i64 startMetadataOffset, std::shared_ptr<IInputStream> reader)
+    TParquetAdapter(const std::string* metadata, i64 startMetadataOffset, std::shared_ptr<IInputStream> reader)
         : Metadata_(metadata)
         , StartMetadataOffset_(startMetadataOffset)
         , Reader_(std::move(reader))
@@ -233,7 +233,7 @@ public:
         }
 
         auto metadataOffset = FilePosition_ - StartMetadataOffset_;
-        memcpy(out, Metadata_->begin() + metadataOffset, nbytes);
+        memcpy(out, Metadata_->data() + metadataOffset, nbytes);
         FilePosition_ += nbytes;
         return nbytes;
     }
@@ -296,7 +296,7 @@ public:
     }
 
 private:
-    const TString* const Metadata_;
+    const std::string* const Metadata_;
     const i64 StartMetadataOffset_;
     const std::shared_ptr<IInputStream> Reader_;
 
@@ -309,7 +309,7 @@ class TOrcMetadataStream
     : public orc::InputStream
 {
 public:
-    TOrcMetadataStream(const TString* metadata, i64 startMetadataOffset)
+    TOrcMetadataStream(const std::string* metadata, i64 startMetadataOffset)
         : Metadata_(metadata)
         , StartMetadataOffset_(startMetadataOffset)
     { }
@@ -342,7 +342,7 @@ private:
     static constexpr int NaturalReadSize_ = 1;
 
     const std::string Name_ = "OrcMetadataStream";
-    const TString* Metadata_;
+    const std::string* Metadata_;
     const i64 StartMetadataOffset_;
 };
 
@@ -350,7 +350,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 GetMaxStripeSize(const TString* metadata, i64 startMetadataOffset)
+i64 GetMaxStripeSize(const std::string* metadata, i64 startMetadataOffset)
 {
     orc::ReaderOptions readOpts;
     std::unique_ptr<orc::Reader> reader = orc::createReader(
@@ -379,7 +379,7 @@ void ThrowOnError(const arrow20::Status& status)
 ////////////////////////////////////////////////////////////////////////////////
 
 TArrowRandomAccessFilePtr CreateParquetAdapter(
-    const TString* metadata,
+    const std::string* metadata,
     i64 startMetadataOffset,
     std::shared_ptr<IInputStream> reader)
 {
@@ -387,7 +387,7 @@ TArrowRandomAccessFilePtr CreateParquetAdapter(
 }
 
 TArrowRandomAccessFilePtr CreateOrcAdapter(
-    const TString* metadata,
+    const std::string* metadata,
     i64 startMetadataOffset,
     i64 maxStripeSize,
     std::shared_ptr<IInputStream> reader)
@@ -395,7 +395,7 @@ TArrowRandomAccessFilePtr CreateOrcAdapter(
     return std::make_shared<TOrcAdapter>(metadata, startMetadataOffset, maxStripeSize, std::move(reader));
 }
 
-TArrowSchemaPtr CreateArrowSchemaFromParquetMetadata(const TString* metadata, i64 startIndex)
+TArrowSchemaPtr CreateArrowSchemaFromParquetMetadata(const std::string* metadata, i64 startIndex)
 {
     auto inputStream = CreateParquetAdapter(metadata, startIndex);
     auto pool = arrow20::default_memory_pool();
@@ -414,7 +414,7 @@ TArrowSchemaPtr CreateArrowSchemaFromParquetMetadata(const TString* metadata, i6
     return arrowSchema;
 }
 
-TArrowSchemaPtr CreateArrowSchemaFromOrcMetadata(const TString* metadata, i64 startIndex)
+TArrowSchemaPtr CreateArrowSchemaFromOrcMetadata(const std::string* metadata, i64 startIndex)
 {
     auto inputStream = CreateOrcAdapter(metadata, startIndex);
     auto pool = arrow20::default_memory_pool();
