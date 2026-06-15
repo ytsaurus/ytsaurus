@@ -103,7 +103,7 @@ void TModifyRowsTest::ValidateTableContent(
     for (const auto& simpleRow : simpleRows) {
         auto simpleRowString = MakeRowString(simpleRow.first, simpleRow.second);
         auto rowString = ToString(YsonToSchemalessRow(simpleRowString));
-        expected.insert(rowString);
+        expected.insert(TString(rowString));
     }
 
     auto res = WaitFor(Client_->SelectRows("* from [" + Table_ + "]")).
