@@ -6,6 +6,8 @@ from .batch_response import apply_function_to_result
 # For backward compatibility.
 from yt.ypath import parse_ypath  # noqa
 
+from typing import Optional
+
 
 def execute_batch(requests, concurrency=None, client=None):
     """Executes `requests` in parallel as one batch request."""
@@ -70,3 +72,18 @@ def get_supported_features(format=None, client=None):
     params = {}
     result = make_formatted_request("get_supported_features", params=params, format=format, client=client)
     return result["features"]
+
+
+def check_cluster_liveness(check_cypress_root: bool = True, check_secondary_master_cells: bool = True,
+                           check_tablet_cell_bundle: Optional[str] = None, client=None):
+    """Checks cluster liveness. Raises an error if the cluster is not alive.
+
+    :param bool check_cypress_root: check master.
+    :param bool check_secondary_master_cells: check secondary masters.
+    :param str check_tablet_cell_bundle: check that tablet cell bundle's health is good or degraded.
+    """
+    params = {}
+    set_param(params, "check_cypress_root", check_cypress_root)
+    set_param(params, "check_secondary_master_cells", check_secondary_master_cells)
+    set_param(params, "check_tablet_cell_bundle", check_tablet_cell_bundle)
+    make_request("check_cluster_liveness", params=params, client=client)

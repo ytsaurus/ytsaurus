@@ -438,6 +438,23 @@ class YtClient(ClientState):
             client=self
         )
 
+    def check_cluster_liveness(
+        self,
+        check_cypress_root: bool = True, check_secondary_master_cells: bool = True, check_tablet_cell_bundle: Optional[str] = None
+    ):
+        """
+        Checks cluster liveness. Raises an error if the cluster is not alive.
+
+        :param bool check_cypress_root: check master.
+        :param bool check_secondary_master_cells: check secondary masters.
+        :param str check_tablet_cell_bundle: check that tablet cell bundle's health is good or degraded.
+        """
+        return client_api.check_cluster_liveness(
+            client=self,
+            check_cypress_root=check_cypress_root, check_secondary_master_cells=check_secondary_master_cells,
+            check_tablet_cell_bundle=check_tablet_cell_bundle
+        )
+
     def check_operation_permission(
         self,
         operation_id: str = None, user: str = None, permission: str = None, operation_alias: str = None,
