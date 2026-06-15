@@ -14,6 +14,7 @@ using namespace NHiveClient;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +57,26 @@ public:
             CommitSignatureGenerator_.RegisterRequest();
         }
         Actions_.push_back(data);
+    }
+
+    bool HasRegisteredActions() const override
+    {
+        return !Actions_.empty();
+    }
+
+    void RegisterTabletCommitSession(TTabletId tabletId) override
+    {
+        EmplaceOrCrash(Tablets_, tabletId);
+    }
+
+    void UnregisterTabletCommitSession(TTabletId tabletId) override
+    {
+        EraseOrCrash(Tablets_, tabletId);
+    }
+
+    bool HasRegisteredTabletCommitSessions() const override
+    {
+        return !Tablets_.empty();
     }
 
     TFuture<void> Invoke() override
@@ -101,6 +122,7 @@ private:
     const TLogger Logger;
 
     std::vector<TTransactionActionData> Actions_;
+    THashSet<TTabletId> Tablets_;
 
     TFuture<void> SendTabletActions(const TTransactionPtr& owner)
     {
@@ -208,6 +230,23 @@ public:
         } else {
             return cellIt->second;
         }
+    }
+
+    void UnregisterUnusedParticipants() override
+    {
+        auto guard = Guard(Lock_);
+
+        THashSet<TCellId> usedCellIds;
+        auto transaction = Transaction_.Lock();
+        for (const auto& [cellId, session] : CellIdToCommitSession_) {
+            if (session->HasRegisteredTabletCommitSessions() || session->HasRegisteredActions()) {
+                InsertOrCrash(usedCellIds, cellId);
+            } else if (transaction) {
+                transaction->UnregisterParticipant(cellId);
+            }
+        }
+
+        DropMissingKeys(CellIdToCommitSession_, usedCellIds);
     }
 
     std::vector<TCellId> GetParticipantCellIds() const override

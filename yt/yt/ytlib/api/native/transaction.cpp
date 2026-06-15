@@ -2393,7 +2393,7 @@ private:
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] {
-                    Transaction_->ChooseCoordinator(CommitOptions_);
+                    Transaction_->ChoosePreliminaryCoordinator(CommitOptions_);
 
                     return Transaction_->ValidateNoDownedParticipants();
                 }).AsyncVia(SerializedInvoker_))
@@ -2412,6 +2412,9 @@ private:
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TTransactionFlushResult>& results) {
                     THashMap<TCellId, TTransactionSignature> participantExpectedPrepareSignatures;
+
+                    CellCommitSessionProvider_->UnregisterUnusedParticipants();
+                    Transaction_->ChooseCoordinator(CommitOptions_);
 
                     for (const auto& result : results) {
                         for (auto [cellId, signature] : Zip(result.ParticipantCellIds, result.ExpectedPrepareSignatures)) {
@@ -2489,6 +2492,8 @@ private:
                                 << error;
                         }
                     }
+
+                    CellCommitSessionProvider_->UnregisterUnusedParticipants();
 
                     TTransactionFlushResult result;
                     auto cellToCommitSession = CellCommitSessionProvider_->GetCellCommitSessions();

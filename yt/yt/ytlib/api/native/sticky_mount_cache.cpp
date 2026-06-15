@@ -36,7 +36,10 @@ public:
         YT_ABORT();
     }
 
-    TInvalidationResult InvalidateOnError(const TError& /*error*/, bool /*forceRetry*/) override
+    TInvalidationResult InvalidateOnError(
+        const TError& /*error*/,
+        bool /*forceRetry*/,
+        TTabletId /*tabletIdHint*/) override
     {
         YT_ABORT();
     }

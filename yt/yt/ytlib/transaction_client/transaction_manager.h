@@ -91,8 +91,14 @@ public:
     //! Once a participant is registered, it will be pinged.
     void RegisterParticipant(NObjectClient::TCellId cellId);
 
+    //! Once the transaction coordinator is chosen, the participant cannot be unregistered.
+    void UnregisterParticipant(NObjectClient::TCellId cellId);
+
     //! Choose transaction coordinator.
     void ChooseCoordinator(const TTransactionCommitOptions& options);
+
+    //! Choose the preliminary transaction coordinator to use unless it is removed from the participant list.
+    void ChoosePreliminaryCoordinator(const TTransactionCommitOptions& options);
 
     void SetExpectedPrepareSignatures(
         THashMap<NObjectClient::TCellId, NTransactionClient::TTransactionSignature> participantExpectedPrepareSignatures);

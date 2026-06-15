@@ -767,7 +767,7 @@ void FromProto(TIdGenerator* idGenerator, const NProto::TIdGenerator& protoIdGen
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSmoothMovementData::ValidateWriteToTablet() const
+void TSmoothMovementData::ValidateWriteToTablet(TTabletId tabletId) const
 {
     if (Role_ == ESmoothMovementRole::Source) {
         switch (Stage_) {
@@ -792,10 +792,13 @@ void TSmoothMovementData::ValidateWriteToTablet() const
         return;
     }
 
-    THROW_ERROR_EXCEPTION("Cannot write into tablet since it is a "
+    THROW_ERROR_EXCEPTION(
+        NTabletClient::EErrorCode::ReadOnlySmoothMovementStage,
+        "Cannot write into tablet since it is a "
         "smooth movement %lv in stage %Qlv",
         Role_,
-        Stage_);
+        Stage_)
+        << TErrorAttribute("tablet_id", tabletId);
 }
 
 bool TSmoothMovementData::IsTabletStoresUpdateAllowed(bool isCommonFlush) const

@@ -3668,7 +3668,7 @@ private:
         }
 
         if (tablet->IsActiveServant()) {
-            tablet->SmoothMovementData().ValidateWriteToTablet();
+            tablet->SmoothMovementData().ValidateWriteToTablet(tabletId);
         }
 
         chaosData->PreparedWritePulledRowsTransactionId.Store(transaction->GetId());
@@ -3868,7 +3868,7 @@ private:
         }
 
         if (tablet->IsActiveServant()) {
-            tablet->SmoothMovementData().ValidateWriteToTablet();
+            tablet->SmoothMovementData().ValidateWriteToTablet(tabletId);
         }
 
         chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(transaction->GetId());

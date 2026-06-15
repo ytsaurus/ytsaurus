@@ -569,7 +569,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TPromise<void>, TargetActivationPromise);
 
 public:
-    void ValidateWriteToTablet() const;
+    void ValidateWriteToTablet(TTabletId tabletId) const;
     bool IsTabletStoresUpdateAllowed(bool isCommonFlush) const;
     bool ShouldForwardMutation() const;
 
