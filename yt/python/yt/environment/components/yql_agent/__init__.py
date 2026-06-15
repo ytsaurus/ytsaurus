@@ -346,8 +346,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             config["yql_agent"]["dq_manager_config"] = {
                 "interconnect_port": 31002,
                 "grpc_port": 31001,
-                "yt_backends": [
-                    {
+                "yt_backends": {
+                    self.env.id: {
                         "cluster_name": self.env.get_http_proxy_address(),
                         "vanilla_job_lite": dq_vanilla_job_lite,
                         "vanilla_job_file": [
@@ -361,7 +361,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                         "max_jobs": 1,
                         "jobs_per_operation": 1,
                     },
-                ],
+                },
                 "yt_coordinator": {
                     "cluster_name": self.env.get_http_proxy_address(),
                     "prefix": "//sys/yql_agent/dq_coord",

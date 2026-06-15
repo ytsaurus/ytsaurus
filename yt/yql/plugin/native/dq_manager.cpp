@@ -39,7 +39,7 @@ void TDqManagerConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("yt_backends", &TThis::YtBackends)
-        .NonEmpty();
+        .Default();
 
     registrar.Parameter("yt_coordinator", &TThis::YtCoordinator)
         .Default();
@@ -152,14 +152,14 @@ void TDqManager::Start()
     ServiceNode_->StartService(dqTaskPreprocessorFactories);
 
     TVector<NActors::TActorId> ytRMs;
-    ytRMs.reserve(Config_->YtBackends.size());
+    ytRMs.reserve(Config_->YtBackends->GetChildCount());
 
     TVector<TResourceManagerOptions> uploadResourcesOptions;
     auto nodesPerCluster = static_cast<ui32>(NDqs::ENodeIdLimits::MaxWorkerNodeId) - static_cast<ui32>(NDqs::ENodeIdLimits::MinWorkerNodeId);
-    nodesPerCluster /= Config_->YtBackends.size();
+    nodesPerCluster /= Config_->YtBackends->GetChildCount();
     auto startNodeId = static_cast<ui32>(NDqs::ENodeIdLimits::MinWorkerNodeId);
 
-    for (const auto& ytBackendConfig : Config_->YtBackends) {
+    for (const auto& [clusterName, ytBackendConfig] : Config_->YtBackends->GetChildren()) {
         TResourceManagerOptions rmOptions;
         rmOptions.YtBackend.ParseFromStringOrThrow(NYson::YsonStringToProto(
             ConvertToYsonString(ytBackendConfig),
@@ -203,7 +203,7 @@ void TDqManager::Start()
         {
             // uploader
             rmOptions.UploadPrefix = rmOptions.YtBackend.GetUploadPrefix() + "/bin/" + ToString(GetProgramCommitId());
-            rmOptions.LockName = TString("ytuploader.") + rmOptions.YtBackend.GetClusterName();
+            rmOptions.LockName = TString("ytuploader.") + clusterName;
             rmOptions.Counters = MetricsRegistry_->GetSensors()->GetSubgroup("counters", "uploader");
             ActorSystem_->Register(CreateResourceUploader(rmOptions, Coordinator_));
         }
@@ -225,7 +225,7 @@ void TDqManager::Start()
 
         {
             // temporary locks
-            rmOptions.KeepFilter = rmOptions.YtBackend.GetClusterName(); // don't remove locks with `ClusterName` in LockName
+            rmOptions.KeepFilter = clusterName; // don't remove locks with `ClusterName` in LockName
             rmOptions.DropBefore = TDuration::Hours(1);
             rmOptions.UploadPrefix = rmOptions.YtBackend.GetPrefix() + "/locks";
             ActorSystem_->Register(CreateResourceCleaner(rmOptions, Coordinator_));
@@ -234,9 +234,9 @@ void TDqManager::Start()
         {
             // resource manager
             rmOptions.Files.pop_back(); // don't need lite verstion for operation start
-            rmOptions.LockName = TString("ytrm.") + rmOptions.YtBackend.GetClusterName();
+            rmOptions.LockName = TString("ytrm.") + clusterName;
             rmOptions.UploadPrefix = rmOptions.YtBackend.GetUploadPrefix() + "/bin/" + ToString(GetProgramCommitId());
-            rmOptions.Counters = MetricsRegistry_->GetSensors()->GetSubgroup("counters", "ytrm")->GetSubgroup("ytname", rmOptions.YtBackend.GetClusterName());
+            rmOptions.Counters = MetricsRegistry_->GetSensors()->GetSubgroup("counters", "ytrm")->GetSubgroup("ytname", TString(clusterName));
             rmOptions.ForceIPv4 = Config_->UseIPv4;
             rmOptions.AddressResolverConfig = ConvertToYsonString(Config_->AddressResolver, EYsonFormat::Text);
             ActorSystem_->Register(CreateResourceManager(rmOptions, Coordinator_));

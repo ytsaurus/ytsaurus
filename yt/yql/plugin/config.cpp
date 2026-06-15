@@ -404,7 +404,7 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
 
             gatewayConfig->AddChild("mr_job_system_libs_with_md5", std::move(mrJobSystemLibs));
 
-            for (auto& backend : config->DQManagerConfig->YTBackends) {
+            for (auto& [_, backend] : config->DQManagerConfig->YTBackends) {
                 for (const auto& lib : config->AdditionalSystemLibs) {
                     auto pathParts = SplitString(lib->File, "/");
 
