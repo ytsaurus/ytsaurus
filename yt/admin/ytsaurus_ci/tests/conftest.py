@@ -13,17 +13,11 @@ class MockGitHubPackagesClient:
 
     def get_commit_info(self, repo: str, commit_hash: str):
         if commit_hash == "lastcommit":
-            return {
-                "commit": {"author": {"date": "2025-10-29T12:24:45Z"}}
-            }
+            return {"commit": {"author": {"date": "2025-10-29T12:24:45Z"}}}
         elif commit_hash == "81deb0a1e700bcc38d8fb1653b9577515a370d97":
-            return {
-                "commit": {"author": {"date": "2025-12-01T12:00:00Z"}}
-            }
+            return {"commit": {"author": {"date": "2025-12-01T12:00:00Z"}}}
         elif commit_hash == "e6756828dc868ad2f8e643e65326b33d997796d5":
-            return {
-                "commit": {"author": {"date": "2025-12-07T00:00:00Z"}}
-            }
+            return {"commit": {"author": {"date": "2025-12-07T00:00:00Z"}}}
 
     def get_package_versions(self, package_name):
         storage = {
@@ -35,7 +29,13 @@ class MockGitHubPackagesClient:
             ],
             "ytsaurus-nightly": [
                 {"metadata": {"container": {"tags": ["dev-2025-10-29-lastcommit-relwithdebinfo"]}}},
-                {"metadata": {"container": {"tags": ["dev-25.3-2025-12-04-e6756828dc868ad2f8e643e65326b33d997796d5-relwithdebinfo"]}}},
+                {
+                    "metadata": {
+                        "container": {
+                            "tags": ["dev-25.3-2025-12-04-e6756828dc868ad2f8e643e65326b33d997796d5-relwithdebinfo"]
+                        }
+                    }
+                },
             ],
             "ytop-chart-release": [
                 {"metadata": {"container": {"tags": ["0.0.1"]}}},
@@ -55,7 +55,7 @@ class MockGitHubPackagesClient:
             ],
             "default": [
                 {"metadata": {"container": {"tags": ["dev-2025-10-29-7c7787c3c12fe6c18fcea4ea3da34537278fab63"]}}},
-            ]
+            ],
         }
 
         return storage.get(package_name, storage.get("default"))
@@ -74,6 +74,7 @@ def configs():
         "tests/configs/components.yaml",
         "tests/configs/compat-ytsaurus.yaml",
         "tests/configs/compat-operator.yaml",
+        "tests/configs/upgrades.yaml",
     )
 
     for cfg in configs:
@@ -92,11 +93,9 @@ def templates():
     templates_dir.mkdir(parents=True)
 
     base_spec = templates_dir / "base-spec.yaml"
-    base_spec.write_text(
-        """
+    base_spec.write_text("""
 name: {{ cluster_name }}
 ytsaurus: {{ images.ytsaurus }}
-        """.strip()
-    )
+        """.strip())
 
     return templates_dir

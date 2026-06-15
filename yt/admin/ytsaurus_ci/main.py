@@ -138,6 +138,9 @@ def docs(output_dir):
 @click.option("--git-api-url", type=str, default="https://api.github.com")
 @cloud_function_token_option
 @click.option("--version-filter", type=str, required=False, default="{}")
+@click.option(
+    "--upgrade-config", type=str, required=False, default=None, help="Upgrade config name, e.g. '25.1-to-25.2'"
+)
 @click.option("--apply", is_flag=True, help="Make new task with generated spec")
 @click.option("--force", is_flag=True, help="Overwrite job")
 @click.option("--verbose", is_flag=True, help="Detailed output of request")
@@ -147,12 +150,13 @@ def run_scenario(
     git_api_url,
     cloud_function_token,
     version_filter,
+    upgrade_config,
     apply,
     force,
     verbose,
 ):
     auth = ghcr.GitHubAuth(token=git_token, base_url=git_api_url)
-    processed_scenarios = scenario_processor.ProcessScenario(scenario, auth, json.loads(version_filter))
+    processed_scenarios = scenario_processor.ProcessScenario(scenario, auth, json.loads(version_filter), upgrade_config)
     client = cloudfunction_client.CloudFunctionClient(
         cloudfunction_client.YCFunctionAuth(
             cloud_function_token=cloud_function_token,
