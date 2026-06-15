@@ -44,18 +44,26 @@ class ReadStaticTable(YTToolBase):
         yt_client = self.runner.helper_get_yt_client(cluster, request_context)
 
         table = yt.YPath(table)
-        if table.attributes and "ranges" not in table.attributes:
+        if "ranges" in table.attributes:
+            try:
+                table_attributes = yt_client.get(table, attributes=["row_count"]).attributes
+                table_content = yt_client.read_table(
+                    table,
+                )
+            except Exception as e:
+                self.helper_process_common_exception(e)
+            table_content = list(table_content)[offset:offset + limit]
+        else:
             table.attributes["ranges"] = [
                 {"lower_limit": {"row_index": offset}, "upper_limit": {"row_index": offset + limit}}
             ]
-
-        try:
-            table_attributes = yt_client.get(table, attributes=["row_count"]).attributes
-            table_content = yt_client.read_table(
-                table,
-            )
-        except Exception as e:
-            self.helper_process_common_exception(e)
+            try:
+                table_attributes = yt_client.get(table, attributes=["row_count"]).attributes
+                table_content = yt_client.read_table(
+                    table,
+                )
+            except Exception as e:
+                self.helper_process_common_exception(e)
 
         return {
             "total_rows": table_attributes["row_count"],
