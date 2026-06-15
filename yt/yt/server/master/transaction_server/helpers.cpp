@@ -97,7 +97,7 @@ EObjectType TransactionTypeToObjectType(ETransactionType transactionType, bool n
     return transactionObjectType;
 }
 
-bool ValidateTransactionTypeCoherency(ETransactionType transactionType, TTransactionId transactionId)
+bool CheckTransactionTypeCoherency(ETransactionType transactionType, TTransactionId transactionId)
 {
     auto typeFromId = TypeFromId(transactionId);
     bool ok = false;
