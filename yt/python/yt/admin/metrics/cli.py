@@ -89,7 +89,7 @@ def _add_dump_subparser(subparsers) -> None:
         help="Dump metrics from Prometheus into an archive",
         description=(
             "Dump metrics from Prometheus into an archive. "
-            "Auth via PROMETHEUS_USER/PROMETHEUS_PASSWORD env (falls back to .netrc). " + EXPERIMENTAL_HELP_SUFFIX
+            "Auth via PROMETHEUS_USER/PROMETHEUS_PASSWORD env. " + EXPERIMENTAL_HELP_SUFFIX
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
