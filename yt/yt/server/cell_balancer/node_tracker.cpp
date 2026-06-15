@@ -31,9 +31,10 @@ public:
 
         auto& nodeState = NodeHeartbeatStates_.emplace(nodeAddress, TNodeState{}).first->second;
 
-        YT_LOG_DEBUG("Processing node heartbeat (NodeAddress: %v, PreviousPingTime: %v)",
+        YT_LOG_DEBUG("Processing node heartbeat (NodeAddress: %v, PreviousPingTime: %v, RequestConfigUpdate: %v)",
             nodeAddress,
-            nodeState.LastPingTime);
+            nodeState.LastPingTime,
+            nodeState.RequestConfigUpdate);
 
         nodeState.LastPingTime = TInstant::Now();
 

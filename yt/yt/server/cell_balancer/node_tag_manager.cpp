@@ -93,8 +93,10 @@ bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)
         if (Input_.Config->DecommissionReleasedNodes) {
             Mutations_->ChangedDecommissionedFlag[nodeAddress] = Mutations_->WrapMutation(true);
         }
+        Mutations_->NodeConfigUpdateRequests.emplace(nodeAddress, nodeTagFilter);
 
-        YT_LOG_INFO("Assigning node to bundle: setting node tag and decommission flag "
+        YT_LOG_INFO("Assigning node to bundle: setting node tag and decommission flag, "
+            "requesting config update "
             "(NodeAddress: %v, NodeTagFilter: %v, Decommissioned: %v)",
             nodeAddress,
             nodeTagFilter,
@@ -124,9 +126,7 @@ bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)
             cpuLimits->WriteThreadPoolSize,
             std::ssize(nodeInfo->TabletSlots));
 
-        if (NodeTracker_) {
-            NodeTracker_->RequestConfigUpdate(nodeAddress, nodeTagFilter);
-        }
+        Mutations_->NodeConfigUpdateRequests.emplace(nodeAddress, nodeTagFilter);
 
         return false;
     }
@@ -139,9 +139,7 @@ bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)
             tabletStatic,
             nodeInfo->Statistics->Memory->TabletStatic->Limit);
 
-        if (NodeTracker_) {
-            NodeTracker_->RequestConfigUpdate(nodeAddress, nodeTagFilter);
-        }
+        Mutations_->NodeConfigUpdateRequests.emplace(nodeAddress, nodeTagFilter);
 
         return false;
     }
@@ -775,7 +773,8 @@ void TNodeTagManager::SetNodeTags()
 
             for (const auto& address : nodeAddresses) {
                 const auto& info = GetOrCrash(Input_.TabletNodes, address);
-                if (!info->IsOnline()) {
+                // Remove tags only from nodes that are marked offline by node tracker.
+                if (!info->IsOnline() && info->State == InstanceStateOnline) {
                     offlineNodes.insert(address);
                 }
             }

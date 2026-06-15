@@ -98,6 +98,7 @@ void TSchedulerMutations::Log(const TLogger& Logger) const
     onIndexedEntries("change bundle short name", ChangedBundleShortName);
     onIndexedEntries("change bundle node tag filter", ChangedNodeTagFilters);
     onIndexedEntries("initialize bundle target config", InitializedBundleTargetConfig);
+    onIndexedEntries("request node config update", NodeConfigUpdateRequests);
 }
 
 auto TSchedulerMutations::MakeOnAlertCallback() -> TOnAlertCallback
@@ -136,7 +137,9 @@ int TSchedulerMutations::GetMutationCount() const
         ssize(ChangedNodeTagFilters) +
         ssize(InitializedBundleTargetConfig) +
         (BundlesDynamicConfig ? 1 : 0) +
-        (ChangedRootSystemAccountLimit ? 1 : 0);
+        (ChangedRootSystemAccountLimit ? 1 : 0) +
+        ssize(NodeConfigUpdateRequests) +
+        0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

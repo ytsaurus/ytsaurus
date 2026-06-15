@@ -683,6 +683,11 @@ private:
             TabletCellBundlesPath,
             BundleAttributeMuteTabletCellsCheck,
             mutations.ChangedMuteTabletCellsCheck);
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        for (const auto& [nodeAddress, tag] : mutations.NodeConfigUpdateRequests) {
+            nodeTracker->RequestConfigUpdate(nodeAddress, tag);
+        }
     }
 
     void Mutate(
