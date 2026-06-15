@@ -66,6 +66,7 @@ IF (NOT OPENSOURCE)
         di
         named_value
         s3
+        tz_types
         ytprof
     )
 ENDIF()

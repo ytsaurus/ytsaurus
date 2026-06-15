@@ -491,44 +491,6 @@ std::string MakeTzTypeArrow(const std::vector<TTzRow>& dateValue)
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeTzDateTypeArrow(const std::vector<int>& dateValue)
-{
-    auto* pool = arrow20::default_memory_pool();
-
-    auto dateBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
-    auto dateTzNameBuilder = std::make_shared<arrow20::BinaryBuilder>(pool);
-
-    std::vector<std::shared_ptr<arrow20::Field>> dateFields = {
-        std::make_shared<arrow20::Field>("Timestamp", std::make_shared<arrow20::UInt16Type>()),
-        std::make_shared<arrow20::Field>("TzIndex", std::make_shared<arrow20::BinaryType>()),
-    };
-    arrow20::StructBuilder tzDateBuilder(
-        std::make_shared<arrow20::StructType>(dateFields),
-        pool,
-        {dateBuilder, dateTzNameBuilder});
-
-    for (int index = 0; index < std::ssize(dateValue); index++) {
-        Verify(tzDateBuilder.Append());
-        Verify(dateBuilder->Append(dateValue[index]));
-        Verify(dateTzNameBuilder->Append("Europe/Moscow"));
-    }
-
-    std::shared_ptr<arrow20::Schema> arrowSchema = arrow20::schema({
-        arrow20::field("tzDateColumn", tzDateBuilder.type()),
-    });
-
-    std::shared_ptr<arrow20::Array> dateArray;
-    Verify(tzDateBuilder.Finish(&dateArray));
-
-    std::vector<std::shared_ptr<arrow20::Array>> columns = {
-        dateArray
-    };
-
-    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
-
-    return MakeOutputFromRecordBatch(recordBatch);
-}
-
 std::string MakeTzTypesListArrow(const std::vector<std::vector<i64>>& dateColumn)
 {
     auto* pool = arrow20::default_memory_pool();
@@ -1100,72 +1062,32 @@ TEST(TArrowParserTest, TzType)
     stringValue = GetString(collectedRows.GetRowValue(0, "tzDateColumn"));
     auto dateValue = NTzTypes::ParseTzValue<ui16>(stringValue);
     ASSERT_EQ(dateValue.first, row.DateValue);
-    ASSERT_EQ(dateValue.second, "Europe/Moscow");
+    ASSERT_EQ(dateValue.second, 1);
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzDatetimeColumn"));
     auto datetimeValue = NTzTypes::ParseTzValue<ui32>(stringValue);
     ASSERT_EQ(datetimeValue.first, row.DatetimeValue);
-    ASSERT_EQ(datetimeValue.second, "Europe/Moscow");
+    ASSERT_EQ(datetimeValue.second, 1);
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzTimestampColumn"));
     auto timestampValue = NTzTypes::ParseTzValue<ui64>(stringValue);
     ASSERT_EQ(timestampValue.first, row.TimestampValue);
-    ASSERT_EQ(timestampValue.second, "Europe/Moscow");
+    ASSERT_EQ(timestampValue.second, 1);
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzDate32Column"));
     auto date32Value = NTzTypes::ParseTzValue<i32>(stringValue);
     ASSERT_EQ(date32Value.first, row.Date32Value);
-    ASSERT_EQ(date32Value.second, "Europe/Moscow");
+    ASSERT_EQ(date32Value.second, 1);
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzDatetime64Column"));
     auto datetime64Value = NTzTypes::ParseTzValue<i64>(stringValue);
     ASSERT_EQ(datetime64Value.first, row.Datetime64Value);
-    ASSERT_EQ(datetime64Value.second, "Europe/Moscow");
+    ASSERT_EQ(datetime64Value.second, 1);
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzTimestamp64Column"));
     auto timestamp64Value = NTzTypes::ParseTzValue<i64>(stringValue);
     ASSERT_EQ(timestamp64Value.first, row.Timestamp64Value);
-    ASSERT_EQ(timestamp64Value.second, "Europe/Moscow");
-}
-
-TEST(TArrowParserTest, TzTypeName)
-{
-    auto tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("tzDateColumn", ESimpleLogicalValueType::TzDate),
-    });
-
-    TCollectingValueConsumer collectedRows(tableSchema);
-
-    auto parser = CreateParserForArrow(&collectedRows);
-
-    parser->Read(MakeTzDateTypeArrow({42}));
-    parser->Finish();
-
-    std::string stringValue;
-
-    stringValue = GetString(collectedRows.GetRowValue(0, "tzDateColumn"));
-    auto dateValue = NTzTypes::ParseTzValue<ui16>(stringValue);
-    ASSERT_EQ(dateValue.first, 42);
-    ASSERT_EQ(dateValue.second, "Europe/Moscow");
-}
-
-TEST(TArrowParserTest, WrongTzIndex)
-{
-    auto tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("tzDateColumn", ESimpleLogicalValueType::TzDate),
-        TColumnSchema("tzDatetimeColumn", ESimpleLogicalValueType::TzDatetime),
-        TColumnSchema("tzTimestampColumn", ESimpleLogicalValueType::TzTimestamp),
-        TColumnSchema("tzDate32Column", ESimpleLogicalValueType::TzDate32),
-        TColumnSchema("tzDatetime64Column", ESimpleLogicalValueType::TzDatetime64),
-        TColumnSchema("tzTimestamp64Column", ESimpleLogicalValueType::TzTimestamp64),
-    });
-
-    TCollectingValueConsumer collectedRows(tableSchema);
-
-    auto parser = CreateParserForArrow(&collectedRows);
-
-    TTzRow row = {42, 100, 1, 2, 3, 4, 1000};
-    EXPECT_THROW_WITH_SUBSTRING(parser->Read(MakeTzTypeArrow({row})), "Failed to parse column");
+    ASSERT_EQ(timestamp64Value.second, 1);
 }
 
 TEST(TArrowParserTest, WrongTzType)
@@ -1206,7 +1128,7 @@ TEST(TArrowParserTest, ListOfTzTypes)
 
     auto tzString = std::string_view(result.begin() + 3, result.end() - 2);
 
-    ASSERT_EQ(tzString, NTzTypes::MakeTzString<ui16>(42, NTzTypes::GetTzName(1)));
+    ASSERT_EQ(tzString, NTzTypes::MakeTzString<ui16>(42, 1));
 }
 
 TEST(TArrowParserTest, ListOfDatetimes)

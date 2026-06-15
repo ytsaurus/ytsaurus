@@ -2069,6 +2069,7 @@ TEST(TSkiffWriterTest, TestComplexType)
 
 TEST(TSkiffWriterTest, TestTzTime)
 {
+
     auto skiffSchema = CreateTupleSchema({
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::Uint16),
@@ -2109,12 +2110,14 @@ TEST(TSkiffWriterTest, TestTzTime)
 
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
-    auto dateValueString = MakeTzString<ui16>(42, "Europe/Moscow");
-    auto datetimeValueString = MakeTzString<ui32>(42, "Europe/Moscow");
-    auto timestampValueString = MakeTzString<ui64>(42, "Europe/Moscow");
-    auto date32ValueString = MakeTzString<i32>(42, "Europe/Moscow");
-    auto datetime64ValueString = MakeTzString<i64>(42, "Europe/Moscow");
-    auto timestamp64ValueString = MakeTzString<i64>(42, "Europe/Moscow");
+    constexpr ui16 tzEuropeMoscow = 1;
+
+    auto dateValueString = MakeTzString<ui16>(42, tzEuropeMoscow);
+    auto datetimeValueString = MakeTzString<ui32>(42, tzEuropeMoscow);
+    auto timestampValueString = MakeTzString<ui64>(42, tzEuropeMoscow);
+    auto date32ValueString = MakeTzString<i32>(42, tzEuropeMoscow);
+    auto datetime64ValueString = MakeTzString<i64>(42, tzEuropeMoscow);
+    auto timestamp64ValueString = MakeTzString<i64>(42, tzEuropeMoscow);
 
     // Row 0.
     Y_UNUSED(writer->Write({
@@ -2177,7 +2180,8 @@ TEST(TSkiffWriterTest, TestTimezoneString)
 
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
-    auto dateValueString = MakeTzString<ui16>(42, "Europe/Moscow");
+    constexpr ui16 tzEuropeMoscow = 1;
+    auto dateValueString = MakeTzString<ui16>(42, tzEuropeMoscow);
     // Row 0.
     Y_UNUSED(writer->Write({
         MakeRow(nameTable, {
@@ -3094,12 +3098,12 @@ TEST(TSkiffParserTest, TestTimezoneTime)
 
     ASSERT_EQ(rowCollector.Size(), 1);
 
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "dateColumn")), MakeTzString<ui16>(DateUpperBound - 1, GetTzName(1)));
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "datetimeColumn")), MakeTzString<ui32>(DatetimeUpperBound - 1, GetTzName(2)));
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "timestampColumn")), MakeTzString<ui64>(TimestampUpperBound - 1, GetTzName(3)));
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "date32Column")), MakeTzString<i32>(Date32LowerBound, GetTzName(1)));
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "datetime64Column")), MakeTzString<i64>(Datetime64LowerBound, GetTzName(2)));
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "timestamp64Column")), MakeTzString<i64>(Timestamp64LowerBound, GetTzName(3)));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "dateColumn")), MakeTzString<ui16>(DateUpperBound - 1, 1));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "datetimeColumn")), MakeTzString<ui32>(DatetimeUpperBound - 1, 2));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "timestampColumn")), MakeTzString<ui64>(TimestampUpperBound - 1, 3));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "date32Column")), MakeTzString<i32>(Date32LowerBound, 1));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "datetime64Column")), MakeTzString<i64>(Datetime64LowerBound, 2));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "timestamp64Column")), MakeTzString<i64>(Timestamp64LowerBound, 3));
 }
 
 TEST(TSkiffParserTest, TestTimezoneString)
@@ -3120,7 +3124,7 @@ TEST(TSkiffParserTest, TestTimezoneString)
     // Row 0.
     checkedSkiffWriter.WriteVariant16Tag(0);
 
-    checkedSkiffWriter.WriteString32(MakeTzString<ui16>(DateUpperBound - 1, GetTzName(1)));
+    checkedSkiffWriter.WriteString32(MakeTzString<ui16>(DateUpperBound - 1, 1));
 
     checkedSkiffWriter.Finish();
 
@@ -3129,36 +3133,7 @@ TEST(TSkiffParserTest, TestTimezoneString)
 
     ASSERT_EQ(rowCollector.Size(), 1);
 
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "dateColumn")), MakeTzString<ui16>(DateUpperBound - 1, GetTzName(1)));
-}
-
-TEST(TSkiffParserTest, TestWrongTimezoneName)
-{
-    auto skiffSchema = CreateTupleSchema({
-        CreateTupleSchema({
-            CreateSimpleTypeSchema(EWireType::Uint16),
-            CreateSimpleTypeSchema(EWireType::Uint16),
-        })->SetName("dateColumn")
-    });
-
-    TCollectingValueConsumer rowCollector(
-        New<TTableSchema>(std::vector{
-            TColumnSchema("dateColumn", ESimpleLogicalValueType::TzDate)
-        }));
-    auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
-
-    TStringStream dataStream;
-    TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
-
-    // Row 0.
-    checkedSkiffWriter.WriteVariant16Tag(0);
-
-    checkedSkiffWriter.WriteUint16(42);
-    checkedSkiffWriter.WriteUint16(1000);
-
-    checkedSkiffWriter.Finish();
-
-    EXPECT_THROW_WITH_SUBSTRING(parser->Read(dataStream.Str()), "Invalid timezone index");
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "dateColumn")), MakeTzString<ui16>(DateUpperBound - 1, 1));
 }
 
 TEST(TSkiffParserTest, TestWrongTimezoneType)
