@@ -39,6 +39,11 @@ struct TYqlAgentConfig
 
     std::vector<std::string> InsecureSecretPathSubjects;
 
+    bool UseQtWorkerYqlPlugin;
+
+    //! Port in the qtworker subprocess worker.conf.
+    int QtWorkerInspectorPort;
+
     REGISTER_YSON_STRUCT(TYqlAgentConfig);
 
     static void Register(TRegistrar registrar);

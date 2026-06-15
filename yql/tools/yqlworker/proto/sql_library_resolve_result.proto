@@ -1,0 +1,20 @@
+package NYql.NProto;
+option java_package = "ru.yandex.yql.proto";
+
+message TSqlExport {
+    required string Name = 1;
+}
+
+message TSqlImport {
+    required string Name = 1;
+}
+
+message TSqlModule {
+    required string Name = 1;
+    repeated TSqlExport Exports = 2;
+    repeated TSqlImport Imports = 3;
+}
+
+message TSqlLibraryResolveResult {
+    repeated TSqlModule Modules = 1;
+}

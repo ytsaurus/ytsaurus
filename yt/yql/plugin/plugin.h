@@ -21,7 +21,8 @@ namespace NYT::NYqlPlugin {
 
 using TQueryId = TGuid;
 
-struct TYqlPluginOptions
+//! Applicable for native and process plugins.
+struct TYqlNativePluginOptions
 {
     NYson::TYsonString SingletonsConfig;
     NYson::TYsonString GatewayConfig;
@@ -45,6 +46,14 @@ struct TYqlPluginOptions
     std::string MaxYqlLangVersion;
 
     bool StartDqManager;
+};
+
+//! Applicable only for qtworker plugin.
+struct TYqlQTWorkerPluginOptions
+    : public TYqlNativePluginOptions
+{
+    THolder<TLogBackend> QtWorkerLogBackend;
+    int QtWorkerInspectorPort = 32391;
 };
 
 struct TYqlPluginDynamicConfig
@@ -142,16 +151,17 @@ struct IYqlPlugin
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYqlPluginOptions ConvertToOptions(
+TYqlNativePluginOptions ConvertToNativePluginOptions(
     TYqlPluginConfigPtr config,
     NYson::TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
     std::string maxSupportedYqlVersion,
     bool startDqManager = false);
 
-////////////////////////////////////////////////////////////////////////////////
-
-Y_WEAK std::unique_ptr<IYqlPlugin> CreateYqlPlugin(TYqlPluginOptions& options) noexcept;
+TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(
+    TYqlNativePluginOptions nativeOptions,
+    THolder<TLogBackend> qtWorkerLogBackend,
+    int qtWorkerInspectorPort);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,0 +1,390 @@
+package NYql.NProto;
+option java_package = "ru.yandex.yql.proto";
+
+import "yql/essentials/protos/common.proto";
+import "yql/essentials/protos/clickhouse.proto";
+import "yql/cfg/proto/grpc_config.proto";
+
+message TApiRunnerConfig {
+    optional uint32 Port = 1;
+    optional uint32 Threads = 2;
+    optional string Bind = 3;
+    optional uint32 QueuePerUserMaxSize = 4;
+}
+
+message TClickHouseConfig {
+    optional uint32 DefaultRetries = 1;
+    optional uint32 DefaultDelay = 2;
+    optional uint32 SystemRetries = 3;
+    optional uint32 SystemDelay = 4;
+    optional uint32 Threads = 5;
+    optional TClickHouseRunnerConfig Runner = 6;
+}
+
+message THttpServerConfig {
+    optional string Bind = 1;
+    optional uint32 Port = 2;
+    optional uint32 Threads = 3;
+}
+
+message TMongoConnectionPoolConfig {
+    optional uint32 MaxSize = 1;
+    optional uint32 MinSize = 2;
+    optional TTime MaxWaitTime = 3;
+    optional TTime MaxConnectionLifeTime = 4;
+    optional TTime MaxConnectionIdleTime = 5;
+    optional TTime MaintenanceInitialDelay = 6;
+    optional TTime MaintenanceFrequency = 7;
+    optional uint32 MaxWaitQueueSize = 8;
+}
+
+message TMongoDbConfig {
+    repeated string Hosts = 1;
+    optional uint32 Port = 2;
+    optional string Name = 3;
+    optional string Username = 4;
+    optional string Password = 5;
+    reserved "Threads"; reserved 6;
+    // possible values: "none", "zlib_*". "none" is considered if codec is not set
+    // applied to Ast, Plan and Data before saving into db
+    optional string CompressionCodec = 7;
+    optional bool ReadFromMasterOnly = 8;
+    optional TTime ReadTimeout = 9;
+    optional TTime ClientQueryTimeout = 10;
+    optional TTime ClientQueryInitDelay = 11;
+    optional bool NewRetryMechanismEnabled = 12;
+    optional bool SSLEnabled = 13 [default = false];
+    optional TTime MaxStaleness = 14;
+    optional TMongoConnectionPoolConfig ConnectionPool = 15;
+    optional TMongoConnectionPoolConfig SlowConnectionPool = 16;
+    optional uint32 MaxReplicationTimeSeconds = 17 [default = 60];
+}
+
+message TTvmConfig {
+    optional uint32 SelfClientId = 1;
+    optional string Secret = 2;
+    optional string CacheDir = 3;
+}
+
+message TAbcSyncConfig {
+   enum EAbcStorageType {
+      STORAGE_NONE = 0;
+      STORAGE_MONGO = 1;
+   }
+   enum EAbcReaderType {
+      READER_NONE = 0;
+      READER_COMPARE_WITH_STAFF = 1;
+      READER_MONGO = 2;
+   }
+   optional bool Enabled = 1;
+   optional TTime SyncDelay = 2;
+   optional TTime SyncPeriod = 3;
+   optional TTime HttpReadTimeout = 4;
+   optional EAbcStorageType StorageType = 5;
+   optional EAbcReaderType ReaderType = 6;
+}
+
+message TZooKeeperConfig {
+    repeated string Hosts = 1;
+    optional uint32 Port = 2;
+    optional string Root = 3;
+    optional string Username = 4;
+    optional string Password = 5;
+}
+
+message TYqlWorkerConfig {
+    optional uint32 ClientThreads = 1;
+    optional TTime MaxHeartbeatGap = 2;
+    optional TTime MaxHealthCheckGap = 3;
+    optional TTime LoseUnhealthyWorkerAfter = 4;
+    optional uint32 MsgBusThreads = 5 [default = 1];
+    optional TTime SkipQueueIsFull = 6;
+}
+
+message TInspectorServerConfig {
+    optional uint32 Port = 1;
+    optional uint32 Threads = 2;
+}
+
+message TNotificationsConfig {
+    message TEmailConfig {}
+
+    message TJabberConfig {
+        optional string Host = 1;
+        optional uint32 Port = 2;
+        optional string Service = 3;
+        optional string Username = 4;
+        optional string Password = 5;
+    }
+
+    message TSmsConfig {
+        optional string Url = 1;
+    }
+
+    message TTelegramConfig {
+        optional string Url = 1;
+        optional string BotName = 2;
+        optional string Token = 3;
+    }
+
+    message TYaMessengerConfig {
+        optional string Url = 1;
+        optional string BotName = 2;
+        optional string Token = 3;
+    }
+
+    optional TEmailConfig Email = 1;
+    optional TJabberConfig Jabber = 2;
+    optional TSmsConfig Sms = 3;
+    optional TTelegramConfig Telegram = 4;
+    optional uint32 Threads = 5 [default = 1];
+    optional TYaMessengerConfig YaMessenger = 6;
+}
+
+message TOAuthConfig {
+    optional string Url = 1;
+    optional string AppId = 2;
+    optional string AppSecret = 3;
+    optional TTime CacheTtl = 4;
+}
+
+message TBlackBoxConfig {
+    optional string Url = 1;
+    optional TTime CacheTtl = 2;
+    optional bool UseTvm = 3;
+}
+
+message TStaffConfig {
+    optional string Url = 1;
+    optional TTime CacheTtl = 2;
+    repeated string YandexAffiliationUsers = 3;
+    repeated string ExternalAffiliationUsers = 4;
+}
+
+message TSplunkConfig {
+    optional string Url = 1;
+    optional string Token = 2;
+}
+
+message TYdbConfig {
+    optional string Host = 1;
+    optional string BasePath = 2;
+    optional uint32 Threads = 3;
+    optional TTime QueryTimeout = 4;
+}
+
+message TS3ServerConfig {
+    optional string Name = 1;
+    optional string Url = 2;
+    optional string AccessKeyId = 3;
+    optional string AccessSecretKey = 4;
+}
+
+message TMarkerCollectionMapping  {
+    optional string Marker = 1;
+    optional string Collection = 2;
+    optional string Bucket = 3;
+    optional string ServerName = 4;
+}
+
+message TFallbackStorageConfig {
+    repeated TS3ServerConfig Servers = 1; // Name should be unique
+    repeated TMarkerCollectionMapping Mappings = 2; // (Marker, Collection) should be unique
+}
+
+message TYavConfig {
+    optional string Url = 1;
+    optional string Token = 2;
+    optional TTime CacheTtl = 3;
+}
+
+message TFTSConfig {
+    repeated string IndexedRobot = 1;
+    repeated string UnindexedUser = 2;
+}
+
+message TYtsConfig {
+    // if disabled, YtsQueue service and adding new Yts entries are disabled
+    optional bool IsEnabled = 1;
+    // client settings of grpc connection
+    optional TYtsClientSettings ClientSettings = 2;
+    optional int32 RetryLimit = 3;
+    // exponential backoff = random(0, min(InitialBackoff * BackoffMultiplier ** RetryCount, MaxBackoff))
+    // InitialBackoff and MaxBackoff are in seconds
+    optional float InitialBackoff = 4;
+    optional float MaxBackoff = 5;
+    // BackoffFactor > 1 and < 5
+    optional float BackoffFactor = 6;
+    // frequency for handling Yts Queue in seconds
+    optional int32 QueueInterval = 7;
+    // max number of entries loaded from Yts Queue
+    optional int32 QueueLimit = 8;
+    optional bool IsMockClient = 9;
+    // in seconds
+    optional int32 RequestTimeout = 10;
+    optional int32 RequestBatchSize = 11;
+    // minimal interval between requests to MongoDB in seconds
+    optional int32 TimeBetweenRequests = 12;
+    // YtsQueue service doesn't start, but new yts entries are still added to the queue
+    optional bool StopQueueService = 13;
+}
+
+message TYtsClientSettings {
+    enum ETvmType {
+        NONE = 0;
+        TESTING = 1;
+        PRODUCTION = 2;
+    }
+    optional int32 Port = 1;
+    // Yts host, localhost is used if not set
+    optional string Host = 2;
+    optional bool UseTls = 3;
+    optional ETvmType TvmType = 4 [default = NONE];
+    optional int32 RemotePort = 5;
+    // percent of yts requests sent to remote host, valid values: 0-100
+    optional int32 RemotePercent = 6;
+    // maximum number of retry attempts of grpc connection
+    optional int32 MaxRetryAttempts = 7;
+}
+
+message TRateLimitZone {
+
+    message Override {
+        required string Login = 1;
+        required int32 RequestsPerMinute = 2;
+        required int32 MaxBurst = 3;
+    }
+
+    required string Name = 1;
+    required int32 RequestsPerMinute = 2;
+    required int32 MaxBurst = 3;
+    repeated Override Overrides = 4;
+    optional bool Enabled = 5 [default = false];
+}
+
+message TRetryOperationsTask {
+    required TTime InitialDelay = 1;
+    required TTime ScheduleDelay = 2;
+    required TTime RetryOperationAfter = 3;
+    required TTime ShutdownTimeout = 4;
+    required uint32 MaxInFlight = 5 [default = 1];
+    required uint32 FetchLimit = 6 [default = 100];
+}
+
+message TQtRunnerConfig {
+    //// general settings
+    optional bool Enabled = 1;
+    optional string QtProxyCluster = 2 [default = "markov"];
+    optional uint32 QtRequestTimeoutMs = 3 [default = 10000];
+    optional string QtStage = 4 [default = "production"];
+    optional uint32 QtClientCacheExpirationMinutes = 5 [default = 5];
+    optional uint32 QtClientCacheSize = 6 [default = 256];
+    optional uint32 ShardsNum = 7 [default = 1];
+
+    //// Qt shard master settings
+    // interval for checking ZK master holder
+    optional uint32 QtMasterElectionlMs = 8;
+    // interval for polling new tasks from queue
+    optional uint32 QtMasterPollingIntervalMs = 9;
+    // offset in the past to fetch tasks [fetchTs = lastTs - offset]
+    optional uint32 QtMasterPollingOffsetMs = 10;
+
+    //// Qt shard pollers settings
+    // Query Tracker polling interval
+    optional uint32 QtTaskPollingIntervalMs = 11;
+    optional uint32 QtTaskStatusUpdateIntervalMs = 12;
+    optional uint32 QtTaskAbortTimeoutMs = 13;
+
+}
+
+message TApiConfig {
+    // base sections
+    optional THttpServerConfig HttpServer = 1;
+    optional TMongoDbConfig MongoDb = 2;
+    optional TZooKeeperConfig ZooKeeper = 3;
+    optional TInspectorServerConfig InspectorServer = 4;
+    optional TYqlWorkerConfig YqlWorker = 5;
+    optional TNotificationsConfig Notifications = 6;
+    optional TBlackBoxConfig BlackBox = 7;
+    optional TStaffConfig Staff = 8;
+    optional TClickHouseConfig ClickHouse = 9;
+    optional TSplunkConfig Splunk = 10;
+    optional TFallbackStorageConfig FallbackStorage = 11;
+    optional TApiRunnerConfig ApiRunner = 12;
+    optional TOAuthConfig OAuth = 13;
+    optional TYavConfig Yav = 14;
+    optional TTvmConfig Tvm = 15;
+    optional TAbcSyncConfig Abc = 16;
+    optional TTvmConfig DelegationTvm = 17;
+    optional TQtRunnerConfig QtRunner = 18;
+
+    // misc options
+    optional string SystemYqlUsername = 100;
+    optional string SystemOauthToken = 101;
+    optional string AppVarDir = 102;
+    optional string OperationIdKey = 103;
+    optional string OauthSecret = 104;
+    optional uint32 OperationFTSRequestTimeoutMs = 105;
+    // drop after migration to TFeatureFlagsConfig is completed
+    optional bool EmbedUdfRegistry = 106 [default = false, deprecated = true];
+    // drop after migration to TFeatureFlagsConfig is completed
+    optional bool EmbedGateways = 107 [default = false, deprecated = true];
+    optional TTime UdfRegistryPollPeriod = 108;
+    optional TTime GatewaysPollPeriod = 109;
+    optional bool DisableAdminChecks = 110 [default = false];
+    // csrf token will not be checked if no secret is specified
+    optional string CsrfSecret = 111;
+    // 1 day if not set
+    optional TTime CsrfTokenLifetime = 112;
+    optional bool UseLegacyUdfRegistry = 113 [default = true, deprecated = true];
+    optional TTime SendingUdfSnapshotRegistryPeriod = 114;
+    optional TFTSConfig FTSConfig = 115;
+    optional string LaunchCounterFilePath = 116;
+    optional TYtsConfig YtsConfig = 117;
+    repeated TRateLimitZone RateLimitZones = 118;
+    optional string MinVisibleLangVer = 119;
+    optional string MaxVisibleLangVer = 120;
+    optional TRetryOperationsTask RetryOperationsTask = 121;
+
+    // additional config files to be merged with
+    repeated string Include = 200;
+
+    // yandex-cloud app section
+    optional TYdbConfig YdbConfig = 304;
+
+    optional TFeatureFlagsConfig TFeatureFlags = 400;
+
+    // move to TFeatureFlagsConfig
+    optional bool UseNewYdbApi = 500 [default = false];
+
+    optional TGrpcServerConfig GrpcConfig = 501;
+    optional TGrpcClientConfig GrpcClientConfig = 502;
+
+    optional string YdbYqlSchema = 503 [default = "yql2"];
+}
+
+message TFeatureFlagsConfig {
+    optional bool LegacyUdfRegistry = 1 [default = true];
+    optional bool EmbedUdfRegistry = 2 [default = true];
+    optional bool EmbedGateways = 3 [default = true];
+    optional bool SendingUdfSnapshotRegistry = 4 [default = false];
+    optional bool DisableCloudAuth = 5 [default = false]; // for debug
+    optional bool GrpcTransport = 6 [default = false];
+    optional bool GrpcTransportByDefault = 7 [default = false];
+    optional bool YdbTokenPrefix = 8 [default = false];
+    optional bool GrpcSSL = 9 [default = false];
+
+    optional bool UseYandexUidCookie = 11 [default = true];
+    optional bool RateLimit = 12 [default = false, deprecated = true];
+    optional bool ErrorOnTerminalAbort = 13 [default = false];
+    optional bool ConflictOnRunningNotIdle = 14 [default = false];
+    optional bool StaffRobotUsers = 15 [default = false];
+    optional bool LocalWorkerFallback = 16 [default = false];
+    optional bool BootstrapWorkerModule = 17 [default = true];
+    optional bool YtQlExecuteInQt = 18 [default = false];
+    optional bool YavSecretProfileTokens = 19 [default = false];
+    optional bool SharedIdTtl = 20 [default = false];
+    optional bool ClustersWithIdm = 21 [default = false];
+    optional bool SpytEnabled = 22 [default = true];
+    optional bool ChytExecuteInQt = 23 [default = false];
+}

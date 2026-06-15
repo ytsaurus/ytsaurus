@@ -46,6 +46,7 @@ PEERDIR(
 
     yt/yql/plugin
     yt/yql/plugin/native
+    yt/yql/plugin/qtworker
 
     yql/essentials/public/langver
     yql/essentials/public/result_format

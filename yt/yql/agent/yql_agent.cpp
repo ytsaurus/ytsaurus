@@ -5,6 +5,7 @@
 
 #include <yt/yql/plugin/native/plugin.h>
 #include <yt/yql/plugin/process/plugin.h>
+#include <yt/yql/plugin/qtworker/plugin.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
@@ -330,34 +331,42 @@ public:
 
         InitYqlVersions();
 
-        auto options = ConvertToOptions(
+        auto options = ConvertToNativePluginOptions(
             Config_,
             singletonsConfigString,
             CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             MaxSupportedYqlVersionStr_,
             Config_->EnableDQ);
 
-        // NB: under debug build this method does not fit in regular fiber stack
-        // due to python udf loading
-        using TSignature = void(TYqlPluginOptions);
-        auto coroutine = TCoroutine<TSignature>(
-            BIND([this, bootstrap, singletonsConfigDefaultLogging](
-                TCoroutine<TSignature>& /*self*/,
-                TYqlPluginOptions options
-            ) {
-                YqlPlugin_ = Config_->ProcessPluginConfig->Enabled
-                    ? CreateProcessYqlPlugin(
-                        Config_,
-                        singletonsConfigDefaultLogging,
-                        bootstrap->GetClusterConnectionConfig(),
-                        TString(MaxSupportedYqlVersionStr_),
-                        YqlAgentProfiler().WithPrefix("/process_yql_plugin"))
-                    : CreateYqlPlugin(std::move(options));
-            }),
-            EExecutionStackKind::Large);
+        if (Config_->UseQtWorkerYqlPlugin) {
+            auto qtOptions = ConvertToQtWorkerPluginOptions(
+                std::move(options),
+                CreateArcadiaLogBackend(TLogger("QtWorkerPlugin")),
+                Config_->QtWorkerInspectorPort);
+            YqlPlugin_ = CreateQtWorkerYqlPlugin(std::move(qtOptions));
+        } else {
+            // NB: under debug build this method does not fit in regular fiber stack
+            // due to python udf loading
+            using TSignature = void(TYqlNativePluginOptions);
+            auto coroutine = TCoroutine<TSignature>(
+                BIND([this, bootstrap, singletonsConfigDefaultLogging](
+                    TCoroutine<TSignature>& /*self*/,
+                    TYqlNativePluginOptions options
+                ) {
+                    YqlPlugin_ = Config_->ProcessPluginConfig->Enabled
+                        ? CreateProcessYqlPlugin(
+                            Config_,
+                            singletonsConfigDefaultLogging,
+                            bootstrap->GetClusterConnectionConfig(),
+                            TString(MaxSupportedYqlVersionStr_),
+                            YqlAgentProfiler().WithPrefix("/process_yql_plugin"))
+                        : CreateYqlPlugin(std::move(options));
+                }),
+                EExecutionStackKind::Large);
 
-        coroutine.Run(std::move(options));
-        YT_VERIFY(coroutine.IsCompleted());
+            coroutine.Run(std::move(options));
+            YT_VERIFY(coroutine.IsCompleted());
+        }
 
         ActiveQueriesGuardFactory_ = std::make_unique<TActiveQueriesGuardFactory>(
             DynamicConfig_->MaxSimultaneousQueries,

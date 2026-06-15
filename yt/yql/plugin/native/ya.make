@@ -2,8 +2,6 @@ LIBRARY()
 
 SRCS(
     GLOBAL plugin.cpp
-    error_helpers.cpp
-    progress_merger.cpp
     dq_gateway_with_offloading.cpp
     dq_manager.cpp
     provider_load.cpp
@@ -82,6 +80,7 @@ PEERDIR(
     contrib/ydb/library/yql/providers/yt/dq_task_preprocessor
 
     yt/yql/plugin
+    yt/yql/plugin/lib
 )
 
 IF (NOT OPENSOURCE)

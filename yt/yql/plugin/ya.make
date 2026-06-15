@@ -16,4 +16,5 @@ RECURSE(
     dynamic
     native
     process
+    qtworker
 )

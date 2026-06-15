@@ -4,10 +4,6 @@ namespace NYT::NYqlPlugin {
 
 //////////////////////////////////////////////////////////////////////////////
 
-TNodeProgress::TNodeProgress(const NYql::TOperationProgress& p)
-    : TNodeProgressBase(p)
-{}
-
 void TNodeProgress::Serialize(::NYson::TYsonWriter& writer) const
 {
     writer.OnBeginMap();
@@ -85,6 +81,18 @@ void TProgressMerger::MergeWith(const NYql::TOperationProgress& progress)
         in.first->second.MergeWith(progress);
     }
     HasChanges_ = true;
+}
+
+void TProgressMerger::MergeWith(const NYql::NProto::TTaskProgress& taskProgress)
+{
+    for (const auto& node : taskProgress.GetNodes()) {
+        auto in = NodesMap_.emplace(node.GetId(), TNodeProgress(node));
+        bool changed = in.second;
+        if (!changed) {
+            changed |= in.first->second.MergeWith(node);
+        }
+        HasChanges_ |= changed;
+    }
 }
 
 void TProgressMerger::AbortAllUnfinishedNodes()

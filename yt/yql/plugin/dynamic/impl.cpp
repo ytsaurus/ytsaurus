@@ -34,24 +34,24 @@ TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOpt
         ? TYsonString(TString(bridgeOptions->Libraries, bridgeOptions->LibrariesLength))
         : EmptyMap;
 
-    TYqlPluginOptions options{
+    TYqlNativePluginOptions options{
         .SingletonsConfig = singletonsConfig,
         .GatewayConfig = TYsonString(TStringBuf(bridgeOptions->GatewayConfig, bridgeOptions->GatewayConfigLength)),
         .DqGatewayConfig = bridgeOptions->DqGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->DqGatewayConfig, bridgeOptions->DqGatewayConfigLength)) : TYsonString(),
         .YtflowGatewayConfig = bridgeOptions->YtflowGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->YtflowGatewayConfig, bridgeOptions->YtflowGatewayConfigLength)) : TYsonString(),
         .PqGatewayConfig = bridgeOptions->PqGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->PqGatewayConfig, bridgeOptions->PqGatewayConfigLength)) : TYsonString(),
         .SolomonGatewayConfig = bridgeOptions->SolomonGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->SolomonGatewayConfig, bridgeOptions->SolomonGatewayConfigLength)) : TYsonString(),
-        .DqManagerConfig = bridgeOptions->DqGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->DqManagerConfig, bridgeOptions->DqManagerConfigLength)) : TYsonString(),
+        .DqManagerConfig = bridgeOptions->DqManagerConfigLength ? TYsonString(TStringBuf(bridgeOptions->DqManagerConfig, bridgeOptions->DqManagerConfigLength)) : TYsonString(),
         .FileStorageConfig = TYsonString(TStringBuf(bridgeOptions->FileStorageConfig, bridgeOptions->FileStorageConfigLength)),
         .TvmConfig = TYsonString(TStringBuf(bridgeOptions->TvmConfig, bridgeOptions->TvmConfigLength)),
         .YtAccessProviderConfig = TYsonString(TStringBuf(bridgeOptions->YtAccessProviderConfig, bridgeOptions->YtAccessProviderConfigLength)),
         .OperationAttributes = TYsonString(TStringBuf(bridgeOptions->OperationAttributes, bridgeOptions->OperationAttributesLength)),
         .Libraries = libraries,
         .YTTokenPath = TString(bridgeOptions->YTTokenPath),
-        .LogBackend = std::move(*reinterpret_cast<THolder<TLogBackend>*>(bridgeOptions->LogBackend)),
         .MaxYqlLangVersion = bridgeOptions->MaxYqlLangVersion,
         .StartDqManager = bridgeOptions->StartDqManager,
     };
+    options.LogBackend = std::move(*reinterpret_cast<THolder<TLogBackend>*>(bridgeOptions->LogBackend));
     auto nativePlugin = CreateYqlPlugin(std::move(options));
     return nativePlugin.release();
 }

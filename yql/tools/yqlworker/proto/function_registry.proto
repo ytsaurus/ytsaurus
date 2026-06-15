@@ -1,0 +1,40 @@
+package NYql.NProto;
+option java_package = "ru.yandex.yql.proto";
+
+message TFunction {
+    required string Name = 1;
+    required uint32 ArgCount = 2;
+    required uint32 OptionalArgCount = 3;
+    required bool IsTypeAwareness = 4;
+    optional string CallableType = 5;
+    optional string RunConfigType = 6;
+}
+
+message TModule {
+    required string Name = 1;
+    repeated TFunction Functions = 2;
+}
+
+message TResource {
+    required string Url = 1;
+    required int32 Version = 2;
+    required bool IsTrusted = 3;
+    repeated TModule Modules = 4;
+}
+
+message TLibrary {
+    optional string Name = 1;
+    optional string Content = 2;
+    optional int32 Version = 3;
+}
+
+message TPackage {
+    required string Name = 1;
+    required int32 DefaultVersion = 2;
+    repeated TResource Resources = 3;
+    repeated TLibrary Libraries = 4;
+}
+
+message TFunctionRegistryData {
+    repeated TPackage Packages = 1;
+}
