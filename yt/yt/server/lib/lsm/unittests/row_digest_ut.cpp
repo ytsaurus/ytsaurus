@@ -170,9 +170,12 @@ std::unique_ptr<TStore> MakeStore(
     return store;
 }
 
-std::unique_ptr<TStore> MakeStoreWithoutFirstDigest(TTabletPtr tablet, TDigestFiller filler)
+std::unique_ptr<TStore> MakeStoreWithoutFirstDigest(
+    TTabletPtr tablet,
+    TDigestFiller filler,
+    EDigestFillKind fillKind = EDigestFillKind::Write)
 {
-    auto store = MakeStore(std::move(tablet), std::move(filler));
+    auto store = MakeStore(std::move(tablet), std::move(filler), fillKind);
     std::get<TVersionedRowDigestPtr>(store->CompactionHints().Payloads()[StoreKind])->FirstTimestampDigest.Reset();
     return store;
 }
@@ -638,7 +641,9 @@ TEST_P(TAggregateRowDigestTest, MissingFirstTimestampDigestInOneStoreSkipsTtlCle
 {
     auto [partition, hint] = MakePartition();
     partition->Stores().push_back(MakeStoreWithoutFirstDigest(Tablet, CreateDigestFiller(100, 3, 0)));
-    partition->Stores().push_back(MakeStore(Tablet, CreateDigestFiller(100, 3, 0, TDuration::Hours(1), TDuration::Days(100))));
+    partition->Stores().push_back(MakeStore(
+        Tablet,
+        CreateDigestFiller(100, 3, 0, EDigestFillKind::Aggregate, TDuration::Hours(1), TDuration::Days(100))));
 
     ASSERT_TRUE(hint->RecalculateHint(partition.get()));
     EXPECT_EQ(
@@ -654,13 +659,16 @@ TEST_P(TAggregateRowDigestTest, MissingFirstTimestampDigestStillAllowsTooManyTim
     MountConfig->CompactionHints->RowDigest->MaxObsoleteTimestampRatio = 1.0;
 
     auto [partition, hint] = MakePartition();
-    partition->Stores().push_back(MakeStoreWithoutFirstDigest(Tablet, CreateDigestFiller(2, 16384, 16383)));
+    partition->Stores().push_back(MakeStoreWithoutFirstDigest(
+        Tablet,
+        CreateDigestFiller(2, 16384, 16383, EDigestFillKind::Aggregate),
+        EDigestFillKind::Aggregate));
 
     ASSERT_TRUE(hint->RecalculateHint(partition.get()));
     EXPECT_EQ(hint->GetReason(), EStoreCompactionReason::AggregateDeleteTooManyTimestamps);
     EXPECT_NEAR(
         hint->GetTimestamp().GetValue(),
-        (StartDate + GetParam().MinDataTtl + TDuration::Hours(8193)).GetValue(),
+        (StartDate + GetParam().MinDataTtl + TDuration::Hours(8192)).GetValue(),
         Accuracy.GetValue());
 }
 
