@@ -19,9 +19,6 @@ namespace NYT::NFlow {
 //! of a Flow Controller signature against any other YT service.
 constexpr std::string_view ControllerRequestMetadataMethod = "FlowExecute";
 
-//! TCustomMetadataExt entry that carries the serialized TControllerRequestMetadata YSON.
-constexpr std::string_view ControllerRequestMetadataKey = "yt-controller-request-metadata";
-
 //! TCustomMetadataExt entry that carries the signature over the serialized TControllerRequestMetadata.
 constexpr std::string_view ControllerRequestMetadataSignatureKey = "yt-controller-request-metadata-signature";
 

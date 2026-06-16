@@ -72,7 +72,6 @@ public:
         auto* ext = request->Header().MutableExtension(
             NRpc::NProto::TCustomMetadataExt::custom_metadata_ext);
         auto& entries = *ext->mutable_entries();
-        entries[ControllerRequestMetadataKey] = SerializedControllerRequestMetadata_;
         entries[ControllerRequestMetadataSignatureKey] = protoSignature.SerializeAsString();
 
         return TChannelWrapper::Send(
