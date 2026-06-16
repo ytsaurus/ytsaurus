@@ -997,8 +997,15 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
 
         applied_config = {}
 
+        def drop_null_values(value):
+            if isinstance(value, dict):
+                return {key: drop_null_values(subvalue) for key, subvalue in value.items() if subvalue is not None}
+            return value
+
         def check_orchid_value(proxy, effective_config, unrecognized_config_options, native=False):
-            compared_config = config if native else proxy_config
+            # Null-valued optional fields are omitted from the effective config, so they cannot be
+            # matched against it; drop them before comparing.
+            compared_config = drop_null_values(config if native else proxy_config)
 
             print_debug(f"Checking orchid value for proxy {proxy}")
             # TODO(apachee): Move unrecognized config options check to verify, since once it works we should ignore

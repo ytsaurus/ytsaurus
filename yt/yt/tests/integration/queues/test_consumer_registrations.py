@@ -1,4 +1,5 @@
-from yt_commands import (authors, make_ace, wait, get, set, create, sync_mount_table, get_driver, select_rows, print_debug, link,
+from yt_commands import (authors, make_ace, wait, get, set, create, sync_mount_table, sync_unmount_table,
+                         sync_freeze_table, get_driver, select_rows, print_debug, link,
                          check_permission, register_queue_consumer, unregister_queue_consumer, commit_transaction,
                          list_queue_consumer_registrations, raises_yt_error, retry_yt_error, create_user,
                          sync_create_cells, remove, pull_queue, pull_consumer, advance_consumer, insert_rows,
@@ -136,6 +137,29 @@ class TestQueueConsumerApiBase(QueueConsumerRegistrationManagerBase, ReplicatedO
             "state_read_path": parse_ypath(f"<clusters=[{cluster}]>{table_path}"),
             "read_availability_clusters": {cluster},
             "write_availability_clusters": {cluster},
+        }
+
+    def _create_replicated_registration_table_with_replicas(
+            self, replica_clusters, async_cluster, root="//tmp",
+            schema=init_queue_agent_state.REGISTRATION_TABLE_SCHEMA):
+        self._create_cells()
+
+        replicated_table_path = f"{root}/replicated_consumer_registrations"
+        replica_path = f"{root}/consumer_registrations_replica"
+
+        write_cluster = self.get_cluster_names()[0]
+
+        async_clusters = {async_cluster} if isinstance(async_cluster, str) else builtins.set(async_cluster)
+        replicas = [{"replica_path": replica_path, "cluster_name": cluster, "enabled": True,
+                     "mode": "async" if cluster in async_clusters else "sync"}
+                    for cluster in replica_clusters]
+
+        self._create_replicated_table_base(replicated_table_path, replicas, schema)
+
+        return {
+            "local_replica_path": replica_path,
+            "state_write_path": parse_ypath(f"{write_cluster}:{replicated_table_path}"),
+            "state_read_path": parse_ypath(f'<clusters=[{";".join(replica_clusters)}]>{replica_path}'),
         }
 
 
@@ -832,6 +856,135 @@ class TestCustomRegistrationManagerConfig(TestQueueConsumerApiBase, TestQueueAge
         assert len(list_queue_consumer_registrations(consumer_path=consumer_path)) == 1
 
         assert len(pull_consumer(consumer_path, queue_path, offset=0, partition_index=0)) == 0
+
+
+class TestRegistrationManagerSuccessfulLookupsRequired(TestQueueConsumerApiBase, TestQueueAgentBase):
+    NUM_REMOTE_CLUSTERS = 2
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    ENABLE_MULTIDAEMON = True
+
+    @staticmethod
+    def _registration_visible(consumer_path, queue_path):
+        try:
+            pull_consumer(consumer_path, queue_path, offset=0, partition_index=0)
+            return True
+        except YtError as error:
+            print_debug(f"Registration {consumer_path} -> {queue_path} is not visible: {error}")
+            return False
+
+    @staticmethod
+    def _listed_registration_queues(consumer_path):
+        return {str(registration["queue_path"])
+                for registration in list_queue_consumer_registrations(consumer_path=consumer_path)}
+
+    def _setup_registration_table(self, replica_clusters, async_cluster, successful_lookups_required):
+        config = self._create_replicated_registration_table_with_replicas(replica_clusters, async_cluster)
+        config["cache"] = {
+            "cache_kind_to_successful_lookups_required": {
+                "registration_lookup": successful_lookups_required,
+                "list_registrations": successful_lookups_required,
+            },
+        }
+        self._apply_registration_manager_config_patch_all(config)
+        return config
+
+    def _register_new_consumer(self, consumer, ctx):
+        queue = self.create_queue_path(ctx)
+        self._create_queue(queue)
+        insert_rows(queue, [{"data": ctx}])
+        register_queue_consumer(queue, consumer, vital=True)
+        return queue
+
+    @authors("apachee")
+    @pytest.mark.parametrize("break_method", ["freeze", "unmount"])
+    def test_successful_lookups_required(self, break_method):
+        broken_cluster = "remote_1"
+        broken_driver = get_driver(cluster=broken_cluster)
+
+        config = self._setup_registration_table(
+            replica_clusters=["primary", "remote_0", broken_cluster],
+            async_cluster=broken_cluster,
+            successful_lookups_required=2)
+        replica_path = config["local_replica_path"]
+
+        consumer = self.create_consumer_path()
+        self._create_consumer(consumer)
+
+        old_queue = self._register_new_consumer(consumer, "old")
+        wait(lambda: self._registration_visible(consumer, old_queue))
+
+        if break_method == "freeze":
+            sync_freeze_table(replica_path, driver=broken_driver)
+        else:
+            sync_unmount_table(replica_path, driver=broken_driver)
+
+        assert self._registration_visible(consumer, old_queue)
+
+        new_queue = self._register_new_consumer(consumer, "new")
+        wait(lambda: self._registration_visible(consumer, new_queue))
+        assert self._registration_visible(consumer, old_queue)
+
+        if break_method == "unmount":
+            wait(lambda: self._listed_registration_queues(consumer) == {old_queue, new_queue})
+
+    @authors("apachee")
+    def test_successful_lookups_required_custom_value(self):
+        broken_clusters = ["remote_0", "remote_1"]
+        broken_drivers = [get_driver(cluster=cluster) for cluster in broken_clusters]
+
+        config = self._setup_registration_table(
+            replica_clusters=["primary"] + broken_clusters,
+            async_cluster=broken_clusters,
+            successful_lookups_required=1)
+        replica_path = config["local_replica_path"]
+
+        consumer = self.create_consumer_path()
+        self._create_consumer(consumer)
+
+        old_queue = self._register_new_consumer(consumer, "old")
+        wait(lambda: self._registration_visible(consumer, old_queue))
+
+        for broken_driver in broken_drivers:
+            sync_unmount_table(replica_path, driver=broken_driver)
+
+        assert self._registration_visible(consumer, old_queue)
+
+        new_queue = self._register_new_consumer(consumer, "new")
+        wait(lambda: self._registration_visible(consumer, new_queue))
+        assert self._registration_visible(consumer, old_queue)
+
+        wait(lambda: self._listed_registration_queues(consumer) == {old_queue, new_queue})
+
+    @authors("apachee")
+    def test_successful_lookups_required_best_effort(self):
+        broken_clusters = ["remote_0", "remote_1"]
+        broken_drivers = [get_driver(cluster=cluster) for cluster in broken_clusters]
+
+        config = self._setup_registration_table(
+            replica_clusters=["primary"] + broken_clusters,
+            async_cluster=broken_clusters,
+            successful_lookups_required=None)
+        replica_path = config["local_replica_path"]
+
+        consumer = self.create_consumer_path()
+        self._create_consumer(consumer)
+
+        old_queue = self._register_new_consumer(consumer, "old")
+        wait(lambda: self._registration_visible(consumer, old_queue))
+
+        for broken_driver in broken_drivers:
+            sync_unmount_table(replica_path, driver=broken_driver)
+
+        assert self._registration_visible(consumer, old_queue)
+
+        new_queue = self._register_new_consumer(consumer, "new")
+        wait(lambda: self._registration_visible(consumer, new_queue))
+        assert self._registration_visible(consumer, old_queue)
+
+        wait(lambda: self._listed_registration_queues(consumer) == {old_queue, new_queue})
 
 
 class TestDataApiBase(TestQueueConsumerApiBase, TestQueueAgentBase):
