@@ -15,8 +15,6 @@
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
-#include <yt/yt/ytlib/discovery_client/helpers.h>
-
 namespace NYT::NDiscoveryClient {
 
 using namespace NConcurrency;
