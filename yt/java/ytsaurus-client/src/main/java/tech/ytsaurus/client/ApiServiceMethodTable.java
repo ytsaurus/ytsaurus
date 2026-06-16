@@ -91,6 +91,7 @@ import tech.ytsaurus.rpcproxy.TReqSuspendOperation;
 import tech.ytsaurus.rpcproxy.TReqTrimTable;
 import tech.ytsaurus.rpcproxy.TReqUnfreezeTable;
 import tech.ytsaurus.rpcproxy.TReqUnmountTable;
+import tech.ytsaurus.rpcproxy.TReqUnregisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqUpdateOperationParameters;
 import tech.ytsaurus.rpcproxy.TReqVersionedLookupRows;
 import tech.ytsaurus.rpcproxy.TReqWriteFile;
@@ -180,6 +181,7 @@ import tech.ytsaurus.rpcproxy.TRspSuspendOperation;
 import tech.ytsaurus.rpcproxy.TRspTrimTable;
 import tech.ytsaurus.rpcproxy.TRspUnfreezeTable;
 import tech.ytsaurus.rpcproxy.TRspUnmountTable;
+import tech.ytsaurus.rpcproxy.TRspUnregisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspUpdateOperationParameters;
 import tech.ytsaurus.rpcproxy.TRspVersionedLookupRows;
 import tech.ytsaurus.rpcproxy.TRspWriteFile;
@@ -368,6 +370,12 @@ public class ApiServiceMethodTable {
             REGISTER_QUEUE_CONSUMER = apiServiceMethod(
             "RegisterQueueConsumer",
             TReqRegisterQueueConsumer::newBuilder, TRspRegisterQueueConsumer.parser()
+    );
+
+    public static final RpcMethodDescriptor<TReqUnregisterQueueConsumer.Builder, TRspUnregisterQueueConsumer>
+            UNREGISTER_QUEUE_CONSUMER = apiServiceMethod(
+            "UnregisterQueueConsumer",
+            TReqUnregisterQueueConsumer::newBuilder, TRspUnregisterQueueConsumer.parser()
     );
 
     public static final RpcMethodDescriptor<

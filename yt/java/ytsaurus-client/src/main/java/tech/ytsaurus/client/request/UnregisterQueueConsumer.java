@@ -7,32 +7,27 @@ import javax.annotation.Nullable;
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
-import tech.ytsaurus.rpcproxy.TReqRegisterQueueConsumer;
+import tech.ytsaurus.rpcproxy.TReqUnregisterQueueConsumer;
 
 /**
- * Immutable register queue consumer request.
+ * Immutable unregister queue consumer request.
  * <p>
  *
- * @see tech.ytsaurus.client.ApiServiceClient#registerQueueConsumer(RegisterQueueConsumer)
+ * @see tech.ytsaurus.client.ApiServiceClient#unregisterQueueConsumer(UnregisterQueueConsumer)
  */
-public class RegisterQueueConsumer extends RequestBase<RegisterQueueConsumer.Builder, RegisterQueueConsumer>
-        implements HighLevelRequest<TReqRegisterQueueConsumer.Builder> {
+public class UnregisterQueueConsumer extends RequestBase<UnregisterQueueConsumer.Builder, UnregisterQueueConsumer>
+        implements HighLevelRequest<TReqUnregisterQueueConsumer.Builder> {
     private final YPath consumerPath;
     private final YPath queuePath;
-    private final boolean vital;
-    @Nullable
-    private final RegistrationPartitions registrationPartitions;
 
-    RegisterQueueConsumer(Builder builder) {
+    UnregisterQueueConsumer(Builder builder) {
         super(builder);
         this.consumerPath = Objects.requireNonNull(builder.consumerPath);
         this.queuePath = Objects.requireNonNull(builder.queuePath);
-        this.vital = builder.vital;
-        this.registrationPartitions = builder.registrationPartitions;
     }
 
     /**
-     * Construct empty builder for register queue consumer request.
+     * Construct empty builder for unregister queue consumer request.
      */
     public static Builder builder() {
         return new Builder();
@@ -46,8 +41,6 @@ public class RegisterQueueConsumer extends RequestBase<RegisterQueueConsumer.Bui
         return builder()
                 .setConsumerPath(consumerPath)
                 .setQueuePath(queuePath)
-                .setVital(vital)
-                .setRegistrationPartitions(registrationPartitions)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
@@ -59,10 +52,6 @@ public class RegisterQueueConsumer extends RequestBase<RegisterQueueConsumer.Bui
     protected void writeArgumentsLogString(StringBuilder sb) {
         sb.append("ConsumerPath: ").append(consumerPath).append("; ");
         sb.append("QueuePath: ").append(queuePath).append("; ");
-        sb.append("Vital: ").append(vital).append("; ");
-        if (registrationPartitions != null) {
-            sb.append("RegistrationPartitions: ").append(registrationPartitions.getPartitions()).append("; ");
-        }
         super.writeArgumentsLogString(sb);
     }
 
@@ -70,27 +59,20 @@ public class RegisterQueueConsumer extends RequestBase<RegisterQueueConsumer.Bui
      * Internal method: prepare request to send over network.
      */
     @Override
-    public void writeTo(RpcClientRequestBuilder<TReqRegisterQueueConsumer.Builder, ?> requestBuilder) {
-        TReqRegisterQueueConsumer.Builder builder = requestBuilder.body();
+    public void writeTo(RpcClientRequestBuilder<TReqUnregisterQueueConsumer.Builder, ?> requestBuilder) {
+        TReqUnregisterQueueConsumer.Builder builder = requestBuilder.body();
         builder.setQueuePath(ByteString.copyFromUtf8(queuePath.toString()));
         builder.setConsumerPath(ByteString.copyFromUtf8(consumerPath.toString()));
-        builder.setVital(vital);
-        if (registrationPartitions != null) {
-            builder.setPartitions(registrationPartitions.toProto());
-        }
     }
 
     /**
-     * Builder for {@link RegisterQueueConsumer}
+     * Builder for {@link UnregisterQueueConsumer}
      */
-    public static class Builder extends RequestBase.Builder<RegisterQueueConsumer.Builder, RegisterQueueConsumer> {
+    public static class Builder extends RequestBase.Builder<UnregisterQueueConsumer.Builder, UnregisterQueueConsumer> {
         @Nullable
         private YPath consumerPath;
         @Nullable
         private YPath queuePath;
-        private boolean vital;
-        @Nullable
-        private RegistrationPartitions registrationPartitions;
 
         private Builder() {
         }
@@ -105,7 +87,7 @@ public class RegisterQueueConsumer extends RequestBase<RegisterQueueConsumer.Bui
          *
          * @return self
          */
-        public RegisterQueueConsumer.Builder setConsumerPath(YPath consumerPath) {
+        public UnregisterQueueConsumer.Builder setConsumerPath(YPath consumerPath) {
             this.consumerPath = consumerPath;
             return self();
         }
@@ -120,28 +102,16 @@ public class RegisterQueueConsumer extends RequestBase<RegisterQueueConsumer.Bui
          *
          * @return self
          */
-        public RegisterQueueConsumer.Builder setQueuePath(YPath queuePath) {
+        public UnregisterQueueConsumer.Builder setQueuePath(YPath queuePath) {
             this.queuePath = queuePath;
             return self();
         }
 
-        public RegisterQueueConsumer.Builder setVital(boolean vital) {
-            this.vital = vital;
-            return self();
-        }
-
-        public RegisterQueueConsumer.Builder setRegistrationPartitions(
-                @Nullable RegistrationPartitions registrationPartitions
-        ) {
-            this.registrationPartitions = registrationPartitions;
-            return self();
-        }
-
         /**
-         * Construct {@link RegisterQueueConsumer} instance.
+         * Construct {@link UnregisterQueueConsumer} instance.
          */
-        public RegisterQueueConsumer build() {
-            return new RegisterQueueConsumer(this);
+        public UnregisterQueueConsumer build() {
+            return new UnregisterQueueConsumer(this);
         }
 
         @Override
