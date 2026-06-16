@@ -2601,9 +2601,6 @@ void TSchedulableConfig::Register(TRegistrar registrar)
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
 
-    registrar.Parameter("strong_guarantee_resources", &TThis::StrongGuaranteeResources)
-        .Alias("min_share_resources")
-        .DefaultNew();
     registrar.Parameter("scheduling_tag_filter", &TThis::SchedulingTagFilter)
         .Alias("scheduling_tag")
         .Default();
@@ -2705,6 +2702,10 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("abc", &TThis::Abc)
         .Default();
+
+    registrar.Parameter("strong_guarantee_resources", &TThis::StrongGuaranteeResources)
+        .Alias("min_share_resources")
+        .DefaultNew();
 
     registrar.Parameter("integral_guarantees", &TThis::IntegralGuarantees)
         .DefaultNew();

@@ -29,7 +29,6 @@ DEFINE_ENUM(EIntegralGuaranteeType,
 DEFINE_ENUM(EStrongGuaranteeTier,
     ((PriorityPools) (0))
     ((RegularPools)  (1))
-    ((Operations)    (2))
 );
 
 YT_DEFINE_ERROR_ENUM(

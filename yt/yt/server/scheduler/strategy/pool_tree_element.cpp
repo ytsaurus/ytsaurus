@@ -2041,7 +2041,9 @@ std::optional<double> TPoolTreeOperationElement::GetSpecifiedWeight() const
 
 const NVectorHdrf::TJobResourcesConfig* TPoolTreeOperationElement::GetStrongGuaranteeResourcesConfig() const
 {
-    return Spec_->StrongGuaranteeResources.Get();
+    // Operations never receive a strong guarantee, so we always report an empty config here.
+    static const NVectorHdrf::TJobResourcesConfig EmptyConfig;
+    return &EmptyConfig;
 }
 
 const TStrategyOperationStatePtr& TPoolTreeOperationElement::GetStrategyOperationState() const
