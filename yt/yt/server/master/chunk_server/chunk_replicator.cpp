@@ -347,8 +347,8 @@ TChunkReplicator::TChunkReplicator(
         Config_->RepairQueueBalancerWeightDecayFactor,
         Config_->RepairQueueBalancerWeightDecayInterval)
 {
-    BlobRefreshQueueWaitTimeCounter_ = ChunkServerProfiler().TimeCounter("/blob_refresh_queue_wait_time");
-    JournalRefreshQueueWaitTimeCounter_ = ChunkServerProfiler().TimeCounter("/journal_refresh_queue_wait_time");
+    BlobRefreshQueueWaitTime_ = ChunkServerProfiler().TimeGauge("/blob_refresh_queue_wait_time");
+    JournalRefreshQueueWaitTime_ = ChunkServerProfiler().TimeGauge("/journal_refresh_queue_wait_time");
 
     for (int i = 0; i < MaxMediumCount; ++i) {
         // We "balance" medium indexes, not the repair queues themselves.
@@ -2980,7 +2980,7 @@ void TChunkReplicator::OnRefresh()
 
     YT_LOG_DEBUG("Chunk refresh iteration started");
 
-    auto deadline = GetCpuInstant() - DurationToCpuDuration(config->ChunkRefreshDelay);
+    auto now = GetCpuInstant();
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
@@ -2991,11 +2991,22 @@ void TChunkReplicator::OnRefresh()
         int* const aliveCount,
         int* const replicasErrorCount,
         int maxChunksPerRefresh,
-        NProfiling::TTimeCounter& refreshQueueWaitTimeCounter)
+        NProfiling::TTimeGauge& refreshQueueWaitTime)
     {
         std::vector<TEphemeralObjectPtr<TChunk>> chunksToRefresh;
         THashMap<TChunkId, int> chunkIdToErrorCount;
         THashMap<TChunkId, std::optional<NProfiling::TCpuInstant>> chunkIdToEnqueueInstant;
+        auto globalRefreshStartTime = scanner->GetGlobalScanStartTime();
+        auto deadline = now - DurationToCpuDuration(config->ChunkRefreshDelay);
+        auto start = now - DurationToCpuDuration(config->ReplicaApproveTimeout);
+        if (globalRefreshStartTime > start) {
+            deadline = start;
+        }
+        YT_LOG_TRACE("Chunk refresh iteration deadline (GlobalRefreshStartTime: %v, Start: %v, Deadline: %v)",
+                CpuInstantToInstant(globalRefreshStartTime),
+                CpuInstantToInstant(start),
+                CpuInstantToInstant(deadline));
+
         while (*totalCount < maxChunksPerRefresh && scanner->HasUnscannedChunk(deadline)) {
             ++(*totalCount);
             auto [chunk, errorCount] = scanner->DequeueChunk(deadline);
@@ -3005,14 +3016,13 @@ void TChunkReplicator::OnRefresh()
 
             auto enqueueInstant = scanner->GetLastDequeuedChunkEnqueueInstant();
             if (enqueueInstant) {
-                auto now = GetCpuInstant();
-                auto globalRefreshStartTime = scanner->GetGlobalScanStartTime();
                 auto allowedWaitTime = config->MaxChunkRefreshQueueWaitTime;
                 if (globalRefreshStartTime < now && CpuDurationToDuration(now - globalRefreshStartTime) < config->MaxGlobalChunkRefreshQueueWaitTime) {
                     allowedWaitTime += config->MaxGlobalChunkRefreshQueueWaitTime;
                 }
+                // TODO(aleksandra-zh, grphil): profile maximum refresh delay as well.
                 auto waitTime = CpuDurationToDuration(now - *enqueueInstant);
-                refreshQueueWaitTimeCounter.Add(waitTime);
+                refreshQueueWaitTime.Update(waitTime);
                 if (waitTime > allowedWaitTime) {
                     YT_LOG_ALERT(
                         "Chunk has been waiting in refresh queue for too long "
@@ -3033,10 +3043,15 @@ void TChunkReplicator::OnRefresh()
             }
 
             if (config->DelayRecentlyConfirmedChunksRefresh && chunkManager->IsChunkRecentlyConfirmed(chunk->GetId())) {
-                auto delay = DurationToCpuDuration(config->ReplicaApproveTimeout);
-                YT_LOG_DEBUG("Chunk refresh is delayed (ChunkId: %v, Delay: %v)",
+                // Since the delayed queue is actually a queue now, there is no way to reschedule chunk refresh using precise time,
+                // as the chunk will still be put at the end of the queue. The current plan is to make
+                // ChunkRefreshDelay significantly smaller then ReplicaApproveTimeout, so the refresh delay is not doubled here,
+                // but the long term plan is to make a queue a priority queue instead.
+                auto delay = DurationToCpuDuration(config->ChunkRefreshDelay);
+                YT_LOG_DEBUG("Chunk refresh is delayed (ChunkId: %v, Delay: %v, EnqueueInstant: %v)",
                     chunk->GetId(),
-                    delay);
+                    delay,
+                    enqueueInstant);
                 scanner->EnqueueChunk(
                     {chunk, errorCount},
                     delay,
@@ -3103,14 +3118,14 @@ void TChunkReplicator::OnRefresh()
             &aliveBlobCount,
             &replicasErrorCount,
             config->MaxBlobChunksPerRefresh,
-            BlobRefreshQueueWaitTimeCounter_);
+            BlobRefreshQueueWaitTime_);
         doRefreshChunks(
             JournalRefreshScanner_,
             &totalJournalCount,
             &aliveJournalCount,
             &journalReplicasErrorCount,
             config->MaxJournalChunksPerRefresh,
-            JournalRefreshQueueWaitTimeCounter_);
+            JournalRefreshQueueWaitTime_);
     }
 
     FlushEndorsementQueue();
