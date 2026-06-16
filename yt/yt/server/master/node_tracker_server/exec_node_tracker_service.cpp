@@ -31,7 +31,7 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TExecNodeTrackerServiceProxy::GetDescriptor(),
-            TMasterHydraServiceBase::TRpcHeavyDefaultInvoker{},
+            TDispatcher::Get()->GetHeavyInvoker(),
             NodeTrackerServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
