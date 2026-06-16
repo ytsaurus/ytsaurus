@@ -1000,11 +1000,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
             }
         }
 
-        // COMPAT(aleksandra-zh).
-        if (config->SequoiaChunkReplicas->Enable && config->ChunkRefreshDelay < config->ReplicaApproveTimeout) {
-            config->ChunkRefreshDelay = config->ReplicaApproveTimeout;
-        }
-
         if (!config->AlwaysFetchNonOnlineReplicas && !config->RefreshNodeOnOnline) {
             THROW_ERROR_EXCEPTION("Can not disable always_fetch_non_online_replicas without online node refresh");
         }

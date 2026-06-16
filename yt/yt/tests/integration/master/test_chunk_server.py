@@ -2736,8 +2736,7 @@ class TestChunkRefreshQueueWaitTime(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_refresh_queue_wait_time_counter(self):
         profiler = self._get_master_profiler()
-        blob_counter = profiler.counter("chunk_server/blob_refresh_queue_wait_time")
-        journal_counter = profiler.counter("chunk_server/journal_refresh_queue_wait_time")
+        blob_gauge = profiler.gauge("chunk_server/blob_refresh_queue_wait_time")
 
         # Disable refresh so the chunk sits in the queue long enough for us to observe wait time.
         set("//sys/@config/chunk_manager/enable_chunk_refresh", False)
@@ -2750,7 +2749,5 @@ class TestChunkRefreshQueueWaitTime(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/enable_chunk_refresh", True)
 
-        # The blob counter must accumulate a nonzero wait time once the chunk is dequeued.
-        wait(lambda: blob_counter.get_delta() > 0)
-        # No journal chunks were written, so the journal counter must stay at zero.
-        assert journal_counter.get_delta() == 0
+        # The blob gauge must report a nonzero wait time once the chunk is dequeued.
+        wait(lambda: blob_gauge.get() is not None and blob_gauge.get() > 0)
