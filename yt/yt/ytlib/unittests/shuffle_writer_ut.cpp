@@ -1,4 +1,5 @@
 #include <yt/yt/ytlib/push_based_shuffle_client/config.h>
+#include <yt/yt/ytlib/push_based_shuffle_client/record_format.h>
 #include <yt/yt/ytlib/push_based_shuffle_client/session_provider.h>
 #include <yt/yt/ytlib/push_based_shuffle_client/shuffle_writer.h>
 
@@ -65,6 +66,14 @@ TSessionDescriptor MakeSessionDescriptor(ui64 counter, const std::string& addres
         .SessionId = TSessionId(chunkId, /*mediumIndex*/ 0),
         .SequencerNode = TNodeDescriptor(address),
     };
+}
+
+// Row count from a flushed wire record; the 16-byte header is uncompressed at
+// the front regardless of codec, so no decompression is needed.
+i32 GetRecordRowCount(const TSharedRef& wireRecord)
+{
+    std::vector<TSharedRef> refs{wireRecord};
+    return ReadShuffleRecordHeader(TRange(refs)).RowCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1018,6 +1027,167 @@ TEST(TPushBasedShuffleWriterTest, SuccessAckOnDyingSessionNotDuplicated)
         h.DrainInvoker();
     }
     EXPECT_TRUE(closeFuture.GetOrCrash().IsOK());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Discriminates the data key from the old capacity key: two partitions held in
+// the same capacity quantum (both well under the first chunk-doubling jump, so
+// GetAllocatedDataSize is identical) but with very different buffered data. The
+// data-keyed heap must evict the higher-data partition; a capacity-keyed scan
+// would tie on capacity and evict the lower-index one instead.
+TEST(TPushBasedShuffleWriterTest, EvictionUsesBufferedDataNotCapacity)
+{
+    constexpr int PartitionCount = 2;
+    constexpr int LowDataPartition = 0;
+    constexpr int HighDataPartition = 1;
+    TWriterHarness h;
+    // Builder budget ~16 KiB: one builder (capacity 12288) fits, two do not, so
+    // adding the second partition triggers exactly one eviction.
+    auto writer = h.CreateWriter(
+        PartitionCount,
+        /*memoryBudget*/ 256_KB,
+        /*mapperId*/ 17,
+        /*buildersBudgetFraction*/ 0.0625);
+
+    // Grow the high-data partition first (well within the flat-capacity zone),
+    // then add one row to the low-data partition to trip the budget: both
+    // builders now share capacity 12288, but the high-data partition holds far
+    // more buffered data and so must be the victim.
+    std::vector<TUnversionedRow> rows;
+    for (int rowIndex = 0; rowIndex < 200; ++rowIndex) {
+        rows.push_back(h.MakeRow(HighDataPartition, rowIndex));
+    }
+    rows.push_back(h.MakeRow(LowDataPartition, 0));
+    WaitFor(writer->Write(TRange(rows))).ThrowOnError();
+    h.DrainInvoker();
+
+    std::vector<TSessionId> sessionIds(PartitionCount);
+    for (int partitionIndex = 0; partitionIndex < PartitionCount; ++partitionIndex) {
+        auto session = MakeSessionDescriptor(partitionIndex + 1, Format("node-%v", partitionIndex));
+        sessionIds[partitionIndex] = session.SessionId;
+        h.GetProvider()->ProvideSession(partitionIndex, session);
+    }
+    h.DrainInvoker();
+
+    // The high-data partition was evicted (record shipped); the low-data one is
+    // still buffering. A capacity-keyed tie would evict the low-index partition,
+    // reversing this.
+    auto chunkWriters = h.GetChunkWriters();
+    ASSERT_TRUE(chunkWriters.contains(sessionIds[HighDataPartition]));
+    EXPECT_GT(std::ssize(chunkWriters.at(sessionIds[HighDataPartition])->GetRecords()), 0)
+        << "the higher-data partition must be the eviction victim";
+    auto lowIt = chunkWriters.find(sessionIds[LowDataPartition]);
+    if (lowIt != chunkWriters.end()) {
+        EXPECT_EQ(std::ssize(lowIt->second->GetRecords()), 0)
+            << "the lower-data partition must not be evicted";
+    }
+
+    auto closeFuture = writer->Close();
+    h.DrainInvoker();
+    for (const auto& [sessionId, chunkWriter] : h.GetChunkWriters()) {
+        while (chunkWriter->GetUnackedCount() > 0) {
+            chunkWriter->Ack();
+            h.DrainInvoker();
+        }
+    }
+    EXPECT_TRUE(closeFuture.GetOrCrash().IsOK());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Heap eviction at scale, and red under capacity-keyed eviction. All partitions
+// sit in the same builder-capacity quantum (each well under the chunk-doubling
+// jump), so allocated capacity cannot tell them apart; half hold a lot of
+// buffered data, half hold almost none. Data-keyed eviction always flushes a
+// high-data partition, so the low-data half is never evicted before Close; a
+// capacity-keyed policy is blind to the data and evicts the low-data half too.
+// Also checks the heap conserves every row across the eviction churn.
+TEST(TPushBasedShuffleWriterTest, EvictionHeapEvictsHighDataPartitionsAtScale)
+{
+    constexpr int GroupSize = 16;
+    constexpr int PartitionCount = 2 * GroupSize;
+    auto lowPartition = [] (int index) { return index; };
+    auto highPartition = [] (int index) { return GroupSize + index; };
+
+    TWriterHarness h;
+    // Every builder has capacity 12288 (each partition stays under the ~1019-row
+    // jump). The fraction puts BuildersBudget between GroupSize and GroupSize + 1
+    // builders' worth (196608..208896 bytes), so the GroupSize low-data builders
+    // fit but each high-data partition is evicted as the lows arrive.
+    auto writer = h.CreateWriter(
+        PartitionCount,
+        /*memoryBudget*/ 2_MB,
+        /*mapperId*/ 17,
+        /*buildersBudgetFraction*/ 0.0967);
+
+    // Grow every high-data builder first (distinct in-quantum sizes), then add
+    // one row to each low-data partition to trip the budget. At each trip the
+    // heap front is a high-data partition, so the lows are never the victim.
+    i64 totalRows = 0;
+    std::vector<TUnversionedRow> rows;
+    for (int groupIndex = 0; groupIndex < GroupSize; ++groupIndex) {
+        int rowCount = 200 + groupIndex * 20;
+        for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+            rows.push_back(h.MakeRow(highPartition(groupIndex), rowIndex));
+        }
+        totalRows += rowCount;
+    }
+    for (int groupIndex = 0; groupIndex < GroupSize; ++groupIndex) {
+        rows.push_back(h.MakeRow(lowPartition(groupIndex), 0));
+        ++totalRows;
+    }
+    WaitFor(writer->Write(TRange(rows))).ThrowOnError();
+    h.DrainInvoker();
+
+    std::vector<TSessionId> sessionIds(PartitionCount);
+    for (int partitionIndex = 0; partitionIndex < PartitionCount; ++partitionIndex) {
+        auto session = MakeSessionDescriptor(partitionIndex + 1, Format("node-%v", partitionIndex));
+        sessionIds[partitionIndex] = session.SessionId;
+        h.GetProvider()->ProvideSession(partitionIndex, session);
+    }
+    h.DrainInvoker();
+
+    // Pre-Close: no low-data partition has been evicted. A capacity-keyed policy
+    // would evict the lows (they tie on capacity), flipping this.
+    auto chunkWriters = h.GetChunkWriters();
+    for (int groupIndex = 0; groupIndex < GroupSize; ++groupIndex) {
+        auto writerIt = chunkWriters.find(sessionIds[lowPartition(groupIndex)]);
+        if (writerIt != chunkWriters.end()) {
+            EXPECT_EQ(std::ssize(writerIt->second->GetRecords()), 0)
+                << "low-data partition " << lowPartition(groupIndex) << " must not be evicted";
+        }
+    }
+
+    auto ackEverything = [&] {
+        bool progressed = true;
+        while (progressed) {
+            progressed = false;
+            for (const auto& [sessionId, chunkWriter] : h.GetChunkWriters()) {
+                while (chunkWriter->GetUnackedCount() > 0) {
+                    chunkWriter->Ack();
+                    h.DrainInvoker();
+                    progressed = true;
+                }
+            }
+        }
+    };
+
+    ackEverything();
+    auto closeFuture = writer->Close();
+    h.DrainInvoker();
+    ackEverything();
+    EXPECT_TRUE(closeFuture.GetOrCrash().IsOK());
+
+    // The heap neither dropped nor duplicated a builder across the evictions.
+    i64 flushedRows = 0;
+    for (const auto& [sessionId, chunkWriter] : h.GetChunkWriters()) {
+        for (const auto& record : chunkWriter->GetRecords()) {
+            flushedRows += GetRecordRowCount(record);
+        }
+    }
+    EXPECT_EQ(flushedRows, totalRows)
+        << "every written row must surface in exactly one flushed record";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
