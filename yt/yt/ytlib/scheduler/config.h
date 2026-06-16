@@ -181,9 +181,6 @@ struct TSchedulableConfig
     // Specifies resource limits in absolute values.
     TJobResourcesConfigPtr ResourceLimits;
 
-    // Specifies guaranteed resources in absolute values.
-    TJobResourcesConfigPtr StrongGuaranteeResources;
-
     TBooleanFormula SchedulingTagFilter;
 
     REGISTER_YSON_STRUCT(TSchedulableConfig);
@@ -292,6 +289,9 @@ struct TPoolConfig
     std::optional<bool> EnableByUserProfiling;
 
     NObjectClient::TAbcConfigPtr Abc;
+
+    // Specifies guaranteed resources in absolute values.
+    TJobResourcesConfigPtr StrongGuaranteeResources;
 
     TPoolIntegralGuaranteesConfigPtr IntegralGuarantees;
 

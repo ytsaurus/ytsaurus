@@ -281,29 +281,35 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert op.get_job_count("total") == 1
         assert op.get_job_count("running") == 1
 
-    @authors("ignat")
-    def test_strong_guarantee_share(self):
+    @authors("ignat", "eshcherbin")
+    def test_operation_strong_guarantee_resources_ignored(self):
+        # Operations never receive a strong guarantee: strong_guarantee_resources in an operation
+        # spec is inherited from the shared schedulable config but is silently ignored.
         create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": 3}})
 
         def get_operation_strong_guarantee_dominant_share(op):
             strong_guarantee = op.get_runtime_progress("scheduling_info_per_pool_tree/default/strong_guarantee_share", {})
             return max(list(strong_guarantee.values()) + [0.0])
 
-        string_guarantee_settings = [{"cpu": 3}, {"cpu": 1, "user_slots": 6}]
+        strong_guarantee_settings = [{"cpu": 3}, {"cpu": 1, "user_slots": 6}]
 
-        for string_guarantee_resources in string_guarantee_settings:
+        for strong_guarantee_resources in strong_guarantee_settings:
             reset_events_on_fs()
             op = run_test_vanilla(
                 with_breakpoint("BREAKPOINT"),
                 spec={
                     "pool": "test_pool",
-                    "strong_guarantee_resources": string_guarantee_resources,
+                    "strong_guarantee_resources": strong_guarantee_resources,
                 },
                 job_count=3,
             )
             wait_breakpoint()
 
-            wait(lambda: get_operation_strong_guarantee_dominant_share(op) == 1.0)
+            # Wait until the operation is scheduled and reflected in a fair share update.
+            wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/dominant_usage_share", 0.0) > 0.0)
+
+            # The operation's strong guarantee share must stay zero regardless of the spec.
+            assert get_operation_strong_guarantee_dominant_share(op) == 0.0
 
             release_breakpoint()
             op.track()
