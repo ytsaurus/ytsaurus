@@ -194,6 +194,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/system_log_event_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/random_access_gzip.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/zstd_log_codec.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/absolute_normalized_path.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/arithmetic_formula.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/backtrace.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/backoff_strategy.cpp
