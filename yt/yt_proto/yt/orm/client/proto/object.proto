@@ -466,12 +466,13 @@ message TEtcOptions
     optional uint64 max_inline_hunk_size = 3;
 }
 
-// Next field 30059.
+// Next field 30060.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
     repeated TObjectTypeOption extend_object_type = 30036;
     repeated TIndexOption index = 30001;
+    repeated TReferencesOption references = 30059;
 
     // Specifies whether tombstones mechanics is enabled or not.
     // Disabled by default.
@@ -778,6 +779,57 @@ message TReferenceOption
     optional EPresencePolicy presence_policy = 14;
     optional EDuplicatePolicy duplicate_policy = 15;
     optional EReferenceMode mode = 16;
+}
+
+// Declares a whole reference relationship in one place, as a file option. This is an alternative
+// to spelling out the two mirror-image |reference| field options by hand and keeping them in sync;
+// both ways are supported and may be mixed within a model. Each endpoint describes one side;
+// codegen materializes the matching TReference field on each side and links them. The opposite
+// endpoint plays the role of the backref, so no backref paths or numbers are specified here.
+message TReferencesOption
+{
+    enum ECardinality
+    {
+        RC_MULTI = 0;
+        RC_SINGLE = 1;
+    }
+
+    message TEndpoint
+    {
+        // The object type that owns this side of the reference (snake_case).
+        optional string object_type = 1;
+
+        // Path and number of this side's reference field. If omitted, the path defaults to
+        // /status/|foreign_type|_refs and the number is allocated from the hidden field range.
+        optional string path = 2;
+        optional int32 number = 3;
+
+        optional ECardinality cardinality = 4;
+
+        // A list of paths of the components of the other endpoint's key.
+        // Proto or columnar inline storage is automatically deduced.
+        // Effectively, part of the |key_storage| oneof.
+        repeated string key_paths = 11;
+
+        oneof key_storage
+        {
+            TReferenceOption.TTabularKeyStorageOption tabular_key_storage = 12;
+            TReferenceOption.TCountingKeyStorageOption counting_key_storage = 13;
+            // One-sided reference: this side is not materialized.
+            bool dummy = 14;
+        }
+
+        optional TReferenceOption.TReferenceViewOption view = 21;
+        optional bool store_foreign_parent_key = 22;
+        optional ECascadingRemovalPolicy cascading_removal_policy = 23;
+        optional bool local_modification_only = 24;
+        optional TReferenceOption.EPresencePolicy presence_policy = 25;
+        optional TReferenceOption.EDuplicatePolicy duplicate_policy = 26;
+    }
+
+    optional TEndpoint first = 1;
+    optional TEndpoint second = 2;
+    optional TReferenceOption.EReferenceMode mode = 3;
 }
 
 message TReference
