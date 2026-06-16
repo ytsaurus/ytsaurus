@@ -155,6 +155,7 @@ import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.client.request.TrimTable;
 import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
+import tech.ytsaurus.client.request.UnregisterQueueConsumer;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
@@ -1517,6 +1518,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<Void> registerQueueConsumer(RegisterQueueConsumer req) {
         return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.REGISTER_QUEUE_CONSUMER.createRequestBuilder(rpcOptions)),
+                response -> null
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Void> unregisterQueueConsumer(UnregisterQueueConsumer req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.UNREGISTER_QUEUE_CONSUMER.createRequestBuilder(rpcOptions)),
                 response -> null
         ));
     }
