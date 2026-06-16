@@ -233,9 +233,9 @@ public:
 
     void RefLease(TTransaction* transaction, ILease* lease)
     {
-        lease->RefPersistently(/* force */ false); // May throw on inactive lease.
-        TransactionToReferencedLeases_[transaction].insert(lease);
-        LeaseToReferencingTransactions_[lease].insert(transaction);
+        lease->RefPersistently(/*force*/ false); // May throw on inactive lease.
+        InsertOrCrash(TransactionToReferencedLeases_[transaction], lease);
+        InsertOrCrash(LeaseToReferencingTransactions_[lease], transaction);
     }
 
     void HandleTransactionFinish(TTransaction* transaction)
