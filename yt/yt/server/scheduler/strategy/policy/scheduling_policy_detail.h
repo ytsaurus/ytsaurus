@@ -582,7 +582,7 @@ public:
     void RegisterOperation(const TPoolTreeOperationElement* element) override;
     void UnregisterOperation(const TPoolTreeOperationElement* element) override;
 
-    TError OnOperationMaterialized(const TPoolTreeOperationElement* element) override;
+    TError OnOperationMaterialized(const TPoolTreeOperationElement* element, bool revivedFromSnapshot) override;
     TError CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* element) const override;
 
     void EnableOperation(const TPoolTreeOperationElement* element) override;

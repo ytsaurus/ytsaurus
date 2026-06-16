@@ -1431,7 +1431,7 @@ public:
 
         for (const auto& [treeId, _] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
-            auto error = tree->OnOperationMaterialized(operationId);
+            auto error = tree->OnOperationMaterialized(operationId, revivedFromSnapshot);
             if (!error.IsOK()) {
                 return error;
             }

@@ -1115,14 +1115,14 @@ public:
         DryRunGpuSchedulingPolicy_->InitPersistentState(persistentState->GpuSchedulingPolicyState);
     }
 
-    TError OnOperationMaterialized(TOperationId operationId) override
+    TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
-        auto error = SchedulingPolicy_->OnOperationMaterialized(element.Get());
+        auto error = SchedulingPolicy_->OnOperationMaterialized(element.Get(), revivedFromSnapshot);
 
-        auto gpuPolicyError = DryRunGpuSchedulingPolicy_->OnOperationMaterialized(element.Get());
+        auto gpuPolicyError = DryRunGpuSchedulingPolicy_->OnOperationMaterialized(element.Get(), revivedFromSnapshot);
         YT_LOG_DEBUG_UNLESS(gpuPolicyError.IsOK(),
             gpuPolicyError,
             "Error occurred while processing materialized operation in DryRun GPU scheduling policy (OperationId: %v)",

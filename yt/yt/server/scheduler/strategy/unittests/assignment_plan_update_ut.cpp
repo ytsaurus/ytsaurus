@@ -337,7 +337,7 @@ protected:
             gang,
             std::move(specifiedSchedulingModules),
             std::move(schedulingTagFilter));
-        operation->Initialize(groupedNeededResources);
+        operation->Initialize(groupedNeededResources, /*revivedFromSnapshot*/ false);
         operation->ReadyToAssignGroupedNeededResources() = groupedNeededResources;
 
         return operation;
@@ -607,6 +607,31 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimple)
     EXPECT_EQ(1, operation->GetInitialNeededAllocationCount());
     EXPECT_EQ(0, operation->GetReadyToAssignNeededAllocationCount());
     EXPECT_FALSE(operation->SchedulingModule());
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, ReinitializeWithChangedNeededResourcesOnCleanStart)
+{
+    // YT-28473: an operation can be materialized more than once on the same policy object (e.g. after a
+    // controller-agent failure followed by a clean-start revive while the operation stays registered).
+    // On such a re-materialization (revivedFromSnapshot == false) the controller may recompute a different
+    // min needed memory estimate, so Initialize must accept the new value instead of crashing the scheduler.
+    auto firstResources = UnitResources;
+    firstResources.SetMemory(125_GB);
+    auto operation = CreateSingleGroupTestOperation(firstResources, /*allocationCount*/ 41);
+    EXPECT_EQ(
+        *operation->InitialGroupedNeededResources(),
+        GetSingleGroupOperationNeededResources(firstResources, 41));
+
+    // Clean-start re-materialization with a different needed memory estimate must overwrite the value.
+    auto changedResources = UnitResources;
+    changedResources.SetMemory(100_GB);
+    auto changedGroupedNeededResources = GetSingleGroupOperationNeededResources(changedResources, 41);
+    operation->Initialize(changedGroupedNeededResources, /*revivedFromSnapshot*/ false);
+    EXPECT_EQ(*operation->InitialGroupedNeededResources(), changedGroupedNeededResources);
+
+    // A later snapshot revive that reports the same (now-stored) value must also be accepted.
+    operation->Initialize(changedGroupedNeededResources, /*revivedFromSnapshot*/ true);
+    EXPECT_EQ(*operation->InitialGroupedNeededResources(), changedGroupedNeededResources);
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimpleFullHost)

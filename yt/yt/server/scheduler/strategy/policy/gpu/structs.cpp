@@ -156,9 +156,9 @@ TOperation::TOperation(
     , Gang_(gang)
 { }
 
-void TOperation::Initialize(const TAllocationGroupResourcesMap& initialGroupedNeededResources)
+void TOperation::Initialize(const TAllocationGroupResourcesMap& initialGroupedNeededResources, bool revivedFromSnapshot)
 {
-    if (InitialGroupedNeededResources_.has_value()) {
+    if (revivedFromSnapshot && InitialGroupedNeededResources_.has_value()) {
         YT_VERIFY(InitialGroupedNeededResources_ == initialGroupedNeededResources);
     }
 
