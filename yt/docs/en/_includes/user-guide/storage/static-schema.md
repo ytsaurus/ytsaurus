@@ -17,7 +17,7 @@ Each such element is a dict with a set structure:
 | `name` | `string` | Column name. | Yes |
 | `type` | `string` | Type of column elements. | Yes, if `type_v3` is not set |
 | `type_v3` | `any` | Alternative type representation. This field enables you to specify columns with [composite types](../../../user-guide/storage/data-types.md#schema). | Yes, if `type` is not set |
-| `sort_order` | `string` | The column sort order - either a missing value or the `ascending` value is allowed. If the value is set, the column is key. (Please note that the `descending` sort order is currently in alpha and may be unavailable on clusters; we don't recommend using it) | No |
+| `sort_order` | `string` | The column sort order - either a missing value or the `ascending` value is allowed. If the value is set, the column is key. | No |
 | `lock` | `string` | Lock name. For non-key columns only. | No |
 | `expression` | `string` | An expression defining the value of the computed column field. For key columns only. For more information, see [Sharding](../../../user-guide/dynamic-tables/resharding.md). | No |
 | `aggregate` | `string` | Aggregate function name. For non-key columns only. | No |
