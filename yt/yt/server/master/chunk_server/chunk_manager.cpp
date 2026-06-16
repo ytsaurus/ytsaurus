@@ -499,6 +499,9 @@ public:
         transactionManager->RegisterTransactionActionHandlers<TReqModifyReplicas>({
             .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareModifyReplicas, Unretained(this)),
         });
+        transactionManager->RegisterTransactionActionHandlers<TReqModifyReplicasBatch>({
+            .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareModifyReplicasBatch, Unretained(this)),
+        });
         transactionManager->RegisterTransactionActionHandlers<TReqConfirmChunk>({
             .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareConfirmChunk, Unretained(this)),
         });
@@ -2756,6 +2759,12 @@ private:
     std::vector<TReqConfirmChunk> WaitingConfirmRequests_;
     TPromise<void> BatchConfirmTransactionCommitPromise_;
 
+    TPeriodicExecutorPtr SequoiaBatchIncrementalHeartbeatExecutor_;
+
+    THashMap<TNodeId, std::unique_ptr<TReqModifyReplicas>> WaitingSequoiaIncrementalHeartbeatRequests_;
+    int ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ = 0;
+    TPromise<void> BatchSequoiaIncrementalHeartbeatPromise_;
+
     // Unlike chunk replicator and sealer, this is maintained on all
     // peers and is not cleared on epoch change.
     const TConsistentChunkPlacementPtr ConsistentChunkPlacement_;
@@ -3656,6 +3665,41 @@ private:
         return chunkSequoiaConfig.StoreInSequoia;
     }
 
+    void DoValidatePrepareModifyReplicas(const TReqModifyReplicas& request)
+    {
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+
+        if (!request.caused_by_node_disposal()) {
+            node->ValidateRegistered();
+        }
+    }
+
+    void DoPrepareModifyReplicas(const TReqModifyReplicas& request)
+    {
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* node = nodeTracker->FindNode(nodeId);
+
+        YT_VERIFY(node);
+
+        Y_UNUSED(ProcessAddedReplicas(
+            node,
+            request.added_chunks(),
+            request.is_incremental_heartbeat()));
+
+        ProcessRemovedReplicas(
+            node,
+            request.removed_chunks(),
+            // TODO(danilalexeev or aleksandra-zh): Make this uniform.
+            request.caused_by_node_disposal()
+                ? ERemoveReplicaReason::SequoiaNodeDisposed
+                : ERemoveReplicaReason::SequoiaModified);
+    }
+
     void HydraPrepareModifyReplicas(
         TTransaction* /*transaction*/,
         TReqModifyReplicas* request,
@@ -3664,27 +3708,25 @@ private:
         YT_VERIFY(options.Persistent);
         YT_VERIFY(options.LatePrepare);
 
-        auto nodeId = FromProto<TNodeId>(request->node_id());
+        DoValidatePrepareModifyReplicas(*request);
+        DoPrepareModifyReplicas(*request);
+    }
 
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+    void HydraPrepareModifyReplicasBatch(
+        TTransaction* /*transaction*/,
+        TReqModifyReplicasBatch* batchRequest,
+        const NTransactionSupervisor::TTransactionPrepareOptions& options)
+    {
+        YT_VERIFY(options.Persistent);
+        YT_VERIFY(options.LatePrepare);
 
-        if (!request->caused_by_node_disposal()) {
-            node->ValidateRegistered();
+        for (const auto& request : batchRequest->requests()) {
+            DoValidatePrepareModifyReplicas(request);
         }
 
-        Y_UNUSED(ProcessAddedReplicas(
-            node,
-            request->added_chunks(),
-            request->is_incremental_heartbeat()));
-
-        ProcessRemovedReplicas(
-            node,
-            request->removed_chunks(),
-            // TODO(danilalexeev or aleksandra-zh): Make this uniform.
-            request->caused_by_node_disposal()
-                ? ERemoveReplicaReason::SequoiaNodeDisposed
-                : ERemoveReplicaReason::SequoiaModified);
+        for (const auto& request : batchRequest->requests()) {
+            DoPrepareModifyReplicas(request);
+        }
     }
 
     void OnSequoiaReplicaConfirm()
@@ -3958,29 +4000,135 @@ private:
         }
     }
 
-    TFuture<TRspModifyReplicas> ModifySequoiaReplicas(
+    void FlushWaitingSequoiaIncrementalHeartbeatRequests()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        if (WaitingSequoiaIncrementalHeartbeatRequests_.empty()) {
+            return;
+        }
+
+        auto promise = std::exchange(BatchSequoiaIncrementalHeartbeatPromise_, NewPromise<void>());
+        YT_LOG_ALERT_IF(
+            promise.IsSet(),
+            "Incremental heartbeat transaction promise is already set (Result: %v)",
+            promise.TryGet());
+        auto requests = std::exchange(
+            WaitingSequoiaIncrementalHeartbeatRequests_,
+            THashMap<TNodeId, std::unique_ptr<TReqModifyReplicas>>());
+        ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ = 0;
+
+        try {
+            auto replicasModifier = CreateSequoiaReplicasModifier(
+                SequoiaReplicaModificationProfiles_[ESequoiaTransactionType::IncrementalHeartbeat],
+                ESequoiaTransactionType::IncrementalHeartbeat,
+                Bootstrap_,
+                GetDynamicConfig());
+
+            for (auto& [nodeId, request] : requests) {
+                replicasModifier->AddRequest(std::move(request));
+                YT_LOG_DEBUG("Starting execution of Sequoia replicas modifier for incremental heartbeat (NodeId: %v)",
+                    nodeId);
+            }
+
+            promise.SetFrom(replicasModifier->ModifyReplicas());
+        } catch (const std::exception& ex) {
+            promise.Set(ex);
+        }
+    }
+
+    TFuture<void> ModifySequoiaReplicasForIncrementalHeartbeatBatched(
+        std::unique_ptr<TReqModifyReplicas> request)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        static constexpr int MaxTryAddRequestToCurrentBatchRetries = 10;
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+
+        auto tryAddRequestToCurrentBatch = [&] () mutable {
+            if (WaitingSequoiaIncrementalHeartbeatRequests_.contains(nodeId)) {
+                return false;
+            }
+
+            const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+            if (ssize(WaitingSequoiaIncrementalHeartbeatRequests_) >= config->MaxRequestsInIncrementalHeartbeatBatch ||
+                ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ >= config->MaxReplicasInIncrementalHeartbeatBatch)
+            {
+                return false;
+            }
+
+            ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ += request->added_chunks_size() + request->removed_chunks_size();
+            EmplaceOrCrash(WaitingSequoiaIncrementalHeartbeatRequests_, nodeId, std::move(request));
+            if (!BatchSequoiaIncrementalHeartbeatPromise_) {
+                YT_LOG_ALERT("Incremental heartbeat transaction promise was not created");
+                BatchSequoiaIncrementalHeartbeatPromise_ = NewPromise<void>();
+            }
+
+            return true;
+        };
+
+        int retryCount = 0;
+        while (!tryAddRequestToCurrentBatch() && retryCount < MaxTryAddRequestToCurrentBatchRetries) {
+            FlushWaitingSequoiaIncrementalHeartbeatRequests();
+            retryCount++;
+        }
+
+        // There should not be more than one retry.
+        if (retryCount == MaxTryAddRequestToCurrentBatchRetries) {
+            THROW_ERROR_EXCEPTION(
+                "Too many retries of adding request to waiting Sequoia incremental heartbeat requests for node %v",
+                nodeId);
+        }
+
+        YT_LOG_DEBUG("Added request to waiting Sequoia incremental heartbeat requests (NodeId: %v)", nodeId);
+
+        return BatchSequoiaIncrementalHeartbeatPromise_
+            .ToFuture()
+            .ToUncancelable();
+    }
+
+    TFuture<void> ModifySequoiaReplicas(
         ESequoiaTransactionType transactionType,
         std::unique_ptr<TReqModifyReplicas> request) override
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         YT_VERIFY(request->added_chunks_size() + request->removed_chunks_size() > 0);
 
-        YT_LOG_TRACE("Modifying Sequoia replicas (AddedChunkCount: %v, RemovedChunkCount: %v, DeadChunkCount: %v, TransactionType: %v)",
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+
+        YT_LOG_DEBUG("Modifying Sequoia replicas (NodeId: %v, AddedChunkCount: %v, RemovedChunkCount: %v, TransactionType: %v)",
+            nodeId,
             request->added_chunks_size(),
             request->removed_chunks_size(),
-            request->dead_chunk_ids_size(),
             transactionType);
 
+        const auto& config = GetDynamicConfig();
+        if (transactionType == ESequoiaTransactionType::IncrementalHeartbeat &&
+            config->SequoiaChunkReplicas->BatchIncrementalHeartbeat)
+        {
+            try {
+                return ModifySequoiaReplicasForIncrementalHeartbeatBatched(std::move(request));
+            } catch (const std::exception& ex) {
+                YT_LOG_ALERT(
+                    ex,
+                    "Failed to modify Sequoia replicas for incremental heartbeat batched, will fall back to single request processing (NodeId: %v)",
+                    nodeId);
+            }
+        }
+
         auto replicasModifier = CreateSequoiaReplicasModifier(
-            std::move(request),
             SequoiaReplicaModificationProfiles_[transactionType],
             transactionType,
             Bootstrap_,
             GetDynamicConfig());
+        replicasModifier->AddRequest(std::move(request));
 
         return replicasModifier->ModifyReplicas();
     }
 
-    TFuture<TRspModifyReplicas> ReplaceSequoiaLocationReplicas(
+    TFuture<void> ReplaceSequoiaLocationReplicas(
         ESequoiaTransactionType transactionType,
         std::unique_ptr<TReqReplaceLocationReplicas> request) override
     {
@@ -3990,12 +4138,12 @@ private:
             request->location_index(),
             transactionType);
 
-        auto replicasModifier = CreateSequoiaLocationReplicasReplacer(
-            std::move(request),
+        auto replicasModifier = CreateSequoiaReplicasModifier(
             SequoiaReplicaModificationProfiles_[transactionType],
             transactionType,
             Bootstrap_,
             GetDynamicConfig());
+        replicasModifier->AddRequest(std::move(request));
 
         return replicasModifier->ModifyReplicas();
     }
@@ -6340,6 +6488,16 @@ private:
             BIND(&TChunkManager::OnSequoiaReplicaConfirm, MakeWeak(this)),
             GetDynamicConfig()->SequoiaChunkReplicas->ConfirmPeriod);
         SequoiaChunkBatchConfirmExecutor_->Start();
+
+        BatchSequoiaIncrementalHeartbeatPromise_ = NewPromise<void>();
+        WaitingSequoiaIncrementalHeartbeatRequests_.clear();
+        ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ = 0;
+
+        SequoiaBatchIncrementalHeartbeatExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+            BIND(&TChunkManager::FlushWaitingSequoiaIncrementalHeartbeatRequests, MakeWeak(this)),
+            GetDynamicConfig()->SequoiaChunkReplicas->BatchIncrementalHeartbeatPeriod);
+        SequoiaBatchIncrementalHeartbeatExecutor_->Start();
     }
 
     void OnStopLeading() override
@@ -6363,6 +6521,13 @@ private:
         if (BatchConfirmTransactionCommitPromise_) {
             BatchConfirmTransactionCommitPromise_.Set(TError("Hydra peer has stopped"));
             BatchConfirmTransactionCommitPromise_.Reset();
+        }
+
+        if (BatchSequoiaIncrementalHeartbeatPromise_) {
+            BatchSequoiaIncrementalHeartbeatPromise_.Set(TError("Hydra peer has stopped"));
+            BatchSequoiaIncrementalHeartbeatPromise_.Reset();
+            WaitingSequoiaIncrementalHeartbeatRequests_.clear();
+            ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ = 0;
         }
     }
 
@@ -7129,6 +7294,8 @@ private:
             buffer.AddCounter("/chunk_lists_destroyed", ChunkListsDestroyed_);
             buffer.AddGauge("/sequoia_chunk_purgatory_size", SequoiaChunkPurgatory_.size());
             buffer.AddGauge("/sequoia_chunks_awaiting_confirm", WaitingConfirmRequests_.size());
+            buffer.AddGauge("/sequoia_waiting_incremental_heartbeats_count", WaitingSequoiaIncrementalHeartbeatRequests_.size());
+            buffer.AddGauge("/sequoia_waiting_incremental_heartbeats_replica_count", ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_);
 
             {
                 TWithTagGuard guard(&buffer, "mode", "immediate");
@@ -7505,6 +7672,10 @@ private:
 
         if (SequoiaChunkBatchConfirmExecutor_) {
             SequoiaChunkBatchConfirmExecutor_->SetPeriod(sequoiaReplicasConfig->ConfirmPeriod);
+        }
+
+        if (SequoiaBatchIncrementalHeartbeatExecutor_) {
+            SequoiaBatchIncrementalHeartbeatExecutor_->SetPeriod(sequoiaReplicasConfig->BatchIncrementalHeartbeatPeriod);
         }
     }
 };

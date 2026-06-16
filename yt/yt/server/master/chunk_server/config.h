@@ -520,6 +520,11 @@ struct TDynamicSequoiaChunkReplicasConfig
     TDuration ConfirmPeriod;
     int ConfirmBatchSize;
 
+    bool BatchIncrementalHeartbeat;
+    TDuration BatchIncrementalHeartbeatPeriod;
+    int MaxRequestsInIncrementalHeartbeatBatch;
+    int MaxReplicasInIncrementalHeartbeatBatch;
+
     // COMPAT(grphil).
     int CompatReplicasPercentage;
     bool CompatFetchReplicasFromSequoia;
