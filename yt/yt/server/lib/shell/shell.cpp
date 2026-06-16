@@ -4,6 +4,7 @@
 #ifdef _linux_
 
 #include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/porto_executor.h>
 
 #endif
 
@@ -298,34 +299,48 @@ public:
 
         if (Options_->MessageOfTheDay && !IsSubcontainer_) {
             auto path = NFS::CombinePaths(preparationDir, ".motd");
-            auto pathInContainer = NFS::CombinePaths(workingDir, ".motd");
 
-            try {
-                TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
-                TUnbufferedFileOutput output(file);
-                output.Write(Options_->MessageOfTheDay->c_str(), Options_->MessageOfTheDay->size());
+            if (!NFS::Exists(path)) {
+                try {
+                    TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
+                    TUnbufferedFileOutput output(file);
+                    output.Write(Options_->MessageOfTheDay->c_str(), Options_->MessageOfTheDay->size());
 
-                AddFileBindFromUserJobNamespace(pathInContainer);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error saving shell message file")
-                    << ex
-                    << TErrorAttribute("path", path);
+                    THashMap<std::string, std::string> volumeProperties;
+                    volumeProperties["backend"] = "bind";
+                    volumeProperties["read_only"] = "true";
+                    volumeProperties["storage"] = path;
+
+                    auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(path, volumeProperties));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind .motd inside job shell");
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error saving shell message file")
+                        << ex
+                        << TErrorAttribute("path", path);
+                }
             }
         }
         if (Options_->Bashrc && !IsSubcontainer_) {
             auto path = NFS::CombinePaths(preparationDir, ".bashrc");
-            auto pathInContainer = NFS::CombinePaths(workingDir, ".bashrc");
+            if (!NFS::Exists(path)) {
+                try {
+                    TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
+                    TUnbufferedFileOutput output(file);
+                    output.Write(Options_->Bashrc->c_str(), Options_->Bashrc->size());
 
-            try {
-                TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
-                TUnbufferedFileOutput output(file);
-                output.Write(Options_->Bashrc->c_str(), Options_->Bashrc->size());
+                    THashMap<std::string, std::string> volumeProperties;
+                    volumeProperties["backend"] = "bind";
+                    volumeProperties["read_only"] = "true";
+                    volumeProperties["storage"] = path;
 
-                AddFileBindFromUserJobNamespace(pathInContainer);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error saving shell config file")
-                    << ex
-                    << TErrorAttribute("path", path);
+                    auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(path, volumeProperties));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind .bashrc inside job shell");
+
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error saving shell config file")
+                        << ex
+                        << TErrorAttribute("path", path);
+                }
             }
         }
         ResizeWindow(CurrentHeight_, CurrentWidth_);
@@ -370,17 +385,6 @@ private:
     const IPortoExecutorPtr PortoExecutor_;
     IInstancePtr Instance_;
     bool IsSubcontainer_;
-
-    void AddFileBindFromUserJobNamespace(const std::string& pathInContainer)
-    {
-        TBind bind;
-        // Porto resolves the source path in the fs of the parent container.
-        // Although we are running a shell, the parent container is uj.
-        bind.SourcePath = pathInContainer;
-        bind.TargetPath = pathInContainer;
-        bind.ReadOnly = true;
-        Options_->Binds.push_back(std::move(bind));
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
