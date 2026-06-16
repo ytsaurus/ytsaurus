@@ -1558,7 +1558,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
             }
         }
 
-        auto makeNewNameForVolume = [index = 0] () mutable {
+        auto makeNewNameForVolume = [index = 0, &spec] () mutable {
+            while (spec->Volumes.contains(ToString(index))) {
+                ++index;
+            }
             return ToString(index++);
         };
 
@@ -1621,15 +1624,11 @@ void TUserJobSpec::Register(TRegistrar registrar)
         }
 
         i64 totalTmpfsSize = 0;
-        int tmpfsVolumeIndex = 0;
-        for (auto& [_, volume] : spec->Volumes) {
+        for (const auto& [_, volume] : spec->Volumes) {
             if (!IsDiskRequestTmpfs(volume->DiskRequest)) {
                 continue;
             }
             totalTmpfsSize += (*volume->DiskRequest)->DiskSpace;
-
-            // COMPAT (krasovav)
-            volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()->TmpfsIndex = tmpfsVolumeIndex++;
         }
 
         // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
@@ -1742,6 +1741,17 @@ void TUserJobSpec::Register(TRegistrar registrar)
                     << TErrorAttribute("job_volume_mounts", spec->JobVolumeMounts);
             }
         }
+
+        int tmpfsVolumeIndex = 0;
+        for (const auto& jobVolumeMount : spec->JobVolumeMounts) {
+            auto& volume = GetOrCrash(spec->Volumes, jobVolumeMount->VolumeId);
+            if (!IsDiskRequestTmpfs(volume->DiskRequest)) {
+                continue;
+            }
+            // COMPAT (krasovav)
+            volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()->TmpfsIndex = tmpfsVolumeIndex++;
+        }
+
 
         if (!spec->IsFirstIterationPostprocessorComplete) {
             spec->DeprecatedTmpfsVolumes = std::move(tmpDeprecatedTmpfsVolumes);
