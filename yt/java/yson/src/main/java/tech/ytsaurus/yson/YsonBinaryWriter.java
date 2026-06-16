@@ -3,7 +3,6 @@ package tech.ytsaurus.yson;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 
 /**
  * Writer that generates binary yson.
@@ -56,8 +55,7 @@ public class YsonBinaryWriter implements ClosableYsonConsumer {
 
             buffer[position++] = YsonTags.BINARY_STRING;
             writeSInt32Unchecked(length);
-            // TODO: improve performance
-            writeRawBytesChecked(Arrays.copyOfRange(value, offset, offset + length));
+            writeRawBytesChecked(value, offset, length);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -279,10 +277,7 @@ public class YsonBinaryWriter implements ClosableYsonConsumer {
     }
 
     // copy-pasted from com.google.protobuf.CodedOutputStream
-    private void writeRawBytesChecked(byte[] value) throws IOException {
-        int length = value.length;
-        int offset = 0;
-
+    private void writeRawBytesChecked(byte[] value, int offset, int length) throws IOException {
         if (limit - position >= length) {
             // We have room in the current buffer.
             System.arraycopy(value, offset, buffer, position, length);
