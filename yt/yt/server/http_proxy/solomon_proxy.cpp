@@ -41,7 +41,7 @@ public:
         , Config_(std::move(config))
     { }
 
-    TString GetComponentName() const override
+    std::string GetComponentName() const override
     {
         return FormatEnum(Config_->ComponentType);
     }
