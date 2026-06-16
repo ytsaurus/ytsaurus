@@ -380,6 +380,27 @@ spec_template = {
         "write_max_batch_size": 100,
         "write_min_row_size": 512,
         "write_max_row_size": 2048,
+        # How many times a single write transaction is retried on transient tablet errors
+        # before the failure propagates and fails the run. Deliberately modest: brief
+        # blips (cell re-election, etc.) are ridden out, but a persistently unwritable
+        # queue is a real problem we must surface — not retry on forever.
+        "write_retry_count": 30,
+        # Alert (fail the run) when the Queue Agent stops creating exports: a period-P
+        # export must produce a new table at least every P * factor + slack. Set factor to 0
+        # to disable. Cron exports are monitored only when their interval can be parsed.
+        "export_staleness_factor": 3,
+        "export_staleness_slack_seconds": 120,
+        # Fallback expected interval (seconds) for a cron export whose period we cannot parse,
+        # so staleness is still monitored (with a warning) instead of silently skipped.
+        # Deliberately large (1 day) — we'd rather under-alert on exotic crons than falsely
+        # fail a genuinely long one. Set "expected_interval_seconds" on the export to pin it
+        # exactly (tight monitoring), or this to None to skip monitoring unparseable crons.
+        "cron_default_interval_seconds": 86400,
+        # Fail the run if verification gets stuck: there are export tables we have not yet
+        # verified and the watermark has not advanced for this many seconds while exports keep
+        # being created (e.g. an export table is persistently unreadable, which would otherwise
+        # be retried silently forever). Set to 0 to disable.
+        "verify_stall_seconds": 600,
         # How often (seconds) to sweep the export directories and verify new tables.
         "verify_period_seconds": 30,
         # Sleep between write rounds.
