@@ -580,8 +580,8 @@ private:
 
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
         SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling = SuitableForPullInputSpecsMode();
-        SpecTemplate_.QuerySettings->Execution->EnableOptimizeDistinctRead = QueryAnalyzer_->NeedOnlyDistinct();
-        SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization =
+        SpecTemplate_.SubqueryOptions.UseDistinctReadOptimization = QueryAnalyzer_->NeedOnlyDistinct();
+        SpecTemplate_.SubqueryOptions.UseMinMaxOptimization =
             QueryAnalysisResult_->EnableMinMaxOptimization && SpecTemplate_.TableStatistics.has_value();
 
         const auto& selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery&>();
@@ -638,7 +638,7 @@ private:
         QueryContext_->SetRuntimeVariable(
             "use_input_specs_pulling", SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling);
         QueryContext_->SetRuntimeVariable(
-            "use_min_max_optimization", SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization);
+            "use_min_max_optimization", SpecTemplate_.SubqueryOptions.UseMinMaxOptimization);
         QueryContext_->SetRuntimeVariable(
             "try_optimize_distinct_read", SpecTemplate_.QuerySettings->Execution->EnableOptimizeDistinctRead);
         QueryContext_->SetRuntimeVariable(
@@ -704,7 +704,7 @@ private:
                 taskCount,
                 QueryContext_->Settings->Execution->TaskCountIncreaseFactor);
         }
-        if (SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization) {
+        if (SpecTemplate_.SubqueryOptions.UseMinMaxOptimization) {
             taskCount = 1;
         }
 
