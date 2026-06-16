@@ -308,3 +308,34 @@ func TestOversizedLineSkippedRowsContent(t *testing.T) {
 	require.NotContains(t, skippedContent, "short2", "skipped_rows should not contain 'short2'")
 	require.NotContains(t, skippedContent, "short3", "skipped_rows should not contain 'short3'")
 }
+
+func TestCarriageReturnSplitting(t *testing.T) {
+	tempDir := t.TempDir()
+	filepath := path.Join(tempDir, "logfile")
+	require.NoError(t, os.WriteFile(filepath, []byte("a\rb\nc\r\nd"), 0644))
+
+	p, s, err := pipelines.NewTextPipeline(slog.Default(), filepath, pipelines.FilePosition{}, pipelines.TextPipelineOptions{
+		LineLimit:             1024,
+		BufferLimit:           4096,
+		SplitByCarriageReturn: true,
+		OnTruncatedRow: func(data io.WriterTo, info pipelines.SkippedRowInfo) {
+			_, _ = data.WriteTo(io.Discard)
+		},
+	})
+	require.NoError(t, err)
+
+	lineCh := make(chan stringLine, 128)
+	pipelines.ApplyOutputFunc(func(ctx context.Context, meta pipelines.RowMeta, line pipelines.TextLine) {
+		lineCh <- stringLine{String: string(line.Bytes)}
+	}, s)
+
+	p.NotifyComplete()
+	require.NoError(t, p.Run(context.Background()))
+	close(lineCh)
+
+	var got []string
+	for line := range lineCh {
+		got = append(got, line.String)
+	}
+	require.Equal(t, []string{"a\r", "b\n", "c\r", "\n", "d"}, got)
+}
