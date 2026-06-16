@@ -2379,7 +2379,10 @@ class TestGangOperations(YTEnvSetup):
             "controller_agent/gang_operations/incarnation_switch_count")
         abort_job(first_job_ids[0])
 
-        wait(lambda: incarnation_switch_counter.get() == 1)
+        # The abort always triggers one incarnation switch; a second one may follow
+        # if the reincarnated job manages to start before the reincarnation-timeout
+        # abort fires, so tolerate both outcomes instead of requiring exactly one.
+        wait(lambda: incarnation_switch_counter.get() >= 1)
 
         # Resolve life lock from comment above.
         update_controller_agent_config("vanilla_operation_options/gang_manager/job_reincarnation_timeout", 1000000)
