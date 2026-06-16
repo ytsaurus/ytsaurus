@@ -12,6 +12,8 @@ import os
 import random
 import time
 
+from datetime import datetime, timezone
+
 RSG = RandomStringGenerator()
 
 
@@ -66,9 +68,74 @@ SHADOW_SCHEMA = [
 VERIFY_STATE_ATTR = "stress_verify_state"
 
 
+class ExportMismatchError(Exception):
+    """An export genuinely disagrees with the shadow — real data loss/duplication/corruption.
+
+    Deliberately NOT a YtError, so the run loop's `except YtError` (which tolerates transient
+    infrastructure failures) does not swallow it: a real data discrepancy must always
+    propagate and fail the run.
+    """
+
+
+class ExportStalenessError(Exception):
+    """The Queue Agent has stopped creating exports for a queue (no new export table for too
+    long). Like ExportMismatchError, NOT a YtError so it always propagates and fails the run —
+    this is the headline regression we are watching for.
+    """
+
+
+class ExportVerifyStallError(Exception):
+    """Verification itself is stuck: there are export tables we have not verified and the
+    watermark has not advanced for too long, even though exports keep being created (so it is
+    not a "no exports" problem). Catches the case where an export table is persistently
+    unreadable and would otherwise be retried silently forever. NOT a YtError → fails the run.
+    """
+
+
+def _parse_yt_instant(value):
+    # YT timestamps look like "2026-06-15T08:53:31.152989Z" (UTC). Return unix seconds.
+    value = str(value).rstrip("Z")
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(value, fmt).replace(tzinfo=timezone.utc).timestamp()
+        except ValueError:
+            pass
+    raise ValueError(f"cannot parse YT instant {value!r}")
+
+
+def _cron_interval_seconds(cron):
+    # Best-effort sizing of a cron schedule: recognise the "0/N" / "*/N" step we use in the
+    # seconds or minutes field of a 5- or 6-field cron. Returns None for anything we cannot
+    # confidently size, in which case staleness monitoring is skipped for that export.
+    if not cron:
+        return None
+    fields = cron.split()
+
+    def step(field, unit):
+        if field.startswith("0/") or field.startswith("*/"):
+            try:
+                return int(field.split("/")[1]) * unit
+            except ValueError:
+                return None
+        return None
+
+    # Take the smallest stepped field (seconds, then minutes, then hours).
+    if len(fields) == 6:        # sec min hour dom mon dow
+        units = list(zip(fields[:3], (1, 60, 3600)))
+    elif len(fields) == 5:      # min hour dom mon dow
+        units = list(zip(fields[:2], (60, 3600)))
+    else:
+        return None
+    for field, unit in units:
+        seconds = step(field, unit)
+        if seconds is not None:
+            return seconds
+    return None
+
+
 class Queue:
     def __init__(self, state_path, name, tablet_count, exports_cfg, erasure, commit_ordering,
-                 auto_trim, flush_period_ms, export_ttl_ms, session_id):
+                 auto_trim, flush_period_ms, export_ttl_ms, cron_default_interval_seconds, session_id):
         self.name = name
         self.path = f"{state_path}/{name}"
         self.shadow_path = f"{state_path}/{name}.shadow"
@@ -79,6 +146,7 @@ class Queue:
         self.auto_trim = auto_trim
         self.flush_period_ms = flush_period_ms
         self.export_ttl_ms = export_ttl_ms
+        self.cron_default_interval = cron_default_interval_seconds
         self.session_id = session_id
 
         self.queue_id = None
@@ -87,6 +155,10 @@ class Queue:
         self.next_seq = 0
         # Per-tablet count of rows written so far (also the next row_index for the tablet).
         self.written_row_count = [0] * tablet_count
+        # Watchdog state for the verification-stall guard, per export name: the last observed
+        # watermark and the wall-clock time verification last advanced.
+        self._verify_marker = {}
+        self._verify_progress_time = {}
 
         # exports_cfg is a dict {export_name: export_cfg}. The export name (the key) is
         # used verbatim as the static_export_config key and to derive the export directory,
@@ -104,7 +176,28 @@ class Queue:
                 "directory": directory,
                 "config_entry": self._build_export_config_entry(directory, export_cfg, export_ttl_ms),
                 "label": self._export_label(export_cfg),
+                "interval": self._export_interval_seconds(export_cfg),
             }
+
+    def _export_interval_seconds(self, export_cfg):
+        # Expected gap between consecutive export tables, used for the staleness alert.
+        # period -> the period; cron -> best-effort parse; if a cron cannot be sized we fall
+        # back to cron_default_interval (with a warning) rather than silently not monitoring
+        # it — set "expected_interval_seconds" on the export to pin it exactly.
+        if "expected_interval_seconds" in export_cfg:
+            return export_cfg["expected_interval_seconds"]
+        if "period" in export_cfg:
+            return export_cfg["period"]
+        cron = export_cfg.get("cron")
+        parsed = _cron_interval_seconds(cron)
+        if parsed is not None:
+            return parsed
+        if self.cron_default_interval:
+            logger.warning(
+                f"Queue {self.name}: cannot size cron {cron!r} for the staleness alert; using "
+                f"default {self.cron_default_interval}s (set 'expected_interval_seconds' to tune)")
+            return self.cron_default_interval
+        return None
 
     @staticmethod
     def _build_export_config_entry(directory, export_cfg, export_ttl_ms):
@@ -131,6 +224,7 @@ class Queue:
 
     def setup(self):
         self._ensure_queue()
+        self._ensure_unfrozen()
         self._ensure_shadow()
         self._ensure_producer()
         self._apply_auto_trim()
@@ -175,6 +269,15 @@ class Queue:
             attributes["commit_ordering"] = self.commit_ordering
         yt.create("table", self.path, attributes=attributes)
         yt.mount_table(self.path, sync=True)
+
+    def _ensure_unfrozen(self):
+        # flush() does freeze->unfreeze; if a previous run died between the two steps
+        # (e.g. the cluster was unavailable and the process crashed/was killed), the queue
+        # is left "frozen" and silently rejects all writes forever. Recover here.
+        state = yt.get(f"{self.path}/@tablet_state")
+        if state in ("frozen", "freezing"):
+            logger.info(f"Queue {self.path} is '{state}'; unfreezing to recover")
+            yt.unfreeze_table(self.path, sync=True)
 
     def _verify_queue_matches_config(self):
         # Compare the live queue against the config for the structural attributes that
@@ -289,8 +392,12 @@ class Queue:
                     self.producer_path, self.path, self.session_id, self.epoch, queue_rows)
                 yt.insert_rows(self.shadow_path, shadow_rows)
 
+        # Retry a bounded number of times to ride out brief tablet conflicts / blips; if the
+        # write still fails after that, the exception propagates and the run fails — a
+        # persistently unwritable queue is a real problem we must surface, not retry on for
+        # hours. Producer dedup keeps retries idempotent.
         run_with_retries(
-            _write_tx, retry_count=1800, backoff=0.1,
+            _write_tx, retry_count=cfg.write_retry_count, backoff=0.1,
             backoff_config={"policy": "constant_time", "constant_time": 0.1},
             except_action=lambda ex: logger.error(f"Write transaction failed, retrying: {ex.simplify()}"))
 
@@ -365,7 +472,7 @@ class Queue:
             for offset, row in enumerate(tablet_rows):
                 expected_row_index = expected_first + offset
                 if row["row_index"] != expected_row_index:
-                    raise YtError(
+                    raise ExportMismatchError(
                         f"Export {table_path}: tablet {tablet} row_index stream broken: "
                         f"expected {expected_row_index} but got {row['row_index']} "
                         f"(seq: {row['seq']}). Possible data loss/duplication in export.")
@@ -381,7 +488,7 @@ class Queue:
             f"order by tablet, row_index limit {hi - lo + 1}"))
 
         if len(expected) != len(exported_rows):
-            raise YtError(
+            raise ExportMismatchError(
                 f"Export {table_path}: tablet {tablet} exported {len(exported_rows)} rows for "
                 f"row_index [{lo}, {hi}] but shadow {self.shadow_path} has {len(expected)} "
                 f"(shadow behind export — possible data loss in export).")
@@ -389,7 +496,7 @@ class Queue:
         for exported_row, expected_row in zip(exported_rows, expected):
             for column in ("row_index", "seq", "value"):
                 if exported_row[column] != expected_row[column]:
-                    raise YtError(
+                    raise ExportMismatchError(
                         f"Export {table_path}: tablet {tablet} row_index {expected_row['row_index']} "
                         f"mismatch in '{column}': exported {exported_row[column]!r} but shadow has "
                         f"{expected_row[column]!r}. Export corrupted data.")
@@ -402,6 +509,65 @@ class Queue:
             logger.info(
                 f"Queue {self.path} export {export_name} ({export['label']}): "
                 f"verified {exported} / written {written} rows (lag {written - exported})")
+
+    def check_staleness(self, now, factor, slack):
+        # Alert if the Queue Agent stopped producing exports: the newest export table must be
+        # no older than interval*factor + slack. We write continuously, so for a period-P
+        # export a healthy agent creates a table roughly every P; a much larger gap means the
+        # exporter is stalled. The age comes from the export tables' @creation_time (so it is
+        # persistent and survives restarts); if the directory has no tables yet we measure
+        # from when the directory itself was created.
+        if not factor:
+            return
+        for export in self.exports.values():
+            interval = export["interval"]
+            if not interval:
+                continue  # cron we could not size / monitoring disabled for this export
+            directory = export["directory"]
+            entries = list(yt.list(directory, attributes=["creation_time"]))
+            if entries:
+                newest = max(_parse_yt_instant(e.attributes["creation_time"]) for e in entries)
+            else:
+                newest = _parse_yt_instant(yt.get(f"{directory}/@creation_time"))
+            age = now - newest
+            threshold = interval * factor + slack
+            if age > threshold:
+                raise ExportStalenessError(
+                    f"Export {directory} ({export['label']}): no new export table for {int(age)}s "
+                    f"(threshold {int(threshold)}s = {factor}x{interval}s + {slack}s) — the Queue "
+                    f"Agent appears to have stopped creating exports.")
+
+    def check_verify_progress(self, now, threshold):
+        # Watchdog for stuck verification: if there are export tables newer than our watermark
+        # (pending work) but the watermark has not advanced for longer than `threshold`, fail.
+        # This catches a persistently unreadable export table, which the verify loop would
+        # otherwise swallow as an "infra" error and retry forever (silently). The timer resets
+        # whenever the watermark advances, so a slow-but-progressing verify never trips it.
+        # Reads here are cheap metadata (list + attribute) that succeed even when a table's
+        # data chunks are unreadable, so the watchdog can fire while verify itself cannot read.
+        if not threshold:
+            return
+        for export_name, export in self.exports.items():
+            directory = export["directory"]
+            _, marker = self._load_verify_state(directory)
+            entries = [(str(item.attributes["creation_time"]), str(item))
+                       for item in yt.list(directory, attributes=["creation_time"])]
+            newest = max(entries) if entries else None
+            pending = newest is not None and newest > marker
+
+            if export_name not in self._verify_marker or marker != self._verify_marker[export_name]:
+                # First observation, or verification advanced — record progress.
+                self._verify_marker[export_name] = marker
+                self._verify_progress_time[export_name] = now
+                continue
+
+            stalled = now - self._verify_progress_time[export_name]
+            if pending and stalled > threshold:
+                raise ExportVerifyStallError(
+                    f"Export {directory} ({export['label']}): verification stuck — newest export "
+                    f"table {newest[1]} is unverified and the watermark has not advanced for "
+                    f"{int(stalled)}s (> {threshold}s) while exports keep being created "
+                    f"(an export table may be unreadable).")
 
 
 def test_queue_static_export(base_path, spec, attributes, args):
@@ -455,6 +621,7 @@ def test_queue_static_export(base_path, spec, attributes, args):
             auto_trim=queue_cfg.get("auto_trim", False),
             flush_period_ms=queue_cfg.get("flush_period_ms", cfg.flush_period_ms),
             export_ttl_ms=(cfg.export_ttl_seconds * 1000) if cfg.export_ttl_seconds else None,
+            cron_default_interval_seconds=cfg.cron_default_interval_seconds,
             session_id=session_id)
         queue.setup()
         queues.append(queue)
@@ -472,14 +639,41 @@ def test_queue_static_export(base_path, spec, attributes, args):
         logger.iteration = iteration
 
         for queue in queues:
+            # write() retries transient tablet errors cfg.write_retry_count times; if it
+            # still fails, the exception propagates and the run FAILS — a queue we cannot
+            # write to is a real problem we must surface (do NOT swallow it). flush() is
+            # best-effort (auto-flush already produces chunks), so its failure is tolerated;
+            # any frozen leftover is recovered by _ensure_unfrozen on the next startup.
             queue.write(spec)
             if random.random() < cfg.flush_probability:
-                queue.flush()
+                try:
+                    queue.flush()
+                except YtError as err:
+                    logger.error(f"flush failed for {queue.path} (best-effort, ignoring): {err}")
 
         if time.time() - last_verify > cfg.verify_period_seconds:
             for queue in queues:
-                queue.verify_exports()
-                queue.log_lag()
+                try:
+                    queue.verify_exports()
+                    queue.check_staleness(
+                        time.time(), cfg.export_staleness_factor, cfg.export_staleness_slack_seconds)
+                except YtError as err:
+                    # Transient infrastructure error while reading exports/shadow (e.g. a
+                    # cell blip) — tolerate it; the watermark is persisted, so we resume
+                    # cleanly next sweep. Real problems raise ExportMismatchError /
+                    # ExportStalenessError (not YtErrors), which are NOT caught here and
+                    # fail the run.
+                    logger.error(f"verify failed for {queue.path} (infra), will retry: {err}")
+
+                # Verification-stall watchdog: runs regardless of the outcome above, because a
+                # persistently FAILING verify (e.g. an unreadable export table) is exactly what
+                # it catches. Its own reads are cheap metadata, so tolerate their transient
+                # failures; a real stall raises ExportVerifyStallError (not a YtError).
+                try:
+                    queue.check_verify_progress(time.time(), cfg.verify_stall_seconds)
+                    queue.log_lag()
+                except YtError as err:
+                    logger.error(f"verify-progress/log for {queue.path} (infra): {err}")
             last_verify = time.time()
 
         time.sleep(cfg.iteration_sleep_seconds)
