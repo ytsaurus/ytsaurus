@@ -7190,7 +7190,17 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             table->TableWriterOptions->ErasureCodec = table->TableUploadOptions.ErasureCodec;
             table->TableWriterOptions->EnableStripedErasure = table->TableUploadOptions.EnableStripedErasure;
             table->TableWriterOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
-            table->TableWriterOptions->MediumName = attributes->Get<std::string>("primary_medium");
+            auto primaryMedium = attributes->Get<std::string>("primary_medium");
+            if (Config_->ForbidOperationsOnOffshoreMedia) {
+                auto mediumDescriptor = GetMediumDirectory()->FindByName(primaryMedium);
+                if (mediumDescriptor && mediumDescriptor->IsOffshore()) {
+                    THROW_ERROR_EXCEPTION(
+                        "Operations on tables with offshore medium are forbidden by controller agent config")
+                        << TErrorAttribute("table_path", table->Path)
+                        << TErrorAttribute("primary_medium", primaryMedium);
+                }
+            }
+            table->TableWriterOptions->MediumName = primaryMedium;
             table->TableWriterOptions->Account = attributes->Get<std::string>("account");
             table->TableWriterOptions->ChunksVital = attributes->Get<bool>("vital");
             table->TableWriterOptions->OptimizeFor = table->TableUploadOptions.OptimizeFor;
