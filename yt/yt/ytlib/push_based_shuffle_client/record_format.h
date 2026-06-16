@@ -64,6 +64,9 @@ public:
     //! Bytes currently allocated for buffered row data.
     i64 GetAllocatedDataSize() const;
 
+    //! Bytes of row data actually buffered; at most GetAllocatedDataSize().
+    i64 GetDataSize() const;
+
 private:
     const i32 MapperId_;
     i64 NextRowId_;

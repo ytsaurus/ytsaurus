@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/concurrency/serialized_invoker.h>
 
+#include <yt/yt/core/misc/heap.h>
+
 #include <deque>
 
 namespace NYT::NPushBasedShuffleClient {
@@ -60,6 +62,11 @@ struct TPartitionState
     TFuture<TSessionDescriptor> PendingSessionFuture;
 
     i64 NextRowId = 0;
+
+    // Eviction-heap key; cached Builder->GetDataSize(), updated per AddRow.
+    i64 BufferedDataSize = 0;
+    // Slot in EvictionHeap_, or -1 when there is no builder.
+    int HeapIndex = -1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +97,7 @@ public:
     {
         YT_VERIFY(BuildersBudget_ > 0);
         YT_VERIFY(InFlightBudget_ > 0);
+        EvictionHeap_.reserve(Partitions_.size());
         YT_LOG_INFO(
             "Push-based shuffle writer created "
             "(PartitionCount: %v, MemoryBudget: %v, BuildersBudget: %v, InFlightBudget: %v, MaxSendAttempts: %v)",
@@ -141,7 +149,10 @@ private:
     const TLogger Logger;
 
     std::vector<TPartitionState> Partitions_;
-    THashSet<int> NonEmptyPartitions_;
+    // Non-empty partitions as an addressable max-heap by BufferedDataSize; the
+    // front is the next eviction victim. HeapIndex mirrors each slot for
+    // O(log P) sift and removal. See yt/yt/core/misc/heap.h.
+    std::vector<int> EvictionHeap_;
     // Sessions handed out by RegisterMapper, consumed (erased) on a partition's first session
     // request; failovers and unseeded partitions go through the provider.
     THashMap<int, TSessionDescriptor> SeededSessions_;
@@ -180,21 +191,27 @@ private:
             YT_VERIFY(partitionIndex >= 0 && partitionIndex < std::ssize(Partitions_));
             auto& partitionState = Partitions_[partitionIndex];
             if (!partitionState.Builder) {
+                YT_ASSERT(partitionState.BufferedDataSize == 0);
                 partitionState.Builder.emplace(MapperId_, partitionState.NextRowId);
-                NonEmptyPartitions_.insert(partitionIndex);
+                PushToEvictionHeap(partitionIndex);
             }
-            i64 prev = partitionState.Builder->GetAllocatedDataSize();
+            i64 prevAllocation = partitionState.Builder->GetAllocatedDataSize();
             partitionState.Builder->AddRow(row);
-            i64 delta = partitionState.Builder->GetAllocatedDataSize() - prev;
-            if (delta > 0) {
+            i64 allocationDelta = partitionState.Builder->GetAllocatedDataSize() - prevAllocation;
+
+            // The builder grew; resift it toward the heap front.
+            partitionState.BufferedDataSize = partitionState.Builder->GetDataSize();
+            OnBuilderDataGrew(partitionIndex);
+
+            if (allocationDelta > 0) {
                 // Eviction runs per-row (only when allocation actually grew)
                 // rather than once at end-of-batch. Without this, a Write with
                 // many partitions can allocate `partition_count *
                 // initial_reserve` worth of fresh builders before eviction
                 // sees the overflow, exceeding MemoryBudget by orders of
                 // magnitude.
-                BuildersBytes_ += delta;
-                while (BuildersBytes_ > BuildersBudget_ && !NonEmptyPartitions_.empty()) {
+                BuildersBytes_ += allocationDelta;
+                while (BuildersBytes_ > BuildersBudget_ && !EvictionHeap_.empty()) {
                     EvictLargest();
                 }
             }
@@ -202,7 +219,7 @@ private:
 
         // Proactively request sessions for non-empty partitions so the session
         // is ready by the time Close flushes the builder.
-        for (int partitionIndex : NonEmptyPartitions_) {
+        for (int partitionIndex : EvictionHeap_) {
             auto& partitionState = Partitions_[partitionIndex];
             if (!partitionState.Session && !partitionState.PendingSessionFuture) {
                 RequestSession(partitionIndex, /*excluded*/ std::nullopt);
@@ -236,9 +253,9 @@ private:
 
         YT_LOG_INFO(
             "Closing shuffle writer (NonEmptyPartitions: %v)",
-            NonEmptyPartitions_.size());
+            EvictionHeap_.size());
 
-        std::vector<int> nonEmptySnapshot(NonEmptyPartitions_.begin(), NonEmptyPartitions_.end());
+        std::vector<int> nonEmptySnapshot(EvictionHeap_.begin(), EvictionHeap_.end());
         for (int partitionIndex : nonEmptySnapshot) {
             FlushBuilder(partitionIndex);
         }
@@ -249,20 +266,54 @@ private:
 
     void EvictLargest()
     {
-        // TODO(apollo1321): O(|NonEmptyPartitions_|) linear scan over the
-        // partitions currently buffering rows. Replace with a max-heap keyed
-        // on builder.GetAllocatedDataSize() later.
-        int best = -1;
-        i64 bestSize = -1;
-        for (int partitionIndex : NonEmptyPartitions_) {
-            i64 size = Partitions_[partitionIndex].Builder->GetAllocatedDataSize();
-            if (size > bestSize) {
-                bestSize = size;
-                best = partitionIndex;
-            }
-        }
-        YT_VERIFY(best >= 0);
-        FlushBuilder(best);
+        YT_VERIFY(!EvictionHeap_.empty());
+        // The front holds the most buffered data.
+        FlushBuilder(EvictionHeap_.front());
+    }
+
+    // Min-heap order: more buffered data compares "smaller" so the victim is at
+    // the front.
+    bool ShouldEvictBefore(int lhsPartition, int rhsPartition) const
+    {
+        return Partitions_[lhsPartition].BufferedDataSize > Partitions_[rhsPartition].BufferedDataSize;
+    }
+
+    void PushToEvictionHeap(int partitionIndex)
+    {
+        // Seed HeapIndex: for one element AdjustHeapBack no-ops, so onAssign
+        // never runs.
+        Partitions_[partitionIndex].HeapIndex = static_cast<int>(EvictionHeap_.size());
+        EvictionHeap_.push_back(partitionIndex);
+        AdjustHeapBack(
+            EvictionHeap_.begin(),
+            EvictionHeap_.end(),
+            [&] (int lhsPartition, int rhsPartition) { return ShouldEvictBefore(lhsPartition, rhsPartition); },
+            [&] (size_t slot) { Partitions_[EvictionHeap_[slot]].HeapIndex = static_cast<int>(slot); });
+    }
+
+    void OnBuilderDataGrew(int partitionIndex)
+    {
+        YT_ASSERT(Partitions_[partitionIndex].HeapIndex >= 0);
+        // Data only grows between flushes, so the builder can only sift up.
+        SiftUp(
+            EvictionHeap_.begin(),
+            EvictionHeap_.end(),
+            EvictionHeap_.begin() + Partitions_[partitionIndex].HeapIndex,
+            [&] (int lhsPartition, int rhsPartition) { return ShouldEvictBefore(lhsPartition, rhsPartition); },
+            [&] (size_t slot) { Partitions_[EvictionHeap_[slot]].HeapIndex = static_cast<int>(slot); });
+    }
+
+    void RemoveFromEvictionHeap(int partitionIndex)
+    {
+        YT_ASSERT(Partitions_[partitionIndex].HeapIndex >= 0);
+        ExtractHeap(
+            EvictionHeap_.begin(),
+            EvictionHeap_.end(),
+            EvictionHeap_.begin() + Partitions_[partitionIndex].HeapIndex,
+            [&] (int lhsPartition, int rhsPartition) { return ShouldEvictBefore(lhsPartition, rhsPartition); },
+            [&] (size_t slot) { Partitions_[EvictionHeap_[slot]].HeapIndex = static_cast<int>(slot); });
+        EvictionHeap_.pop_back();
+        Partitions_[partitionIndex].HeapIndex = -1;
     }
 
     void FlushBuilder(int partitionIndex)
@@ -274,7 +325,8 @@ private:
         BuildersBytes_ -= prevAllocation;
         partitionState.NextRowId += record->Header.RowCount;
         partitionState.Builder.reset();
-        NonEmptyPartitions_.erase(partitionIndex);
+        partitionState.BufferedDataSize = 0;
+        RemoveFromEvictionHeap(partitionIndex);
 
         // TODO(apollo1321): IDistributedChunkWriter::WriteRecord currently
         // takes a single TSharedRef, forcing a payload-sized memcpy here.
