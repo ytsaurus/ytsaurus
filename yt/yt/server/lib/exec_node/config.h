@@ -108,8 +108,6 @@ struct TSlotManagerConfig
 
     bool EnableReadWriteCopy;
 
-    bool EnableArtifactCopyTracking;
-
     //! If set, user job will not receive uid.
     //! For testing purposes only.
     bool DoNotSetUserId;
@@ -186,6 +184,8 @@ struct TSlotManagerDynamicConfig
     bool RestartContainerAfterFailedDeviceCheck;
 
     NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
+
+    TDuration CopyRateAggregatorHalfLife;
 
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
