@@ -1338,7 +1338,7 @@ def _update_from_env_vars(
         if key in shortcuts:
             name = shortcuts[key]
             if name == "driver_config":
-                var_type = yson.loads
+                var_type = yson._loads_from_native_str
             elif name == "proxy/aliases":
                 def parse_proxy_aliases(value):
                     return yson.yson_to_json(yson.loads(value.encode()))
