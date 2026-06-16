@@ -2690,7 +2690,7 @@ void TSchedulingPolicy::UnregisterOperation(const TPoolTreeOperationElement* ele
     EraseOrCrash(OperationIdToSharedState_, operationId);
 }
 
-TError TSchedulingPolicy::OnOperationMaterialized(const TPoolTreeOperationElement* element)
+TError TSchedulingPolicy::OnOperationMaterialized(const TPoolTreeOperationElement* element, bool /*revivedFromSnapshot*/)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 

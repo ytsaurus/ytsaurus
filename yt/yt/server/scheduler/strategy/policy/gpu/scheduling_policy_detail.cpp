@@ -234,16 +234,28 @@ void TSchedulingPolicy::UnregisterOperation(const TPoolTreeOperationElement* ele
     YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", element->GetOperationId());
 }
 
-TError TSchedulingPolicy::OnOperationMaterialized(const TPoolTreeOperationElement* element)
+TError TSchedulingPolicy::OnOperationMaterialized(const TPoolTreeOperationElement* element, bool revivedFromSnapshot)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto operation = GetOrCrash(DisabledOperations_, element->GetOperationId());
-    operation->Initialize(element->GetInitialGroupedNeededResources());
+
+    auto initialGroupedNeededResources = element->GetInitialGroupedNeededResources();
+
+    YT_LOG_WARNING_IF(
+        operation->IsInitialized() &&
+            operation->InitialGroupedNeededResources() != initialGroupedNeededResources,
+        "Initial grouped needed resources changed for operation "
+        "(OperationId: %v, OldInitialGroupedNeededResources: %v, NewInitialGroupedNeededResources: %v)",
+        operation->GetId(),
+        operation->InitialGroupedNeededResources(),
+        initialGroupedNeededResources);
+
+    operation->Initialize(initialGroupedNeededResources, revivedFromSnapshot);
 
     YT_LOG_DEBUG("Operation materialized (OperationId: %v, InitialGroupedNeededResources: %v)",
         operation->GetId(),
-        element->GetInitialGroupedNeededResources());
+        initialGroupedNeededResources);
 
     return {};
 }
@@ -1871,7 +1883,7 @@ void TNoopSchedulingPolicy::RegisterOperation(const TPoolTreeOperationElement* /
 void TNoopSchedulingPolicy::UnregisterOperation(const TPoolTreeOperationElement* /*element*/)
 { }
 
-TError TNoopSchedulingPolicy::OnOperationMaterialized(const TPoolTreeOperationElement* /*element*/)
+TError TNoopSchedulingPolicy::OnOperationMaterialized(const TPoolTreeOperationElement* /*element*/, bool /*revivedFromSnapshot*/)
 {
     return {};
 }
