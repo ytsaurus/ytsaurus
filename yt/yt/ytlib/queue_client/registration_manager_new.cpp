@@ -342,9 +342,35 @@ private:
                     })));
         }
 
-        auto results = WaitFor(AnyNSucceeded(replicaLookupFutures, successfulLookupsRequired))
-            .ValueOrThrow();
-        YT_VERIFY(!results.empty());
+        // NB(apachee): We fallback to AnySucceeded and this means we can't cancel futures on shortcut.
+        // NB(apachee): Combiner future is short-lived so propagating cancelation to input is incorrect as well.
+        TFutureCombinerOptions options{
+            .PropagateCancelationToInput = false,
+            .CancelInputOnShortcut = false,
+        };
+
+        auto resultsOrError = WaitFor(AnyNSucceeded(
+            replicaLookupFutures,
+            successfulLookupsRequired,
+            options));
+
+        if (resultsOrError.IsOK()) {
+            auto results = std::move(resultsOrError.Value());
+            YT_VERIFY(!results.empty());
+
+            for (const auto& future : replicaLookupFutures) {
+                future.Cancel(TError(NYT::EErrorCode::Canceled, "Enough replica lookups succeeded"));
+            }
+
+            return MergeResults(std::move(results));
+        }
+
+        // NB(apachee): Cancelling here is fine, since this is the last combiner used for these futures.
+        auto fallbackResult = WaitFor(AnySucceeded(replicaLookupFutures))
+            .ValueOrThrow("Queue consumer registration manager state is fully unavailable");
+
+        std::vector<TReplicaLookupResult> results;
+        results.push_back(std::move(fallbackResult));
 
         return MergeResults(std::move(results));
     }
