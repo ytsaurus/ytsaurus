@@ -1787,17 +1787,18 @@ class TestClickHouseCommon(ClickHouseTestBase):
         )
 
         def timestamp_to_tz(timestamp, zone, t):
-            raw_bytes = timestamp.to_bytes(t["bytes"], byteorder="big", signed=t["min"] < 0)
-            if t["min"] < 0:
-                first_byte = raw_bytes[0] ^ 0x80
-                return bytes([first_byte]) + raw_bytes[1:] + zone.encode("ascii")
-            else:
-                return raw_bytes + zone.encode("ascii")
+            signed = t["min"] < 0
+            timestamp_bytes = bytearray(timestamp.to_bytes(t["bytes"], byteorder="big", signed=signed))
+            if signed:
+                timestamp_bytes[0] ^= 0x80
+            zone_bytes = zone.to_bytes(2, byteorder="big", signed=False)
+            return bytes(timestamp_bytes) + zone_bytes
 
+        tzEuropeMoscow = 1
         arr = []
-        arr.append({t["name"]: timestamp_to_tz(t["min"], "Europe/Moscow", t) for t in types})
-        arr.append({t["name"]: timestamp_to_tz(1, "Europe/Moscow", t) for t in types})
-        arr.append({t["name"]: timestamp_to_tz(t["max"], "Europe/Moscow", t) for t in types})
+        arr.append({t["name"]: timestamp_to_tz(t["min"], tzEuropeMoscow, t) for t in types})
+        arr.append({t["name"]: timestamp_to_tz(1, tzEuropeMoscow, t) for t in types})
+        arr.append({t["name"]: timestamp_to_tz(t["max"], tzEuropeMoscow, t) for t in types})
 
         expected = [
             {
