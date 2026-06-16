@@ -1811,16 +1811,6 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
         IWireProtocolReader::GetSchemaData(*physicalSchema->ToKeys()),
         /*captureValues*/ false);
 
-    if (tabletSnapshot->Settings.MountConfig->LookupHeavyHitters->Enable) {
-        std::vector<TUnversionedOwningRow> lookupKeysVector;
-        lookupKeysVector.reserve(lookupKeys.Size());
-        for (const auto& key : lookupKeys) {
-            lookupKeysVector.push_back(TUnversionedOwningRow(key));
-        }
-
-        tabletSnapshot->LookupHeavyHitters.RowCount->Register(std::move(lookupKeysVector), TInstant::Now());
-    }
-
     lookupKeys = MakeSharedRange(lookupKeys, lookupKeys, RequestData);
 
     const auto& Logger = lookupSession->Logger;
@@ -2018,6 +2008,17 @@ template <class TPipeline>
 auto TTabletLookupSession<TPipeline>::Run() -> TFuture<typename decltype(TPipeline::TAdapter::ResultPromise_)::TValueType>
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    if (TabletSnapshot_->Settings.MountConfig->LookupHeavyHitters->Enable) {
+        std::vector<TUnversionedOwningRow> lookupKeysVector;
+        lookupKeysVector.reserve(LookupKeys_.Size());
+        for (const auto& key : LookupKeys_) {
+            lookupKeysVector.push_back(TUnversionedOwningRow(key));
+        }
+        TabletSnapshot_->LookupHeavyHitters.RowCount->Register(
+            std::move(lookupKeysVector),
+            TInstant::Now());
+    }
 
     // Synchronously fetch store meta and create store readers.
     // However, may impose a WaitFor call during waiting on locks and during slow path obtaining chunk meta for ext-memory.

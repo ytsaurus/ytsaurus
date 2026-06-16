@@ -7,7 +7,7 @@ from yt_helpers import profiler_factory
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from yt_commands import (
-    authors, print_debug, wait, create, ls, get, set, remove, exists, copy, insert_rows,
+    authors, print_debug, select_rows, wait, create, ls, get, set, remove, exists, copy, insert_rows,
     lookup_rows, delete_rows, create_dynamic_table, generate_uuid,
     alter_table, read_table, write_table, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
@@ -1271,9 +1271,9 @@ class TestLookup(TestSortedDynamicTablesBase):
         res = ", ".join([f'{i}#{f'"{key[i]}"' if type(key[i]) is str else str(key[i])}' for i in range(len(key))])
         return ''.join(["[", res, "]"])
 
-    @authors("tem-shett")
-    @pytest.mark.parametrize("is_versioned", [False, True])
-    def test_heavy_hitters_simple(self, is_versioned):
+    @authors("tem-shett", "navasardianna")
+    @pytest.mark.parametrize("query_type", ["lookup", "versioned_lookup", "select"])
+    def test_heavy_hitters_simple(self, query_type):
         sync_create_cells(1)
 
         create_dynamic_table(
@@ -1290,10 +1290,19 @@ class TestLookup(TestSortedDynamicTablesBase):
         rows = [{"key1": i, "key2": str(i), "value": "a" * (1 + 10 * i)} for i in range(10)]
         insert_rows("//tmp/t", rows)
 
+        lookup_keys = [{"key1": row["key1"], "key2": row["key2"]} for row in rows]
+
         for _ in range(100):
-            lookup_keys = [{"key1": row["key1"], "key2": row["key2"]} for row in rows]
             random.shuffle(lookup_keys)
-            lookup_rows("//tmp/t", lookup_keys, versioned=is_versioned, verbose=False)
+
+            if query_type == "select":
+                in_clause = ", ".join(f'({row["key1"]}, "{row["key2"]}")' for row in lookup_keys)
+
+                select_rows(
+                    f"key1, key2, value from [//tmp/t] WHERE (key1, key2) IN ({in_clause})",
+                    verbose=False)
+            else:
+                lookup_rows("//tmp/t", lookup_keys, versioned=(query_type == "versioned_lookup"))
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         heavy_hitters = get(f"//sys/tablets/{tablet_id}/orchid/lookup_heavy_hitters")
