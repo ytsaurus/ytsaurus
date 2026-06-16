@@ -526,6 +526,42 @@ public:
         return results;
     }
 
+    TRowCacheControllerContext GetRowCacheControllerContext() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        TRowCacheControllerContext context;
+
+        for (const auto& [tabletId, tablet] : Tablets()) {
+            if (!tablet->IsPhysicallySorted()) {
+                continue;
+            }
+
+            if (tablet->GetSettings().MountConfig->LookupCacheRowsRatio <= 0) {
+                continue;
+            }
+
+            i64 unmergedRowCount = tablet->GetNonActiveStoresUnmergedRowCount();
+            if (const auto& store = tablet->GetActiveStore()) {
+                unmergedRowCount += store->GetRowCount();
+            }
+
+            const auto& rowCache = tablet->GetRowCache();
+            if (!rowCache) {
+                continue;
+            }
+
+            context.Tablets[tabletId] = {
+                .RowCache = rowCache,
+                .TabletDataWeight = tablet->GetTotalDataWeight(),
+                .TabletRowCount = unmergedRowCount,
+                .LookupCacheRowsRatio = tablet->GetSettings().MountConfig->LookupCacheRowsRatio,
+            };
+        }
+
+        return context;
+    }
+
     TFuture<void> Trim(
         const TTabletSnapshotPtr& tabletSnapshot,
         i64 trimmedRowCount) override
@@ -935,6 +971,11 @@ private:
         INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const final
         {
             return Owner_->Bootstrap_->GetNodeMemoryUsageTracker();
+        }
+
+        TRowCacheControllerPtr GetRowCacheController() const final
+        {
+            return Owner_->Bootstrap_->GetRowCacheController();
         }
 
         NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const final

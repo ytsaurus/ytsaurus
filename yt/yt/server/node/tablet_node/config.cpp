@@ -592,6 +592,27 @@ void TSmoothMovementTrackerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRowCacheControllerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+    registrar.Parameter("period", &TThis::Period)
+        .Default(TDuration::Minutes(2));
+    registrar.Parameter("memory_limit_gap_in_bytes", &TThis::MemoryLimitGapInBytes)
+        .Default(0)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("memory_limit_gap_fraction", &TThis::MemoryLimitGapFraction)
+        .Default(0)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
+    registrar.Parameter("rotation_memory_threshold", &TThis::RotationMemoryThreshold)
+        .Default(0.95)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TErrorManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("deduplication_cache_timeout", &TThis::DeduplicationCacheTimeout)
@@ -702,6 +723,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("error_manager", &TThis::ErrorManager)
+        .DefaultNew();
+
+    registrar.Parameter("row_cache_controller", &TThis::RowCacheController)
         .DefaultNew();
 
     registrar.Parameter("enable_chunk_fragment_reader_throttling", &TThis::EnableChunkFragmentReaderThrottling)

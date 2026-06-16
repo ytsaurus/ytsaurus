@@ -70,6 +70,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/overload_controller.h>
 
@@ -430,6 +432,31 @@ public:
             .BundleName = GetTabletCellBundleName(),
             .Tablets = TabletManager_->GetMemoryStatistics()
         };
+    }
+
+    TFuture<TRowCacheControllerContext> GetRowCacheControllerContext() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return BIND(&TTabletSlot::DoGetRowCacheControllerContext, MakeStrong(this))
+            .AsyncVia(GetAutomatonInvoker())
+            .Run();
+    }
+
+    TRowCacheControllerContext DoGetRowCacheControllerContext()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        TDuration elapsedTime;
+        TRowCacheControllerContext context;
+        {
+            NProfiling::TValueIncrementingTimingGuard<NProfiling::TWallTimer> timingGuard(&elapsedTime);
+            context = TabletManager_->GetRowCacheControllerContext();
+        }
+
+        YT_LOG_DEBUG("Finished GetRowCacheControllerContext (TimeSpent: %v)", elapsedTime);
+
+        return context;
     }
 
     TTimestamp GetLatestTimestamp() override

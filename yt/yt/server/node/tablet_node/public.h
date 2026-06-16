@@ -200,6 +200,8 @@ DECLARE_REFCOUNTED_STRUCT(IPerTabletStructuredLogger)
 
 DECLARE_REFCOUNTED_CLASS(TRowCache)
 
+DECLARE_REFCOUNTED_CLASS(TRowCacheController)
+
 DECLARE_REFCOUNTED_STRUCT(IDistributedThrottlerManager)
 
 DECLARE_REFCOUNTED_STRUCT(IBackendChunkReadersHolder)
@@ -242,6 +244,7 @@ DECLARE_REFCOUNTED_STRUCT(TBackupManagerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TStatisticsReporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TOverloadReporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TErrorManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TRowCacheControllerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TMediumThrottlersConfig)
 DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderConfig)
 DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderDynamicConfig)

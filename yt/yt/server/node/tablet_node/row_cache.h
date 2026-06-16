@@ -54,6 +54,11 @@ public:
 
     i64 GetUsedBytesCount() const;
 
+    i64 GetAliveByteSize() const;
+    i64 GetAliveItemCount() const;
+
+    void ForceRotate();
+
 private:
     const TIntrusivePtr<TRowCacheMemoryTracker> MemoryTracker_;
 

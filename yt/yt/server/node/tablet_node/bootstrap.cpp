@@ -15,6 +15,8 @@
 #include "master_connector.h"
 #include "overload_reporter.h"
 #include "partition_balancer.h"
+#include "row_cache.h"
+#include "row_cache_controller.h"
 #include "serialize.h"
 #include "slot_manager.h"
 #include "statistics_reporter.h"
@@ -24,7 +26,10 @@
 #include "store_trimmer.h"
 #include "structured_logger.h"
 #include "table_config_manager.h"
+#include "tablet.h"
 #include "tablet_cell_service.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
@@ -42,6 +47,7 @@
 
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
+#include <yt/yt/server/lib/cellar_agent/occupant.h>
 
 #include <yt/yt/server/node/tablet_node/distributed_throttler_manager.h>
 #include <yt/yt/server/node/tablet_node/medium_throttler_manager.h>
@@ -53,6 +59,8 @@
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
@@ -62,6 +70,7 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/poller.h>
@@ -69,6 +78,8 @@
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
 #include <yt/yt/core/net/address.h>
+
+#include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/overload_controller.h>
@@ -268,6 +279,9 @@ public:
         ChunkReplicaCachePinger_ = CreateChunkReplicaCachePinger(this);
         CompressionDictionaryBuilder_ = CreateCompressionDictionaryBuilder(this);
         ErrorManager_ = CreateErrorManager(this);
+        RowCacheController_ = New<TRowCacheController>(
+            New<TRowCacheControllerDynamicConfig>(),
+            this);
         CompressionDictionaryManager_ = CreateCompressionDictionaryManager(
             GetConfig()->TabletNode->CompressionDictionaryCache,
             this);
@@ -365,6 +379,7 @@ public:
         CompressionDictionaryBuilder_->Start();
         OverloadController_->Start();
         ErrorManager_->Start();
+        RowCacheController_->Start();
     }
 
     NYTree::IYPathServicePtr CreateThreadPoolsOrchidService()
@@ -570,6 +585,11 @@ public:
         }
     }
 
+    const TRowCacheControllerPtr& GetRowCacheController() const override
+    {
+        return RowCacheController_;
+    }
+
     const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const override
     {
         return CompressionDictionaryManager_;
@@ -629,6 +649,7 @@ private:
     IChunkReplicaCachePingerPtr ChunkReplicaCachePinger_;
     ICompressionDictionaryBuilderPtr CompressionDictionaryBuilder_;
     IErrorManagerPtr ErrorManager_;
+    TRowCacheControllerPtr RowCacheController_;
     ICompressionDictionaryManagerPtr CompressionDictionaryManager_;
     NRpc::IOverloadControllerPtr OverloadController_;
     IAlienClusterClientCachePtr ReplicatorClientCache_;
@@ -670,6 +691,8 @@ private:
         CompressionDictionaryManager_->OnDynamicConfigChanged(tabletNodeConfig->CompressionDictionaryCache);
 
         ErrorManager_->Reconfigure(tabletNodeConfig);
+
+        RowCacheController_->Reconfigure(tabletNodeConfig->RowCacheController);
 
         if (ReplicationCardUpdatesBatcher_) {
             ReplicationCardUpdatesBatcher_->Reconfigure(

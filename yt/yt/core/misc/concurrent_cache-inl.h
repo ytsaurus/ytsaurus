@@ -207,6 +207,12 @@ typename TConcurrentCache<T>::TInserter TConcurrentCache<T>::GetInserter()
 }
 
 template <class T>
+size_t TConcurrentCache<T>::GetCapacity() const
+{
+    return Capacity_.load(std::memory_order::acquire);
+}
+
+template <class T>
 void TConcurrentCache<T>::SetCapacity(size_t capacity)
 {
     YT_VERIFY(capacity > 0);
@@ -216,6 +222,13 @@ void TConcurrentCache<T>::SetCapacity(size_t capacity)
     if (primary->Size >= std::min(capacity, primary->Capacity)) {
         RenewTable(primary, capacity);
     }
+}
+
+template <class T>
+void TConcurrentCache<T>::ForceRotate()
+{
+    auto primary = Head_.Acquire();
+    RenewTable(primary, Capacity_.load(std::memory_order::acquire));
 }
 
 template <class T>
