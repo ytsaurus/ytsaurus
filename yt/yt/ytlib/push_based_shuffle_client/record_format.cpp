@@ -73,6 +73,11 @@ i64 TShuffleRecordBuilder::GetAllocatedDataSize() const
     return BlockWriter_->GetCapacity();
 }
 
+i64 TShuffleRecordBuilder::GetDataSize() const
+{
+    return BlockWriter_->GetBlockSize();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TRecordHeader ReadShuffleRecordHeader(TRange<TSharedRef> wire)
