@@ -3513,6 +3513,9 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "limited_demand_share", element->LimitedDemandShare())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_limited_demand_share", MaxComponent(element->LimitedDemandShare()))
 
+            // NB: Operations never receive a strong guarantee, so all of the strong guarantee fields below
+            // are always zero for operation elements.
+            // COMPAT(eshcherbin): Stop exporting strong guarantee fields for operations entirely.
             // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share", attributes.StrongGuaranteeShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_share", attributes.StrongGuaranteeShare)

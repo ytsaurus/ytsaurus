@@ -445,11 +445,10 @@ void TCompositeElement::PrepareFifoPool()
 }
 
 //! Element's strong guarantee can be split into several priority tiers which impact the guarantee adjustment process.
-//! Currently, there are three tiers: operations, regular pools and priority pools.
+//! Currently, there are two tiers: regular pools and priority pools. Operations never receive a strong guarantee.
 //!
-//! The two pools tiers are regulated by two pool config options: any pool can be marked as a priority pool and as a donor pool.
+//! Both tiers are regulated by two pool config options: any pool can be marked as a priority pool and as a donor pool.
 //! Semantics are as follows:
-//! - Each operation's guarantee fully belongs to the operations tier.
 //! - Each priority pool's guarantee fully belongs to the priority pools tier.
 //! - For each priority pool, we propagate its guarantee to all ancestor up to the nearest donor pool (excluding this donor).
 //!   This propagated guarantee is added to the priority tier of these ancestors.
@@ -1614,7 +1613,7 @@ TResourceVector TOperationElement::ComputeLimitsShare(const TFairShareUpdateCont
 
 void TOperationElement::ComputeStrongGuaranteeShareByTier(const TFairShareUpdateContext* /*context*/)
 {
-    Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::Operations] = Attributes().StrongGuaranteeShare;
+    // Operations never receive a strong guarantee, so they don't contribute to any tier.
 }
 
 ////////////////////////////////////////////////////////////////////////////////
