@@ -370,7 +370,7 @@ public class TableSchema implements YTreeConvertible {
         }
 
         public Builder(TableSchema tableSchema) {
-            this.columns = tableSchema.columns;
+            this.columns = new ArrayList<>(tableSchema.columns);
             this.lock = tableSchema.lock;
             this.group = tableSchema.group;
             this.strict = tableSchema.strict;
