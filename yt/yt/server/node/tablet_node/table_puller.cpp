@@ -711,6 +711,8 @@ private:
 
                 for (auto row : unversionedRows) {
                     if (row[*timestampColumnIndex].Id != *timestampColumnIndex) {
+                        counters->FatalErrorCount.Increment();
+
                         YT_LOG_ALERT("Could not identify timestamp column in pulled row, "
                             "timestamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
                             row,
@@ -720,6 +722,8 @@ private:
                     auto rowTimestamp = row[*timestampColumnIndex].Data.Uint64;
 
                     if (progressTimestamp >= rowTimestamp || previousTimestamp > rowTimestamp) {
+                        counters->FatalErrorCount.Increment();
+
                         YT_LOG_ALERT("Received inappropriate timestamp in pull rows response "
                             "(RowTimestamp: %v, PreviousTimestamp: %v, Row: %v, Progress: %v)",
                             rowTimestamp,
@@ -747,6 +751,8 @@ private:
                     i64 currentRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
                     i64 endReplicationRowIndex = endReplicationRowIndexes.begin()->second;
                     if (currentRowCount + rowCount != endReplicationRowIndex) {
+                        counters->FatalErrorCount.Increment();
+
                         YT_LOG_ALERT(
                             "Ordered pull row index mismatch "
                             "(CurrentRowCount: %v, ResultSetRowCount: %v, EndReplicationRowIndex: %v)",
