@@ -50,14 +50,22 @@ public:
         , Logger(DistributedChunkSessionServiceLogger().WithTag("(SessionId: %v)", sessionId))
     { }
 
+    TDistributedChunkSessionSequencer(
+        TSessionId sessionId,
+        IJournalChunkWriterPtr writer)
+        : Writer_(std::move(writer))
+        , Logger(DistributedChunkSessionServiceLogger().WithTag("(SessionId: %v)", sessionId))
+    { }
+
     TFuture<void> Open() final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return Writer_->Open()
-            .Apply(BIND(
-                &TDistributedChunkSessionSequencer::OnWriterOpened,
-                MakeWeak(this)));
+        auto result = Writer_->Open();
+        result.Subscribe(BIND_NO_PROPAGATE(
+            &TDistributedChunkSessionSequencer::OnWriterOpened,
+            MakeWeak(this)));
+        return result;
     }
 
     TFuture<void> GetClosedFuture() final
@@ -78,11 +86,12 @@ public:
         i64 recordIndex = RecordIndex_.fetch_add(1);
         YT_LOG_DEBUG("Writing record (RecordIndex: %v, RecordSize: %v)", recordIndex, record.Size());
 
-        return Writer_->WriteRecord(std::move(record))
-            .Apply(BIND(
-                &TDistributedChunkSessionSequencer::OnWriteFinished,
-                MakeWeak(this),
-                recordIndex));
+        auto result = Writer_->WriteRecord(std::move(record));
+        result.Subscribe(BIND_NO_PROPAGATE(
+            &TDistributedChunkSessionSequencer::OnWriteFinished,
+            MakeWeak(this),
+            recordIndex));
+        return result;
     }
 
     TFuture<void> Close() final
@@ -117,8 +126,6 @@ private:
         YT_LOG_DEBUG(error, "Record writing failed (RecordIndex: %v)", recordIndex);
 
         YT_UNUSED_FUTURE(Close());
-
-        THROW_ERROR error;
     }
 
     void OnWriterOpened(const TError& error)
@@ -132,8 +139,6 @@ private:
         YT_LOG_DEBUG(error, "Failed to open journal chunk writer");
 
         YT_UNUSED_FUTURE(Close());
-
-        THROW_ERROR error;
     }
 };
 
@@ -156,6 +161,15 @@ IDistributedChunkSessionSequencerPtr CreateDistributedChunkSessionSequencer(
         std::move(config),
         std::move(connection),
         std::move(invoker));
+}
+
+IDistributedChunkSessionSequencerPtr CreateDistributedChunkSessionSequencerForTesting(
+    TSessionId sessionId,
+    IJournalChunkWriterPtr writer)
+{
+    return New<TDistributedChunkSessionSequencer>(
+        sessionId,
+        std::move(writer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
