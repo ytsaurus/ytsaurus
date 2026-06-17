@@ -149,6 +149,7 @@ TTablePullerCounters::TTablePullerCounters(const NProfiling::TProfiler& profiler
     , ThrottleTime(profiler.Timer("/table_puller/throttle_time"))
     , RelativeThrottlerThrottleTime(profiler.Timer("/table_puller/relative_throttler_throttle_time"))
     , MemoryUsage(profiler.Counter("/table_puller/memory_usage"))
+    , FatalErrorCount(profiler.Counter("/table_puller/fatal_error_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
