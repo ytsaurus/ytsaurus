@@ -84,6 +84,8 @@ private:
 
     const NClusterNode::IBootstrap* const Bootstrap_;
 
+    const NProfiling::TCounter EnospcRate_;
+
     TFuture<void> RemoveChunks();
 
     std::optional<NNode::TChunkDescriptor> Repair(NDataNode::TChunkId chunkId, const std::string& metaSuffix);

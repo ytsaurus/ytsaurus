@@ -116,6 +116,7 @@ TCacheLocation::TCacheLocation(
     , ArtifactCache_(std::move(artifactCache))
     , MediumName_(config->MediumName)
     , Bootstrap_(bootstrap)
+    , EnospcRate_(Profiler_.Counter("/enospc_events"))
 {
     TChunkLocationBase::UpdateMediumTag(GetMediumName());
 }
@@ -247,6 +248,7 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
     if (IsOutOfDiskSpaceError(reason) &&
         !Bootstrap_->GetDynamicConfigManager()->GetConfig()->ExecNode->ChunkCache->TestDisableOnOutOfDiskSpace)
     {
+        EnospcRate_.Increment();
         YT_UNUSED_FUTURE(ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this), /*forbidSlruResurrection*/ false));
         return true;
     }
