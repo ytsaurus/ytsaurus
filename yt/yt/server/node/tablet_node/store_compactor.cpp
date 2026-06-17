@@ -1718,7 +1718,8 @@ private:
                 currentTimestamp,
                 // NB: No major compaction during Eden partitioning.
                 /*majorTimestamp*/ MinTimestamp,
-                tabletSnapshot->PartitioningThrottler);
+                tabletSnapshot->PartitioningThrottler,
+                task->Info->MemoryUsageTracker);
 
             auto transaction = StartPartitioningTransaction(tabletSnapshot, &Logger);
 
@@ -2152,7 +2153,8 @@ private:
                 chunkReadOptions,
                 currentTimestamp,
                 majorTimestamp,
-                tabletSnapshot->CompactionThrottler);
+                tabletSnapshot->CompactionThrottler,
+                task->Info->MemoryUsageTracker);
 
             auto transaction = StartCompactionTransaction(tabletSnapshot, &Logger);
 
@@ -2306,7 +2308,8 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
-        IThroughputThrottlerPtr inboundThrottler)
+        IThroughputThrottlerPtr inboundThrottler,
+        IMemoryUsageTrackerPtr rowMergerMemoryUsageTracker)
     {
         return CreateHunkInliningVersionedReader(
             tablet->GetSettings().HunkReaderConfig,
@@ -2322,7 +2325,7 @@ private:
                 ETabletDistributedThrottlerKind::CompactionRead,
                 std::move(inboundThrottler),
                 chunkReadOptions.WorkloadDescriptor.Category,
-                Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground)),
+                std::move(rowMergerMemoryUsageTracker)),
             tablet->GetChunkFragmentReader(),
             tabletSnapshot->DictionaryCompressionFactory,
             tablet->GetPhysicalSchema(),
