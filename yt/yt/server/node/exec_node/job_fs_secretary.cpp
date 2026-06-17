@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/fs.h>
 
 namespace NYT::NExecNode {
 
@@ -157,8 +158,8 @@ TError CheckNonRootVolumeParams(
 }
 
 TError CheckJobVolumeMounts(
-    const std::vector<NScheduler::TVolumeMountPtr>& baseline,
-    const std::vector<NScheduler::TVolumeMountPtr>& current)
+    const std::vector<TVolumeMountPtr>& baseline,
+    const std::vector<TVolumeMountPtr>& current)
 {
     if (baseline.size() != current.size()) {
         return TError("Job spec job volume mounts count differs from the first job in this allocation")
@@ -472,11 +473,24 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
     std::optional<std::string_view> rootVolumeId;
     description->JobVolumeMounts.reserve(userJobSpec->job_volume_mounts().size());
     for (const auto& protoVolumeMount : userJobSpec->job_volume_mounts()) {
-        auto volumeMount = New<NScheduler::TVolumeMount>();
-        FromProto(volumeMount.Get(), protoVolumeMount);
-        if (volumeMount->MountPath == "/") {
+        auto volumeMount = New<TVolumeMount>();
+        std::filesystem::path mountPath(std::string(protoVolumeMount.mount_path()));
+        if (!mountPath.is_absolute()) {
+            if (description->RootVolumeLayerArtifactKeys.empty() || Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS) {
+                volumeMount->MountPath = NFS::JoinPaths("/sandbox/", mountPath.string());
+            } else {
+                volumeMount->MountPath = NFS::JoinPaths("/slot/sandbox/", mountPath.string());
+            }
+        } else {
+            volumeMount->MountPath = std::move(mountPath);
+        }
+        volumeMount->VolumeId = protoVolumeMount.volume_id();
+        volumeMount->ReadOnly = protoVolumeMount.read_only();
+
+        if (volumeMount->MountPath == TAbsoluteNormalizedPath("/")) {
             rootVolumeId = volumeMount->VolumeId;
         }
+
         description->JobVolumeMounts.push_back(std::move(volumeMount));
     }
 
@@ -817,7 +831,7 @@ const std::vector<TBaseVolumeParamsPtr>& TJobFSSecretary::GetNonRootVolumeParams
     return NonRootVolumeParams_;
 }
 
-const std::vector<NScheduler::TVolumeMountPtr>& TJobFSSecretary::GetJobVolumeMounts() const
+const std::vector<TVolumeMountPtr>& TJobFSSecretary::GetJobVolumeMounts() const
 {
     return JobVolumeMounts_;
 }

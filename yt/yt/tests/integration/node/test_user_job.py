@@ -140,6 +140,38 @@ class TestSandboxTmpfs(YTEnvSetup):
         words = content.strip().split()
         assert ["file", "content"] == words
 
+    @authors("krasovav")
+    def test_resulting_spec_contains_volumes_for_tmpfs_volumes(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            task_patch={
+                "tmpfs_size": 1024 * 1024,
+                "tmpfs_path": "tmpfs",
+            },
+            track=False,
+        )
+
+        wait_breakpoint()
+
+        full_spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        task_spec = full_spec["tasks"]["task"]
+
+        assert "tmpfs_volumes" in task_spec
+        assert len(task_spec["tmpfs_volumes"]) == 1
+        assert "job_volumes_mounts" in task_spec
+        assert len(task_spec["job_volumes_mounts"]) == 2
+        assert "volumes" in task_spec
+        assert len(task_spec["volumes"]) == 2
+
+        tmpfs_volumes = [
+            volume
+            for volume in task_spec["volumes"].values()
+            if "disk_request" in volume is not None and volume["disk_request"]["type"] == "tmpfs"
+        ]
+
+        assert len(tmpfs_volumes) == 1
+        assert tmpfs_volumes[0]["disk_request"]["tmpfs_index"] == 0
+
     @authors("ignat")
     def test_tmpfs_profiling(self):
         create("table", "//tmp/t_input")
@@ -223,7 +255,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                             "job_volumes_mounts" : [
                                 {
                                     "volume_id": "non-root",
-                                    "mount_path": "tmpfs",
+                                    "mount_path": "/sandbox/tmpfs",
                                 }
                             ],
                         }
@@ -423,6 +455,40 @@ class TestSandboxTmpfs(YTEnvSetup):
                     }
                 },
             )
+
+    @authors("krasovav")
+    @pytest.mark.parametrize("incorrect_path", ["/abc/abc/../../..", "abc", "."])
+    def test_incorrect_volume_mount_path_spec(self, incorrect_path):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        with pytest.raises(YtError) as err:
+            map(
+                command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "volumes": {
+                            "first": {
+                                "disk_request": {
+                                    "disk_space": 1024 * 1024,
+                                    "type": "tmpfs",
+                                }
+                            }
+                        },
+                        "job_volumes_mounts": [
+                            {
+                                "mount_path": incorrect_path,
+                                "volume_id": "first",
+                            },
+                        ]
+                    }
+                },
+            )
+
+        assert "Option \"mount_path\" must be absolute path" in str(err)
 
     @authors("ignat")
     def test_tmpfs_remove_failed(self):

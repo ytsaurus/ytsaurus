@@ -37,7 +37,7 @@ struct TJobFSDescription
     std::optional<i64> RootVolumeInodeLimit;
     bool RootVolumeAllowReusing = false;
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams;
-    std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts;
+    std::vector<TVolumeMountPtr> JobVolumeMounts;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
 };
 
@@ -109,7 +109,7 @@ public:
 
     const std::vector<TBaseVolumeParamsPtr>& GetNonRootVolumeParams() const;
 
-    const std::vector<NScheduler::TVolumeMountPtr>& GetJobVolumeMounts() const;
+    const std::vector<TVolumeMountPtr>& GetJobVolumeMounts() const;
 
     const TArtifactDescription& GetUserArtifact(const TString& name) const;
 
@@ -160,7 +160,7 @@ private:
     std::optional<i64> RootVolumeInodeLimit_;
     bool RootVolumeReusingAllowed_ = false;
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams_;
-    std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts_;
+    std::vector<TVolumeMountPtr> JobVolumeMounts_;
     bool HasVirtualSandboxArtifacts_ = false;
     bool ArtifactsCached_ = false;
 

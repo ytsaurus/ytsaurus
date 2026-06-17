@@ -10,6 +10,7 @@
 #include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/misc/absolute_normalized_path.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -99,6 +100,22 @@ struct TGpuCheckOptions
     std::vector<TShellCommandConfigPtr> SetupCommands;
     std::optional<std::string> InfinibandCluster;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TVolumeMount
+    : public TRefCounted
+{
+    std::string VolumeId;
+    TAbsoluteNormalizedPath MountPath;
+    bool ReadOnly;
+
+    bool operator==(const TVolumeMount& rhs) const;
+    bool operator!=(const TVolumeMount& rhs) const;
+};
+
+DEFINE_REFCOUNTED_TYPE(TVolumeMount)
+DECLARE_REFCOUNTED_STRUCT(TVolumeMount)
 
 ////////////////////////////////////////////////////////////////////////////////
 

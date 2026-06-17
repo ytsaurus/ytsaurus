@@ -189,11 +189,12 @@ NScheduler::TDiskQuota CreateDiskQuota(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void EnrichLayers(
+void ValidateAndEnrichVolumeSpec(
     const TControllerAgentConfigPtr& config,
     const TOperationSpecBasePtr& operationSpec,
     const IOperationControllerHostPtr& host,
-    TNonNullPtr<NScheduler::TUserJobSpec> spec);
+    TNonNullPtr<NScheduler::TUserJobSpec> spec,
+    TNonNullPtr<NScheduler::TUserJobSpec> providedSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

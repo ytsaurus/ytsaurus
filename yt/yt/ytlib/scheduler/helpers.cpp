@@ -1000,7 +1000,7 @@ void FromProto(
     const NControllerAgent::NProto::TVolumeMount& volumeMountProto)
 {
     volumeMount->VolumeId = volumeMountProto.volume_id();
-    volumeMount->MountPath = volumeMountProto.mount_path();
+    volumeMount->MountPath = std::filesystem::path(std::string(volumeMountProto.mount_path()));
     volumeMount->ReadOnly = volumeMountProto.read_only();
 }
 

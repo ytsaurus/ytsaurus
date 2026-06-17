@@ -1,4 +1,5 @@
 #include "bootstrap.h"
+#include "private.h"
 #include "helpers.h"
 
 #include <yt/yt/server/node/exec_node/job_controller.h>
@@ -349,7 +350,7 @@ TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts)
+const TAbsoluteNormalizedPath& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<TVolumeMountPtr>& volumeMounts)
 {
     auto volumeMountIt = std::find_if(volumeMounts.begin(), volumeMounts.end(), [&] (const auto& volumeMount) {
         return volumeMount->VolumeId == volumeId;

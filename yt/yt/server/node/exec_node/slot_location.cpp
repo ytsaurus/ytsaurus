@@ -70,32 +70,22 @@ bool TSlotLocation::TSandboxTmpfsData::IsInsideTmpfs(const std::string& path, co
         VolumePathToType_);
 
     bool isTmpfs = false;
-    std::optional<std::string_view> longerVolumePath;
-    auto tryUpdateLongestTmpfsPath = [&] (std::string_view volumePath, EVolumeType volumeType) {
-        if (path.starts_with(volumePath)) {
-            if (!longerVolumePath || volumePath.size() > longerVolumePath->size()) {
-                longerVolumePath = volumePath;
-                isTmpfs = volumeType == EVolumeType::Tmpfs;
-            }
-        }
-    };
-
+    std::optional<std::string_view> longestVolumePath;
     for (const auto& [volumePath, type] : VolumePathToType_) {
-        if (NFS::IsAbsolutePath(volumePath)) {
-            tryUpdateLongestTmpfsPath(volumePath, type);
-        } else {
-            for (const auto& sandboxPath : SandboxPaths_) {
-                tryUpdateLongestTmpfsPath(NFS::JoinPaths(sandboxPath, volumePath), type);
+        if (path.starts_with(volumePath.Path().string())) {
+            if (!longestVolumePath || volumePath.Path().string().size() > longestVolumePath->size()) {
+                longestVolumePath = volumePath.Path().string();
+                isTmpfs = type == EVolumeType::Tmpfs;
             }
         }
     }
 
-    if (longerVolumePath) {
+    if (longestVolumePath) {
         YT_LOG_DEBUG(
             "Path %v inside tmpfs (Path: %v, VolumePath: %v, VolumePathToType: %v, SandboxPaths: %v)",
             isTmpfs ? "is" : "isn't",
             path,
-            *longerVolumePath,
+            *longestVolumePath,
             VolumePathToType_,
             SandboxPaths_);
     } else {
@@ -108,17 +98,12 @@ bool TSlotLocation::TSandboxTmpfsData::IsInsideTmpfs(const std::string& path, co
     return isTmpfs;
 }
 
-void TSlotLocation::TSandboxTmpfsData::AddSandboxPath(std::string&& sandboxPath)
+void TSlotLocation::TSandboxTmpfsData::AddSandboxPath(TAbsoluteNormalizedPath&& sandboxPath)
 {
-    // Remove trailing slash.
-    if (sandboxPath.ends_with("/")) {
-        sandboxPath.pop_back();
-    }
-
     SandboxPaths_.insert(std::move(sandboxPath));
 }
 
-void TSlotLocation::TSandboxTmpfsData::AddVolumeInfo(std::string&& volumePath, EVolumeType volumeType)
+void TSlotLocation::TSandboxTmpfsData::AddVolumeInfo(TAbsoluteNormalizedPath&& volumePath, EVolumeType volumeType)
 {
     EmplaceOrCrash(VolumePathToType_, std::move(volumePath), volumeType);
 }
@@ -470,46 +455,29 @@ void TSlotLocation::DoPrepareSandboxDirectories(
 TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
-    const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
     bool ignoreQuota)
 {
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
+    auto sandboxInsideTmpfs = IsInsideTmpfs(slotIndex, sandboxPath);
 
-    return BIND([=, this_ = MakeStrong(this)] {
-            for (const auto& volumeParams : nonRootVolumeParams) {
-                // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
-                // real path without filesystem access.
-                auto mountPath = GetVolumeMountPathByVolumeId(volumeParams->VolumeId, options.JobVolumeMounts);
-                auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, mountPath));
-                if (tmpfsPath == sandboxPath) {
-                    return true;
-                }
-            }
+    const auto& invoker = sandboxInsideTmpfs
+        ? LightInvoker_
+        : HeavyInvoker_;
 
-            return false;
-        })
-        .AsyncVia(LightInvoker_)
-        .Run()
-        .Apply(BIND([=, this, this_ = MakeStrong(this)] (bool sandboxInsideTmpfs) {
-            const auto& invoker = sandboxInsideTmpfs
-                ? LightInvoker_
-                : HeavyInvoker_;
-
-            return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
-                slotIndex,
-                options,
-                ignoreQuota,
-                sandboxInsideTmpfs)
-                .AsyncVia(invoker)
-                .Run();
-        }));
+    return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
+        slotIndex,
+        options,
+        ignoreQuota,
+        sandboxInsideTmpfs)
+        .AsyncVia(invoker)
+        .Run();
 }
 
 void TSlotLocation::TakeIntoAccountTmpfsVolumes(
     int slotIndex,
     const IVolumePtr& rootVolume,
     const std::vector<TVolumeResultPtr>& volumeResults,
-    const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts)
+    const std::vector<TVolumeMountPtr>& volumeMounts)
 {
     YT_LOG_DEBUG("Taking into account tmpfs volumes (SlotIndex: %v, VolumeCount: %v)",
         slotIndex,
@@ -520,17 +488,17 @@ void TSlotLocation::TakeIntoAccountTmpfsVolumes(
     auto& tmpfsData = SandboxTmpfsData_[slotIndex];
 
     if (rootVolume) {
-        tmpfsData.AddSandboxPath(NFS::CombinePaths(
+        tmpfsData.AddSandboxPath(TAbsoluteNormalizedPath(NFS::CombinePaths(
             rootVolume->GetPath(),
-            Format("slot/%v", GetSandboxRelPath(ESandboxKind::User))));
+            Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)))));
     }
 
     // TODO(yuryalekseev): it should be in the else clause of the above if.
-    tmpfsData.AddSandboxPath(GetSandboxPath(slotIndex, ESandboxKind::User));
+    tmpfsData.AddSandboxPath(TAbsoluteNormalizedPath(std::string(GetSandboxPath(slotIndex, ESandboxKind::User))));
 
     for (const auto& volume: volumeResults) {
-        auto mountPath = GetVolumeMountPathByVolumeId(volume->VolumeId, volumeMounts);
-        tmpfsData.AddVolumeInfo(NFS::GetRealPath(NFS::CombinePaths("/", mountPath)), volume->VolumeType);
+        TAbsoluteNormalizedPath mountPath(GetVolumeMountPathByVolumeId(volume->VolumeId, volumeMounts));
+        tmpfsData.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(GetSlotPath(slotIndex), mountPath.Path().string())), volume->VolumeType);
     }
 }
 

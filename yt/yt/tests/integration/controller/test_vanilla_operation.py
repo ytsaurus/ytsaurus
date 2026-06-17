@@ -876,7 +876,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "job_volumes_mounts" : [
                                 {
                                     "volume_id": "a",
-                                    "mount_path": "tmpfs",
+                                    "mount_path": "/sandbox/tmpfs",
                                 },
                             ],
                         }
@@ -896,7 +896,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "job_volumes_mounts" : [
                                 {
                                     "volume_id": "nbd",
-                                    "mount_path": "nbd",
+                                    "mount_path": "/sandbox/nbd",
                                 },
                             ],
                             "volumes" : {

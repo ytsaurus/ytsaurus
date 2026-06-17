@@ -174,7 +174,7 @@ class TestLayers(TestPortoLayersBase):
                         "job_volumes_mounts": [
                             {
                                 "volume_id": "1",
-                                "mount_path": "/" if volume_type == "root" else "."
+                                "mount_path": "/" if volume_type == "root" else "/sandbox"
                             }
                         ],
                     },
@@ -219,7 +219,7 @@ class TestLayers(TestPortoLayersBase):
                     "job_volumes_mounts": [
                         {
                             "volume_id": "1",
-                            "mount_path": "/" if volume_type == "root" else "."
+                            "mount_path": "/" if volume_type == "root" else "/sandbox"
                         }
                     ],
                 },
@@ -267,7 +267,7 @@ class TestLayers(TestPortoLayersBase):
                     "job_volumes_mounts": [
                         {
                             "volume_id": "1",
-                            "mount_path": "/" if volume_type == "root" else "."
+                            "mount_path": "/" if volume_type == "root" else "/sandbox"
                         }
                     ],
                 },
@@ -292,7 +292,7 @@ class TestLayers(TestPortoLayersBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat && ls $YT_ROOT_FS 1>&2; cd $YT_ROOT_FS; ls tmpfs local_disk 1>&2",
+            command="./static_cat && ls $YT_ROOT_FS 1>&2; cd $YT_ROOT_FS; cd ..; ls tmpfs local_disk 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
@@ -324,11 +324,11 @@ class TestLayers(TestPortoLayersBase):
                     "job_volumes_mounts": [
                         {
                             "volume_id": "1",
-                            "mount_path": "tmpfs"
+                            "mount_path": "/tmpfs"
                         },
                         {
                             "volume_id": "2",
-                            "mount_path": "local_disk"
+                            "mount_path": "/local_disk"
                         }
                     ],
                 },
@@ -357,7 +357,7 @@ class TestLayers(TestPortoLayersBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat && ls $YT_ROOT_FS 1>&2 && cd $YT_ROOT_FS && cd outer && ls 1>&2 && cd inner && ls 1>&2",
+            command="./static_cat && ls $YT_ROOT_FS 1>&2 && cd $YT_ROOT_FS && cd .. && ls 1>&2 && cd outer && ls 1>&2 && cd inner && ls 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
@@ -389,11 +389,11 @@ class TestLayers(TestPortoLayersBase):
                     "job_volumes_mounts": [
                         {
                             "volume_id": "1",
-                            "mount_path": "outer"
+                            "mount_path": "/outer"
                         },
                         {
                             "volume_id": "2",
-                            "mount_path": "outer/inner"
+                            "mount_path": "/outer/inner"
                         }
                     ],
                 },
@@ -446,7 +446,7 @@ class TestLayers(TestPortoLayersBase):
                         "job_volumes_mounts": [
                             {
                                 "volume_id": "1",
-                                "mount_path": "/" if volume_type == "root" else "."
+                                "mount_path": "/" if volume_type == "root" else "/sandbox"
                             }
                         ],
                     },
@@ -3027,7 +3027,7 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
                     },
                     "job_volumes_mounts": [
                         {"volume_id": "root", "mount_path": "/"},
-                        {"volume_id": "data", "mount_path": "my_volume"},
+                        {"volume_id": "data", "mount_path": "/sandbox/my_volume"},
                     ],
                 },
             },
@@ -3089,7 +3089,7 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
                     },
                     "job_volumes_mounts": [
                         {"volume_id": "root", "mount_path": "/"},
-                        {"volume_id": "data", "mount_path": "my_volume"},
+                        {"volume_id": "data", "mount_path": "/sandbox/my_volume"},
                     ],
                 },
             },
@@ -3150,8 +3150,8 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
                     },
                     "job_volumes_mounts": [
                         {"volume_id": "root", "mount_path": "/"},
-                        {"volume_id": "reusable", "mount_path": "reusable_vol"},
-                        {"volume_id": "nonreusable", "mount_path": "nonreusable_vol"},
+                        {"volume_id": "reusable", "mount_path": "/sandbox/reusable_vol"},
+                        {"volume_id": "nonreusable", "mount_path": "/sandbox/nonreusable_vol"},
                     ],
                 },
             },
@@ -3360,8 +3360,8 @@ class TestNestedVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
                     },
                     "job_volumes_mounts": [
                         {"volume_id": "root", "mount_path": "/"},
-                        {"volume_id": "outer", "mount_path": "outer_vol"},
-                        {"volume_id": "inner", "mount_path": "outer_vol/inner_vol"},
+                        {"volume_id": "outer", "mount_path": "/sandbox/outer_vol"},
+                        {"volume_id": "inner", "mount_path": "/sandbox/outer_vol/inner_vol"},
                     ],
                 },
             },
@@ -3466,7 +3466,7 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
                 },
                 "job_volumes_mounts": [
                     {"volume_id": "root", "mount_path": "/"},
-                    {"volume_id": "data", "mount_path": "my_volume"},
+                    {"volume_id": "data", "mount_path": "/sandbox/my_volume"},
                 ],
             },
             spec={
@@ -3551,7 +3551,7 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
                 },
                 "job_volumes_mounts": [
                     {"volume_id": "root", "mount_path": "/"},
-                    {"volume_id": "data", "mount_path": "my_volume"},
+                    {"volume_id": "data", "mount_path": "/sandbox/my_volume"},
                 ],
             },
             spec={
