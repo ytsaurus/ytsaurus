@@ -95,6 +95,11 @@ TTablePath ToTablePath(const TGenericObjectReference& genericRef)
     return TTablePath(genericRef.GetPath(), *MakeAttributesWithCluster(genericRef.GetCluster().value()));
 }
 
+TTablePath ToTablePath(const TNamedConsumerReference& namedRef)
+{
+    return TTablePath(namedRef.GetPath(), *MakeAttributesWithCluster(namedRef.GetCluster().value()));
+}
+
 TCrossClusterReference ToCrossClusterReference(const TTablePath& path)
 {
     return TCrossClusterReference(path.GetCluster().value(), path.GetPath());
@@ -119,6 +124,30 @@ void FormatValue(TStringBuilderBase* builder, const TGenericObjectReference& ref
     }
     // TODO(YT-27209): Remove this implementation.
     FormatValue(builder, ToCrossClusterReference(ref), spec);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TNamedConsumerReference& ref, TStringBuf spec)
+{
+    FormatValue(builder, TGenericObjectReference(ref), spec);
+}
+
+void Serialize(const TTablePath& path, NYson::IYsonConsumer* consumer)
+{
+    Serialize(ToCrossClusterReference(path), consumer);
+}
+
+void Serialize(const TGenericObjectReference& ref, NYson::IYsonConsumer* consumer)
+{
+    if (ref.GetQueueConsumerName().has_value()) {
+        Serialize(TRichYPath(ref), consumer);
+        return;
+    }
+    Serialize(ToCrossClusterReference(ref), consumer);
+}
+
+void Serialize(const TNamedConsumerReference& ref, NYson::IYsonConsumer* consumer)
+{
+    Serialize(TGenericObjectReference(ref), consumer);
 }
 
 IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster)

@@ -6,7 +6,7 @@ from yt_commands import (execute_batch, get, get_batch_output, get_connection_or
                          sync_create_cells, exists, select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer, sync_freeze_table, sync_unfreeze_table,
                          create_table_replica, sync_enable_table_replica, advance_consumer, insert_rows, wait_for_tablet_state, abort_transactions, raises_yt_error)
 
-from yt_helpers import parse_yt_time, calculate_object_diff
+from yt_helpers import parse_yt_time, calculate_object_diff, wait_success
 
 from yt.common import YtError, update_inplace, update
 
@@ -182,9 +182,9 @@ class OrchidWithRegularPasses(OrchidBase):
     def get_pass_error(self):
         return YtError.from_dict(get(f"{self.orchid_path()}/pass_error"))
 
-    def wait_fresh_pass(self):
-        pass_index = self.get_pass_index()
-        wait(lambda: self.get_pass_index() >= pass_index + 2, sleep_backoff=0.15)
+    def wait_fresh_pass(self, ignore_exceptions: bool = False):
+        pass_index = wait_success(self.get_pass_index, ignore_exceptions=ignore_exceptions)
+        wait(lambda: self.get_pass_index() >= pass_index + 2, sleep_backoff=0.15, ignore_exceptions=ignore_exceptions)
 
     def validate_no_pass_error(self):
         error = self.get_pass_error()
@@ -336,6 +336,14 @@ class ConsumerOrchid(ObjectOrchid):
         return status["queues"][queue_ref], partitions[queue_ref]
 
 
+class MultiConsumerOrchid(ObjectOrchid):
+    OBJECT_TYPE = "multi_consumer"
+
+    def get_queue_consumer_names(self) -> list[str]:
+        result = self.get_status()
+        return result["queue_consumer_names"]
+
+
 class QueueAgentOrchid(OrchidWithRegularPasses):
     ENTITY_NAME = "queue_agent"
 
@@ -404,6 +412,9 @@ class QueueAgentOrchid(OrchidWithRegularPasses):
 
     def get_owned_consumer_orchids(self):
         return [self.get_consumer_orchid(consumer) for consumer in self.list_consumers()]
+
+    def get_multi_consumer_orchid(self, consumer_ref: str | GenericObjectPath):
+        return MultiConsumerOrchid(str(consumer_ref), self.agent_id)
 
     def get_controller_info(self):
         return get(f"{self.orchid_path()}/controller_info")
@@ -1115,6 +1126,9 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
     DO_PREPARE_TABLES_ON_SETUP = True
     QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP = False
 
+    def _is_multi_consumer_supported(self):
+        return "queue-agent" not in self.ARTIFACT_COMPONENTS.get("25_4", [])
+
     @classmethod
     def modify_queue_agent_config(cls, config):
         update_inplace(config, {
@@ -1302,20 +1316,43 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
         create("queue_consumer", path, driver=driver, attributes=kwargs)
 
-    def _create_registered_consumer(self, consumer_path, queue_path, vital=False, without_meta=False, **kwargs):
-        self._create_consumer(consumer_path, **kwargs)
-        register_queue_consumer(queue_path, consumer_path, vital=vital)
+    def _create_registered_consumer(
+        self,
+        consumer_path: str | GenericObjectPath,
+        queue_path: str,
+        vital: bool = False,
+        without_meta: bool = False,
+        consumer_name: str | None = None,
+        consumer_cluster: str = "primary",
+        **kwargs,
+    ) -> GenericObjectPath:
+        assert not (consumer_name and without_meta), "Multi consumer and without meta are not supported together"
+        if not exists(consumer_path):
+            self._create_consumer(consumer_path, without_meta=without_meta, multi_consumer=consumer_name is not None, **kwargs)
+
+        consumer_ref = GenericObjectPath(consumer_path, consumer_cluster, consumer_name)
+        register_queue_consumer(queue_path, consumer_ref, vital=vital)
+
+        return consumer_ref
 
     def _advance_consumer(self, consumer_path, queue_path, partition_index, offset, client_side=False, via_insert=False):
         self._advance_consumers(consumer_path, queue_path, {partition_index: offset}, client_side, via_insert)
 
     def _advance_consumers(self, consumer_path, queue_path, partition_index_to_offset, client_side=False, via_insert=False):
         if via_insert:
-            insert_rows(consumer_path, [{
+            base_dict = {
                 "queue_cluster": "primary",
                 "queue_path": queue_path,
+            }
+            if isinstance(consumer_path, GenericObjectPath):
+                if consumer_path.get_queue_consumer_name():
+                    base_dict["queue_consumer_name"] = consumer_path.get_queue_consumer_name()
+                consumer_path = str(consumer_path)
+
+            insert_rows(consumer_path, [{
                 "partition_index": partition_index,
                 "offset": offset,
+                **base_dict,
             } for partition_index, offset in partition_index_to_offset.items()])
         else:
             for partition_index, offset in partition_index_to_offset.items():

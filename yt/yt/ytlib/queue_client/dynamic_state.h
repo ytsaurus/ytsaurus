@@ -5,6 +5,7 @@
 
 #include <yt/yt/ytlib/queue_client/records/consumer_object.record.h>
 #include <yt/yt/ytlib/queue_client/records/consumer_registration.record.h>
+#include <yt/yt/ytlib/queue_client/records/multi_consumer_object.record.h>
 #include <yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.h>
 #include <yt/yt/ytlib/queue_client/records/queue_object.record.h>
 #include <yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.h>
@@ -119,7 +120,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueTable)
 ////////////////////////////////////////////////////////////////////////////////
 
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
-struct TConsumerTableRow
+struct TConsumerTableRow final
 {
     TTablePath Path;
     std::optional<TRowRevision> RowRevision;
@@ -161,6 +162,30 @@ DEFINE_REFCOUNTED_TYPE(TConsumerTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
+struct TMultiConsumerNameTableRow
+{
+    TNamedConsumerReference Ref;
+    std::optional<std::string> QueueAgentStage;
+
+    bool operator==(const TMultiConsumerNameTableRow& rhs) const = default;
+};
+
+void Serialize(const TMultiConsumerNameTableRow& row, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMultiConsumerNameTable
+    : public TTableBase<TMultiConsumerNameTableRow, NRecords::TMultiConsumerNameObjectDescriptor>
+{
+public:
+    TMultiConsumerNameTable(NYPath::TYPath root, NApi::IClientPtr client);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiConsumerNameTable)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TQueueAgentObjectMappingTableRow
 {
     TGenericObjectReference Object;
@@ -175,7 +200,7 @@ class TQueueAgentObjectMappingTable
 public:
     TQueueAgentObjectMappingTable(NYPath::TYPath root, NApi::IClientPtr client);
 
-    static THashMap<TGenericObjectReference, TString> ToMapping(const std::vector<TQueueAgentObjectMappingTableRow>& rows);
+    static THashMap<TGenericObjectReference, std::string> ToMapping(const std::vector<TQueueAgentObjectMappingTableRow>& rows);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentObjectMappingTable)
@@ -337,6 +362,7 @@ struct TDynamicState
 {
     TQueueTablePtr Queues;
     TConsumerTablePtr Consumers;
+    TMultiConsumerNameTablePtr MultiConsumerNames;
     TQueueAgentObjectMappingTablePtr QueueAgentObjectMapping;
     TConsumerRegistrationTablePtr Registrations;
 

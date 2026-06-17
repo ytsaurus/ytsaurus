@@ -328,4 +328,34 @@ TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<TString, TQ
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateConsumer(
+    const TConsumerTableRow& row,
+    const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow)
+{
+    if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
+        THROW_ERROR_EXCEPTION("Consumer synchronization failed")
+            << *row.SynchronizationError;
+    }
+
+    if (!row.RowRevision) {
+        THROW_ERROR_EXCEPTION("Consumer is not in-sync yet");
+    }
+    if (!row.ObjectType) {
+        THROW_ERROR_EXCEPTION("Consumer object type is not known yet");
+    }
+    if (!row.Schema) {
+        THROW_ERROR_EXCEPTION("Consumer schema is not known yet");
+    }
+
+    if (IsReplicatedTableObjectType(row.ObjectType) && !replicatedTableMappingRow) {
+        THROW_ERROR_EXCEPTION("No replicated table mapping row is known for replicated consumer");
+    }
+
+    if (replicatedTableMappingRow) {
+        replicatedTableMappingRow->Validate();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueueAgent

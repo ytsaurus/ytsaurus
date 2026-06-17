@@ -509,6 +509,25 @@ TRANSFORMS[7] = [
     ),
 ]
 
+# Add multi consumer names table.
+TRANSFORMS[8] = [
+    Conversion(
+        "multi_consumer_names",
+        table_info=TableInfo(
+            [
+                ("cluster", "string"),
+                ("path", "string"),
+                ("name", "string"),
+            ],
+            [
+                ("queue_agent_stage", "string"),
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES_WITH_OLD_BUNDLE,
+        ),
+    ),
+]
+
 MIGRATION = Migration(
     initial_table_infos=INITIAL_TABLE_INFOS,
     initial_version=INITIAL_VERSION,

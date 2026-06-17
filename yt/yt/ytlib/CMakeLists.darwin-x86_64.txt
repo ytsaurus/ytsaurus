@@ -644,6 +644,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_object.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_object.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/multi_consumer_object.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.cpp
@@ -681,6 +682,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_object.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_object.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/multi_consumer_object.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.h
@@ -1734,6 +1736,36 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.record.cpp
   --output-include
   yt/yt/core/yson/string.h
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/multi_consumer_object.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/multi_consumer_object.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/multi_consumer_object.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
+  COMMAND
+  ${Python3_EXECUTABLE}
+  -B
+  -m
+  yt_record_codegen.bin
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/multi_consumer_object.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/multi_consumer_object.record.cpp
+  --output-include
+  yt/yt/core/yson/string.h
+  --output-include
+  yt/yt/ytlib/queue_client/public.h
 )
 
 add_custom_command(

@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/net/local_address.h>
 
+#include <library/cpp/yt/misc/range_helpers.h>
+
 namespace NYT::NQueueAgent {
 
 using namespace NAlertManager;
@@ -175,7 +177,6 @@ void BuildConsumerStatusYson(const TConsumerSnapshotPtr& snapshot, TFluentAny fl
                 fluent
                     .Item(ToString(queuePath)).Do(std::bind(BuildSubConsumerStatusYson, subSnapshot, _1));
             })
-
         .EndMap();
 }
 
@@ -241,6 +242,21 @@ void BuildConsumerPartitionListYson(const TConsumerSnapshotPtr& snapshot, TFluen
             fluent
                 .Item(ToString(queuePath)).Do(std::bind(BuildSubConsumerPartitionListYson, subSnapshot, _1));
         });
+}
+
+void BuildMultiConsumerStatusYson(const TMultiConsumerSnapshotPtr& snapshot, const IAlertManagerPtr& alertManager, TFluentAny fluent)
+{
+    fluent
+        .BeginMap()
+            .Item("alerts").Value(alertManager->GetAlerts())
+            .Item("queue_agent_host").Value(GetLocalHostName())
+            .DoIf(snapshot->Error.IsOK(), [&] (TFluentMap fluentMap) {
+                fluentMap.Item("queue_consumer_names").List(snapshot->QueueConsumerNames);
+            })
+            .DoIf(!snapshot->Error.IsOK(), [&] (TFluentMap fluentMap) {
+                fluentMap.Item("error").Value(snapshot->Error);
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,6 +19,7 @@ void BuildQueuePartitionListYson(const TQueueSnapshotPtr& snapshot, NYTree::TFlu
 
 void BuildConsumerStatusYson(const TConsumerSnapshotPtr& snapshot, NYTree::TFluentAny fluent);
 void BuildConsumerPartitionListYson(const TConsumerSnapshotPtr& snapshot, NYTree::TFluentAny fluent);
+void BuildMultiConsumerStatusYson(const TMultiConsumerSnapshotPtr& snapshot, const NAlertManager::IAlertManagerPtr& alertManager, NYTree::TFluentAny fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
 

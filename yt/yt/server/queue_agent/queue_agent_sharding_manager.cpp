@@ -180,11 +180,10 @@ private:
     }
 
     //! Uses FarmFingerprint as a deterministic (both platform and time-agnostic) hash.
-    static size_t FarmHashCombine(size_t hash, const std::vector<TStringBuf>& values)
+    template <typename... TValues>
+    static size_t FarmHashCombine(size_t hash, TValues... values)
     {
-        for (const auto& value : values) {
-            HashCombine(hash, FarmFingerprint(value));
-        }
+        (HashCombine(hash, FarmFingerprint(std::forward<TValues>(values))), ...);
         return hash;
     }
 
@@ -194,10 +193,13 @@ private:
     {
         YT_VERIFY(!queueAgents.empty());
 
-        auto objectHash = FarmHashCombine(0, {object.GetCluster().value(), object.GetPath()});
+        auto objectHash = FarmHashCombine(0, object.GetCluster().value(), object.GetPath());
+        if (object.GetQueueConsumerName()) {
+            objectHash = FarmHashCombine(objectHash, *object.GetQueueConsumerName());
+        }
 
         auto getCombinedHash = [objectHash] (const TMemberInfo& queueAgent) {
-            return FarmHashCombine(objectHash, {queueAgent.Id});
+            return FarmHashCombine(objectHash, queueAgent.Id);
         };
 
         auto it = std::min_element(queueAgents.begin(), queueAgents.end(), [&] (const TMemberInfo& lhs, const TMemberInfo& rhs) {
@@ -315,11 +317,13 @@ private:
         auto where = Format("[queue_agent_stage] = \"%v\"", QueueAgentStage_);
         auto asyncQueueRows = DynamicState_->Queues->Select(where);
         auto asyncConsumerRows = DynamicState_->Consumers->Select(where);
+        auto asyncMultiConsumeNamesRows = DynamicState_->MultiConsumerNames->Select(where);
         auto asyncObjectMappingRows = DynamicState_->QueueAgentObjectMapping->Select();
 
         std::vector<TFuture<void>> futures{
             asyncQueueRows.AsVoid(),
             asyncConsumerRows.AsVoid(),
+            asyncMultiConsumeNamesRows.AsVoid(),
             asyncObjectMappingRows.AsVoid(),
         };
 
@@ -328,12 +332,14 @@ private:
 
         const auto& queueRows = asyncQueueRows.GetOrCrash().Value();
         const auto& consumerRows = asyncConsumerRows.GetOrCrash().Value();
+        const auto& multiConsumerNameRows = asyncMultiConsumeNamesRows.GetOrCrash().Value();
         const auto& objectMappingRows = asyncObjectMappingRows.GetOrCrash().Value();
 
         YT_LOG_DEBUG(
-            "State table rows collected (QueueRowCount: %v, ConsumerRowCount: %v, ObjectMappingRowCount: %v)",
+            "State table rows collected (QueueRowCount: %v, ConsumerRowCount: %v, MultiConsumerNameRows: %v, ObjectMappingRowCount: %v)",
             queueRows.size(),
             consumerRows.size(),
+            multiConsumerNameRows.size(),
             objectMappingRows.size());
 
         // Map all objects to their responsible queue agents via rendezvous hashing.
@@ -344,6 +350,9 @@ private:
         }
         for (const auto& consumerRow : consumerRows) {
             allObjects.emplace(consumerRow.Path);
+        }
+        for (const auto& multiConsumerRow : multiConsumerNameRows) {
+            allObjects.emplace(multiConsumerRow.Ref);
         }
 
         auto currentMapping = TQueueAgentObjectMappingTable::ToMapping(objectMappingRows);

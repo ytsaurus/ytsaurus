@@ -19,14 +19,25 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TConsumerInfo
+{
+    NQueueClient::TConsumerReference Ref;
+    NQueueClient::TConsumerTableRowConstPtr Row;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTaggedProfilingCounters
 {
     NProfiling::TGauge Queues;
     NProfiling::TGauge Consumers;
+    NProfiling::TGauge MultiConsumers;
+    NProfiling::TGauge MultiConsumerNames;
     NProfiling::TGauge Partitions;
     NProfiling::TGauge TrimmedQueues;
     NProfiling::TGauge ErroneousQueues;
     NProfiling::TGauge ErroneousConsumers;
+    NProfiling::TGauge ErroneousMultiConsumers;
 
     explicit TTaggedProfilingCounters(NProfiling::TProfiler profiler);
 };
@@ -44,7 +55,7 @@ public:
         NQueueClient::TDynamicStatePtr dynamicState,
         NCypressElection::ICypressElectionManagerPtr electionManager,
         NAlertManager::IAlertCollectorPtr alertCollector,
-        TString agentId);
+        std::string agentId);
 
     void Start();
 
@@ -78,7 +89,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr PassExecutor_;
     const TPassProfiler PassProfiler_;
 
-    const TString AgentId_;
+    const std::string AgentId_;
 
     THashMap<NQueueClient::TProfilingTags, TTaggedProfilingCounters> TaggedProfilingCounters_;
 
@@ -101,7 +112,7 @@ private:
     //! In other words, this map accounts for the number of objects that are actually served by this queue agent.
     TEnumIndexedArray<EObjectKind, i64> LeadingObjectCount_;
     //! Mapping of objects to their corresponding queue agent host.
-    THashMap<NQueueClient::TGenericObjectReference, TString> ObjectToHost_;
+    THashMap<NQueueClient::TGenericObjectReference, std::string> ObjectToHost_;
 
     //! Current pass error if any.
     TError PassError_;
@@ -117,13 +128,31 @@ private:
 
     IQueueExportManagerPtr QueueExportManager_;
 
-    NYTree::IYPathServicePtr RedirectYPathRequest(const TString& host, TStringBuf remoteRoot) const;
+    NYTree::IYPathServicePtr RedirectYPathRequest(const std::string& host, TStringBuf remoteRoot) const;
 
     NYTree::INodePtr GetControllerInfoNode() const;
 
     //! One iteration of state polling and object store updating.
     void Pass();
     void GuardedPass(const NLogging::TLogger& Logger);
+
+    bool UpdateConsumerController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const TConsumerInfo& info,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
+
+    bool UpdateMultiConsumerController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const NQueueClient::TConsumerTableRowConstPtr& row,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
+
+    bool UpdateQueueController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const NQueueClient::TQueueTableRow& row,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
 
     TTaggedProfilingCounters& GetOrCreateTaggedProfilingCounters(const NQueueClient::TProfilingTags& profilingTags);
 

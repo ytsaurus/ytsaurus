@@ -184,6 +184,31 @@ NRecords::TConsumerObject RecordFromRow(const TConsumerTableRow& row)
     };
 }
 
+TMultiConsumerNameTableRow RowFromRecord(const NRecords::TMultiConsumerNameObject& record)
+{
+    return TMultiConsumerNameTableRow{
+        .Ref = TNamedConsumerReference(record.Key.Path, *MakeConsumerAttributes(record.Key.Cluster, record.Key.Name)),
+        .QueueAgentStage = record.QueueAgentStage,
+    };
+}
+
+NRecords::TMultiConsumerNameObjectKey RecordKeyFromRow(const TMultiConsumerNameTableRow& row)
+{
+    return NRecords::TMultiConsumerNameObjectKey{
+        .Cluster = row.Ref.GetCluster().value(),
+        .Path = row.Ref.GetPath(),
+        .Name = row.Ref.GetQueueConsumerName().value(),
+    };
+}
+
+NRecords::TMultiConsumerNameObject RecordFromRow(const TMultiConsumerNameTableRow& row)
+{
+    return NRecords::TMultiConsumerNameObject{
+        .Key = RecordKeyFromRow(row),
+        .QueueAgentStage = row.QueueAgentStage,
+    };
+}
+
 TConsumerRegistrationTableRow RowFromRecord(const NRecords::TConsumerRegistration& record)
 {
     const auto& key = record.Key;
@@ -598,10 +623,27 @@ TConsumerTable::TConsumerTable(TYPath root, IClientPtr client)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TGenericObjectReference, TString> TQueueAgentObjectMappingTable::ToMapping(
+void Serialize(const TMultiConsumerNameTableRow& row, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("consumer").Value(row.Ref)
+            .Item("queue_agent_stage").Value(row.QueueAgentStage)
+        .EndMap();
+}
+
+template class TTableBase<TMultiConsumerNameTableRow, NRecords::TMultiConsumerNameObjectDescriptor>;
+
+TMultiConsumerNameTable::TMultiConsumerNameTable(TYPath root, IClientPtr client)
+    : TTableBase<TMultiConsumerNameTableRow, NRecords::TMultiConsumerNameObjectDescriptor>(root + "/" + NRecords::TMultiConsumerNameObjectDescriptor::Name, std::move(client))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+THashMap<TGenericObjectReference, std::string> TQueueAgentObjectMappingTable::ToMapping(
     const std::vector<TQueueAgentObjectMappingTableRow>& rows)
 {
-    THashMap<TGenericObjectReference, TString> objectMapping;
+    THashMap<TGenericObjectReference, std::string> objectMapping;
     for (const auto& row : rows) {
         objectMapping[row.Object] = row.QueueAgentHost;
     }
@@ -801,6 +843,7 @@ TDynamicState::TDynamicState(
     const TClientDirectoryPtr& clientDirectory)
     : Queues(New<TQueueTable>(config->Root, localClient))
     , Consumers(New<TConsumerTable>(config->Root, localClient))
+    , MultiConsumerNames(New<TMultiConsumerNameTable>(config->Root, localClient))
     , QueueAgentObjectMapping(New<TQueueAgentObjectMappingTable>(config->Root, localClient))
     , Registrations(New<TConsumerRegistrationTable>(
         config->ConsumerRegistrationTablePath.GetPath(),
