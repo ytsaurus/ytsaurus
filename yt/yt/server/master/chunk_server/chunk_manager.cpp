@@ -6644,6 +6644,9 @@ private:
 
         ChunksBeingPurged_ = true;
 
+        YT_LOG_DEBUG("Will start dead Sequoia replicas removal transaction (ChunksToProcess: %v)",
+            request->chunk_records_size());
+
         auto result = WaitFor(RemoveDeadSequoiaChunkReplicas(std::move(request)));
 
         if (!result.IsOK()) {
@@ -6669,6 +6672,10 @@ private:
                 ESequoiaTransactionType::DeadChunkReplicaRemoval,
                 {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+                YT_LOG_DEBUG("Started dead Sequoia replicas removal transaction (ChunksToProcess: %v, TransactionId: %v)",
+                    request->chunk_records_size(),
+                    transaction->GetId());
+
                 std::vector<TChunkId> chunkIds;
                 chunkIds.reserve(request->chunk_records().size());
                 for (const auto& chunkRecord : request->chunk_records()) {
@@ -6683,6 +6690,13 @@ private:
                     ToProto(request->add_replicas(), replica);
                     chunksWithReplicas.insert(replica.ChunkId);
                 }
+
+                YT_LOG_DEBUG("Gathered dead Sequoia chunk data "
+                    "(DeadChunkCount: %v, ChunksToRemoveFromSequoia: %v, ChunksWithReplicas: %v, TransactionId: %v)",
+                    request->chunk_records_size(),
+                    request->replicas_size(),
+                    chunksWithReplicas.size(),
+                    transaction->GetId());
 
                 for (const auto& chunkId : chunkIds) {
                     if (!chunksWithReplicas.contains(chunkId)) {
@@ -6722,6 +6736,10 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
 
+        YT_LOG_DEBUG("Starting dead Sequoia chunk replicas removal on master (ChunksToProcess: %v, ReplicasToRemove: %v)",
+            request->chunk_records_size(),
+            request->replicas_size());
+
         const auto* mutationContext = GetCurrentMutationContext();
         if (request->removal_start_hydra_reign() != mutationContext->Request().Reign) {
             THROW_ERROR_EXCEPTION("Removal start Hydra reign %v is not equal to current hydra reign %v", request->removal_start_hydra_reign(), mutationContext->Request().Reign);
@@ -6747,6 +6765,10 @@ private:
                 THROW_ERROR_EXCEPTION("Chunk %v has less records in purgatory than in request", chunkId);
             }
         }
+
+        YT_LOG_DEBUG("Prepared dead Sequoia chunk replicas removal on master (ChunksToProcess: %v, ReplicasToRemove: %v)",
+            request->chunk_records_size(),
+            request->replicas_size());
 
         for (const auto& protoReplica : request->replicas()) {
             auto replica = FromProto<TSequoiaChunkReplica>(protoReplica);
@@ -6814,6 +6836,10 @@ private:
                 SequoiaChunkPurgatory_.erase(purgatoryRecordIt);
             }
         }
+
+        YT_LOG_DEBUG("Finished dead Sequoia chunk replicas removal on master (ChunksToProcess: %v, ReplicasToRemove: %v)",
+            request->chunk_records_size(),
+            request->replicas_size());
 
         ChunksBeingPurged_ = false;
     }
