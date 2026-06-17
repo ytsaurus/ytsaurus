@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, TypeAlias
 
 
@@ -49,6 +49,9 @@ class GroundClusterConfig:
     sequoia_components: ScopeList
     account: str = "sequoia"
     sequoia_root_cypress_path: str = "//sys/sequoia"
+    tablet_node_static_config: dict[str, Any] = field(default_factory=dict)
+    tablet_node_dynamic_config: dict[str, Any] = field(default_factory=dict)
+    master_static_config: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
