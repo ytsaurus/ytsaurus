@@ -116,6 +116,7 @@ public:
 
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
+        req->SetMultiplexingBand(EMultiplexingBand::Interactive);
         req->set_offset(offset);
         req->set_length(length);
         req->set_cookie(options.Cookie);
@@ -157,6 +158,7 @@ public:
 
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
+        req->SetMultiplexingBand(EMultiplexingBand::Interactive);
         req->set_offset(offset);
         req->set_cookie(options.Cookie);
         SetRpcAttachedBlocks(req, {TBlock(data)});
@@ -264,6 +266,7 @@ private:
         auto req = Proxy_.KeepSessionAlive();
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
+        req->SetMultiplexingBand(EMultiplexingBand::Interactive);
 
         auto rspOrError = WaitFor(req->Invoke());
 
