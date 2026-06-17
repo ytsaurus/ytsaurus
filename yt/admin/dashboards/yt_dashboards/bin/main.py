@@ -35,6 +35,7 @@ from yt_dashboards import flow
 
 from yt_dashboards import queue_agent
 from yt_dashboards import queue_and_consumer_metrics
+from yt_dashboards.cluster_workloads import build_cluster_reference_workload_performance
 
 
 logging.basicConfig(
@@ -372,6 +373,10 @@ dashboards = {
                 True,  # has_porto
             ],
         },
+    },
+    "cluster-reference-workload-performance": {
+        "func": build_cluster_reference_workload_performance,
+        "monitoring": {},
     },
 }
 

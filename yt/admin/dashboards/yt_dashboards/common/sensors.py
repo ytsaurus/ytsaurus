@@ -164,6 +164,9 @@ QueueAgent = ProjectSensor("queue_agent_default", "yt-queue-agent")
 QueueAgentPorto = ProjectSensor("queue_agent_porto", "yt-queue-agent")
 QueueAgentCpu = ProjectSensor("queue_agent_cpu", "yt-queue-agent")
 
+# Cluster workloads.
+ClusterWorkloads = ProjectSensor("cluster_workloads", "yt-cluster-workloads")  # noqa: E222
+
 
 class SplitNodeSensorsGuard:
     _entered = False
