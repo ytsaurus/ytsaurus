@@ -157,7 +157,7 @@ class DefaultConfigType(TypedDict, total=False):
         module_filter: Optional[Any]
         force_using_py_instead_of_pyc: bool
         create_init_file_for_package_modules: bool
-        additional_files_to_archive: Optional[Any]
+        additional_files_to_archive: Optional[List[Tuple[str, str]]]
         create_modules_archive_function: Optional[Any]
         find_module_file_error_logging_level: str
         framework: str
@@ -675,7 +675,7 @@ default_config = {
         # In this case artificial __init__.py is added when modules archive is created.
         "create_init_file_for_package_modules": True,
         # The list of files to add into archive. File should be specified as tuple that
-        # consists of absolute file path and relative path in archive.
+        # consists of source file path (absolute) and relative path in archive.
         "additional_files_to_archive": None,
         # Function to replace standard py_wrapper.create_modules_archive.
         # If this function specified all previous options does not applied.
