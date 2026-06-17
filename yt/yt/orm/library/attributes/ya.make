@@ -11,6 +11,7 @@ SRCS(
     proto_visitor.cpp
     scalar_attribute.cpp
     unwrapping_consumer.cpp
+    asterisk_projection.cpp
     wire_string.cpp
     ytree.cpp
 )

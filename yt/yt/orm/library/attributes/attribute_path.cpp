@@ -113,7 +113,10 @@ bool IsAttributePath(TStringBuf path)
             return false;
         }
         tokenizer.Advance();
-        if (tokenizer.GetType() != ETokenType::Literal) {
+        // The "*" asterisk is a valid projection token in attribute paths.
+        if (tokenizer.GetType() != ETokenType::Literal &&
+            tokenizer.GetType() != ETokenType::Asterisk)
+        {
             return false;
         }
         tokenizer.Advance();
@@ -127,7 +130,10 @@ void ValidateAttributePath(TYPathBuf path)
     while (tokenizer.Advance() != ETokenType::EndOfStream) {
         tokenizer.Expect(ETokenType::Slash);
         tokenizer.Advance();
-        tokenizer.Expect(ETokenType::Literal);
+        // The "*" asterisk is a valid projection token in attribute paths.
+        if (tokenizer.GetType() != ETokenType::Asterisk) {
+            tokenizer.Expect(ETokenType::Literal);
+        }
     }
 }
 
@@ -175,7 +181,7 @@ TSplitResult TryConsumePrefix(TYPathBuf pattern, TYPathBuf path)
             return notFound;
         }
 
-        // Wildcard
+        // Asterisk
         if (patternToken == ETokenType::Asterisk && pathToken == ETokenType::Literal) {
             if (IsSpecialListKey(pathTokenizer.GetToken()) || TryParseListIndex(pathTokenizer.GetToken())) {
                 patternToken = patternTokenizer.Advance();
@@ -221,6 +227,17 @@ TSplitResult GetAttributePathRoot(TYPathBuf path, int length)
         }
     }
     return TSplitResult{std::nullopt, ""};
+}
+
+bool PathContainsAsterisk(TYPathBuf path)
+{
+    TTokenizer tokenizer(path);
+    while (tokenizer.Advance() != ETokenType::EndOfStream) {
+        if (tokenizer.GetType() == ETokenType::Asterisk) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // Split pattern by asterisk.
