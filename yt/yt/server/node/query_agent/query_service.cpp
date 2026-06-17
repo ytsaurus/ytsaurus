@@ -828,20 +828,19 @@ private:
                     endReplicationRowIndex = startReplicationRowIndex;
                 }
 
+                auto replicationProgressMinTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
                 YT_LOG_DEBUG("Read replication batch (LastTimestamp: %v, ReadAllRows: %v, UpperTimestamp: %v, ProgressMinTimestamp: %v)",
                     result.MaxTimestamp,
                     result.ReadAllRows,
                     upperTimestamp,
-                    GetReplicationProgressMinTimestamp(*replicationProgress));
+                    replicationProgressMinTimestamp);
 
                 if (result.ReadAllRows) {
                     if (upperTimestamp) {
                         result.MaxTimestamp = upperTimestamp;
                     }
 
-                    result.MaxTimestamp = std::max(
-                        result.MaxTimestamp,
-                        GetReplicationProgressMinTimestamp(*replicationProgress));
+                    result.MaxTimestamp = std::max(result.MaxTimestamp, replicationProgressMinTimestamp);
                 }
 
                 auto endProgress = AdvanceReplicationProgress(progress, result.MaxTimestamp);
