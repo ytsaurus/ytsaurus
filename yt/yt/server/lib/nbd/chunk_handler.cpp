@@ -128,8 +128,7 @@ public:
             auto blocks = GetRpcAttachedBlocks(response);
             YT_VERIFY(ssize(blocks) == 1);
             return TReadResponse(std::move(blocks[0].Data), response->should_close_session());
-        })
-        .AsyncVia(Invoker_));
+        }));
     }
 
     TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
@@ -167,8 +166,7 @@ public:
 
             const auto& response = rspOrError.Value();
             return TWriteResponse(response->should_close_session());
-        })
-        .AsyncVia(Invoker_));
+        }));
     }
 
 private:
