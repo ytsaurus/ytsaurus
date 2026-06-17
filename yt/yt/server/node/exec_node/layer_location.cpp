@@ -319,6 +319,8 @@ TFuture<void> TLayerLocation::GetVolumeReleaseEvent()
 void TLayerLocation::Disable(const TError& error, bool persistentDisable)
 {
     if (NFS::IsOutOfDiskSpaceError(error) || error.FindMatching(EPortoErrorCode::NoSpace)) {
+        PerformanceCounters_.EnospcRate.Increment();
+
         // Do not disable on out of disk space.
         return;
     }

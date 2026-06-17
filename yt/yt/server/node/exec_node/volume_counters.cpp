@@ -110,6 +110,8 @@ TLayerLocationPerformanceCounters::TLayerLocationPerformanceCounters(const TProf
     Full = profiler.Gauge("/full");
 
     ImportLayerTimer = profiler.Timer("/import_layer_time");
+
+    EnospcRate = profiler.Counter("/enospc_events");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -64,6 +64,8 @@ struct TLayerLocationPerformanceCounters
     NProfiling::TGauge Full;
 
     NProfiling::TEventTimer ImportLayerTimer;
+
+    NProfiling::TCounter EnospcRate;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
