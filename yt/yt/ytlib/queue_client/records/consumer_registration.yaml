@@ -32,6 +32,13 @@ types:
         sort_order: Ascending
         required: True
 
+      - cpp_name: ConsumerName
+        cpp_type: std::optional<std::string>
+        column_name: consumer_name
+        column_type: String
+        sort_order: Ascending
+        required: False
+
       - cpp_name: Vital
         cpp_type: std::optional<bool>
         column_name: vital

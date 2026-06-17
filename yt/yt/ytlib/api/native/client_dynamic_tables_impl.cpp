@@ -3202,7 +3202,7 @@ IQueueRowsetPtr TClient::DoPullQueueConsumer(
         // PullQueueConsumer is supported only for consumers from current cluster.
         IClientPtr consumerClusterClient = MakeStrong(this);
 
-        auto subConsumerClient = CreateSubConsumerClient(consumerClusterClient, queueClusterClient, consumerPath.GetPath(), queuePath);
+        auto subConsumerClient = CreateSubConsumerClient(consumerClusterClient, queueClusterClient, consumerPath, queuePath);
         auto partitions = WaitFor(subConsumerClient->CollectPartitions(std::vector<int>{partitionIndex}))
             .ValueOrThrow();
         if (partitions.size() < 1) {

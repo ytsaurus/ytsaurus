@@ -69,6 +69,7 @@ class LocalYtConfig(object):
     initialize_world = attr.ib(False)
     wait_tablet_cell_initialization = attr.ib(False)
     init_operations_archive = attr.ib(False)
+    queue_agent_state_target_version = attr.ib(None)
     local_cypress_dir = attr.ib(None)
     meta_files_suffix = attr.ib(".meta")
     cluster_name = attr.ib(None)

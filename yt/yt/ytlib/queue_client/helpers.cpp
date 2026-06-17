@@ -123,6 +123,11 @@ TValidatePushQueueProducerRowsResult ValidatePushQueueProducerRows(
     };
 }
 
+bool IsMultiConsumerSchema(const NTableClient::TTableSchema& schema)
+{
+    return schema.FindColumnByStableName(TColumnStableName{"queue_consumer_name"});
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueueClient

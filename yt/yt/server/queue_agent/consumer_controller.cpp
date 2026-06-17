@@ -639,7 +639,7 @@ private:
 
             enableVerboseLogging = config->EnableVerboseLogging;
 
-            auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), consumerRef);
+        auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), consumerRef);
             if (it != config->DelayedObjects.end()) {
                 // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
                 YT_LOG_WARNING("This pass is delayed since consumer is present in \"delayed_objects\" field of dynamic config (DelayDuration: %v)", config->ControllerDelay);

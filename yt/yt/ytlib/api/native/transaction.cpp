@@ -1896,7 +1896,7 @@ private:
         auto subConsumerClient = CreateSubConsumerClient(
             GetClient(),
             queueClient,
-            consumerPath.GetPath(),
+            consumerPath,
             registrationCheckResult.ResolvedQueue);
         subConsumerClient->Advance(this, partitionIndex, oldOffset, newOffset);
     }
