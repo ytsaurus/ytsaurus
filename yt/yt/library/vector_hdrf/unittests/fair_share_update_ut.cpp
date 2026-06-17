@@ -1,4 +1,5 @@
-#include <yt/yt/library/vector_hdrf/fair_share_update.h>
+#include <yt/yt/library/vector_hdrf/unittests/mock/fair_share_update_mock.h>
+
 #include <yt/yt/library/vector_hdrf/private.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -20,421 +21,6 @@ TYsonString ReadTestData(TStringBuf fileName)
 {
     return TYsonString(NResource::Find(TString("/data/") + fileName));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EElementType,
-    (Operation)
-    (Pool)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobResources CreateCpuResourceLimits(double cpu)
-{
-    auto result = TJobResources::Infinite();
-    result.SetCpu(cpu);
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TElementMock;
-class TCompositeElementMock;
-class TPoolElementMock;
-class TRootElementMock;
-class TOperationElementMock;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTestJobResourcesConfig
-    : public TRefCounted
-    , public NVectorHdrf::TJobResourcesConfig
-{ };
-
-using TTestJobResourcesConfigPtr = TIntrusivePtr<TTestJobResourcesConfig>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPoolIntegralGuaranteesConfig
-    : public TRefCounted
-{
-    NVectorHdrf::EIntegralGuaranteeType GuaranteeType;
-
-    TTestJobResourcesConfigPtr ResourceFlow = New<TTestJobResourcesConfig>();
-    TTestJobResourcesConfigPtr BurstGuaranteeResources = New<TTestJobResourcesConfig>();
-
-    double RelaxedShareMultiplierLimit = 3.0;
-
-    bool CanAcceptFreeVolume = true;
-    bool ShouldDistributeFreeVolumeAmongChildren = false;
-};
-
-using TPoolIntegralGuaranteesConfigPtr = TIntrusivePtr<TPoolIntegralGuaranteesConfig>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TElementMock
-    : public virtual TElement
-{
-public:
-    explicit TElementMock(std::string id)
-        : Id_(std::move(id))
-        , Logger(FairShareLogger.WithTag("Id: %v", Id_))
-    { }
-
-    const TJobResources& GetResourceDemand() const override
-    {
-        return ResourceDemand_;
-    }
-
-    const TJobResources& GetResourceUsageAtUpdate() const override
-    {
-        return ResourceUsage_;
-    }
-
-    const TJobResources& GetResourceLimits() const override
-    {
-        return ResourceLimits_;
-    }
-
-    const TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override
-    {
-        return StrongGuaranteeResourcesConfig_.Get();
-    }
-
-    double GetWeight() const override
-    {
-        return Weight_;
-    }
-
-    TSchedulableAttributes& Attributes() override
-    {
-        return Attributes_;
-    }
-    const TSchedulableAttributes& Attributes() const override
-    {
-        return Attributes_;
-    }
-
-    TCompositeElement* GetParentElement() const override
-    {
-        return Parent_;
-    }
-
-    std::string GetId() const override
-    {
-        return Id_;
-    }
-
-    const NLogging::TLogger& GetLogger() const override
-    {
-        return Logger;
-    }
-
-    bool AreDetailedLogsEnabled() const override
-    {
-        return true;
-    }
-
-    virtual void AttachParent(TCompositeElementMock* parent);
-
-    virtual void PreUpdate(const TJobResources& totalResourceLimits)
-    {
-        TotalResourceLimits_ = totalResourceLimits;
-    }
-
-    void SetWeight(double weight)
-    {
-        Weight_ = weight;
-    }
-
-    void SetStrongGuaranteeResourcesConfig(const TTestJobResourcesConfigPtr& strongGuaranteeResourcesConfig)
-    {
-        StrongGuaranteeResourcesConfig_ = strongGuaranteeResourcesConfig;
-    }
-
-    void SetResourceLimits(const TJobResources& resourceLimits)
-    {
-        ResourceLimits_ = resourceLimits;
-    }
-
-protected:
-    const TString Id_;
-    TCompositeElement* Parent_ = nullptr;
-
-    const NLogging::TLogger Logger;
-
-    TJobResources ResourceDemand_;
-    TJobResources ResourceUsage_;
-    TJobResources TotalResourceLimits_;
-
-    // These attributes are calculated during fair share update and further used in schedule jobs.
-    NVectorHdrf::TSchedulableAttributes Attributes_;
-
-private:
-    double Weight_ = 1.0;
-    TJobResources ResourceLimits_ = TJobResources::Infinite();
-    TTestJobResourcesConfigPtr StrongGuaranteeResourcesConfig_ = New<TTestJobResourcesConfig>();
-};
-
-using TElementMockPtr = TIntrusivePtr<TElementMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCompositeElementMock
-    : public virtual TCompositeElement
-    , public TElementMock
-{
-public:
-    DEFINE_BYREF_RW_PROPERTY(TPoolIntegralGuaranteesConfigPtr, IntegralGuaranteesConfig, New<TPoolIntegralGuaranteesConfig>());
-
-public:
-    explicit TCompositeElementMock(std::string id)
-        : TElementMock(std::move(id))
-    { }
-
-    TElement* GetChild(int index) override
-    {
-        return Children_[index].Get();
-    }
-
-    const TElement* GetChild(int index) const override
-    {
-        return Children_[index].Get();
-    }
-
-    int GetChildCount() const override
-    {
-        return Children_.size();
-    }
-
-    ESchedulingMode GetMode() const override
-    {
-        return Mode_;
-    }
-
-    bool HasHigherPriorityInFifoMode(const TElement* lhs, const TElement* rhs) const override
-    {
-        if (lhs->GetWeight() != rhs->GetWeight()) {
-            return lhs->GetWeight() > rhs->GetWeight();
-        }
-        return false;
-    }
-
-    double GetSpecifiedBurstRatio() const override
-    {
-        if (IntegralGuaranteesConfig_->GuaranteeType == EIntegralGuaranteeType::None) {
-            return 0;
-        }
-        return GetMaxResourceRatio(ToJobResources(*IntegralGuaranteesConfig_->BurstGuaranteeResources, {}), TotalResourceLimits_);
-    }
-
-    double GetSpecifiedResourceFlowRatio() const override
-    {
-        if (IntegralGuaranteesConfig_->GuaranteeType == EIntegralGuaranteeType::None) {
-            return 0;
-        }
-        return GetMaxResourceRatio(ToJobResources(*IntegralGuaranteesConfig_->ResourceFlow, {}), TotalResourceLimits_);
-    }
-
-    bool IsStepFunctionForGangOperationsEnabled() const override
-    {
-        return true;
-    }
-
-    bool CanAcceptFreeVolume() const override
-    {
-        return IntegralGuaranteesConfig_->CanAcceptFreeVolume;
-    }
-
-    bool ShouldDistributeFreeVolumeAmongChildren() const override
-    {
-        return IntegralGuaranteesConfig_->ShouldDistributeFreeVolumeAmongChildren;
-    }
-
-    bool ShouldComputePromisedGuaranteeFairShare() const override
-    {
-        return PromisedGuaranteeFairShareComputationEnabled_;
-    }
-
-    bool IsPriorityStrongGuaranteeAdjustmentEnabled() const override
-    {
-        return false;
-    }
-
-    bool IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const override
-    {
-        return false;
-    }
-
-    void AddChild(TElementMock* child)
-    {
-        Children_.push_back(child);
-    }
-
-    void PreUpdate(const TJobResources& totalResourceLimits) override
-    {
-        ResourceUsage_ = {};
-        ResourceDemand_ = {};
-
-        for (const auto& child : Children_) {
-            child->PreUpdate(totalResourceLimits);
-
-            ResourceUsage_ += child->GetResourceUsageAtUpdate();
-            ResourceDemand_ += child->GetResourceDemand();
-        }
-
-        TElementMock::PreUpdate(totalResourceLimits);
-    }
-
-    void SetMode(ESchedulingMode mode)
-    {
-        Mode_ = mode;
-    }
-
-    void SetPromisedGuaranteeFairShareComputationEnabled(bool enabled)
-    {
-        PromisedGuaranteeFairShareComputationEnabled_ = enabled;
-    }
-
-private:
-    std::vector<TElementMockPtr> Children_;
-
-    ESchedulingMode Mode_ = ESchedulingMode::FairShare;
-    bool PromisedGuaranteeFairShareComputationEnabled_ = false;
-};
-
-using TCompositeElementMockPtr = TIntrusivePtr<TCompositeElementMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPoolElementMock
-    : public TPool
-    , public TCompositeElementMock
-{
-public:
-    explicit TPoolElementMock(std::string id)
-        : TCompositeElementMock(std::move(id))
-    { }
-
-    TResourceVector GetIntegralShareLimitForRelaxedPool() const override
-    {
-        YT_VERIFY(GetIntegralGuaranteeType() == EIntegralGuaranteeType::Relaxed);
-        auto multiplier = IntegralGuaranteesConfig_->RelaxedShareMultiplierLimit;
-        return TResourceVector::FromDouble(Attributes_.ResourceFlowRatio) * multiplier;
-    }
-
-    const TIntegralResourcesState& IntegralResourcesState() const override
-    {
-        return IntegralResourcesState_;
-    }
-    TIntegralResourcesState& IntegralResourcesState() override
-    {
-        return IntegralResourcesState_;
-    }
-
-    EIntegralGuaranteeType GetIntegralGuaranteeType() const override
-    {
-        return IntegralGuaranteesConfig_->GuaranteeType;
-    }
-
-    void InitAccumulatedResourceVolume(TResourceVolume resourceVolume)
-    {
-        YT_VERIFY(IntegralResourcesState_.AccumulatedVolume == TResourceVolume());
-        IntegralResourcesState_.AccumulatedVolume = resourceVolume;
-    }
-
-private:
-    TIntegralResourcesState IntegralResourcesState_;
-};
-
-using TPoolElementMockPtr = TIntrusivePtr<TPoolElementMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TOperationElementMock
-    : public TOperationElement
-    , public TElementMock
-{
-public:
-    explicit TOperationElementMock(std::string id)
-        : TElementMock(std::move(id))
-    { }
-
-    void SetResourceDemand(const TJobResources& resourceDemand)
-    {
-        ResourceDemand_ = resourceDemand;
-    }
-
-    void SetResourceUsage(const TJobResources& resourceUsage)
-    {
-        YT_VERIFY(Dominates(ResourceDemand_, resourceUsage));
-
-        ResourceUsage_ = resourceUsage;
-    }
-
-    void IncreaseResourceUsageAndDemand(const TJobResources& delta)
-    {
-        ResourceDemand_ += delta;
-        ResourceUsage_ += delta;
-    }
-
-    TResourceVector GetBestAllocationShare() const override
-    {
-        return TResourceVector::Ones();
-    }
-
-    bool IsGangLike() const override
-    {
-        return IsGang_;
-    }
-
-    void SetGangFlag(bool value)
-    {
-        IsGang_ = value;
-    }
-
-private:
-    bool IsGang_ = false;
-};
-
-using TOperationElementMockPtr = TIntrusivePtr<TOperationElementMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRootElementMock
-    : public TRootElement
-    , public TCompositeElementMock
-{
-public:
-    TRootElementMock()
-        : TCompositeElementMock("<Root>")
-    { }
-};
-
-using TRootElementMockPtr = TIntrusivePtr<TRootElementMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TElementMock::AttachParent(TCompositeElementMock* parent)
-{
-    parent->AddChild(this);
-    Parent_ = parent;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTestFairShareUpdateOptions
-{
-    EJobResourceType MainResource = EJobResourceType::Cpu;
-    TInstant Now = TInstant::Now();
-    std::optional<TInstant> PreviousUpdateTime;
-    bool EnableStepFunctionForGangOperations = false;
-    bool EnableImprovedFairShareByFitFactorComputation = false;
-    // TODO(ignat): delete this option if no necessity will be found on production clusters.
-    bool EnableImprovedFairShareByFitFactorComputationDistributionGap = false;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -592,6 +178,8 @@ protected:
                 .EnableImprovedFairShareByFitFactorComputation = testOptions.EnableImprovedFairShareByFitFactorComputation,
                 .EnableImprovedFairShareByFitFactorComputationDistributionGap =
                     testOptions.EnableImprovedFairShareByFitFactorComputationDistributionGap,
+                .EnableFastFifoFairShareByFitFactorComputation =
+                    testOptions.EnableFastFifoFairShareByFitFactorComputation,
             },
             totalResourceLimits,
             testOptions.Now,
@@ -627,19 +215,6 @@ protected:
 
 private:
     int OperationIndex_ = 0;
-
-    void ResetFairShareFunctionsRecursively(TCompositeElementMock* compositeElement)
-    {
-        compositeElement->ResetFairShareFunctions();
-        for (int childIndex = 0; childIndex < compositeElement->GetChildCount(); ++childIndex) {
-            auto* child = compositeElement->GetChild(childIndex);
-            if (auto* childPool = dynamic_cast<TCompositeElementMock*>(child)) {
-                ResetFairShareFunctionsRecursively(childPool);
-            } else {
-                child->ResetFairShareFunctions();
-            }
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2159,6 +1734,180 @@ TEST_F(TFairShareUpdateTest, TestMultipleGangOperations)
     EXPECT_RV_NEAR(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationA2->Attributes().FairShare.Total);
     EXPECT_RV_NEAR(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationB1->Attributes().FairShare.Total);
     EXPECT_RV_NEAR(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), operationB2->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoFastPathEquivalence)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPool");
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->AttachParent(rootElement.Get());
+
+    // A spread of demands/usages so the operations' FairShareBySuggestion functions
+    // have several segments of differing slopes, exercising the concatenation logic.
+    struct TOperationSpec
+    {
+        const TJobResources Demand;
+        const TJobResources Usage;
+        const double Weight;
+    };
+
+    auto makeResources = [] (int userSlots, double cpu, i64 memory) {
+        TJobResources result;
+        result.SetUserSlots(userSlots);
+        result.SetCpu(cpu);
+        result.SetMemory(memory);
+        return result;
+    };
+
+    std::vector<TOperationSpec> specs = {
+        {makeResources(10, 10, 100_MB), makeResources(5, 3, 80_MB), /*weight*/ 5.0},
+        {makeResources(20, 5, 50_MB),  makeResources(1, 4, 10_MB), /*weight*/ 4.0},
+        {makeResources(5, 30, 200_MB), makeResources(5, 0, 0),     /*weight*/ 3.0},
+        {makeResources(15, 15, 150_MB), makeResources(7, 7, 70_MB), /*weight*/ 2.0},
+        {makeResources(8, 8, 8_MB),    makeResources(0, 0, 0),     /*weight*/ 1.0},
+    };
+
+    std::vector<TOperationElementMockPtr> operations;
+    for (const auto& spec : specs) {
+        auto operation = CreateOperation(fifoPool.Get(), spec.Demand, spec.Usage);
+        operation->SetWeight(spec.Weight);
+        operations.push_back(operation);
+    }
+
+    std::vector<TElementMock*> allElements;
+    allElements.push_back(rootElement.Get());
+    allElements.push_back(fifoPool.Get());
+    for (const auto& operation : operations) {
+        allElements.push_back(operation.Get());
+    }
+
+    auto runWithFlag = [&] (bool enableFastFifo) {
+        TTestFairShareUpdateOptions options;
+        options.EnableFastFifoFairShareByFitFactorComputation = enableFastFifo;
+        DoFairShareUpdate(totalResourceLimits, rootElement, options);
+
+        std::vector<TResourceVector> fairShares;
+        for (auto* element : allElements) {
+            fairShares.push_back(element->Attributes().FairShare.Total);
+        }
+        return fairShares;
+    };
+
+    auto slowFairShares = runWithFlag(/*enableFastFifo*/ false);
+    int slowFifoSize = fifoPool->GetFairShareFunctionsStatistics()->FairShareByFitFactorSize;
+
+    auto fastFairShares = runWithFlag(/*enableFastFifo*/ true);
+    int fastFifoSize = fifoPool->GetFairShareFunctionsStatistics()->FairShareByFitFactorSize;
+
+    // The fast path is mathematically (and bit-for-bit) identical to the generic Sum, so the outputs
+    // and the function representation size must match exactly.
+    EXPECT_EQ(slowFifoSize, fastFifoSize);
+    ASSERT_EQ(slowFairShares.size(), fastFairShares.size());
+    for (int i = 0; i < std::ssize(slowFairShares); ++i) {
+        EXPECT_THAT(fastFairShares[i], ResourceVectorNear(slowFairShares[i], 0.0))
+            << "Mismatch at element index " << i;
+    }
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoFastPathEdgeCases)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+
+    auto makeResources = [] (int userSlots, double cpu, i64 memory) {
+        TJobResources result;
+        result.SetUserSlots(userSlots);
+        result.SetCpu(cpu);
+        result.SetMemory(memory);
+        return result;
+    };
+
+    auto compareFlags = [&] (const TRootElementMockPtr& rootElement, const std::vector<TElementMock*>& allElements) {
+        auto run = [&] (bool enableFastFifo) {
+            TTestFairShareUpdateOptions options;
+            options.EnableFastFifoFairShareByFitFactorComputation = enableFastFifo;
+            DoFairShareUpdate(totalResourceLimits, rootElement, options);
+            std::vector<TResourceVector> result;
+            for (auto* element : allElements) {
+                result.push_back(element->Attributes().FairShare.Total);
+            }
+            return result;
+        };
+        auto slow = run(false);
+        auto fast = run(true);
+        ASSERT_EQ(slow.size(), fast.size());
+        for (int i = 0; i < std::ssize(slow); ++i) {
+            EXPECT_THAT(fast[i], ResourceVectorNear(slow[i], 0.0)) << "Mismatch at element index " << i;
+        }
+    };
+
+    // Case 1: single child.
+    {
+        auto rootElement = CreateRootElement();
+        auto fifoPool = CreateSimplePool("FifoPoolSingle");
+        fifoPool->SetMode(ESchedulingMode::Fifo);
+        fifoPool->AttachParent(rootElement.Get());
+        auto operation = CreateOperation(fifoPool.Get(), makeResources(10, 10, 100_MB), makeResources(3, 3, 30_MB));
+        compareFlags(rootElement, {rootElement.Get(), fifoPool.Get(), operation.Get()});
+    }
+
+    // Case 2: a child with zero demand (all-zero fair-share function) alongside a normal child.
+    {
+        auto rootElement = CreateRootElement();
+        auto fifoPool = CreateSimplePool("FifoPoolZero");
+        fifoPool->SetMode(ESchedulingMode::Fifo);
+        fifoPool->AttachParent(rootElement.Get());
+        auto zeroOperation = CreateOperation(fifoPool.Get(), makeResources(0, 0, 0), makeResources(0, 0, 0));
+        zeroOperation->SetWeight(2.0);
+        auto normalOperation = CreateOperation(fifoPool.Get(), makeResources(10, 10, 100_MB), makeResources(5, 5, 50_MB));
+        normalOperation->SetWeight(1.0);
+        compareFlags(rootElement, {rootElement.Get(), fifoPool.Get(), zeroOperation.Get(), normalOperation.Get()});
+    }
+
+    // Case 3: every child has zero demand (all FairShareBySuggestion functions flat at Zero), exercising
+    // the horizontal+horizontal merge that collapses the concatenation into a single segment.
+    {
+        auto rootElement = CreateRootElement();
+        auto fifoPool = CreateSimplePool("FifoPoolAllZero");
+        fifoPool->SetMode(ESchedulingMode::Fifo);
+        fifoPool->AttachParent(rootElement.Get());
+        auto firstOperation = CreateOperation(fifoPool.Get(), makeResources(0, 0, 0), makeResources(0, 0, 0));
+        firstOperation->SetWeight(2.0);
+        auto secondOperation = CreateOperation(fifoPool.Get(), makeResources(0, 0, 0), makeResources(0, 0, 0));
+        secondOperation->SetWeight(1.0);
+        compareFlags(rootElement, {rootElement.Get(), fifoPool.Get(), firstOperation.Get(), secondOperation.Get()});
+    }
+}
+
+TEST_F(TFairShareUpdateTest, TestFifoFastPathScaling)
+{
+    constexpr int OperationCount = 2000;
+
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto fifoPool = CreateSimplePool("FifoPoolLarge");
+    fifoPool->SetMode(ESchedulingMode::Fifo);
+    fifoPool->AttachParent(rootElement.Get());
+
+    TJobResources operationDemand;
+    operationDemand.SetUserSlots(1);
+    operationDemand.SetCpu(1);
+    operationDemand.SetMemory(1_MB);
+
+    for (int i = 0; i < OperationCount; ++i) {
+        auto operation = CreateOperation(fifoPool.Get(), operationDemand);
+        operation->SetWeight(static_cast<double>(OperationCount - i));
+    }
+
+    TTestFairShareUpdateOptions options;
+    options.EnableFastFifoFairShareByFitFactorComputation = true;
+
+    // Just needs to complete quickly and satisfy the internal invariants
+    // (IsTrimmed / VerifyNondecreasing are YT_VERIFY-ed inside the update).
+    EXPECT_NO_THROW(DoFairShareUpdate(totalResourceLimits, rootElement, options));
 }
 
 TEST_F(TFairShareUpdateTest, TestExampleFromProductionCluster)

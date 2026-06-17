@@ -696,6 +696,11 @@ void TCompositeElement::PrepareFairShareByFitFactorFifo(TFairShareUpdateContext*
         return;
     }
 
+    if (context->Options.EnableFastFifoFairShareByFitFactorComputation) {
+        ComputeFastFifoFairShareByFitFactor();
+        return;
+    }
+
     double rightFunctionBound = GetChildCount();
     std::vector<TVectorPiecewiseLinearFunction> childrenFunctions;
 
@@ -718,6 +723,38 @@ void TCompositeElement::PrepareFairShareByFitFactorFifo(TFairShareUpdateContext*
     YT_VERIFY(currentRightBound == rightFunctionBound);
 
     FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
+}
+
+// The children of a FIFO pool occupy disjoint unit intervals of the fit factor: child |k| ramps
+// on |[k, k + 1]| and is constant elsewhere. Hence their sum is the concatenation of the children's
+// |FairShareBySuggestion| shifted in argument by |k| and in value by the running prefix sum of the
+// full shares of already-satisfied children. This is linear in the total function size, unlike the
+// generic |Sum|, which is quadratic in the number of children.
+void TCompositeElement::ComputeFastFifoFairShareByFitFactor()
+{
+    TVectorPiecewiseLinearFunction::TBuilder builder;
+    auto prefixSum = TResourceVector::Zero();
+    double shift = 0.0;
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+        const auto* child = SortedChildren_[childIndex];
+        const auto& childFSBS = *child->FairShareBySuggestion_;
+
+        // NB(eshcherbin): Children of FIFO pools don't have guaranteed resources. See the function comment.
+        YT_VERIFY(childFSBS.IsTrimmedLeft() && childFSBS.IsTrimmedRight());
+        YT_VERIFY(childFSBS.LeftFunctionValue() == TResourceVector::Zero());
+        // The concatenation relies on each child's |FairShareBySuggestion| spanning exactly |[0, 1]|
+        // so that |shift += 1.0| tiles the fit factor domain contiguously.
+        YT_VERIFY(childFSBS.LeftFunctionBound() == 0.0 && childFSBS.RightFunctionBound() == 1.0);
+
+        for (const auto& segment : childFSBS.Segments()) {
+            builder.PushSegment(segment.Shift(/*deltaBound*/ shift, /*deltaValue*/ prefixSum));
+        }
+
+        prefixSum += childFSBS.RightFunctionValue();
+        shift += 1.0;
+    }
+
+    FairShareByFitFactor_ = builder.Finish();
 }
 
 void TCompositeElement::PrepareFairShareByFitFactorNormal(TFairShareUpdateContext* context)
