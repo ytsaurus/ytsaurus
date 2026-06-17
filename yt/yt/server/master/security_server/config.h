@@ -84,6 +84,9 @@ struct TDynamicSecurityManagerConfig
     //! full_read permission on that table.
     EAllowAlterWithoutFullRead AllowAlterWithoutFullRead;
 
+    // COMPAT(danilalexeev): YT-28249.
+    bool CheckAllAceColumnsFullRead;
+
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 
     static void Register(TRegistrar registrar);

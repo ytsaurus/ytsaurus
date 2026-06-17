@@ -2502,7 +2502,19 @@ public:
         }
 
         CheckPermissionTimeCounter_.Add(checkPermissionTimer.GetElapsedTime());
-        return std::move(checker).GetResponse();
+        auto response = std::move(checker).GetResponse();
+
+        YT_LOG_ERROR_IF(response.Action == ESecurityAction::Allow && response.DeniedColumnResult,
+            "Checking all ACE columns would result in unexpected permission denial "
+            "(Permission: %v, ObjectId: %v, SubjectName: %v, SubjectId: %v, DeniedById: %v, DeniedForId: %v)",
+            permission,
+            object->GetId(),
+            user->GetName(),
+            user->GetId(),
+            response.DeniedColumnResult->ObjectId,
+            response.DeniedColumnResult->SubjectId);
+
+        return response;
     }
 
     TSubject* GetObjectOwner(
@@ -4905,7 +4917,7 @@ private:
             : MatchAceSubjectCallback_(
                 user,
                 impl->GetOwnerUser())
-            , Underlying_(permission, MatchAceSubjectCallback_, options)
+            , Underlying_(permission, MatchAceSubjectCallback_, options, impl->GetDynamicConfig()->CheckAllAceColumnsFullRead)
         {
             YT_LOG_ALERT_IF(
                 PopCount(permission) > 1 && Any(permission & EPermission::FullRead),
