@@ -175,6 +175,7 @@ struct TTablePullerCounters
     NProfiling::TEventTimer ThrottleTime;
     NProfiling::TEventTimer RelativeThrottlerThrottleTime;
     NProfiling::TCounter MemoryUsage;
+    NProfiling::TCounter FatalErrorCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
