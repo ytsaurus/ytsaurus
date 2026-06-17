@@ -413,13 +413,13 @@ protected:
         for (auto& transaction : transactions) {
             std::uniform_int_distribution<TTimestamp> commitOffsetDistribution(1, maxCommitTimestampOffset);
 
-            int collisionCount = 0;
+            int collisionCount = 1;
             auto candidate = transaction.DelayedPrepareTimestamp + commitOffsetDistribution(Rng_);
             while (usedCommitTimestamps.contains(candidate)) {
-                if (collisionCount == 100) {
+                if (collisionCount % 100 == 0) {
                     commitOffsetDistribution = std::uniform_int_distribution<TTimestamp>(
                         maxCommitTimestampOffset,
-                        maxCommitTimestampOffset * 2);
+                        maxCommitTimestampOffset * 2 * (collisionCount / 100));
                 }
 
                 candidate = transaction.DelayedPrepareTimestamp + commitOffsetDistribution(Rng_);
