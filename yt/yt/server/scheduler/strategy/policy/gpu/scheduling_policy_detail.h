@@ -121,6 +121,7 @@ public:
         const std::vector<TAllocationUpdate>& allocationUpdates) override;
 
     void BuildSchedulingAttributesStringForNode(
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
 
@@ -292,7 +293,10 @@ private:
         const TAllocationStatePtr& allocation);
 
     void DoBuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const;
-    void DoBuildSchedulingAttributesStringForNode(TNodeId nodeId, TStringBuilderBase* builder) const;
+    void DoBuildSchedulingAttributesStringForNode(
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        TNodeId nodeId,
+        TDelimitedStringBuilderWrapper* builderWrapper) const;
 
     void RemovePendingRevivedAllocation(TNodeId nodeId, TAllocationId allocationId);
 };
@@ -352,6 +356,7 @@ public:
         const std::vector<TAllocationUpdate>& allocationUpdates) override;
 
     void BuildSchedulingAttributesStringForNode(
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
 

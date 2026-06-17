@@ -782,7 +782,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     TStringBuilder schedulingAttributesBuilder;
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
-    strategyProxy->BuildSchedulingAttributesString(delimitedSchedulingAttributesBuilder);
+    strategyProxy->BuildSchedulingAttributesString(
+        schedulingHeartbeatContext,
+        delimitedSchedulingAttributesBuilder);
     context->SetRawResponseInfo(schedulingAttributesBuilder.Flush(), /*incremental*/ true);
 
     FillNodeProfilingTags(response, strategyProxy);
@@ -794,26 +796,13 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
         node->ResourceUsage() = schedulingHeartbeatContext->ResourceUsage();
 
-        const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
-
         // NB: Some allocations maybe considered aborted after processing scheduled allocations.
         SubmitAllocationsToStrategy();
 
-        // TODO(eshcherbin): It's possible to shorten this message by writing preemptible info
-        // only when preemptive scheduling has been attempted.
         context->SetIncrementalResponseInfo(
-            "StartedAllocations: {All: %v, ByPreemption: %v}, PreemptedAllocations: %v, "
-            "PreemptibleInfo: {AllocationCount: %v, UsageDiscount: %v}, SsdPriorityPreemption: {Enabled: %v, Media: %v}, "
-            "ScheduleAllocationAttempts: %v, OperationCountByPreemptionPriority: %v",
+            "StartedAllocations: %v, PreemptedAllocations: %v",
             schedulingHeartbeatContext->StartedAllocations().size(),
-            statistics.ScheduledDuringPreemption,
-            schedulingHeartbeatContext->PreemptedAllocations().size(),
-            statistics.PreemptibleAllocationCount,
-            statistics.ResourceUsageDiscount,
-            statistics.SsdPriorityPreemptionEnabled,
-            statistics.SsdPriorityPreemptionMedia,
-            FormatScheduleAllocationAttemptsCompact(statistics),
-            FormatOperationCountByPreemptionPriorityCompact(statistics.OperationCountByPreemptionPriority));
+            schedulingHeartbeatContext->PreemptedAllocations().size());
     } else {
         context->SetIncrementalResponseInfo("PreemptedAllocations: %v", schedulingHeartbeatContext->PreemptedAllocations().size());
     }

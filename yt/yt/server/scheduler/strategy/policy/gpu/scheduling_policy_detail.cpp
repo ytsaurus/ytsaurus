@@ -55,6 +55,16 @@ TAllocationInfoMap CollectRunningAllocationInfos(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGpuScheduleAllocationsStatisticsPtr GetScheduleAllocationsStatistics(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
+{
+    auto statistics = DynamicPointerCast<TGpuScheduleAllocationsStatistics>(schedulingHeartbeatContext->GetSchedulingStatistics());
+    YT_VERIFY(statistics);
+
+    return statistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -464,6 +474,7 @@ std::vector<TProcessAllocationUpdateResult> TSchedulingPolicy::DoProcessAllocati
 
 // TODO(YT-27647): Save node info by NodeShards and don't switch to control here.
 void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     TNodeId nodeId,
     TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
@@ -472,8 +483,9 @@ void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(
     Y_UNUSED(WaitFor(BIND(
         &TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode,
         MakeWeak(this),
+        schedulingHeartbeatContext,
         nodeId,
-        &delimitedBuilder)
+        std::addressof(delimitedBuilder))
         .AsyncVia(StrategyHost_->GetControlInvoker(EControlQueue::Strategy))
         .Run()));
 }
@@ -1159,11 +1171,24 @@ void TSchedulingPolicy::DoProcessSchedulingHeartbeat(
         return;
     }
 
+    const auto statistics = New<TGpuScheduleAllocationsStatistics>();
+    schedulingHeartbeatContext->SetSchedulingStatistics(statistics);
+
     PreemptAllocations(node, schedulingHeartbeatContext, treeSnapshot);
 
     if (!skipScheduleAllocations && node->IsSchedulable()) {
         ScheduleAllocations(node, schedulingHeartbeatContext, treeSnapshot);
     }
+
+    statistics->ScheduledAllocationCount = std::ssize(schedulingHeartbeatContext->StartedAllocations());
+    statistics->PreemptedAllocationCount = std::ssize(schedulingHeartbeatContext->PreemptedAllocations());
+    statistics->PreemptibleAllocationCount = std::ranges::count_if(
+        node->AllocationIdToAssignment() | std::views::values,
+        &TAssignment::Preemptible);
+
+    statistics->ResourceLimits = schedulingHeartbeatContext->ResourceLimits();
+    statistics->ResourceUsage = schedulingHeartbeatContext->ResourceUsage();
+    node->LastSchedulingHeartbeatStatistics() = statistics;
 }
 
 void TSchedulingPolicy::PreemptAllocations(
@@ -1487,6 +1512,7 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
         assignment->AllocationGroupName)
         .AsyncVia(nodeShardInvoker)
         .Run();
+    ++GetScheduleAllocationsStatistics(schedulingHeartbeatContext)->ControllerScheduleAllocationCount;
 
     auto scheduleAllocationResult = WaitFor(scheduleAllocationFuture)
         .ValueOrThrow();
@@ -1494,6 +1520,7 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
     if (!scheduleAllocationResult->StartDescriptor) {
         if (scheduleAllocationResult->Failed[NControllerAgent::EScheduleFailReason::Timeout] > 0) {
             YT_LOG_WARNING("Allocation scheduling timed out");
+            ++GetScheduleAllocationsStatistics(schedulingHeartbeatContext)->ControllerScheduleAllocationTimedOutCount;
 
             YT_UNUSED_FUTURE(StrategyHost_->SetOperationAlert(
                 operationElement->GetOperationId(),
@@ -1769,11 +1796,15 @@ void TSchedulingPolicy::DoBuildSchedulingAttributesForNode(TNodeId nodeId, TFlue
 
     fluent
         .Item("module").Value(node->SchedulingModule())
-        .Item("assignments").List(node->Assignments());
+        .Item("assignments").List(node->Assignments())
+        .OptionalItem("last_heartbeat_statistics", node->LastSchedulingHeartbeatStatistics());
 }
 
 // TODO(YT-27867): consider to add more info here
-void TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode(TNodeId nodeId, TStringBuilderBase* builder) const
+void TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode(
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    TNodeId nodeId,
+    TDelimitedStringBuilderWrapper* builderWrapper) const
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -1782,10 +1813,19 @@ void TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode(TNodeId nodeId,
         return;
     }
 
+    auto& builder = *builderWrapper;
     builder->AppendFormat(
         "SchedulingModule: %v, AssignedUsage: %v",
         node->SchedulingModule(),
         node->AssignedResourceUsage());
+
+    auto statistics = DynamicPointerCast<TGpuScheduleAllocationsStatistics>(schedulingHeartbeatContext->GetSchedulingStatistics());
+    if (statistics) {
+        builder->AppendFormat(
+            "ControllerScheduleAllocationCount: %v, ControllerScheduleAllocationTimedOutCount: %v",
+            statistics->ControllerScheduleAllocationCount,
+            statistics->ControllerScheduleAllocationTimedOutCount);
+    }
 }
 
 void TSchedulingPolicy::RemovePendingRevivedAllocation(TNodeId nodeId, TAllocationId allocationId)
@@ -1860,6 +1900,7 @@ TFuture<std::vector<TProcessAllocationUpdateResult>> TNoopSchedulingPolicy::Proc
 }
 
 void TNoopSchedulingPolicy::BuildSchedulingAttributesStringForNode(
+    const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
     TNodeId /*nodeId*/,
     TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
 { }

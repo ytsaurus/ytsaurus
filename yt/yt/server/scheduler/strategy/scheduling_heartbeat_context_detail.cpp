@@ -277,12 +277,12 @@ TDiskResources TSchedulingHeartbeatContextBase::GetNodeFreeDiskResourcesWithDisc
     return diskResources;
 }
 
-TScheduleAllocationsStatistics TSchedulingHeartbeatContextBase::GetSchedulingStatistics() const
+TScheduleAllocationsStatisticsPtr TSchedulingHeartbeatContextBase::GetSchedulingStatistics() const
 {
     return SchedulingStatistics_;
 }
 
-void TSchedulingHeartbeatContextBase::SetSchedulingStatistics(TScheduleAllocationsStatistics statistics)
+void TSchedulingHeartbeatContextBase::SetSchedulingStatistics(TScheduleAllocationsStatisticsPtr statistics)
 {
     SchedulingStatistics_ = statistics;
 }

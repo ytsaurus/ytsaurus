@@ -497,6 +497,7 @@ void Serialize(const TNode& node, NYson::IYsonConsumer* consumer)
             .Item("assignments").List(node.Assignments())
             .Item("scheduling_module").Value(node.SchedulingModule())
             .Item("assigned_resource_usage").Value(node.AssignedResourceUsage())
+            .OptionalItem("last_heartbeat_statistics", node.LastSchedulingHeartbeatStatistics())
             .DoIf(static_cast<bool>(node.Descriptor()), [&] (auto fluent) {
                 fluent
                     .Item("resource_limits").Value(node.Descriptor()->ResourceLimits)
@@ -514,6 +515,18 @@ void Serialize(const TGpuModuleStatistics& statistic, NYson::IYsonConsumer* cons
             .Item("node_count").Value(statistic.TotalNodes)
             .Item("unreserved_node_count").Value(statistic.UnreservedNodes)
             .Item("full_host_bound_operation_count").Value(statistic.FullHostModuleBoundOperations)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TGpuScheduleAllocationsStatisticsPtr& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Do(std::bind(&BuildScheduleAllocationsStatisticsCommon, statistics, std::placeholders::_1))
+            .Item("scheduled_allocation_count").Value(statistics->ScheduledAllocationCount)
+            .Item("preempted_allocation_count").Value(statistics->PreemptedAllocationCount)
         .EndMap();
 }
 
