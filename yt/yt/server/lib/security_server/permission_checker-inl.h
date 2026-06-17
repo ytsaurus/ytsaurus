@@ -16,19 +16,15 @@ template <class TAccessControlEntry, NDetail::CSubjectMatchCallback<TAccessContr
 TPermissionChecker<TAccessControlEntry, TCallback>::TPermissionChecker(
     NYTree::EPermissionSet permissions,
     TCallback matchAceSubjectCallback,
-    const TPermissionCheckBasicOptions* options)
+    const TPermissionCheckBasicOptions* options,
+    bool checkAllAceColumnsFullRead)
     : FullReadRequested_(Any(permissions & NYTree::EPermission::FullRead))
     , PermissionsMask_(NDetail::ExtendReadPermission(permissions))
     , Options_(options)
+    , CheckAllAceColumnsFullRead_(checkAllAceColumnsFullRead)
     , MatchAceSubjectCallback_(std::move(matchAceSubjectCallback))
 {
     Response_.Action = NSecurityClient::ESecurityAction::Undefined;
-    if (Options_->Columns) {
-        for (const auto& column : *Options_->Columns) {
-            // NB: Multiple occurrences are possible.
-            Columns_.insert(column);
-        }
-    }
 }
 
 template <class TAccessControlEntry, NDetail::CSubjectMatchCallback<TAccessControlEntry> TCallback>
@@ -49,12 +45,8 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
 
     if (ace.Columns) {
         for (const auto& column : *ace.Columns) {
-            auto it = Columns_.find(column);
-            if (it == Columns_.end()) {
-                continue;
-            }
             // NB: Multiple occurrences are possible.
-            ColumnToResult_.emplace(*it, TPermissionCheckResult());
+            ColumnToResult_.emplace(column, TPermissionCheckResult{.ObjectId = objectId});
         }
     }
 
@@ -106,11 +98,7 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
         // logic a bit.
 
         for (const auto& column : *ace.Columns) {
-            auto it = ColumnToResult_.find(column);
-            if (it == ColumnToResult_.end()) {
-                continue;
-            }
-            auto& columnResult = it->second;
+            auto& columnResult = GetOrCrash(ColumnToResult_, column);
             ProcessMatchingAceAction(
                 &columnResult,
                 ace.Action,
@@ -161,6 +149,21 @@ TPermissionCheckResponse TPermissionChecker<TAccessControlEntry, TCallback>::Get
                         deniedColumnResult = result;
                     }
                 }
+            }
+        }
+
+        if (FullReadRequested_) {
+            for (const auto& [column, result] : ColumnToResult_) {
+                if (result.Action == NSecurityClient::ESecurityAction::Deny ||
+                    (result.Action == NSecurityClient::ESecurityAction::Undefined && !FullReadExplicitlyGranted_))
+                {
+                    Response_.DeniedColumnResult = result;
+                    Response_.DeniedColumnResult->Action = NSecurityClient::ESecurityAction::Deny;
+                    break;
+                }
+            }
+            if (CheckAllAceColumnsFullRead_) {
+                deniedColumnResult = Response_.DeniedColumnResult;
             }
         }
 
@@ -247,9 +250,11 @@ template <class TAccessControlEntry, NDetail::CSubjectMatchCallback<TAccessContr
 TSubtreePermissionChecker<TAccessControlEntry, TCallback>::TSubtreePermissionChecker(
     NYTree::EPermission permission,
     TCallback matchAceSubjectCallback,
-    const TPermissionCheckBasicOptions* options)
+    const TPermissionCheckBasicOptions* options,
+    bool checkAllAceColumnsFullRead)
     : Permission_(permission)
     , Options_(options)
+    , CheckAllAceColumnsFullRead_(checkAllAceColumnsFullRead)
     , MatchAceSubjectCallback_(std::move(matchAceSubjectCallback))
 { }
 
@@ -312,7 +317,7 @@ TPermissionCheckResult TSubtreePermissionChecker<TAccessControlEntry, TCallback>
 {
     using TPermissionChecker = TPermissionChecker<TAccessControlEntry, TCallback>;
 
-    auto checker = TPermissionChecker(Permission_, MatchAceSubjectCallback_, Options_);
+    auto checker = TPermissionChecker(Permission_, MatchAceSubjectCallback_, Options_, CheckAllAceColumnsFullRead_);
 
     for (
         auto it = MatchingAceTrace_.rbegin();

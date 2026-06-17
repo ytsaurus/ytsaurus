@@ -63,6 +63,10 @@ struct TPermissionCheckResponse
     //! results for individual columns.
     std::optional<std::vector<TPermissionCheckResult>> Columns;
 
+    // COMPAT(danilalexeev): YT-28249. In shadow-mode, a denied column from ACEs
+    // but not provided in #Columns is logged without affecting the main result.
+    std::optional<TPermissionCheckResult> DeniedColumnResult;
+
     //! Generally, this array contains instructions for the reader, telling it
     //! which rows are allowed to read (which implies that there are some
     //! restrictions).
@@ -114,7 +118,8 @@ public:
     TPermissionChecker(
         NYTree::EPermissionSet permissions,
         TCallback matchAceSubjectCallback,
-        const TPermissionCheckBasicOptions* options);
+        const TPermissionCheckBasicOptions* options,
+        bool checkAllAceColumnsFullRead = false);
 
     bool ShouldProceed() const;
 
@@ -134,11 +139,14 @@ protected:
     //! the check is successful.
     const NYTree::EPermissionSet PermissionsMask_;
     const TPermissionCheckBasicOptions* Options_;
+    //! When true, the checker discovers columns from ACEs instead of
+    //! using #TPermissionCheckBasicOptions::Columns.
+    const bool CheckAllAceColumnsFullRead_;
 
     TCallback MatchAceSubjectCallback_;
 
-    THashSet<TStringBuf> Columns_;
-    THashMap<TStringBuf, TPermissionCheckResult> ColumnToResult_;
+    // NB: Deterministic iteration is intended.
+    std::map<std::string, TPermissionCheckResult> ColumnToResult_;
 
     bool ShouldProceed_ = true;
     TPermissionCheckResponse Response_;
@@ -172,7 +180,8 @@ public:
     TSubtreePermissionChecker(
         NYTree::EPermission permission,
         TCallback matchAceSubjectCallback,
-        const TPermissionCheckBasicOptions* options);
+        const TPermissionCheckBasicOptions* options,
+        bool checkAllAceColumnsFullRead = false);
 
     template <std::ranges::input_range TAccessControlEntryRange>
         requires std::same_as<std::ranges::range_value_t<TAccessControlEntryRange>, TAccessControlEntry>
@@ -188,6 +197,7 @@ public:
 protected:
     const NYTree::EPermission Permission_;
     const TPermissionCheckBasicOptions* Options_;
+    const bool CheckAllAceColumnsFullRead_;
 
     TCallback MatchAceSubjectCallback_;
     int CurrentDepth_ = 0;
