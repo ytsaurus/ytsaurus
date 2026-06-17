@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from functools import wraps
-from typing import Any, Optional, Sequence, cast
+from typing import Any, Callable, Optional, Sequence, cast
 from typing_extensions import override
 
 import yt.wrapper as yt
@@ -188,7 +188,6 @@ class SetAttributeAction(Action):
         self,
         path: str,
         value: Any,
-        remote: bool = False,
     ) -> None:
         if not path.count("@"):
             raise RuntimeError("Path must lead to an attribute")
@@ -199,14 +198,10 @@ class SetAttributeAction(Action):
         self._path = path
         self._value = value
         self._old_value: Any = None
-        self._remote = remote
-
-    def yt_client(self, app: SequoiaTool) -> yt.YtClient:
-        return app.remote_client if self._remote else app.ground_client
 
     def _try_get_current_value(self, app: SequoiaTool) -> Any:
         try:
-            return self.yt_client(app).get(self._path)
+            return app.ground_client.get(self._path)
         except yt.errors.YtResolveError:
             return None
 
@@ -225,9 +220,9 @@ class SetAttributeAction(Action):
     @override
     def rollback(self, app: SequoiaTool) -> None:
         if self._old_value is not None:
-            self.yt_client(app).set(self._path, self._old_value)
+            app.ground_client.set(self._path, self._old_value)
         else:
-            self.yt_client(app).remove(self._path)
+            app.ground_client.remove(self._path)
 
     @override
     def describe(self) -> str:
@@ -236,7 +231,7 @@ class SetAttributeAction(Action):
     @override
     def validate_prerequisites(self, app: SequoiaTool) -> None:
         dirname = yt.ypath_dirname(self._path)
-        if not self.yt_client(app).exists(dirname):
+        if not app.ground_client.exists(dirname):
             raise ValidationFailed(f"Parent path {dirname} doesn't exist")
 
     @override
@@ -261,7 +256,69 @@ class SetAttributeAction(Action):
                 logger)
 
 
-class CreateObjectActionBase(Action):
+class ValidateConfigAction(Action):
+    """Validate config provided by a user-supplied callback.
+
+    Comparison is done in patch_mode: only keys present in `expected` are
+    checked, so extra keys in the actual config are ignored.
+    """
+
+    def __init__(
+        self,
+        get_config: Callable[[SequoiaTool], Any],
+        description: str,
+        expected: Any,
+    ) -> None:
+        self._get_config_fn = get_config
+        self._description = description
+        self._expected = expected
+
+    def _find_mismatches(self, app: SequoiaTool) -> list[str]:
+        actual = self._get_config_fn(app)
+        return compare_values(actual, self._expected, patch_mode=True)
+
+    def _format_mismatches(self, mismatches: list[str]) -> str:
+        joined = "; ".join(mismatches)
+        return f"Mismatches: [{joined}]"
+
+    def _safe_find_mismatches(self, app: SequoiaTool) -> list[str] | None:
+        try:
+            return self._find_mismatches(app)
+        except Exception as exc:
+            logger.warning("%s: validation skipped: %s", self.describe(), exc)
+            return None
+
+    @override
+    def execute(self, app: SequoiaTool) -> None:
+        if mismatches := self._safe_find_mismatches(app):
+            logger.warning(
+                "%s: %s", self.describe(), self._format_mismatches(mismatches))
+
+    @override
+    def validate_state(self, app: SequoiaTool) -> None:
+        if mismatches := self._find_mismatches(app):
+            raise ValidationFailed(self._format_mismatches(mismatches))
+
+    @override
+    def dry_run(self, app: SequoiaTool) -> None:
+        mismatches = self._safe_find_mismatches(app)
+        if mismatches is None:
+            return
+        if mismatches:
+            log_dry_run(
+                MessageBuilder(f"{self.describe()} failed")
+                .with_field("mismatches", mismatches)
+                .build(),
+                logger)
+        else:
+            log_dry_run(f"{self.describe()} passed", logger)
+
+    @override
+    def describe(self) -> str:
+        return self._description
+
+
+class CreateObjectActionBase(Action, ABC):
     def __init__(
         self,
         name: str,
@@ -288,8 +345,9 @@ class CreateObjectActionBase(Action):
     def parent_path(self) -> str:
         return self._root_dir
 
+    @abstractmethod
     def _do_create(self, app: SequoiaTool) -> None:
-        raise NotImplementedError("Subclass must override this method")
+        pass
 
     @override
     def execute(self, app: SequoiaTool) -> None:
@@ -334,7 +392,7 @@ class CreateObjectActionBase(Action):
                 logger)
         elif self.check_state(app):
             log_dry_run(
-                f'{self._type.title()} "{self._name}" already exists.',
+                f'{self._type} "{self._name}" already exists.',
                 logger)
 
 

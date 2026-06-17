@@ -1,9 +1,28 @@
+from typing import Any
+
 import yt.wrapper as yt
 
 from . import actions, app as sequoia_app
 
 import logging
 logger = logging.getLogger(__name__)
+
+
+def get_tablet_cell_peer(app: sequoia_app.SequoiaTool, bundle: str) -> dict[str, Any]:
+    cell_ids = app.ground_client.get(
+        f"//sys/tablet_cell_bundles/{bundle}/@tablet_cell_ids")
+    if not cell_ids:
+        raise ValueError(f'Bundle "{bundle}" has no tablet cells')
+    cell_id = cell_ids[0]
+
+    if app.ground_client.get(f"//sys/tablet_cells/{cell_id}/@health") != "good":
+        raise ValueError(f'Cell {cell_id} is not in good state')
+
+    peers = app.ground_client.get(f"//sys/tablet_cells/{cell_id}/@peers")
+    if not peers:
+        raise ValueError(f'Cell {cell_id} has empty peer set')
+
+    return peers[0]
 
 
 def list_master_cell_tags(yt_client: yt.YtClient) -> list[str]:
