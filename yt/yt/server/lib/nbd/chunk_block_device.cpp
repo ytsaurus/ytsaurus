@@ -125,9 +125,7 @@ public:
             return MakeFuture<TReadResponse>(throttleRspOrError);
         }
 
-        auto future = BIND(&IChunkHandler::Read, ChunkHandler_, offset, length, options)
-            .AsyncVia(Invoker_)
-            .Run();
+        auto future = ChunkHandler_->Read(offset, length, options);
 
         TWallTimer rpcTimer;
         auto rspOrError = WaitFor(future);
@@ -199,9 +197,7 @@ public:
             return MakeFuture<TWriteResponse>(throttleRspOrError);
         }
 
-        auto future = BIND(&IChunkHandler::Write, ChunkHandler_, offset, data, options)
-            .AsyncVia(Invoker_)
-            .Run();
+        auto future = ChunkHandler_->Write(offset, data, options);
 
         TWallTimer rpcTimer;
         auto rspOrError = WaitFor(future);
