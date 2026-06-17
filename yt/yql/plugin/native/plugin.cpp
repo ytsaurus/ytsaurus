@@ -362,9 +362,6 @@ public:
         , StartDqManager_(options.StartDqManager)
     {
         try {
-            auto singletonsConfig = NYTree::ConvertTo<TSingletonsConfigPtr>(options.SingletonsConfig);
-            ConfigureSingletons(singletonsConfig);
-
             NYql::NLog::InitLogger(std::move(options.LogBackend));
 
             auto& logger = NYql::NLog::YqlLogger();
