@@ -87,7 +87,7 @@ struct ISchedulingPolicy
     virtual void UnregisterOperation(const TPoolTreeOperationElement* element) = 0;
 
     //! Thread affinity: Control.
-    virtual TError OnOperationMaterialized(const TPoolTreeOperationElement* element) = 0;
+    virtual TError OnOperationMaterialized(const TPoolTreeOperationElement* element, bool revivedFromSnapshot) = 0;
     virtual TError CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* element) const = 0;
 
     //! Thread affinity: Control.

@@ -62,7 +62,7 @@ protected:
             /*gang*/ false,
             /*specifiedSchedulingModules*/ std::nullopt,
             /*schedulingTagFilter*/ TSchedulingTagFilter{});
-        operation->Initialize(grouped);
+        operation->Initialize(grouped, /*revivedFromSnapshot*/ false);
         operation->ReadyToAssignGroupedNeededResources() = grouped;
         return operation;
     }

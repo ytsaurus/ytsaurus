@@ -167,7 +167,7 @@ public:
         std::optional<THashSet<std::string>> specifiedSchedulingModules,
         TSchedulingTagFilter schedulingTagFilter);
 
-    void Initialize(const TAllocationGroupResourcesMap& initialGroupedNeededResources);
+    void Initialize(const TAllocationGroupResourcesMap& initialGroupedNeededResources, bool revivedFromSnapshot);
     bool IsInitialized() const;
 
     bool IsFullHost() const;
