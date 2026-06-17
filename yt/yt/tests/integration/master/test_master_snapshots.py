@@ -39,6 +39,15 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
         )
 
 
+# remove_account checks the recursive usage, so callers wait until all of it drains. Detailed master
+# memory lags node/chunk counts via gossip, so enumerating fields is both racy and fragile; walk the
+# whole usage, recursing into sub-maps (disk_space_per_medium, *master_memory).
+def account_usage_all_zero(usage):
+    if isinstance(usage, dict):
+        return all(account_usage_all_zero(value) for value in usage.values())
+    return usage == 0
+
+
 def check_simple_node():
     set("//tmp/a", 42)
 
@@ -111,7 +120,7 @@ def check_removed_account():
         remove("//tmp/a1_table" + str(i))
     gc_collect()
 
-    wait(lambda: get("//sys/accounts/a1/@resource_usage/master_memory/total") == 0)
+    wait(lambda: account_usage_all_zero(get("//sys/accounts/a1/@recursive_resource_usage")))
     remove_account("a1", sync=False)
 
     yield
@@ -238,14 +247,8 @@ def check_hierarchical_accounts():
     assert get("//sys/accounts/b2/@recursive_resource_usage/disk_space_per_medium/default") == b21_disk_usage
 
     set("//tmp/b21_table/@account", "b11")
-    wait(
-        lambda: get("//sys/accounts/b2/@recursive_resource_usage/node_count") == 0
-        and get("//sys/accounts/b2/@recursive_resource_usage/chunk_count") == 0
-        and get("//sys/accounts/b2/@recursive_resource_usage/chunk_host_cell_master_memory") == 0
-        and get("//sys/accounts/b2/@recursive_resource_usage/master_memory/total") == 0
-        and get("//sys/accounts/b2/@recursive_resource_usage/detailed_master_memory/nodes") == 0
-        and get("//sys/accounts/b2/@recursive_resource_usage/detailed_master_memory/schemas") == 0
-    )
+
+    wait(lambda: account_usage_all_zero(get("//sys/accounts/b2/@recursive_resource_usage")))
     remove_account("b2", sync=False)
     wait(lambda: not exists("//sys/accounts/b2"))
     assert exists("//sys/accounts/b11")
