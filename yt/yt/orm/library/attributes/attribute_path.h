@@ -27,6 +27,7 @@ TSplitResult TryConsumePrefix(NYPath::TYPathBuf pattern, NYPath::TYPathBuf path)
 // Return first literal from the path (with starting slash) if any.
 TSplitResult GetAttributePathRoot(NYPath::TYPathBuf path, int rootLength = 1);
 
+bool PathContainsAsterisk(NYPath::TYPathBuf path);
 // Split pattern by asterisk. Always return first part, optional part is set if there is asterisk.
 std::pair<NYPath::TYPath, std::optional<NYPath::TYPath>> SplitPatternByAsterisk(NYPath::TYPathBuf path);
 
