@@ -318,6 +318,13 @@ TFuture<void> TLayerLocation::GetVolumeReleaseEvent()
 
 void TLayerLocation::Disable(const TError& error, bool persistentDisable)
 {
+    if (NFS::IsOutOfDiskSpaceError(error) || error.FindMatching(EPortoErrorCode::NoSpace)) {
+        PerformanceCounters_.EnospcRate.Increment();
+
+        // Do not disable on out of disk space.
+        return;
+    }
+
     // TODO(don-dron): Research and fix unconditional Disabled.
     if (State_.exchange(ELocationState::Disabled) != ELocationState::Enabled) {
         return;
@@ -783,6 +790,32 @@ TLayerMeta TLayerLocation::DoImportLayer(const TArtifactKey& artifactKey, const 
 
         auto layerDirectory = GetLayerPath(layerId);
         i64 layerSize = 0;
+        auto layerGuard = Finally([&] {
+            try {
+                WaitFor(LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, /*async*/ false))
+                    .ThrowOnError();
+            } catch (const std::exception& cleanupEx) {
+                YT_LOG_WARNING(cleanupEx, "Failed to clean up partially-imported layer (LayerId: %v)", layerId);
+            }
+
+            auto metaFileName = GetLayerMetaPath(layerId);
+            auto tempMetaFileName = metaFileName + std::string(NFS::TempFileSuffix);
+
+            try {
+                if (NFS::Exists(metaFileName)) {
+                    NFS::Remove(metaFileName);
+                }
+                if (NFS::Exists(tempMetaFileName)) {
+                    NFS::Remove(tempMetaFileName);
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(
+                    ex,
+                    "Failed to remove layer meta (MetaFileName: %v, TempMetaFileName: %v)",
+                    metaFileName,
+                    tempMetaFileName);
+            }
+        });
 
         try {
             YT_LOG_DEBUG(
@@ -820,6 +853,8 @@ TLayerMeta TLayerLocation::DoImportLayer(const TArtifactKey& artifactKey, const 
         ToProto(layerMeta.mutable_id(), layerId);
 
         DoFinalizeLayerImport(layerMeta, tag);
+
+        layerGuard.Release();
 
         if (auto delay = dynamicConfig->DelayAfterLayerImported) {
             TDelayedExecutor::WaitForDuration(*delay);
@@ -937,10 +972,12 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
 
         auto path = WaitFor(VolumeExecutor_->CreateVolume(mountPath, volumeProperties))
             .ValueOrThrow();
+        auto volumeMetaFileName = GetVolumeMetaPath(volumeId, portoPlacePath);
+        auto tempVolumeMetaFileName = volumeMetaFileName + std::string(NFS::TempFileSuffix);
 
         YT_VERIFY(path == mountPath);
 
-        auto volumeGuard = Finally([&Logger, &volumePath, &mountPath, this] {
+        auto volumeGuard = Finally([&] {
             try {
                 WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self")).ThrowOnError();
             } catch (const std::exception& ex) {
@@ -958,6 +995,21 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
                     "Failed to remove volume path (VolumePath: %v)",
                     volumePath);
             }
+
+            try {
+                if (NFS::Exists(volumeMetaFileName)) {
+                    NFS::Remove(volumeMetaFileName);
+                }
+                if (NFS::Exists(tempVolumeMetaFileName)) {
+                    NFS::Remove(tempVolumeMetaFileName);
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(
+                    ex,
+                    "Failed to remove volume meta (VolumeMetaFileName: %v, TempVolumeMetaFileName: %v)",
+                    volumeMetaFileName,
+                    tempVolumeMetaFileName);
+            }
         });
 
         YT_LOG_DEBUG(
@@ -973,9 +1025,6 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
 
         TLayerMetaHeader header;
         header.MetaChecksum = GetChecksum(metaBlob);
-
-        auto volumeMetaFileName = GetVolumeMetaPath(volumeId, portoPlacePath);
-        auto tempVolumeMetaFileName = volumeMetaFileName + std::string(NFS::TempFileSuffix);
 
         YT_LOG_DEBUG(
             "Creating volume meta (MetaFileName: %v)",
@@ -993,17 +1042,6 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
 
         NFS::Rename(tempVolumeMetaFileName, volumeMetaFileName);
 
-        auto volumeMetaGuard = Finally([&Logger, &volumeMetaFileName] {
-            try {
-                NFS::Remove(volumeMetaFileName);
-            } catch (const std::exception& ex) {
-                YT_LOG_ERROR(
-                    ex,
-                    "Failed to remove volume meta (VolumeMetaPath: %v)",
-                    volumeMetaFileName);
-            }
-        });
-
         YT_LOG_DEBUG(
             "Created volume meta (MetaFileName: %v)",
             volumeMetaFileName);
@@ -1019,7 +1057,6 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
         }
 
         volumeGuard.Release();
-        volumeMetaGuard.Release();
 
         TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
             .Update(VolumeCounters().Increment(tagSet));

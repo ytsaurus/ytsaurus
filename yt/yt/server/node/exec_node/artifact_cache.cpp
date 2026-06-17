@@ -184,29 +184,37 @@ class TErrorInterceptingOutput
 public:
     TErrorInterceptingOutput(
         TChunkLocationBasePtr location,
-        IOutputStream* underlying,
-        bool testLocationDisable)
+        std::unique_ptr<IOutputStream> underlying,
+        bool testLocationDisable,
+        std::function<void()> cleanup)
         : Location_(std::move(location))
-        , Underlying_(underlying)
+        , Underlying_(std::move(underlying))
         , TestLocationDisabling_(testLocationDisable)
+        , Cleanup_(std::move(cleanup))
     { }
 
 private:
     const TChunkLocationBasePtr Location_;
-    IOutputStream* const Underlying_;
+    const std::unique_ptr<IOutputStream> Underlying_;
     const bool TestLocationDisabling_ = false;
+    std::function<void()> Cleanup_;
 
     template <class... TArgs>
     void Check(
         void(IOutputStream::*Method)(TArgs...),
         TArgs... args)
     {
+        if (!Location_->IsEnabled()) {
+            THROW_ERROR_EXCEPTION(Location_->GetLocationDisableError());
+        }
+
         try {
             if (TestLocationDisabling_) {
                 THROW_ERROR_EXCEPTION("Test cache location disabling");
             }
             (*Underlying_.*Method)(args...);
         } catch (const std::exception& ex) {
+            Cleanup_();
             Location_->ScheduleDisable(ex);
             THROW_ERROR_EXCEPTION(ex);
         }
@@ -319,11 +327,14 @@ private:
 
     TFuture<void> Check(TFuture<void> result)
     {
-        return result.Apply(BIND([location = Location_] (const TError& error) {
-            if (!error.IsOK()) {
-                location->ScheduleDisable(error);
-                THROW_ERROR_EXCEPTION(error);
+        return result.Apply(BIND([location = Location_, underlying = Underlying_] (const TError& error) {
+            if (error.IsOK()) {
+                return OKFuture;
             }
+            return underlying->Cancel().Apply(BIND([location, error] (const TError& inner) {
+                location->ScheduleDisable(error);
+                return inner.IsOK() ? error : error << inner;
+            }));
         }));
     }
 };
@@ -510,13 +521,13 @@ public:
             GetUnlimitedThrottler());
     }
 
-    TFuture<void> RemoveChunksByLocation(const TCacheLocationPtr& location)
+    TFuture<void> RemoveChunksByLocation(const TCacheLocationPtr& location, bool forbidSlruResurrection)
     {
         return BIND([=, this, this_ = MakeStrong(this)] {
             auto chunks = GetAll();
             for (const auto& chunk : chunks) {
                 if (chunk->GetLocation() == location) {
-                    TryRemove(chunk->GetKey(), /*forbidResurrection*/ true);
+                    TryRemove(chunk->GetKey(), forbidSlruResurrection);
                 }
             }
 
@@ -747,7 +758,7 @@ private:
         if (!CanPrepareSingleChunk(key)) {
             YT_LOG_INFO("Skipping validation for multi-chunk artifact");
             auto artifact = CreateArtifact(location, key, descriptor.Descriptor);
-            cookie.EndInsert(std::move(artifact));
+            EndInsertIfEnabled(cookie, std::move(artifact), location);
             return;
         }
 
@@ -810,7 +821,7 @@ private:
             YT_LOG_INFO("Chunk validation completed");
 
             auto chunk = CreateArtifact(location, key, descriptor.Descriptor);
-            cookie.EndInsert(std::move(chunk));
+            EndInsertIfEnabled(cookie, std::move(chunk), location);
         } catch (const std::exception& ex) {
             YT_LOG_INFO(ex, "Chunk is corrupted");
 
@@ -880,6 +891,30 @@ private:
         OnArtifactCreated(location, descriptor);
         lockedChunkGuard.Release();
         return artifact;
+    }
+
+    void EndInsertIfEnabled(
+        TInsertCookie& cookie,
+        TArtifactPtr artifact,
+        const TCacheLocationPtr& location)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (!location->IsEnabled()) {
+            cookie.Cancel(
+                TError(
+                    NExecNode::EErrorCode::ArtifactFetchFailed,
+                    "Refusing to insert artifact into a disabled cache location")
+                    << TErrorAttribute("location_id", location->GetId()));
+            return;
+        }
+
+        auto key = cookie.GetKey();
+        cookie.EndInsert(std::move(artifact));
+
+        if (!location->IsEnabled()) {
+            TryRemove(key, /*forbidResurrection*/ true);
+        }
     }
 
     void RegisterChunk(
@@ -1106,13 +1141,13 @@ private:
                 std::move(seedReplicas));
 
             auto fileName = location->GetChunkPath(chunkId);
-            auto chunkWriter = New<TChunkFileWriter>(
-                location->GetIOEngine(),
-                chunkId,
-                fileName,
-                /*syncOnClose*/ false);
-
-            auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, chunkWriter);
+            auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(
+                location,
+                New<TChunkFileWriter>(
+                    location->GetIOEngine(),
+                    chunkId,
+                    fileName,
+                    /*syncOnClose*/ false));
 
             IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
 
@@ -1176,7 +1211,7 @@ private:
                     index);
 
                 if (!checkedChunkWriter->WriteBlock(writeBlocksOptions, chunkReadOptions.WorkloadDescriptor, block)) {
-                    WaitFor(chunkWriter->GetReadyEvent())
+                    WaitFor(checkedChunkWriter->GetReadyEvent())
                         .ThrowOnError();
                 }
 
@@ -1214,9 +1249,9 @@ private:
 
             YT_LOG_INFO("Chunk is downloaded into cache");
 
-            TChunkDescriptor descriptor(chunkId, chunkWriter->GetChunkInfo().disk_space());
+            TChunkDescriptor descriptor(chunkId, checkedChunkWriter->GetChunkInfo().disk_space());
             auto chunk = CreateArtifact(location,  key, descriptor, std::move(chunkMeta), std::move(lockedChunkGuard));
-            cookie.EndInsert(chunk);
+            EndInsertIfEnabled(cookie, std::move(chunk), location);
         } catch (const std::exception& ex) {
             auto error = TError(
                 "Error downloading chunk %v into cache",
@@ -1254,7 +1289,7 @@ private:
                 std::move(lockedChunkGuard),
                 producer,
                 Logger);
-            cookie.EndInsert(std::move(artifact));
+            EndInsertIfEnabled(cookie, std::move(artifact), location);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file artifact into cache")
                 << ex;
@@ -1341,7 +1376,7 @@ private:
                 std::move(lockedChunkGuard),
                 producer,
                 Logger);
-            cookie.EndInsert(std::move(chunk));
+            EndInsertIfEnabled(cookie, std::move(chunk), location);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading table artifact into cache")
                 << ex;
@@ -1508,7 +1543,21 @@ private:
         std::unique_ptr<TFile> tempMetaFile;
         i64 chunkSize;
 
+        auto cleanupTempFiles = [&] {
+            for (const auto& path : {tempDataFileName, tempMetaFileName}) {
+                try {
+                    if (NFS::Exists(path)) {
+                        NFS::Remove(path);
+                    }
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex, "Failed to cleanup a temporary file (Path: %v)", path);
+                }
+            }
+        };
+
         location->DisableOnError(BIND([&] {
+            auto guard = Finally(cleanupTempFiles);
+
             tempDataFile = std::make_unique<TFile>(
                 tempDataFileName,
                 CreateAlways | WrOnly | Seq | CloseOnExec);
@@ -1518,13 +1567,15 @@ private:
                 tempMetaFileName,
                 CreateAlways | WrOnly | Seq | CloseOnExec);
             tempMetaFile->Flock(LOCK_EX);
+
+            guard.Release();
         })).Run();
 
-        TUnbufferedFileOutput fileOutput(*tempDataFile);
         TErrorInterceptingOutput checkedOutput(
             location,
-            &fileOutput,
-            Bootstrap_->GetDynamicConfig()->ExecNode->ChunkCache->TestCacheLocationDisabling);
+            std::make_unique<TUnbufferedFileOutput>(*tempDataFile),
+            Bootstrap_->GetDynamicConfig()->ExecNode->ChunkCache->TestCacheLocationDisabling,
+            cleanupTempFiles);
 
         auto traceContext = CreateTraceContextFromCurrent("ArtifactCache");
         TTraceContextGuard guard(traceContext);
@@ -1551,6 +1602,8 @@ private:
         }
 
         location->DisableOnError(BIND([&] {
+            auto guard = Finally(cleanupTempFiles);
+
             chunkSize = tempDataFile->GetLength();
             tempDataFile->Flush();
             tempDataFile->Close();
@@ -1562,6 +1615,8 @@ private:
 
             NFS::Rename(tempMetaFileName, metaFileName);
             NFS::Rename(tempDataFileName, dataFileName);
+
+            guard.Release();
         })).Run();
 
         TChunkDescriptor descriptor(chunkId);
@@ -1700,11 +1755,11 @@ int TArtifactCache::GetArtifactCount()
     return Impl_->GetSize();
 }
 
-TFuture<void> TArtifactCache::RemoveArtifactsByLocation(const TCacheLocationPtr& location)
+TFuture<void> TArtifactCache::RemoveArtifactsByLocation(const TCacheLocationPtr& location, bool forbidSlruResurrection)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Impl_->RemoveChunksByLocation(location);
+    return Impl_->RemoveChunksByLocation(location, forbidSlruResurrection);
 }
 
 TFuture<TArtifactPtr> TArtifactCache::DownloadArtifact(

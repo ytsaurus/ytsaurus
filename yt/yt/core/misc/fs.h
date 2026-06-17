@@ -241,6 +241,8 @@ TDeviceId GetDeviceId(const std::string& path);
 
 std::optional<std::string> FindBinaryPath(const std::string& binary);
 
+bool IsOutOfDiskSpaceError(const TError& error);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFS
