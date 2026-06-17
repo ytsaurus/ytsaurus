@@ -24,6 +24,7 @@ PY_SRCS(
     yt_dashboards/cache.py
     yt_dashboards/chyt.py
     yt_dashboards/cluster_resources.py
+    yt_dashboards/cluster_workloads.py
     yt_dashboards/flow/__init__.py
     yt_dashboards/flow/common.py
     yt_dashboards/flow/companion_manager.py

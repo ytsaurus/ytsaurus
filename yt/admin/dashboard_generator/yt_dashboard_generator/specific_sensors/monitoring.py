@@ -7,6 +7,7 @@ from enum import Enum, auto
 
 class MonitoringSystemFields(Enum):
     DownsamplingAggregation = auto()
+    DownsamplingGridInterval = auto()
 
 
 class DownsamplingAggregation:
@@ -132,6 +133,11 @@ class MonitoringExpr(Taggable):
 
     def downsampling_aggregation(self, value):
         return self.value(MonitoringSystemFields.DownsamplingAggregation, value)
+
+    def downsampling_grid_interval(self, ms):
+        # Time interval (ms) for downsampling: points within the interval are
+        # aggregated into one. Pairs with downsampling_aggregation.
+        return self.value(MonitoringSystemFields.DownsamplingGridInterval, ms)
 
     def drop_nan(self):
         return self.func("drop_nan", self)
