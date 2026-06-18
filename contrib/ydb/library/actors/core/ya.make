@@ -113,6 +113,7 @@ PEERDIR(
     contrib/ydb/library/actors/memory_log
     contrib/ydb/library/actors/prof
     contrib/ydb/library/actors/protos
+    contrib/ydb/library/actors/struct_log
     contrib/ydb/library/actors/util
     contrib/ydb/library/services
     library/cpp/execprofile

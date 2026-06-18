@@ -59,8 +59,7 @@ PEERDIR(
     library/cpp/testing/hook
     library/cpp/testing/unittest
     library/cpp/threading/future
-    contrib/ydb/core/kqp/ut/common
-    contrib/ydb/core/util
+    contrib/ydb/library/aws_init
     contrib/ydb/library/yql/providers/common/http_gateway
     yql/essentials/sql/pg_dummy
     yql/essentials/utils

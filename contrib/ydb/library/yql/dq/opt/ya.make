@@ -3,7 +3,6 @@ LIBRARY()
 PEERDIR(
     contrib/ydb/library/yql/dq/opt/core
     yql/essentials/core/cbo
-    contrib/ydb/core/kqp/expr_nodes
 )
 
 SRCS(
@@ -18,6 +17,7 @@ SRCS(
 )
 
 CHECK_DEPENDENT_DIRS(DENY PEERDIRS
+    contrib/ydb/core/kqp/expr_nodes
     contrib/ydb/core/kqp/opt/cbo
     contrib/ydb/core/kqp/opt/cbo/solver
 )
