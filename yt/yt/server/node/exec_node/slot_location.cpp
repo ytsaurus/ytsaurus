@@ -72,7 +72,7 @@ bool TSlotLocation::TSandboxTmpfsData::IsInsideTmpfs(const std::string& path, co
     bool isTmpfs = false;
     std::optional<std::string_view> longestVolumePath;
     for (const auto& [volumePath, type] : VolumePathToType_) {
-        if (path.starts_with(volumePath.Path().string())) {
+        if (volumePath.IsAncestorOf(path, /*treatEqualPathAsAncestor*/ true)) {
             if (!longestVolumePath || volumePath.Path().string().size() > longestVolumePath->size()) {
                 longestVolumePath = volumePath.Path().string();
                 isTmpfs = type == EVolumeType::Tmpfs;
@@ -496,9 +496,19 @@ void TSlotLocation::TakeIntoAccountTmpfsVolumes(
     // TODO(yuryalekseev): it should be in the else clause of the above if.
     tmpfsData.AddSandboxPath(TAbsoluteNormalizedPath(std::string(GetSandboxPath(slotIndex, ESandboxKind::User))));
 
-    for (const auto& volume: volumeResults) {
-        TAbsoluteNormalizedPath mountPath(GetVolumeMountPathByVolumeId(volume->VolumeId, volumeMounts));
-        tmpfsData.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(GetSlotPath(slotIndex), mountPath.Path().string())), volume->VolumeType);
+    for (const auto& volumeMount: volumeMounts) {
+        if (volumeMount->MountPath.Path() == "/") {
+            continue;
+        }
+
+        auto volumeIt = std::find_if(volumeResults.begin(), volumeResults.end(), [&volumeMount] (const auto& volume) {
+            return volumeMount->VolumeId == volume->VolumeId;
+        });
+
+        if (volumeIt == volumeResults.end()) {
+            continue;
+        }
+        tmpfsData.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(GetSlotPath(slotIndex), volumeMount->MountPath.Path().string())), (*volumeIt)->VolumeType);
     }
 }
 

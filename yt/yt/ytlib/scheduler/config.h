@@ -1429,6 +1429,8 @@ struct TSidecarJobSpec
 
     TGracefulShutdownSpecPtr GracefulShutdown;
 
+    std::vector<TVolumeMountPtr> SidecarVolumeMounts;
+
     REGISTER_YSON_STRUCT(TSidecarJobSpec);
 
     static void Register(TRegistrar registrar);
