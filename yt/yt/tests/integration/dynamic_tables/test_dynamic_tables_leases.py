@@ -47,6 +47,10 @@ class TestDynamicTablesLeases(YTEnvSetup):
         abort_transaction(tx_id)
         wait(lambda: exists(f"#{cell_id}/@prerequisite_transaction_id"))
         wait(lambda: get(f"#{cell_id}/@peers/0/state") == "leading")
+        # The master flips the peer to "leading" before the node-side tablet slot
+        # has finished rebuilding, so the lease_manager orchid can transiently fail
+        # with "Promise abandoned". Wait until it is queryable before returning.
+        wait(lambda: self._get_leases(cell_id) is not None, ignore_exceptions=True)
 
     def _cold_restart_cell(self, cell_id):
         build_snapshot(cell_id=cell_id)
