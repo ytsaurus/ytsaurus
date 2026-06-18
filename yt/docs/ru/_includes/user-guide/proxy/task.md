@@ -1,3 +1,8 @@
+---
+title: Task-прокси | {{product-name}}
+description: Единая точка входа для доступа к веб-сервисам внутри операций {{product-name}}.
+---
+
 # Task-прокси
 
 В операциях {{product-name}} часто требуется разворачивать веб-сервисы. Это могут быть UI для отладки (например, Spark UI в [SPYT](../../../user-guide/data-processing/spyt/overview.md)), серверы для инференса ML-моделей или API внутри джобов.
@@ -111,6 +116,85 @@ curl \
   "https://task-proxy.my-cluster.ytsaurus.example.net"
 ```
 
+### Доступ к сервисам по алиасу (без хеша) {#alias}
+
+{% note info %}
+
+Функциональность доступна начиная с task-proxy версии 0.3.0.
+
+{% endnote %}
+
+По умолчанию адрес сервиса формируется на основе хеша (например, `645236d8`), который вычисляется по ID операции. Поскольку кластер {{product-name}} генерирует ID только в момент запуска, узнать итоговый адрес сервиса заранее невозможно — после старта его приходится искать в системной таблице.
+
+Если нужны предсказуемые адреса (например, для автоматизации запросов к API джоба), вы можете обращаться к сервису не по хешу, а по уникальной связке из трёх параметров: `(operation_id_or_alias, task_name, service)`. В этом случае полный адрес сервиса будет известен ещё до запуска операции.
+
+#### Как задать алиас операции при запуске {#set-alias}
+
+Чтобы адрес был предсказуемым, операции нужно назначить алиас. Способ зависит от типа операции:
+
+| Операция           | Команда запуска                                                            |
+|--------------------|----------------------------------------------------------------------------|
+| Vanilla            | `yt vanilla --spec '{alias="*myvanilla", ...}' ...`                        |
+| SPYT standalone    | `spark-launch-yt --operation-alias *myspark ...`                           |
+| SPYT direct submit | `spark-submit --conf spark.ytsaurus.driver.operation.alias="*myspark" ...` |
+
+{% note warning %}
+
+При обращении к сервису (в URL или HTTP-заголовках) алиас указывается **без звёздочки** — например, `myspark`, несмотря на то что в спецификации он задаётся как `*myspark`.
+
+{% endnote %}
+
+{% note info %}
+
+Значения `operation_alias`, `task_name` и `service` должны удовлетворять регулярному выражению `^[a-z0-9_]{1,30}$`: только строчные буквы, цифры и `_`, не более 30 символов.
+
+{% endnote %}
+
+#### Как обращаться к сервису по алиасу {#access-by-alias}
+
+Зная алиас операции, название задачи (`task_name`) и имя сервиса (`service`), вы можете обратиться к нему двумя способами: через доменное имя или через HTTP-заголовки.
+
+{% list tabs %}
+
+- Через доменное имя
+
+  Параметры объединяются через дефис прямо в адресе:
+
+  ```sh
+  curl \
+    -H "Authorization: Bearer ${IAM_TOKEN}" \
+    "https://${operation_alias}-${task_name}-${service}.my-cluster.ytsaurus.example.net"
+  ```
+
+- Через HTTP-заголовки
+
+  Если вы обращаетесь к общему домену Task-прокси, параметры можно передать в заголовках `x-yt-taskproxy-*`:
+
+  ```sh
+  curl \
+    -H "Authorization: Bearer ${IAM_TOKEN}" \
+    -H "x-yt-taskproxy-operation-alias: ${operation_alias}" \
+    -H "x-yt-taskproxy-task-name: ${task_name}" \
+    -H "x-yt-taskproxy-service: ${service}" \
+    "https://task-proxy.my-cluster.ytsaurus.example.net"
+  ```
+
+{% endlist %}
+
+--------
+
+#### Доступ по ID операции (если алиаса нет) {#access-by-operation-id}
+Если вы не задали алиас, но не хотите использовать хеш, вы можете аналогично обратиться к сервису, передав его `operation_id` в заголовке:
+
+```sh
+curl \
+  -H "Authorization: Bearer ${IAM_TOKEN}" \
+  -H "x-yt-taskproxy-operation-id: ${operation_id}" \
+  -H "x-yt-taskproxy-task-name: ${task_name}" \
+  -H "x-yt-taskproxy-service: ${service}" \
+  "https://task-proxy.my-cluster.ytsaurus.example.net"
+```
+
 ## Расширенный формат аннотации {#exp}
 
 Аннотация `task_proxy={enabled=%true}` применяет настройки по умолчанию. Это означает, что при её использовании каждый сервис получает:
@@ -164,3 +248,4 @@ grpcurl \
   "task-proxy.${NAMESPACE}.svc.cluster.local:80" \
   "helloworld.Greeter/SayHello"
 ```
+
