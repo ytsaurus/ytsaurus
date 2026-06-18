@@ -26,16 +26,17 @@ def _resolve_cloud_function_token(ctx, param, value):
     if value:
         return value
 
-    try:
-        with open(consts.CLOUD_FUNCTION_TOKEN_PATH) as f:
-            value = f.read().strip()
-    except OSError:
-        value = ""
+    for path in consts.CLOUD_FUNCTION_TOKEN_PATHS:
+        try:
+            with open(path) as f:
+                value = f.read().strip()
+        except OSError:
+            continue
+        if value:
+            return value
 
-    if not value:
-        raise click.BadParameter(f"provide --cloud-function-token or put it in {consts.CLOUD_FUNCTION_TOKEN_PATH}")
-
-    return value
+    paths = " or ".join(consts.CLOUD_FUNCTION_TOKEN_PATHS)
+    raise click.BadParameter(f"provide --cloud-function-token or put it in {paths}")
 
 
 def cloud_function_token_option(f):
@@ -44,7 +45,7 @@ def cloud_function_token_option(f):
         type=str,
         default="",
         callback=_resolve_cloud_function_token,
-        help=f"Cloud Function token; if omitted, taken from {consts.CLOUD_FUNCTION_TOKEN_PATH}",
+        help=f"Cloud Function token; if omitted, taken from {' or '.join(consts.CLOUD_FUNCTION_TOKEN_PATHS)}",
     )(f)
 
 
