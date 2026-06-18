@@ -657,7 +657,7 @@ class GrafanaDashboardParser():
 
     def _cell_from_json(self, json):
         """Returns: (name, cell)"""
-        grammar = lark.Lark('''
+        grammar = lark.Lark(r'''
             %ignore " "
 
             start: expr | rate
@@ -666,7 +666,7 @@ class GrafanaDashboardParser():
             label: /[\w]+/ _op (/"[^"]+"/| /""/)
 
             expr: "{" label ("," label) * "}"
-        ''')  # noqa: W605
+        ''')
 
         class Visitor(lark.Visitor):
             def __init__(self):
