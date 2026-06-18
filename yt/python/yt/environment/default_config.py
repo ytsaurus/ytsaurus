@@ -395,27 +395,8 @@ def get_controller_agent_config():
                 }
             },
 
-            "sorted_merge_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                }
-            },
-
-            "reduce_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                }
-            },
-
-            "join_reduce_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                }
-            },
-
             "sort_operation_options": {
                 "spec_template": {
-                    "use_new_sorted_pool": True,
                     "merge_job_io": {
                         "table_writer": {
                             "enable_large_columnar_statistics": True,
@@ -436,7 +417,6 @@ def get_controller_agent_config():
 
             "map_reduce_operation_options": {
                 "spec_template": {
-                    "use_new_sorted_pool": True,
                     "map_job_io": {
                         "table_writer": {
                             "enable_large_columnar_statistics": True,

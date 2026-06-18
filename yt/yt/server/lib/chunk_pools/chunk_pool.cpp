@@ -1,6 +1,5 @@
 #include "chunk_pool.h"
 
-#include "legacy_job_manager.h"
 #include "new_job_manager.h"
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
@@ -193,7 +192,6 @@ const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetD
 PHOENIX_DEFINE_TEMPLATE_TYPE(TChunkPoolOutputWithJobManagerBase, (NPhoenix::_));
 
 // Explicit instantiations.
-template class TChunkPoolOutputWithJobManagerBase<TLegacyJobManager>;
 template class TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
 
 ////////////////////////////////////////////////////////////////////////////////

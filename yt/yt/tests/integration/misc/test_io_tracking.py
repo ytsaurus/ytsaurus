@@ -1485,9 +1485,6 @@ class TestMapReduceJobIOTracking(TestJobIOTrackingBase):
         "controller_agent": {
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1,
-                "spec_template": {
-                    "use_new_sorted_pool": False,
-                },
             },
         },
     }
@@ -1798,9 +1795,6 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
                 "min_partition_size": 1,
                 "max_value_count_per_simple_sort_job": 100,
                 "max_data_slices_per_job": 100,
-                "spec_template": {
-                    "use_new_sorted_pool": False,
-                }
             },
         }
     }

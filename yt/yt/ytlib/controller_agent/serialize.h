@@ -122,6 +122,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // 26.2 starts here
     ((BumpTo_26_2)                           (302300))
     ((PersistVanillaJobCounts)               (302301))
+    ((DropLegacySortedPool)                  (302302))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
