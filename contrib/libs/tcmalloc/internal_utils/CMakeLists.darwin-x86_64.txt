@@ -12,6 +12,14 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(malloc_extension)
-add_subdirectory(default)
-add_subdirectory(internal_utils)
+add_library(libs-tcmalloc-internal_utils INTERFACE)
+
+
+target_compile_options(libs-tcmalloc-internal_utils INTERFACE
+  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
+)
+
+target_link_libraries(libs-tcmalloc-internal_utils INTERFACE
+  contrib-libs-cxxsupp
+)
+
