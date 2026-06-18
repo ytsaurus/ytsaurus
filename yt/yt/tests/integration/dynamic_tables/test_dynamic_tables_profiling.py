@@ -641,7 +641,8 @@ class TestStatisticsReporterBase:
         response = lookup_rows(
             statistics_table_path, [{"table_id": table_id, "tablet_id": tablet_id}],
             verbose=False)
-        result = response[0][name][counter] if response and name in response[0] else None
+        value = response[0].get(name) if response else None
+        result = value[counter] if value else None
         print_debug(f"Got counter {name}.{counter} for table {table_id}, tablet {tablet_id}: {result}")
         return result
 
