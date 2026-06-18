@@ -1647,6 +1647,41 @@ class TestCypressAcls(CheckPermissionBase):
 
         self._test_columnar_acl_copy_yt_12749("//tmp", "//tmp")
 
+    @authors("danilalexeev")
+    @not_implemented_in_sequoia
+    def test_check_all_ace_columns_full_read(self):
+        create_user("u1")
+        create_user("u2")
+
+        create("map_node", "//tmp/d", attributes={
+            "acl": [
+                make_ace("allow", "u2", "read", columns="non_existing"),
+            ]
+        })
+
+        id = create(
+            "table",
+            "//tmp/d/t1",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ],
+                "acl": [
+                    make_ace("allow", "u1", "read", columns="b"),
+                ],
+            },
+        )
+        # Basic reads are not affected.
+        assert get("//tmp/d/t1/@id") == id
+
+        set("//sys/@config/security_manager/check_all_ace_columns_full_read", True)
+        with raises_yt_error("Access denied for user"):
+            copy("//tmp/d/t1", "//tmp/d/t2", authenticated_user="u1")
+
+        set("//tmp/d/@acl/end", make_ace("allow", "u1", "read", columns="non_existing"))
+        copy("//tmp/d/t1", "//tmp/d/t2", authenticated_user="u1")
+
     @authors("shakurov", "danilalexeev")
     def test_special_acd_holders(self):
         create_user("u1")
