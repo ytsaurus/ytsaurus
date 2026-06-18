@@ -3596,7 +3596,16 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
                     BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().RowCount))
                 .Item("data_weight").DoList(
                     BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().DataWeight))
-            .EndMap();
+            .EndMap()
+        .DoIf(IsPhysicallySorted(), [&] (auto fluent) {
+            auto minEdenTimestamp = MaxTimestamp;
+            for (const auto& store : GetEden()->Stores()) {
+                minEdenTimestamp = std::min(minEdenTimestamp, store->GetMinTimestamp());
+            }
+
+            fluent
+                .Item("min_eden_timestamp").Value(minEdenTimestamp);
+        });
 }
 
 void TTablet::ResetRowCache(const ITabletSlotPtr& slot)
