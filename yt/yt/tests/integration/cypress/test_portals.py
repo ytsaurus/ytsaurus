@@ -12,7 +12,7 @@ from yt_commands import (
 
 import yt_error_codes
 
-from yt_helpers import get_current_time
+from yt_helpers import get_current_time, account_usage_all_zero
 
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
@@ -306,7 +306,7 @@ class TestPortals(YTEnvSetup):
         remove("//tmp/p1/t")
         remove("//tmp/p2/t")
         gc_collect()
-        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") == 0)
+        wait(lambda: account_usage_all_zero(get("//sys/accounts/a/@recursive_resource_usage")))
         remove("//sys/accounts/a")
         wait(lambda: not exists("//sys/accounts/a"))
 
@@ -2377,7 +2377,7 @@ class TestCrossCellCopy(YTEnvSetup):
         gc_collect()
         wait(lambda: not exists(src_path))
         wait(lambda: not exists(dst_path))
-        wait(lambda: get(f"//sys/accounts/{account}/@resource_usage/master_memory/total") == 0)
+        wait(lambda: account_usage_all_zero(get(f"//sys/accounts/{account}/@recursive_resource_usage")))
         get(f"//sys/accounts/{account}/@resource_usage")
         remove(f"//sys/accounts/{account}")
         wait(lambda: not exists(f"//sys/accounts/{account}"))

@@ -14,7 +14,7 @@ from yt_commands import (
     get_account_disk_space, create_dynamic_table, build_snapshot,
     build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move, create_domestic_medium,
     create_chaos_cell_bundle, sync_create_chaos_cell, generate_chaos_cell_id, select_rows, gc_collect)
-from yt_helpers import master_exit_read_only_sync
+from yt_helpers import master_exit_read_only_sync, account_usage_all_zero
 
 from yt_type_helpers import make_schema, normalize_schema
 
@@ -37,15 +37,6 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
             lambda: exists("//sys/accounts/{0}".format(name))
             and get("//sys/accounts/{0}/@life_stage".format(name)) == "creation_committed"
         )
-
-
-# remove_account checks the recursive usage, so callers wait until all of it drains. Detailed master
-# memory lags node/chunk counts via gossip, so enumerating fields is both racy and fragile; walk the
-# whole usage, recursing into sub-maps (disk_space_per_medium, *master_memory).
-def account_usage_all_zero(usage):
-    if isinstance(usage, dict):
-        return all(account_usage_all_zero(value) for value in usage.values())
-    return usage == 0
 
 
 def check_simple_node():
