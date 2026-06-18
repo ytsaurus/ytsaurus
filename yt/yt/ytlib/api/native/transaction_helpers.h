@@ -16,7 +16,7 @@ public:
     explicit TTransactionSignatureGenerator(NTransactionClient::TTransactionSignature targetSignature);
 
     void RegisterRequest();
-    virtual void RegisterRequests(int count);
+    virtual void RegisterRequests(int count, bool adjustRequestIndex = false);
     virtual void UnregisterRequests(int count);
 
     virtual NTransactionClient::TTransactionSignature GenerateSignature();
@@ -45,7 +45,7 @@ public:
         : TTransactionSignatureGenerator(/*targetSignature*/ 0)
     { }
 
-    void RegisterRequests(int count) override;
+    void RegisterRequests(int count, bool adjustRequestIndex = false) override;
     void UnregisterRequests(int count) override;
 
     NTransactionClient::TTransactionSignature GenerateSignature() override;
