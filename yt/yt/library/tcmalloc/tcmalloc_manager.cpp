@@ -20,6 +20,7 @@
 #include <util/system/shellcommand.h>
 
 #include <tcmalloc/malloc_extension.h>
+#include <tcmalloc/parameters.h>
 
 #include <thread>
 #include <mutex>
@@ -442,6 +443,23 @@ public:
 
     void Configure(const TTCMallocConfigPtr& config)
     {
+        if (config->MadvisePreference) {
+            switch (*config->MadvisePreference) {
+                case EMadvisePreference::Never:
+                    TCMalloc_Internal_SetMadvise(tcmalloc::tcmalloc_internal::MadvisePreference::kNever);
+                    break;
+                case EMadvisePreference::DontNeed:
+                    TCMalloc_Internal_SetMadvise(tcmalloc::tcmalloc_internal::MadvisePreference::kDontNeed);
+                    break;
+                case EMadvisePreference::Free:
+                    TCMalloc_Internal_SetMadvise(tcmalloc::tcmalloc_internal::MadvisePreference::kFreeOnly);
+                    break;
+                case EMadvisePreference::FreeAndDontNeed:
+                    TCMalloc_Internal_SetMadvise(tcmalloc::tcmalloc_internal::MadvisePreference::kFreeAndDontNeed);
+                    break;
+            }
+        }
+
         tcmalloc::MallocExtension::SetProfileSamplingInterval(config->ProfileSamplingRate);
         tcmalloc::MallocExtension::SetMaxPerCpuCacheSize(config->MaxPerCpuCacheSize);
         tcmalloc::MallocExtension::SetMaxTotalThreadCacheBytes(config->MaxTotalThreadCacheBytes);
