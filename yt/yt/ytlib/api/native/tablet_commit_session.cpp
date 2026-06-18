@@ -296,12 +296,13 @@ private:
             ToProto(req->mutable_prerequisite_transaction_ids(), Options_.PrerequisiteTransactionIds);
         }
 
-        YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, "
+        YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, CellId: %v, "
             "PrepareSignature: %x, CommitSignature: %x, Versioned: %v, "
             "UpstreamReplicaId: %v%v, PrerequisiteTransactionIds: %v%v)",
             batchIndex,
             Batches_.size(),
             batch->RowCount,
+            TabletInfo_->CellId,
             req->prepare_signature(),
             req->commit_signature(),
             req->versioned(),
@@ -436,7 +437,7 @@ private:
             return error;
         }
 
-        cellCommitSession->GetPrepareSignatureGenerator()->RegisterRequests(batchCount);
+        cellCommitSession->GetPrepareSignatureGenerator()->RegisterRequests(batchCount, /*adjustRequestIndex*/ true);
         cellCommitSession->RegisterTabletCommitSession(TabletInfo_->TabletId);
         commitContext->CellChannel = Client_->GetCellChannelOrThrow(newTabletInfo->CellId);
 
