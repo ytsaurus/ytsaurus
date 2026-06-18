@@ -3611,6 +3611,60 @@ TEST(TProtobufFormatTest, SchemaConfigMismatch)
         "Optional variant field \"variant.a\"");
     EXPECT_NO_THROW(createParser(schema_variant_with_int, config_with_oneof));
     EXPECT_NO_THROW(createWriter(schema_variant_with_int, config_with_oneof));
+
+    auto schema_dict = New<TTableSchema>(std::vector<TColumnSchema>{
+        {"dict_field", DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+            SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto buildDictConfig = [] (bool repeated) {
+        return BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("tables")
+                .BeginList()
+                    .Item()
+                    .BeginMap()
+                        .Item("columns")
+                        .BeginList()
+                            .Item()
+                            .BeginMap()
+                                .Item("name").Value("dict_field")
+                                .Item("field_number").Value(1)
+                                .Item("proto_type").Value("structured_message")
+                                .Item("repeated").Value(repeated)
+                                .Item("fields")
+                                .BeginList()
+                                    .Item().BeginMap()
+                                        .Item("name").Value("key")
+                                        .Item("field_number").Value(1)
+                                        .Item("proto_type").Value("int64")
+                                    .EndMap()
+                                    .Item().BeginMap()
+                                        .Item("name").Value("value")
+                                        .Item("field_number").Value(2)
+                                        .Item("proto_type").Value("int64")
+                                    .EndMap()
+                                .EndList()
+                            .EndMap()
+                        .EndList()
+                    .EndMap()
+                .EndList()
+            .EndMap();
+    };
+
+    // A dict-typed column requires a repeated protobuf field.
+    EXPECT_NO_THROW(createParser(schema_dict, buildDictConfig(/*repeated*/ true)));
+    EXPECT_NO_THROW(createWriter(schema_dict, buildDictConfig(/*repeated*/ true)));
+
+    // Mapping a dict-typed column to a non-repeated field is invalid user input
+    // and must yield a schema-mismatch error rather than crash the process.
+    EXPECT_THROW_WITH_SUBSTRING(
+        createParser(schema_dict, buildDictConfig(/*repeated*/ false)),
+        "non-repeated protobuf field cannot match \"dict\" type in schema");
+    EXPECT_THROW_WITH_SUBSTRING(
+        createWriter(schema_dict, buildDictConfig(/*repeated*/ false)),
+        "non-repeated protobuf field cannot match \"dict\" type in schema");
 }
 
 TEST(TProtobufFormatTest, MultipleOtherColumns)
