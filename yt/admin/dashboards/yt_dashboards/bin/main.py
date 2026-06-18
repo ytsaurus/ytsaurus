@@ -353,6 +353,15 @@ dashboards = {
             "args": ["grafana"]
         },
     },
+    "queue-multi-consumer-metrics": {
+        "func": queue_and_consumer_metrics.build_queue_multi_consumer_metrics,
+        "monitoring": {
+            "args": ["monitoring"]
+        },
+        "grafana": {
+            "args": ["grafana"]
+        },
+    },
     "queue-consumer-pass-metrics": {
         "func": queue_and_consumer_metrics.build_queue_consumer_pass_metrics,
         "monitoring": {
