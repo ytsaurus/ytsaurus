@@ -20,7 +20,7 @@ types:
         column_type: Uint16
         sort_order: Ascending
 
-      {% if version >= 6 %}
+      {% if version >= 4 %}
       - cpp_name: NodeIdHash
         cpp_type: ui64
         column_name: node_id_hash
