@@ -504,6 +504,7 @@ protected:
         , RetainedTimestamp_(tabletSnapshot->RetainedTimestamp)
         , StoreFlushIndex_(tabletSnapshot->StoreFlushIndex)
         , RowBuffer_(std::move(rowBuffer))
+        , PerformanceCounters_(tabletSnapshot->PerformanceCounters)
         , Logger(std::move(logger))
         , CacheRowMerger_(NRowMerger::CreateVersionedRowMerger(
             tabletSnapshot->Settings.MountConfig->RowMergerType,
@@ -552,6 +553,10 @@ protected:
                 counters->CacheOutdated.Increment(CacheOutdated_);
                 counters->CacheMisses.Increment(CacheMisses_);
                 counters->CacheInserts.Increment(CacheInserts_);
+
+                PerformanceCounters_->DynamicRowLookup.Counter.fetch_add(CacheHits_, std::memory_order::relaxed);
+                PerformanceCounters_->DynamicRowLookupDataWeight.Counter.fetch_add(DataWeight_, std::memory_order::relaxed);
+
                 break;
             }
 
@@ -562,6 +567,10 @@ protected:
                 counters->CacheOutdated.Increment(CacheOutdated_);
                 counters->CacheMisses.Increment(CacheMisses_);
                 counters->CacheInserts.Increment(CacheInserts_);
+
+                PerformanceCounters_->DynamicRowRead.Counter.fetch_add(CacheHits_, std::memory_order::relaxed);
+                PerformanceCounters_->DynamicRowReadDataWeight.Counter.fetch_add(DataWeight_, std::memory_order::relaxed);
+
                 break;
             }
 
@@ -771,6 +780,7 @@ protected:
         ++WriteRowIndex_;
 
         auto mergedRow = Merger_->BuildMergedRow();
+        DataWeight_ += GetDataWeight(mergedRow);
         TRowAdapter::WriteRow(mergedRow);
     }
 
@@ -898,6 +908,7 @@ private:
     const TTimestamp RetainedTimestamp_;
     const ui32 StoreFlushIndex_;
     const TRowBufferPtr RowBuffer_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
     const NLogging::TLogger Logger;
     const std::unique_ptr<NRowMerger::IVersionedRowMerger> CacheRowMerger_;
     const EInitialQueryKind InitialQueryKind_;
@@ -927,6 +938,8 @@ private:
     int FailedSealAttemptsByRevision_ = 0;
     int NotSealedRows_ = 0;
     ui32 FailedFlushIndex_ = 0;
+
+    i64 DataWeight_ = 0;
 
     TTimestamp MaxInsertedTimestamp_ = 0;
 
