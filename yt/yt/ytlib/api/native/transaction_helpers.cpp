@@ -15,7 +15,7 @@ void TTransactionSignatureGenerator::RegisterRequest()
     RegisterRequests(/*count*/ 1);
 }
 
-void TTransactionSignatureGenerator::RegisterRequests(int count)
+void TTransactionSignatureGenerator::RegisterRequests(int count, bool /*adjustRequestIndex*/)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_VERIFY(RequestIndex_ == 0);
@@ -51,12 +51,16 @@ TTransactionSignature TTransactionSignatureGenerator::GetFinalSignature()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUniformSignatureGenerator::RegisterRequests(int count)
+void TUniformSignatureGenerator::RegisterRequests(int count, bool adjustRequestIndex)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_ASSERT(!FinalSignatureGenerated_.load());
     RequestCount_ += count;
+
+    if (adjustRequestIndex) {
+        RequestIndex_ += count;
+    }
 }
 
 void TUniformSignatureGenerator::UnregisterRequests(int count)
@@ -64,8 +68,9 @@ void TUniformSignatureGenerator::UnregisterRequests(int count)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_ASSERT(!FinalSignatureGenerated_.load());
+    YT_VERIFY(count > 0);
 
-    YT_VERIFY(count >= 0);
+    YT_VERIFY(RequestIndex_.fetch_sub(count) >= static_cast<unsigned>(count));
     YT_VERIFY(RequestCount_.fetch_sub(count) >= static_cast<unsigned>(count));
 }
 
