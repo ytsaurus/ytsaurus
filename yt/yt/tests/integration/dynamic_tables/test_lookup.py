@@ -2018,10 +2018,17 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
         sync_flush_table("//tmp/t")
 
-        for step in range(1, 5):
-            expected = [{"key": i, "value": _make_value(i)} for i in range(100, 200, 2 * step)]
-            actual = self._read("//tmp/t", range(100, 200, 2 * step), use_lookup_cache=True)
+        cache_hits = [0, 25, 42, 55]
+        for index in range(4):
+            step = 2 * (index + 1)
+            expected = [{"key": i, "value": _make_value(i)} for i in range(100, 200, step)]
+            actual = self._read("//tmp/t", range(100, 200, step), use_lookup_cache=True)
             assert_items_equal(actual, expected)
+
+            if peer_count == 1 and cache_hits[index] > 0:
+                path = f"//tmp/t/@tablets/0/performance_counters/dynamic_row_{self._performance_counter_type()}_count"
+                wait(lambda: get(path) > cache_hits[index - 1])
+                assert get(path) == cache_hits[index]
 
         # Lookup key without polluting cache to increment static_chunk_row_{lookup/read}_count.
         self._read("//tmp/t", [2])
@@ -2138,6 +2145,13 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
 
+        def _check_performance_counter(dynamic, old_value, expected):
+            if peer_count == 1:
+                counter_name = f"{'dynamic' if dynamic else 'static_chunk'}_row_{self._performance_counter_type()}"
+                path = f"//tmp/t/@tablets/0/performance_counters/{counter_name}_count"
+                wait(lambda: get(path) > old_value)
+                assert get(path) == expected
+
         self._create_simple_table(
             "//tmp/t",
             hunks,
@@ -2154,6 +2168,8 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         actual = self._read("//tmp/t", range(100, 200, 2), use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
+        _check_performance_counter(dynamic=True, old_value=0, expected=50)
+
         # Insert rows again to increase last store timestamp.
         rows = [{"key": i, "value": _make_value(2 * i)} for i in range(0, 300, 4)]
         insert_rows("//tmp/t", rows)
@@ -2165,13 +2181,12 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         actual = self._read("//tmp/t", range(100, 200, 2), use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
+        _check_performance_counter(dynamic=True, old_value=50, expected=100)
+
         # Lookup key without cache.
         self._read("//tmp/t", [2])
 
-        if peer_count == 1:
-            path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
-            wait(lambda: get(path) > 0)
-            assert get(path) == 1
+        _check_performance_counter(dynamic=False, old_value=0, expected=1)
 
     @authors("lukyan")
     @pytest.mark.timeout(200)
