@@ -56,6 +56,7 @@ target_link_libraries(server-lib-hydra PUBLIC
   logging-backends-stream
   streams-lz-lz4
   streams-lz-snappy
+  cpp-containers-absl_flat_hash
   contrib-libs-protobuf
 )
 
