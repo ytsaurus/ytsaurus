@@ -49,7 +49,7 @@ public:
     //! Sets master memory usage to zero.
     void ClearMasterMemory();
 
-    const NChunkClient::TMediumMap<i64>& DiskSpace() const;
+    const NChunkClient::TCompactMediumMap<i64>& DiskSpace() const;
 
     i64 GetTotalMasterMemory() const;
 
@@ -103,7 +103,7 @@ private:
      *  missing an entry in this map. In particular, setting zero disk space for
      *  a medium leads to erasing it from the map altogether.
      */
-    NChunkClient::TMediumMap<i64> DiskSpace_;
+    NChunkClient::TCompactMediumMap<i64> DiskSpace_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
