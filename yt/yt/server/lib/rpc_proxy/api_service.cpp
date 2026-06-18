@@ -5491,7 +5491,8 @@ void TApiService::DoModifyRows(
             }
         } else if (index < request.row_legacy_locks_size()) {
             auto legacyLocks = TLegacyLockMask(request.row_legacy_locks(index));
-            for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
+            int lockedPrefixLength = legacyLocks.GetLockedPrefixLength();
+            for (int index = 0; index < lockedPrefixLength; ++index) {
                 lockMask.Set(index, legacyLocks.Get(index));
             }
         } else if (index < request.row_locks_size()) {
