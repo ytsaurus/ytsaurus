@@ -93,22 +93,21 @@ public:
             length,
             options.Cookie);
 
-        // NB. For now causal dependency (i.e. read after write, write after write)
-        // is resolved by making reads and writes serialized.
-        TWallTimer lockTimer;
-        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
-            .ValueOrThrow();
-        auto lockDuration = lockTimer.GetElapsedTime();
-
         if (length == 0) {
-            YT_LOG_DEBUG("Finished reading from chunk (Offset: %v, Length: %v, LockDuration: %v, Cookie: %x)",
+            YT_LOG_DEBUG("Finished reading from chunk (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
                 length,
-                lockDuration,
                 options.Cookie);
 
             return MakeFuture<TReadResponse>({});
         }
+
+        // NB. For now causal dependency (i.e. read after write, write after write) is resolved
+        // by making reads and writes serialized. Simultaneous reads can be done in parallel.
+        TWallTimer lockTimer;
+        auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
+            .ValueOrThrow();
+        auto lockDuration = lockTimer.GetElapsedTime();
 
         TWallTimer throttleTimer;
         auto throttleRspOrError = WaitFor(ReadThrottler_->Throttle(length));
@@ -165,22 +164,21 @@ public:
             data.size(),
             options.Cookie);
 
+        if (data.size() == 0) {
+            YT_LOG_DEBUG("Finished writing to chunk (Offset: %v, Length: %v, Cookie: %x)",
+                offset,
+                data.size(),
+                options.Cookie);
+
+            return MakeFuture<TWriteResponse>({});
+        }
+
         // NB. For now causal dependency (i.e. read after write, write after write)
         // is resolved by making reads and writes serialized.
         TWallTimer lockTimer;
         auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
             .ValueOrThrow();
         auto lockDuration = lockTimer.GetElapsedTime();
-
-        if (data.size() == 0) {
-            YT_LOG_DEBUG("Finished writing to chunk (Offset: %v, Length: %v, LockDuration: %v, Cookie: %x)",
-                offset,
-                data.size(),
-                lockDuration,
-                options.Cookie);
-
-            return MakeFuture<TWriteResponse>({});
-        }
 
         TWallTimer throttleTimer;
         auto throttleRspOrError = WaitFor(WriteThrottler_->Throttle(data.size()));
