@@ -10583,36 +10583,47 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_port_count(jobSpecConfig->PortCount);
     jobSpec->set_use_porto_memory_tracking(jobSpecConfig->UsePortoMemoryTracking);
 
-    if (Config_->EnableTmpfs) {
-        // COMPAT(krasovav)
-        std::vector<TTmpfsVolumeConfigPtr> requestedTmpfsVolumeConfigs;
-        requestedTmpfsVolumeConfigs.resize(jobSpecConfig->Volumes.size());
-        for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
-            const auto& tmpfsVolume = jobSpecConfig->Volumes[volumeMount->VolumeId];
-
-            if (!tmpfsVolume->DiskRequest) {
+    if (!Config_->EnableTmpfs) {
+        for (const auto& [_, volume] : jobSpecConfig->Volumes) {
+            if (!volume->DiskRequest || !volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()) {
                 continue;
             }
+            THROW_ERROR_EXCEPTION("Tmpfs creation is disabled on this cluster. The operation cannot be started because tmpfs is requested in its specification");
+        }
+    }
 
-            auto tmpfsDiskRequest = tmpfsVolume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>();
-            if (!tmpfsDiskRequest) {
-                continue;
-            }
+    // COMPAT(krasovav)
+    std::vector<TTmpfsVolumeConfigPtr> requestedTmpfsVolumeConfigs;
+    requestedTmpfsVolumeConfigs.resize(jobSpecConfig->Volumes.size());
+    int maxTmpfsIndex = -1;
+    for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
+        const auto& tmpfsVolume = jobSpecConfig->Volumes[volumeMount->VolumeId];
 
-            auto volume = New<TTmpfsVolumeConfig>();
-            volume->Path = volumeMount->MountPath.string();
-            volume->Size = tmpfsDiskRequest->DiskSpace;
-
-            YT_VERIFY(tmpfsDiskRequest->TmpfsIndex);
-            requestedTmpfsVolumeConfigs[*tmpfsDiskRequest->TmpfsIndex] = std::move(volume);
+        if (!tmpfsVolume->DiskRequest) {
+            continue;
         }
 
-        for (const auto& tmpfsDiskRequest : requestedTmpfsVolumeConfigs) {
-            if (!tmpfsDiskRequest) {
-                break;
-            }
-            ToProto(jobSpec->add_tmpfs_volumes(), *tmpfsDiskRequest);
+        auto tmpfsDiskRequest = tmpfsVolume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>();
+        if (!tmpfsDiskRequest) {
+            continue;
         }
+
+        auto volume = New<TTmpfsVolumeConfig>();
+        volume->Path = volumeMount->MountPath.string();
+        volume->Size = tmpfsDiskRequest->DiskSpace;
+
+        YT_VERIFY(tmpfsDiskRequest->TmpfsIndex);
+        maxTmpfsIndex = std::max(maxTmpfsIndex, *tmpfsDiskRequest->TmpfsIndex);
+        requestedTmpfsVolumeConfigs[*tmpfsDiskRequest->TmpfsIndex] = std::move(volume);
+    }
+    requestedTmpfsVolumeConfigs.resize(maxTmpfsIndex + 1);
+
+
+    for (const auto& tmpfsDiskRequest : requestedTmpfsVolumeConfigs) {
+        if (!tmpfsDiskRequest) {
+            break;
+        }
+        ToProto(jobSpec->add_tmpfs_volumes(), *tmpfsDiskRequest);
     }
 
     // COMPAT(krasovav)
@@ -10641,26 +10652,14 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 layerPathToUserFile[file.GetPath()] = &file;
             }
         }
-
-        THashSet<std::string> volumesNotAllowedToBeCreated;
-        for (const auto& [name, volume] : jobSpecConfig->Volumes) {
-            if (IsDiskRequestTmpfs(volume->DiskRequest) && !Config_->EnableTmpfs) {
-                volumesNotAllowedToBeCreated.insert(name);
-            }
-        }
-
         for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
-            if (!volumesNotAllowedToBeCreated.contains(volumeMount->VolumeId)) {
-                ToProto(jobSpec->add_job_volume_mounts(), *volumeMount);
-            }
+            ToProto(jobSpec->add_job_volume_mounts(), *volumeMount);
         }
 
         auto* protoVolumes = jobSpec->mutable_volumes();
         for (const auto& [name, volume]: jobSpecConfig->Volumes) {
-            if (!volumesNotAllowedToBeCreated.contains(name)) {
-                auto& protoVolume = (*protoVolumes)[name];
-                ToProto(&protoVolume, *volume, layerPathToUserFile);
-            }
+            auto& protoVolume = (*protoVolumes)[name];
+            ToProto(&protoVolume, *volume, layerPathToUserFile);
         }
 
         // COMPAT(krasovav)
@@ -10822,6 +10821,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 // or no image at all (same as with the main job), so we clear it in this case.
                 protoSidecar.clear_docker_image();
             }
+        }
+
+        for (const auto& volumeMount : sidecarSpec->SidecarVolumeMounts) {
+            ToProto(protoSidecar.add_sidecar_volume_mounts(), *volumeMount);
         }
     }
 

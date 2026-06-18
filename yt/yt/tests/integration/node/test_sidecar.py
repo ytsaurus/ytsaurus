@@ -55,8 +55,22 @@ class SidecarVanillaBase(YTEnvSetup):
                                 "command": sidecar_command,
                                 "docker_image": self.get_docker_image(),
                                 "restart_policy": sidecar_restart_policy,
+                                "sidecar_volume_mounts": [
+                                    {
+                                        "volume_id": "sidecar_root",
+                                        "mount_path": "/",
+                                    }
+                                ] if self.get_docker_image() is None else [],
                             }
-                        }
+                        },
+                        "volumes": {
+                            "sidecar_root": {
+                                "disk_request": {
+                                    "type": "local_disk",
+                                    "disk_space": 1024 * 1024 * 10,
+                                }
+                            }
+                        } if self.get_docker_image() is None else {},
                     },
                 },
             },
@@ -92,8 +106,22 @@ class SidecarVanillaBase(YTEnvSetup):
                                 "command": sidecar_command,
                                 "docker_image": self.get_docker_image(),
                                 "restart_policy": sidecar_restart_policy,
+                                "sidecar_volume_mounts": [
+                                    {
+                                        "volume_id": "sidecar_root",
+                                        "mount_path": "/",
+                                    }
+                                ] if self.get_docker_image() is None else [],
                             }
-                        }
+                        },
+                        "volumes": {
+                            "sidecar_root": {
+                                "disk_request": {
+                                    "type": "local_disk",
+                                    "disk_space": 1024 * 1024 * 10,
+                                }
+                            }
+                        } if self.get_docker_image() is None else {},
                     },
                 },
             },
@@ -215,12 +243,32 @@ class SidecarVanillaBase(YTEnvSetup):
                             "sidecar1": {
                                 "command": sidecar1_command,
                                 "docker_image": self.get_docker_image(),
+                                "sidecar_volume_mounts": [
+                                    {
+                                        "volume_id": "sidecar_root",
+                                        "mount_path": "/",
+                                    }
+                                ] if self.get_docker_image() is None else [],
                             },
                             "sidecar2": {
                                 "command": sidecar2_command,
                                 "docker_image": self.get_docker_image(),
+                                "sidecar_volume_mounts": [
+                                    {
+                                        "volume_id": "sidecar_root",
+                                        "mount_path": "/",
+                                    }
+                                ] if self.get_docker_image() is None else [],
                             }
                         },
+                        "volumes": {
+                            "sidecar_root": {
+                                "disk_request": {
+                                    "type": "local_disk",
+                                    "disk_space": 1024 * 1024 * 10,
+                                }
+                            }
+                        } if self.get_docker_image() is None else {},
                     },
                 },
             },
@@ -529,8 +577,22 @@ fi
                                 "command": sidecar_command,
                                 "docker_image": self.get_docker_image(),
                                 "restart_policy": "fail_on_error",
+                                "sidecar_volume_mounts": [
+                                    {
+                                        "volume_id": "sidecar_root",
+                                        "mount_path": "/",
+                                    }
+                                ] if self.get_docker_image() is None else [],
                             }
-                        }
+                        },
+                        "volumes": {
+                            "sidecar_root": {
+                                "disk_request": {
+                                    "type": "local_disk",
+                                    "disk_space": 1024 * 1024 * 10,
+                                }
+                            }
+                        } if self.get_docker_image() is None else {},
                     },
                 },
             },
@@ -595,8 +657,22 @@ fi
                                     "signal": "SIGUSR1",
                                     "timeout": 1000
                                 },
+                                "sidecar_volume_mounts": [
+                                    {
+                                        "volume_id": "sidecar_root",
+                                        "mount_path": "/",
+                                    }
+                                ] if self.get_docker_image() is None else [],
                             },
                         },
+                        "volumes": {
+                            "sidecar_root": {
+                                "disk_request": {
+                                    "type": "local_disk",
+                                    "disk_space": 1024 * 1024 * 10,
+                                }
+                            }
+                        } if self.get_docker_image() is None else {},
                     },
                 },
             },
@@ -619,9 +695,297 @@ fi
 class TestPortoSidecar(SidecarVanillaBase):
     USE_PORTO = True
 
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "volume_manager": {
+                "enable_disk_quota": False
+            },
+        },
+    }
+
+    @authors("krasovav")
+    def test_shared_volume(self):
+        op = vanilla(
+            track=True,
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "command": "ls",
+                        "sidecars": {
+                            "sidecar1": {
+                                "command": "ls",
+                                "sidecar_volume_mounts": [
+                                    {
+                                        "volume_id": "shared_root",
+                                        "mount_path": "/",
+                                    }
+                                ],
+                            }
+                        },
+                        "volumes": {
+                            "shared_root": {
+                                "disk_request": {
+                                    "type": "local_disk",
+                                    "disk_space": 1024 * 1024 * 10,
+                                }
+                            }
+                        },
+                        "job_volume_mounts": [
+                            {
+                                "volume_id": "shared_root",
+                                "mount_path": "/",
+                            },
+                        ],
+                    },
+                },
+            },
+        )
+        wait(lambda: op.get_state() == "completed")
+
+    @authors("krasovav")
+    def test_sidecar_without_root_volume(self):
+        with raises_yt_error("Options \"SidecarVolumeMounts\" must have root volume"):
+            vanilla(
+                track=True,
+                spec={
+                    "tasks": {
+                        "master": {
+                            "job_count": 1,
+                            "command": "ls",
+                            "sidecars": {
+                                "sidecar1": {
+                                    "command": "ls",
+                                }
+                            },
+                        },
+                    },
+                },
+            )
+
+    @authors("krasovav")
+    def test_sidecar_root_volume_without_disk_request(self):
+        with raises_yt_error("Sidecar root volume must have \"disk_request\""):
+            vanilla(
+                track=True,
+                spec={
+                    "tasks": {
+                        "master": {
+                            "job_count": 1,
+                            "command": "ls",
+                            "sidecars": {
+                                "sidecar1": {
+                                    "command": "ls",
+                                    "sidecar_volume_mounts": [
+                                        {
+                                            "volume_id": "sidecar_root",
+                                            "mount_path": "/",
+                                        },
+                                    ]
+                                }
+                            },
+                            "volumes": {
+                                "sidecar_root": {},
+                            },
+                        },
+                    },
+                },
+            )
+
+    @authors("krasovav")
+    def test_sidecar_requested_volume_but_not_described(self):
+        with raises_yt_error("Volume was requested but not described"):
+            vanilla(
+                track=True,
+                spec={
+                    "tasks": {
+                        "master": {
+                            "job_count": 1,
+                            "command": "ls",
+                            "sidecars": {
+                                "sidecar1": {
+                                    "command": "ls",
+                                    "sidecar_volume_mounts": [
+                                        {
+                                            "volume_id": "sidecar_root",
+                                            "mount_path": "/",
+                                        },
+                                        {
+                                            "volume_id": "404",
+                                            "mount_path": "/sandbox",
+                                        }
+                                    ],
+                                }
+                            },
+                            "volumes": {
+                                "sidecar_root": {
+                                    "disk_request": {
+                                        "type": "local_disk",
+                                        "disk_space": 1024 * 1024 * 10,
+                                    }
+                                }
+                            },
+                        },
+                    },
+                },
+            )
+
+    @authors("krasovav")
+    def test_shared_root_volume_as_non_root(self):
+        with raises_yt_error("Root volume job_root cannot be shared as non-root volumes"):
+            vanilla(
+                track=True,
+                spec={
+                    "tasks": {
+                        "master": {
+                            "job_count": 1,
+                            "command": "ls",
+                            "sidecars": {
+                                "sidecar1": {
+                                    "command": "ls",
+                                    "sidecar_volume_mounts": [
+                                        {
+                                            "volume_id": "sidecar_root",
+                                            "mount_path": "/",
+                                        },
+                                        {
+                                            "volume_id": "job_root",
+                                            "mount_path": "/sandbox",
+                                        }
+                                    ],
+                                }
+                            },
+                            "volumes": {
+                                "sidecar_root": {
+                                    "disk_request": {
+                                        "type": "local_disk",
+                                        "disk_space": 1024 * 1024 * 10,
+                                    }
+                                },
+                                "job_root": {
+                                    "disk_request": {
+                                        "type": "local_disk",
+                                        "disk_space": 1024 * 1024 * 10,
+                                    }
+                                }
+                            },
+                            "job_volume_mounts": [
+                                {
+                                    "volume_id": "job_root",
+                                    "mount_path": "/",
+                                },
+                            ],
+                        },
+                    },
+                },
+            )
+
+    @authors("krasovav")
+    def test_sidecar_volume_mounts_contains_only_unique_mount_path(self):
+        with raises_yt_error("Options \"sidecar_volume_mounts\" must contains only unique mount path"):
+            vanilla(
+                track=True,
+                spec={
+                    "tasks": {
+                        "master": {
+                            "job_count": 1,
+                            "command": "ls",
+                            "sidecars": {
+                                "sidecar1": {
+                                    "command": "ls",
+                                    "sidecar_volume_mounts": [
+                                        {
+                                            "volume_id": "sidecar_root",
+                                            "mount_path": "/",
+                                        },
+                                        {
+                                            "volume_id": "first-non-root",
+                                            "mount_path": "/sandbox",
+                                        },
+                                        {
+                                            "volume_id": "second-non-root",
+                                            "mount_path": "/sandbox",
+                                        }
+                                    ],
+                                }
+                            },
+                            "volumes": {
+                                "sidecar_root": {
+                                    "disk_request": {
+                                        "type": "local_disk",
+                                        "disk_space": 1024 * 1024 * 10,
+                                    }
+                                },
+                                "first-non-root": {
+                                    "disk_request": {
+                                        "type": "tmpfs",
+                                        "disk_space": 1024 * 1024,
+                                    },
+                                },
+                                "second-non-root": {
+                                    "disk_request": {
+                                        "type": "tmpfs",
+                                        "disk_space": 1024 * 1024,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            )
+
+    @authors("krasovav")
+    def test_nested_volume_inside_shared_volume(self):
+        with raises_yt_error("Shared volume shared_root cannot have nested volumes"):
+            vanilla(
+                track=True,
+                spec={
+                    "tasks": {
+                        "master": {
+                            "job_count": 1,
+                            "command": "ls",
+                            "sidecars": {
+                                "sidecar1": {
+                                    "command": "ls",
+                                    "sidecar_volume_mounts": [
+                                        {
+                                            "volume_id": "shared_root",
+                                            "mount_path": "/",
+                                        },
+                                        {
+                                            "volume_id": "non-root",
+                                            "mount_path": "/sandbox",
+                                        }
+                                    ],
+                                }
+                            },
+                            "volumes": {
+                                "shared_root": {
+                                    "disk_request": {
+                                        "type": "local_disk",
+                                        "disk_space": 1024 * 1024 * 10,
+                                    }
+                                },
+                                "non-root": {
+                                    "disk_request": {
+                                        "type": "tmpfs",
+                                        "disk_space": 1024 * 1024,
+                                    }
+                                },
+                            },
+                            "job_volume_mounts": [
+                                {
+                                    "volume_id": "shared_root",
+                                    "mount_path": "/",
+                                },
+                            ],
+                        },
+                    },
+                },
+            )
+
 
 ##################################################################
-
 
 class TestCriSidecar(SidecarVanillaBase):
     JOB_ENVIRONMENT_TYPE = "cri"
