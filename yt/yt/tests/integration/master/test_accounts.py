@@ -15,7 +15,7 @@ from yt_commands import (
 from yt.yson import to_yson_type, YsonEntity
 from yt.common import YtError
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, account_usage_all_zero
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from flaky import flaky
@@ -3560,7 +3560,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         remove("//tmp/yt/renadeen/never_mind")
         gc_collect()
-        wait(lambda: get("//sys/accounts/huj/@resource_usage/master_memory/total") == 0)
+        wait(lambda: account_usage_all_zero(get("//sys/accounts/huj/@recursive_resource_usage")))
         remove_account("huj", authenticated_user="babenko", sync=False)
         wait(lambda: not exists("//sys/accounts/huj"))
         with raises_yt_error("Access denied"):
@@ -4713,7 +4713,7 @@ class TestAccountsStatisticsUpdatesGossip(TestAccountsMulticell):
 
         remove("//tmp/t")
         gc_collect()
-        wait(lambda: get("//sys/accounts/max/@resource_usage/master_memory/total") == 0)
+        wait(lambda: account_usage_all_zero(get("//sys/accounts/max/@recursive_resource_usage")))
         remove_account("max")
         sleep(1)  # wait for gossip
 

@@ -16,7 +16,7 @@ from yt_commands import (
     get_active_primary_master_follower_address, sync_mount_table, sync_create_cells, check_permission,
     get_driver, create_access_control_object_namespace, create_chaos_cell_bundle)
 
-from yt_helpers import get_current_time, profiler_factory
+from yt_helpers import get_current_time, profiler_factory, account_usage_all_zero
 
 from yt.common import YtError, YtResponseError, WaitFailed
 from yt.environment.helpers import assert_items_equal
@@ -731,7 +731,7 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/p1/f")
         remove("//tmp/p2/f")
         gc_collect()
-        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") == 0)
+        wait(lambda: account_usage_all_zero(get("//sys/accounts/a/@recursive_resource_usage")))
         remove("//sys/accounts/a")
         wait(lambda: not exists("//sys/accounts/a"))
 
