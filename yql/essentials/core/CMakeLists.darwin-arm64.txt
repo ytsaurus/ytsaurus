@@ -29,6 +29,7 @@ add_subdirectory(cbo)
 add_subdirectory(qplayer)
 add_subdirectory(file_storage)
 add_subdirectory(layers)
+add_subdirectory(langver)
 add_subdirectory(minsketch)
 add_subdirectory(histogram)
 add_subdirectory(expr_nodes)
@@ -59,6 +60,7 @@ target_link_libraries(yql-essentials-core PUBLIC
   core-url_lister-interface
   core-url_preprocessing-interface
   essentials-core-layers
+  essentials-core-langver
   yql-essentials-minikql
   minikql-jsonpath-parser
   essentials-core-minsketch
