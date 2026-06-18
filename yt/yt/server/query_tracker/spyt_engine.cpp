@@ -141,7 +141,7 @@ struct IConnectServerLauncher
 
     virtual bool TryConnectToExistingSession() = 0;
 
-    virtual void StartDriver(const std::string& token) = 0;
+    virtual void StartDriver() = 0;
 
     virtual std::string WaitForSparkConnectEndpoint() = 0;
 
@@ -287,14 +287,12 @@ public:
         return false;
     }
 
-    void StartDriver(const std::string& token) override
+    void StartDriver() override
     {
-        auto specNode = CreateDriverSpec(token);
+        auto specNode = CreateDriverSpec();
         auto spec = ConvertToYsonString(specNode);
-        specNode->RemoveChild("secure_vault");
-        auto reducedSpec = ConvertToYsonString(specNode);
         YT_LOG_DEBUG("Created Spark connect driver specification (DriverSpecification: %v)",
-            reducedSpec);
+            spec);
 
         auto opFuture = TargetClusterClient_->StartOperation(EOperationType::Vanilla, spec);
         DriverOperationId_ = WaitFor(opFuture)
@@ -360,7 +358,6 @@ private:
         command.AppendFormat(" --conf spark.ytsaurus.squashfs.enabled=%v", Config_->UseSquashfs);
         command.AppendFormat(" --conf spark.driver.extraJavaOptions='-Djava.net.preferIPv6Addresses=%v'", Config_->PreferIpv6);
         command.AppendFormat(" --conf spark.connect.grpc.binding.port=%v", Config_->GrpcPort);
-        command.AppendFormat(" --conf spark.ytsaurus.connect.token.refresh.period=%vs", Config_->RefreshTokenPeriod.Seconds());
         command.AppendString(" --conf spark.ytsaurus.arrow.stringToBinary=true");
         command.AppendString(" --conf spark.ytsaurus.driver.operation.id=$YT_OPERATION_ID");
         for (auto confEntry : Settings_->SparkConf) {
@@ -380,7 +377,7 @@ private:
         }
     }
 
-    IMapNodePtr CreateDriverSpec(const std::string& token) const
+    IMapNodePtr CreateDriverSpec() const
     {
         std::string sparkHome = Config_->UseSquashfs ? "/usr/lib/spark" : "$HOME/spark";
         std::string sparkDistr = Format("spark-%v-bin-hadoop3", Config_->SparkVersion);
@@ -443,9 +440,8 @@ private:
                     .Item("spark_connect_server_description").Value(DriverOperationDescription_)
                     .Item("settings_hash").Value(SettingsHash_)
                 .EndMap()
-                .Item("secure_vault").BeginMap()
-                    .Item("YT_TOKEN").Value(token)
-                .EndMap()
+                .Item("issue_temporary_token").Value(true)
+                .Item("temporary_token_environment_variable_name").Value("YT_TOKEN")
                 .Item("max_failed_job_count").Value(1)
                 .Item("tasks").BeginMap()
                     .Item("driver").BeginMap()
@@ -555,8 +551,9 @@ public:
         return GrpcEndpoint_ ? true : false;
     }
 
-    void StartDriver(const std::string& token) override
+    void StartDriver() override
     {
+        auto token = IssueToken();
         auto requestBodyString = CreateStartConnectServerRequest(token);
         auto requestBody = TSharedRef::FromString(requestBodyString);
         auto response = WaitFor(HttpClient_->Post(SparkMasterConnectEndpoint_, requestBody, Headers_))
@@ -601,6 +598,21 @@ private:
     std::optional<std::string> GrpcEndpoint_;
     std::optional<std::string> DriverId_;
 
+    std::string IssueToken() const
+    {
+        auto options = TIssueTemporaryTokenOptions{ .ExpirationTimeout = Config_->TokenExpirationTimeout };
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("responsible", "query_tracker");
+        YT_LOG_DEBUG("Requesting token (User: %v)",
+            User_);
+        auto result = WaitFor(TargetClusterClient_->IssueTemporaryToken(User_, attributes, options))
+            .ValueOrThrow();
+        auto token = result.Token;
+        YT_LOG_DEBUG("Token received (User: %v)",
+            User_);
+        return token;
+    }
+
     std::vector<std::string> GetDiscoveryValues(const std::vector<std::string>& keys)
     {
         auto path = Format("%v/discovery", Settings_->DiscoveryPath);
@@ -615,7 +627,7 @@ private:
         for (const auto& key: keys) {
             auto childNode = discoveryNode->GetChildValueOrThrow<IMapNodePtr>(key);
             if (childNode->GetKeys().size() != 1) {
-                THROW_ERROR_EXCEPTION("SPYT discovery path should have exacly one %Qv element", key);
+                THROW_ERROR_EXCEPTION("SPYT discovery path should have exactly one %Qv element", key);
             }
             values.push_back(childNode->GetKeys()[0]);
         }
@@ -778,29 +790,12 @@ private:
     IConnectServerLauncherPtr ServerLauncher_;
     TFuture<TSpytQueryResult> AsyncQueryResult_;
 
-    std::string IssueToken() const
-    {
-        auto options = TIssueTemporaryTokenOptions{ .ExpirationTimeout = Config_->TokenExpirationTimeout };
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("query_id", QueryId_);
-        attributes->Set("responsible", "query_tracker");
-        YT_LOG_DEBUG("Requesting token (User: %v)",
-            User_);
-        auto result = WaitFor(TargetClusterClient_->IssueTemporaryToken(User_, attributes, options))
-            .ValueOrThrow();
-        auto token = result.Token;
-        YT_LOG_DEBUG("Token received (User: %v)",
-            User_);
-        return token;
-    }
-
     std::string PrepareSession()
     {
         if (!ServerLauncher_->TryConnectToExistingSession()) {
             try {
                 YT_LOG_DEBUG("Starting session");
-                auto token = IssueToken();
-                ServerLauncher_->StartDriver(token);
+                ServerLauncher_->StartDriver();
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Caught error while preparing session");
                 throw;

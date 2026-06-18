@@ -104,7 +104,6 @@ struct TSpytEngineConfig
     NHttp::TClientConfigPtr HttpClient;
 
     TDuration TokenExpirationTimeout;
-    TDuration RefreshTokenPeriod;
     TDuration StatusPollPeriod;
 
     TSpytProxyConfigPtr ProxyConfig;
