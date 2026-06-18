@@ -81,15 +81,9 @@ def _default_pivots(shard_count: int, cell_tags: list[str], version: int) -> lis
 def _chunk_replicas(shard_count: int, cell_tags: list[str], version: int) -> list[PivotKey]:
     cell_tags = _normalize_cell_tags(cell_tags)
 
-    if version >= 5:
+    if version >= 3:
         return _build_pivot_keys([
             (Type.CONTINUOUS, _SMALL_HASH_CARDINALITY),
-            (Type.DISCRETE, cell_tags),
-            (Type.DISCRETE, list(range(60))),
-            (Type.CONTINUOUS, _HASH_CARDINALITY),
-        ], shard_count)
-    elif version >= 3:
-        return _build_pivot_keys([
             (Type.DISCRETE, cell_tags),
             (Type.DISCRETE, list(range(60))),
             (Type.CONTINUOUS, _HASH_CARDINALITY),
@@ -101,16 +95,11 @@ def _chunk_replicas(shard_count: int, cell_tags: list[str], version: int) -> lis
 def _location_replicas(shard_count: int, cell_tags: list[str], version: int) -> list[PivotKey]:
     cell_tags = _normalize_cell_tags(cell_tags)
 
-    if version >= 6:
+    if version >= 4:
         return _build_pivot_keys([
             (Type.CONTINUOUS, _SMALL_HASH_CARDINALITY),
             (Type.DISCRETE, cell_tags),
             (Type.CONTINUOUS, _HASH_CARDINALITY),
-        ], shard_count)
-    elif version >= 4:
-        return _build_pivot_keys([
-            (Type.CONTINUOUS, _SMALL_HASH_CARDINALITY),
-            (Type.DISCRETE, cell_tags),
         ], shard_count)
     else:
         return _build_pivot_keys([(Type.DISCRETE, cell_tags)], shard_count)
