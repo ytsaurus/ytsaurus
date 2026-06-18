@@ -224,7 +224,7 @@ void TCompactionHintFetcher::ExecuteEnqueuedPipelines()
     }
 
     i64 requestCount = limit - remainingLimit;
-    YT_VERIFY(RequestThrottler_->TryAcquire(remainingLimit));
+    YT_VERIFY(RequestThrottler_->TryAcquire(requestCount));
     RequestCount_.Increment(requestCount);
 }
 

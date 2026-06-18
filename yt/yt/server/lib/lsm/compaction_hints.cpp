@@ -363,13 +363,6 @@ bool TPartitionCompactionHints::IsCompactionAllowed(
     TDuration dataOffset;
     switch (hint.GetReason()) {
         case EStoreCompactionReason::AggregateTtlCleanupExpected:
-            dataOffset = mountConfig->MinDataVersions == 0
-                ? (mountConfig->MaxDataVersions == 0
-                    ? mountConfig->MinDataTtl
-                    : mountConfig->MaxDataTtl)
-                : mountConfig->MinDataTtl;
-            break;
-
         case EStoreCompactionReason::AggregateDeleteTooManyTimestamps:
         case EStoreCompactionReason::RemoveDuplicates:
         case EStoreCompactionReason::ApplyDeletions:

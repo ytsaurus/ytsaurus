@@ -21,10 +21,13 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::MinHashD
     auto recalculationFinalizer = partition->CompactionHints().Hints()[EPartitionCompactionHintKind::MinHashDigest]
         .BuildRecalculationFinalizer(partition);
 
-    const auto& stores = recalculationFinalizer.Stores();
-
     auto mountConfig = partition->GetTablet()->GetMountConfig();
     const auto& minHashDigestConfig = mountConfig->CompactionHints->MinHashDigest;
+
+    const auto& stores = recalculationFinalizer.Stores();
+    if (stores.empty() || ssize(stores) > minHashDigestConfig->MaxStoreCount) {
+        return;
+    }
 
     // NB(dave11ar): If MinDataVersions = 1, we can remove second version only after first version is older than MinDataTtl.
     auto similarityMode = mountConfig->MinDataVersions == 1
