@@ -3387,7 +3387,7 @@ void TCypressMapNodeProxy::Clear()
     auto keyToChildList = SortHashMapByKeys(keyToChildMap);
 
     // Take shared locks for children.
-    using TChild = std::pair<std::string, TCypressNode*>;
+    using TChild = std::pair<TKey, TCypressNode*>;
     std::vector<TChild> children;
     children.reserve(keyToChildList.size());
     for (const auto& [key, child] : keyToChildList) {
@@ -3411,7 +3411,7 @@ int TCypressMapNodeProxy::GetChildCount() const
         Transaction_);
 }
 
-std::vector<std::pair<std::string, INodePtr>> TCypressMapNodeProxy::GetChildren() const
+auto TCypressMapNodeProxy::GetChildren() const -> std::vector<std::pair<TKey, TValue>>
 {
     TKeyToCypressNode keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
@@ -3420,7 +3420,7 @@ std::vector<std::pair<std::string, INodePtr>> TCypressMapNodeProxy::GetChildren(
         Transaction_,
         &keyToChildStorage);
 
-    std::vector<std::pair<std::string, INodePtr>> result;
+    std::vector<std::pair<TKey, TValue>> result;
     result.reserve(keyToChildMap.size());
     for (const auto& [key, child] : keyToChildMap) {
         result.emplace_back(key, GetProxy(child));
@@ -3429,7 +3429,7 @@ std::vector<std::pair<std::string, INodePtr>> TCypressMapNodeProxy::GetChildren(
     return result;
 }
 
-std::vector<std::string> TCypressMapNodeProxy::GetKeys() const
+auto TCypressMapNodeProxy::GetKeys() const -> std::vector<TKey>
 {
     TKeyToCypressNode keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
@@ -3440,7 +3440,7 @@ std::vector<std::string> TCypressMapNodeProxy::GetKeys() const
     return NYT::GetKeys(keyToChildMap);
 }
 
-INodePtr TCypressMapNodeProxy::FindChild(const std::string& key) const
+auto TCypressMapNodeProxy::FindChild(TKeyView key) const -> TValue
 {
     auto* trunkChildNode = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
@@ -3450,7 +3450,7 @@ INodePtr TCypressMapNodeProxy::FindChild(const std::string& key) const
     return trunkChildNode ? GetProxy(trunkChildNode) : nullptr;
 }
 
-bool TCypressMapNodeProxy::AddChild(const std::string& key, const NYTree::INodePtr& child)
+bool TCypressMapNodeProxy::AddChild(TKeyView key, const TValue& child)
 {
     YT_ASSERT(!key.empty());
 
@@ -3463,7 +3463,7 @@ bool TCypressMapNodeProxy::AddChild(const std::string& key, const NYTree::INodeP
     auto* childImpl = LockImpl(trunkChildImpl);
 
     auto& children = impl->MutableChildren();
-    children.Set(key, trunkChildImpl);
+    children.Set(TKey(key), trunkChildImpl);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->UpdateMasterMemoryUsage(TrunkNode_);
@@ -3477,7 +3477,7 @@ bool TCypressMapNodeProxy::AddChild(const std::string& key, const NYTree::INodeP
     return true;
 }
 
-bool TCypressMapNodeProxy::RemoveChild(const std::string& key)
+bool TCypressMapNodeProxy::RemoveChild(TKeyView key)
 {
     auto* trunkChildImpl = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
@@ -3490,7 +3490,7 @@ bool TCypressMapNodeProxy::RemoveChild(const std::string& key)
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
     auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
-    DoRemoveChild(impl, key, childImpl);
+    DoRemoveChild(impl, TKey(key), childImpl);
 
     SetModified(EModificationType::Content);
 
@@ -3546,7 +3546,7 @@ void TCypressMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr
     SetModified(EModificationType::Content);
 }
 
-std::optional<std::string> TCypressMapNodeProxy::FindChildKey(const IConstNodePtr& child) const
+auto TCypressMapNodeProxy::FindChildKey(const IConstNodePtr& child) const -> std::optional<TKey>
 {
     return FindNodeKey(
         Bootstrap_->GetCypressManager(),

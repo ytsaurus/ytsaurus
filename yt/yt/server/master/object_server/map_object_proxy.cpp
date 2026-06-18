@@ -163,10 +163,10 @@ int TNonversionedMapObjectProxyBase<TObject>::GetChildCount() const
 }
 
 template <class TObject>
-std::vector<std::pair<std::string, INodePtr>> TNonversionedMapObjectProxyBase<TObject>::GetChildren() const
+auto TNonversionedMapObjectProxyBase<TObject>::GetChildren() const -> std::vector<std::pair<TKey, TValue>>
 {
     const auto& keyToChild = TBase::GetThisImpl()->KeyToChild();
-    std::vector<std::pair<std::string, INodePtr>> result;
+    std::vector<std::pair<TKey, TValue>> result;
     result.reserve(keyToChild.size());
     for (const auto& [key, child] : keyToChild) {
         result.emplace_back(key, GetProxy(child));
@@ -176,24 +176,24 @@ std::vector<std::pair<std::string, INodePtr>> TNonversionedMapObjectProxyBase<TO
 }
 
 template <class TObject>
-std::vector<std::string> TNonversionedMapObjectProxyBase<TObject>::GetKeys() const
+auto TNonversionedMapObjectProxyBase<TObject>::GetKeys() const -> std::vector<TKey>
 {
     const auto& keyToChild = TBase::GetThisImpl()->KeyToChild();
     return NYT::GetKeys(keyToChild);
 }
 
 template <class TObject>
-INodePtr TNonversionedMapObjectProxyBase<TObject>::FindChild(const std::string& key) const
+auto TNonversionedMapObjectProxyBase<TObject>::FindChild(TKeyView key) const -> TValue
 {
-    auto* child = TBase::GetThisImpl()->FindChild(key);
+    auto* child = TBase::GetThisImpl()->FindChild(TKey(key));
     return child
         ? GetProxy(child)
         : nullptr;
 }
 
 template <class TObject>
-std::optional<std::string> TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
-    const IConstNodePtr& child) const
+auto TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
+    const IConstNodePtr& child) const -> std::optional<TKey>
 {
     auto childProxy = FromNode(child);
     const auto* childImpl = childProxy->GetThisImpl();
@@ -202,8 +202,8 @@ std::optional<std::string> TNonversionedMapObjectProxyBase<TObject>::FindChildKe
 
 template <class TObject>
 bool TNonversionedMapObjectProxyBase<TObject>::AddChild(
-    const std::string& /*key*/,
-    const INodePtr& /*child*/)
+    TKeyView /*key*/,
+    const TValue& /*child*/)
 {
     THROW_ERROR_EXCEPTION("Use TNonversionedMapObjectFactoryBase::AttachChild() instead");
 }
@@ -270,7 +270,7 @@ void TNonversionedMapObjectProxyBase<TObject>::DoRemoveChild(
 }
 
 template <class TObject>
-bool TNonversionedMapObjectProxyBase<TObject>::RemoveChild(const std::string& key)
+bool TNonversionedMapObjectProxyBase<TObject>::RemoveChild(TKeyView key)
 {
     auto child = FindChild(key);
     if (!child) {

@@ -482,14 +482,14 @@ public:
 
     void Clear() override;
     int GetChildCount() const override;
-    std::vector<std::pair<std::string, NYTree::INodePtr>> GetChildren() const override;
-    std::vector<std::string> GetKeys() const override;
-    NYTree::INodePtr FindChild(const std::string& key) const override;
-    bool AddChild(const std::string& key, const NYTree::INodePtr& child) override;
-    bool RemoveChild(const std::string& key) override;
+    std::vector<std::pair<TKey, TValue>> GetChildren() const override;
+    std::vector<TKey> GetKeys() const override;
+    TValue FindChild(TKeyView key) const override;
+    bool AddChild(TKeyView key, const TValue& child) override;
+    bool RemoveChild(TKeyView key) override;
     void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     void RemoveChild(const NYTree::INodePtr& child) override;
-    std::optional<std::string> FindChildKey(const NYTree::IConstNodePtr& child) const override;
+    std::optional<TKey> FindChildKey(const NYTree::IConstNodePtr& child) const override;
 
 protected:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
