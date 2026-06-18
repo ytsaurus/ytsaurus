@@ -114,10 +114,6 @@ protected:
         MockBuilder_.reset();
         Fetchers_.clear();
 
-        // MinTeleportChunkSize is only relevant for the legacy sorted chunk pool.
-        // In the new sorted pool, chunk teleportability is determined by size checks
-        // in TSortedController (see TLegacyDataSlice::IsTeleportable).
-        Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.Logger = GetTestLogger();

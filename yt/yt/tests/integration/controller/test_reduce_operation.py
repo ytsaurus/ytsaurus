@@ -47,17 +47,10 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         "controller_agent": {
             "operations_update_period": 10,
             "reduce_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": False,
-                },
                 "min_slice_data_weight": 1,
             },
         }
     }
-
-    def skip_if_legacy_sorted_pool(self):
-        if not isinstance(self, TestSchedulerReduceCommandsNewSortedPool):
-            pytest.skip("This test requires new sorted pool")
 
     def _create_simple_dynamic_table(self, path, **attributes):
         if "schema" not in attributes:
@@ -75,9 +68,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @authors("psushin", "klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_tricky_chunk_boundaries(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         rows = [{"key": "0", "value": 1}, {"key": "2", "value": 2}]
         if sort_order == "descending":
@@ -127,9 +117,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @authors("klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_cat(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         rows = [
             {"key": 0, "value": 1},
@@ -188,9 +175,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_column_filter(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         set("//tmp/in1/@optimize_for", "scan")
 
@@ -532,9 +516,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @authors("savrus", "klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_cat_teleport(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         schema = make_schema(
             [
                 {"name": "key", "type": "int64", "sort_order": sort_order},
@@ -746,8 +727,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
     @authors("gritukan")
     def test_different_sort_order(self):
-        self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in")
         create("table", "//tmp/out")
         write_table("//tmp/in", {"key": "1"}, sorted_by=["key"])
@@ -762,9 +741,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @authors("psushin", "klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_short_limits(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
         create("table", "//tmp/out")
@@ -1056,9 +1032,6 @@ echo {v = 2} >&7
     @authors("klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_with_foreign_join_one_job(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         def write(path, rows, sorted_by):
             if sort_order == "descending":
                 rows = rows[::-1]
@@ -1862,8 +1835,6 @@ echo {v = 2} >&7
 
         if dynamic:
             sync_create_cells(1)
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
 
         if dynamic and sort_order == "descending":
             pytest.skip("Dynamic tables do not support descending sort order yet")
@@ -2029,9 +2000,6 @@ echo {v = 2} >&7
     @authors("max42")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_pivot_keys(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create(
             "table",
             "//tmp/t1",
@@ -2213,9 +2181,6 @@ echo {v = 2} >&7
     @authors("renadeen")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_skewed_key_distribution_one_table(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         create("table", "//tmp/out")
 
@@ -2252,8 +2217,6 @@ echo {v = 2} >&7
     @authors("renadeen")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_skewed_key_distribution_two_tables(self, sort_order):
-        self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         create("table", "//tmp/out")
 
@@ -2597,9 +2560,6 @@ echo {v = 2} >&7
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_without_foreign_tables_and_key_guarantee(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create(
             "table",
             "//tmp/in1",
@@ -2647,9 +2607,6 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sort_by_without_key_guarantee(self, sort_order):
         pytest.skip("TODO: gritukan")
-
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
 
         create(
             "table",
@@ -2948,9 +2905,6 @@ for line in sys.stdin:
     def test_tricky_read_limits(self, optimize_for, sort_order):
         if self.Env.get_component_version("ytserver-job-proxy").abi <= (20, 3):
             pytest.skip("Job proxy does not contain fix for the bug yet")
-
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
 
         # YT-14023.
         create(
@@ -3390,28 +3344,6 @@ class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
     }
 
 
-class TestSchedulerReduceCommandsNewSortedPool(TestSchedulerReduceCommands):
-    ENABLE_MULTIDAEMON = True
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,
-            "operations_update_period": 10,
-            "running_allocations_update_period": 10,
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operations_update_period": 10,
-            "reduce_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                },
-            },
-        }
-    }
-
-
 class TestReduceJobSizeAdjuster(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3425,7 +3357,6 @@ class TestReduceJobSizeAdjuster(YTEnvSetup):
                 "spec_template": {
                     "data_size_per_job": 1,
                     "force_job_size_adjuster": True,
-                    "use_new_sorted_pool": True,
                 },
             }
         }

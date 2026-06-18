@@ -17,7 +17,6 @@
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/chunk_pool_outputs_merger.h>
-#include <yt/yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/ordered_chunk_pool.h>
@@ -1094,10 +1093,6 @@ protected:
                     // NB: Intermediate sort uses sort_by as a prefix, while pool expects reduce_by as a prefix.
                     auto keyColumnCount = Controller_->GetSortedMergeSortColumns().size();
                     SetLimitsFromShortenedBoundaryKeys(dataSlice, keyColumnCount, Controller_->RowBuffer_);
-                    // Transform data slice to legacy if legacy sorted pool is used in sorted merge.
-                    if (!Controller_->Spec_->UseNewSortedPool) {
-                        dataSlice->TransformToLegacy(Controller_->RowBuffer_);
-                    }
                     dataSlice->SetInputStreamIndex(inputStreamIndex);
                 }
 
@@ -2793,13 +2788,7 @@ protected:
             chunkPoolOptions.JobSizeAdjusterConfig = Options_->SortedMergeJobSizeAdjuster;
         }
 
-        if (Spec_->UseNewSortedPool) {
-            YT_LOG_DEBUG("Creating new sorted pool");
-            return CreateNewSortedChunkPool(chunkPoolOptions, nullptr /*chunkSliceFetcher*/, IntermediateInputStreamDirectory);
-        } else {
-            YT_LOG_DEBUG("Creating legacy sorted pool");
-            return CreateLegacySortedChunkPool(chunkPoolOptions, nullptr /*chunkSliceFetcher*/, IntermediateInputStreamDirectory);
-        }
+        return CreateNewSortedChunkPool(chunkPoolOptions, nullptr /*chunkSliceFetcher*/, IntermediateInputStreamDirectory);
     }
 
     i64 AccountRows(const TCompletedJobSummary& jobSummary)

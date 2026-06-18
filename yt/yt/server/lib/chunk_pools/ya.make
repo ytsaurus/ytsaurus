@@ -11,9 +11,6 @@ SRCS(
     input_stream.cpp
     job_size_adjuster.cpp
     job_size_tracker.cpp
-    legacy_job_manager.cpp
-    legacy_sorted_chunk_pool.cpp
-    legacy_sorted_job_builder.cpp
     multi_chunk_pool.cpp
     new_job_manager.cpp
     new_sorted_chunk_pool.cpp

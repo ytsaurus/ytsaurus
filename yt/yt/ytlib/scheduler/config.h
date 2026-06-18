@@ -2030,7 +2030,6 @@ private:
 struct TSortedOperationSpec
     : public virtual NYTree::TYsonStruct
 {
-    bool UseNewSortedPool;
     NTableClient::TSortColumns MergeBy;
     std::optional<i64> MinManiacDataWeight;
 
@@ -2204,8 +2203,6 @@ struct TSortOperationSpecBase
     std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
 
     double PartitionSizeFactor;
-
-    bool UseNewSortedPool;
 
     // Desired number of samples per partition.
     int SamplesPerPartition;

@@ -28,18 +28,12 @@ struct TSortedChunkPoolOptions
 {
     TSortedJobOptions SortedJobOptions;
 
-    // Used only in legacy pool. Refer to a commentary in legacy pool's StripeList implementation.
-    bool ReturnNewDataSlices = true;
-
-    // Used only in legacy pool.
-    i64 MinTeleportChunkSize = 0;
     bool SliceForeignChunks = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NTableClient::TRowBufferPtr RowBuffer;
     NLogging::TLogger Logger;
     NLogging::TLogger StructuredLogger;
 
-    // Only for new pool.
     std::optional<i64> MinManiacDataWeight;
     TJobSizeAdjusterConfigPtr JobSizeAdjusterConfig;
     TSortedChunkPoolStatisticsPtr ChunkPoolStatistics;

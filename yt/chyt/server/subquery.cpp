@@ -1091,7 +1091,6 @@ std::vector<TSubquery> BuildThreadSubqueries(
                     .MaxTotalSliceCount = std::numeric_limits<int>::max() / 2,
                     .JobSizeTrackerOptions = jobSizeSpec.JobSizeTrackerOptions,
                 },
-                .MinTeleportChunkSize = std::numeric_limits<i64>::max() / 2,
                 .JobSizeConstraints = jobSizeSpec.JobSizeConstraints,
                 .RowBuffer = queryContext->RowBuffer,
                 .Logger = queryContext->Logger.WithTag("Name: Root"),

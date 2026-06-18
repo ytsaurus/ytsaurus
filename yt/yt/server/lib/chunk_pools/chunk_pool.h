@@ -181,7 +181,6 @@ protected:
     PHOENIX_DECLARE_POLYMORPHIC_TEMPLATE_TYPE(TChunkPoolOutputWithJobManagerBase, 0xf4778601);
 };
 
-using TChunkPoolOutputWithLegacyJobManagerBase = TChunkPoolOutputWithJobManagerBase<TLegacyJobManager>;
 using TChunkPoolOutputWithNewJobManagerBase = TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
 
 template <class TJobManager>

@@ -14,7 +14,6 @@
 #include <yt/yt/server/controller_agent/operation.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
-#include <yt/yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -119,21 +118,11 @@ protected:
             : TTask(controller, std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
             , Controller_(controller)
             , Options_(controller->GetSortedChunkPoolOptions())
-            , UseNewSortedPool_(ParseOperationSpec<TSortedOperationSpec>(ConvertToNode(Controller_->GetSpec()))->UseNewSortedPool)
         {
-            if (UseNewSortedPool_) {
-                YT_LOG_INFO("Operation uses new sorted pool");
-                ChunkPool_ = CreateNewSortedChunkPool(
-                    Options_,
-                    controller->CreateChunkSliceFetcherFactory(),
-                    controller->GetInputStreamDirectory());
-            } else {
-                YT_LOG_INFO("Operation uses legacy sorted pool");
-                ChunkPool_ = CreateLegacySortedChunkPool(
-                    Options_,
-                    controller->CreateChunkSliceFetcherFactory(),
-                    controller->GetInputStreamDirectory());
-            }
+            ChunkPool_ = CreateNewSortedChunkPool(
+                Options_,
+                controller->CreateChunkSliceFetcherFactory(),
+                controller->GetInputStreamDirectory());
 
             ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
@@ -192,22 +181,17 @@ protected:
             dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, prefixLength, TaskHost_->GetRowBuffer());
             dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, prefixLength, TaskHost_->GetRowBuffer());
 
-            if (UseNewSortedPool_) {
-                dataSlice->IsTeleportable = !inputStreamDescriptor.IsVersioned() &&
-                    dataSlice->GetSingleUnversionedChunk()->IsLargeCompleteChunk(Controller_->GetMinTeleportChunkSize());
-                if (!inputStreamDescriptor.IsVersioned()) {
-                    YT_VERIFY(dataSlice->LowerLimit().KeyBound && !dataSlice->LowerLimit().KeyBound.IsUniversal());
-                    YT_VERIFY(dataSlice->UpperLimit().KeyBound && !dataSlice->UpperLimit().KeyBound.IsUniversal());
-                }
-            } else {
-                dataSlice->TransformToLegacy(Controller_->GetRowBuffer());
+            dataSlice->IsTeleportable = !inputStreamDescriptor.IsVersioned() &&
+                dataSlice->GetSingleUnversionedChunk()->IsLargeCompleteChunk(Controller_->GetMinTeleportChunkSize());
+            if (!inputStreamDescriptor.IsVersioned()) {
+                YT_VERIFY(dataSlice->LowerLimit().KeyBound && !dataSlice->LowerLimit().KeyBound.IsUniversal());
+                YT_VERIFY(dataSlice->UpperLimit().KeyBound && !dataSlice->UpperLimit().KeyBound.IsUniversal());
             }
         }
 
     protected:
         TSortedControllerBase* Controller_;
         TSortedChunkPoolOptions Options_;
-        bool UseNewSortedPool_;
 
         //! Initialized in descendandt tasks.
         IPersistentChunkPoolPtr ChunkPool_;
@@ -625,12 +609,10 @@ protected:
         ProcessInputs();
 
         // YT-14081.
-        if (ParseOperationSpec<TSortedOperationSpec>(ConvertToNode(Spec_))->UseNewSortedPool) {
-            JobSizeConstraints_->UpdateInputDataWeight(TotalForeignInputDataSliceWeight_ + TotalPrimaryInputDataSliceWeight_);
-            JobSizeConstraints_->UpdatePrimaryInputDataWeight(TotalPrimaryInputDataSliceWeight_);
-            JobSizeConstraints_->UpdateInputCompressedDataSize(TotalForeignInputDataSliceCompressedDataSize_ + TotalPrimaryInputDataSliceCompressedDataSize_);
-            JobSizeConstraints_->UpdateInputPrimaryCompressedDataSize(TotalPrimaryInputDataSliceCompressedDataSize_);
-        }
+        JobSizeConstraints_->UpdateInputDataWeight(TotalForeignInputDataSliceWeight_ + TotalPrimaryInputDataSliceWeight_);
+        JobSizeConstraints_->UpdatePrimaryInputDataWeight(TotalPrimaryInputDataSliceWeight_);
+        JobSizeConstraints_->UpdateInputCompressedDataSize(TotalForeignInputDataSliceCompressedDataSize_ + TotalPrimaryInputDataSliceCompressedDataSize_);
+        JobSizeConstraints_->UpdateInputPrimaryCompressedDataSize(TotalPrimaryInputDataSliceCompressedDataSize_);
 
         FinishTaskInput(SortedTask_);
         if (AutoMergeTask_) {
@@ -692,7 +674,6 @@ protected:
 
         chunkPoolOptions.RowBuffer = RowBuffer_;
         chunkPoolOptions.SortedJobOptions = jobOptions;
-        chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
         chunkPoolOptions.StructuredLogger = ChunkPoolStructuredLogger()
@@ -781,7 +762,6 @@ void TSortedControllerBase::TSortedTaskBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, Controller_);
     PHOENIX_REGISTER_FIELD(2, ChunkPool_);
     PHOENIX_REGISTER_FIELD(3, TotalOutputRowCount_);
-    PHOENIX_REGISTER_FIELD(4, UseNewSortedPool_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         this_->ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this_)));

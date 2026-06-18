@@ -241,16 +241,9 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
                 "min_partition_size": 1,
                 "max_value_count_per_simple_sort_job": 100,
                 "max_data_slices_per_job": 100,
-                "spec_template": {
-                    "use_new_sorted_pool": False,
-                }
             },
         }
     }
-
-    def skip_if_legacy_sorted_pool(self):
-        if not isinstance(self, TestSchedulerSortCommandsNewSortedPool):
-            pytest.skip("This test requires new sorted pool")
 
     @authors("ignat")
     def test_simple(self):
@@ -799,9 +792,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("psushin", "ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_many_merge(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         v1 = {"key": "aaa"}
         v2 = {"key": "bb"}
         v3 = {"key": "bbxx"}
@@ -833,9 +823,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("max42")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_several_merge_jobs_per_partition(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/t_in")
         rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in range(500)]
         if sort_order == "descending":
@@ -1082,9 +1069,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_one_partition_with_merge(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         self.sort_with_options(optimize_for, sort_order, spec={"data_weight_per_sort_job": 1})
 
     @authors("psushin")
@@ -1103,9 +1087,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_two_partitions_with_merge(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         self.sort_with_options(
             optimize_for,
             sort_order,
@@ -2564,7 +2545,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             op.track()
             assert check_operation_tasks(op, ["simple_sort"])
         elif sort_type == "simple_sort_2_phase":
-            self.skip_if_legacy_sorted_pool()
             spec.update({
                 "data_weight_per_sort_job": 5000,
             })
@@ -2572,7 +2552,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             op.track()
             assert check_operation_tasks(op, ["simple_sort", "sorted_merge"])
         elif sort_type == "2_phase":
-            self.skip_if_legacy_sorted_pool()
             spec.update({
                 "partition_count": 3,
                 "data_weight_per_sort_job": 10 ** 8,
@@ -2590,7 +2569,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             op.track()
             assert check_operation_tasks(op, ["partition(0)", "partition(1)", "final_sort"])
         elif sort_type == "3_phase":
-            self.skip_if_legacy_sorted_pool()
             spec.update({
                 "partition_count": 2,
                 "data_weight_per_sort_job": 5000,
@@ -2605,7 +2583,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             op.track()
             assert check_operation_tasks(op, ["partition(0)", "intermediate_sort", "sorted_merge"])
         elif sort_type == "3_phase_hierarchical":
-            self.skip_if_legacy_sorted_pool()
             spec.update({
                 "partition_count": 3,
                 "max_partition_factor": 2,
@@ -2730,21 +2707,4 @@ class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
-    }
-
-
-class TestSchedulerSortCommandsNewSortedPool(TestSchedulerSortCommands):
-    ENABLE_MULTIDAEMON = True
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "sort_operation_options": {
-                "min_uncompressed_block_size": 1,
-                "min_partition_size": 1,
-                "max_value_count_per_simple_sort_job": 100,
-                "max_data_slices_per_job": 100,
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                },
-            },
-        }
     }
