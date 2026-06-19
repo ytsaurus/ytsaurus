@@ -36,7 +36,7 @@ DEFINE_REFCOUNTED_TYPE(TStrictMockTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> GetNames(const THashMap<TString, IAttributeDictionaryPtr>& listResult)
+std::vector<std::string> GetNames(const THashMap<std::string, IAttributeDictionaryPtr>& listResult)
 {
     auto result = GetKeys(listResult);
     std::sort(result.begin(), result.end());
@@ -64,7 +64,7 @@ TEST(TDiscoveryTest, Simple)
     WaitFor(discovery->StartPolling())
         .ThrowOnError();
 
-    std::vector<TString> expected = {"alive_node"};
+    std::vector<std::string> expected = {"alive_node"};
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
 
     WaitFor(discovery->StopPolling())
@@ -136,13 +136,13 @@ TEST(TDiscoveryTest, Enter)
     WaitFor(discovery->StartPolling())
         .ThrowOnError();
 
-    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<std::string>()));
 
     WaitFor(discovery->Enter("test_node", CreateEphemeralAttributes()))
         .ThrowOnError();
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
-    std::vector<TString> expected = {"test_node"};
+    std::vector<std::string> expected = {"test_node"};
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
 
     WaitFor(discovery->StopPolling())
@@ -224,7 +224,7 @@ TEST(TDiscoveryTest, Leave)
     WaitFor(discovery->StartPolling())
         .ThrowOnError();
 
-    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<std::string>()));
 
     WaitFor(discovery->Enter("test_node", attrs))
         .ThrowOnError();
@@ -233,7 +233,7 @@ TEST(TDiscoveryTest, Leave)
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
 
-    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<std::string>()));
     EXPECT_THAT(created, true);
     EXPECT_THAT(locked, false);
 
@@ -260,7 +260,7 @@ TEST(TDiscoveryTest, Ban)
                 .Item().Value(TYsonString(TStringBuf("<locks=[{};{child_key=lock}]>alive_node2")))
             .EndList())));
 
-    std::vector<TString> expected = {"alive_node1", "alive_node2"};
+    std::vector<std::string> expected = {"alive_node1", "alive_node2"};
 
     auto config = New<TDiscoveryV1Config>();
     config->Directory = path;
@@ -285,9 +285,9 @@ TEST(TDiscoveryTest, Ban)
         .ThrowOnError();
 }
 
-THashMap<TString, std::vector<std::string>> GetAttributesKeys(THashMap<TString, IAttributeDictionaryPtr> listResult)
+THashMap<std::string, std::vector<std::string>> GetAttributesKeys(THashMap<std::string, IAttributeDictionaryPtr> listResult)
 {
-    THashMap<TString, std::vector<std::string>> result;
+    THashMap<std::string, std::vector<std::string>> result;
     for (const auto& [name, attributes] : listResult) {
         result[name] = attributes->ListKeys();
         std::sort(result[name].begin(), result[name].end());
@@ -337,7 +337,7 @@ TEST(TDiscoveryTest, Attributes)
     WaitFor(discovery->StartPolling())
         .ThrowOnError();
 
-    THashMap<TString, std::vector<std::string>> expected;
+    THashMap<std::string, std::vector<std::string>> expected;
     expected["alive_node1"] = expected["alive_node2"] = {"a1", "a2", "locks"};
 
     EXPECT_THAT(discovery->List(), ResultOf(GetAttributesKeys, expected));
@@ -398,13 +398,13 @@ TEST(TDiscoveryTest, CreationRace)
     WaitFor(discovery->StartPolling())
         .ThrowOnError();
 
-    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
+    EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<std::string>()));
 
     auto enterFuture = discovery->Enter("test_node", CreateEphemeralAttributes());
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
 
-    std::vector<TString> expected = {"test_node"};
+    std::vector<std::string> expected = {"test_node"};
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
 
     allowLockResponse.Set();

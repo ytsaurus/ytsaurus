@@ -14,20 +14,20 @@ struct IDiscovery
     //! Make this participant exposed to the group.
     //! It doesn't update the stored list of participants,
     //! but will add {name, attributes} in every result of List().
-    virtual TFuture<void> Enter(TString name, NYTree::IAttributeDictionaryPtr attributes) = 0;
+    virtual TFuture<void> Enter(std::string name, NYTree::IAttributeDictionaryPtr attributes) = 0;
     //! Make this participant unexposed to the group.
     //! It doesn't update the stored list of participants.
     virtual TFuture<void> Leave() = 0;
 
     //! Return the list of participants stored in data structure.
-    virtual THashMap<TString, NYTree::IAttributeDictionaryPtr> List(bool includeBanned = false) const = 0;
+    virtual THashMap<std::string, NYTree::IAttributeDictionaryPtr> List(bool includeBanned = false) const = 0;
     //! Temporary add |name| to the ban list (timeout is specified in discovery config).
     //! Instances from the ban list are excluded from the list of available participants.
-    virtual void Ban(const TString& name) = 0;
-    virtual void Ban(const std::vector<TString>& names) = 0;
+    virtual void Ban(const std::string& name) = 0;
+    virtual void Ban(const std::vector<std::string>& names) = 0;
     //! Remove |name| from the ban list.
-    virtual void Unban(const TString& name) = 0;
-    virtual void Unban(const::std::vector<TString>& names) = 0;
+    virtual void Unban(const std::string& name) = 0;
+    virtual void Unban(const std::vector<std::string>& names) = 0;
 
     //! Force update the list of participants if stored data is older than |maxDivergency|.
     //! Returns a future that becomes set when data is up to date.

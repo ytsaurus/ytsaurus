@@ -14,7 +14,7 @@ using namespace NYTree;
 
 TEST(TTestClickHouseHelpersTest, FindMaxIncarnation)
 {
-    THashMap<TString, IAttributeDictionaryPtr> instances;
+    THashMap<std::string, IAttributeDictionaryPtr> instances;
     instances["instance_1"] = ConvertToAttributes(THashMap<TString, int>{
         {"clique_incarnation", 1},
     });

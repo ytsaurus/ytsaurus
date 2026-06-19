@@ -920,8 +920,8 @@ private:
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
 
-    THashSet<TString> KnownInstances_;
-    THashMap<TString, int> UnknownInstancePingCounter_;
+    THashSet<std::string> KnownInstances_;
+    THashMap<std::string, int> UnknownInstancePingCounter_;
 
     IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
 
@@ -1040,9 +1040,9 @@ private:
         YT_UNUSED_FUTURE(Discovery_->UpdateList());
     }
 
-    THashMap<TString, NYTree::IAttributeDictionaryPtr> FilterNodesByCliqueId(const THashMap<TString, NYTree::IAttributeDictionaryPtr>& nodes) const
+    THashMap<std::string, NYTree::IAttributeDictionaryPtr> FilterNodesByCliqueId(const THashMap<std::string, NYTree::IAttributeDictionaryPtr>& nodes) const
     {
-        THashMap<TString, NYTree::IAttributeDictionaryPtr> result;
+        THashMap<std::string, NYTree::IAttributeDictionaryPtr> result;
         for (const auto& [key, attributes] : nodes) {
             if (!attributes || !attributes->Contains("clique_id")) {
                 continue;
@@ -1081,8 +1081,8 @@ private:
 
         // TODO(max42): better logging.
 
-        std::vector<TString> alive;
-        std::vector<TString> dead;
+        std::vector<std::string> alive;
+        std::vector<std::string> dead;
 
         alive.reserve(nodes.size());
 

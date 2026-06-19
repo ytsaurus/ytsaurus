@@ -17,11 +17,11 @@ public:
         IInvokerPtr invoker,
         NLogging::TLogger logger);
 
-    THashMap<TString, NYTree::IAttributeDictionaryPtr> List(bool includeBanned = false) const override;
-    void Ban(const TString& name) override;
-    void Ban(const std::vector<TString>& names) override;
-    void Unban(const TString& name) override;
-    void Unban(const::std::vector<TString>& names) override;
+    THashMap<std::string, NYTree::IAttributeDictionaryPtr> List(bool includeBanned = false) const override;
+    void Ban(const std::string& name) override;
+    void Ban(const std::vector<std::string>& names) override;
+    void Unban(const std::string& name) override;
+    void Unban(const std::vector<std::string>& names) override;
     TFuture<void> UpdateList(TDuration maxDivergency = TDuration::Zero()) override;
     TFuture<void> StartPolling() override;
     TFuture<void> StopPolling() override;
@@ -30,12 +30,12 @@ protected:
     TDiscoveryBaseConfigPtr Config_;
     IInvokerPtr Invoker_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
-    THashMap<TString, NYTree::IAttributeDictionaryPtr> List_;
-    THashMap<TString, TInstant> BannedUntil_;
+    THashMap<std::string, NYTree::IAttributeDictionaryPtr> List_;
+    THashMap<std::string, TInstant> BannedUntil_;
     TDuration BanTimeout_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     const NLogging::TLogger Logger;
-    std::optional<std::pair<TString, NYTree::IAttributeDictionaryPtr>> NameAndAttributes_;
+    std::optional<std::pair<std::string, NYTree::IAttributeDictionaryPtr>> NameAndAttributes_;
     TFuture<void> ScheduledForceUpdate_;
     TInstant LastUpdate_;
 

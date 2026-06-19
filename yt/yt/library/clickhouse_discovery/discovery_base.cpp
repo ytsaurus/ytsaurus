@@ -24,10 +24,10 @@ TDiscoveryBase::TDiscoveryBase(
     , Logger(logger.WithTag("GroupId: %v", Config_->GroupId))
 { }
 
-THashMap<TString, IAttributeDictionaryPtr> TDiscoveryBase::List(bool includeBanned) const
+THashMap<std::string, IAttributeDictionaryPtr> TDiscoveryBase::List(bool includeBanned) const
 {
-    THashMap<TString, IAttributeDictionaryPtr> result;
-    THashMap<TString, TInstant> bannedUntil;
+    THashMap<std::string, IAttributeDictionaryPtr> result;
+    THashMap<std::string, TInstant> bannedUntil;
     decltype(NameAndAttributes_) nameAndAttributes;
     {
         auto guard = ReaderGuard(Lock_);
@@ -52,12 +52,12 @@ THashMap<TString, IAttributeDictionaryPtr> TDiscoveryBase::List(bool includeBann
     return result;
 }
 
-void TDiscoveryBase::Ban(const TString& name)
+void TDiscoveryBase::Ban(const std::string& name)
 {
     Ban(std::vector{name});
 }
 
-void TDiscoveryBase::Ban(const std::vector<TString>& names)
+void TDiscoveryBase::Ban(const std::vector<std::string>& names)
 {
     if (names.empty()) {
         return;
@@ -70,12 +70,12 @@ void TDiscoveryBase::Ban(const std::vector<TString>& names)
     YT_LOG_INFO("Participants banned (Names: %v, Until: %v)", names, banDeadline);
 }
 
-void TDiscoveryBase::Unban(const TString& name)
+void TDiscoveryBase::Unban(const std::string& name)
 {
     Unban(std::vector{name});
 }
 
-void TDiscoveryBase::Unban(const::std::vector<TString>& names)
+void TDiscoveryBase::Unban(const std::vector<std::string>& names)
 {
     if (names.empty()) {
         return;
