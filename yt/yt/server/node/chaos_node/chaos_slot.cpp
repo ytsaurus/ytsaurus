@@ -40,6 +40,8 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/helpers.h>
 
+#include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
+
 namespace NYT::NChaosNode {
 
 using namespace NCellarAgent;
@@ -62,6 +64,19 @@ using NHydra::EPeerState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChaosSlotCreationContext
+{
+    TChaosSlotCreationContext(int slotIndex, const std::string& cellBundleName)
+        : AutomatonThreadName(Format("ChaosSlot/%v", slotIndex))
+        , SnapshotThreadName(Format("ChaosSnap/%v", slotIndex))
+        , BundleNameTags(TTagSet().WithTag({"chaos_cell_bundle", cellBundleName}))
+    { }
+
+    const std::string AutomatonThreadName;
+    const std::string SnapshotThreadName;
+    const TTagSet BundleNameTags;
+};
+
 class TChaosSlot
     : public IChaosSlot
     , public TAutomatonInvokerHood<EAutomatonThreadQueue>
@@ -70,24 +85,28 @@ class TChaosSlot
 
 public:
     TChaosSlot(
-        int slotIndex,
+        const TChaosSlotCreationContext& creationContext,
         TChaosNodeConfigPtr config,
-        IBootstrap* bootstrap,
-        const std::string& cellBundleName)
+        IBootstrap* bootstrap)
         : THood(
-            Format("ChaosSlot/%v", slotIndex),
+            creationContext.AutomatonThreadName,
             ChaosNodeProfiler.GetRegistry(),
-            TTagSet().WithTag(TTag("chaos_cell_bundle", cellBundleName)))
+            creationContext.BundleNameTags)
         , Config_(config)
-        , Profiler_(ChaosNodeProfiler.WithTag("chaos_cell_bundle", cellBundleName))
+        , Profiler_(ChaosNodeProfiler.WithTags(creationContext.BundleNameTags))
         , ShortcutSnapshotStore_(CreateShortcutSnapshotStore())
         , Bootstrap_(bootstrap)
-        , SnapshotQueue_(New<TActionQueue>(
-            Format("ChaosSnap/%v", slotIndex)))
+        , SnapshotQueue_(New<TActionQueue>(creationContext.SnapshotThreadName))
         , ReplicationCardsWatcher_(CreateReplicationCardsWatcher(
             Config_->ReplicationCardsWatcher,
             bootstrap->GetConnection()->GetInvoker()))
-        , Logger(ChaosNodeLogger())
+        , AutomatonThreadTagsGuard_(RegisterThreadGuard(
+            creationContext.AutomatonThreadName,
+            creationContext.BundleNameTags))
+        , SnapThreadTagsGuard_(RegisterThreadGuard(
+            creationContext.SnapshotThreadName,
+            creationContext.BundleNameTags))
+        , Logger(ChaosNodeLogger().WithTag("SlotName: %v", creationContext.AutomatonThreadName))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
@@ -346,6 +365,9 @@ public:
             rpcServer->UnregisterService(CoordinatorService_);
         }
         CoordinatorService_.Reset();
+
+        AutomatonThreadTagsGuard_.Release();
+        SnapThreadTagsGuard_.Release();
     }
 
     TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid) override
@@ -461,6 +483,8 @@ private:
 
     const TActionQueuePtr SnapshotQueue_;
     const IReplicationCardsWatcherPtr ReplicationCardsWatcher_;
+    TResourceTrackerTagsGuard AutomatonThreadTagsGuard_;
+    TResourceTrackerTagsGuard SnapThreadTagsGuard_;
 
     TCellDescriptor CellDescriptor_;
 
@@ -482,6 +506,12 @@ private:
 
     NLogging::TLogger Logger;
 
+    static TResourceTrackerTagsGuard RegisterThreadGuard(const std::string& threadName, const TTagSet& bundleNameTags)
+    {
+        auto result = TResourceTracker::RegisterPerThreadExtraTags(threadName, bundleNameTags);
+        YT_VERIFY(result);
+        return result;
+    }
 
     void OnStartEpoch()
     {
@@ -514,11 +544,12 @@ IChaosSlotPtr CreateChaosSlot(
     IBootstrap* bootstrap,
     const std::string& cellBundleName)
 {
+    auto creationContext = TChaosSlotCreationContext(slotIndex, cellBundleName);
+
     return New<TChaosSlot>(
-        slotIndex,
+        creationContext,
         config,
-        bootstrap,
-        cellBundleName);
+        bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
