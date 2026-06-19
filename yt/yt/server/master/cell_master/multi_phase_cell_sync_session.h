@@ -40,7 +40,8 @@ private:
     TBootstrap* const Bootstrap_;
     const NLogging::TLogger Logger;
 
-    enum class ESyncRequest {
+    enum class ESyncRequest
+    {
         DontNeed,
         Need,
         Done,

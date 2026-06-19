@@ -604,7 +604,6 @@ void TTransactionReplicationSessionWithBoomerangs::ConstructReplicationRequests(
     if (!MirroredTransactionIds_.empty()) {
         ++boomerangWaveSize;
 
-
         MirroredBoomerang_ = std::make_unique<NProto::TReqReturnBoomerang>();
         fillBoomerangRequest(MirroredBoomerang_.get());
     }

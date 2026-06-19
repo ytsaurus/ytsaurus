@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/server/lib/sequoia/public.h>
+
 #include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
 
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
@@ -19,12 +21,6 @@
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
 
 namespace NYT::NTransactionServer {
-
-namespace NProto {
-
-class TReqReturnBoomerang;
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
