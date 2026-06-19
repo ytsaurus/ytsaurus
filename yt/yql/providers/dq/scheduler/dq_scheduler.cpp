@@ -78,6 +78,13 @@ private:
         const auto ins = AllocationsHistory.emplace(info.Request.GetUser(), TUserInfo());
         auto& userInfo = *ins.first;
 
+        if (ins.second && Counters) {
+            const auto group = Counters->Group->GetSubgroup("user", info.Request.GetUser());
+            userInfo.second.Counters.Await = group->GetCounter("Await");
+            userInfo.second.Counters.AwaitOperations = group->GetCounter("AwaitOperations");
+            userInfo.second.Counters.Allocated = group->GetCounter("Allocated");
+        }
+
         if (info.Request.GetCount() > 1U) {
             if (userInfo.second.AwaitOperations >= MaxOperationsPerUser) {
                 return false;
@@ -89,12 +96,6 @@ private:
 
         userInfo.second.Await += info.Request.GetCount();
         userInfo.second.AwaitOperations += 1;
-        if (ins.second && Counters) {
-            const auto group = Counters->Group->GetSubgroup("user", info.Request.GetUser());
-            userInfo.second.Counters.Await = group->GetCounter("Await");
-            userInfo.second.Counters.AwaitOperations = group->GetCounter("AwaitOperations");
-            userInfo.second.Counters.Allocated = group->GetCounter("Allocated");
-        }
         (info.Request.GetCount() > 1U ? LargeWaitList : SmallWaitList).emplace_back(std::move(info), &userInfo);
         return true;
     }
