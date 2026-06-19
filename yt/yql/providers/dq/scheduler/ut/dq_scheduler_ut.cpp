@@ -1,6 +1,7 @@
 #include "../dq_scheduler.h"
 
 #include <library/cpp/testing/unittest/registar.h>
+#include <yql/essentials/providers/common/metrics/metrics_registry.h>
 
 using namespace NYql::NDq;
 
@@ -270,6 +271,28 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         scheduler->Process(16U, workers = 4U, processor);
 
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
+    }
+
+    Y_UNIT_TEST(UpdateMetricsAfterRejectedLargeRequest) {
+        // Regression test for crash in UpdateMetrics() when a new user's large request
+        // is rejected (LargeWaitList full) before per-user counters are initialized.
+        // Without the fix, the user entry stays in AllocationsHistory with null
+        // per-user counter pointers, and UpdateMetrics() dereferences them → crash.
+        NYql::NProto::TDqConfig::TScheduler cfg;
+        cfg.SetMaxOperations(1);
+
+        NYql::TSensorsGroupPtr sensorsPtr = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = IScheduler::Make(cfg, NYql::CreateMetricsRegistry(sensorsPtr));
+        UNIT_ASSERT(scheduler);
+
+        // First large request fills the LargeWaitList (size becomes 1 == MaxOperations).
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
+
+        // Second large request from a brand-new user: rejected because LargeWaitList is full.
+        UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, "user2"), {}}));
+
+        // Ensure no crash here and metrics are initialized (e.g. Counters.Await)
+        scheduler->UpdateMetrics();
     }
 
     Y_UNIT_TEST(UseOnlyHalfForLargeInOverload) {

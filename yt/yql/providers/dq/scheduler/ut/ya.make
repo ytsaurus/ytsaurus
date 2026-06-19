@@ -7,6 +7,7 @@ SRCS(
 )
 
 PEERDIR(
+    yql/essentials/providers/common/metrics
     yql/essentials/public/udf/service/stub
     yql/essentials/utils/log
 )
