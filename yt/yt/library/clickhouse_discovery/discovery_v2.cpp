@@ -39,7 +39,7 @@ public:
         ListOptions_.AttributeKeys = extraAttributes;
     }
 
-    TFuture<void> Enter(TString name, IAttributeDictionaryPtr attributes) override
+    TFuture<void> Enter(std::string name, IAttributeDictionaryPtr attributes) override
     {
         {
             auto guard = WriterGuard(Lock_);
@@ -49,7 +49,7 @@ public:
                 ChannelFactory_,
                 Invoker_,
                 name,
-                Config_->GroupId);
+                TString(Config_->GroupId));
 
             auto* memberAttributes = MemberClient_->GetAttributes();
             for (const auto& [key, value] : attributes->ListPairs()) {
@@ -90,10 +90,10 @@ private:
         WaitForFast(DiscoveryClient_->GetReadyEvent()
             .WithTimeout(Config_->DiscoveryReadinessTimeout))
             .ThrowOnError();
-        auto list = WaitFor(DiscoveryClient_->ListMembers(Config_->GroupId, ListOptions_))
+        auto list = WaitFor(DiscoveryClient_->ListMembers(TString(Config_->GroupId), ListOptions_))
             .ValueOrThrow();
 
-        THashMap<TString, IAttributeDictionaryPtr> newList;
+        THashMap<std::string, IAttributeDictionaryPtr> newList;
         for (const auto& memberInfo : list) {
             newList[memberInfo.Id] = memberInfo.Attributes->Clone();
         }

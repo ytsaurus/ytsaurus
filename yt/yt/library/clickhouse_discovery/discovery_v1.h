@@ -21,7 +21,7 @@ public:
         std::vector<std::string> extraAttributes,
         NLogging::TLogger logger = {});
 
-    TFuture<void> Enter(TString name, NYTree::IAttributeDictionaryPtr attributes) override;
+    TFuture<void> Enter(std::string name, NYTree::IAttributeDictionaryPtr attributes) override;
     TFuture<void> Leave() override;
 
     int Version() const override;
@@ -34,7 +34,7 @@ private:
     NApi::ITransaction::TAbortedHandler TransactionAbortedHandler_;
     int Epoch_;
 
-    void DoEnter(TString name, NYTree::IAttributeDictionaryPtr attributes);
+    void DoEnter(std::string name, NYTree::IAttributeDictionaryPtr attributes);
     void DoLeave();
 
     void DoUpdateList() override;

@@ -148,7 +148,7 @@ private:
     IChannelFactoryPtr ChannelFactory_;
 
     IDiscoveryPtr Discovery_;
-    THashMap<TString, NYTree::IAttributeDictionaryPtr> Instances_;
+    THashMap<std::string, NYTree::IAttributeDictionaryPtr> Instances_;
 
     TFuture<TExecuteQueryResponse> AsyncQueryResult_;
     std::atomic<bool> Cancelled_ = false;

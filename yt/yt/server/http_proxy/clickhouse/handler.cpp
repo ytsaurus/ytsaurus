@@ -231,7 +231,7 @@ private:
     // If empty, the authentication will be performed via Cookie.
     TString Token_;
     TString User_;
-    TString InstanceId_;
+    std::string InstanceId_;
     std::string InstanceHost_;
     TString InstanceHttpPort_;
     TCachedDiscoveryPtr Discovery_;
@@ -256,7 +256,7 @@ private:
     std::vector<TError> RequestErrors_;
     TError ResponseError_;
 
-    using TInstanceMap = THashMap<TString, NYTree::IAttributeDictionaryPtr>;
+    using TInstanceMap = THashMap<std::string, NYTree::IAttributeDictionaryPtr>;
     TInstanceMap Instances_;
 
     // Fields for structured log only.
@@ -1221,7 +1221,7 @@ private:
             << RequestErrors_);
     }
 
-    void InitializeInstance(const TString& id, const NYTree::IAttributeDictionaryPtr& attributes)
+    void InitializeInstance(const std::string& id, const NYTree::IAttributeDictionaryPtr& attributes)
     {
         InstanceId_ = id;
         InstanceHost_ = attributes->Get<TString>("host");
