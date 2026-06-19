@@ -6,7 +6,7 @@ from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
     remove, exists, multicell_sleep, build_snapshot, create_dynamic_table,
     create_account, create_user, create_tablet_cell_bundle, remove_tablet_cell_bundle, create_table_replica, make_ace,
-    insert_rows, mount_table, unmount_table, freeze_table,
+    insert_rows, lookup_rows, mount_table, unmount_table, freeze_table,
     unfreeze_table, remount_table, reshard_table, wait_for_tablet_state, sync_create_cells, sync_mount_table,
     sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, sync_remove_tablet_cells,
@@ -528,6 +528,47 @@ class TestTabletActions(TabletActionsBase):
             },
         )
         wait(lambda: get(f"#{action}/@state") == "completed")
+
+    @authors("atalmenev")
+    def test_no_stale_read_during_provisional_flush(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table(
+            "//tmp/t",
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+            },
+            mount_config={
+                "testing": {
+                    "flush_failure_probability": 1.0,
+                },
+            },
+        )
+        sync_mount_table("//tmp/t")
+
+        old_rows = [{"key": i, "value": "old"} for i in range(10)]
+        insert_rows("//tmp/t", old_rows)
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "tablet_count": 3,
+                "inplace_reshard": True,
+            },
+        )
+
+        wait(lambda: get(f"#{action}/@state") == "provisionally_flushing")
+
+        new_rows = [{"key": i, "value": "new"} for i in range(10)]
+        insert_rows("//tmp/t", new_rows)
+
+        keys = [{"key": row["key"]} for row in new_rows]
+        assert lookup_rows("//tmp/t", keys) == new_rows
 
     @authors("ifsmirnov", "ilpauzner")
     @pytest.mark.parametrize("skip_freezing", [False, True])
