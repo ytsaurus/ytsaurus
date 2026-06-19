@@ -301,8 +301,11 @@ spec_template = {
         # structural attributes are verified against the config. Each queue_cfg has a tablet
         # count, a dict of named exports, and an "enable" flag (set it to False — here or in
         # the yson config — to skip that combination without deleting it). Optional per-queue
-        # knobs: "erasure" bool, "commit_ordering" ("weak"|"strong"), "flush_period_ms" int
-        # (overrides the global default), "auto_trim" bool. Each export ({export_name: ...})
+        # knobs: "erasure" bool, "hunks" bool (default off — the queue's value column becomes
+        # a hunk column with a linked hunk storage, and its exports set
+        # enable_export_from_queue_with_hunks), "commit_ordering" ("weak"|"strong"),
+        # "flush_period_ms" int (overrides the global default), "auto_trim" bool. Each export
+        # ({export_name: ...})
         # is either {"period": <seconds>} or {"cron": "<cron expr>"} (+ optional
         # "name_pattern", "use_upper_bound" bool). The set below is curated so every value of
         # every dimension (tablet count, erasure, commit_ordering, auto_trim, schedule kind,
@@ -364,6 +367,23 @@ spec_template = {
             "t2_5m_lowerbound_strong_trim": {
                 "enable": True, "tablet_count": 2, "commit_ordering": "strong", "auto_trim": True,
                 "exports": {"main": {"period": 300, "use_upper_bound": False}}},
+            # --- Hunk-enabled combinations. DISABLED by default (flip "enable" to %true to
+            # run them). The value column becomes a hunk column backed by a linked hunk
+            # storage, and exports run with enable_export_from_queue_with_hunks.
+            # 1 tablet, 5m, hunks, auto-trim ON.
+            "t1_5m_hunks": {
+                "enable": False, "tablet_count": 1, "hunks": True, "auto_trim": True,
+                "exports": {"main": {"period": 300}}},
+            # 2 tablets, slow flush, hunks, several exports (5m/30m/4h).
+            "t2_multi_hunks": {
+                "enable": False, "tablet_count": 2, "hunks": True, "flush_period_ms": 10000,
+                "exports": {"fast": {"period": 300}, "mid": {"period": 1800},
+                            "slow": {"period": 14400}}},
+            # Erasure + hunks, 4 tablets, strong ordering, 5m named by the upper bound.
+            "t4_erasure_hunks": {
+                "enable": False, "tablet_count": 4, "hunks": True, "erasure": True,
+                "commit_ordering": "strong",
+                "exports": {"main": {"period": 300, "use_upper_bound": True}}},
         }),
         # A single large TTL (seconds) applied to EVERY export table so they do not pile up
         # forever (~2 weeks by default). Global, not per-export, and must stay >> the verify
