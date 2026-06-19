@@ -13,6 +13,7 @@ RECURSE(
     hunk_chunk_advisor
     import_table
     journal_reader
+    logslice
     offline_controller
     offline_read
     offline_read_fmt_write
