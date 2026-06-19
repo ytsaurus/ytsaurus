@@ -27,14 +27,17 @@ target_link_libraries(essentials-minikql-runtime_settings PUBLIC
   minikql-runtime_settings-proto
   providers-common-config
   providers-common-activation
+  contrib-libs-openssl
 )
 
 target_sources(essentials-minikql-runtime_settings PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/runtime_settings/runtime_settings_configuration.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/runtime_settings/runtime_settings_hash.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/runtime_settings/runtime_settings_serialization.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/runtime_settings/runtime_settings.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/runtime_settings/runtime_settings.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/runtime_settings/runtime_settings_configuration.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/runtime_settings/runtime_settings_hash.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/runtime_settings/runtime_settings_serialization.h
 )
 
