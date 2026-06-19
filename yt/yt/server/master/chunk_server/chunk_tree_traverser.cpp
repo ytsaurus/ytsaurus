@@ -944,12 +944,7 @@ protected:
                 auto* childChunkList = child->AsChunkList();
                 auto childChunkListKind = childChunkList->GetKind();
 
-                // COMPAT(gritukan): Hunk roots are possible here only during
-                // EMasterReign::ChunkListType reign migration. After it, only hunk chunk lists
-                // are possible.
-                bool isHunkChunkList =
-                    childChunkListKind == EChunkListKind::Hunk ||
-                    childChunkListKind == EChunkListKind::HunkRoot;
+                bool isHunkChunkList = childChunkListKind == EChunkListKind::Hunk;
 
                 if (childChunkListKind != EChunkListKind::SortedDynamicTablet &&
                     childChunkListKind != EChunkListKind::SortedDynamicSubtablet &&

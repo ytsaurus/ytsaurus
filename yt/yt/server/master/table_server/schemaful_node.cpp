@@ -55,8 +55,7 @@ void TSchemafulNode::Load(NCellMaster::TLoadContext& context)
         Load(context, SchemaMode_);
     }
     // COMPAT(theevilbird)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::AddSchemaRevision &&
-        context.GetVersion() < NCellMaster::EMasterReign::RemoveSchemaRevision) {
+    if (context.GetVersion() < NCellMaster::EMasterReign::RemoveSchemaRevision) {
         NHydra::TRevision tmpRevision;
         Load(context, tmpRevision);
     }

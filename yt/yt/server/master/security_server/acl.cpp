@@ -48,7 +48,6 @@ TAccessControlEntry::TAccessControlEntry(
 
 void TAccessControlEntry::Persist(const NCellMaster::TPersistenceContext& context)
 {
-    using NCellMaster::EMasterReign;
     using NYT::Persist;
 
     Persist(context, Subjects);
@@ -58,10 +57,8 @@ void TAccessControlEntry::Persist(const NCellMaster::TPersistenceContext& contex
     Persist(context, SubjectTagFilter);
     Persist(context, Columns);
     Persist(context, Vital);
-    if (context.GetVersion() >= EMasterReign::RowLevelSecurity) {
-        Persist(context, RowAccessPredicate);
-        Persist(context, InapplicableRowAccessPredicateMode);
-    }
+    Persist(context, RowAccessPredicate);
+    Persist(context, InapplicableRowAccessPredicateMode);
 }
 
 void TAccessControlEntry::Persist(const NCypressServer::TCopyPersistenceContext& context)

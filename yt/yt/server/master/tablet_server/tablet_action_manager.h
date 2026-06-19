@@ -124,11 +124,6 @@ struct ITabletActionManager
         const TError& error) = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
-
-private:
-    // COMPAT(ifsmirnov): EMasterReign::TabletActionManager
-    friend class TTabletManager;
-    virtual NHydra::TEntityMap<TTabletAction>& MutableTabletActionMapCompat() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletActionManager)

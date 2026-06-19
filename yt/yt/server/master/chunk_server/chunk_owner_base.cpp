@@ -105,9 +105,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, UpdateMode_);
 
     // Initial migration is done in OnAfterSnapshotLoaded in CypressManager.
-    if (context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure && context.GetVersion() < EMasterReign::Start_25_4 ||
-        context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure_25_4)
-    {
+    if (context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure_25_4) {
         Load(context, SecurityTagsUpdateMode_);
     }
 

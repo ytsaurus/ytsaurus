@@ -288,11 +288,6 @@ public:
         cellManager->SubscribeCellBundleDestroyed(BIND_NO_PROPAGATE(&TTabletManager::OnTabletCellBundleDestroyed, MakeWeak(this)));
         cellManager->SubscribeCellDecommissionStarted(BIND_NO_PROPAGATE(&TTabletManager::OnTabletCellDecommissionStarted, MakeWeak(this)));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            Bootstrap_->GetAlertManager()->RegisterAlertSource(
-                BIND_NO_PROPAGATE(&TTabletManager::GetAlerts, MakeStrong(this)));
-        }
-
         TabletService_->Initialize();
         TabletActionManager_->Initialize();
     }
@@ -2843,9 +2838,6 @@ private:
     // COMPAT(ifsmirnov)
     int NonAvenueTabletCount_ = 0;
 
-    // COMPAT(babenko)
-    bool WeakRefTableReplicas_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     TCounter& GetUserChunkConstraintValidationErrorCounter(const std::string& userName)
@@ -4282,11 +4274,6 @@ private:
 
         TabletMap_.LoadKeys(context);
         TableReplicaMap_.LoadKeys(context);
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() < EMasterReign::TabletActionManager) {
-            TabletActionManager_->MutableTabletActionMapCompat().LoadKeys(context);
-        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -4295,29 +4282,6 @@ private:
 
         TabletMap_.LoadValues(context);
         TableReplicaMap_.LoadValues(context);
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() < EMasterReign::TabletActionManager) {
-            TabletActionManager_->MutableTabletActionMapCompat().LoadValues(context);
-        }
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() < EMasterReign::DropOldMountConfigKeyLists) {
-            // MountConfigKeysFromNodes_
-            Load<THashSet<std::string>>(context);
-            // LocalMountConfigKeys_
-            Load<THashSet<std::string>>(context);
-        }
-
-        // COMPAT(babenko)
-        WeakRefTableReplicas_ = context.GetVersion() < EMasterReign::WeakPtrInTableReplicas;
-    }
-
-    void OnBeforeSnapshotLoaded() override
-    {
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        WeakRefTableReplicas_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -4333,23 +4297,6 @@ private:
                 avenueDirectory->UpdateEndpoint(
                     tabletBase->GetNodeEndpointId(),
                     tabletBase->Servant().GetCell()->GetId());
-            }
-
-            if (WeakRefTableReplicas_ && tabletBase->GetType() == EObjectType::Tablet) {
-                auto* tablet = tabletBase->As<TTablet>();
-                auto replicas = std::exchange(tablet->Replicas(), {});
-                for (auto& [replica, replicaInfo] : replicas) {
-                    if (replica->GetObjectRefCounter() == 0) {
-                        YT_LOG_ALERT("Skipped dead table replica (TabletId: %v, ReplicaId: %v)",
-                            tablet->GetId(),
-                            replica->GetId());
-                        // NB: Prevent TWeakObjectPtr::~TWeakObjectPtr from weak-unreferencing this zombie.
-                        Y_UNUSED(const_cast<TWeakObjectPtr<TTableReplica>&>(replica).Release());
-                        continue;
-                    }
-                    Bootstrap_->GetObjectManager()->WeakRefObject(replica.Get());
-                    tablet->Replicas().emplace(replica.Get(), std::move(replicaInfo));
-                }
             }
         }
 
@@ -6841,38 +6788,6 @@ private:
                 cypressManager->GetNodePath(trunkNode->GetTrunkNode(), trunkNode->GetTransaction()))
                 << ex;
         }
-    }
-
-    std::vector<TError> GetAlerts()
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        std::vector<TError> result;
-
-        // COMPAT(ifsmirnov): EMasterReign::ResourceQuotaAttributeForBundles
-        {
-            std::vector<std::string> badBundles;
-
-            const auto& cellManager = Bootstrap_->GetTamedCellManager();
-            for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
-                YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
-                auto* bundle = bundleBase->As<TTabletCellBundle>();
-
-                if (bundle->FindAttribute("resource_quota_backup_after_failed_migration")) {
-                    badBundles.push_back(bundle->GetName());
-                }
-            }
-
-            if (!badBundles.empty()) {
-                result.push_back(TError(
-                    "Failed to internalize \"resource_quota\" attribute for tablet cell bundles %v, "
-                    "see the old value in the \"resource_quota_backup_after_failed_migration\" "
-                    "attribute, fix the issue manually and remove it",
-                    badBundles));
-            }
-        }
-
-        return result;
     }
 
     TTableSettings GetTableSettings(TTableNode* table) const override

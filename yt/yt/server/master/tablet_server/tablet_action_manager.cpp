@@ -110,17 +110,7 @@ public:
     void OnAfterCellManagerSnapshotLoaded() override
     {
         for (auto [actionId, action] : TabletActionMap_) {
-            // COMPAT(ifsmirnov): EMasterReign::ZombifyTabletAction
             if (!IsObjectAlive(action)) {
-                // Unbinding was earlier performed in Destroy instead of Zombify.
-                // We take care of actions which had zero RC during the update
-                // so neither handler was executed. Note that while UnbindTabletAction is
-                // idempotent, ZombifyTabletActions() also operates with bundle state
-                // which is not yet initialized, so we cannot call the method as-is.
-                UnbindTabletAction(action);
-                action->SetTabletCellBundle(nullptr);
-
-                // NB: This is not a part of the compat and should be kept during cleanup.
                 continue;
             }
 
@@ -617,20 +607,14 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::TabletActionManager) {
-            TabletActionMap_.LoadKeys(context);
-        }
+        TabletActionMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::TabletActionManager) {
-            TabletActionMap_.LoadValues(context);
-        }
+        TabletActionMap_.LoadValues(context);
     }
 
     void Clear() override
@@ -1295,11 +1279,6 @@ private:
                     action->GetCorrelationId());
             }
         }
-    }
-
-    NHydra::TEntityMap<TTabletAction>& MutableTabletActionMapCompat() override
-    {
-        return TabletActionMap_;
     }
 };
 
