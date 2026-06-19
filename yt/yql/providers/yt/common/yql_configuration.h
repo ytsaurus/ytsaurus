@@ -163,4 +163,6 @@ constexpr ETmpSecurityMode DEFAULT_TMP_FOLDER_SECURITY = ETmpSecurityMode::Disab
 
 constexpr bool DEFAULT_ENABLE_QL_FILTER = false;
 
+constexpr TDuration DEFAULT_SECURE_TMP_TOKEN_USERS_ACCESS_PERIOD = TDuration::Days(10);
+
 } // NYql
