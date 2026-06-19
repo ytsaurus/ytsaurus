@@ -19,9 +19,9 @@ namespace {
 
 struct TUdfObjectCodeKey
 {
-    TString Fingerprint;
-    TString FunctionName;
-    TString SymbolName;
+    std::string Fingerprint;
+    std::string FunctionName;
+    std::string SymbolName;
 
     operator size_t() const
     {
@@ -135,9 +135,9 @@ void AppendFunctionImplementation(
         NCodegen::IObjectCodePtr nativeObjectCode;
         if (options.AllowUdfObjectCodeCache) {
             TUdfObjectCodeKey key{
-                .Fingerprint = TString(functionChunkSpecsFingerprint.Begin(), functionChunkSpecsFingerprint.Size()),
-                .FunctionName = TString(functionName),
-                .SymbolName = TString(functionSymbolName),
+                .Fingerprint = std::string(functionChunkSpecsFingerprint.Begin(), functionChunkSpecsFingerprint.Size()),
+                .FunctionName = functionName,
+                .SymbolName = functionSymbolName,
             };
             // NB: Building native object code may fail in cmake builds because MCJIT's
             // addObjectFile does not properly expose symbols for JIT resolution.

@@ -41,8 +41,8 @@ DECLARE_REFCOUNTED_STRUCT(TOomProfileManifest)
 struct TOomProfileManifest
     : public NYTree::TYsonStruct
 {
-    TString CurrentProfilePath;
-    TString PeakProfilePath;
+    std::string CurrentProfilePath;
+    std::string PeakProfilePath;
 
     REGISTER_YSON_STRUCT(TOomProfileManifest);
 
@@ -60,12 +60,12 @@ DEFINE_REFCOUNTED_TYPE(TOomProfileManifest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeIncompletePath(const TString& path)
+std::string MakeIncompletePath(const std::string& path)
 {
     return NYT::Format("%v_incomplete", path);
 }
 
-void CollectAndDumpMemoryProfile(const TString& memoryProfilePath, tcmalloc::ProfileType profileType)
+void CollectAndDumpMemoryProfile(const std::string& memoryProfilePath, tcmalloc::ProfileType profileType)
 {
     auto profile = NYTProf::CaptureHeapProfile(profileType);
     SymbolizeByExternalPProf(&profile, NYTProf::TSymbolizationOptions{
@@ -77,7 +77,8 @@ void CollectAndDumpMemoryProfile(const TString& memoryProfilePath, tcmalloc::Pro
 
     auto incompletePath = MakeIncompletePath(memoryProfilePath);
 
-    TFileOutput output(incompletePath);
+    // TODO(babenko): migrate to std::string
+    TFileOutput output{TString(incompletePath)};
     NYTProf::WriteCompressedProfile(&output, profile);
     output.Finish();
     NFS::Rename(incompletePath, memoryProfilePath);
@@ -96,9 +97,10 @@ void SetupMemoryProfileTimeout(int timeout)
     ::alarm(timeout);
 }
 
-void DumpManifest(const TOomProfileManifestPtr& manifest, const TString& fileName)
+void DumpManifest(const TOomProfileManifestPtr& manifest, const std::string& fileName)
 {
-    TFileOutput output(fileName);
+    // TODO(babenko): migrate to std::string
+    TFileOutput output{TString(fileName)};
     NYson::TYsonWriter writer(&output, NYson::EYsonFormat::Pretty);
     Serialize(manifest, &writer);
     writer.Flush();
@@ -205,7 +207,7 @@ private:
         AbortProcessSilently(EProcessExitCode::OK);
     }
 
-    auto MakeSuffixFormatter(const TString& timestamp) const
+    auto MakeSuffixFormatter(const std::string& timestamp) const
     {
         return NYT::MakeFormatterWrapper([this, &timestamp] (TStringBuilderBase* builder) {
             if (Config_->MemoryProfileDumpFilenameSuffix) {
@@ -215,7 +217,7 @@ private:
         });
     }
 
-    TString GetCurrentDumpPath(const TString& timestamp) const
+    std::string GetCurrentDumpPath(const std::string& timestamp) const
     {
         return Format(
             "%v/current_%v.pb.gz",
@@ -223,7 +225,7 @@ private:
             MakeSuffixFormatter(timestamp));
     }
 
-    TString GetPeakDumpPath(const TString& timestamp) const
+    std::string GetPeakDumpPath(const std::string& timestamp) const
     {
         return Format(
             "%v/peak_%v.pb.gz",
@@ -231,7 +233,7 @@ private:
             MakeSuffixFormatter(timestamp));
     }
 
-    TString GetManifestPath(const TString& timestamp) const
+    std::string GetManifestPath(const std::string& timestamp) const
     {
         return Format(
             "%v/oom_profile_paths_%v.yson",
