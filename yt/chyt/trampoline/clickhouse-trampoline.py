@@ -58,6 +58,29 @@ def extract_geodata():
     logger.info("Geodata extracted")
 
 
+def prepare_odbc():
+    cwd = os.getcwd()
+    odbcinst_ini_path = os.path.join(cwd, "odbcinst.ini")
+    odbc_ini_path = os.path.join(cwd, "odbc.ini")
+
+    if not os.path.exists(odbcinst_ini_path) or not os.path.exists(odbc_ini_path):
+        logger.warning("odbcinst.ini or odbc.ini are not present in the job sandbox, skipping ODBC preparation")
+        return
+
+    logger.info("Preparing ODBC configuration")
+    os.environ["ODBCSYSINI"] = cwd
+    os.environ["ODBCINI"] = cwd
+    logger.info("Set ODBCSYSINI=%s, ODBCINI=%s", os.environ["ODBCSYSINI"], os.environ["ODBCINI"])
+    os.environ["LD_LIBRARY_PATH"] = cwd
+
+    for ini_path in [odbcinst_ini_path, odbc_ini_path]:
+        with open(ini_path, "rw") as f:
+            content = f.read()
+            f.write(os.path.expandvars(content))
+
+    logger.info("ODBC configuration prepared")
+
+
 def substitute_env(content):
     content = content.replace("$YT_JOB_INDEX", os.environ["YT_JOB_INDEX"])
     content = content.replace("$YT_JOB_COOKIE", os.environ["YT_JOB_COOKIE"])
@@ -246,6 +269,7 @@ def main():
     parser.add_argument("--version", action="store_true", help="Print commit this binary is built from")
     parser.add_argument("ytserver_clickhouse_bin", nargs="?", help="ytserver-clickhouse binary path")
     parser.add_argument("--prepare-geodata", action="store_true", help="Extract archive with geodata")
+    parser.add_argument("--prepare-odbc", action="store_true", help="Prepare ODBC env variables")
     parser.add_argument("--monitoring-port", help="Port for monitoring HTTP server")
     parser.add_argument("--log-tailer-monitoring-port", help="Port for log tailer monitoring HTTP server")
     parser.add_argument("--core-dump-destination", help="Path where to move all core dumps that appear after execution")
@@ -277,6 +301,9 @@ def main():
 
     if args.prepare_geodata:
         extract_geodata()
+
+    if args.prepare_odbc:
+        prepare_odbc()
 
     inside_mtn = is_inside_mtn()
     if inside_mtn:
