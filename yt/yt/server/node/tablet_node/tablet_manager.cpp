@@ -1863,6 +1863,7 @@ private:
             /*createNewStore*/ true,
             EStoreRotationReason::None,
             /*allowEmptyStore*/ true);
+        UpdateTabletSnapshot(tablet);
 
         CheckIfTabletFullyFlushed(tablet);
     }
