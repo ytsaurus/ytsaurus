@@ -238,7 +238,7 @@ protected:
             }))
                 .ValueOrThrow();
 
-            std::vector<TString> objectKeys;
+            std::vector<std::string> objectKeys;
             for (const auto& object: listObjectsResponse.Objects) {
                 objectKeys.push_back(object.Key);
             }

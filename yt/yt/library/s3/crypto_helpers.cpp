@@ -10,39 +10,39 @@ using namespace NYT::NCrypto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString Lowercase(const TString& string)
+std::string Lowercase(const std::string& string)
 {
-    return to_lower(string);
+    return to_lower(TString(string));
 }
 
-TString Hex(const TString& string)
+std::string Hex(const std::string& string)
 {
     return to_lower(HexEncode(string));
 }
 
-TString Sha256HashHex(TSharedRef data)
+std::string Sha256HashHex(TSharedRef data)
 {
     TSha256Hasher hasher;
     hasher.Append(TStringBuf(data.begin(), data.size()));
     return hasher.GetHexDigestLowerCase();
 }
 
-TString Sha256HashHex(const TString& string)
+std::string Sha256HashHex(const std::string& string)
 {
     return Sha256HashHex(TSharedRef::FromString(string));
 }
 
-TString HmacSha256(TStringBuf key, TStringBuf message)
+std::string HmacSha256(TStringBuf key, TStringBuf message)
 {
     return CreateSha256HmacRaw(key, message);
 }
 
-TString Trim(const TString& string)
+std::string Trim(const std::string& string)
 {
-    return TString(NYT::Trim(string));
+    return std::string(NYT::Trim(string));
 }
 
-TString UriEncode(const TString& string, bool isObjectPath)
+std::string UriEncode(const std::string& string, bool isObjectPath)
 {
     auto shouldEncode = [&] (char byte) {
         if (byte >= 'A' && byte <= 'Z') {
@@ -64,7 +64,7 @@ TString UriEncode(const TString& string, bool isObjectPath)
         return true;
     };
 
-    TString result;
+    std::string result;
     result.reserve(string.size());
 
     for (char byte : string) {
@@ -80,9 +80,9 @@ TString UriEncode(const TString& string, bool isObjectPath)
     return result;
 }
 
-TString FormatTimeIso8601(TInstant time)
+std::string FormatTimeIso8601(TInstant time)
 {
-    TString result;
+    std::string result;
     for (auto byte : time.ToStringUpToSeconds()) {
         if (byte != '-' && byte != ':') {
             result += byte;

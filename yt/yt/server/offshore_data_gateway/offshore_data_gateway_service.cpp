@@ -97,8 +97,8 @@ private:
 
         const auto& mediumConfig = mediumDescriptor->GetConfig();
         auto s3CredentialProvider = NS3::CreateStaticCredentialProvider(
-            TString(mediumConfig->AccessKeyId),
-            TString(mediumConfig->SecretAccessKey));
+            mediumConfig->AccessKeyId,
+            mediumConfig->SecretAccessKey);
 
         auto clientConfig = New<NS3::TS3ClientConfig>();
         clientConfig->Url = mediumConfig->Url;

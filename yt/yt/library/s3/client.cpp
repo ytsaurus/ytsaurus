@@ -304,9 +304,9 @@ void TDeleteObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
         errorNode = errorNode->nextSibling())
     {
         Errors.emplace_back(TDeleteError{
-            .Key = TString(GetChildByNameOrThrow(*errorNode, "Key")->innerText()),
-            .Code = TString(GetChildByNameOrThrow(*errorNode, "Code")->innerText()),
-            .Message = TString(GetChildByNameOrThrow(*errorNode, "Message")->innerText()),
+            .Key = GetChildByNameOrThrow(*errorNode, "Key")->innerText(),
+            .Code = GetChildByNameOrThrow(*errorNode, "Code")->innerText(),
+            .Message = GetChildByNameOrThrow(*errorNode, "Message")->innerText(),
         });
     }
 }
@@ -405,8 +405,8 @@ public:
     {
         auto urlRef = NHttp::ParseUrl(Config_->Url);
         BaseHttpRequest_ = THttpRequest{
-            .Protocol = TString{urlRef.Protocol},
-            .Host = TString{urlRef.Host},
+            .Protocol = std::string{urlRef.Protocol},
+            .Host = std::string{urlRef.Host},
             .Port = urlRef.Port,
             .Region = Config_->Region,
             .Service = "s3",
@@ -417,7 +417,7 @@ public:
             urlRef = NHttp::ParseUrl(*Config_->ProxyUrl);
         }
 
-        auto asyncAddress = TAddressResolver::Get()->Resolve(TString{urlRef.Host});
+        auto asyncAddress = TAddressResolver::Get()->Resolve(std::string(urlRef.Host));
         return asyncAddress.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TNetworkAddress& address) {
             bool useTls = (urlRef.Protocol == "https");
             TNetworkAddress s3Address(
@@ -464,7 +464,7 @@ private:
         auto headers = response->GetHeaders();
         for (TStringBuf header : {"x-amz-request-id", "x-amz-id-2"}) {
             if (auto* value = headers->Find(header)) {
-                error <<= TErrorAttribute(TString(header), *value);
+                error <<= TErrorAttribute(std::string(header), *value);
             }
         }
     }
