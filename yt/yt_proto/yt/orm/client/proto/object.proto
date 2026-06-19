@@ -466,7 +466,7 @@ message TEtcOptions
     optional uint64 max_inline_hunk_size = 3;
 }
 
-// Next field 30060.
+// Next field 30062.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -586,6 +586,11 @@ extend google.protobuf.FileOptions
     // Exposes the /control/watch_log_info method on the schema object. Off by default during
     // rollout: the codegen drops the schema control field unless this is set.
     optional bool enable_schema_watch_log_info = 30060;
+
+    // Enables the |multi_consumer| system table and native multi-consumer support.
+    // When enabled, ORM generates the |multi_consumer| table and allows
+    // registering/advancing/reading queue progress via a single shared consumer table.
+    optional bool support_multi_consumer = 30061;
 }
 
 enum EGenerationPolicy
