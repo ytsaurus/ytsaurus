@@ -223,6 +223,25 @@ message TJoinClause
     optional bool require_sync_replica = 18 [default = true];
 }
 
+message THierarchicalJoinClause
+{
+    required NYT.NTableClient.NProto.TTableSchemaExt foreign_table_original_schema = 1;
+    repeated TColumnDescriptor foreign_table_schema_mapping = 2;
+
+    repeated TExpression foreign_equations = 3;
+    repeated TSelfEquation self_equations = 4;
+
+    required NYT.NProto.TGuid foreign_object_id = 5;
+    optional NYT.NProto.TGuid foreign_cell_id = 6;
+
+    required bool is_left = 7;
+
+    optional TExpression self_side_join_keys = 8;
+    optional TExpression joining_subquery = 9;
+    required string result_column_name = 10;
+    repeated string foreign_joined_columns = 11;
+}
+
 message TGroupClause
 {
     repeated TNamedItem group_items = 1;
@@ -274,6 +293,8 @@ message TQuery
     repeated TColumnDescriptor schema_mapping = 6;
 
     repeated TJoinClause join_clauses = 7;
+    repeated THierarchicalJoinClause hierarchical_joins_before_group_by = 17;
+    repeated THierarchicalJoinClause hierarchical_joins_after_group_by = 18;
     optional TExpression where_clause = 8;
     optional TGroupClause group_clause = 9;
     optional TExpression having_clause = 12;

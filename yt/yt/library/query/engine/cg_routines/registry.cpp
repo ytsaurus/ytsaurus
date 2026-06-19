@@ -249,7 +249,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRowsConsumer = bool (*)(void** closure, TExpressionContext*, const TPIValue** rows, i64 size);
 using TUnversionedRowsConsumer = bool (*)(void** closure, TExpressionContext*, const TValue** rows, i64 size);
 
 bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* values)
@@ -4114,6 +4113,288 @@ void CompositeMemberAccessorHelper(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool ProcessHierarchicalJoinBatch(THierarchicalJoinClosure* closure)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* parameters = closure->Parameters;
+    auto* context = closure->ExecutionContext;
+    size_t keySize = parameters->KeySize;
+
+    YT_LOG_DEBUG("Processing hierarchical join batch (OuterRowCount: %v, UniqueKeyCount: %v)",
+        closure->SelfSideRowBatch.size(),
+        closure->SelfSideDomainBatch.size());
+
+    std::vector<TPIValueRange> selfKeys;
+    selfKeys.reserve(closure->SelfSideDomainBatch.size());
+    for (auto* key : closure->SelfSideDomainBatch) {
+        selfKeys.emplace_back(key, keySize);
+    }
+
+    std::sort(selfKeys.begin(), selfKeys.end(), [&] (const TPIValueRange& lhs, const TPIValueRange& rhs) {
+        return closure->SuffixLessComparer(lhs.Begin(), rhs.Begin());
+    });
+
+    auto foreignExecutorCopy = CopyAndConvertFromPI(compartment, &closure->ForeignContext, selfKeys);
+    ISchemafulUnversionedReaderPtr reader;
+    SaveAndRestoreCurrentCompartment([&] {
+        reader = parameters->JoinRowsProducer->FetchJoinedRows(
+            foreignExecutorCopy,
+            closure->ForeignContext.GetRowBuffer());
+    });
+
+    if (reader) {
+        TRowBatchReadOptions readOptions{.MaxRowsPerRead = context->RowsetProcessingBatchSize};
+
+        while (true) {
+            IUnversionedRowBatchPtr foreignBatch;
+            {
+                TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
+                foreignBatch = SaveAndRestoreCurrentCompartment([&] {
+                    return reader->Read(readOptions);
+                });
+            }
+
+            if (!foreignBatch) {
+                break;
+            }
+
+            if (foreignBatch->IsEmpty()) {
+                TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                SaveAndRestoreCurrentCompartment([&] {
+                    WaitFor(reader->GetReadyEvent()).ThrowOnError();
+                });
+                continue;
+            }
+
+            for (auto foreignRow : foreignBatch->MaterializeRows()) {
+                auto capturedRow = CaptureUnversionedValueRange(&closure->ForeignContext, foreignRow.Elements());
+                auto* rowPtr = capturedRow.Begin();
+                closure->ForeignSideLookup[rowPtr].push_back(rowPtr);
+            }
+        }
+    }
+
+    bool finished = false;
+    if (compartment) {
+        auto guard = CopyIntoCompartment(
+            TRange(std::bit_cast<uintptr_t*>(closure->SelfSideRowBatch.data()), closure->SelfSideRowBatch.size()),
+            compartment);
+        finished = closure->ConsumeJoinedRowsFunction(
+            closure->ConsumeJoinedRowsClosure,
+            &closure->SelfContext,
+            std::bit_cast<const TPIValue**>(guard.GetCopiedOffset()),
+            std::ssize(closure->SelfSideRowBatch));
+    } else {
+        finished = closure->ConsumeJoinedRowsFunction(
+            closure->ConsumeJoinedRowsClosure,
+            &closure->SelfContext,
+            closure->SelfSideRowBatch.data(),
+            std::ssize(closure->SelfSideRowBatch));
+    }
+
+    closure->SelfSideRowBatch.clear();
+    closure->SelfSideDomainBatch.clear_no_resize();
+    closure->SelfContext.Clear();
+    closure->ForeignSideLookup.clear_no_resize();
+    closure->ForeignContext.Clear();
+
+    return finished;
+}
+
+void StoreSelfRowIntoHierarchicalJoinBatch(
+    TExecutionContext* /*context*/,
+    THierarchicalJoinClosure* closure,
+    TPIValue* outerRow)
+{
+    auto* compartment = GetCurrentCompartment();
+    size_t rowSize = closure->PrimaryRowSize;
+
+    auto* copy = std::bit_cast<TPIValue*>(
+        closure->SelfContext.AllocateAligned(rowSize * sizeof(TPIValue), EAddressSpace::WebAssembly));
+    {
+        auto* hostCopy = PtrFromVM(compartment, copy, rowSize);
+        auto* hostRow = PtrFromVM(compartment, outerRow, rowSize);
+
+        for (size_t index = 0; index < rowSize; ++index) {
+            CopyPositionIndependent(&hostCopy[index], hostRow[index]);
+        }
+    }
+    {
+        for (size_t index = 0; index < rowSize; ++index) {
+            CapturePIValue(compartment, &closure->SelfContext, &copy[index]);
+        }
+    }
+
+    closure->SelfSideRowBatch.push_back(copy);
+}
+
+bool FlushHierarchicalJoinBatchIfNeeded(
+    TExecutionContext* /*context*/,
+    THierarchicalJoinClosure* closure)
+{
+    if (std::ssize(closure->SelfSideRowBatch) >= closure->BatchSize) {
+        return ProcessHierarchicalJoinBatch(closure);
+    }
+
+    return false;
+}
+
+void HierarchicalJoinOpHelper(
+    TExecutionContext* context,
+    TSingleJoinParameters* parameters,
+    TJoinComparers* comparersOffset,
+    void** collectRowsClosure,
+    void (*collectRowsFunction)(void** closure, THierarchicalJoinClosure* joinClosure),
+    void** consumeJoinedRowsClosure,
+    TRowsConsumer consumeJoinedRowsFunction,
+    i64 primaryRowSize,
+    THierarchicalJoinClosure** closurePtrSlot)
+{
+    using NQueryClient::NDetail::TGroupHasher;
+    using NQueryClient::NDetail::TRowComparer;
+
+    auto* compartment = GetCurrentCompartment();
+
+    auto comparers = NDetail::MakeJoinComparersCallbacks(TRange(PtrFromVM(compartment, comparersOffset, /*length*/ 1), /*length*/ 1));
+    const auto& comparer = comparers[0];
+
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto consumeJoinedRows = PrepareFunction(consumeJoinedRowsFunction);
+
+    THierarchicalJoinClosure::TSelfSideDomainBatch selfSideDomainBatch(
+        InitialGroupOpHashtableCapacity,
+        TGroupHasher(comparer.SuffixHasher),
+        TRowComparer(comparer.SuffixEqComparer));
+    selfSideDomainBatch.set_empty_key(TRowComparer::MakeSentinel(TRowComparer::ESentinelType::Empty));
+
+    THierarchicalJoinClosure::TForeignSideLookup foreignSideLookup(
+        InitialGroupOpHashtableCapacity,
+        TGroupHasher(comparer.SuffixHasher),
+        TRowComparer(comparer.SuffixEqComparer));
+    foreignSideLookup.set_empty_key(TRowComparer::MakeSentinel(TRowComparer::ESentinelType::Empty));
+
+    THierarchicalJoinClosure closure{
+        .SelfContext = MakeExpressionContext(THierarchicalJoinClosure::TBufferTag(), context->MemoryChunkProvider),
+        .SelfSideDomainBatch = std::move(selfSideDomainBatch),
+        .ForeignContext = MakeExpressionContext(THierarchicalJoinClosure::TBufferTag(), context->MemoryChunkProvider),
+        .ForeignSideLookup = std::move(foreignSideLookup),
+        .ExecutionContext = context,
+        .Parameters = parameters,
+        .ConsumeJoinedRowsClosure = consumeJoinedRowsClosure,
+        .ConsumeJoinedRowsFunction = consumeJoinedRows,
+        .SuffixLessComparer = comparer.SuffixLessComparer,
+        .PrimaryRowSize = primaryRowSize,
+        .BatchSize = context->MaxJoinBatchSize,
+    };
+
+    *closurePtrSlot = &closure;
+
+    collectRows(collectRowsClosure, &closure);
+
+    if (!closure.SelfSideRowBatch.empty()) {
+        ProcessHierarchicalJoinBatch(&closure);
+    }
+
+    *closurePtrSlot = nullptr;
+}
+
+void SubqueryHierarchicalJoinWriteDomainRow(THierarchicalJoinClosure* closure, TPIValue* row)
+{
+    if (closure->SelfSideDomainBatch.count(row) != 0) {
+        return;
+    }
+
+    auto* compartment = GetCurrentCompartment();
+
+    size_t length = closure->Parameters->KeySize;
+
+    auto* copy = std::bit_cast<TPIValue*>(closure->SelfContext.AllocateAligned(length * sizeof(TPIValue), EAddressSpace::WebAssembly));
+    {
+        auto* copyAtHost = PtrFromVM(compartment, copy, length);
+        auto* rowAtHost = PtrFromVM(compartment, row, length);
+
+        for (size_t index = 0; index < length; ++index) {
+            CopyPositionIndependent(&copyAtHost[index], rowAtHost[index]);
+
+            copyAtHost[index].Flags = {};
+            copyAtHost[index].Id = index;
+        }
+    }
+    {
+        for (size_t index = 0; index < length; ++index) {
+            CapturePIValue(compartment, &closure->SelfContext, &copy[index]);
+        }
+    }
+
+    closure->SelfSideDomainBatch.insert(copy);
+}
+
+bool SubqueryHierarchicalJoinLookupRows(
+    TExpressionContext* buffer,
+    TSingleJoinParameters* parameters,
+    THierarchicalJoinClosure* closure,
+    TPIValue* primaryRow,
+    i64 primaryRowSize,
+    TPIValue* keyRow,
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+    const auto& foreignColumns = parameters->ForeignColumns;
+    i64 joinedRowSize = primaryRowSize + std::ssize(foreignColumns);
+
+    auto foreignIt = closure->ForeignSideLookup.find(keyRow);
+
+    std::vector<const TPIValue*> joinedRows;
+
+    if (foreignIt != closure->ForeignSideLookup.end()) {
+        size_t foreignRowAccessLength = foreignColumns.empty() ? 0
+            : *std::max_element(foreignColumns.begin(), foreignColumns.end()) + 1;
+
+        for (auto* foreignRow : foreignIt->second) {
+            auto joinedSlice = AllocatePIValueRange(buffer, joinedRowSize, EAddressSpace::WebAssembly);
+            auto* hostJoined = PtrFromVM(compartment, joinedSlice.Begin(), joinedRowSize);
+            auto* hostPrimary = PtrFromVM(compartment, primaryRow, primaryRowSize);
+            auto* hostForeign = PtrFromVM(compartment, foreignRow, foreignRowAccessLength);
+
+            for (i64 index = 0; index < primaryRowSize; ++index) {
+                CopyPositionIndependent(&hostJoined[index], hostPrimary[index]);
+            }
+            for (i64 index = 0; index < std::ssize(foreignColumns); ++index) {
+                CopyPositionIndependent(&hostJoined[primaryRowSize + index], hostForeign[foreignColumns[index]]);
+            }
+
+            joinedRows.push_back(joinedSlice.Begin());
+        }
+    } else if (parameters->IsLeft) {
+        auto joinedSlice = AllocatePIValueRange(buffer, joinedRowSize, EAddressSpace::WebAssembly);
+        auto* hostJoined = PtrFromVM(compartment, joinedSlice.Begin(), joinedRowSize);
+        auto* hostPrimary = PtrFromVM(compartment, primaryRow, primaryRowSize);
+
+        for (i64 index = 0; index < primaryRowSize; ++index) {
+            CopyPositionIndependent(&hostJoined[index], hostPrimary[index]);
+        }
+        for (i64 index = primaryRowSize; index < joinedRowSize; ++index) {
+            MakePositionIndependentSentinelValue(&hostJoined[index], EValueType::Null);
+        }
+
+        joinedRows.push_back(joinedSlice.Begin());
+    }
+
+    if (compartment) {
+        auto guard = CopyIntoCompartment(
+            TRange(std::bit_cast<uintptr_t*>(joinedRows.data()), joinedRows.size()),
+            compartment);
+        auto** offset = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+        return consumeRows(consumeRowsClosure, buffer, offset, joinedRows.size());
+    }
+
+    return consumeRows(consumeRowsClosure, buffer, joinedRows.data(), joinedRows.size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool SubqueryExprHelper(
     TNestedExecutionContext* context,
     TSubqueryParameters* parameters,
@@ -4525,6 +4806,11 @@ REGISTER_ROUTINE(FormatTimestampTZ);
 REGISTER_ROUTINE(ArrayAggFinalize);
 
 REGISTER_ROUTINE(SubqueryExprHelper);
+REGISTER_ROUTINE(HierarchicalJoinOpHelper);
+REGISTER_ROUTINE(StoreSelfRowIntoHierarchicalJoinBatch);
+REGISTER_ROUTINE(FlushHierarchicalJoinBatchIfNeeded);
+REGISTER_ROUTINE(SubqueryHierarchicalJoinWriteDomainRow);
+REGISTER_ROUTINE(SubqueryHierarchicalJoinLookupRows);
 REGISTER_ROUTINE(SubqueryWriteRow);
 REGISTER_ROUTINE(SubqueryWriteHelper);
 REGISTER_ROUTINE(SubqueryInsertGroupRow);

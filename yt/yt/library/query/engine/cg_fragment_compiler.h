@@ -181,7 +181,50 @@ TCodegenExpression MakeCodegenSubqueryExpr(
     TCodegenSource codegenSource,
     std::vector<size_t> fromExprIds,
     std::vector<size_t> boundExprIds,
-    size_t slotCount);
+    size_t slotCount,
+    bool producesValue = true);
+
+
+namespace NHierarchicalJoin::NBuildDomainSubquery {
+
+void MakeCodegenWriteOp(
+    TCodegenSource* codegenSource,
+    size_t producerSlot,
+    int buildDomainClosurePtrOpaqueIndex);
+
+} // namespace NHierarchicalJoin::NBuildDomainSubquery
+
+namespace NHierarchicalJoin::NJoiningSubquery {
+
+size_t MakeCodegenHashJoinOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    int closurePtrIndex,
+    int parametersIndex,
+    size_t primaryRowSize,
+    std::vector<size_t> selfKeyExprIds,
+    TCodegenFragmentInfosPtr selfKeyFragmentInfos);
+
+} // namespace NHierarchicalJoin::NJoiningSubquery
+
+namespace NHierarchicalJoin {
+
+size_t MakeCodegenJoinOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    int parametersIndex,
+    TCodegenFragmentInfosPtr buildDomainFragmentInfos,
+    size_t buildDomainSubqueryExprId,
+    std::vector<EValueType> selfKeyTypes,
+    TComparerManagerPtr comparerManager,
+    std::vector<EValueType> primaryRowTypes,
+    int closurePtrIndex,
+    size_t joiningSubqueryExprId,
+    TCodegenFragmentInfosPtr joiningSubqueryFragmentInfos);
+
+} // namespace NHierarchicalJoin
 
 size_t MakeCodegenNestedGroupOp(
     TCodegenSource* codegenSource,

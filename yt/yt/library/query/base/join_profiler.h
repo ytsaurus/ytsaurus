@@ -70,11 +70,25 @@ IJoinProfilerPtr CreateJoinRowsetProfiler(
 class TJoinProfilerRegistry
 {
 public:
+    TJoinProfilerRegistry(
+        TExecutePlan executePlan,
+        TConsumeSubqueryStatistics consumeSubqueryStatistics,
+        IMemoryChunkProviderPtr memoryChunkProvider,
+        NLogging::TLogger logger);
+
     IJoinProfilerPtr GetJoinProfilerOrThrow(size_t index) const;
     void InsertJoinProfilerOrThrow(size_t index, IJoinProfilerPtr profiler);
 
+    // TODO(dtorilov): Consider exposing a generic lookup-join API here.
+    IJoinRowsProducerPtr CreateHierarchicalJoinRowsProducer(
+        TConstHierarchicalJoinClausePtr hierarchicalJoinClause) const;
+
 private:
     THashMap<size_t, IJoinProfilerPtr> Profilers_;
+    TExecutePlan ExecutePlan_;
+    TConsumeSubqueryStatistics ConsumeSubqueryStatistics_;
+    IMemoryChunkProviderPtr MemoryChunkProvider_;
+    NLogging::TLogger Logger_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -88,6 +88,26 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TBatchReader)
 
+ISchemafulUnversionedReaderPtr ExecutePlanAndGetReader(
+    const TExecutePlan& executePlan,
+    const TConsumeSubqueryStatistics& consumeSubqueryStatistics,
+    const IMemoryChunkProviderPtr& memoryChunkProvider,
+    TPlanFragment fragment)
+{
+    auto pipe = NTableClient::CreateSchemafulPipe(memoryChunkProvider);
+
+    executePlan(std::move(fragment), pipe->GetWriter())
+        .AsUnique().Subscribe(BIND([consumeSubqueryStatistics, pipe] (TErrorOr<TQueryStatistics>&& error) {
+            if (!error.IsOK()) {
+                pipe->Fail(error);
+            } else {
+                consumeSubqueryStatistics(std::move(error.Value()));
+            }
+        }));
+
+    return pipe->GetReader();
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,18 +230,7 @@ public:
 
         YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", joinFragment.Query->Id);
 
-        auto pipe = NTableClient::CreateSchemafulPipe(MemoryChunkProvider_);
-
-        ExecutePlan_(joinFragment, pipe->GetWriter())
-            .AsUnique().Subscribe(BIND([this, this_ = MakeStrong(this), pipe] (TErrorOr<TQueryStatistics>&& error) {
-                if (!error.IsOK()) {
-                    pipe->Fail(error);
-                } else {
-                    ConsumeSubqueryStatistics_(std::move(error.Value()));
-                }
-            }));
-
-        return pipe->GetReader();
+        return ExecutePlanAndGetReader(ExecutePlan_, ConsumeSubqueryStatistics_, MemoryChunkProvider_, std::move(joinFragment));
     }
 
 private:
@@ -822,6 +831,78 @@ IJoinProfilerPtr CreateJoinRowsetProfiler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(THierarchicalJoinRowsProducer)
+
+class THierarchicalJoinRowsProducer
+    : public IJoinRowsProducer
+{
+public:
+    THierarchicalJoinRowsProducer(
+        TConstHierarchicalJoinClausePtr hierarchicalJoinClause,
+        TExecutePlan executePlan,
+        TConsumeSubqueryStatistics consumeSubqueryStatistics,
+        IMemoryChunkProviderPtr memoryChunkProvider,
+        TLogger logger)
+        : ForeignEquations_(hierarchicalJoinClause->ForeignEquations)
+        , JoinSubqueryTemplate_(hierarchicalJoinClause->GetJoinSubquery())
+        , DataSource_(TDataSource{
+            .ObjectId = hierarchicalJoinClause->ForeignObjectId,
+            .CellId = hierarchicalJoinClause->ForeignCellId,
+          })
+        , ExecutePlan_(std::move(executePlan))
+        , ConsumeSubqueryStatistics_(std::move(consumeSubqueryStatistics))
+        , MemoryChunkProvider_(std::move(memoryChunkProvider))
+        , Logger(std::move(logger))
+    { }
+
+    ISchemafulUnversionedReaderPtr FetchJoinedRows(std::vector<TRow> keys, TRowBufferPtr buffer) override
+    {
+        if (keys.empty()) {
+            return ISchemafulUnversionedReaderPtr{};
+        }
+
+        auto dataSource = DataSource_;
+
+        auto joinSubquery = New<TQuery>(*JoinSubqueryTemplate_);
+
+        TRowRanges universalRange{{
+            buffer->CaptureRow(NTableClient::MinKey().Get()),
+            buffer->CaptureRow(NTableClient::MaxKey().Get()),
+        }};
+        dataSource.Ranges = MakeSharedRange(std::move(universalRange), buffer);
+
+        auto inClause = New<TInExpression>(
+            ForeignEquations_,
+            MakeSharedRange(std::move(keys), std::move(buffer)));
+
+        joinSubquery->WhereClause = MakeAndExpression(inClause, joinSubquery->WhereClause);
+
+        YT_LOG_DEBUG("Evaluating hierarchical join subquery (SubqueryId: %v)", joinSubquery->Id);
+
+        return ExecutePlanAndGetReader(
+            ExecutePlan_,
+            ConsumeSubqueryStatistics_,
+            MemoryChunkProvider_,
+            TPlanFragment{
+                .Query = std::move(joinSubquery),
+                .DataSource = std::move(dataSource),
+            });
+    }
+
+private:
+    const std::vector<TConstExpressionPtr> ForeignEquations_;
+    const TQueryPtr JoinSubqueryTemplate_;
+    const TDataSource DataSource_;
+    const TExecutePlan ExecutePlan_;
+    const TConsumeSubqueryStatistics ConsumeSubqueryStatistics_;
+    const IMemoryChunkProviderPtr MemoryChunkProvider_;
+    const TLogger Logger;
+};
+
+DEFINE_REFCOUNTED_TYPE(THierarchicalJoinRowsProducer)
+
+////////////////////////////////////////////////////////////////////////////////
+
 IJoinProfilerPtr TJoinProfilerRegistry::GetJoinProfilerOrThrow(size_t index) const
 {
     auto it = Profilers_.find(index);
@@ -833,6 +914,28 @@ void TJoinProfilerRegistry::InsertJoinProfilerOrThrow(size_t index, IJoinProfile
 {
     auto [it, inserted] = Profilers_.emplace(index, std::move(profiler));
     THROW_ERROR_EXCEPTION_IF(!inserted, "Join profiler already exists for index %v", index);
+}
+
+TJoinProfilerRegistry::TJoinProfilerRegistry(
+    TExecutePlan executePlan,
+    TConsumeSubqueryStatistics consumeSubqueryStatistics,
+    IMemoryChunkProviderPtr memoryChunkProvider,
+    NLogging::TLogger logger)
+    : ExecutePlan_(std::move(executePlan))
+    , ConsumeSubqueryStatistics_(std::move(consumeSubqueryStatistics))
+    , MemoryChunkProvider_(std::move(memoryChunkProvider))
+    , Logger_(std::move(logger))
+{ }
+
+IJoinRowsProducerPtr TJoinProfilerRegistry::CreateHierarchicalJoinRowsProducer(
+    TConstHierarchicalJoinClausePtr hierarchicalJoinClause) const
+{
+    return New<THierarchicalJoinRowsProducer>(
+        std::move(hierarchicalJoinClause),
+        ExecutePlan_,
+        ConsumeSubqueryStatistics_,
+        MemoryChunkProvider_,
+        Logger_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

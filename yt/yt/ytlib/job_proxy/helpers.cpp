@@ -78,7 +78,7 @@ void RunQuery(
         query,
         reader,
         writer,
-        /*joinProfilers*/ {},
+        TJoinProfilerRegistry({}, {}, GetDefaultMemoryChunkProvider(), Logger()),
         functionGenerators,
         aggregateGenerators,
         /*sdk*/ {},

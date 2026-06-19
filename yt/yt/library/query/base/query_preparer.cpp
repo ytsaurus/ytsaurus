@@ -4,6 +4,7 @@
 #include "callbacks.h"
 #include "functions.h"
 #include "helpers.h"
+#include "hierarchical_join_rewriter.h"
 #include "lexer.h"
 #include "push_down_group_by.h"
 #include "query_helpers.h"
@@ -1519,6 +1520,8 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
         TQueryPreparerBufferTag(),
         TChunkedMemoryPool::DefaultStartChunkSize,
         memoryTracker);
+
+    query = InsertHierarchicalJoins(query, Logger);
 
     fragment->Query = query;
 

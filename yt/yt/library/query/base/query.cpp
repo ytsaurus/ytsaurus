@@ -1,4 +1,5 @@
 #include "query.h"
+#include "query_helpers.h"
 #include "query_visitors.h"
 #include "helpers.h"
 
@@ -417,6 +418,110 @@ std::vector<size_t> TJoinClause::GetForeignColumnIndices() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THierarchicalJoinClause::THierarchicalJoinClause(const THierarchicalJoinClause& other)
+    : ForeignTableSchema(other.ForeignTableSchema)
+    , ForeignEquations(other.ForeignEquations)
+    , SelfEquations(other.SelfEquations)
+    , IsLeft(other.IsLeft)
+    , ForeignObjectId(other.ForeignObjectId)
+    , ForeignCellId(other.ForeignCellId)
+    , ForeignJoinedColumns(other.ForeignJoinedColumns)
+    , ResultColumnName(other.ResultColumnName)
+    , SelfSideJoinKeys(other.SelfSideJoinKeys)
+    , JoiningSubquery(other.JoiningSubquery)
+{ }
+
+TTableSchemaPtr THierarchicalJoinClause::GetForeignTableRenamedSchema() const
+{
+    return ForeignTableSchema.GetRenamedSchema();
+}
+
+TKeyColumns THierarchicalJoinClause::GetForeignTableKeyColumns() const
+{
+    return ForeignTableSchema.GetKeyColumns();
+}
+
+TTableSchemaPtr THierarchicalJoinClause::GetTableSchema(const TTableSchema& source) const
+{
+    TSchemaColumns result;
+
+    for (const auto& column : source.Columns()) {
+        result.push_back(column);
+    }
+
+    auto logicalType = JoiningSubquery->LogicalType;
+    if (IsLeft && !logicalType->IsNullable()) {
+        logicalType = OptionalLogicalType(std::move(logicalType));
+    }
+    result.emplace_back(ResultColumnName, std::move(logicalType));
+
+    return New<TTableSchema>(std::move(result));
+}
+
+TQueryPtr THierarchicalJoinClause::GetJoinSubquery() const
+{
+    auto joinSubplan = New<TQuery>();
+
+    joinSubplan->Schema = ForeignTableSchema;
+
+    THROW_ERROR_EXCEPTION_IF(std::ssize(JoiningSubquery->JoinClauses) != 1,
+        "Expected one join clause, but got %v",
+        std::ssize(JoiningSubquery->JoinClauses));
+
+    auto whereClause = JoiningSubquery->JoinClauses[0]->Predicate;
+
+    if (IsLeft && JoiningSubquery->WhereClause) {
+        // WhereClause filter stays as correctness guard: it excludes rows for unmatched keys.
+        // Pushing this predicate into the fetch subplan is an optimization.
+        auto foreignRenamedSchema = GetForeignTableRenamedSchema();
+        auto [foreignFilter, _] = SplitPredicateByColumnSubset(JoiningSubquery->WhereClause, *foreignRenamedSchema);
+        if (!IsTrue(foreignFilter)) {
+            whereClause = MakeAndExpression(whereClause, foreignFilter);
+        }
+    }
+
+    joinSubplan->WhereClause = whereClause;
+
+    auto projectClause = New<TProjectClause>();
+    for (const auto& column : ForeignEquations) {
+        projectClause->AddProjection(column, InferName(column));
+    }
+
+    auto foreignTableColumns = GetForeignTableRenamedSchema()->Columns();
+    for (const auto& renamedColumn : foreignTableColumns) {
+        // TODO(dtorilov): eliminate possible(?) duplication between ForeignEquations and ForeignJoinedColumns.
+        if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
+            projectClause->AddProjection(
+                New<TReferenceExpression>(
+                    renamedColumn.LogicalType(),
+                    renamedColumn.Name()),
+                renamedColumn.Name());
+        }
+    }
+
+    joinSubplan->ProjectClause = std::move(projectClause);
+
+    return joinSubplan;
+}
+
+std::vector<size_t> THierarchicalJoinClause::GetForeignColumnIndices() const
+{
+    std::vector<size_t> foreignColumns;
+
+    size_t foreignColumnsIndex = ForeignEquations.size();
+    auto foreignTableColumns = GetForeignTableRenamedSchema()->Columns();
+    for (const auto& renamedColumn : foreignTableColumns) {
+        if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
+            foreignColumns.push_back(foreignColumnsIndex);
+            ++foreignColumnsIndex;
+        }
+    }
+
+    return foreignColumns;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGroupClause::AddGroupItem(TNamedItem namedItem)
 {
     GroupItems.push_back(std::move(namedItem));
@@ -582,6 +687,10 @@ TTableSchemaPtr TQuery::GetTableSchema(bool castToQLType) const
         result = joinClause->GetTableSchema(*result);
     }
 
+    for (const auto& hierarchicalJoin : HierarchicalJoinsBeforeGroupBy) {
+        result = hierarchicalJoin->GetTableSchema(*result);
+    }
+
     return result;
 }
 
@@ -702,6 +811,15 @@ std::string InferName(TConstBaseQueryPtr query, const TInferNameOptions& options
                     clauses.push_back("AND " + InferName(joinClause->Predicate, options));
                 }
             }
+        }
+
+        for (const auto& hierarchicalJoin : derivedQuery->HierarchicalJoinsBeforeGroupBy) {
+            clauses.push_back(Format(
+                "%v HIERARCHICAL JOIN [result: %v, keys: %v, subquery: %v]",
+                hierarchicalJoin->IsLeft ? "LEFT" : "INNER",
+                hierarchicalJoin->ResultColumnName,
+                InferName(hierarchicalJoin->SelfSideJoinKeys, options),
+                InferName(hierarchicalJoin->JoiningSubquery, options)));
         }
 
         if (derivedQuery->WhereClause) {
@@ -1195,6 +1313,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         auto* proto = serialized->MutableExtension(NProto::TSubqueryExpression::subquery_expression);
 
         ToProto(proto->mutable_from_expressions(), subqueryExpr->FromExpressions);
+        ToProto(proto->mutable_join_clauses(), subqueryExpr->JoinClauses);
 
         if (subqueryExpr->WhereClause) {
             ToProto(proto->mutable_where_clause(), subqueryExpr->WhereClause);
@@ -1391,6 +1510,8 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             for (int i = 0; i < ext.from_expressions_size(); ++i) {
                 result->FromExpressions.push_back(FromProto<TNamedItem>(ext.from_expressions(i)));
             }
+
+            FromProto(&result->JoinClauses, ext.join_clauses());
 
             if (ext.has_where_clause()) {
                 FromProto(&result->WhereClause, ext.where_clause());
@@ -1616,6 +1737,63 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::THierarchicalJoinClause* proto, const TConstHierarchicalJoinClausePtr& original)
+{
+    ToProto(proto->mutable_foreign_table_original_schema(), original->ForeignTableSchema.Original);
+    ToProto(proto->mutable_foreign_table_schema_mapping(), original->ForeignTableSchema.Mapping);
+
+    ToProto(proto->mutable_foreign_equations(), original->ForeignEquations);
+    ToProto(proto->mutable_self_equations(), original->SelfEquations);
+
+    ToProto(proto->mutable_foreign_object_id(), original->ForeignObjectId);
+    ToProto(proto->mutable_foreign_cell_id(), original->ForeignCellId);
+
+    proto->set_is_left(original->IsLeft);
+
+    proto->set_result_column_name(original->ResultColumnName);
+
+    if (original->SelfSideJoinKeys) {
+        ToProto(proto->mutable_self_side_join_keys(), original->SelfSideJoinKeys);
+    }
+
+    if (original->JoiningSubquery) {
+        ToProto(proto->mutable_joining_subquery(), original->JoiningSubquery);
+    }
+
+    ToProto(proto->mutable_foreign_joined_columns(), original->ForeignJoinedColumns);
+}
+
+void FromProto(TConstHierarchicalJoinClausePtr* original, const NProto::THierarchicalJoinClause& serialized)
+{
+    auto result = New<THierarchicalJoinClause>();
+    FromProto(&result->ForeignTableSchema.Original, serialized.foreign_table_original_schema());
+    FromProto(&result->ForeignTableSchema.Mapping, serialized.foreign_table_schema_mapping());
+    FromProto(&result->ForeignEquations, serialized.foreign_equations());
+    FromProto(&result->SelfEquations, serialized.self_equations());
+    FromProto(&result->ForeignObjectId, serialized.foreign_object_id());
+    FromProto(&result->ForeignCellId, serialized.foreign_cell_id());
+    FromProto(&result->IsLeft, serialized.is_left());
+
+    result->ResultColumnName = serialized.result_column_name();
+    FromProto(&result->ForeignJoinedColumns, serialized.foreign_joined_columns());
+
+    if (serialized.has_self_side_join_keys()) {
+        TConstExpressionPtr expr;
+        FromProto(&expr, serialized.self_side_join_keys());
+        result->SelfSideJoinKeys = expr->As<TSubqueryExpression>();
+    }
+
+    if (serialized.has_joining_subquery()) {
+        TConstExpressionPtr expr;
+        FromProto(&expr, serialized.joining_subquery());
+        result->JoiningSubquery = expr->As<TSubqueryExpression>();
+    }
+
+    *original = result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TProjectClause* proto, const TConstProjectClausePtr& original)
 {
     ToProto(proto->mutable_projections(), original->Projections);
@@ -1691,6 +1869,8 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
     ToProto(serialized->mutable_schema_mapping(), original->Schema.Mapping);
 
     ToProto(serialized->mutable_join_clauses(), original->JoinClauses);
+    ToProto(serialized->mutable_hierarchical_joins_before_group_by(), original->HierarchicalJoinsBeforeGroupBy);
+    ToProto(serialized->mutable_hierarchical_joins_after_group_by(), original->HierarchicalJoinsAfterGroupBy);
 
     if (original->WhereClause) {
         ToProto(serialized->mutable_where_clause(), original->WhereClause);
@@ -1728,6 +1908,8 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
     FromProto(&result->Schema.Mapping, serialized.schema_mapping());
 
     FromProto(&result->JoinClauses, serialized.join_clauses());
+    FromProto(&result->HierarchicalJoinsBeforeGroupBy, serialized.hierarchical_joins_before_group_by());
+    FromProto(&result->HierarchicalJoinsAfterGroupBy, serialized.hierarchical_joins_after_group_by());
 
     if (serialized.has_where_clause()) {
         FromProto(&result->WhereClause, serialized.where_clause());

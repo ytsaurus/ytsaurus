@@ -16,6 +16,7 @@ SRCS(
     expr_builder_v2.cpp
     functions.cpp
     helpers.cpp
+    hierarchical_join_rewriter.cpp
     builtin_function_registry.cpp
     builtin_function_types.cpp
     functions_common.cpp
