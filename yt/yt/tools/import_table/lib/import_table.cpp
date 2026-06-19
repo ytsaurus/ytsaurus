@@ -129,7 +129,7 @@ struct TSourceConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExtractKeys(std::vector<TString>& keys, const std::vector<NS3::TObject>& objects)
+void ExtractKeys(std::vector<std::string>& keys, const std::vector<NS3::TObject>& objects)
 {
     for (const auto& value : objects) {
         keys.push_back(value.Key);
@@ -163,7 +163,7 @@ NS3::IClientPtr CreateS3Client(
     return client;
 }
 
-std::vector<TString> GetListFilesKeysFromS3(
+std::vector<std::string> GetListFilesKeysFromS3(
     const TS3Config& s3Config,
     TString accessKeyId,
     TString secretAccessKey,
@@ -174,7 +174,7 @@ std::vector<TString> GetListFilesKeysFromS3(
         std::move(accessKeyId),
         std::move(secretAccessKey));
 
-    std::vector<TString> keys;
+    std::vector<std::string> keys;
     NS3::TListObjectsResponse response({ .NextContinuationToken = std::nullopt });
     do {
         response = WaitFor(s3Client->ListObjects({
@@ -1063,8 +1063,7 @@ void ImportFilesFromS3(
 
     ImportFilesFromSource(
         proxy,
-        // TODO(babenko): migrate to std::string
-        std::vector<std::string>(fileKeys.begin(), fileKeys.end()),
+        fileKeys,
         resultTable,
         networkProject,
         TSourceConfig{

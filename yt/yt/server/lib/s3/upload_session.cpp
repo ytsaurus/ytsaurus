@@ -64,8 +64,8 @@ TFuture<void> TS3UploadSessionBase::AbortCompletedUpload()
 
     // This method is idempotent and does not throw if the object does not exist.
     return Client_->DeleteObjects(TDeleteObjectsRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Objects = {TString(ObjectPlacement_.Key)},
+        .Bucket = ObjectPlacement_.Bucket,
+        .Objects = {ObjectPlacement_.Key},
     })
         .AsVoid();
 }
@@ -247,8 +247,8 @@ void TS3MultiPartUploadSession::GuardedSchedulePartUpload()
         md5);
 
     auto uploadFuture = Client_->UploadPart(TUploadPartRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Key = TString(ObjectPlacement_.Key),
+        .Bucket = ObjectPlacement_.Bucket,
+        .Key = ObjectPlacement_.Key,
         .UploadId = UploadId_,
         .PartIndex = partIndex,
         .Data = std::move(data),
@@ -318,8 +318,8 @@ void TS3MultiPartUploadSession::DoStart()
     YT_LOG_DEBUG("Starting multi-part upload to S3");
 
     auto multiPartUploadOrError = WaitFor(Client_->CreateMultipartUpload(TCreateMultipartUploadRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Key = TString(ObjectPlacement_.Key),
+        .Bucket = ObjectPlacement_.Bucket,
+        .Key = ObjectPlacement_.Key,
     }));
 
     if (!multiPartUploadOrError.IsOK()) {
@@ -378,8 +378,8 @@ void TS3MultiPartUploadSession::DoComplete()
     }
 
     auto multiPartUploadOrError = WaitFor(Client_->CompleteMultipartUpload(TCompleteMultipartUploadRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Key = TString(ObjectPlacement_.Key),
+        .Bucket = ObjectPlacement_.Bucket,
+        .Key = ObjectPlacement_.Key,
         .UploadId = UploadId_,
         .Parts = std::move(uploadedParts),
     }));
@@ -412,8 +412,8 @@ void TS3MultiPartUploadSession::DoAbortIncompleteUpload()
 
     YT_LOG_DEBUG("Aborting incomplete multi-part upload to S3 (UploadId: %v)", UploadId_);
     WaitFor(Client_->AbortMultipartUpload(TAbortMultipartUploadRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Key = TString(ObjectPlacement_.Key),
+        .Bucket = ObjectPlacement_.Bucket,
+        .Key = ObjectPlacement_.Key,
         .UploadId = UploadId_,
     }))
         .ValueOrThrow();
@@ -460,8 +460,8 @@ void TS3SimpleUploadSession::DoUpload(TSharedRef data)
     YT_LOG_DEBUG("Uploading object to S3 (Size: %v)", data.Size());
 
     auto putObjectResponse = WaitFor(Client_->PutObject(TPutObjectRequest{
-        .Bucket = TString(ObjectPlacement_.Bucket),
-        .Key = TString(ObjectPlacement_.Key),
+        .Bucket = ObjectPlacement_.Bucket,
+        .Key = ObjectPlacement_.Key,
         .Data = std::move(data),
     }));
 
