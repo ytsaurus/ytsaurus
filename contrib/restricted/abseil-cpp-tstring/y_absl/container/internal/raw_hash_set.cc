@@ -72,7 +72,7 @@ constexpr size_t Group::kWidth;
 namespace {
 
 // Returns "random" seed.
-inline size_t RandomSeed() {
+Y_ABSL_ATTRIBUTE_NOINLINE size_t RandomSeed() {
 #ifdef Y_ABSL_HAVE_THREAD_LOCAL
   static thread_local size_t counter = 0;
   // On Linux kernels >= 5.4 the MSAN runtime has a false-positive when

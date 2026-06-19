@@ -147,7 +147,7 @@ Y_ABSL_CACHELINE_ALIGNED static RandenPoolEntry* shared_pools[kPoolSize];
 // on subsequent runs the order within the same program may be significantly
 // different. However, as other thread IDs are not assigned sequentially,
 // this is not expected to matter.
-size_t GetPoolID() {
+Y_ABSL_ATTRIBUTE_NOINLINE size_t GetPoolID() {
   static_assert(kPoolSize >= 1,
                 "At least one urbg instance is required for PoolURBG");
 

@@ -63,6 +63,7 @@ int64_t cordz_should_profile_slow(SamplingState& state);
 //   0: Do not sample
 //  >0: Sample with the stride of the last sampling period
 inline int64_t cordz_should_profile() {
+  return 0;
   if (ABSL_PREDICT_TRUE(cordz_next_sample.next_sample > 1)) {
     cordz_next_sample.next_sample--;
     return 0;

@@ -73,7 +73,7 @@ void ValidateMaxSize(size_t size, size_t slot_size) {
 }
 
 // Returns "random" seed.
-inline size_t RandomSeed() {
+ABSL_ATTRIBUTE_NOINLINE size_t RandomSeed() {
 #ifdef ABSL_HAVE_THREAD_LOCAL
   static thread_local size_t counter = 0;
   size_t value = ++counter;

@@ -96,7 +96,7 @@ namespace {
             TIntrusiveListWithAutoDelete<TStoredValue, TDelete> Storage_;
         };
 
-        inline TPerThreadStorage* MyStorage() {
+        Y_NO_INLINE TPerThreadStorage* MyStorage() {
 #if defined(Y_HAVE_FAST_POD_TLS)
             Y_POD_STATIC_THREAD(TPerThreadStorage*)
             my(nullptr);

@@ -489,7 +489,7 @@ pid_t GetTID() {
 // GetCachedTID() caches the thread ID in thread-local storage (which is a
 // userspace construct) to avoid unnecessary system calls. Without this caching,
 // it can take roughly 98ns, while it takes roughly 1ns with this caching.
-pid_t GetCachedTID() {
+Y_ABSL_ATTRIBUTE_NOINLINE pid_t GetCachedTID() {
 #ifdef Y_ABSL_HAVE_THREAD_LOCAL
   static thread_local pid_t thread_id = GetTID();
   return thread_id;

@@ -263,7 +263,10 @@ class PROTOBUF_EXPORT ThreadSafeArena {
   static ThreadCache& thread_cache();
 #else
   PROTOBUF_CONSTINIT static PROTOBUF_THREAD_LOCAL ThreadCache thread_cache_;
-  static ThreadCache& thread_cache() { return thread_cache_; }
+  __attribute__((__noinline__)) static ThreadCache& thread_cache() {
+    asm volatile(""); \
+    return thread_cache_;
+  }
 #endif
 
  public:

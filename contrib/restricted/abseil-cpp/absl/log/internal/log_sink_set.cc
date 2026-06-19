@@ -55,8 +55,9 @@ namespace {
 // Returns a mutable reference to a thread-local variable that should be true if
 // a globally-registered `LogSink`'s `Send()` is currently being invoked on this
 // thread.
-bool& ThreadIsLoggingStatus() {
+ABSL_ATTRIBUTE_NOINLINE bool& ThreadIsLoggingStatus() {
 #ifdef ABSL_HAVE_THREAD_LOCAL
+  asm volatile("");
   ABSL_CONST_INIT thread_local bool thread_is_logging = false;
   return thread_is_logging;
 #else

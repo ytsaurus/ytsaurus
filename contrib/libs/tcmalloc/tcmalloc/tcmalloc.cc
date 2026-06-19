@@ -171,7 +171,7 @@ namespace tcmalloc_internal {
 // [buffer, buffer+result] will contain NUL-terminated output string.
 //
 // REQUIRES: buffer_length > 0.
-extern "C" ABSL_ATTRIBUTE_UNUSED int MallocExtension_Internal_GetStatsInPbtxt(
+__attribute__((__noinline__)) extern "C" ABSL_ATTRIBUTE_UNUSED int MallocExtension_Internal_GetStatsInPbtxt(
     char* buffer, int buffer_length) {
   TC_ASSERT_GT(buffer_length, 0);
   Printer printer(buffer, buffer_length);
@@ -204,7 +204,7 @@ static void PrintStats(int level) {
   delete[] buffer;
 }
 
-extern "C" void MallocExtension_Internal_GetStats(std::string* ret) {
+__attribute__((__noinline__)) extern "C" void MallocExtension_Internal_GetStats(std::string* ret) {
   size_t shift = std::max<size_t>(18, absl::bit_width(ret->capacity()) - 1);
   for (; shift < 22; shift++) {
     const size_t size = 1 << shift;
@@ -224,7 +224,7 @@ extern "C" void MallocExtension_Internal_GetStats(std::string* ret) {
   }
 }
 
-extern "C" size_t TCMalloc_Internal_GetStats(char* buffer,
+__attribute__((__noinline__)) extern "C" size_t TCMalloc_Internal_GetStats(char* buffer,
                                              size_t buffer_length) {
   Printer printer(buffer, buffer_length);
   if (buffer_length < 10000) {
@@ -249,7 +249,7 @@ extern "C" size_t TCMalloc_Internal_GetStats(char* buffer,
   return n;
 }
 
-extern "C" const ProfileBase* MallocExtension_Internal_SnapshotCurrent(
+__attribute__((__noinline__)) extern "C" const ProfileBase* MallocExtension_Internal_SnapshotCurrent(
     ProfileType type) {
   switch (type) {
     case ProfileType::kHeap:
@@ -263,12 +263,12 @@ extern "C" const ProfileBase* MallocExtension_Internal_SnapshotCurrent(
   }
 }
 
-extern "C" AllocationProfilingTokenBase*
+__attribute__((__noinline__)) extern "C" AllocationProfilingTokenBase*
 MallocExtension_Internal_StartAllocationProfiling() {
   return new AllocationSample(&tc_globals.allocation_samples, absl::Now());
 }
 
-extern "C" tcmalloc_internal::AllocationProfilingTokenBase*
+__attribute__((__noinline__)) extern "C" tcmalloc_internal::AllocationProfilingTokenBase*
 MallocExtension_Internal_StartLifetimeProfiling() {
   return new deallocationz::DeallocationSample(
       &tc_globals.deallocation_samples);
@@ -281,7 +281,7 @@ MallocExtension::Ownership GetOwnership(const void* ptr) {
              : MallocExtension::Ownership::kNotOwned;
 }
 
-extern "C" bool MallocExtension_Internal_GetNumericProperty(
+__attribute__((__noinline__)) extern "C" bool MallocExtension_Internal_GetNumericProperty(
     const char* name_data, size_t name_size, size_t* value) {
   return GetNumericProperty(name_data, name_size, value);
 }
@@ -292,13 +292,13 @@ static_assert(static_cast<int>(tcmalloc::MallocExtension::LimitKind::kSoft) ==
 static_assert(static_cast<int>(tcmalloc::MallocExtension::LimitKind::kHard) ==
               PageAllocator::kHard);
 
-extern "C" size_t MallocExtension_Internal_GetMemoryLimit(
+__attribute__((__noinline__)) extern "C" size_t MallocExtension_Internal_GetMemoryLimit(
     tcmalloc::MallocExtension::LimitKind limit_kind) {
   return tc_globals.page_allocator().limit(
       static_cast<PageAllocator::LimitKind>(limit_kind));
 }
 
-extern "C" void MallocExtension_Internal_SetMemoryLimit(
+__attribute__((__noinline__)) extern "C" void MallocExtension_Internal_SetMemoryLimit(
     size_t limit, tcmalloc::MallocExtension::LimitKind limit_kind) {
   if (limit_kind == tcmalloc::MallocExtension::LimitKind::kHard) {
     Parameters::set_heap_size_hard_limit(limit);
@@ -307,16 +307,16 @@ extern "C" void MallocExtension_Internal_SetMemoryLimit(
       limit, static_cast<PageAllocator::LimitKind>(limit_kind));
 }
 
-extern "C" void MallocExtension_Internal_MarkThreadIdle() {
+__attribute__((__noinline__)) extern "C" void MallocExtension_Internal_MarkThreadIdle() {
   ThreadCache::BecomeIdle();
 }
 
-extern "C" AddressRegionFactory* MallocExtension_Internal_GetRegionFactory() {
+__attribute__((__noinline__)) extern "C" AddressRegionFactory* MallocExtension_Internal_GetRegionFactory() {
   PageHeapSpinLockHolder l;
   return tc_globals.system_allocator().GetRegionFactory();
 }
 
-extern "C" void MallocExtension_Internal_SetRegionFactory(
+__attribute__((__noinline__)) extern "C" void MallocExtension_Internal_SetRegionFactory(
     AddressRegionFactory* factory) {
   PageHeapSpinLockHolder l;
   tc_globals.system_allocator().SetRegionFactory(factory);
@@ -328,7 +328,7 @@ extern "C" void MallocExtension_Internal_SetRegionFactory(
 ABSL_CONST_INIT static absl::base_internal::SpinLock release_lock(
     absl::kConstInit, absl::base_internal::SCHEDULE_KERNEL_ONLY);
 
-extern "C" size_t MallocExtension_Internal_ReleaseMemoryToSystem(
+__attribute__((__noinline__)) extern "C" size_t MallocExtension_Internal_ReleaseMemoryToSystem(
     size_t num_bytes) {
   ABSL_CONST_INIT static ConstantRatePageAllocatorReleaser releaser
       ABSL_GUARDED_BY(release_lock);
@@ -339,7 +339,7 @@ extern "C" size_t MallocExtension_Internal_ReleaseMemoryToSystem(
                           /*reason=*/PageReleaseReason::kReleaseMemoryToSystem);
 }
 
-extern "C" void MallocExtension_EnableForkSupport() {
+__attribute__((__noinline__)) extern "C" void MallocExtension_EnableForkSupport() {
   Static::EnableForkSupport();
 }
 
@@ -394,7 +394,7 @@ void TCMallocPostFork() {
   Static::sampled_allocation_recorder().ReleaseInternalLocks();
 }
 
-extern "C" void MallocExtension_SetSampleUserDataCallbacks(
+__attribute__((__noinline__)) extern "C" void MallocExtension_SetSampleUserDataCallbacks(
     MallocExtension::CreateSampleUserDataCallback create,
     MallocExtension::CopySampleUserDataCallback copy,
     MallocExtension::DestroySampleUserDataCallback destroy,
@@ -426,7 +426,7 @@ static ABSL_ATTRIBUTE_NOINLINE size_t nallocx_slow(size_t size, int flags) {
 // allocation that would result from the equivalent malloc function call.
 // nallocx is a malloc extension originally implemented by jemalloc:
 // http://www.unix.com/man-page/freebsd/3/nallocx/
-extern "C" size_t nallocx(size_t size, int flags) noexcept {
+__attribute__((__noinline__)) extern "C" size_t nallocx(size_t size, int flags) noexcept {
   if (ABSL_PREDICT_FALSE(!tc_globals.IsInited() || flags != 0)) {
     return nallocx_slow(size, flags);
   }
@@ -440,12 +440,12 @@ extern "C" size_t nallocx(size_t size, int flags) noexcept {
   }
 }
 
-extern "C" MallocExtension::Ownership MallocExtension_Internal_GetOwnership(
+__attribute__((__noinline__)) extern "C" MallocExtension::Ownership MallocExtension_Internal_GetOwnership(
     const void* ptr) {
   return GetOwnership(ptr);
 }
 
-extern "C" void MallocExtension_Internal_GetProperties(
+__attribute__((__noinline__)) extern "C" void MallocExtension_Internal_GetProperties(
     std::map<std::string, MallocExtension::Property>* result) {
   TCMallocStats stats;
   // Include residency stats to avoid overestimating reported memory usage from
@@ -541,7 +541,7 @@ extern "C" void MallocExtension_Internal_GetProperties(
       stats.num_released_hard_limit_exceeded.in_bytes();
 }
 
-extern "C" size_t MallocExtension_Internal_ReleaseCpuMemory(int cpu) {
+__attribute__((__noinline__)) extern "C" size_t MallocExtension_Internal_ReleaseCpuMemory(int cpu) {
   if (ABSL_PREDICT_FALSE(!subtle::percpu::IsFast())) return 0;
 
   size_t bytes = 0;
@@ -1104,13 +1104,13 @@ GOOGLE_MALLOC_SECTION_END
 using tcmalloc::tcmalloc_internal::GetOwnership;
 using tcmalloc::tcmalloc_internal::GetSize;
 
-extern "C" size_t MallocExtension_Internal_GetAllocatedSize(const void* ptr) {
+__attribute__((__noinline__)) extern "C" size_t MallocExtension_Internal_GetAllocatedSize(const void* ptr) {
   TC_ASSERT(!ptr || GetOwnership(ptr) !=
                         tcmalloc::MallocExtension::Ownership::kNotOwned);
   return GetSize(ptr);
 }
 
-extern "C" void MallocExtension_Internal_MarkThreadBusy() {
+__attribute__((__noinline__)) extern "C" void MallocExtension_Internal_MarkThreadBusy() {
   tc_globals.InitIfNecessary();
 
   if (UsePerCpuCache(tc_globals)) {
@@ -1121,6 +1121,7 @@ extern "C" void MallocExtension_Internal_MarkThreadBusy() {
   tcmalloc::tcmalloc_internal::ThreadCache::GetCache();
 }
 
+__attribute__((__noinline__))
 absl::StatusOr<tcmalloc::malloc_tracing_extension::AllocatedAddressRanges>
 MallocTracingExtension_Internal_GetAllocatedAddressRanges() {
   tcmalloc::malloc_tracing_extension::AllocatedAddressRanges
@@ -1147,11 +1148,11 @@ MallocTracingExtension_Internal_GetAllocatedAddressRanges() {
       "output vector.");
 }
 
-tcmalloc::tcmalloc_internal::MadvisePreference TCMalloc_Internal_GetMadvise() {
+__attribute__((__noinline__)) tcmalloc::tcmalloc_internal::MadvisePreference TCMalloc_Internal_GetMadvise() {
   return tc_globals.system_allocator().madvise_preference();
 }
 
-void TCMalloc_Internal_SetMadvise(
+__attribute__((__noinline__)) void TCMalloc_Internal_SetMadvise(
     tcmalloc::tcmalloc_internal::MadvisePreference v) {
   tc_globals.system_allocator().set_madvise_preference(v);
 }
@@ -1177,16 +1178,16 @@ using tcmalloc::tcmalloc_internal::MultiplyOverflow;
   __attribute__((alias(#tc_fn), visibility("default")))
 #endif  //  !TCMALLOC_INTERNAL_METHODS_ONLY
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalMalloc(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalMalloc(
     size_t size) noexcept {
   return fast_alloc(size, MallocPolicy());
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalNew(size_t size) {
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalNew(size_t size) {
   return fast_alloc(size, CppPolicy());
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalNewNothrow(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalNewNothrow(
     size_t size, const std::nothrow_t&) noexcept {
   return fast_alloc(size, CppPolicy().Nothrow());
 }
@@ -1200,25 +1201,25 @@ extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalNewNothrow(
 //   implemented in terms of `{::operator new(...), n}`
 // - tcmalloc provides strong implementations of `__size_returning_new`
 
-extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
 __sized_ptr_t __size_returning_new(size_t size) {
   return fast_alloc(size, CppPolicy().SizeReturning());
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
 __sized_ptr_t __size_returning_new_aligned(size_t size,
                                            std::align_val_t alignment) {
   TC_ASSERT(absl::has_single_bit(static_cast<size_t>(alignment)));
   return fast_alloc(size, CppPolicy().AlignAs(alignment).SizeReturning());
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
 __sized_ptr_t __size_returning_new_hot_cold(size_t size,
                                             __hot_cold_t hot_cold) {
   return fast_alloc(size, CppPolicy().AccessAs(hot_cold).SizeReturning());
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
 __sized_ptr_t __size_returning_new_aligned_hot_cold(size_t size,
                                                     std::align_val_t alignment,
                                                     __hot_cold_t hot_cold) {
@@ -1228,25 +1229,25 @@ __sized_ptr_t __size_returning_new_aligned_hot_cold(size_t size,
 }
 #endif  // !TCMALLOC_INTERNAL_METHODS_ONLY
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalMemalign(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalMemalign(
     size_t align, size_t size) noexcept {
   TC_ASSERT(absl::has_single_bit(align));
   return fast_alloc(size, MallocPolicy().AlignAs(align));
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalNewAligned(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalNewAligned(
     size_t size, std::align_val_t alignment) {
   TC_ASSERT(absl::has_single_bit(static_cast<size_t>(alignment)));
   return fast_alloc(size, CppPolicy().AlignAs(alignment));
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalNewAlignedNothrow(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalNewAlignedNothrow(
     size_t size, std::align_val_t alignment, const std::nothrow_t&) noexcept {
   TC_ASSERT(absl::has_single_bit(static_cast<size_t>(alignment)));
   return fast_alloc(size, CppPolicy().Nothrow().AlignAs(alignment));
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalCalloc(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalCalloc(
     size_t n, size_t elem_size) noexcept {
   size_t size;
   if (ABSL_PREDICT_FALSE(MultiplyOverflow(n, elem_size, &size))) {
@@ -1331,7 +1332,7 @@ static inline ABSL_ATTRIBUTE_ALWAYS_INLINE void* do_realloc(void* old_ptr,
   }
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalRealloc(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalRealloc(
     void* ptr, size_t size) noexcept {
   if (ptr == nullptr) {
     return fast_alloc(size, MallocPolicy());
@@ -1343,7 +1344,7 @@ extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalRealloc(
   return do_realloc(ptr, size);
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalReallocArray(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalReallocArray(
     void* ptr, size_t n, size_t elem_size) noexcept {
   size_t size;
   if (ABSL_PREDICT_FALSE(MultiplyOverflow(n, elem_size, &size))) {
@@ -1360,13 +1361,13 @@ extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalReallocArray(
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
-__sized_ptr_t tcmalloc_size_returning_operator_new_nothrow(
+__attribute__((__noinline__)) __sized_ptr_t tcmalloc_size_returning_operator_new_nothrow(
     size_t size) noexcept {
   return fast_alloc(size, CppPolicy().Nothrow().SizeReturning());
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
-__sized_ptr_t tcmalloc_size_returning_operator_new_aligned_nothrow(
+__attribute__((__noinline__)) __sized_ptr_t tcmalloc_size_returning_operator_new_aligned_nothrow(
     size_t size, std::align_val_t alignment) noexcept {
   TC_ASSERT(absl::has_single_bit(static_cast<size_t>(alignment)));
   return fast_alloc(size,
@@ -1374,14 +1375,14 @@ __sized_ptr_t tcmalloc_size_returning_operator_new_aligned_nothrow(
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
-__sized_ptr_t tcmalloc_size_returning_operator_new_hot_cold_nothrow(
+__attribute__((__noinline__)) __sized_ptr_t tcmalloc_size_returning_operator_new_hot_cold_nothrow(
     size_t size, __hot_cold_t hot_cold) noexcept {
   return fast_alloc(size,
                     CppPolicy().AccessAs(hot_cold).Nothrow().SizeReturning());
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED ABSL_ATTRIBUTE_SECTION(google_malloc)
-__sized_ptr_t tcmalloc_size_returning_operator_new_aligned_hot_cold_nothrow(
+__attribute__((__noinline__)) __sized_ptr_t tcmalloc_size_returning_operator_new_aligned_hot_cold_nothrow(
     size_t size, std::align_val_t alignment, __hot_cold_t hot_cold) noexcept {
   TC_ASSERT(absl::has_single_bit(static_cast<size_t>(alignment)));
   return fast_alloc(size, CppPolicy()
@@ -1391,17 +1392,17 @@ __sized_ptr_t tcmalloc_size_returning_operator_new_aligned_hot_cold_nothrow(
                               .SizeReturning());
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalFree(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalFree(
     void* ptr) noexcept {
   do_free(ptr);
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalFreeSized(void* ptr,
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalFreeSized(void* ptr,
                                                                  size_t size) {
   do_free_with_size(ptr, size, MallocAlignPolicy());
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalFreeAlignedSized(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalFreeAlignedSized(
     void* ptr, size_t align, size_t size) {
   TC_ASSERT(absl::has_single_bit(align));
   do_free_with_size(ptr, size, AlignAsPolicy(align));
@@ -1410,7 +1411,7 @@ extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalFreeAlignedSized(
 extern "C" void TCMallocInternalCfree(void* ptr) noexcept
     TCMALLOC_ALIAS(TCMallocInternalFree);
 
-extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalSdallocx(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalSdallocx(
     void* ptr, size_t size, int flags) noexcept {
   size_t alignment = alignof(std::max_align_t);
 
@@ -1439,12 +1440,12 @@ extern "C" void TCMallocInternalDeleteAligned(
 }
 #endif
 
-extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalDeleteSized(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalDeleteSized(
     void* p, size_t size) noexcept {
   do_free_with_size(p, size, DefaultAlignPolicy());
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalDeleteSizedAligned(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalDeleteSizedAligned(
     void* p, size_t t, std::align_val_t alignment) noexcept {
   TC_ASSERT(absl::has_single_bit(static_cast<size_t>(alignment)));
   return do_free_with_size(p, t, AlignAsPolicy(alignment));
@@ -1498,7 +1499,7 @@ extern "C" void TCMallocInternalDeleteArrayAlignedNothrow(
     void* p, std::align_val_t alignment, const std::nothrow_t& nt) noexcept
     TCMALLOC_ALIAS(TCMallocInternalDeleteAligned);
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalAlignedAlloc(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalAlignedAlloc(
     size_t align, size_t size) noexcept {
   // See https://www.open-std.org/jtc1/sc22/wg14/www/docs/summary.htm#dr_460.
   // The standard was updated to say that if align is not supported by the
@@ -1513,7 +1514,7 @@ extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalAlignedAlloc(
   return fast_alloc(size, MallocPolicy().AlignAs(align));
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalPosixMemalign(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalPosixMemalign(
     void** result_ptr, size_t align, size_t size) noexcept {
   TC_ASSERT_NE(result_ptr, nullptr);
   if (ABSL_PREDICT_FALSE(((align % sizeof(void*)) != 0) ||
@@ -1528,13 +1529,13 @@ extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalPosixMemalign(
   return 0;
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalValloc(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalValloc(
     size_t size) noexcept {
   // Allocate page-aligned object of length >= size bytes
   return fast_alloc(size, MallocPolicy().AlignAs(GetPageSize()));
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalPvalloc(
+__attribute__((__noinline__)) extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalPvalloc(
     size_t size) noexcept {
   // Round up size to a multiple of pagesize
   size_t page_size = GetPageSize();
@@ -1575,7 +1576,7 @@ extern "C" int TCMallocInternalMallocInfo(int opts ABSL_ATTRIBUTE_UNUSED,
   return 0;
 }
 
-extern "C" size_t TCMallocInternalMallocSize(void* ptr) noexcept {
+__attribute__((__noinline__)) extern "C" size_t TCMallocInternalMallocSize(void* ptr) noexcept {
   if (ptr == nullptr) {
     return 0;
   }
@@ -1614,24 +1615,24 @@ static TCMallocGuard module_enter_exit_hook;
 GOOGLE_MALLOC_SECTION_END
 
 #ifndef TCMALLOC_INTERNAL_METHODS_ONLY
-ABSL_CACHELINE_ALIGNED void* operator new(
+__attribute__((__noinline__)) ABSL_CACHELINE_ALIGNED void* operator new(
     size_t size, __hot_cold_t hot_cold) noexcept(false) {
   return fast_alloc(size, CppPolicy().AccessAs(hot_cold));
 }
 
-ABSL_CACHELINE_ALIGNED void* operator new(size_t size, const std::nothrow_t&,
+__attribute__((__noinline__)) ABSL_CACHELINE_ALIGNED void* operator new(size_t size, const std::nothrow_t&,
                                           __hot_cold_t hot_cold) noexcept {
   return fast_alloc(size, CppPolicy().Nothrow().AccessAs(hot_cold));
 }
 
-ABSL_CACHELINE_ALIGNED void* operator new(
+__attribute__((__noinline__)) ABSL_CACHELINE_ALIGNED void* operator new(
     size_t size, std::align_val_t align,
     __hot_cold_t hot_cold) noexcept(false) {
   TC_ASSERT(absl::has_single_bit(static_cast<size_t>(align)));
   return fast_alloc(size, CppPolicy().AlignAs(align).AccessAs(hot_cold));
 }
 
-ABSL_CACHELINE_ALIGNED void* operator new(size_t size, std::align_val_t align,
+__attribute__((__noinline__)) ABSL_CACHELINE_ALIGNED void* operator new(size_t size, std::align_val_t align,
                                           const std::nothrow_t&,
                                           __hot_cold_t hot_cold) noexcept {
   TC_ASSERT(absl::has_single_bit(static_cast<size_t>(align)));
@@ -1639,24 +1640,24 @@ ABSL_CACHELINE_ALIGNED void* operator new(size_t size, std::align_val_t align,
                     CppPolicy().Nothrow().AlignAs(align).AccessAs(hot_cold));
 }
 
-ABSL_CACHELINE_ALIGNED void* operator new[](
+__attribute__((__noinline__)) ABSL_CACHELINE_ALIGNED void* operator new[](
     size_t size, __hot_cold_t hot_cold) noexcept(false) {
   return fast_alloc(size, CppPolicy().AccessAs(hot_cold));
 }
 
-ABSL_CACHELINE_ALIGNED void* operator new[](size_t size, const std::nothrow_t&,
+__attribute__((__noinline__)) ABSL_CACHELINE_ALIGNED void* operator new[](size_t size, const std::nothrow_t&,
                                             __hot_cold_t hot_cold) noexcept {
   return fast_alloc(size, CppPolicy().Nothrow().AccessAs(hot_cold));
 }
 
-ABSL_CACHELINE_ALIGNED void* operator new[](
+__attribute__((__noinline__)) ABSL_CACHELINE_ALIGNED void* operator new[](
     size_t size, std::align_val_t align,
     __hot_cold_t hot_cold) noexcept(false) {
   TC_ASSERT(absl::has_single_bit(static_cast<size_t>(align)));
   return fast_alloc(size, CppPolicy().AlignAs(align).AccessAs(hot_cold));
 }
 
-ABSL_CACHELINE_ALIGNED void* operator new[](size_t size, std::align_val_t align,
+__attribute__((__noinline__)) ABSL_CACHELINE_ALIGNED void* operator new[](size_t size, std::align_val_t align,
                                             const std::nothrow_t&,
                                             __hot_cold_t hot_cold) noexcept {
   TC_ASSERT(absl::has_single_bit(static_cast<size_t>(align)));

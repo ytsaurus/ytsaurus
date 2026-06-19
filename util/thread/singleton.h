@@ -11,7 +11,7 @@ namespace NPrivate {
             return SingletonWithPriority<NTls::TValue<T>, Priority>()->GetPtr();
         }
 
-        static inline T* Get() {
+        static Y_NO_INLINE T* Get() {
 #if defined(Y_HAVE_FAST_POD_TLS)
             Y_POD_STATIC_THREAD(T*) fast(nullptr);
 
