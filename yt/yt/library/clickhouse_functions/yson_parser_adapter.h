@@ -10,19 +10,22 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/// This class can be used as an argument for the template class TFunctionYson.
-/// It provides ability to parse YSONs using JSON parser's interface.
+//! This class can be used as an argument for the template class TFunctionYson.
+//! It provides the ability to parse YSONs using the JSON parser's interface.
 struct TYsonParserAdapter
 {
     class Array;
     class Object;
 
-    // References an element in an YSON document, representing a boolean, string, number, map or list.
+    //! References an element in a YSON document, representing a boolean, string, number, map or list.
     class Element
     {
     public:
-        Element() {}
-        Element(const NYTree::INodePtr & node) : Node_(node) {} // Intentionally implicit.
+        Element() = default;
+        Element(const NYTree::INodePtr& node) // Intentionally implicit.
+            : Node_(node)
+        { }
+
         NYTree::INodePtr GetNode() const { return Node_; }
 
         DB::ElementType type() const
@@ -45,10 +48,11 @@ struct TYsonParserAdapter
                 case NYTree::ENodeType::Entity:
                     return DB::ElementType::NULL_VALUE;
                 case NYTree::ENodeType::Composite:
-                    // Should never appear during yson parsing.
+                    // Should never appear during YSON parsing.
                     YT_ABORT();
             }
         }
+
         bool isInt64() const { return Node_->GetType() == NYTree::ENodeType::Int64; }
         bool isUInt64() const { return Node_->GetType() == NYTree::ENodeType::Uint64; }
         bool isDouble() const { return Node_->GetType() == NYTree::ENodeType::Double; }
@@ -70,24 +74,32 @@ struct TYsonParserAdapter
         NYTree::INodePtr Node_;
     };
 
-    // References a list in an YSON document.
+    //! References a list in a YSON document.
     class Array
     {
     public:
         class Iterator
         {
         public:
-            Iterator(const NYTree::IListNodePtr & list_node, size_t index) : ListNode_(list_node), Index_(index) {}
+            Iterator(const NYTree::IListNodePtr& listNode, size_t index)
+                : ListNode_(listNode)
+                , Index_(index)
+            { }
+
             Element operator*() const { return ListNode_->FindChild(Index_); }
-            Iterator & operator++() { ++Index_; return *this; }
-            Iterator operator++(int) { auto res = *this; ++Index_; return res; }
-            friend bool operator==(const Iterator & left, const Iterator & right) { return (left.Index_ == right.Index_) && (left.ListNode_ == right.ListNode_); }
+            Iterator& operator++() { ++Index_; return *this; }
+            Iterator operator++(int) { auto result = *this; ++Index_; return result; }
+            friend bool operator==(const Iterator& lhs, const Iterator& rhs)
+            {
+                return lhs.Index_ == rhs.Index_ && lhs.ListNode_ == rhs.ListNode_;
+            }
+
         private:
             NYTree::IListNodePtr ListNode_;
             size_t Index_ = 0;
         };
 
-        explicit Array(const NYTree::IListNodePtr& list_node) : ListNode_(list_node) {}
+        explicit Array(const NYTree::IListNodePtr& listNode) : ListNode_(listNode) { }
         Iterator begin() const { return {ListNode_, 0}; }
         Iterator end() const { return {ListNode_, size()}; }
         size_t size() const { return ListNode_->GetChildCount(); }
@@ -99,36 +111,42 @@ struct TYsonParserAdapter
 
     using KeyValuePair = std::pair<std::string_view, NYTree::INodePtr>;
 
-    // References a map in an YSON document.
+    //! References a map in a YSON document.
     class Object
     {
     public:
         class Iterator
         {
         public:
-            Iterator(const std::shared_ptr<std::vector<std::pair<std::string, NYTree::INodePtr>>>& key_value_pairs, size_t index) : KeyValuePairs_(key_value_pairs), Index_(index) {}
+            Iterator(
+                const std::shared_ptr<std::vector<std::pair<std::string, NYTree::INodePtr>>>& keyValuePairs,
+                size_t index)
+                : KeyValuePairs_(keyValuePairs)
+                , Index_(index)
+            { }
+
             KeyValuePair operator*() const { return (*KeyValuePairs_)[Index_]; }
-            Iterator & operator++() { ++Index_; return *this; }
-            Iterator operator++(int) { auto res = *this; ++Index_; return res; }
-            friend bool operator==(const Iterator & left, const Iterator & right) { return (left.Index_ == right.Index_) && (left.KeyValuePairs_ == right.KeyValuePairs_); }
+            Iterator& operator++() { ++Index_; return *this; }
+            Iterator operator++(int) { auto result = *this; ++Index_; return result; }
+            friend bool operator==(const Iterator& lhs, const Iterator& rhs)
+            {
+                return lhs.Index_ == rhs.Index_ && lhs.KeyValuePairs_ == rhs.KeyValuePairs_;
+            }
+
         private:
             // Children of the parent's map node.
-            // We store it here to lock the order and to return std::string_view on keys in some methods.
+            // We store them here to lock the order and to return std::string_view on keys in some methods.
             std::shared_ptr<std::vector<std::pair<std::string, NYTree::INodePtr>>> KeyValuePairs_ = nullptr;
             size_t Index_ = 0;
         };
 
-        explicit Object(const NYTree::IMapNodePtr & map_node) : MapNode_(map_node) {}
+        explicit Object(const NYTree::IMapNodePtr& mapNode) : MapNode_(mapNode) { }
         Iterator begin() const;
         Iterator end() const;
         size_t size() const { return MapNode_->GetChildCount(); }
-        bool find(const std::string_view & key, Element & result) const;
+        bool find(const std::string_view& key, Element& result) const;
 
-#if 0
-        // Optional: Provides access to an object's element by index.
-        // We do not support get by index for objects since the order in IMapNode is arbitrary.
-        KeyValuePair operator[](size_t) const { return {}; }
-#endif
+        // NB: We do not support get by index for objects since the order in IMapNode is arbitrary.
 
     private:
         std::shared_ptr<std::vector<std::pair<std::string, NYTree::INodePtr>>> GetKeyValuePairs() const;
@@ -136,13 +154,8 @@ struct TYsonParserAdapter
         mutable std::shared_ptr<std::vector<std::pair<std::string, NYTree::INodePtr>>> KeyValuePairs_ = nullptr;
     };
 
-    // Parses an YSON document, returns the reference to its root element if succeeded.
-    bool parse(const std::string_view & json, Element & result);
-
-#if 0
-    // Optional: Allocates memory to parse documents faster.
-    void reserve(size_t max_size);
-#endif
+    //! Parses a YSON document, returns the reference to its root element if succeeded.
+    bool parse(const std::string_view& yson, Element& result);
 
 private:
     NYTree::INodePtr Root_;

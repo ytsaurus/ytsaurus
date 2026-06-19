@@ -3,21 +3,21 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <Columns/ColumnConst.h>
+#include <Columns/ColumnString.h>
+#include <Columns/ColumnTuple.h>
+
+#include <DataTypes/DataTypeArray.h>
+#include <DataTypes/DataTypeEnum.h>
+#include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypeTuple.h>
+#include <DataTypes/DataTypesNumber.h>
+
+#include <Formats/FormatSettings.h>
 #include <Formats/JSONExtractTree.h>
 
 #include <Functions/FunctionFactory.h>
-
-#include <DataTypes/DataTypeString.h>
-#include <Formats/FormatSettings.h>
-#include <Columns/ColumnString.h>
-#include <DataTypes/DataTypeArray.h>
-#include <DataTypes/DataTypesNumber.h>
-#include <Columns/ColumnTuple.h>
-#include <DataTypes/DataTypeTuple.h>
-#include <DataTypes/DataTypeEnum.h>
-#include <DataTypes/DataTypeFactory.h>
-#include <Columns/ColumnConst.h>
-
 
 namespace DB::ErrorCodes {
 
@@ -29,8 +29,7 @@ extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace DB::ErrorCodes;
-
+} // namespace DB::ErrorCodes
 
 namespace NYT::NClickHouseServer {
 
@@ -54,11 +53,11 @@ concept Preparable = requires (T t)
 
 //! This is copy of FunctionsJsonHelpers from
 //! https://github.com/ClickHouse/ClickHouse/blob/25.3/src/Functions/FunctionsJSON.cpp#L505
-class FunctionYsonHelpers
+class TFunctionYsonHelpers
 {
 public:
     template <typename Name, typename Impl>
-    class Executor
+    class TExecutor
     {
     public:
         static ColumnPtr Run(const ColumnsWithTypeAndName& arguments, const DataTypePtr& resultType, size_t inputRowCount, const FormatSettings& formatSettings)
@@ -73,8 +72,8 @@ public:
             const auto& firstColumn = arguments[0];
             if (!isString(firstColumn.type)) {
                 throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                        "The first argument of function {} should be a string containing YSON, illegal type: {}",
-                        String(Name::name), firstColumn.type->getName());
+                    "The first argument of function {} should be a string containing YSON, illegal type: {}",
+                    String(Name::name), firstColumn.type->getName());
             }
 
             const ColumnPtr& argYson = firstColumn.column;
@@ -91,20 +90,9 @@ public:
             const auto& offsets = colYsonString->getOffsets();
 
             auto numIndexArgs = Impl::getNumberOfIndexArguments(arguments);
-            std::vector<Move> moves = PrepareMoves(Name::name, arguments, 1, numIndexArgs);
+            std::vector<TMove> moves = PrepareMoves(Name::name, arguments, 1, numIndexArgs);
 
             TYsonParserAdapter parser;
-            #if 0
-            // Optional: Allocates memory to parse documents faster
-            size_t maxSize = 0;
-            for (size_t i = 1; i < offsets.size(); ++i) {
-                size_t size = offsets[i] - offsets[i - 1];
-                maxSize = std::max(maxSize, size);
-            }
-            if (maxSize) {
-                parser.reserve(max_size - 1);
-            }
-            #endif
 
             Impl impl;
             if constexpr (Preparable<Impl>) {
@@ -120,7 +108,7 @@ public:
 
             for (size_t i = 0; i < inputRowCount; ++i) {
                 if (!colYsonConst) {
-                    std::string_view json{reinterpret_cast<const char *>(&chars[offsets[i - 1]]), offsets[i] - offsets[i - 1] - 1};
+                    std::string_view json{reinterpret_cast<const char*>(&chars[offsets[i - 1]]), offsets[i] - offsets[i - 1] - 1};
                     documentOk = parser.parse(json, document);
                 }
 
@@ -144,7 +132,7 @@ public:
     };
 
 private:
-    enum class MoveType : uint8_t
+    enum class EMoveType : ui8
     {
         Key,
         Index,
@@ -152,29 +140,29 @@ private:
         ConstIndex,
     };
 
-    struct Move
+    struct TMove
     {
-        explicit Move(MoveType type, size_t index = 0)
+        explicit TMove(EMoveType type, size_t index = 0)
             : Type(type)
             , Index(index)
         { }
-        Move(MoveType type, const String& key)
+        TMove(EMoveType type, const String& key)
             : Type(type)
             , Key(key)
         { }
 
-        MoveType Type;
+        EMoveType Type;
         size_t Index = 0;
         String Key;
     };
 
-    static std::vector<Move> PrepareMoves(
+    static std::vector<TMove> PrepareMoves(
         const char* functionName,
         const ColumnsWithTypeAndName& columns,
         size_t firstIndexArgument,
         size_t numIndexArgs)
     {
-        std::vector<Move> moves;
+        std::vector<TMove> moves;
         moves.reserve(numIndexArgs);
         for (size_t i = firstIndexArgument; i < firstIndexArgument + numIndexArgs; ++i) {
             const auto& column = columns[i];
@@ -188,15 +176,15 @@ private:
             if (column.column && isColumnConst(*column.column)) {
                 const auto& columnConst = assert_cast<const ColumnConst&>(*column.column);
                 if (isString(column.type)) {
-                    moves.emplace_back(MoveType::ConstKey, columnConst.getValue<String>());
+                    moves.emplace_back(EMoveType::ConstKey, columnConst.getValue<String>());
                 } else {
-                    moves.emplace_back(MoveType::ConstIndex, columnConst.getInt(0));
+                    moves.emplace_back(EMoveType::ConstIndex, columnConst.getInt(0));
                 }
             } else {
                 if (isString(column.type)) {
-                    moves.emplace_back(MoveType::Key, "");
+                    moves.emplace_back(EMoveType::Key, "");
                 } else {
-                    moves.emplace_back(MoveType::Index, 0);
+                    moves.emplace_back(EMoveType::Index, 0);
                 }
             }
         }
@@ -207,7 +195,7 @@ private:
         const ColumnsWithTypeAndName& arguments,
         size_t row,
         const YsonElement& document,
-        const std::vector<Move>& moves,
+        const std::vector<TMove>& moves,
         YsonElement& element,
         std::string_view& lastKey)
     {
@@ -217,21 +205,21 @@ private:
         bool movesOk = true;
         for (size_t j = 0; movesOk && j != moves.size(); ++j) {
             switch (moves[j].Type) {
-                case MoveType::ConstIndex: {
+                case EMoveType::ConstIndex: {
                     movesOk = MoveToElementByIndex(resElement, static_cast<int>(moves[j].Index), key);
                     break;
                 }
-                case MoveType::ConstKey: {
+                case EMoveType::ConstKey: {
                     key = moves[j].Key;
                     movesOk = MoveToElementByKey(resElement, key);
                     break;
                 }
-                case MoveType::Index: {
+                case EMoveType::Index: {
                     Int64 index = (*arguments[j + 1].column)[row].safeGet<Int64>();
                     movesOk = MoveToElementByIndex(resElement, static_cast<int>(index), key);
                     break;
                 }
-                case MoveType::Key: {
+                case EMoveType::Key: {
                     key = arguments[j + 1].column->getDataAt(row).toView();
                     movesOk = MoveToElementByKey(resElement, key);
                     break;
@@ -290,15 +278,15 @@ class TFunctionYson
     , public WithConstContext
 {
 public:
-    explicit TFunctionYson(ContextPtr context_)
-        : WithConstContext(context_)
+    explicit TFunctionYson(ContextPtr context)
+        : WithConstContext(context)
     { }
 
     static constexpr auto name = Name::name;
 
-    static FunctionPtr create(ContextPtr context_)
+    static FunctionPtr create(ContextPtr context)
     {
-        return std::make_shared<TFunctionYson>(context_);
+        return std::make_shared<TFunctionYson>(context);
     }
 
     String getName() const override
@@ -331,9 +319,9 @@ public:
         return Impl::getReturnType(Name::name, arguments);
     }
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
+    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr& resultType, size_t inputRowCount) const override
     {
-        return FunctionYsonHelpers::Executor<Name, Impl>::Run(arguments, result_type, input_rows_count, FormatSettings_);
+        return TFunctionYsonHelpers::TExecutor<Name, Impl>::Run(arguments, resultType, inputRowCount, FormatSettings_);
     }
 
 private:
@@ -509,8 +497,7 @@ public:
     static bool InsertResultToColumn(IColumn& dest, const YsonElement& element, std::string_view, const FormatSettings&)
     {
         bool value;
-        switch (element.type())
-        {
+        switch (element.type()) {
             case ElementType::BOOL:
                 value = element.getBool();
                 break;
@@ -689,8 +676,8 @@ public:
         auto& colArr = assert_cast<ColumnArray&>(dest);
         auto& colTuple = assert_cast<ColumnTuple&>(colArr.getData());
         size_t oldSize = colTuple.size();
-        auto & colKey = assert_cast<ColumnString&>(colTuple.getColumn(0));
-        auto & colValue = colTuple.getColumn(1);
+        auto& colKey = assert_cast<ColumnString&>(colTuple.getColumn(0));
+        auto& colValue = colTuple.getColumn(1);
 
         for (const auto& [key, value] : object) {
             auto error = Extractor_->ExtractNodeToColumn(colValue, value, InsertSettings_, formatSettings);

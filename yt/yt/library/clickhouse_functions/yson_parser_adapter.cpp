@@ -45,7 +45,7 @@ bool TYsonParserAdapter::parse(const std::string_view& yson, Element& result)
         Root_ = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data(), yson.size())));
         result = Element(Root_);
         return true;
-    } catch (const std::exception& /* ex */) {
+    } catch (const std::exception&) {
         return false;
     }
 }
