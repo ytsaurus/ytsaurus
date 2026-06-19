@@ -254,9 +254,9 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult, TTableSchem
                     } else if (expectedValue.Type == EValueType::Any || expectedValue.Type == EValueType::Composite) {
                         // Slow path.
                         auto expectedYson = TYsonString(expectedValue.AsString());
-                        auto expectedStableYson = ConvertToYsonString(ConvertToNode(expectedYson), EYsonFormat::Text);
+                        auto expectedStableYson = ConvertToYsonString(ConvertToNode(expectedYson), EYsonFormat::Text).ToString();
                         auto yson = TYsonString(value.AsString());
-                        auto stableYson = ConvertToYsonString(ConvertToNode(yson), EYsonFormat::Text);
+                        auto stableYson = ConvertToYsonString(ConvertToNode(yson), EYsonFormat::Text).ToString();
                         EXPECT_EQ(expectedStableYson, stableYson);
                     } else {
                         // Fast path.
@@ -605,6 +605,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
     options.UseCanonicalNullRelations = evaluateOptions.UseCanonicalNullRelations;
     options.ExecutionBackend = evaluateOptions.ExecutionBackend;
     options.AllowUnorderedGroupByWithLimit = evaluateOptions.AllowUnorderedGroupByWithLimit;
+    options.MaxJoinBatchSize = evaluateOptions.MaxJoinBatchSize;
 
     auto aggregatedStatistics = TQueryStatistics();
 
@@ -616,15 +617,30 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
         // TODO(sabdenovch): Switch to name- or id-based source rows navigation.
         // Ideally, do not separate schemas from sources.
         int sourceIndex = 1;
+        bool found = false;
         for (const auto& joinClause : primaryQuery->JoinClauses) {
             if (!joinClause->ArrayExpressions.empty()) {
                 continue;
             }
             if (joinClause->ForeignObjectId == fragment.DataSource.ObjectId) {
+                found = true;
                 break;
             }
             sourceIndex++;
         }
+
+        // If not found among regular joins, search hierarchical joins.
+        if (!found) {
+            for (const auto& hierarchicalJoin : primaryQuery->HierarchicalJoinsBeforeGroupBy) {
+                if (hierarchicalJoin->ForeignObjectId == fragment.DataSource.ObjectId) {
+                    found = true;
+                    break;
+                }
+                sourceIndex++;
+            }
+        }
+
+        YT_VERIFY(found && sourceIndex < std::ssize(owningSources));
 
         return BIND(DoExecuteQuery)
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -636,10 +652,14 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
                 fragment.Query,
                 writer,
                 options,
-                /*joinProfilerRegistry*/ {});
+                /*joinProfilerRegistry*/ TJoinProfilerRegistry({}, {}, nullptr, {}));
     };
 
-    TJoinProfilerRegistry joinProfilerRegistry;
+    TJoinProfilerRegistry joinProfilerRegistry(
+        executePlan,
+        consumeSubqueryStatistics,
+        GetDefaultMemoryChunkProvider(),
+        Logger());
     for (int joinIndex = 0; joinIndex < std::ssize(primaryQuery->JoinClauses); ++joinIndex) {
         const auto& joinClause = primaryQuery->JoinClauses[joinIndex];
         auto getPrefetchJoinDataSource = [=] () -> std::optional<TDataSource> {
@@ -785,7 +805,7 @@ TEvaluateCoordinatedGroupByResult TQueryEvaluateTest::EvaluateCoordinatedGroupBy
             bottomQuery,
             readerMock,
             pipe->GetWriter(),
-            /*joinProfilerRegistry*/ {},
+            /*joinProfilerRegistry*/ TJoinProfilerRegistry({}, {}, nullptr, {}),
             FunctionProfilers_,
             AggregateProfilers_,
             NWebAssembly::GetBuiltinSdk(),
@@ -809,7 +829,7 @@ TEvaluateCoordinatedGroupByResult TQueryEvaluateTest::EvaluateCoordinatedGroupBy
         frontQuery,
         frontReader,
         writer,
-        /*joinProfilerRegistry*/ {},
+        /*joinProfilerRegistry*/ TJoinProfilerRegistry({}, {}, nullptr, {}),
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),
@@ -880,7 +900,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
         query,
         readerMock,
         pipe->GetWriter(),
-        /*joinProfilerRegistry*/ {},
+        /*joinProfilerRegistry*/ TJoinProfilerRegistry({}, {}, nullptr, {}),
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),
@@ -928,7 +948,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNode(
         query,
         reader,
         pipe->GetWriter(),
-        /*joinProfilerRegistry*/ {},
+        /*joinProfilerRegistry*/ TJoinProfilerRegistry({}, {}, nullptr, {}),
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),
@@ -993,7 +1013,7 @@ TRunOnCoordinatorResult TQueryEvaluateTest::RunOnCoordinator(
         frontQuery,
         reader,
         writer,
-        /*joinProfilerRegistry*/ {},
+        /*joinProfilerRegistry*/ TJoinProfilerRegistry({}, {}, nullptr, {}),
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),

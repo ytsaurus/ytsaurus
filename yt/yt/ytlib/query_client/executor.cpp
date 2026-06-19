@@ -710,7 +710,13 @@ private:
             ? queryEngineConfig->AllowHeavyRangeInferenceInJoins.value_or(false)
             : false;
 
-        TJoinProfilerRegistry joinProfilerRegistry;
+        auto joinProfilerRegistry = TJoinProfilerRegistry(
+            executePlanCallback,
+            [subqueryResults] (TQueryStatistics statistics) mutable {
+                subqueryResults->Enqueue(std::move(statistics));
+            },
+            MemoryChunkProvider_,
+            Logger);
         for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
             const auto& joinClause = query->JoinClauses[joinIndex];
             joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
@@ -837,7 +843,7 @@ private:
                     frontQuery,
                     reader,
                     writer,
-                    /*joinProfilerRegistry*/ {},
+                    TJoinProfilerRegistry({}, {}, MemoryChunkProvider_, Logger),
                     functionGenerators,
                     aggregateGenerators,
                     sdk,
@@ -880,7 +886,7 @@ private:
                             middleQuery,
                             reader,
                             pipe->GetWriter(),
-                            /*joinProfilerRegistry*/ {},
+                            TJoinProfilerRegistry({}, {}, MemoryChunkProvider_, Logger),
                             functionGenerators,
                             aggregateGenerators,
                             sdk,

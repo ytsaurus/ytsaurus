@@ -40,6 +40,8 @@ using NYT::NQueryClient::TTernaryComparerFunction;
 using NYT::NQueryClient::TArrayJoinParameters;
 using NYT::NQueryClient::TMultiJoinParameters;
 using NYT::NQueryClient::TMultiJoinClosure;
+using NYT::NQueryClient::THierarchicalJoinClosure;
+using NYT::NQueryClient::TSingleJoinParameters;
 using NYT::NQueryClient::TLikeExpressionContext;
 using NYT::NQueryClient::TRowSchemaInformation;
 using NYT::NQueryClient::TCompositeMemberAccessorPath;
@@ -83,6 +85,9 @@ struct TTypeBuilder<bool>
     OPAQUE_TYPE(TArrayJoinParameters*)
     OPAQUE_TYPE(TMultiJoinParameters*)
     OPAQUE_TYPE(TMultiJoinClosure*)
+    OPAQUE_TYPE(THierarchicalJoinClosure*)
+    OPAQUE_TYPE(THierarchicalJoinClosure**)
+    OPAQUE_TYPE(TSingleJoinParameters*)
     OPAQUE_TYPE(std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>*)
     OPAQUE_TYPE(TSharedRange<TRange<TPIValue>>*)
     OPAQUE_TYPE(TLikeExpressionContext*)

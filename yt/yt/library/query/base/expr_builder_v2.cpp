@@ -1319,6 +1319,8 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
         }
     }
 
+    Finish();
+
     PopAliasResolver();
 
     std::vector<NTableClient::TStructField> resultFields;

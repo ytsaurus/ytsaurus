@@ -722,7 +722,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         )");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
-        TJoinProfilerRegistry joinProfilerRegistry1;
+        auto joinProfilerRegistry1 = TJoinProfilerRegistry({}, {}, nullptr, {});
         for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
             joinProfilerRegistry1.InsertJoinProfilerOrThrow(joinIndex, MakeNullJoinSubqueryProfiler());
         }
@@ -742,7 +742,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         )");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
-        TJoinProfilerRegistry joinProfilerRegistry2;
+        auto joinProfilerRegistry2 = TJoinProfilerRegistry({}, {}, nullptr, {});
         for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
             joinProfilerRegistry2.InsertJoinProfilerOrThrow(joinIndex, MakeNullJoinSubqueryProfiler());
         }

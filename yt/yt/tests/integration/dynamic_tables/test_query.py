@@ -2903,6 +2903,80 @@ class TestQuery(DynamicTablesBase):
         wait(check)
         assert select_rows(f"* from `{table_path}`") == [{'k': 42, 'v': ['a', 'b', 42]}]
 
+    @authors("dtorilov")
+    def test_hierarchical_join(self):
+        sync_create_cells(1)
+
+        foreign_key_range = 50
+        right_row_count = 30
+        left_row_count = 20
+        foreign_keys_max_length = 10
+        value_range = 100
+
+        right_table_rows = [
+            {"x": i, "val1": randint(0, value_range), "val2": randint(0, value_range)}
+            for i in range(right_row_count)
+        ]
+        right_row_by_key = {row["x"]: row for row in right_table_rows}
+
+        left_table_rows = []
+        for primary_key in range(left_row_count):
+            candidates = list(range(foreign_key_range))
+            shuffle(candidates)
+            foreign_keys = sorted(candidates[:randint(0, foreign_keys_max_length)])
+            left_table_rows.append({"pk": primary_key, "fks": foreign_keys})
+
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "fks", "type_v3": {"type_name": "list", "item": "int64"}},
+            ],
+            left_table_rows,
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "x", "type": "int64", "sort_order": "ascending"},
+                {"name": "val1", "type": "int64"},
+                {"name": "val2", "type": "int64"},
+            ],
+            right_table_rows,
+        )
+
+        foreign_val1_threshold = 40
+        mixed_sum_threshold = 60
+
+        expected = []
+        for left_row in left_table_rows:
+            joined = []
+            for foreign_key in left_row["fks"]:
+                right_row = right_row_by_key.get(foreign_key)
+                if right_row is None:
+                    continue
+                if right_row["val1"] > foreign_val1_threshold and foreign_key + right_row["val2"] > mixed_sum_threshold:
+                    joined.append({"fk": foreign_key, "r.val1": right_row["val1"], "r.val2": right_row["val2"]})
+            expected.append({"pk": left_row["pk"], "joined_data": joined})
+
+        actual = select_rows(
+            """
+            l.pk as pk,
+            (select fk, r.val1, r.val2
+                from (l.fks as fk)
+                join `//tmp/r` as r on fk = r.x
+                where r.val1 > {foreign_val1_threshold} and fk + r.val2 > {mixed_sum_threshold}
+            ) as joined_data
+            from `//tmp/l` as l
+            """,
+            expression_builder_version=2,
+            syntax_version=2,
+            placeholder_values={
+                "foreign_val1_threshold": foreign_val1_threshold,
+                "mixed_sum_threshold": mixed_sum_threshold,
+            },
+        )
+        assert expected == actual
+
 
 class TestQueryRpcProxy(TestQuery):
     ENABLE_MULTIDAEMON = True

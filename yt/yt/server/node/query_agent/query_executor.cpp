@@ -736,7 +736,14 @@ private:
                 // so we can set the most recent feature flags.
                 auto responseFeatureFlags = MakeFuture(MostFreshFeatureFlags());
 
-                TJoinProfilerRegistry joinProfilerRegistry;
+                auto joinProfilerRegistry = TJoinProfilerRegistry(
+                    executePlanWithUserProvidedTimestamp,
+                    [=, Logger = Logger] (TQueryStatistics statistics) mutable {
+                        YT_LOG_DEBUG("Remote subquery statistics (Statistics: %v)", statistics);
+                        subqueryResults->Enqueue(std::move(statistics));
+                    },
+                    MemoryChunkProvider_,
+                    Logger);
                 for (int joinIndex = 0; joinIndex < std::ssize(Query_->JoinClauses); ++joinIndex) {
                     const auto& joinClause = Query_->JoinClauses[joinIndex];
                     auto executePlanCallback = executePlanWithUserProvidedTimestamp;
@@ -862,7 +869,7 @@ private:
                     frontQuery,
                     reader,
                     Writer_,
-                    /*joinProfilerRegistry*/ {},
+                    TJoinProfilerRegistry({}, {}, MemoryChunkProvider_, Logger),
                     functionGenerators,
                     aggregateGenerators,
                     sdk,

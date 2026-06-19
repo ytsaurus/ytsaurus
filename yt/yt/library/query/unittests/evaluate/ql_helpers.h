@@ -102,7 +102,7 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    TJoinProfilerRegistry joinProfilerRegistry = {});
+    TJoinProfilerRegistry joinProfilerRegistry = TJoinProfilerRegistry({}, {}, nullptr, {}));
 
 void ProfileForBothExecutionBackends(
     const TConstExpressionPtr& expr,

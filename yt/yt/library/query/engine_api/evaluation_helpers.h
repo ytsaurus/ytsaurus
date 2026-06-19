@@ -49,6 +49,7 @@ constexpr const size_t InitialGroupOpHashtableCapacity = 1024;
 using THasherFunction = ui64(const TPIValue*);
 using TComparerFunction = char(const TPIValue*, const TPIValue*);
 using TTernaryComparerFunction = i64(const TPIValue*, const TPIValue*);
+using TRowsConsumer = bool(void** closure, TExpressionContext* context, const TPIValue** rows, i64 size);
 
 namespace NDetail {
 
@@ -188,6 +189,39 @@ struct TMultiJoinClosure
     size_t BatchSize;
     std::function<void(size_t)> ProcessSegment;
     std::function<bool()> ProcessJoinBatch;
+};
+
+struct THierarchicalJoinClosure
+{
+    struct TBufferTag
+    { };
+
+    using TSelfSideDomainBatch = google::dense_hash_set<
+        const TPIValue*,
+        NDetail::TGroupHasher,
+        NDetail::TRowComparer>;
+
+    using TForeignSideLookup = google::dense_hash_map<
+        const TPIValue*,
+        std::vector<TPIValue*>,
+        NDetail::TGroupHasher,
+        NDetail::TRowComparer>;
+
+    TExpressionContext SelfContext;
+    std::vector<const TPIValue*> SelfSideRowBatch;
+    TSelfSideDomainBatch SelfSideDomainBatch;
+
+    TExpressionContext ForeignContext;
+    TForeignSideLookup ForeignSideLookup;
+
+    TExecutionContext* ExecutionContext = nullptr;
+    TSingleJoinParameters* Parameters = nullptr;
+    void** ConsumeJoinedRowsClosure = nullptr;
+    NWebAssembly::TCompartmentFunction<TRowsConsumer> ConsumeJoinedRowsFunction;
+    NWebAssembly::TCompartmentFunction<TComparerFunction> SuffixLessComparer;
+
+    i64 PrimaryRowSize = 0;
+    i64 BatchSize = 0;
 };
 
 class TGroupByClosure;
