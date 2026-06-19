@@ -1,10 +1,11 @@
+<!-- TODO: добавить редирект -->
 # Structured Streaming
 
 В версии SPYT 1.77.0 появилась поддержка [стриминговых процессов](https://spark.apache.org/docs/latest/streaming/index.html) поверх {{product-name}}.
 
 ## Общая схема Spark Structured Streaming в SPYT
 
-![](../../../../../images/spyt-streaming-general-scheme.png){ .center }
+![](../../../../../../images/spyt-streaming-general-scheme.png){ .center }
 
 ### Основные понятия
 
@@ -53,11 +54,15 @@ query.awaitTermination()
 
 ## Стриминг очередей {{product-name}} { #queues }
 
-{{product-name}} имеет собственную реализацию [очередей](../../../../user-guide/dynamic-tables/queues.md), основанных на упорядоченных динамических таблицах.
+{{product-name}} имеет собственную реализацию [очередей](../../../../../user-guide/dynamic-tables/queues.md), основанных на упорядоченных динамических таблицах.
 
-На текущий момент SPYT кластер способен оперировать только с данными, расположенными на том же кластере {{product-name}}. Это ограничение накладывается и на консьюмеры/очереди.
+{% note info %}
 
-Перед запуском стриминговой задачи необходимо создать и настроить очереди в соответствии с [документацией](../../../../user-guide/dynamic-tables/queues.md#api). В случае чтения — создать таблицы очередей и консьюмеров, произвести регистрацию. Запись результатов стриминга производится в упорядоченную динамическую таблицу, созданную и примонтированную заранее.
+На текущий момент Spark Streaming, запущенный на кластере {{product-name}}, способен оперировать только с данными, расположенными на том же кластере {{product-name}}.
+
+{% endnote %}
+
+Перед запуском стриминговой задачи необходимо создать и настроить очереди в соответствии с [документацией](../../../../../user-guide/dynamic-tables/queues.md#api). В случае чтения — создать таблицы очередей и консьюмеров, произвести регистрацию. Запись результатов стриминга производится в упорядоченную динамическую таблицу, созданную и примонтированную заранее.
 
 После обработки очередной порции данных совершается коммит нового смещения, что позволяет уведомлять входную таблицу о возможности удалить неактуальные строки.
 
@@ -118,22 +123,22 @@ with spark_session() as spark:
          текущий_конец_очереди
      )
      ```
-     
-2. **Сравнение lowerIndex и upperIndex** 
+
+2. **Сравнение lowerIndex и upperIndex**
 
    Для каждой партиции:
    - Если lowerIndex < upperIndex:
-     - Выполняется метод [advanceConsumer](../../../../user-guide/dynamic-tables/queues.md#rabota-s-konsyumerom) для фиксации оффсетов батча `#N-1` в консьюмере.
+     - Выполняется метод [advanceConsumer](../../../../../user-guide/dynamic-tables/queues.md#rabota-s-konsyumerom) для фиксации оффсетов батча `#N-1` в консьюмере.
      - Формирует таски для экзекьюторов.
    - Иначе: пропускает обработку (пустой батч).
-   
+
 3. **Исполнение на экзекьюторах**
 
    Каждый экзекьютор для своей партиции:
-   - Читает данные, используя метод [pullConsumer](../../../../user-guide/dynamic-tables/queues.md#chtenie-dannyh).
+   - Читает данные, используя метод [pullConsumer](../../../../../user-guide/dynamic-tables/queues.md#chtenie-dannyh).
    - Применяет трансформации (если есть).
    - Пишет данные в выходную таблицу.
-   
+
 4. **Создание чекпоинт файлов на Кипарисе для батча #N**
    - Файл в директории `offsets`.
    - Файл в директории `commits`.
@@ -147,7 +152,7 @@ with spark_session() as spark:
 
 На текущий момент оффсеты хранятся в 2 местах:
 
-1. В [чекпоинт файлах](../../../../user-guide/data-processing/spyt/structured-streaming#checkpoint-location), создаваемых Sparkом автоматически в директории.
+1. В [чекпоинт файлах](../../../../../user-guide/data-processing/spyt/structured-streaming#checkpoint-location), создаваемых Sparkом автоматически в директории.
 2. В таблице consumer.
 
 
@@ -175,83 +180,17 @@ with spark_session() as spark:
 Тогда оффсеты в последнем чекпоинт файле будут соответствовать `upperIndex` батча **#N**, а поле `offset` в консьюмере будут соответствовать `upperIndex`.
 
 
-## Достижение семантики exactly-once { #exactly-once }
+## Гарантии записи { #exactly-once }
 
-Spark Structured Streaming, работающий поверх {{product-name}} очередей, предоставляет гарантию `at-least-once`.
+SPYT Structured Streaming поддерживает несколько уровней гарантий записи. По умолчанию действует `at-least-once` — при перезапусках микробатч может быть обработан повторно, что приводит к дубликатам. Если дубликаты недопустимы, доступны инструменты для достижения `exactly-once`.
 
-В некоторых сценариях возможно достичь гарантии `exactly-once` при одновременном выполнении двух условий:
+| **Режим** | **Гарантия** | **Когда использовать** |
+|---|---|---|
+| Нетранзакционный (по умолчанию) | `at-least-once` | Когда дубликаты приемлемы: логи, метрики, прогрев кэша. Не требует дополнительных настроек |
+| [Транзакционный режим](../../../../../user-guide/data-processing/spyt/structured-streaming/exactly-once/transactional-mode.md) (SPYT 2.10+) | `exactly-once` для любых трансформаций | Когда важна корректность данных: финансовая аналитика, ML-признаки, инкрементальное построение витрин |
+| [Идемпотентный приёмник](../../../../../user-guide/data-processing/spyt/structured-streaming/exactly-once/idempotent-receiver.md) | `exactly-once` для stateless 1:1 трансформаций | Когда нежелательна дополнительная нагрузка на RPC-прокси от транзакционного режима, или при поддержке старого кода |
 
-1. **Преобразования без сохранения состояния (stateless processing)**
-   
-   К таким операциям относятся:
-   - Простые трансформации (`select`, `filter`, `withColumn`).
-   - Проекции и переименование колонок.
-   - Любые операции, где каждая выходная строка зависит **строго от одной входной строки**.
-
-2. **Инъективное отображение данных**
-
-   Должны соблюдаться требования:
-   - Каждая входная строка преобразуется **не более чем в одну выходную**.
-   - Отсутствуют операции, порождающие дубликаты (например, `join`, `groupBy`, `union` без дедупликации).
-
-
-**Необходимые действия:**
-
-1. Установить опцию `include_service_columns` в значение `true`. Тогда стриминговый датафрейм будет содержать столбцы `__spyt_streaming_src_tablet_index` и `__spyt_streaming_src_row_index`, соответствующие столбцам `$tablet_index` и`$row_index` читаемой очереди.
-2. Создать выходную сортированную динамическую таблицу с ключевыми колонками `__spyt_streaming_src_tablet_index` и `__spyt_streaming_src_row_index`. Можно назвать эти колонки в выходной таблице по-другому, но тогда и в датафрейме необходимо переименовать их (как в примере ниже).
-3. Если чтение происходит из более чем одной очереди, можно добавить в датафрейм (с помощью `withColumn()`) и в выходную таблицу ключевую колонку, содержащую уникальный идентификатор исходной очереди. Например, id или путь к очереди (как в примере ниже).
-4. Достигаем at-most-once благодаря тому, что
-   - В любой очереди комбинация значений столбцов `$tablet_index` и `$row_index` уникальна.
-   - В выходной сортированной динамической таблице колонки `__spyt_streaming_src_tablet_index` и `__spyt_streaming_src_row_index` ключевые.
-
-В результате: `at-least-once` + `at-most-once` = `exactly-once`.
-
-{% note info %}
-
-Важно помнить, что использование сортированной динамической таблицы вместо упорядоченной добавляет накладные расходы на сортировку. Поэтому при отсутствии необходимости в семантике at-most-once лучше писать в упорядоченные динамические таблицы.
-
-{% endnote %}
-
-<small>Листинг 4 — Использование опции include_service_columns</small>
-
-```python
-import spyt
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import lit
-from yt.wrapper import YtClient
-import os
-
-
-yt = YtClient(proxy="hume.yt.yandex.net", token=os.environ['YT_SECURE_VAULT_YT_TOKEN'])
-spark = SparkSession.builder.appName('streaming example').getOrCreate()
-
-schema = [
-    {"name": "src_queue_path", "type": "string"},
-    {"name": "tablet_idx", "type": "int64"},
-    {"name": "row_idx", "type": "int64"},
-    {"name": "some_data", "type": "string"},
-]
-yt.create("table", result_table_path, recursive=True, attributes={"dynamic": "true", "schema": schema})
-yt.mount_table(result_table_path, sync=True)
-
-df = spark \
-  .readStream \
-  .format("yt") \
-  .option("consumer_path", consumer_path) \
-  .option("include_service_columns", True) \
-  .load(queue_path)
-  .withColumnRenamed("__spyt_streaming_src_tablet_index", "tablet_idx")
-  .withColumnRenamed("__spyt_streaming_src_row_index", "row_idx")
-  .withColumn("src_queue_path", lit(queue_path))
-
-query = df\
-  .writeStream \
-  .outputMode("append") \
-  .format("yt") \
-  .option("checkpointLocation", checkpoints_path) \
-  .option("path", result_table_path) \
-  .start()
-```
+Сравнение режимов, схемы работы и инструкции по их включению — в статье [Гарантия exactly-once](../../../../../user-guide/data-processing/spyt/structured-streaming/exactly-once/index.md).
 
 ## Конфигурация количества строк на 1 батч { #rows-limit }
 
@@ -287,7 +226,7 @@ query = df\
 ```
 
 ## Композитные типы { #type-v3 }
-Для того чтобы обрабатывать стримингом [композитные типы данных](../../../../user-guide/storage/data-types.md), необходимо, как и для батчовых джоб, включать опции `parsing_type_v3` и `write_type_v3`.
+Для того чтобы обрабатывать стримингом [композитные типы данных](../../../../../user-guide/storage/data-types.md), необходимо, как и для батчовых джоб, включать опции `parsing_type_v3` и `write_type_v3`.
 
 <small>Листинг 6 — Обработка композитных типов в Structured Streaming</small>
 
@@ -298,7 +237,7 @@ df = spark \
   .option("consumer_path", consumer_path) \
   .option("parsing_type_v3", "true") \
   .load(queue_path)
-  
+
 query = df\
   .writeStream \
   .outputMode("append") \
@@ -318,36 +257,9 @@ query = df\
 | outputMode | Режим записи                                                  | нет                                                                         | "append"              |
 
 
-## Параметры Spark сессии для конфигурации стриминга { #streaming-configs }
+## Опции и параметры { #options }
 
-| Опция                       | Описание                                                                     | Обязательный | Значение по умолчанию |
-|-----------------------------|------------------------------------------------------------------------------|--------------|-----------------------|
-| spark.yt.write.dynBatchSize | Максимальное количество строк в одной операции записи в динамическую таблицу | нет          | 50000                 |
-
-
-## Опции { #streaming-options }
-
-| Опция                   | Описание                                                                                | Обязательный | Значение по умолчанию |
-|-------------------------|-----------------------------------------------------------------------------------------|--------------|-----------------------|
-| consumer_path           | Путь к таблице-консьюмеру                                                               | да           | —                     |
-| checkpointLocation      | Путь к директории с чекпоинт-файлами                                                    | да           | —                     |
-| path                    | Путь к выходной таблице                                                                 | да           | —                     |
-| include_service_columns | Добавить колонки `$tablet_index` и `$row_index` читаемой очереди в датафрейм            | нет          | false                 |
-| max_rows_per_partition  | Максимальное количество строк, читаемых из одной партиции очереди в рамках одного батча | нет          | ∞                     |
-| parsing_type_v3         | Читать композитные типы с сохранением типа                                              | нет          | false                 |
-| write_type_v3           | Писать композитные типы с сохранением типа                                              | нет          | false                 |
-
-
-## Матрица совместимости { #compatibility-matrix }
-
-| Функциональность                                       | Минимальная версия SPYT                                                         |
-|--------------------------------------------------------|---------------------------------------------------------------------------------|
-| Хранение чекпоинтов на {{product-name}}                | 1.77.0                                                                          |
-| Structured Streaming поверх {{product-name}} Queue API | 1.77.0                                                                          |
-| Поддержка композитных типов данных                     | 2.6.0                                                                           |
-| Опция max_rows_per_partition                           | 2.6.0                                                                           |
-| Опция include_service_columns                          | 2.6.0                                                                           |
-| Параметр spark.yt.write.dynBatchSize                   | с 2.6.5 стал конфигурируем для стриминга (ранее был жестко задан и равен 50000) |
+Полный справочник опций стриминга (опции DataFrameReader/Writer, служебные колонки, матрица совместимости версий) — на странице [Опции стриминга](../../../../../user-guide/data-processing/spyt/thesaurus/streaming-options.md). Параметры Spark-сессии (включая `spark.yt.streaming.transactional` и `spark.yt.write.dynBatchSize`) — на странице [Конфигурационные параметры](../../../../../user-guide/data-processing/spyt/thesaurus/configuration.md).
 
 
 ## Мониторинг в Spark webUI { #monitoring }
@@ -356,17 +268,17 @@ query = df\
 
 Environment нужен для просмотра всех конфигурационных параметров Spark сессии и некоторых метрик.
 
-На странице Executors можно посмотреть количество активных, упавших, выполненных тасок и понять, насколько оптимально загружены ядра экзекьюторов. А также можно узнать статистику использования памяти. Иногда при утечке памяти полезно переходить во Thread Dump или Heap Histogram, чтобы найти причину. 
+На странице Executors можно посмотреть количество активных, упавших, выполненных тасок и понять, насколько оптимально загружены ядра экзекьюторов. А также можно узнать статистику использования памяти. Иногда при утечке памяти полезно переходить во Thread Dump или Heap Histogram, чтобы найти причину.
 
-![](../../../../../images/spyt-streaming-monitoring-executors.png){ .center }
+![](../../../../../../images/spyt-streaming-monitoring-executors.png){ .center }
 
 Для стриминговых процессов в webUI по умолчанию появляется страница Structured Streaming. Здесь можно смотреть статистику по активным и по завершенным стримам. В частности, полезно смотреть, с какой ошибкой завершился Streaming Query.
 
-![](../../../../../images/spyt-streaming-monitoring-streaming.png){ .center }
+![](../../../../../../images/spyt-streaming-monitoring-streaming.png){ .center }
 
 Нажав на Run ID, можно посмотреть более детальную статистику конкретного Streaming Query.
 
-![](../../../../../images/spyt-streaming-monitoring-streaming-query-stats.png){ .center }
+![](../../../../../../images/spyt-streaming-monitoring-streaming-query-stats.png){ .center }
 
 ## Best practices { #best-practices }
 

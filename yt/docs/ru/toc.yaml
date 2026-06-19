@@ -380,7 +380,17 @@ items:
               - name: Решение проблем
                 href: user-guide/data-processing/spyt/problems.md
             - name: Structured Streaming
-              href: user-guide/data-processing/spyt/structured-streaming.md
+              items:
+                - name: Основное
+                  href: user-guide/data-processing/spyt/structured-streaming/index.md
+                - name: Гарантия exactly-once
+                  items:
+                    - name: Обзор
+                      href: user-guide/data-processing/spyt/structured-streaming/exactly-once/index.md
+                    - name: Транзакционный режим
+                      href: user-guide/data-processing/spyt/structured-streaming/exactly-once/transactional-mode.md
+                    - name: Идемпотентный приёмник
+                      href: user-guide/data-processing/spyt/structured-streaming/exactly-once/idempotent-receiver.md
             - name: Spark SQL
               href: user-guide/data-processing/spyt/spark-sql.md
             - name: Spark UI
@@ -409,6 +419,8 @@ items:
                   href: user-guide/data-processing/spyt/read-transaction.md
                 - name: Опции записи
                   href: user-guide/data-processing/spyt/thesaurus/write-options.md
+                - name: Опции стриминга
+                  href: user-guide/data-processing/spyt/thesaurus/streaming-options.md
                 - name: Использование GPU
                   href: user-guide/data-processing/spyt/thesaurus/gpu-usage.md
             - name: Best practices
