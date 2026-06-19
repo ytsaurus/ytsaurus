@@ -3130,7 +3130,10 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
     ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
     auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
     TQueryServiceProxy proxy(channel);
-    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultFetchTableRowsTimeout));
+
+    const auto& connectionConfig = Connection_->GetConfig();
+    proxy.SetDefaultResponseCodec(connectionConfig->SelectRowsResponseCodec);
+    proxy.SetDefaultTimeout(options.Timeout.value_or(connectionConfig->DefaultFetchTableRowsTimeout));
 
     auto req = proxy.FetchTableRows();
     ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
