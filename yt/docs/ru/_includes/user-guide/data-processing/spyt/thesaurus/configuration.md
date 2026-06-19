@@ -11,6 +11,7 @@
 | `spark.yt.write.batchSize` | `500000` | Размер данных, отправляемых через одну операцию `WriteTable` | - |
 | `spark.yt.write.miniBatchSize` | `1000` | Размер блока данных, отправляемого в `WriteTable` | - |
 | `spark.yt.write.timeout` | `120 seconds` | Ограничение на ожидание записи одного блока данных | - |
+| `spark.yt.write.dynBatchSize` | `50000` | Максимальное количество строк в одной операции записи в динамическую таблицу. Используется в [Structured Streaming](../../../../../user-guide/data-processing/spyt/structured-streaming/index.md) | 2.6.5 |
 | `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` до 1.75.2) | `true` | Запись таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1` | 1.75.3 |
 | `spark.yt.read.vectorized.capacity` | `1000` | Максимальное количество строк в батче при чтении через `wire` протокол | - |
 | `spark.yt.read.arrow.enabled` | `true` | Использовать `arrow` формат для чтения данных (если это возможно) | - |
@@ -24,6 +25,7 @@
 | `spark.yt.globalTransaction.enabled` | `false` | Использовать [глобальную транзакцию](../../../../../user-guide/data-processing/spyt/read-transaction.md) | - |
 | `spark.yt.globalTransaction.id` | `None` | Идентификатор глобальной транзакции | - |
 | `spark.yt.globalTransaction.timeout` | `5 minutes` | Таймаут глобальной транзакции | - |
+| `spark.yt.streaming.transactional` | `false` | Включить [транзакционный режим стриминга](../../../../../user-guide/data-processing/spyt/structured-streaming/exactly-once/transactional-mode.md) для гарантии `exactly-once`. Требует также `spark.ytsaurus.rpc.job.proxy.enabled = false` | 2.10 |
 | `spark.hadoop.yt.user` | - | Имя пользователя {{product-name}} | - |
 | `spark.hadoop.yt.token` | - | Токен пользователя {{product-name}} | - |
 | `spark.yt.read.ytPartitioning.enabled` | `true` | Использовать партиционирование таблиц средствами {{product-name}} | 1.72.0 |

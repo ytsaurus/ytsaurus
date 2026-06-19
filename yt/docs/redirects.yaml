@@ -25,6 +25,10 @@ common:
       to: /faq/index.md
       type: redirect
 
+    # SPYT
+    - from: /user-guide/data-processing/spyt/structured-streaming.md
+      to: /user-guide/data-processing/spyt/structured-streaming/index.md
+      type: redirect
 ru:
     - from: /api/c\+\+/c\+\+_api.md
       to: /api/cpp/description.md
