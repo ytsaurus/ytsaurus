@@ -37,6 +37,9 @@ type Speclet struct {
 	QueryStickyGroupSize          *int `yson:"query_sticky_group_size"`
 
 	RestartOnVersionDrift *bool `yson:"restart_on_version_drift"`
+
+	// ODBCConfig contains ODBC drivers, data sources, and extra files configuration.
+	ODBCConfig *ODBCConfig `yson:"odbc_config"`
 }
 
 type runtimeDataSpec struct {

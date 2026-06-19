@@ -286,6 +286,9 @@ func (c *Controller) buildCommand(speclet *Speclet) string {
 	if speclet.EnableGeodataOrDefault(c.config.EnableGeodataOrDefault()) {
 		args = append(args, "--prepare-geodata")
 	}
+	if speclet.ODBCConfig.EnableOrDefault() {
+		args = append(args, "--prepare-odbc")
+	}
 	return strings.Join(args, " ")
 }
 
@@ -314,6 +317,25 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		return
 	}
 
+	if speclet.ODBCConfig.EnableOrDefault() {
+		if speclet.ODBCConfig == nil {
+			speclet.ODBCConfig = &ODBCConfig{}
+		}
+		// DriversDir points to a pre-populated Cypress directory.
+		// The controller reads config.yson from it and merges the discovered drivers and
+		// extra files into the speclet's own Drivers/ExtraFiles lists, so that a cluster
+		// admin can deploy a shared set of drivers once and have all ODBC-enabled cliques
+		// pick them up automatically without each user having to list them explicitly.
+		driversDir := speclet.ODBCConfig.DriversDirOrDefault()
+		odbcCfg, err := c.loadODBCDriversConfig(ctx, driversDir)
+		if err != nil || odbcCfg == nil {
+			c.l.Warn("failed to load ODBC drivers config, no default drivers will be added", log.Error(err))
+		} else {
+			speclet.ODBCConfig.Drivers = append(speclet.ODBCConfig.Drivers, odbcCfg.Drivers...)
+			speclet.ODBCConfig.ExtraFiles = append(speclet.ODBCConfig.ExtraFiles, odbcCfg.ExtraFiles...)
+		}
+	}
+
 	// Build artifacts if there are no local binaries.
 	if c.config.LocalBinariesDir == nil {
 		err = c.appendOpArtifacts(ctx, &speclet, &filePaths, &description, &opletInfo)
@@ -330,6 +352,14 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	err = c.appendConfigs(ctx, oplet, &speclet, &filePaths)
 	if err != nil {
 		return
+	}
+
+	// Upload odbcinst.ini and odbc.ini as Cypress file artifacts so they land in the job sandbox.
+	if speclet.ODBCConfig.EnableOrDefault() {
+		err = c.appendODBCConfigs(ctx, oplet, &speclet, &filePaths)
+		if err != nil {
+			return
+		}
 	}
 
 	// Build command.

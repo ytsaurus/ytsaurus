@@ -145,6 +145,18 @@ func (c Controller) getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet 
 		configAsMap["path_to_regions_hierarchy_file"] = "./geodata/regions_hierarchy.txt"
 	}
 
+	if speclet.ODBCConfig.EnableOrDefault() {
+		if _, ok := configAsMap["application"]; !ok {
+			// ClickHouse ODBC bridge is launched by the ClickHouse server.
+			// The "application.dir" setting tells ClickHouse where to look for it.
+			// In a YT job sandbox all binaries land in the working directory, so we point
+			// ClickHouse there.
+			configAsMap["application"] = map[string]any{
+				"dir": "./",
+			}
+		}
+	}
+
 	if _, ok := configAsMap["settings"]; !ok {
 		configAsMap["settings"] = make(map[string]any)
 	}
@@ -376,11 +388,7 @@ func getPatchedBuiltinLogRotationPolicy(speclet *Speclet) (map[string]any, error
 	return config, nil
 }
 
-func (c *Controller) uploadConfig(ctx context.Context, alias string, filename string, config any) (richPath ypath.Rich, err error) {
-	configYson, err := yson.MarshalFormat(config, yson.FormatPretty)
-	if err != nil {
-		return
-	}
+func (c *Controller) uploadFile(ctx context.Context, alias string, filename string, data []byte) (richPath ypath.Rich, err error) {
 	path := c.artifactDir(alias).Child(filename)
 	_, err = c.ytc.CreateNode(ctx, path, yt.NodeFile, &yt.CreateNodeOptions{IgnoreExisting: true})
 	if err != nil {
@@ -390,7 +398,7 @@ func (c *Controller) uploadConfig(ctx context.Context, alias string, filename st
 	if err != nil {
 		return
 	}
-	_, err = w.Write(configYson)
+	_, err = w.Write(data)
 	if err != nil {
 		return
 	}
@@ -400,6 +408,14 @@ func (c *Controller) uploadConfig(ctx context.Context, alias string, filename st
 	}
 	richPath = ypath.Rich{Path: path, FileName: filename}
 	return
+}
+
+func (c *Controller) uploadYsonFile(ctx context.Context, alias string, filename string, config any) (ypath.Rich, error) {
+	configYson, err := yson.MarshalFormat(config, yson.FormatPretty)
+	if err != nil {
+		return ypath.Rich{}, err
+	}
+	return c.uploadFile(ctx, alias, filename, configYson)
 }
 
 func (c Controller) artifactDir(alias string) ypath.Path {
@@ -541,7 +557,7 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 	if c.config.BusServer != nil {
 		ytServerClickHouseConfig["bus_server"] = c.config.BusServer
 	}
-	ytServerClickHouseConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "config.yson", ytServerClickHouseConfig)
+	ytServerClickHouseConfigPath, err := c.uploadYsonFile(ctx, oplet.Alias(), "config.yson", ytServerClickHouseConfig)
 	if err != nil {
 		return err
 	}

@@ -2,6 +2,7 @@ package chyt
 
 import (
 	"context"
+	"path/filepath"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -79,6 +80,20 @@ func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, fi
 
 	if speclet.EnableGeodataOrDefault(c.config.EnableGeodataOrDefault()) {
 		artifacts = append(artifacts, artifact{"geodata.tgz", speclet.GeodataPathOrDefault()})
+	}
+
+	if speclet.ODBCConfig.EnableOrDefault() {
+		bridgePath := speclet.ODBCConfig.BridgePathOrDefault()
+		bridgeFileName := filepath.Base(bridgePath.String())
+		artifacts = append(artifacts, artifact{bridgeFileName, bridgePath})
+		for _, driver := range speclet.ODBCConfig.Drivers {
+			driverFileName := filepath.Base(driver.Path.String())
+			artifacts = append(artifacts, artifact{driverFileName, driver.Path})
+		}
+		for _, extraFilePath := range speclet.ODBCConfig.ExtraFiles {
+			extraFileName := filepath.Base(extraFilePath.String())
+			artifacts = append(artifacts, artifact{extraFileName, extraFilePath})
+		}
 	}
 
 	var artifactDescription = map[string]yson.RawValue{}
