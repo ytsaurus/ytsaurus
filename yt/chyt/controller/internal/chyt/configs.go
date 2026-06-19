@@ -244,29 +244,42 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 		configAsMap["query_sticky_group_size"] = speclet.QueryStickyGroupSizeOrDefault()
 	}
 
-	if _, ok := configAsMap["discovery"]; !ok {
-		configAsMap["discovery"] = make(map[string]any)
-	}
-	discovery, err := asMapNode(configAsMap["discovery"])
-	if err != nil {
-		err = fmt.Errorf("invalid discovery config: %v", err)
-		return
-	}
-	if _, ok := discovery["version"]; !ok {
-		discovery["version"] = 2
-		discovery["read_quorum"] = 1
-		discovery["write_quorum"] = 1
-	}
-	if _, ok := discovery["transaction_timeout"]; !ok {
-		discovery["transaction_timeout"] = 30 * 1000
-	}
-	if _, ok := discovery["server_addresses"]; !ok {
-		var serverAddresses []string
-		serverAddresses, err = getDiscoveryServerAddresses(ctx, c.ytc)
-		if err != nil {
-			serverAddresses = []string{}
+	{
+		var discovery map[string]any
+
+		if _, ok := configAsMap["discovery"]; !ok {
+			configAsMap["discovery"] = make(map[string]any)
 		}
-		discovery["server_addresses"] = serverAddresses
+		discovery, err = asMapNode(configAsMap["discovery"])
+		if err != nil {
+			err = fmt.Errorf("invalid discovery config: %v", err)
+			return
+		}
+
+		if versionVal, ok := discovery["version"]; ok {
+			version, ok := versionVal.(int)
+			if !ok || version != 2 {
+				err = fmt.Errorf("expected discovery version 2, got %v", versionVal)
+			}
+			return
+		}
+
+		if _, ok := discovery["version"]; !ok {
+			discovery["version"] = 2
+			discovery["read_quorum"] = 1
+			discovery["write_quorum"] = 1
+		}
+		if _, ok := discovery["transaction_timeout"]; !ok {
+			discovery["transaction_timeout"] = 30 * 1000
+		}
+		if _, ok := discovery["server_addresses"]; !ok {
+			var serverAddresses []string
+			serverAddresses, err = getDiscoveryServerAddresses(ctx, c.ytc)
+			if err != nil {
+				serverAddresses = []string{}
+			}
+			discovery["server_addresses"] = serverAddresses
+		}
 	}
 
 	if _, ok := configAsMap["health_checker"]; !ok {
