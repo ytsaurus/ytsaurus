@@ -196,8 +196,8 @@ TEST(TChunkSlicerTest, SliceByRowsOneBlock)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100 * DataWeightPerRow);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100 * DataWeightPerRow);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 50 * DataWeightPerRow);
 
@@ -243,18 +243,18 @@ TEST(TChunkSlicerTest, SliceByRowsThreeBlocks)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({3}),
         MakeRow({4}),
-        400,
-        400);
+        /*rowCount*/ 400,
+        /*dataWeight*/ 400);
     chunkBuilder.AddBlock(
         MakeRow({5}),
         MakeRow({6}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 300);
     NProto::TSliceRequest req;
@@ -301,28 +301,28 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({3}),
         MakeRow({4}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({5}),
         MakeRow({6}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({7}),
         MakeRow({8}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({9}),
         MakeRow({10}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 250);
 
@@ -385,8 +385,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits2)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 50);
     NProto::TSliceRequest req;
@@ -417,18 +417,18 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits3)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({3}),
         MakeRow({4}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({5}),
         MakeRow({6}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
     NProto::TSliceRequest req;
@@ -468,28 +468,28 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({5}),
         MakeRow({7}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({9}),
         MakeRow({11}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({13}),
         MakeRow({15}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({17}),
         MakeRow({19}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 250);
 
@@ -571,8 +571,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits2)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 75);  // 3:4 compression ratio.
     {
@@ -643,28 +643,28 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexAndKeyLimits)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({5}),
         MakeRow({7}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({9}),
         MakeRow({11}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({13}),
         MakeRow({15}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({17}),
         MakeRow({19}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 275);
     {
@@ -705,8 +705,8 @@ TEST(TChunkSlicerTest, SliceByKeysOneBlock)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 50);
 
@@ -732,13 +732,13 @@ TEST(TChunkSlicerTest, SliceByKeysTwoBlocks)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({2}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 120);
 
@@ -773,13 +773,13 @@ TEST(TChunkSlicerTest, SliceByKeysWiderRequest)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({2}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 80);
 
@@ -814,13 +814,13 @@ TEST(TChunkSlicerTest, SliceByKeysManiac1)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({1}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({1}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
 
@@ -846,23 +846,23 @@ TEST(TChunkSlicerTest, SliceByKeysManiac2)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({2}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({2}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({2}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 160);
 
@@ -896,23 +896,23 @@ TEST(TChunkSlicerTest, SliceByKeysManiac2IsolateManiac)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({2}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({2}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({2}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 160);
 
@@ -953,13 +953,13 @@ TEST(TChunkSlicerTest, SliceByKeysManiac3)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({3}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 100);
 
@@ -995,13 +995,13 @@ TEST(TChunkSlicerTest, SliceByKeysManiac4)
     chunkBuilder.AddBlock(
         MakeRow({1, 1}),
         MakeRow({1, 2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({1, 3}),
         MakeRow({1, 4}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 180);
 
@@ -1028,18 +1028,18 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits1)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({3}),
         MakeRow({4}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({5}),
         MakeRow({6}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 90);
 
@@ -1075,13 +1075,13 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimitInsideKeyGroup)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({2}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({2}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 100);
 
@@ -1107,18 +1107,18 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits2)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({1}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({1}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({1}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
 
@@ -1146,28 +1146,28 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits1)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({5}),
         MakeRow({7}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({9}),
         MakeRow({11}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({11}),
         MakeRow({13}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({15}),
         MakeRow({17}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 250);
 
@@ -1195,18 +1195,18 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits2)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({5}),
         MakeRow({7}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
     chunkBuilder.AddBlock(
         MakeRow({9}),
         MakeRow({11}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
 
@@ -1234,20 +1234,20 @@ TEST(TChunkSlicerTest, ManiacAtTheStart)
     chunkBuilder.AddBlock(
         MakeRow({3}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     chunkBuilder.AddBlock(
         MakeRow({3}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     chunkBuilder.AddBlock(
         MakeRow({3}),
         MakeRow({5}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
 
@@ -1339,22 +1339,22 @@ TEST(TChunkSlicerTest, TwoManiacsInARow)
         chunkBuilder.AddBlock(
             MakeRow({3}),
             MakeRow({3}),
-            100,
-            100);
+            /*rowCount*/ 100,
+            /*dataWeight*/ 100);
     }
 
     chunkBuilder.AddBlock(
         MakeRow({3}),
         MakeRow({5}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     for (int i = 0; i < 3; ++i) {
         chunkBuilder.AddBlock(
             MakeRow({5}),
             MakeRow({5}),
-            100,
-            100);
+            /*rowCount*/ 100,
+            /*dataWeight*/ 100);
     }
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 350);
@@ -1396,20 +1396,20 @@ TEST(TChunkSlicerTest, DontIsolateManiacIfHaveRowLimit)
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     chunkBuilder.AddBlock(
         MakeRow({3}),
         MakeRow({3}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     chunkBuilder.AddBlock(
         MakeRow({3}),
         MakeRow({5}),
-        100,
-        100);
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
 
     auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
 
@@ -1449,22 +1449,22 @@ protected:
         chunkBuilder.AddBlock(
             MakeRow({1}),
             MakeRow({5}),
-            100,
-            100);
+            /*rowCount*/ 100,
+            /*dataWeight*/ 100);
 
         for (int i = 0; i < 5; ++i) {
             chunkBuilder.AddBlock(
                 MakeRow({5}),
                 MakeRow({5}),
-                100,
-                100);
+                /*rowCount*/ 100,
+                /*dataWeight*/ 100);
         }
 
         chunkBuilder.AddBlock(
             MakeRow({5}),
             MakeRow({9}),
-            100,
-            100);
+            /*rowCount*/ 100,
+            /*dataWeight*/ 100);
 
         return chunkBuilder.Finish(/*compressedDataSize*/ 350);
     }
