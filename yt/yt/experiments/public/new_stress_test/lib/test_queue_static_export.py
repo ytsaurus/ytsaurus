@@ -50,6 +50,11 @@ RSG = RandomStringGenerator()
 # never depends on system columns ($tablet_index/$row_index) in the exported tables.
 
 
+# Inline hunk threshold (bytes) for the "value" column of hunk-enabled queues. Values larger
+# than this go to hunk chunks (in the linked hunk storage); kept well below write_min_row_size
+# so essentially every written value becomes a hunk.
+MAX_INLINE_HUNK_SIZE = 100
+
 QUEUE_SCHEMA = [
     {"name": "tablet", "type": "int64"},
     {"name": "row_index", "type": "int64"},
@@ -134,14 +139,16 @@ def _cron_interval_seconds(cron):
 
 
 class Queue:
-    def __init__(self, state_path, name, tablet_count, exports_cfg, erasure, commit_ordering,
+    def __init__(self, state_path, name, tablet_count, exports_cfg, erasure, hunks, commit_ordering,
                  auto_trim, flush_period_ms, export_ttl_ms, cron_default_interval_seconds, session_id):
         self.name = name
         self.path = f"{state_path}/{name}"
         self.shadow_path = f"{state_path}/{name}.shadow"
         self.producer_path = f"{state_path}/{name}.producer"
+        self.hunk_storage_path = f"{state_path}/{name}.hunk_storage"
         self.tablet_count = tablet_count
         self.erasure = erasure
+        self.hunks = hunks
         self.commit_ordering = commit_ordering
         self.auto_trim = auto_trim
         self.flush_period_ms = flush_period_ms
@@ -199,8 +206,7 @@ class Queue:
             return self.cron_default_interval
         return None
 
-    @staticmethod
-    def _build_export_config_entry(directory, export_cfg, export_ttl_ms):
+    def _build_export_config_entry(self, directory, export_cfg, export_ttl_ms):
         entry = {"export_directory": directory}
         if "cron" in export_cfg:
             entry["export_cron_schedule"] = export_cfg["cron"]
@@ -212,6 +218,10 @@ class Queue:
             entry["output_table_name_pattern"] = export_cfg["name_pattern"]
         if "use_upper_bound" in export_cfg:
             entry["use_upper_bound_for_table_names"] = export_cfg["use_upper_bound"]
+        if self.hunks:
+            # The exporter refuses to export a queue whose schema has hunk columns unless this
+            # is set explicitly (queue_exporter.cpp).
+            entry["enable_export_from_queue_with_hunks"] = True
         return entry
 
     @staticmethod
@@ -250,14 +260,23 @@ class Queue:
             # be changed in place, so make sure they still match the config — otherwise the
             # config was edited in a way that silently disagrees with the live object.
             self._verify_queue_matches_config()
+            if self.hunks:
+                self._ensure_hunk_storage()
             return
         logger.info(
             f"Creating queue {self.path} (tablet_count: {self.tablet_count}, erasure: {self.erasure}, "
-            f"commit_ordering: {self.commit_ordering}, flush_period_ms: {self.flush_period_ms})")
+            f"hunks: {self.hunks}, commit_ordering: {self.commit_ordering}, "
+            f"flush_period_ms: {self.flush_period_ms})")
+        # Copy the schema so the per-queue hunk tweak does not mutate the module constant.
+        schema = [dict(column) for column in QUEUE_SCHEMA]
+        if self.hunks:
+            for column in schema:
+                if column["name"] == "value":
+                    column["max_inline_hunk_size"] = MAX_INLINE_HUNK_SIZE
         attributes = {
             "dynamic": True,
             "enable_dynamic_store_read": True,
-            "schema": QUEUE_SCHEMA,
+            "schema": schema,
             "tablet_count": self.tablet_count,
             # Flush dynamic stores into chunks frequently so the Queue Agent has fresh
             # chunks to export (exports never see unflushed data; default flush is 15m).
@@ -268,7 +287,41 @@ class Queue:
         if self.commit_ordering is not None:
             attributes["commit_ordering"] = self.commit_ordering
         yt.create("table", self.path, attributes=attributes)
+        # Link the hunk storage while the queue is still unmounted (so no remount is needed),
+        # then mount.
+        if self.hunks:
+            self._ensure_hunk_storage()
         yt.mount_table(self.path, sync=True)
+
+    def _ensure_hunk_storage(self):
+        # Create (if missing), mount and link the queue's hunk storage. Idempotent: on resume
+        # the storage exists and the queue is already linked, so this only ensures it is
+        # mounted. A queue with hunk columns needs a linked hunk storage to write/flush hunks.
+        if not yt.exists(self.hunk_storage_path):
+            attributes = {
+                "tablet_count": 1,
+                # Rotate hunk stores into chunks reasonably fast so exported chunks reference
+                # sealed hunks promptly (default rotation is geared to 15m flushes).
+                "store_rotation_period": 10000,
+            }
+            cell_tag = self._queue_external_cell_tag()
+            if cell_tag is not None:
+                attributes["external_cell_tag"] = cell_tag
+            logger.info(f"Creating hunk storage {self.hunk_storage_path} (cell_tag: {cell_tag})")
+            yt.create("hunk_storage", self.hunk_storage_path, attributes=attributes)
+        if yt.get(f"{self.hunk_storage_path}/@tablet_state") != "mounted":
+            yt.mount_table(self.hunk_storage_path, sync=True)
+        if not yt.exists(f"{self.path}/@hunk_storage_id"):
+            hunk_storage_id = yt.get(f"{self.hunk_storage_path}/@id")
+            logger.info(f"Linking hunk storage {self.hunk_storage_path} to queue {self.path}")
+            yt.set(f"{self.path}/@hunk_storage_id", hunk_storage_id)
+            if yt.get(f"{self.path}/@tablet_state") == "mounted":
+                yt.remount_table(self.path)
+
+    def _queue_external_cell_tag(self):
+        if yt.exists(f"{self.path}/@external_cell_tag"):
+            return yt.get(f"{self.path}/@external_cell_tag")
+        return None
 
     def _ensure_unfrozen(self):
         # flush() does freeze->unfreeze; if a previous run died between the two steps
@@ -302,6 +355,12 @@ class Queue:
             if actual_commit_ordering != self.commit_ordering:
                 mismatches.append(
                     f"commit_ordering: config={self.commit_ordering}, actual={actual_commit_ordering}")
+
+        # hunks change the schema (max_inline_hunk_size) and require a linked hunk storage —
+        # neither can be toggled in place, so the link's presence must match the config.
+        actual_hunks = yt.exists(f"{self.path}/@hunk_storage_id")
+        if actual_hunks != bool(self.hunks):
+            mismatches.append(f"hunks: config={bool(self.hunks)}, actual(linked hunk_storage)={actual_hunks}")
 
         if mismatches:
             raise YtError(
@@ -617,6 +676,7 @@ def test_queue_static_export(base_path, spec, attributes, args):
             tablet_count=queue_cfg["tablet_count"],
             exports_cfg=queue_cfg["exports"],
             erasure=queue_cfg.get("erasure", False),
+            hunks=queue_cfg.get("hunks", False),
             commit_ordering=queue_cfg.get("commit_ordering"),
             auto_trim=queue_cfg.get("auto_trim", False),
             flush_period_ms=queue_cfg.get("flush_period_ms", cfg.flush_period_ms),
