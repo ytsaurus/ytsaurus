@@ -2271,9 +2271,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 "wait_end_of_query": 1,
                 "buffer_size": 1024 ** 2,
             }
-            # NB: Should fail since buffer_size is exceeded and temporary data disk space limit is 1 byte.
+            # NB: Should fail since buffer_size is exceeded and temporary data disk space limit is 128 Mb.
             with raises_yt_error(QueryFailedError):
-                clique.make_query(query.format(1000 * 1000), settings=settings, verbose=False)
+                clique.make_query(query.format(1000 * 1000 * 1000), settings=settings, verbose=False)
 
     @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])

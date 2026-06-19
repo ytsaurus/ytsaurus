@@ -239,6 +239,10 @@ class TestYtDictionaries(ClickHouseTestBase):
             for instance in instances:
                 assert clique.make_direct_query(instance, test_query) == [{"value": 2}]
 
+            system_query = "select database, name from system.dictionaries where name = 't_dict'"
+            for instance in instances:
+                assert clique.make_direct_query(instance, system_query) == [{"database": "YT", "name": "t_dict"}]
+
         with Clique(1, enable_dictionary_repository=False) as clique:
             with raises_yt_error("Clique doesn't have configured CypressDictionaryConfigRepository"):
                 clique.make_query("CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")

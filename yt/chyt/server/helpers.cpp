@@ -99,11 +99,12 @@ void RegisterNewUser(
     user->setName(userName);
     user->access.grant(DB::AccessFlags::allFlagsGrantableOnTableLevel(), /*database*/ "YT");
     for (const auto& databaseName : userDefinedDatabaseNames) {
-        user->access.grant(DB::AccessFlags::allFlagsGrantableOnTableLevel(), /*database*/ databaseName);
+        user->access.grant(DB::AccessFlags::allFlagsGrantableOnTableLevel(), databaseName);
     }
     user->access.grant(DB::AccessType::SHOW, /*database*/ "system");
     user->access.grant(DB::AccessType::SELECT, /*database*/ "system");
     user->access.grant(DB::AccessType::CREATE_TEMPORARY_TABLE);
+    user->access.grant(DB::AccessType::SHOW_DICTIONARIES);
 
     if (!allowGlobalDictionaryAccess) {
         user->access.revoke(DB::AccessType::dictGet);
