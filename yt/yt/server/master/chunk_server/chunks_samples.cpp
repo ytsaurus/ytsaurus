@@ -111,15 +111,11 @@ void TChunksSamples::Load(TLoadContext& context)
 {
     using NYT::Load;
     Load(context, LostVitalChunksSample_);
-    if (context.GetVersion() >= NCellMaster::EMasterReign::MulticellChunksSamples) {
-        Load(context, DataMissingChunksSample_);
-        Load(context, ParityMissingChunksSample_);
-    }
-    if (context.GetVersion() >= NCellMaster::EMasterReign::AdditionalMulticellChunksSamples) {
-        Load(context, OldestPartMissingChunksSample_);
-        Load(context, QuorumMissingChunksSample_);
-        Load(context, InconsistentlyPlacedChunksSample_);
-    }
+    Load(context, DataMissingChunksSample_);
+    Load(context, ParityMissingChunksSample_);
+    Load(context, OldestPartMissingChunksSample_);
+    Load(context, QuorumMissingChunksSample_);
+    Load(context, InconsistentlyPlacedChunksSample_);
 }
 
 void TChunksSamples::Save(TSaveContext& context) const

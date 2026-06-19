@@ -153,10 +153,6 @@ private:
     THashSet<TChunkLocationIndex> ChunkLocationsBeingDisposed_;
     std::deque<TChunkLocationIndex> ChunkLocationsAwaitingDisposal_;
 
-    // COMPAT(grphil)
-    THashSet<TNodeId> DataNodesBeingDisposed_;
-    std::deque<TNodeId> DataNodesAwaitingForBeingDisposed_;
-
     void OnLeaderActive() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -186,14 +182,8 @@ private:
     {
         using NYT::Load;
 
-        // COMPAT(grphil)
-        if (context.GetVersion() < EMasterReign::ChunkLocationDisposal) {
-            Load(context, DataNodesBeingDisposed_);
-            Load(context, DataNodesAwaitingForBeingDisposed_);
-        } else {
-            Load(context, ChunkLocationsBeingDisposed_);
-            Load(context, ChunkLocationsAwaitingDisposal_);
-        }
+        Load(context, ChunkLocationsBeingDisposed_);
+        Load(context, ChunkLocationsAwaitingDisposal_);
     }
 
     void Save(NCellMaster::TSaveContext& context) const
@@ -204,34 +194,6 @@ private:
         Save(context, ChunkLocationsAwaitingDisposal_);
     }
 
-    void OnAfterSnapshotLoaded() override
-    {
-        TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-        // COMPAT(grphil)
-        for (auto nodeId : DataNodesBeingDisposed_) {
-            DataNodesAwaitingForBeingDisposed_.push_back(nodeId);
-        }
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (auto nodeId : DataNodesAwaitingForBeingDisposed_) {
-            auto* node = nodeTracker->FindNode(nodeId);
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-
-            for (auto localLocationIndex = node->GetNextDisposedLocationIndex(); localLocationIndex < std::ssize(node->ChunkLocations()); ++localLocationIndex) {
-                ChunkLocationsAwaitingDisposal_.push_back(node->ChunkLocations()[localLocationIndex]->GetIndex());
-            }
-
-            for (auto localLocationIndex = 0; localLocationIndex < node->GetNextDisposedLocationIndex(); ++localLocationIndex) {
-                node->ChunkLocations()[localLocationIndex]->SetState(NChunkServer::EChunkLocationState::Disposed);
-            }
-        }
-        DataNodesAwaitingForBeingDisposed_.clear();
-        DataNodesBeingDisposed_.clear();
-    }
-
     void Clear() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -240,8 +202,6 @@ private:
 
         ChunkLocationsBeingDisposed_.clear();
         ChunkLocationsAwaitingDisposal_.clear();
-        DataNodesBeingDisposed_.clear();
-        DataNodesAwaitingForBeingDisposed_.clear();
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)

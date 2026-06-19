@@ -433,9 +433,6 @@ void TUser::Load(TLoadContext& context)
     Load(context, Tags_);
     Load(context, LastSeenTime_);
     Load(context, PendingRemoval_);
-    if (context.GetVersion() < NCellMaster::EMasterReign::DropSecondaryIndexCreationPermissionFlags) {
-        Load<bool>(context);
-    }
 
     TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);
     TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestBytesThrottlerConfig_);

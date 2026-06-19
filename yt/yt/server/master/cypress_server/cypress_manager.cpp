@@ -3016,11 +3016,7 @@ private:
             Load(context, GroundUpdateQueueManagerSequenceNumberToNodeIds_);
         }
 
-        auto normalClustersNeedSchemaRecalculation = context.GetVersion() >= EMasterReign::AddSchemaRevision &&
-            context.GetVersion() < EMasterReign::FixSchemaDivergence;
-        auto otherClustersNeedSchemaRecalculation = context.GetVersion() >= EMasterReign::Start_25_4 &&
-            context.GetVersion() < EMasterReign::FixSchemaDivergence_25_4;
-        if (normalClustersNeedSchemaRecalculation || otherClustersNeedSchemaRecalculation) {
+        if (context.GetVersion() < EMasterReign::FixSchemaDivergence_25_4) {
             RecalculateSchemas_ = true;
         }
 
