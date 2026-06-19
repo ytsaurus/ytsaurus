@@ -616,6 +616,9 @@ void TContext::LogStructuredRequest()
         }
     });
 
+    auto userTicketHeader = Request_->GetHeaders()->Find(NHeaders::UserTicketHeaderName);
+    auto serviceTicketHeader = Request_->GetHeaders()->Find(NHeaders::ServiceTicketHeaderName);
+
     YT_LOG_DEBUG("Request finished (Command: %v, User: %v, WallTime: %v, CpuTime: %v, InBytes: %v, OutBytes: %v)",
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
@@ -654,7 +657,11 @@ void TContext::LogStructuredRequest()
         .Item("cpu_time").Value(ResultCpuTime_)
         .Item("start_time").Value(Timer_.GetStartTime())
         .Item("in_bytes").Value(Request_->GetReadByteCount())
-        .Item("out_bytes").Value(Response_->GetWriteByteCount());
+        .Item("out_bytes").Value(Response_->GetWriteByteCount())
+        .DoIf(userTicketHeader && !serviceTicketHeader, [&] (auto fluent) {
+            fluent
+                .Item("debug_info").Value(TYsonString(TString("{\"user_ticket_and_no_service_ticket\"=true}")));
+        });
 }
 
 void TContext::SetupInputStream()
