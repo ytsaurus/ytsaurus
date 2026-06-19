@@ -9276,7 +9276,7 @@ void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimePa
     YT_VERIFY(!update->Acl || !update->AcoName);
 
     auto [isNonTrivialAcl, isAcoName] = AccessControlRule_.Read(
-        [](const auto& rule) {
+        [] (const auto& rule) {
             return std::make_pair(
                 rule.IsAcl() && !rule.GetAcl().Entries.empty(),
                 rule.IsAcoName());
