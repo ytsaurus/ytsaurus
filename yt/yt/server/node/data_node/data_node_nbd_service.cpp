@@ -166,7 +166,7 @@ private:
         auto shouldCloseSession = ShouldCloseSession(session);
         response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %x ShouldCloseSession: %v",
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
             sessionId,
             cookie,
             shouldCloseSession);
