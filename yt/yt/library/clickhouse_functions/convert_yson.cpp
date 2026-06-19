@@ -4,10 +4,12 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <DataTypes/DataTypeNullable.h>
-#include <DataTypes/DataTypeString.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnString.h>
+
+#include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypeString.h>
+
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionHelpers.h>
 #include <Functions/IFunction.h>
@@ -41,7 +43,8 @@ using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFunctionConvertYson : public IFunction
+class TFunctionConvertYson
+    : public IFunction
 {
 public:
     static constexpr auto name = "ConvertYson";
@@ -70,17 +73,17 @@ public:
         return true;
     }
 
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo& /*arguments*/) const override
     {
         return true;
     }
 
-    DataTypePtr getReturnTypeImpl(const DataTypes & arguments) const override
+    DataTypePtr getReturnTypeImpl(const DataTypes& arguments) const override
     {
         if (!isString(removeNullable(arguments[0])) && !WhichDataType(removeNullable(arguments[0])).isNothing()) {
             throw Exception(
                 ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                "Illegal type {} of first argument of function ,{}",
+                "Illegal type {} of first argument of function {}",
                 arguments[0]->getName(),
                 getName());
         }
@@ -99,7 +102,7 @@ public:
         }
     }
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t inputRowCount) const override
+    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr& /*resultType*/, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = arguments[0].column.get();
         const IColumn* columnYson = columnYsonOrNull;

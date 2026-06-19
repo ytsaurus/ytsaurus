@@ -42,10 +42,15 @@
 #include <IO/parseDateTimeBestEffort.h>
 
 namespace DB::ErrorCodes {
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
-    extern const int INCORRECT_DATA;
-} // namespace ErrorCodes
 
+////////////////////////////////////////////////////////////////////////////////
+
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+extern const int INCORRECT_DATA;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::ErrorCodes
 
 namespace NYT::NClickHouseServer {
 
@@ -70,10 +75,11 @@ private:
 };
 
 template <typename NumberType>
-class NumericNode : public IYsonTreeNodeExtractor
+class TNumericNode
+    : public IYsonTreeNodeExtractor
 {
 public:
-    explicit NumericNode(bool isBoolType = false)
+    explicit TNumericNode(bool isBoolType = false)
         : IsBoolType_(isBoolType)
     { }
 
@@ -121,7 +127,8 @@ protected:
     bool IsBoolType_;
 };
 
-class StringNode : public IYsonTreeNodeExtractor
+class TStringNode
+    : public IYsonTreeNodeExtractor
 {
 public:
     TError ExtractNodeToColumn(
@@ -147,11 +154,7 @@ public:
             auto& chars = colStr.getChars();
             TStringColumnCharsOutput charsOutput(chars);
             TExtendedYsonWriter writer(&charsOutput);
-            // TString result;
-            // TStringOutput stringOutput(result);
-            // TExtendedYsonWriter writer(&stringOutput);
             Serialize(*node.GetNode(), &writer);
-            // chars.insert(chars.end(), result.data(), result.data() + result.size());
             chars.push_back(0);
             colStr.getOffsets().push_back(chars.size());
         } else {
@@ -162,10 +165,11 @@ public:
     }
 };
 
-class ArrayNode : public IYsonTreeNodeExtractor
+class TArrayNode
+    : public IYsonTreeNodeExtractor
 {
 public:
-    explicit ArrayNode(std::unique_ptr<IYsonTreeNodeExtractor> nested)
+    explicit TArrayNode(std::unique_ptr<IYsonTreeNodeExtractor> nested)
         : Nested_(std::move(nested))
     { }
 
@@ -220,10 +224,11 @@ private:
     std::unique_ptr<IYsonTreeNodeExtractor> Nested_;
 };
 
-class TupleNode : public IYsonTreeNodeExtractor
+class TTupleNode
+    : public IYsonTreeNodeExtractor
 {
 public:
-    TupleNode(std::vector<std::unique_ptr<IYsonTreeNodeExtractor>> nested, const std::vector<DB::String>& explicitNames)
+    TTupleNode(std::vector<std::unique_ptr<IYsonTreeNodeExtractor>> nested, const std::vector<DB::String>& explicitNames)
         : Nested_(std::move(nested))
         , ExplicitNames_(explicitNames)
     {
@@ -330,10 +335,11 @@ private:
     std::unordered_map<std::string_view, size_t> NameToIndexMap_;
 };
 
-class MapNode : public IYsonTreeNodeExtractor
+class TMapNode
+    : public IYsonTreeNodeExtractor
 {
 public:
-    explicit MapNode(std::unique_ptr<IYsonTreeNodeExtractor> value)
+    explicit TMapNode(std::unique_ptr<IYsonTreeNodeExtractor> value)
         : Value_(std::move(value))
     { }
 
@@ -368,10 +374,10 @@ public:
         for (; it != object.end(); ++it) {
             auto pair = *it;
 
-            // Insert key
+            // Insert the key.
             keyCol.insertData(pair.first.data(), pair.first.size());
 
-            // Insert value
+            // Insert the value.
             auto error = Value_->ExtractNodeToColumn(valueCol, pair.second, insertSettings, formatSettings);
             if (!error.IsOK()) {
                 if (insertSettings.insert_default_on_invalid_elements_in_complex_types) {
@@ -392,10 +398,11 @@ private:
     std::unique_ptr<IYsonTreeNodeExtractor> Value_;
 };
 
-class NullableNode : public IYsonTreeNodeExtractor
+class TNullableNode
+    : public IYsonTreeNodeExtractor
 {
 public:
-    explicit NullableNode(std::unique_ptr<IYsonTreeNodeExtractor> nested)
+    explicit TNullableNode(std::unique_ptr<IYsonTreeNodeExtractor> nested)
         : Nested_(std::move(nested))
     { }
 
@@ -425,7 +432,8 @@ private:
 
 
 template <typename DateType, typename ColumnNumericType>
-class DateNode : public IYsonTreeNodeExtractor
+class TDateNode
+    : public IYsonTreeNodeExtractor
 {
 public:
     TError ExtractNodeToColumn(
@@ -459,10 +467,11 @@ public:
     }
 };
 
-class DateTimeNode : public IYsonTreeNodeExtractor
+class TDateTimeNode
+    : public IYsonTreeNodeExtractor
 {
 public:
-    explicit DateTimeNode(const DB::DataTypeDateTime& datetimeType)
+    explicit TDateTimeNode(const DB::DataTypeDateTime& datetimeType)
         : TimeZone_(datetimeType.getTimeZone())
         , UtcTimeZone_(DateLUT::instance("UTC"))
     { }
@@ -500,20 +509,21 @@ public:
     bool TryParse(time_t& value, std::string_view data, DB::FormatSettings::DateTimeInputFormat /*dateTimeInputFormat*/) const
     {
         DB::ReadBufferFromMemory buf(data.data(), data.size());
-        // Only support Basic format for now
+        // Only the basic format is supported for now.
         return DB::tryReadDateTimeText(value, buf, TimeZone_) && buf.eof();
     }
 
 private:
-    const DateLUTImpl & TimeZone_;
-    const DateLUTImpl & UtcTimeZone_;
+    const DateLUTImpl& TimeZone_;
+    const DateLUTImpl& UtcTimeZone_;
 };
 
 template <typename DecimalType>
-class DecimalNode : public IYsonTreeNodeExtractor
+class TDecimalNode
+    : public IYsonTreeNodeExtractor
 {
 public:
-    explicit DecimalNode(const DB::DataTypePtr& type)
+    explicit TDecimalNode(const DB::DataTypePtr& type)
         : Scale_(assert_cast<const DB::DataTypeDecimal<DecimalType>&>(*type).getScale())
     { }
 
@@ -565,10 +575,11 @@ private:
     UInt32 Scale_;
 };
 
-class DateTime64Node : public IYsonTreeNodeExtractor
+class TDateTime64Node
+    : public IYsonTreeNodeExtractor
 {
 public:
-    explicit DateTime64Node(const DB::DataTypeDateTime64& datetime64Type)
+    explicit TDateTime64Node(const DB::DataTypeDateTime64& datetime64Type)
         : Scale_(datetime64Type.getScale())
         , TimeZone_(datetime64Type.getTimeZone())
         , UtcTimeZone_(DateLUT::instance("UTC"))
@@ -621,71 +632,71 @@ public:
     bool TryParse(DB::DateTime64& value, std::string_view data, DB::FormatSettings::DateTimeInputFormat /*dateTimeInputFormat*/) const
     {
         DB::ReadBufferFromMemory buf(data.data(), data.size());
-        // Only support Basic format for now
+        // Only the basic format is supported for now.
         return DB::tryReadDateTime64Text(value, Scale_, buf, TimeZone_) && buf.eof();
     }
 
 private:
     UInt32 Scale_;
-    const DateLUTImpl & TimeZone_;
-    const DateLUTImpl & UtcTimeZone_;
+    const DateLUTImpl& TimeZone_;
+    const DateLUTImpl& UtcTimeZone_;
 };
 
 } // namespace
 
-std::unique_ptr<IYsonTreeNodeExtractor> CreateYsonTreeNodeExtractor(const DB::DataTypePtr& type/*, const char* source_for_exception_message*/)
+std::unique_ptr<IYsonTreeNodeExtractor> CreateYsonTreeNodeExtractor(const DB::DataTypePtr& type)
 {
     switch (type->getTypeId()) {
         case DB::TypeIndex::UInt8:
-            return std::make_unique<NumericNode<UInt8>>(isBool(type));
+            return std::make_unique<TNumericNode<UInt8>>(isBool(type));
         case DB::TypeIndex::UInt16:
-            return std::make_unique<NumericNode<UInt16>>();
+            return std::make_unique<TNumericNode<UInt16>>();
         case DB::TypeIndex::UInt32:
-            return std::make_unique<NumericNode<UInt32>>();
+            return std::make_unique<TNumericNode<UInt32>>();
         case DB::TypeIndex::UInt64:
-            return std::make_unique<NumericNode<UInt64>>();
+            return std::make_unique<TNumericNode<UInt64>>();
         case DB::TypeIndex::UInt128:
-            return std::make_unique<NumericNode<UInt128>>();
+            return std::make_unique<TNumericNode<UInt128>>();
         case DB::TypeIndex::UInt256:
-            return std::make_unique<NumericNode<UInt256>>();
+            return std::make_unique<TNumericNode<UInt256>>();
         case DB::TypeIndex::Int8:
-            return std::make_unique<NumericNode<Int8>>();
+            return std::make_unique<TNumericNode<Int8>>();
         case DB::TypeIndex::Int16:
-            return std::make_unique<NumericNode<Int16>>();
+            return std::make_unique<TNumericNode<Int16>>();
         case DB::TypeIndex::Int32:
-            return std::make_unique<NumericNode<Int32>>();
+            return std::make_unique<TNumericNode<Int32>>();
         case DB::TypeIndex::Int64:
-            return std::make_unique<NumericNode<Int64>>();
+            return std::make_unique<TNumericNode<Int64>>();
         case DB::TypeIndex::Int128:
-            return std::make_unique<NumericNode<Int128>>();
+            return std::make_unique<TNumericNode<Int128>>();
         case DB::TypeIndex::Int256:
-            return std::make_unique<NumericNode<Int256>>();
+            return std::make_unique<TNumericNode<Int256>>();
         case DB::TypeIndex::Float32:
-            return std::make_unique<NumericNode<Float32>>();
+            return std::make_unique<TNumericNode<Float32>>();
         case DB::TypeIndex::Float64:
-            return std::make_unique<NumericNode<Float64>>();
+            return std::make_unique<TNumericNode<Float64>>();
         case DB::TypeIndex::String:
-            return std::make_unique<StringNode>();
+            return std::make_unique<TStringNode>();
         case DB::TypeIndex::Date:
-            return std::make_unique<DateNode<DayNum, UInt16>>();
+            return std::make_unique<TDateNode<DayNum, UInt16>>();
         case DB::TypeIndex::Date32:
-            return std::make_unique<DateNode<ExtendedDayNum, Int32>>();
+            return std::make_unique<TDateNode<ExtendedDayNum, Int32>>();
         case DB::TypeIndex::DateTime:
-            return std::make_unique<DateTimeNode>(assert_cast<const DB::DataTypeDateTime&>(*type));
+            return std::make_unique<TDateTimeNode>(assert_cast<const DB::DataTypeDateTime&>(*type));
         case DB::TypeIndex::DateTime64:
-            return std::make_unique<DateTime64Node>(assert_cast<const DB::DataTypeDateTime64&>(*type));
+            return std::make_unique<TDateTime64Node>(assert_cast<const DB::DataTypeDateTime64&>(*type));
         case DB::TypeIndex::Decimal32:
-            return std::make_unique<DecimalNode<DB::Decimal32>>(type);
+            return std::make_unique<TDecimalNode<DB::Decimal32>>(type);
         case DB::TypeIndex::Decimal64:
-            return std::make_unique<DecimalNode<DB::Decimal64>>(type);
+            return std::make_unique<TDecimalNode<DB::Decimal64>>(type);
         case DB::TypeIndex::Decimal128:
-            return std::make_unique<DecimalNode<DB::Decimal128>>(type);
+            return std::make_unique<TDecimalNode<DB::Decimal128>>(type);
         case DB::TypeIndex::Decimal256:
-            return std::make_unique<DecimalNode<DB::Decimal256>>(type);
+            return std::make_unique<TDecimalNode<DB::Decimal256>>(type);
         case DB::TypeIndex::Nullable:
-            return std::make_unique<NullableNode>(CreateYsonTreeNodeExtractor(assert_cast<const DB::DataTypeNullable&>(*type).getNestedType()));
+            return std::make_unique<TNullableNode>(CreateYsonTreeNodeExtractor(assert_cast<const DB::DataTypeNullable&>(*type).getNestedType()));
         case DB::TypeIndex::Array:
-            return std::make_unique<ArrayNode>(CreateYsonTreeNodeExtractor(assert_cast<const DB::DataTypeArray&>(*type).getNestedType()));
+            return std::make_unique<TArrayNode>(CreateYsonTreeNodeExtractor(assert_cast<const DB::DataTypeArray&>(*type).getNestedType()));
         case DB::TypeIndex::Tuple:
         {
             const auto& tuple = assert_cast<const DB::DataTypeTuple&>(*type);
@@ -695,7 +706,7 @@ std::unique_ptr<IYsonTreeNodeExtractor> CreateYsonTreeNodeExtractor(const DB::Da
             for (const auto& tupleElement : tupleElements) {
                 elements.emplace_back(CreateYsonTreeNodeExtractor(tupleElement));
             }
-            return std::make_unique<TupleNode>(std::move(elements), tuple.haveExplicitNames() ? tuple.getElementNames() : DB::Strings{});
+            return std::make_unique<TTupleNode>(std::move(elements), tuple.haveExplicitNames() ? tuple.getElementNames() : DB::Strings{});
         }
         case DB::TypeIndex::Map:
         {
@@ -709,7 +720,7 @@ std::unique_ptr<IYsonTreeNodeExtractor> CreateYsonTreeNodeExtractor(const DB::Da
             }
 
             const auto& valueType = mapType.getValueType();
-            return std::make_unique<MapNode>(CreateYsonTreeNodeExtractor(valueType));
+            return std::make_unique<TMapNode>(CreateYsonTreeNodeExtractor(valueType));
         }
         default:
             throw DB::Exception(
@@ -719,4 +730,4 @@ std::unique_ptr<IYsonTreeNodeExtractor> CreateYsonTreeNodeExtractor(const DB::Da
     }
 }
 
-} // namespace DB
+} // namespace NYT::NClickHouseServer
