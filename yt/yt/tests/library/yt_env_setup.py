@@ -1811,9 +1811,9 @@ class YTEnvSetup(object):
 
             if self._is_ground_cluster(cluster_index):
                 for table in yt_sequoia.DESCRIPTORS.get_group("transactions"):
-                    wait(lambda: yt_commands.select_rows(f"* from [{table.get_default_path()}]", driver=driver) == [])
+                    wait(lambda: yt_commands.select_rows(f"* from [{table.get_default_path()}]", driver=driver) == [], ignore_exceptions=True)
 
-                wait(lambda: yt_commands.select_rows(f"* from [{yt_sequoia.DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows(f"* from [{yt_sequoia.DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [], ignore_exceptions=True)
 
                 paths_to_ignore = ["//sys/operations", "//sys/pools", "//sys/strawberry"]
 
@@ -1871,7 +1871,7 @@ class YTEnvSetup(object):
 
                     return True
 
-                wait(sequoia_tables_empty)
+                wait(sequoia_tables_empty, ignore_exceptions=True)
 
         # Ground cluster can't have rootstocks or portals.
         # Do not remove tmp if ENABLE_TMP_ROOTSTOCK, since it will be removed with scions.
