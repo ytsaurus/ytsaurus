@@ -14,35 +14,67 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(mock)
-add_subdirectory(unittests)
-
-add_library(library-tvm-service)
+add_executable(unittester-library-auth_tvm)
 
 
-target_compile_options(library-tvm-service PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(library-tvm-service PUBLIC
+target_link_libraries(unittester-library-auth_tvm PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yt-library-tvm
-  yt-yt-core
-  cpp-yt-memory
-  cpp-yt-logging
+  build-cow-on
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-yt-build
+  yt-core-test_framework
+  library-tvm-service
 )
 
-target_sources(library-tvm-service PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/service/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/service/tvm_service_common.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/service/tvm_service_dummy.cpp
+target_allocator(unittester-library-auth_tvm
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
+target_link_options(unittester-library-auth_tvm PRIVATE
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
+  -fPIC
+  -fPIC
+  -lrt
+  -ldl
+  -lutil
+)
+
+
+add_test(
+  NAME
+  unittester-library-auth_tvm
+  COMMAND
+  unittester-library-auth_tvm
+)
+
+set_property(
+  TEST
+  unittester-library-auth_tvm
+  PROPERTY
+  LABELS
+  SMALL
+)
+
+set_property(
+  TEST
+  unittester-library-auth_tvm
+  PROPERTY
+  ENVIRONMENT
+)
+
+vcs_info(unittester-library-auth_tvm)
+
+set_property(
+  TEST
+  unittester-library-auth_tvm
+  PROPERTY
+  PROCESSORS
+  1
+)

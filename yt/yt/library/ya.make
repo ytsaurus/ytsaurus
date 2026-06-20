@@ -49,6 +49,7 @@ RECURSE(
     syncmap
     tcmalloc
     tracing
+    tvm
     undumpable
     vector_hdrf
     web_assembly

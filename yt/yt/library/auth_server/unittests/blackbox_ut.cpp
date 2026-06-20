@@ -625,12 +625,12 @@ protected:
         Config_->Scopes.insert("bar");
 
         ON_CALL(*Tvm_, ParseUserTicket("good_ticket"))
-            .WillByDefault(Return(TParsedTicket{42, {"bar", "baz"}}));
+            .WillByDefault(Return(TParsedTicket{TUid{42}, {"bar", "baz"}}));
         ON_CALL(*Blackbox_, Call("user_ticket", TicketParam("good_ticket")))
             .WillByDefault(Return(Response("{users=[{login=TheUser;attributes={\"1008\"=the_user}}]}")));
 
         ON_CALL(*Tvm_, ParseUserTicket("bad_ticket"))
-            .WillByDefault(Return(TParsedTicket{43, {"bad", "scope"}}));
+            .WillByDefault(Return(TParsedTicket{TUid{43}, {"bad", "scope"}}));
         ON_CALL(*Blackbox_, Call("user_ticket", TicketParam("bad_ticket")))
             .WillByDefault(Return(Response("{users=[{login=ScopelessUser;attributes={\"1008\"=scopeless_user}}]}")));
     }

@@ -12,37 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(mock)
-add_subdirectory(unittests)
-
-add_library(library-tvm-service)
-
-
-target_compile_options(library-tvm-service PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(library-tvm-service PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-library-tvm
-  yt-yt-core
-  cpp-yt-memory
-  cpp-yt-logging
-)
-
-target_sources(library-tvm-service PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/service/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/service/tvm_service_common.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/service/tvm_service_dummy.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

@@ -26,7 +26,9 @@ IDynamicTvmServicePtr TNativeAuthenticationManager::CreateTvmService(const TTvmS
 
     auto appliedConfig = CloneYsonStruct(config);
     appliedConfig->ClientEnableServiceTicketFetching = true;
-    YT_VERIFY(appliedConfig->ClientDstMap.emplace("self", appliedConfig->GetClientSelfId()).second);
+    auto selfTvmId = appliedConfig->GetClientSelfId();
+    THROW_ERROR_EXCEPTION_IF(!selfTvmId, "Self TVM id is not set");
+    YT_VERIFY(appliedConfig->ClientDstMap.emplace("self", *selfTvmId).second);
     return CreateDynamicTvmService(appliedConfig, AuthProfiler().WithPrefix("/native_tvm"));
 }
 

@@ -361,7 +361,7 @@ private:
 
             return TDelegationTokenResponse{
                 .Token = response->GetChildValueOrThrow<std::string>("token"),
-                .TvmId = tvmService->GetSelfTvmId(),
+                .TvmId = tvmService->GetSelfTvmIdOrThrow(),
             };
         } catch (const std::exception& ex) {
             FailedCallCountCounter_.Increment();
@@ -565,7 +565,7 @@ private:
     {
         TTvmServiceMap result;
         for (auto& tvmService : tvmServices) {
-            TTvmId id = tvmService->GetSelfTvmId();
+            auto id = tvmService->GetSelfTvmIdOrThrow();
             auto [_, inserted] = result.try_emplace(id, std::move(tvmService));
             THROW_ERROR_EXCEPTION_UNLESS(inserted,
                 "Multiple TVM services binding to same id %v",
