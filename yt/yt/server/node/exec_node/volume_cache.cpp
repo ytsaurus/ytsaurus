@@ -372,9 +372,10 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateVolume(
                 this_ = MakeStrong(this)
             ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
                 if (!errorOrVolume.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Failed to find RW NBD volume")
+                    THROW_ERROR_EXCEPTION("Failed to create RW NBD volume")
                         << TErrorAttribute("job_id", options.JobId)
-                        << TErrorAttribute("device_id", options.DeviceId);
+                        << TErrorAttribute("device_id", options.DeviceId)
+                        << errorOrVolume;
                 }
 
                 auto device = Bootstrap_->GetNbdServer()->FindDevice(options.DeviceId);
