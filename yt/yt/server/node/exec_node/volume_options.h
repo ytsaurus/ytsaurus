@@ -8,6 +8,8 @@
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/public.h>
 
+#include <yt/yt/ytlib/exec_node/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
@@ -59,6 +61,9 @@ struct TPrepareRWNbdVolumeOptions
     TDuration MasterRpcTimeout;
     int MinDataNodeCount = 0;
     int MaxDataNodeCount = 0;
+
+    //! Number of TCP connections to use for NBD RPC requests.
+    int MultiplexingParallelism = DefaultNbdMultiplexingParallelism;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -390,6 +390,7 @@ void FromProto(TSandboxNbdRootVolumeData* nbd, const NScheduler::NProto::TNbdDis
     nbd->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_make_timeout());
     nbd->MinDataNodeCount = nbdDisk.min_data_node_count();
     nbd->MaxDataNodeCount = nbdDisk.max_data_node_count();
+    nbd->MultiplexingParallelism = nbdDisk.multiplexing_parallelism();
 }
 
 void FromProto(TTmpfsVolumeParams* tmpfs, const NScheduler::NProto::TTmpfsStorageRequest& protoTmpfs)

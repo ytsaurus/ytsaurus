@@ -783,6 +783,7 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
     config->FsType = options.Filesystem;
     config->DataNodeNbdServiceRpcTimeout = options.DataNodeNbdServiceRpcTimeout;
     config->DataNodeNbdServiceMakeTimeout = options.DataNodeNbdServiceMakeTimeout;
+    config->MultiplexingParallelism = options.MultiplexingParallelism;
 
     YT_LOG_DEBUG("Creating NBD device");
 

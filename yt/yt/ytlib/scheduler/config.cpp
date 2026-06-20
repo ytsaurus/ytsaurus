@@ -585,6 +585,9 @@ void TNbdDiskConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_data_node_count", &TThis::MaxDataNodeCount)
         .GreaterThanOrEqual(1)
         .Default(3);
+    registrar.Parameter("multiplexing_parallelism", &TThis::MultiplexingParallelism)
+        .GreaterThanOrEqual(1)
+        .Default(NExecNode::DefaultNbdMultiplexingParallelism);
 
     registrar.Postprocessor([&] (TNbdDiskConfig* config) {
         if (config->MinDataNodeCount > config->MaxDataNodeCount) {
