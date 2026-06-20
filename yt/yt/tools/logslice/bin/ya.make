@@ -11,7 +11,7 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/tools/logslice
+    yt/yt/tools/logslice/lib
     library/cpp/getopt/small
 )
 

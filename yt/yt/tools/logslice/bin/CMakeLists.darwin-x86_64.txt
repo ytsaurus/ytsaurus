@@ -30,7 +30,7 @@ target_link_libraries(logslice PUBLIC
   yutil
   build-cow-on
   library-cpp-cpuid_check
-  yt-tools-logslice
+  tools-logslice-lib
   cpp-getopt-small
 )
 

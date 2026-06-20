@@ -1,5 +1,5 @@
-#include <yt/yt/tools/logslice/log_slice_engine.h>
-#include <yt/yt/tools/logslice/time_parser.h>
+#include <yt/yt/tools/logslice/lib/log_slice_engine.h>
+#include <yt/yt/tools/logslice/lib/time_parser.h>
 
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/file_log_writer.h>

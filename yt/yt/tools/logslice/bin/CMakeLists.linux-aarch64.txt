@@ -32,7 +32,7 @@ target_link_libraries(logslice PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
-  yt-tools-logslice
+  tools-logslice-lib
   cpp-getopt-small
 )
 

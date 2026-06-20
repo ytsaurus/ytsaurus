@@ -1,5 +1,5 @@
-#include <yt/yt/tools/logslice/log_slice_engine.h>
-#include <yt/yt/tools/logslice/time_parser.h>
+#include <yt/yt/tools/logslice/lib/log_slice_engine.h>
+#include <yt/yt/tools/logslice/lib/time_parser.h>
 
 #include <library/cpp/getopt/last_getopt.h>
 
