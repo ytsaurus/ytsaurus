@@ -149,6 +149,9 @@ public:
         }
 
         auto metadataOffset = FilePosition_ - StartMetadataOffset_;
+        if (metadataOffset + nbytes > static_cast<int64_t>(Metadata_->size())) {
+            return arrow20::Status::Invalid("Read past end of ORC metadata");
+        }
         memcpy(out, Metadata_->data() + metadataOffset, nbytes);
         FilePosition_ += nbytes;
         return nbytes;
@@ -233,6 +236,9 @@ public:
         }
 
         auto metadataOffset = FilePosition_ - StartMetadataOffset_;
+        if (metadataOffset + nbytes > static_cast<int64_t>(Metadata_->size())) {
+            return arrow20::Status::Invalid("Read past end of Parquet metadata");
+        }
         memcpy(out, Metadata_->data() + metadataOffset, nbytes);
         FilePosition_ += nbytes;
         return nbytes;
@@ -327,7 +333,10 @@ public:
     void read(void* buf, uint64_t length, uint64_t offset) override
     {
         if (static_cast<i64>(offset) < StartMetadataOffset_) {
-            THROW_ERROR_EXCEPTION("Metadata size of Orc file is too big");
+            THROW_ERROR_EXCEPTION("Metadata size of ORC file is too big");
+        }
+        if (offset - StartMetadataOffset_ + length > Metadata_->size()) {
+            THROW_ERROR_EXCEPTION("Read past end of ORC metadata");
         }
         std::memcpy(buf, Metadata_->data() + offset - StartMetadataOffset_, length);
     }
