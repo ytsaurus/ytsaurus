@@ -1054,6 +1054,37 @@ echo {v = 2} >&7
 
         assert not get("//tmp/out/@sorted")
 
+    @authors("coteeq")
+    def test_reduce_row_index_range_starting_inside_reduce_key_group(self):
+        skip_if_component_old(self.Env, (26, 1), "node")
+        create(
+            "table",
+            "//tmp/in",
+            attributes={
+                "optimize_for": "lookup",
+                "schema": make_schema([
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64", "sort_order": "ascending"},
+                ]),
+            },
+        )
+        create("table", "//tmp/out")
+
+        rows = [{"a": index // 3, "b": index % 3} for index in range(30)]
+        write_table("//tmp/in", rows, table_writer={"block_size": 80})
+        assert get("//tmp/in/@chunk_count") == 1
+
+        reduce(
+            in_="<ranges=[{lower_limit={row_index=8}}]>//tmp/in",
+            out="//tmp/out",
+            command="cat",
+            reduce_by=["a"],
+            sort_by=["a", "b"],
+            spec={"reducer": {"format": "yson"}},
+        )
+
+        assert_items_equal(read_table("//tmp/out"), rows[8:])
+
     @authors("klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_with_foreign_join_one_job(self, sort_order):
