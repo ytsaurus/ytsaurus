@@ -915,6 +915,11 @@ class QueryOption(Expression):
     arg_types = {"this": True, "expression": False}
 
 
+# FOR { XML | JSON } query modifier; `kind` is the discriminant ("XML" or "JSON").
+class ForClause(Expression):
+    arg_types = {"kind": True, "expressions": False}
+
+
 class WithTableHint(Expression):
     arg_types = {"expressions": True}
 
@@ -1753,6 +1758,9 @@ class Pivot(Expression):
         "default_on_null": False,
         "into": False,
         "with_": False,
+        "identify_pivot_strings": False,
+        "prefixed_pivot_columns": False,
+        "pivot_column_naming": False,
     }
 
     @property

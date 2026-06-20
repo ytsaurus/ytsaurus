@@ -1328,7 +1328,9 @@ class Generator:
         if expression_sql:
             expression_sql = f"{begin}{self.sep()}{expression_sql}"
 
-            if self.CREATE_FUNCTION_RETURN_AS or not isinstance(expression.expression, exp.Return):
+            if not isinstance(expression.expression, exp.MacroOverloads) and (
+                self.CREATE_FUNCTION_RETURN_AS or not isinstance(expression.expression, exp.Return)
+            ):
                 postalias_props_sql = ""
                 if properties_locs.get(exp.Properties.Location.POST_ALIAS):
                     postalias_props_sql = self.properties(
@@ -1605,7 +1607,12 @@ class Generator:
                 )
 
             return delimited_byte_string
-        return this
+
+        if "\\" in self.dialect.tokenizer_class.STRING_ESCAPES:
+            return self.sql(exp.Literal.string(this))
+
+        self.unsupported(f"Byte strings are not supported for {self.dialect.__class__.__name__}")
+        return ""
 
     def unicodestring_sql(self, expression: exp.UnicodeString) -> str:
         this = self.sql(expression, "this")
@@ -2454,6 +2461,81 @@ class Generator:
 
         return f" {tablesample_keyword or self.TABLESAMPLE_KEYWORDS} {method}{expr}{seed}"
 
+    def _pivot_in_value_aliases(self, expression: exp.Pivot) -> list[exp.Expression] | None:
+        # Returns the rewritten field.expressions list with PivotAlias wrappers injected where
+        # the stored column name differs from the target dialect's natural output.
+        columns = expression.args.get("columns")
+        if not columns or len(expression.fields) != 1:
+            return None
+
+        args = expression.args
+        parser_cls = self.dialect.parser_class
+
+        tgt_identify_pivot_strings = parser_cls.IDENTIFY_PIVOT_STRINGS
+        tgt_prefixed_pivot_columns = parser_cls.PREFIXED_PIVOT_COLUMNS
+        tgt_pivot_column_naming = parser_cls.PIVOT_COLUMN_NAMING
+
+        src_identify_pivot_strings = args.get("identify_pivot_strings", tgt_identify_pivot_strings)
+        src_prefixed_pivot_columns = args.get("prefixed_pivot_columns", tgt_prefixed_pivot_columns)
+        src_pivot_column_naming = args.get("pivot_column_naming", tgt_pivot_column_naming)
+
+        if (
+            src_identify_pivot_strings == tgt_identify_pivot_strings
+            and src_prefixed_pivot_columns == tgt_prefixed_pivot_columns
+            and src_pivot_column_naming == tgt_pivot_column_naming
+        ):
+            return None
+
+        in_exprs = expression.fields[0].expressions
+        step = len(columns) // len(in_exprs)
+
+        # Derive the per-value suffix from the first stored column vs the first IN-list value.
+        # This correctly handles dialects (e.g. Spark single-agg) that ignore agg aliases.
+        first_base = in_exprs[0].sql() if src_identify_pivot_strings else in_exprs[0].alias_or_name
+        first_stored = columns[0].name
+
+        # exit if only suffix matches, not prefix. (e.g. BigQuery, which cannot be fixed)
+        if not first_stored.startswith(first_base):
+            return None
+
+        suffix = first_stored[len(first_base) :]
+
+        # Whether the target dialect would append an agg-name suffix for this pivot.
+        # Spark single-agg uniquely drops the agg alias entirely.
+        target_has_suffix = (
+            len(expression.expressions) > 1 or tgt_pivot_column_naming != "agg_name_if_multiple"
+        ) and any(a.alias for a in expression.expressions)
+        source_has_suffix = suffix != ""
+
+        new_exprs: list[exp.Expression] = []
+        modified = False
+        for val_idx, e in enumerate(in_exprs):
+            if isinstance(e, exp.PivotAlias):
+                new_exprs.append(e)
+                continue
+
+            i = val_idx * step
+            stored_full = columns[i].name
+            stored_value = stored_full[: -len(suffix)] if suffix else stored_full
+            target_value = e.sql() if tgt_identify_pivot_strings else e.alias_or_name
+
+            # Source had a suffix, but target won't apply one
+            if source_has_suffix and not target_has_suffix:
+                new_exprs.append(
+                    exp.PivotAlias(this=e, alias=exp.to_identifier(stored_full, quoted=True))
+                )
+                modified = True
+            # Value-part mismatch (e.g. Snowflake's literal-style values vs others).
+            elif stored_value != target_value:
+                new_exprs.append(
+                    exp.PivotAlias(this=e, alias=exp.to_identifier(stored_value, quoted=True))
+                )
+                modified = True
+            else:
+                new_exprs.append(e)
+
+        return new_exprs if modified else None
+
     def pivot_sql(self, expression: exp.Pivot) -> str:
         expressions = self.expressions(expression, flat=True)
         direction = "UNPIVOT" if expression.unpivot else "PIVOT"
@@ -2472,6 +2554,12 @@ class Generator:
                 using = f"{self.seg('USING')} {using}" if using else ""
                 sql = f"{direction} {this}{on}{into}{using}{group}"
             return self.prepend_ctes(expression, sql)
+
+        if not expression.unpivot:
+            # Wrap IN-list values with explicit aliases where the target dialect would differ
+            new_field_exprs = self._pivot_in_value_aliases(expression)
+            if new_field_exprs is not None:
+                expression.fields[0].set("expressions", new_field_exprs)
 
         alias = self.sql(expression, "alias")
         alias = f" AS {alias}" if alias else ""
@@ -2896,7 +2984,12 @@ class Generator:
         if files:
             files_sql = self.expressions(files, flat=True)
             files_sql = f"FILES{self.wrap(files_sql)}"
-            this = f" {this}" if is_overwrite else f" INTO TABLE {this}"
+            if is_overwrite:
+                this = f" {this}"
+            elif expression.args.get("temp"):
+                this = f" INTO TEMP TABLE {this}"
+            else:
+                this = f" INTO TABLE {this}"
             return f"LOAD DATA{overwrite}{this} FROM {files_sql}"
 
         local = " LOCAL" if expression.args.get("local") else ""
@@ -2954,6 +3047,40 @@ class Generator:
 
     def sort_sql(self, expression: exp.Sort) -> str:
         return self.op_expressions("SORT BY", expression)
+
+    def _resolve_ordered_for_null_ordering_simulation(
+        self, expression: exp.Ordered
+    ) -> exp.Expr | None:
+        """Resolve a bare ORDER BY name against the enclosing SELECT projection.
+
+        Returns the underlying expression of the uniquely-matching projection
+        (Alias-stripped) for substitution into the NULLS FIRST/LAST CASE
+        simulation, since the CASE is evaluated in FROM-clause scope rather
+        than alias scope (MySQL error 1052). Returns None if no safe
+        substitution applies, leaving the original behaviour unchanged.
+        """
+        this = expression.this
+        if not (isinstance(this, exp.Column) and not this.table):
+            return None
+
+        ancestor = expression.find_ancestor(exp.Select, exp.Window)
+        if not isinstance(ancestor, exp.Select):
+            return None
+
+        column_name = this.name
+        matched: list[exp.Expr] = [
+            p.this if isinstance(p, exp.Alias) else p
+            for p in ancestor.selects
+            if p.output_name == column_name
+        ]
+        match = matched[0] if len(matched) == 1 else None
+
+        # Skip the substitution when it would be identical to the existing
+        # reference (e.g. ``SELECT col FROM t ORDER BY col``).
+        if isinstance(match, exp.Column) and not match.table and match.name == column_name:
+            return None
+
+        return match
 
     def ordered_sql(self, expression: exp.Ordered) -> str:
         desc = expression.args.get("desc")
@@ -3025,10 +3152,10 @@ class Generator:
                             f"'{nulls_sort_change.strip()}' translation not supported with positional ordering"
                         )
                     elif not isinstance(expression.this, exp.Rand):
+                        resolved = self._resolve_ordered_for_null_ordering_simulation(expression)
+                        target = self.sql(resolved) if resolved is not None else this
                         null_sort_order = " DESC" if nulls_sort_change == " NULLS FIRST" else ""
-                        this = (
-                            f"CASE WHEN {this} IS NULL THEN 1 ELSE 0 END{null_sort_order}, {this}"
-                        )
+                        this = f"CASE WHEN {target} IS NULL THEN 1 ELSE 0 END{null_sort_order}, {target}"
                     nulls_sort_change = ""
 
         with_fill = self.sql(expression, "with_fill")
@@ -3099,7 +3226,7 @@ class Generator:
             *self.offset_limit_modifiers(expression, isinstance(limit, exp.Fetch), limit),
             *self.after_limit_modifiers(expression),
             self.options_modifier(expression),
-            self.for_modifiers(expression),
+            self.sql(expression, "for_"),
             sep="",
         )
 
@@ -3107,9 +3234,16 @@ class Generator:
         options = self.expressions(expression, key="options")
         return f" {options}" if options else ""
 
-    def for_modifiers(self, expression: exp.Expr) -> str:
-        for_modifiers = self.expressions(expression, key="for_")
-        return f"{self.sep()}FOR XML{self.seg(for_modifiers)}" if for_modifiers else ""
+    def forclause_sql(self, expression: exp.ForClause) -> str:
+        kind = expression.args["kind"]
+        if kind == "BROWSE":
+            return f"{self.sep()}FOR BROWSE"
+        # FOR XML/JSON always carry at least AUTO/PATH. An empty rendering means
+        # the target dialect doesn't support QueryOption, so we drop the clause.
+        options = self.expressions(expression, key="expressions")
+        if not options:
+            return ""
+        return f"{self.sep()}FOR {kind}{self.seg(options)}"
 
     def queryoption_sql(self, expression: exp.QueryOption) -> str:
         self.unsupported("Unsupported query option.")
@@ -3857,9 +3991,7 @@ class Generator:
             else:
                 stack.append(expression.right)
                 if expression.comments and self.comments:
-                    for comment in expression.comments:
-                        if comment:
-                            op += f" /*{self.sanitize_comment(comment)}*/"
+                    op = self.maybe_comment(op, comments=expression.comments)
                 stack.extend((op, expression.left))
             return op
 
@@ -4215,6 +4347,9 @@ class Generator:
     def distance_sql(self, expression: exp.Distance) -> str:
         return self.binary(expression, "<->")
 
+    def distancend_sql(self, expression: exp.DistanceNd) -> str:
+        return self.binary(expression, "<<->>")
+
     def dot_sql(self, expression: exp.Dot) -> str:
         return f"{self.sql(expression, 'this')}.{self.sql(expression, 'expression')}"
 
@@ -4536,6 +4671,15 @@ class Generator:
         )
         return f"{this}{expressions}" if expressions.strip() != "" else this
 
+    def macrooverloads_sql(self, expression: exp.MacroOverloads) -> str:
+        return self.expressions(expression, flat=True)
+
+    def macrooverload_sql(self, expression: exp.MacroOverload) -> str:
+        params = self.no_identify(self.expressions, expression, flat=True)
+        body = self.sql(expression, "this")
+        prefix = "TABLE " if expression.args.get("is_table") else ""
+        return f"({params}) AS {prefix}{body}"
+
     def joinhint_sql(self, expression: exp.JoinHint) -> str:
         this = self.sql(expression, "this")
         expressions = self.expressions(expression, flat=True)
@@ -4612,6 +4756,7 @@ class Generator:
     def tochar_sql(self, expression: exp.ToChar) -> str:
         return self.sql(exp.cast(expression.this, exp.DType.TEXT))
 
+    @unsupported_args("default")
     def tonumber_sql(self, expression: exp.ToNumber) -> str:
         if not self.SUPPORTS_TO_NUMBER:
             self.unsupported("Unsupported TO_NUMBER function")

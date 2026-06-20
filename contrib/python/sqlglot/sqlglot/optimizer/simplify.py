@@ -526,6 +526,10 @@ class Simplifier:
         exp.Is,
     )
 
+    # Operand types that allow a connector pair to combine in _flat_simplify: constants
+    # (matched by the is_false/is_null/is_zero/always_true checks) and comparisons.
+    CONNECTOR_COMBINABLE: t.ClassVar = (exp.Boolean, exp.Literal, exp.Null, *COMPARISONS)
+
     INVERSE_COMPARISONS: t.ClassVar[dict[type[exp.Expr], type[exp.Expr]]] = {
         exp.LT: exp.GT,
         exp.GT: exp.LT,
@@ -1467,6 +1471,16 @@ class Simplifier:
             queue = deque(expression.flatten(unnest=False))
             size = len(queue)
 
+            # The pairwise scan below is O(n^2). For connectors, a pair only combines if one side
+            # is a constant or both are comparisons (see _simplify_connectors / _simplify_comparison);
+            # if no operand is combinable the scan is a guaranteed no-op, so return early. This
+            # avoids the quadratic blowup on large connectors of inert operands (e.g. a 1000-way OR
+            # of ANDs). Non-connector callers (simplify_equality) are unaffected by the type guard.
+            if isinstance(expression, exp.Connector) and not any(
+                isinstance(op, self.CONNECTOR_COMBINABLE) for op in queue
+            ):
+                return expression
+
             while queue:
                 a = queue.popleft()
 
@@ -1508,6 +1522,7 @@ class Gen:
     def gen(self, expression: exp.Expr, comments: bool = False) -> str:
         self.stack = [expression]
         self.sqls.clear()
+        dispatch = GEN_DISPATCH
 
         while self.stack:
             node = self.stack.pop()
@@ -1516,10 +1531,10 @@ class Gen:
                 if comments and node.comments:
                     self.stack.append(f" /*{','.join(node.comments)}*/")
 
-                exp_handler_name = f"{node.key}_sql"
+                handler = dispatch.get(node.key)
 
-                if hasattr(self, exp_handler_name):
-                    getattr(self, exp_handler_name)(node)
+                if handler is not None:
+                    handler(self, node)
                 elif isinstance(node, exp.Func):
                     self._function(node)
                 else:
@@ -1748,3 +1763,16 @@ class Gen:
             self.stack.append(kvs)
             return True
         return False
+
+
+def _build_gen_dispatch() -> dict[str, t.Callable[..., None]]:
+    # Precompute {expr key -> unbound handler}, mirroring the generator's _build_dispatch, so gen()
+    # avoids the per-node f-string + hasattr/getattr lookup (which mypyc can't devirtualize).
+    dispatch: dict[str, t.Callable[..., None]] = {}
+    for name in dir(Gen):
+        if name.endswith("_sql") and not name.startswith("_"):
+            dispatch[name[:-4]] = getattr(Gen, name)
+    return dispatch
+
+
+GEN_DISPATCH = _build_gen_dispatch()

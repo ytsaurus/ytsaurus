@@ -70,7 +70,7 @@ class Cast(Expression, Func):
 
 
 class TryCast(Cast):
-    arg_types = {**Cast.arg_types, "requires_string": False}
+    arg_types = {**Cast.arg_types, "requires_string": False, "null_on_text_overflow": False}
 
 
 class JSONCast(Cast):
@@ -434,6 +434,10 @@ class ReadParquet(Expression, Func):
 class XMLElement(Expression, Func):
     _sql_names = ["XMLELEMENT"]
     arg_types = {"this": True, "expressions": False, "evalname": False}
+
+
+class GetIgnoreCase(Expression, Func):
+    arg_types = {"this": True, "expression": True}
 
 
 class XMLGet(Expression, Func):
