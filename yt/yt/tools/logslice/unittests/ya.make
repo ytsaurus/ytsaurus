@@ -9,7 +9,7 @@ SRCS(
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
-    yt/yt/tools/logslice
+    yt/yt/tools/logslice/lib
     yt/yt/core
     yt/yt/core/test_framework
 )
