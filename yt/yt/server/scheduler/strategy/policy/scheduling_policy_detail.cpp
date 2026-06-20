@@ -227,23 +227,6 @@ EOperationPreemptionPriority GetOperationPreemptionPriority(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<bool> IsAggressivePreemptionAllowed(const TPoolTreeElement* element)
-{
-    switch (element->GetType()) {
-        case ESchedulerElementType::Root:
-            return true;
-        case ESchedulerElementType::Pool:
-            return static_cast<const TPoolTreePoolElement*>(element)->GetConfig()->AllowAggressivePreemption;
-        case ESchedulerElementType::Operation: {
-            const auto* operationElement = static_cast<const TPoolTreeOperationElement*>(element);
-            if (operationElement->IsGang() && !operationElement->TreeConfig()->AllowAggressivePreemptionForGangOperations) {
-                return false;
-            }
-            return {};
-        }
-    }
-}
-
 bool IsNormalPreemptionAllowed(const TPoolTreeElement* element)
 {
     switch (element->GetType()) {
@@ -251,18 +234,6 @@ bool IsNormalPreemptionAllowed(const TPoolTreeElement* element)
             return static_cast<const TPoolTreePoolElement*>(element)->GetConfig()->AllowNormalPreemption;
         default:
             return true;
-    }
-}
-
-std::optional<bool> IsPrioritySchedulingSegmentModuleAssignmentEnabled(const TPoolTreeElement* element)
-{
-    switch (element->GetType()) {
-        case ESchedulerElementType::Root:
-            return false;
-        case ESchedulerElementType::Pool:
-            return static_cast<const TPoolTreePoolElement*>(element)->GetConfig()->EnablePrioritySchedulingSegmentModuleAssignment;
-        case ESchedulerElementType::Operation:
-            YT_UNIMPLEMENTED();
     }
 }
 
@@ -2985,144 +2956,6 @@ void TSchedulingPolicy::BuildSchedulingAttributesStringForOngoingAllocations(
         allocationIdsByPreemptionStatus,
         unknownStatusAllocationIds,
         (now - cachedAllocationPreemptionStatuses.UpdateTime).SecondsFloat());
-}
-
-TError TSchedulingPolicy::CheckOperationIsStuck(
-    const TPoolTreeSnapshotPtr& treeSnapshot,
-    const TPoolTreeOperationElement* element,
-    TInstant now,
-    TInstant activationTime,
-    const TOperationStuckCheckOptionsPtr& options)
-{
-    if (element->PersistentAttributes().StarvationStatus == EStarvationStatus::NonStarving) {
-        return TError();
-    }
-
-    YT_VERIFY(treeSnapshot->IsElementEnabled(element));
-
-    const auto& treeSnapshotState = GetPoolTreeSnapshotState(treeSnapshot);
-    const auto& operationSharedState = treeSnapshotState->GetEnabledOperationSharedState(element);
-    {
-        int deactivationCount = 0;
-        auto deactivationReasonToCount = operationSharedState->GetDeactivationReasonsFromLastNonStarvingTime();
-        for (auto reason : options->DeactivationReasons) {
-            deactivationCount += deactivationReasonToCount[reason];
-        }
-
-        auto lastScheduleAllocationSuccessTime = operationSharedState->GetLastScheduleAllocationSuccessTime();
-        if (activationTime + options->SafeTimeout < now &&
-            lastScheduleAllocationSuccessTime + options->SafeTimeout < now &&
-            element->GetStarvingSince().value_or(now) + options->SafeTimeout < now &&
-            operationSharedState->GetRunningAllocationCount() == 0 &&
-            deactivationCount > options->MinScheduleAllocationAttempts)
-        {
-            return TError("Operation has no successful scheduled allocations for a long period")
-                << TErrorAttribute("period", options->SafeTimeout)
-                << TErrorAttribute("deactivation_count", deactivationCount)
-                << TErrorAttribute("last_schedule_allocation_success_time", lastScheduleAllocationSuccessTime)
-                << TErrorAttribute("starving_since", element->GetStarvingSince());
-        }
-    }
-
-    // NB(eshcherbin): See YT-14393.
-    const auto& operationState = treeSnapshotState->GetEnabledOperationState(element);
-    {
-        const auto& segment = operationState->SchedulingSegment;
-        const auto& schedulingSegmentModule = operationState->SchedulingSegmentModule;
-        if (segment && IsModuleAwareSchedulingSegment(*segment) && schedulingSegmentModule && !element->GetSchedulingTagFilter().IsEmpty()) {
-            auto tagFilter = element->GetSchedulingTagFilter().GetBooleanFormula().GetFormula();
-            bool isModuleFilter = false;
-            for (const auto& possibleModule : treeSnapshot->TreeConfig()->SchedulingSegments->GetModules()) {
-                auto moduleTag = TSchedulingSegmentManager::GetNodeTagFromModuleName(
-                    possibleModule,
-                    treeSnapshot->TreeConfig()->SchedulingSegments->ModuleType);
-                // NB(eshcherbin): This doesn't cover all the cases, only the most usual.
-                // Don't really want to check boolean formula satisfiability here.
-                if (tagFilter == moduleTag) {
-                    isModuleFilter = true;
-                    break;
-                }
-            }
-
-            auto operationModuleTag = TSchedulingSegmentManager::GetNodeTagFromModuleName(
-                *schedulingSegmentModule,
-                treeSnapshot->TreeConfig()->SchedulingSegments->ModuleType);
-            if (isModuleFilter && tagFilter != operationModuleTag) {
-                return TError(
-                    "Operation has a module specified in the scheduling tag filter, which causes scheduling problems; "
-                    "use \"scheduling_segment_modules\" spec option instead")
-                    << TErrorAttribute("scheduling_tag_filter", tagFilter)
-                    << TErrorAttribute("available_modules", treeSnapshot->TreeConfig()->SchedulingSegments->GetModules());
-            }
-        }
-    }
-
-    return TError();
-}
-
-void TSchedulingPolicy::BuildOperationProgress(
-    const TPoolTreeSnapshotPtr& treeSnapshot,
-    const TPoolTreeOperationElement* element,
-    IStrategyHost* const strategyHost,
-    TFluentMap fluent)
-{
-    bool isEnabled = treeSnapshot->IsElementEnabled(element);
-    const auto& treeSnapshotState = GetPoolTreeSnapshotState(treeSnapshot);
-    const auto& operationState = isEnabled
-        ? treeSnapshotState->GetEnabledOperationState(element)
-        : treeSnapshotState->GetOperationState(element);
-    const auto& operationSharedState = isEnabled
-        ? treeSnapshotState->GetEnabledOperationSharedState(element)
-        : treeSnapshotState->GetOperationSharedState(element);
-    const auto& attributes = isEnabled
-        ? treeSnapshotState->StaticAttributesList().AttributesOf(element)
-        : TStaticAttributes{};
-    auto minNeededResourcesWithDiskQuotaUnsatisfiedCount = operationSharedState->GetMinNeededResourcesWithDiskQuotaUnsatisfiedCount();
-
-    fluent
-        .Item("preemptible_job_count").Value(operationSharedState->GetPreemptibleAllocationCount())
-        .Item("aggressively_preemptible_job_count").Value(operationSharedState->GetAggressivelyPreemptibleAllocationCount())
-        .Item("scheduling_index").Value(attributes.SchedulingIndex)
-        .Item("scheduling_priority").Value(attributes.SchedulingPriority)
-        .Item("deactivation_reasons").Value(operationSharedState->GetDeactivationReasons())
-        .Item("min_needed_resources_unsatisfied_count").Value(minNeededResourcesWithDiskQuotaUnsatisfiedCount)
-        .Item("disk_quota_usage").BeginMap()
-            .Do([&] (TFluentMap fluent) {
-                strategyHost->SerializeDiskQuota(operationSharedState->GetTotalDiskQuota(), fluent.GetConsumer());
-            })
-        .EndMap()
-        .Item("are_regular_jobs_on_ssd_nodes_allowed").Value(attributes.AreRegularAllocationsOnSsdNodesAllowed)
-        .Item("scheduling_segment").Value(operationState->SchedulingSegment)
-        .Item("scheduling_segment_module").Value(operationState->SchedulingSegmentModule);
-}
-
-void TSchedulingPolicy::BuildElementYson(
-    const TPoolTreeSnapshotPtr& treeSnapshot,
-    const TPoolTreeElement* element,
-    const TFieldFilter& filter,
-    TFluentMap fluent)
-{
-    bool enabled = treeSnapshot->IsElementEnabled(element);
-    const auto& attributes = enabled
-        ? GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element)
-        : TStaticAttributes{};
-    fluent
-        .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "enabled", enabled)
-        .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "aggressive_preemption_allowed", IsAggressivePreemptionAllowed(element))
-        .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
-            filter,
-            "effective_aggressive_preemption_allowed",
-            attributes.EffectiveAggressivePreemptionAllowed)
-        .DoIf(!element->IsOperation(), [&] (TFluentMap fluent) {
-            fluent.ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
-                filter,
-                "priority_scheduling_segment_module_assignment_enabled",
-                IsPrioritySchedulingSegmentModuleAssignmentEnabled(element));
-        })
-        .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
-            filter,
-            "effective_priority_scheduling_segment_module_assignment_enabled",
-            attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled);
 }
 
 TPostUpdateContextPtr TSchedulingPolicy::CreatePostUpdateContext(TPoolTreeRootElement* rootElement)

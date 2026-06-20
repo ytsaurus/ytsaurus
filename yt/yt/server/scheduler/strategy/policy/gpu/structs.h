@@ -156,6 +156,8 @@ public:
 
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Enabled);
 
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastScheduleAllocationSuccessTime);
+
     DEFINE_BYREF_RO_PROPERTY(TAllocationIdToAssignment, AllocationIdToAssignment);
     DEFINE_BYREF_RO_PROPERTY(TAllocationIdToAllocationState, AllocationIdToAllocationState);
 

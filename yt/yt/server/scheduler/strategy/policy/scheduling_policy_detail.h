@@ -607,25 +607,6 @@ public:
         TInstant now,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
 
-    // TODO(eshcherbin): Do something about these three static methods which we currently cannot add to the interface.
-    static TError CheckOperationIsStuck(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeOperationElement* element,
-        TInstant now,
-        TInstant activationTime,
-        const TOperationStuckCheckOptionsPtr& options);
-
-    static void BuildOperationProgress(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeOperationElement* element,
-        IStrategyHost* const strategyHost,
-        NYTree::TFluentMap fluent);
-    static void BuildElementYson(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeElement* element,
-        const TFieldFilter& filter,
-        NYTree::TFluentMap fluent);
-
     void BuildElementLoggingStringAttributes(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const TPoolTreeElement* element,

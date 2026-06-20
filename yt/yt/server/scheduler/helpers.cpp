@@ -499,17 +499,6 @@ std::vector<std::pair<TInstant, TInstant>> SplitTimeIntervalByHours(TInstant sta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<int> GetDiskQuotaMedia(const TDiskQuota& diskQuota)
-{
-    THashSet<int> media;
-    for (const auto& [index, _] : diskQuota.DiskSpacePerMedium) {
-        media.insert(index);
-    }
-    return media;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TYsonMapFragmentBatcher::TYsonMapFragmentBatcher(
     std::vector<NYson::TYsonString>* batchOutput,
     int maxBatchSize,

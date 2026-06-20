@@ -1108,6 +1108,84 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
         # Verify the scheduler survived — would time out if YT_VERIFY crashed the process.
         wait_operation_unregistered(op.id)
 
+    @authors("yaishenka")
+    def test_stuck_gpu_operation_is_aborted(self):
+        update_scheduler_config("operation_stuck_check/period", 500)
+        update_scheduler_config("operation_stuck_check/safe_timeout", 3000)
+
+        # A scheduling tag filter that no node matches: the op is starving and feasible
+        # but can never place an allocation, so it stays continuously starving with zero
+        # realized allocations until the stuck check aborts it.
+        op = run_test_vanilla(
+            command="sleep 1000",
+            spec={
+                "pool_trees": ["gpu"],
+                "scheduling_options_per_pool_tree": {
+                    "gpu": {"scheduling_tag_filter": "nonexistent_tag"},
+                },
+            },
+            task_patch={"gpu_limit": 8},
+            track=False,
+        )
+
+        wait(lambda: op.get_state() == "failed", timeout=30)
+
+        error_text = str(op.get_error()).lower()
+        assert (
+            "stuck" in error_text
+            or "no successful scheduled allocations" in error_text
+        )
+
+    @authors("yaishenka")
+    def test_healthy_gpu_operation_is_not_aborted_as_stuck(self):
+        update_scheduler_config("operation_stuck_check/period", 500)
+        update_scheduler_config("operation_stuck_check/safe_timeout", 2000)
+
+        op = run_test_vanilla(
+            command="sleep 30",
+            spec={"pool_trees": ["gpu"]},
+            task_patch={"gpu_limit": 8},
+            track=False,
+        )
+
+        wait(lambda: op.get_state() == "running", timeout=20)
+
+        # Wait > 2x safe_timeout to give the periodic stuck-check at least
+        # two opportunities to fire. Healthy op must stay running.
+        time.sleep(5)
+
+        assert op.get_state() == "running", \
+            "Healthy GPU op was wrongly aborted as stuck (state={})".format(op.get_state())
+
+    @authors("yaishenka")
+    def test_gpu_build_operation_progress_emits_expected_fields(self):
+        op = run_test_vanilla(
+            command="sleep 30",
+            spec={"pool_trees": ["gpu"]},
+            task_patch={"gpu_limit": 8},
+            track=False,
+        )
+        wait(lambda: op.get_state() == "running", timeout=20)
+
+        op_orchid_path = scheduler_orchid_operation_path(op.id, tree="gpu")
+        wait(lambda: exists(op_orchid_path))
+        wait(lambda: get(op_orchid_path + "/realized_assignment_count", default=0) >= 1)
+
+        progress = get(op_orchid_path)
+        for field in [
+            "scheduling_module",
+            "realized_assignment_count",
+            "preliminary_assignment_count",
+            "preemptible",
+            "starving",
+            "enabled",
+        ]:
+            assert field in progress, \
+                "Missing field {} in GPU operation Orchid: {}".format(field, list(progress.keys()))
+
+        assert progress["enabled"]
+        assert progress["realized_assignment_count"] >= 1
+
 
 ##################################################################
 
