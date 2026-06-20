@@ -952,9 +952,10 @@ TJobResult TJobProxy::RunJob()
         }
 
         if (TvmBridge_) {
-            YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", TvmBridge_->GetSelfTvmId());
+            auto tvmId = TvmBridge_->GetSelfTvmIdOrThrow();
+            YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", tvmId);
 
-            WaitFor(TvmBridge_->EnsureDestinationServiceIds({TvmBridge_->GetSelfTvmId()}))
+            WaitFor(TvmBridge_->EnsureDestinationServiceIds({tvmId}))
                 .ThrowOnError();
 
             YT_LOG_DEBUG("Destination service id is ready");
@@ -963,7 +964,7 @@ TJobResult TJobProxy::RunJob()
         auto supervisorClient = CreateBusClient(Config_->SupervisorConnection);
         auto supervisorChannel = NRpc::NBus::CreateBusChannel(supervisorClient);
         if (TvmBridge_) {
-            auto serviceTicketAuth = CreateServiceTicketAuth(TvmBridge_, TvmBridge_->GetSelfTvmId());
+            auto serviceTicketAuth = CreateServiceTicketAuth(TvmBridge_, TvmBridge_->GetSelfTvmIdOrThrow());
             supervisorChannel = NAuth::CreateServiceTicketInjectingChannel(
                 std::move(supervisorChannel),
                 {.ServiceTicketAuth = serviceTicketAuth});

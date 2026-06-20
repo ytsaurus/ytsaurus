@@ -73,9 +73,15 @@ public:
         return iter->second.ValueOrThrow();
     }
 
-    TTvmId GetSelfTvmId() override
+    std::optional<TTvmId> TryGetSelfTvmId() override
     {
         return Config_->SelfTvmId;
+    }
+
+    TTvmId GetSelfTvmIdOrThrow() override
+    {
+        THROW_ERROR_EXCEPTION_IF(!Config_->SelfTvmId, "Self TVM id is not set");
+        return *Config_->SelfTvmId;
     }
 
     const TTvmServiceConfigPtr& GetConfig() override
@@ -145,7 +151,7 @@ private:
                 backoff.GetInvocationCount());
 
             auto req = Proxy_.FetchTickets();
-            req->set_source(Config_->SelfTvmId);
+            req->set_source(ToProto(GetSelfTvmIdOrThrow()));
             ToProto(req->mutable_destinations(), serviceIds);
 
             auto rsp = WaitFor(req->Invoke())
@@ -179,7 +185,7 @@ private:
         auto guard = WriterGuard(Lock_);
 
         for (const auto& result : rsp.results()) {
-            auto destination = result.destination();
+            auto destination = FromProto<TTvmId>(result.destination());
 
             if (result.has_ticket()) {
                 auto iter = ServiceIdToTicket_.find(destination);
@@ -207,12 +213,18 @@ private:
 
     void RefreshTickets()
     {
+        auto selfTvmId = TryGetSelfTvmId();
+        if (!selfTvmId) {
+            YT_LOG_DEBUG("Self TVM id is not set, skipping service ticket refresh");
+            return;
+        }
+
         YT_LOG_DEBUG("Refreshing service tickets");
 
         auto req = Proxy_.FetchTickets();
         {
             auto guard = ReaderGuard(Lock_);
-            req->set_source(Config_->SelfTvmId);
+            req->set_source(ToProto(*selfTvmId));
             ToProto(req->mutable_destinations(), GetKeys(ServiceIdToTicket_));
         }
 

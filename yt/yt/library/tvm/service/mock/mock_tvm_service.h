@@ -14,7 +14,8 @@ class TMockTvmService
 {
 public:
     MOCK_METHOD(const TTvmServiceConfigPtr&, GetConfig, (), (override));
-    MOCK_METHOD(TTvmId, GetSelfTvmId, (), (override));
+    MOCK_METHOD(std::optional<TTvmId>, TryGetSelfTvmId, (), (override));
+    MOCK_METHOD(TTvmId, GetSelfTvmIdOrThrow, (), (override));
     MOCK_METHOD(std::string, GetServiceTicket, (const std::string&), (override));
     MOCK_METHOD(std::string, GetServiceTicket, (TTvmId), (override));
     MOCK_METHOD(TParsedTicket, ParseUserTicket, (const std::string&), (override));

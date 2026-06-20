@@ -568,7 +568,7 @@ private:
             }
 
             newJobProxyConfigTemplate->TvmBridge = New<NAuth::TTvmBridgeConfig>();
-            newJobProxyConfigTemplate->TvmBridge->SelfTvmId = tvmService->GetSelfTvmId();
+            newJobProxyConfigTemplate->TvmBridge->SelfTvmId = tvmService->TryGetSelfTvmId();
         }
 
         newJobProxyConfigTemplate->DnsOverRpcResolver = GetConfig()->ExecNode->JobProxy->JobProxyDnsOverRpcResolver;

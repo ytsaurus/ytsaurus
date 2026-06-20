@@ -49,7 +49,7 @@ private:
             request->source(),
             MakeShrunkFormattableView(destinations, TDefaultFormatter(), 10));
 
-        if (request->source() != TvmService_->GetSelfTvmId()) {
+        if (FromProto<TTvmId>(request->source()) != TvmService_->GetSelfTvmIdOrThrow()) {
             THROW_ERROR_EXCEPTION("Cannot fetch tickets for provided source")
                 << TErrorAttribute("source", request->source());
         }
@@ -58,7 +58,7 @@ private:
             auto* result = response->add_results();
             result->set_destination(destination);
             try {
-                auto ticket = TvmService_->GetServiceTicket(destination);
+                auto ticket = TvmService_->GetServiceTicket(FromProto<TTvmId>(destination));
                 *result->mutable_ticket() = std::move(ticket);
             } catch (const TErrorException& ex) {
                 YT_LOG_INFO("Could not fetch service ticket (Source: %v, Destination: %v)",
