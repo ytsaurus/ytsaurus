@@ -17,3 +17,7 @@ PEERDIR(
 SIZE(SMALL)
 
 END()
+
+RECURSE_FOR_TESTS(
+    py
+)

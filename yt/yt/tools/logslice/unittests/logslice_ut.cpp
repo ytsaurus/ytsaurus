@@ -237,6 +237,16 @@ TEST_F(TLogSliceTest, ParseQueryTimeSubsecond)
     EXPECT_EQ(whole + TDuration::MicroSeconds(246000), ParseQueryTime("2026-06-18 06:00:10,246"));
     EXPECT_EQ(whole + TDuration::MicroSeconds(7), ParseQueryTime("2026-06-18 06:00:10,000007"));
 
+    // A dot delimits the subsecond part just like a comma.
+    EXPECT_EQ(whole + TDuration::MicroSeconds(246995), ParseQueryTime("2026-06-18 06:00:10.246995"));
+    EXPECT_EQ(whole + TDuration::MicroSeconds(7), ParseQueryTime("2026-06-18 06:00:10.000007"));
+    EXPECT_EQ(ParseQueryTime("2026-06-19 09:55:55") + TDuration::MicroSeconds(10000),
+        ParseQueryTime("2026-06-19 09:55:55.01"));
+
+    // Dotted fractions follow the same validation as comma ones.
+    EXPECT_THROW(ParseQueryTime("2026-06-18 06:00:10."), std::exception);
+    EXPECT_THROW(ParseQueryTime("2026-06-18 06:00:10.1234567"), std::exception);
+
     // Empty, too long, or non-digit fractions are rejected.
     EXPECT_THROW(ParseQueryTime("2026-06-18 06:00:10,"), std::exception);
     EXPECT_THROW(ParseQueryTime("2026-06-18 06:00:10,1234567"), std::exception);
@@ -378,6 +388,20 @@ TEST_F(TLogSliceTest, GetTimeRangeBrokenLastLine)
         EXPECT_EQ("msg-9", messages.back());
         EXPECT_EQ(10u, messages.size());
     }
+}
+
+// Test wrapper: runs the streaming FilterWithGrep over an in-memory string and
+// collects grep's output back into a string.
+static TString FilterWithGrep(const std::vector<TString>& grepArgs, const TString& input)
+{
+    TStringStream output;
+    NYT::NLogSlice::FilterWithGrep(
+        grepArgs,
+        [&] (IOutputStream& sink) {
+            sink.Write(input.data(), input.size());
+        },
+        output);
+    return output.Str();
 }
 
 TEST_F(TLogSliceTest, FilterWithGrep)

@@ -1,6 +1,6 @@
 ## Logslice
 
-Logslice is an utility which efficiently extracts log messages for specific time frame from compressed log file. It could additionaly invoke `grep` utility to perofrm filtration. It is provided with `logslice.py` script to invoke logslice on remote machine and pass `grep` arguments safely to avoid shell command injection, which makes in possible to use `logslice.py` in agents.
+Logslice is an utility which efficiently extracts log messages for specific time frame from compressed log file. It could additionaly invoke `grep` utility to perofrm filtration. It is provided with `logslice.py` script to invoke logslice on remote machine and pass post-processing arguments safely to avoid shell command injection, which makes in possible to use `logslice.py` in agents.
 
 ## Usage
 
@@ -21,13 +21,26 @@ Usage: logslice [OPTIONS] log_file [-- GREP_ARGS...]
 
 Remote `logslice.py` script:
 ```
-Usage: logslice.py host [--type type] [-l logslice] [-t start_time] [-e end_time] -- grep_args...
+Usage: logslice.py host [--type type] [-l logslice] [-t start_time] [-e end_time] [-x pipeline] -- grep_args...
   host                       remote machine name
   --type {debug,error,info}  log type: debug, error or info (default: debug)
   -l LOGSLICE                path to a logslice binary
   -t START                   time window start (passed to logslice)
   -e END                     time window end (passed to logslice)
+  -x PIPELINE                pipe-separated post-processing commands run after
+                             logslice on the remote machine, e.g.
+                             "grep Error | wc -l". Each stage is
+                             split shell-style with shlex and its arguments are
+                             shlex-quoted before being sent over ssh, so nothing
+                             can break out into shell syntax. Only whitelisted
+                             tools may start a stage: grep, wc, cut, sed.
+  GREP_ARGS                  shorthand for a leading "grep GREP_ARGS" stage
 ```
+
+Both `-x` and the legacy `-- grep_args` build the same remote pipeline; the
+filtering is performed by the real remote tools (logslice's own `-g` option is
+no longer used by the script). If both `-x` and `-- grep_args` are provided
+the resulting pipeline will be `grep grep_args` piped into `-x` pipeline.
 
 ## Description
 
