@@ -1299,6 +1299,23 @@ class YTEnvSetup(object):
                         "set_committed_attribute_via_transaction_action": False,
                         "commit_operation_cypress_node_changes_via_system_transaction": True,
                     })
+            # COMPAT(pogorelov): controller-agent versions before 26.2 default to
+            # the legacy sorted pool; force the new one to match trunk behavior.
+            controller_agent_version = None
+            for version, components in cls.ARTIFACT_COMPONENTS.items():
+                if "controller-agent" in components:
+                    controller_agent_version = version
+            if (controller_agent_version or "26_2") < "26_2":
+                ca_config = config.setdefault("controller_agent", {})
+                for options_key in (
+                    "sorted_merge_operation_options",
+                    "reduce_operation_options",
+                    "join_reduce_operation_options",
+                    "map_reduce_operation_options",
+                    "sort_operation_options",
+                ):
+                    ca_config.setdefault(options_key, {}) \
+                        .setdefault("spec_template", {})["use_new_sorted_pool"] = True
             cls._apply_effective_config_patch(config, "DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_controller_agent_config(config, cluster_index)
