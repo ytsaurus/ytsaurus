@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(30.8.0)
+VERSION(30.9.0)
 
 LICENSE(MIT)
 
@@ -180,6 +180,7 @@ PY_SRCS(
     sqlglot/typing/duckdb.py
     sqlglot/typing/hive.py
     sqlglot/typing/mysql.py
+    sqlglot/typing/postgres.py
     sqlglot/typing/presto.py
     sqlglot/typing/redshift.py
     sqlglot/typing/snowflake.py

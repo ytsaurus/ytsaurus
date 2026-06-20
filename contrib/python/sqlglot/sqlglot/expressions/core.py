@@ -88,6 +88,7 @@ class Expr:
     _hash_raw_args: t.ClassVar[bool] = False
     is_subquery: t.ClassVar[bool] = False
     is_cast: t.ClassVar[bool] = False
+    is_data_type: t.ClassVar[bool] = False
 
     args: dict[str, t.Any]
     parent: Expr | None
@@ -837,26 +838,35 @@ class Expression(Expr):
     def __hash__(self) -> int:
         if self._hash is None:
             nodes: list[Expr] = []
-            queue: deque[Expr] = deque()
-            queue.append(self)
+            stack: list[Expr] = [self]
 
-            while queue:
-                node = queue.popleft()
+            # Collect nodes, finding child expressions inline instead of via the
+            # iter_expressions generator (whose per-node generator object dominates the
+            # hash's cost). reversed(nodes) is a valid post-order regardless of DFS/BFS.
+            while stack:
+                node = stack.pop()
                 nodes.append(node)
 
-                for child in node.iter_expressions():
-                    if child._hash is None:
-                        queue.append(child)
+                for v in node.args.values():
+                    if isinstance(v, Expr):
+                        if v._hash is None:
+                            stack.append(v)
+                    elif type(v) is list:
+                        for x in v:
+                            if isinstance(x, Expr) and x._hash is None:
+                                stack.append(x)
 
             for node in reversed(nodes):
                 hash_ = hash(node.key)
 
                 if node._hash_raw_args:
-                    for k, v in sorted(node.args.items()):
+                    for k in sorted(node.args):
+                        v = node.args[k]
                         if v:
                             hash_ = hash((hash_, k, v))
                 else:
-                    for k, v in sorted(node.args.items()):
+                    for k in sorted(node.args):
+                        v = node.args[k]
                         vt = type(v)
 
                         if vt is list:
@@ -953,6 +963,8 @@ class Expression(Expr):
 
     @property
     def type(self) -> DataType | None:
+        if self.is_data_type:
+            return self  # type: ignore[return-value]
         if self.is_cast:
             return self._type or self.to  # type: ignore[attr-defined]
         return self._type
@@ -1039,6 +1051,11 @@ class Expression(Expr):
         return comments
 
     def append(self, arg_key: str, value: t.Any) -> None:
+        node: Expr | None = self
+        while node and node._hash is not None:
+            node._hash = None
+            node = node.parent
+
         if type(self.args.get(arg_key)) is not list:
             self.args[arg_key] = []
         self._set_parent(arg_key, value)
@@ -2118,6 +2135,10 @@ class Distance(Expression, Binary):
     pass
 
 
+class DistanceNd(Expression, Binary):
+    pass
+
+
 class Escape(Expression, Binary):
     pass
 
@@ -2269,8 +2290,7 @@ class Or(Expression, Connector, Func):
 
 
 class Xor(Expression, Connector, Func):
-    arg_types = {"this": False, "expression": False, "expressions": False, "round_input": False}
-    is_var_len_args = True
+    arg_types = {"this": True, "expression": True, "round_input": False}
 
 
 class Pow(Expression, Binary, Func):
@@ -2428,6 +2448,7 @@ QUERY_MODIFIERS = {
     "settings": False,
     "format": False,
     "options": False,
+    "for_": False,
 }
 
 
@@ -2534,7 +2555,7 @@ def _to_s(node: t.Any, verbose: bool = False, level: int = 0, repr_str: bool = F
     if isinstance(node, Expr):
         args = {k: v for k, v in node.args.items() if (v is not None and v != []) or verbose}
 
-        if (node.type or verbose) and type(node).__name__ != "DataType":
+        if (node.type or verbose) and not node.is_data_type:
             args["_type"] = node.type
         if node.comments or verbose:
             args["_comments"] = node.comments

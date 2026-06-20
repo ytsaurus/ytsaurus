@@ -2285,6 +2285,10 @@ class DuckDBGenerator(generator.Generator):
             f"({self.sql(exp.replace_placeholders(self.BITMAP_CONSTRUCT_AGG_TEMPLATE, arg=arg))})"
         )
 
+    def getignorecase_sql(self, expression: exp.GetIgnoreCase) -> str:
+        self.unsupported("DuckDB does not support the GET_IGNORE_CASE() function")
+        return self.function_fallback_sql(expression)
+
     def compress_sql(self, expression: exp.Compress) -> str:
         self.unsupported("DuckDB does not support the COMPRESS() function")
         return self.function_fallback_sql(expression)
@@ -2644,6 +2648,15 @@ class DuckDBGenerator(generator.Generator):
             exp.cast(
                 self.func(function_name, expression.this, formatted_time),
                 exp.DataType(this=exp.DType.DATE),
+            )
+        )
+
+    def parsetime_sql(self, expression: exp.ParseTime) -> str:
+        formatted_time = self.format_time(expression)
+        return self.sql(
+            exp.cast(
+                self.func("STRPTIME", expression.this, formatted_time),
+                exp.DataType(this=exp.DType.TIME),
             )
         )
 
@@ -4312,6 +4325,27 @@ class DuckDBGenerator(generator.Generator):
                 truncate = None
 
         return self.func(func, this, decimals, truncate)
+
+    def trycast_sql(self, expression: exp.TryCast) -> str:
+        to = expression.to
+        to_type = to.this
+
+        if (
+            expression.args.get("null_on_text_overflow")
+            and to_type in exp.DataType.TEXT_TYPES
+            and to.expressions
+        ):
+            src = expression.this
+            return self.sql(
+                exp.case()
+                .when(
+                    exp.LTE(this=exp.func("LENGTH", src), expression=to.expressions[0].this),
+                    exp.cast(src, "TEXT"),
+                )
+                .else_(exp.Null())
+            )
+
+        return super().trycast_sql(expression)
 
     def strtok_sql(self, expression: exp.Strtok) -> str:
         string_arg = expression.this

@@ -916,6 +916,7 @@ class Parser:
     FACTOR: t.ClassVar = {
         TokenType.DIV: exp.IntDiv,
         TokenType.LR_ARROW: exp.Distance,
+        TokenType.LLRR_ARROW: exp.DistanceNd,
         TokenType.SLASH: exp.Div,
         TokenType.STAR: exp.Mul,
     }
@@ -1754,6 +1755,11 @@ class Parser:
 
     PREFIXED_PIVOT_COLUMNS: t.ClassVar = False
     IDENTIFY_PIVOT_STRINGS: t.ClassVar = False
+    # Controls when an aggregation's name is included in a pivoted column's name:
+    # "agg_name_if_aliased" - only for aggregations that carry an explicit alias
+    # "agg_name_if_aliased_or_multiple" - if aliased, or whenever there are multiple aggregations
+    # "agg_name_if_multiple" - only when there are multiple aggregations (a lone agg is value-only)
+    PIVOT_COLUMN_NAMING: t.ClassVar[str] = "agg_name_if_aliased"
 
     LOG_DEFAULTS_TO_LN: t.ClassVar = False
 
@@ -2192,7 +2198,7 @@ class Parser:
         elif kind.token_type == TokenType.COLUMN:
             this = self._parse_column()
         else:
-            this = self._parse_id_var()
+            this = self._parse_table_parts(schema=True)
 
         self._match(TokenType.IS)
 
@@ -2403,6 +2409,30 @@ class Parser:
             extend_props(self._parse_properties())
 
             expression = self._parse_heredoc() if self._match(TokenType.ALIAS) else None
+
+            if (
+                not expression
+                and create_token_type == TokenType.FUNCTION
+                and isinstance(this, exp.UserDefinedFunction)
+                and this.args.get("wrapped")
+            ):
+                pre_table_index = self._index
+                is_table = self._match(TokenType.TABLE)
+
+                expression = self._parse_expression()
+                overload_mode = bool(
+                    expression
+                    and self._curr.token_type == TokenType.COMMA
+                    and self._next.token_type == TokenType.L_PAREN
+                )
+                if not overload_mode:
+                    self._retreat(pre_table_index)
+                    is_table = False
+                    expression = None
+            else:
+                is_table = False
+                overload_mode = False
+
             extend_props(self._parse_function_properties())
 
             if not expression:
@@ -2426,6 +2456,11 @@ class Parser:
 
                     if return_:
                         expression = self.expression(exp.Return(this=expression))
+
+            if overload_mode and expression:
+                expression = self._parse_macro_overloads(
+                    t.cast(exp.UserDefinedFunction, this), expression, is_table
+                )
         elif create_token_type == TokenType.INDEX:
             # Postgres allows anonymous indexes, eg. CREATE INDEX IF NOT EXISTS ON t(c)
             if not self._match(TokenType.ON):
@@ -3591,13 +3626,17 @@ class Parser:
             self._match_text_seq("INPATH")
             inpath = self._parse_string()
             overwrite = self._match(TokenType.OVERWRITE)
-            self._match_pair(TokenType.INTO, TokenType.TABLE)
+            temp: bool | None = None
+            if self._match(TokenType.INTO):
+                temp = self._match(TokenType.TEMPORARY)
+                self._match(TokenType.TABLE)
 
             return self.expression(
                 exp.LoadData(
                     this=self._parse_table(schema=True),
                     local=local,
                     overwrite=overwrite,
+                    temp=temp,
                     inpath=inpath,
                     files=self._match_text_seq("FROM", "FILES")
                     and exp.Properties(expressions=self._parse_wrapped_properties()),
@@ -3812,6 +3851,10 @@ class Parser:
 
             assert this is not None
             if "with_" in this.arg_types:
+                if inner_cte := this.args.get("with_"):
+                    cte.set("expressions", cte.expressions + inner_cte.expressions)
+                    if inner_cte.args.get("recursive"):
+                        cte.set("recursive", True)
                 this.set("with_", cte)
             else:
                 self.raise_error(f"{this.key} does not support CTE")
@@ -4082,7 +4125,7 @@ class Parser:
             normalized_table = _norm(normalized_table, dialect=self.dialect)
 
             if isinstance(table, exp.Table) and not join.args.get("on"):
-                if normalized_table.parts[0].name in refs:
+                if len(normalized_table.parts) > 1 and normalized_table.parts[0].name in refs:
                     table_as_column = table.to_column()
                     unnest = exp.Unnest(expressions=[table_as_column])
 
@@ -4391,10 +4434,13 @@ class Parser:
         return self._parse_wrapped_csv(_parse_column_as_identifier, optional=True)
 
     def _parse_join(
-        self, skip_join_token: bool = False, parse_bracket: bool = False
+        self,
+        skip_join_token: bool = False,
+        parse_bracket: bool = False,
+        alias_tokens: t.Collection[TokenType] | None = None,
     ) -> exp.Join | None:
         if self._match(TokenType.COMMA):
-            table = self._try_parse(self._parse_table)
+            table = self._try_parse(lambda: self._parse_table(alias_tokens=alias_tokens))
             cross_join = self.expression(exp.Join(this=table)) if table else None
 
             if cross_join and self.JOINS_HAVE_EQUAL_PRECEDENCE:
@@ -4421,10 +4467,12 @@ class Parser:
         if not skip_join_token and not join and not outer_apply and not cross_apply:
             return None
 
-        kwargs: dict[str, t.Any] = {"this": self._parse_table(parse_bracket=parse_bracket)}
+        kwargs: dict[str, t.Any] = {
+            "this": self._parse_table(parse_bracket=parse_bracket, alias_tokens=alias_tokens)
+        }
         if kind and kind.token_type == TokenType.ARRAY and self._match(TokenType.COMMA):
             kwargs["expressions"] = self._parse_csv(
-                lambda: self._parse_table(parse_bracket=parse_bracket)
+                lambda: self._parse_table(parse_bracket=parse_bracket, alias_tokens=alias_tokens)
             )
 
         if method:
@@ -4450,7 +4498,7 @@ class Parser:
             and not (kind and kind.token_type in (TokenType.CROSS, TokenType.ARRAY))
         ):
             index = self._index
-            joins: list | None = list(self._parse_joins())
+            joins: list | None = list(self._parse_joins(alias_tokens=alias_tokens))
 
             if joins and self._match(TokenType.ON):
                 kwargs["on"] = self._parse_disjunction()
@@ -4851,7 +4899,7 @@ class Parser:
             this.set("version", self._parse_version())
 
         if joins:
-            for join in self._parse_joins():
+            for join in self._parse_joins(alias_tokens=alias_tokens):
                 this.append("joins", join)
 
         if self._match_pair(TokenType.WITH, TokenType.ORDINALITY):
@@ -5047,8 +5095,10 @@ class Parser:
             return None
         return list(iter(self._parse_pivot, None)) or None
 
-    def _parse_joins(self) -> t.Iterator[exp.Join]:
-        return iter(self._parse_join, None)
+    def _parse_joins(
+        self, alias_tokens: t.Collection[TokenType] | None = None
+    ) -> t.Iterator[exp.Join]:
+        return iter(lambda: self._parse_join(alias_tokens=alias_tokens), None)
 
     def _parse_unpivot_columns(self) -> exp.UnpivotColumns | None:
         if not self._match(TokenType.INTO):
@@ -5236,6 +5286,9 @@ class Parser:
                     columns.append(exp.to_identifier("_".join(fld_parts)))
 
             pivot.set("columns", columns)
+            pivot.set("identify_pivot_strings", self.IDENTIFY_PIVOT_STRINGS)
+            pivot.set("prefixed_pivot_columns", self.PREFIXED_PIVOT_COLUMNS)
+            pivot.set("pivot_column_naming", self.PIVOT_COLUMN_NAMING)
 
         return pivot
 
@@ -5483,6 +5536,9 @@ class Parser:
                     self._match_r_paren()
 
             else:
+                if self.dialect.SUPPORTS_LIMIT_ALL and self._match(TokenType.ALL):
+                    return this
+
                 # Parsing LIMIT x% (i.e x PERCENT) as a term leads to an error, since
                 # we try to build an exp.Mod expr. For that matter, we backtrack and instead
                 # consume the factor plus parse the percentage separately
@@ -7001,7 +7057,21 @@ class Parser:
         return transformed
 
     def _parse_function_properties(self) -> exp.Properties | None:
-        return self._parse_properties()
+        # Skip the generic `key = value` fallback in _parse_property since this
+        # runs post-AS where a function body like `name = expr` can be misread
+        # as a property.
+        properties = []
+        while True:
+            if self._match_texts(self.PROPERTY_PARSERS):
+                prop = self.PROPERTY_PARSERS[self._prev.text.upper()](self)
+            elif self._match(TokenType.DEFAULT) and self._match_texts(self.PROPERTY_PARSERS):
+                prop = self.PROPERTY_PARSERS[self._prev.text.upper()](self, default=True)
+            else:
+                break
+            for p in ensure_list(prop):
+                properties.append(p)
+
+        return self.expression(exp.Properties(expressions=properties)) if properties else None
 
     def _parse_user_defined_function_expression(self) -> exp.Expr | None:
         return self._parse_statement()
@@ -7020,6 +7090,41 @@ class Parser:
         return self.expression(
             exp.UserDefinedFunction(this=this, expressions=expressions, wrapped=True)
         )
+
+    def _parse_macro_overloads(
+        self,
+        this: exp.UserDefinedFunction,
+        first_body: exp.Expr,
+        first_is_table: bool = False,
+    ) -> exp.MacroOverloads:
+        overloads = [
+            self.expression(
+                exp.MacroOverload(
+                    this=first_body,
+                    expressions=this.expressions or None,
+                    is_table=first_is_table,
+                )
+            )
+        ]
+        this.set("expressions", None)
+        this.set("wrapped", False)
+
+        while self._match(TokenType.COMMA):
+            if not self._match(TokenType.L_PAREN):
+                break
+
+            params = self._parse_csv(self._parse_function_parameter)
+            self._match_r_paren()
+
+            if not self._match(TokenType.ALIAS):
+                break
+
+            is_table = self._match(TokenType.TABLE)
+            body = self._parse_expression()
+            macro = exp.MacroOverload(this=body, expressions=params, is_table=is_table)
+            overloads.append(self.expression(macro))
+
+        return self.expression(exp.MacroOverloads(expressions=overloads))
 
     def _parse_introducer(self, token: Token) -> exp.Introducer | exp.Identifier:
         literal = self._parse_primary()
@@ -9758,7 +9863,9 @@ class Parser:
             aggregates_or_groups.append(this)
 
         if group_by_exists:
-            query.select(*aggregates_or_groups, copy=False).group_by(
+            query.select(
+                *aggregates_or_groups, *query.expressions, append=False, copy=False
+            ).group_by(
                 *[projection.args.get("alias", projection) for projection in aggregates_or_groups],
                 copy=False,
             )
@@ -9902,7 +10009,7 @@ class Parser:
 
         return self.expression(exp.Declare(expressions=expressions, replace=replace))
 
-    def build_cast(self, strict: bool, **kwargs) -> exp.Cast:
+    def build_cast(self, strict: bool, **kwargs) -> exp.Expr:
         exp_class = exp.Cast if strict else exp.TryCast
 
         if exp_class == exp.TryCast:

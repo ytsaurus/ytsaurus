@@ -44,10 +44,15 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"returns": exp.DType.INT}
         for expr_type in {
+            exp.DenseRank,
             exp.Month,
+            exp.Ntile,
+            exp.Rank,
+            exp.RowNumber,
             exp.Second,
         }
     },
+    exp.PercentileDisc: {"returns": exp.DType.DOUBLE},
     **{
         expr_type: {"annotator": lambda self, e: self._annotate_by_args(e, "this")}
         for expr_type in {
@@ -59,6 +64,7 @@ EXPRESSION_METADATA = {
         }
     },
     exp.ApproxQuantile: {"annotator": lambda self, e: self._annotate_by_args(e, "quantile")},
+    exp.WithinGroup: {"annotator": lambda self, e: self._annotate_by_args(e, "this")},
     exp.ArrayIntersect: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions")},
     exp.Coalesce: {
         "annotator": lambda self, e: self._annotate_by_args(e, "this", "expressions", promote=True)
