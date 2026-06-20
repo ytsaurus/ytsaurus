@@ -96,9 +96,15 @@ int main(int argc, char** argv)
         if (grepArgs.empty()) {
             engine->Slice(file, from, to, Cout);
         } else {
-            TStringStream sliced;
-            engine->Slice(file, from, to, sliced);
-            Cout << FilterWithGrep(grepArgs, sliced.Str());
+            // Stream the slice straight through grep instead of buffering it: a
+            // multi-gigabyte log would otherwise exhaust memory and be killed
+            // with SIGKILL (exit code 137).
+            FilterWithGrep(
+                grepArgs,
+                [&] (IOutputStream& sink) {
+                    engine->Slice(file, from, to, sink);
+                },
+                Cout);
         }
         Cout.Flush();
     } catch (const std::exception& ex) {

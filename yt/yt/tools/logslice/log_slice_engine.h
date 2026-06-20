@@ -5,6 +5,7 @@
 #include <util/stream/output.h>
 #include <util/system/file.h>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -64,10 +65,16 @@ ILogSliceEnginePtr CreateLogSliceEngine(ECompressionCodec codec, TStringBuf file
 //! and backslash escapes. Throws on an unbalanced quote.
 std::vector<TString> SplitCommandLine(TStringBuf line);
 
-//! Runs the system `grep` with [grepArgs] over [input], feeding [input] on grep's
-//! stdin and returning its stdout. An empty result (grep exit code 1, "no match")
-//! is returned as an empty string; a genuine grep failure throws.
-TString FilterWithGrep(const std::vector<TString>& grepArgs, const TString& input);
+//! Runs the system `grep` with [grepArgs], streaming the producer's output through
+//! grep's stdin and grep's stdout into [output]. The slice is never materialized in
+//! memory: [produce] is invoked with grep's stdin as it writes, while grep's matches
+//! are pumped to [output] concurrently. An empty result (grep exit code 1, "no
+//! match") is fine; a genuine grep failure (exit code >= 2, or a launch failure)
+//! throws.
+void FilterWithGrep(
+    const std::vector<TString>& grepArgs,
+    const std::function<void(IOutputStream&)>& produce,
+    IOutputStream& output);
 
 ////////////////////////////////////////////////////////////////////////////////
 

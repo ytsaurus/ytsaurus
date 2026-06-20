@@ -9,6 +9,7 @@
 
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
+#include <util/stream/file.h>
 #include <util/stream/str.h>
 #include <util/stream/zlib.h>
 #include <util/system/shellcommand.h>
@@ -654,20 +655,35 @@ std::vector<TString> SplitCommandLine(TStringBuf line)
     return args;
 }
 
-TString FilterWithGrep(const std::vector<TString>& grepArgs, const TString& input)
+void FilterWithGrep(
+    const std::vector<TString>& grepArgs,
+    const std::function<void(IOutputStream&)>& produce,
+    IOutputStream& output)
 {
     TList<TString> args(grepArgs.begin(), grepArgs.end());
 
-    TStringInput inputStream(input);
-    TStringStream outputStream;
-
+    // Stream grep's stdin from [produce] and grep's stdout into [output] rather
+    // than buffering the whole slice in memory: a multi-gigabyte log would
+    // otherwise be materialized several times over and get the process OOM-killed
+    // (SIGKILL, exit code 137). Async mode lets us feed grep's stdin from this
+    // thread while a watcher thread drains grep's stdout into [output], so the two
+    // pipes can never deadlock.
     TShellCommandOptions options;
     options.SetUseShell(false);
-    options.SetInputStream(&inputStream);
-    options.SetOutputStream(&outputStream);
+    options.SetAsync(true);
+    options.PipeInput();
+    options.SetOutputStream(&output);
 
     TShellCommand command("grep", args, options);
-    command.Run().Wait();
+    command.Run();
+
+    {
+        TFileOutput grepInput(TFile(command.GetInputHandle().Release()));
+        produce(grepInput);
+        grepInput.Finish();
+    }
+
+    command.Wait();
 
     // grep exits 1 when nothing matched, which is not an error for us; only a
     // code of 2 or above (or a failure to launch) signals a real problem.
@@ -677,8 +693,6 @@ TString FilterWithGrep(const std::vector<TString>& grepArgs, const TString& inpu
     {
         THROW_ERROR_EXCEPTION("grep failed: %v", command.GetError());
     }
-
-    return outputStream.Str();
 }
 
 ILogSliceEnginePtr CreateLogSliceEngine(ECompressionCodec codec, TStringBuf fileName)

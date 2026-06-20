@@ -132,8 +132,9 @@ bool ParseFractionMicroseconds(TStringBuf fraction, ui64* micros)
     return true;
 }
 
-//! Parses "YYYY-MM-DD HH:MM:SS" in local time, with an optional ",uuuuuu"
-//! subsecond selector of 1 to 6 digits (e.g. "2026-06-18 06:00:10,246995").
+//! Parses "YYYY-MM-DD HH:MM:SS" in local time, with an optional subsecond
+//! selector of 1 to 6 digits delimited by either ',' or '.' (e.g.
+//! "2026-06-18 06:00:10,246995" or "2026-06-18 06:00:10.246995").
 std::optional<TInstant> TryParseLocalFull(TStringBuf s)
 {
     if (s.size() < 19) {
@@ -149,7 +150,7 @@ std::optional<TInstant> TryParseLocalFull(TStringBuf s)
 
     ui64 micros = 0;
     if (s.size() > 19) {
-        if (s[19] != ',' || !ParseFractionMicroseconds(s.SubStr(20), &micros)) {
+        if ((s[19] != ',' && s[19] != '.') || !ParseFractionMicroseconds(s.SubStr(20), &micros)) {
             return std::nullopt;
         }
     }
