@@ -1346,7 +1346,7 @@ public:
 
     std::optional<TJobEnvironmentBlockIOStatistics> GetJobBlockIOStatistics() const noexcept override
     {
-        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetBlockIOStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetIOStatistics();
         return TJobEnvironmentBlockIOStatistics{
             .IOReadByte = statistics.IOReadByte,
             .IOWriteByte = statistics.IOWriteByte,
