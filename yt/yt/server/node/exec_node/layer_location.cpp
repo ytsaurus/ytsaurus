@@ -1135,13 +1135,7 @@ TVolumeMeta TLayerLocation::DoCreateNbdVolume(
     }
     builder.AppendFormat("timeout=%v", ToString(nbdConfig->Client->IOTimeout.Seconds()));
     builder.AppendFormat("&reconn-timeout=%v", ToString(nbdConfig->Client->ReconnectTimeout.Seconds()));
-
-    auto connectionCount = 1;
-    if (options.IsReadOnly) {
-        connectionCount = nbdConfig->Client->ConnectionCount;
-    }
-
-    builder.AppendFormat("&num-connections=%v", connectionCount);
+    builder.AppendFormat("&num-connections=%v", nbdConfig->Client->ConnectionCount);
     builder.AppendFormat("&export=%v", options.DeviceId);
     builder.AppendFormat("&fs-type=%v", options.Filesystem);
     volumeProperties["storage"] = builder.Flush();

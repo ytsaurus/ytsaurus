@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/ytlib/exec_node/public.h>
+
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <yt/yt/library/profiling/solomon/config.h>
@@ -831,7 +833,7 @@ void TNbdClientConfig::Register(TRegistrar registrar)
     registrar.Parameter("reconnect_timeout", &TThis::ReconnectTimeout)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("connection_count", &TThis::ConnectionCount)
-        .Default(2);
+        .Default(DefaultNbdMultiplexingParallelism);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

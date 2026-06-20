@@ -565,6 +565,7 @@ public:
                     .MasterRpcTimeout = sandboxNbdRootVolumeData->MasterRpcTimeout,
                     .MinDataNodeCount = sandboxNbdRootVolumeData->MinDataNodeCount,
                     .MaxDataNodeCount = sandboxNbdRootVolumeData->MaxDataNodeCount,
+                    .MultiplexingParallelism = sandboxNbdRootVolumeData->MultiplexingParallelism,
                 })
                 .AsUnique()
                 .Apply(BIND(

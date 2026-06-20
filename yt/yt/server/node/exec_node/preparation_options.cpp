@@ -11,7 +11,8 @@ void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeData& d
         "{Size: %v, MediumIndex: %v, FsType: %v, DataNodeAddress: %v, "
         "MinDataNodeCount: %v, MaxDataNodeCount: %v, "
         "DataNodeRpcTimeout: %v, DataNodeNbdServiceRpcTimeout: %v, "
-        "DataNodeNbdServiceMakeTimeout: %v, MasterRpcTimeout: %v}",
+        "DataNodeNbdServiceMakeTimeout: %v, MasterRpcTimeout: %v, "
+        "MultiplexingParallelism: %v}",
         data.Size,
         data.MediumIndex,
         data.FsType,
@@ -21,7 +22,8 @@ void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeData& d
         data.DataNodeRpcTimeout,
         data.DataNodeNbdServiceRpcTimeout,
         data.DataNodeNbdServiceMakeTimeout,
-        data.MasterRpcTimeout);
+        data.MasterRpcTimeout,
+        data.MultiplexingParallelism);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

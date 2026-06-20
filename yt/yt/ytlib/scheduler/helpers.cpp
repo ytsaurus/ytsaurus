@@ -1072,6 +1072,7 @@ void FromProto(TNbdDiskConfig* nbdDiskConfig, const NProto::TNbdDisk& protoNbdDi
     nbdDiskConfig->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(protoNbdDisk.data_node_nbd_service_make_timeout());
     nbdDiskConfig->MinDataNodeCount = protoNbdDisk.min_data_node_count();
     nbdDiskConfig->MaxDataNodeCount = protoNbdDisk.max_data_node_count();
+    nbdDiskConfig->MultiplexingParallelism = protoNbdDisk.multiplexing_parallelism();
 }
 
 void ToProto(NProto::TNbdDisk* protoNbdDisk, const TNbdDiskConfig& nbdDiskConfig)
@@ -1085,6 +1086,7 @@ void ToProto(NProto::TNbdDisk* protoNbdDisk, const TNbdDiskConfig& nbdDiskConfig
     protoNbdDisk->set_max_data_node_count(nbdDiskConfig.MaxDataNodeCount);
     protoNbdDisk->set_data_node_nbd_service_rpc_timeout(ToProto(nbdDiskConfig.DataNodeNbdServiceRpcTimeout));
     protoNbdDisk->set_data_node_nbd_service_make_timeout(ToProto(nbdDiskConfig.DataNodeNbdServiceMakeTimeout));
+    protoNbdDisk->set_multiplexing_parallelism(nbdDiskConfig.MultiplexingParallelism);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

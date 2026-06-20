@@ -28,6 +28,8 @@ struct TChunkBlockDeviceConfig
     TDuration DataNodeNbdServiceRpcTimeout;
     //! Time to create chunk and make filesystem in it.
     TDuration DataNodeNbdServiceMakeTimeout;
+    //! Number of TCP connections to use for NBD RPC requests.
+    int MultiplexingParallelism;
 
     REGISTER_YSON_STRUCT(TChunkBlockDeviceConfig);
 

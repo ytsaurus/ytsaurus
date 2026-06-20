@@ -93,6 +93,9 @@ DEFINE_ENUM_UNKNOWN_VALUE(EJobPhase, Missing);
 
 static constexpr i64 MaxNbdDiskSize = 512_GB;
 
+//! Default number of TCP connections used for NBD RPC requests (multiplexing parallelism).
+static constexpr int DefaultNbdMultiplexingParallelism = 3;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

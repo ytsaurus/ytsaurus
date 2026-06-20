@@ -802,6 +802,9 @@ struct TNbdDiskConfig
     int MinDataNodeCount;
     int MaxDataNodeCount;
 
+    //! Number of TCP connections to use for NBD RPC requests.
+    int MultiplexingParallelism;
+
     REGISTER_YSON_STRUCT(TNbdDiskConfig);
 
     static void Register(TRegistrar registrar);

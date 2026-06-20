@@ -37,6 +37,9 @@ message TNbdDisk
     //! Params for NBD requests to data nodes.
     optional int64 data_node_nbd_service_rpc_timeout = 6 [default = 10000];
     optional int64 data_node_nbd_service_make_timeout = 7 [default = 10000];
+
+    //! Number of TCP connections to use for NBD RPC requests.
+    optional int32 multiplexing_parallelism = 8 [default = 3];
 }
 
 message TDeprecatedDiskRequest

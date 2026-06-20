@@ -7,6 +7,8 @@
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/public.h>
 
+#include <yt/yt/ytlib/exec_node/public.h>
+
 #include <yt/yt/core/actions/callback.h>
 
 #include <util/generic/string.h>
@@ -57,6 +59,9 @@ struct TSandboxNbdRootVolumeData
     TDuration MasterRpcTimeout;
     int MinDataNodeCount;
     int MaxDataNodeCount;
+
+    //! Number of TCP connections to use for NBD RPC requests.
+    int MultiplexingParallelism = DefaultNbdMultiplexingParallelism;
 
     bool operator==(const TSandboxNbdRootVolumeData&) const = default;
 };

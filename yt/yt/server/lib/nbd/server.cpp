@@ -405,10 +405,10 @@ private:
             auto flags =
                 ETransmissionFlags::NBD_FLAG_HAS_FLAGS |
                 ETransmissionFlags::NBD_FLAG_SEND_FLUSH |
-                ETransmissionFlags::NBD_FLAG_SEND_FUA;
+                ETransmissionFlags::NBD_FLAG_SEND_FUA |
+                ETransmissionFlags::NBD_FLAG_CAN_MULTI_CONN;
             if (Device_->IsReadOnly()) {
                 flags |= ETransmissionFlags::NBD_FLAG_READ_ONLY;
-                flags |= ETransmissionFlags::NBD_FLAG_CAN_MULTI_CONN;
             }
 
             TServerExportNameMessage message{
@@ -806,10 +806,6 @@ private:
                     if (Device_) {
                         strTagSet = Device_->GetProfileSensorTag();
                         tagSet = TNbdProfilerCounters::MakeTagSet(strTagSet);
-
-                        if (!Abort_) {
-                            Device_->SetError(TError("Connection has been closed without NBD_CMD_DISC"));
-                        }
 
                         YT_LOG_DEBUG("Connection has been closed by the peer (Abort: %v, DeviceDebugString: %v, DeviceError: %v)",
                             Abort_,
