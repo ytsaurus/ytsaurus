@@ -116,6 +116,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Parses the contents of /proc/<pid>/cgroup into a map of `controller` -> `path`.
+// v1 controllers are keyed by controller name (e.g. "pids", "memory").
+// The v2 unified hierarchy, if present, is keyed by the empty string "".
 THashMap<std::string, std::string> ParseProcessCGroups(const TString& str);
 THashMap<std::string, std::string> GetProcessCGroups(pid_t pid);
 THashMap<std::string, std::string> GetSelfProcessCGroups();

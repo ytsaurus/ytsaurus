@@ -1,5 +1,7 @@
 #pragma once
 
+#include <library/cpp/yt/misc/enum.h>
+
 #include <util/datetime/base.h>
 
 #include <util/generic/hash.h>
@@ -40,7 +42,7 @@ struct TCpuThrottlingStatistics
     TDuration WaitTime;
 };
 
-struct TBlockIOStatistics
+struct TIOStatistics
 {
     i64 IOReadByte = 0;
     i64 IOWriteByte = 0;
@@ -51,17 +53,27 @@ struct TBlockIOStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ECGroupController,
+    (Memory)
+    (Cpu)
+    (CpuAcct)
+    (IO)
+    (Pids)
+);
+
 struct ICGroupStatisticsFetcher
 {
     virtual ~ICGroupStatisticsFetcher() = default;
 
-    virtual bool IsV2() const = 0;
+    // Whether the given controller uses the cgroup v2 file format for the current
+    // process. Returns |false| if the controller could not be resolved.
+    virtual bool IsControllerV2(ECGroupController controller) const = 0;
 
     virtual TMemoryStatistics GetMemoryStatistics() const = 0;
     virtual TMemoryLimits GetMemoryLimits() const = 0;
     virtual TCpuStatistics GetCpuStatistics() const = 0;
     virtual TCpuThrottlingStatistics GetCpuThrottlingStatistics() const = 0;
-    virtual TBlockIOStatistics GetBlockIOStatistics() const = 0;
+    virtual TIOStatistics GetIOStatistics() const = 0;
     virtual i64 GetOomKillCount() const = 0;
 };
 
@@ -71,13 +83,6 @@ struct ICGroupStatisticsFetcher
 // from YT's standpoint, and it can't be feasibly supported: there will either be
 // a window where the cgroup paths are stale, or the paths would be re-loaded
 // on each statistic fetch, which is too costly.
-//
-// Also note that this class properly supports either V1-only or V2-only environments.
-// Technically, there can be a "mixed" environment, where some (V1) controllers are
-// mounted under /sys/fs/cgroup, and other (V2) controllers are mounted under /sys/fs/cgroup/unified.
-// However, systemd explicitly [does not support this setup][1], so neither do we.
-//
-// [1]: https://github.com/systemd/systemd/issues/10107
 struct TSelfCGroupsStatisticsFetcher
 {
     static const ICGroupStatisticsFetcher* Get();

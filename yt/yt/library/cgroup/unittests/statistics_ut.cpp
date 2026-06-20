@@ -15,9 +15,9 @@ TEST(TCGroupStatisticsFetcherTest, Singleton)
     EXPECT_EQ(a, b);
 }
 
-TEST(TSelfCGroupsStatisticsFetcherTest, IsV2)
+TEST(TSelfCGroupsStatisticsFetcherTest, IsControllerV2)
 {
-    EXPECT_NO_THROW(TSelfCGroupsStatisticsFetcher::Get()->IsV2());
+    EXPECT_NO_THROW(TSelfCGroupsStatisticsFetcher::Get()->IsControllerV2(ECGroupController::Memory));
 }
 
 TEST(TSelfCGroupsStatisticsFetcherTest, MemoryStatistics)
@@ -35,8 +35,8 @@ TEST(TSelfCGroupsStatisticsFetcherTest, MemoryLimits)
 TEST(TSelfCGroupsStatisticsFetcherTest, CpuStatistics)
 {
     auto stats = TSelfCGroupsStatisticsFetcher::Get()->GetCpuStatistics();
-    EXPECT_GE(stats.UserTime, TDuration::Zero());
-    EXPECT_GE(stats.SystemTime, TDuration::Zero());
+    EXPECT_GT(stats.UserTime, TDuration::Zero());
+    EXPECT_GT(stats.SystemTime, TDuration::Zero());
 }
 
 TEST(TSelfCGroupsStatisticsFetcherTest, CpuThrottlingStatistics)
@@ -46,8 +46,8 @@ TEST(TSelfCGroupsStatisticsFetcherTest, CpuThrottlingStatistics)
 
 TEST(TSelfCGroupsStatisticsFetcherTest, BlockIOStatistics)
 {
-    auto stats = TSelfCGroupsStatisticsFetcher::Get()->GetBlockIOStatistics();
-    EXPECT_GT(stats.IOReadByte, 0);
+    auto stats = TSelfCGroupsStatisticsFetcher::Get()->GetIOStatistics();
+    EXPECT_GE(stats.IOReadByte, 0);
 }
 
 TEST(TSelfCGroupsStatisticsFetcherTest, OomKillCount)

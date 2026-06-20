@@ -20,6 +20,7 @@ SRCS(
 IF(OS_LINUX)
     SRCS(
         porto_resource_tracker_ut.cpp
+        instance_ut.cpp
     )
 ENDIF()
 

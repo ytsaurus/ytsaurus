@@ -1,4 +1,5 @@
 #include "statistics.h"
+#include "process.h"
 
 #include <library/cpp/yt/logging/logger.h>
 
@@ -9,10 +10,6 @@
 #include <util/string/vector.h>
 
 #include <util/system/fs.h>
-
-#include <linux/magic.h>
-
-#include <sys/vfs.h>
 
 namespace NYT::NCGroups {
 
@@ -26,12 +23,15 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetCGroupFilePath(const std::string& cgroupPath, const std::string& fileName)
+// NB: Consecutive slashes from empty components are harmless, so we do not bother normalizing.
+TString JoinCGroupPath(TStringBuf relativePath, TStringBuf fileName)
 {
-    // NB: consecutive slashes in the resulting path are intentionally ignored
-    // for clarity and ease of correctness across different environments.
-    // Linux treats consecutive slashes as a single separator.
-    return Format("/sys/fs/cgroup/%v/%v", cgroupPath, fileName);
+    return Format("/sys/fs/cgroup/%v/%v", relativePath, fileName);
+}
+
+TString StatFilePath(TStringBuf directory, TStringBuf fileName)
+{
+    return Format("/%v/%v", directory, fileName);
 }
 
 THashMap<std::string, i64> ReadAndParseStatFile(const TString& fileName)
@@ -52,7 +52,11 @@ THashMap<std::string, i64> ReadAndParseStatFile(const TString& fileName)
         }
 
         auto [_, emplaced] = statistics.emplace(fields[0], FromString<i64>(fields[1]));
-        YT_VERIFY(emplaced, Format("EmplaceOrCrash failed, item is already in container (Key: %v)", fields[0]));
+        if (!emplaced) {
+            THROW_ERROR_EXCEPTION("Failed to collect CGroup statistics: key already exists")
+                << TErrorAttribute("filename", fileName)
+                << TErrorAttribute("key", fields[0]);
+        }
     }
 
     return statistics;
@@ -74,297 +78,259 @@ std::optional<i64> ReadMemoryLimit(const TString& path)
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TV1ControllerInfo
+THashMap<std::string, i64> ReadAndParseBlkIOStatFile(const TString& fileName)
 {
-    std::string MountName;
-    std::string CGroupPath;
-};
+    THashMap<std::string, i64> statistics;
 
-void FormatValue(TStringBuilderBase* builder, const TV1ControllerInfo& value, TStringBuf /*spec*/)
+    auto rawStatFile = TFileInput(fileName).ReadAll();
+    for (const auto& line : SplitString(rawStatFile, "\n")) {
+        auto fields = SplitString(line, " ");
+        if (fields.size() != 3) {
+            continue;
+        }
+
+        statistics[fields[1]] += FromString<i64>(fields[2]);
+    }
+
+    return statistics;
+}
+
+THashMap<std::string, i64> ReadAndParseIOStatFile(const TString& fileName)
 {
-    builder->AppendString(GetCGroupFilePath(value.MountName, value.CGroupPath));
+    THashMap<std::string, i64> statistics;
+
+    auto rawStatFile = TFileInput(fileName).ReadAll();
+    for (auto line : SplitString(rawStatFile, "\n")) {
+        auto fields = SplitString(line, " ");
+        for (int index = 1; index < std::ssize(fields); ++index) {
+            auto tokens = SplitString(fields[index], "=");
+            if (tokens.size() != 2) {
+                continue;
+            }
+            statistics[tokens[0]] += FromString<i64>(tokens[1]);
+        }
+    }
+
+    return statistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TV1CGroupStatisticsFetcher
-    : public ICGroupStatisticsFetcher
+// A controller's resolved cgroup directory and the file format to read it in.
+struct TCGroupLocation
+{
+    TString Path;
+    bool IsV2 = false;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TCGroupLocation& value, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{Path: %v, IsV2: %v}", value.Path, value.IsV2);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Resolves where a controller lives for the current process by probing the
+// canonical locations for the file the controller is expected to expose.
+// This is needed, because Porto exports cgroupv2 mounts under sysfs instead of cgroupv2,
+// so we cannot reliably detect whether the system is V1 or V2.
+struct TControllerProbe
+{
+    TStringBuf V1Controller;
+    TStringBuf V1ProbeFile;
+    TStringBuf V2ProbeFile;
+};
+
+std::optional<TCGroupLocation> ResolveController(
+    const TControllerProbe& probe,
+    const THashMap<std::string, std::string>& selfCGroups)
+{
+    // NB: There are issues with cgroup namespaces in Kubernetes
+    // (see https://github.com/kubernetes/enhancements/pull/1370),
+    // where /proc/self/cgroup contains real cgroup path
+    // but in /sys/fs/cgroup it is just root cgroup.
+    if (auto it = selfCGroups.find(probe.V1Controller); it != selfCGroups.end()) {
+        for (auto path : {JoinCGroupPath(probe.V1Controller, it->second), JoinCGroupPath(probe.V1Controller, "")}) {
+            if (NFs::Exists(StatFilePath(path, probe.V1ProbeFile))) {
+                return TCGroupLocation{.Path = std::move(path), .IsV2 = false};
+            }
+        }
+    }
+
+    if (auto it = selfCGroups.find(""); it != selfCGroups.end()) {
+        for (auto path : {JoinCGroupPath(it->second, ""), TString("/sys/fs/cgroup")}) {
+            if (NFs::Exists(StatFilePath(path, probe.V2ProbeFile))) {
+                return TCGroupLocation{.Path = std::move(path), .IsV2 = true};
+            }
+        }
+    }
+
+    return std::nullopt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMemoryStatisticsFetcher
 {
 public:
-    explicit TV1CGroupStatisticsFetcher(THashMap<std::string, TV1ControllerInfo> controllers)
-        : Controllers_(std::move(controllers))
+    explicit TMemoryStatisticsFetcher(const THashMap<std::string, std::string>& selfCGroups)
+        : Location(ResolveController({"memory", "memory.stat", "memory.stat"}, selfCGroups))
+    { }
+
+    TMemoryStatistics GetStatistics() const
     {
-        YT_LOG_INFO("CGroups statistics fetcher initialized (IsV2: false, Controllers: %v)", Controllers_);
-    }
-
-    bool IsV2() const override
-    {
-        return false;
-    }
-
-    TMemoryStatistics GetMemoryStatistics() const override
-    {
-        auto statistics = ReadAndParseStatFile(GetStatPath("memory", "memory.stat"));
-
-        return TMemoryStatistics{
-            .ResidentAnon = statistics["total_rss"],
-            .TmpfsUsage = statistics["total_shmem"],
-            .MappedFile = statistics["total_mapped_file"],
-            .MajorPageFaults = statistics["total_pgmajfault"],
-            .Cache = statistics["total_cache"],
-            .RssHuge = statistics["total_rss_huge"],
-            .Dirty = statistics["total_dirty"],
-            .Writeback = statistics["total_writeback"],
-        };
-    }
-
-    TMemoryLimits GetMemoryLimits() const override
-    {
-        auto statistics = ReadAndParseStatFile(GetStatPath("memory", "memory.stat"));
-        auto* memoryLimit = statistics.FindPtr("hierarchical_memory_limit");
-
-        return TMemoryLimits{
-            .MemoryLimit = memoryLimit ? std::optional(*memoryLimit) : std::nullopt,
-            .AnonymousMemoryLimit = ReadMemoryLimit(GetStatPath("memory", "memory.anon.limit")),
-        };
-    }
-
-    TCpuStatistics GetCpuStatistics() const override
-    {
-        auto cpuAcctStatistics = ReadAndParseStatFile(GetStatPath("cpuacct", "cpuacct.stat"));
-
-        i64 ticksPerSecond;
-#if defined(__linux__)
-        ticksPerSecond = sysconf(_SC_CLK_TCK);
-#else
-        ticksPerSecond = 1'000'000'000;
-#endif
-
-        auto fromJiffies = [&] (i64 jiffies) {
-            return TDuration::MicroSeconds(1'000'000 * jiffies / ticksPerSecond);
-        };
-
-        return TCpuStatistics{
-            .UserTime = fromJiffies(cpuAcctStatistics["user"]),
-            .SystemTime = fromJiffies(cpuAcctStatistics["system"]),
-        };
-    }
-
-    TCpuThrottlingStatistics GetCpuThrottlingStatistics() const override
-    {
-        auto cpuStatistics = ReadAndParseStatFile(GetStatPath("cpu", "cpu.stat"));
-
-        return TCpuThrottlingStatistics{
-            .NrPeriods = static_cast<ui64>(cpuStatistics["nr_periods"]),
-            .NrThrottled = static_cast<ui64>(cpuStatistics["nr_throttled"]),
-            .ThrottledTime = TDuration::MicroSeconds(cpuStatistics["h_throttled_time"] / 1000),
-            .WaitTime = ReadCpuWaitTime(),
-        };
-    }
-
-    TBlockIOStatistics GetBlockIOStatistics() const override
-    {
-        auto it = Controllers_.find("blkio");
-        auto cgroupPath = it != Controllers_.end()
-            ? Format("/%v/%v", it->second.MountName, it->second.CGroupPath)
-            : TString("/blkio");
-
-        TBlockIOStatistics statistics;
-
-        for (auto fileName : {"blkio.io_service_bytes_recursive", "blkio.throttle.io_service_bytes_recursive"}) {
-            auto filePath = GetCGroupFilePath(cgroupPath, fileName);
-            if (!NFs::Exists(filePath)) {
-                continue;
-            }
-
-            auto blkioStatistics = ReadAndParseBlkIOStatFile(filePath);
-            statistics.IOReadByte += blkioStatistics["Read"];
-            statistics.IOWriteByte += blkioStatistics["Write"];
-            break;
+        if (!Location) {
+            return {};
         }
 
-        for (auto fileName : {"blkio.io_serviced_recursive", "blkio.throttle.io_serviced_recursive"}) {
-            auto filePath = GetCGroupFilePath(cgroupPath, fileName);
-            if (!NFs::Exists(filePath)) {
-                continue;
+        auto statistics = ReadAndParseStatFile(StatFilePath(Location->Path, "memory.stat"));
+
+        return Location->IsV2
+            ? TMemoryStatistics{
+                    .ResidentAnon = statistics["anon"],
+                    .TmpfsUsage = statistics["shmem"],
+                    .MappedFile = statistics["file_mapped"],
+                    .MajorPageFaults = statistics["pgmajfault"],
+                    .Cache = statistics["file"],
+                    .RssHuge = statistics["anon_thp"],
+                    .Dirty = statistics["file_dirty"],
+                    .Writeback = statistics["file_writeback"],
             }
-
-            auto blkioStatistics = ReadAndParseBlkIOStatFile(filePath);
-            statistics.IOReadOps += blkioStatistics["Read"];
-            statistics.IOWriteOps += blkioStatistics["Write"];
-            break;
-        }
-
-        return statistics;
+            : TMemoryStatistics{
+                .ResidentAnon = statistics["total_rss"],
+                .TmpfsUsage = statistics["total_shmem"],
+                .MappedFile = statistics["total_mapped_file"],
+                .MajorPageFaults = statistics["total_pgmajfault"],
+                .Cache = statistics["total_cache"],
+                .RssHuge = statistics["total_rss_huge"],
+                .Dirty = statistics["total_dirty"],
+                .Writeback = statistics["total_writeback"],
+            };
     }
 
-    i64 GetOomKillCount() const override
+    TMemoryLimits GetLimits() const
     {
-        auto oomPath = GetStatPath("memory", "memory.oom_control");
+        if (!Location) {
+            return {};
+        }
+
+        TMemoryLimits result;
+        if (Location->IsV2) {
+            // Anonymous memory limit does not exist on cgroups v2.
+            result.AnonymousMemoryLimit = std::nullopt;
+            result.MemoryLimit = ReadMemoryLimit(StatFilePath(Location->Path, "memory.max"));
+        } else {
+            result.AnonymousMemoryLimit = ReadMemoryLimit(StatFilePath(Location->Path, "memory.anon.limit"));
+            auto statistics = ReadAndParseStatFile(StatFilePath(Location->Path, "memory.stat"));
+            auto* memoryLimit = statistics.FindPtr("hierarchical_memory_limit");
+            result.MemoryLimit = memoryLimit ? std::optional(*memoryLimit) : std::nullopt;
+        }
+        return result;
+    }
+
+    i64 GetOomKillCount() const
+    {
+        if (!Location) {
+            return 0;
+        }
+
+        auto oomPath = StatFilePath(Location->Path, Location->IsV2 ? "memory.events" : "memory.oom_control");
         if (!NFs::Exists(oomPath)) {
             return 0;
         }
-        auto statistics = ReadAndParseStatFile(oomPath);
-        return statistics["oom_kill"];
+        return ReadAndParseStatFile(oomPath)["oom_kill"];
     }
 
-private:
-    THashMap<std::string, TV1ControllerInfo> Controllers_;
-
-    TString GetStatPath(const std::string& controller, const std::string& fileName) const
-    {
-        auto it = Controllers_.find(controller);
-        if (it == Controllers_.end()) {
-            return GetCGroupFilePath(Format("/%v", controller), fileName);
-        }
-        return GetCGroupFilePath(Format("/%v/%v", it->second.MountName, it->second.CGroupPath), fileName);
-    }
-
-    // cpuacct.wait is a single value in thread-nanoseconds (kernel extension).
-    TDuration ReadCpuWaitTime() const
-    {
-        auto path = GetStatPath("cpuacct", "cpuacct.wait");
-        try {
-            if (NFs::Exists(path)) {
-                auto ns = FromString<ui64>(TFileInput(path).ReadLine());
-                return TDuration::MicroSeconds(ns / 1000);
-            }
-        } catch (const std::exception&) {
-        }
-
-        return TDuration::Zero();
-    }
-
-    static THashMap<std::string, i64> ReadAndParseBlkIOStatFile(const TString& fileName)
-    {
-        THashMap<std::string, i64> statistics;
-
-        auto rawStatFile = TFileInput(fileName).ReadAll();
-        for (const auto& line : SplitString(rawStatFile, "\n")) {
-            auto fields = SplitString(line, " ");
-            if (fields.size() != 3) {
-                continue;
-            }
-
-            statistics[fields[1]] += FromString<i64>(fields[2]);
-        }
-
-        return statistics;
-    }
+    const std::optional<TCGroupLocation> Location;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TV2CGroupStatisticsFetcher
-    : public ICGroupStatisticsFetcher
+class TCpuStatisticsFetcher
 {
 public:
-    explicit TV2CGroupStatisticsFetcher(std::string cgroupPath)
-        : CGroupPath_(std::move(cgroupPath))
+    explicit TCpuStatisticsFetcher(const THashMap<std::string, std::string>& selfCGroups)
+        : CpuLocation(ResolveController({"cpu", "cpu.stat", "cpu.stat"}, selfCGroups))
+        , CpuAcctLocation(ResolveController({"cpuacct", "cpuacct.stat", "cpu.stat"}, selfCGroups))
+    { }
+
+    TCpuStatistics GetStatistics() const
     {
-        YT_LOG_INFO("CGroups statistics fetcher initialized (IsV2: true, CGroupPath: %v)", GetCGroupFilePath(CGroupPath_, ""));
-    }
-
-    bool IsV2() const override
-    {
-        return true;
-    }
-
-    TMemoryStatistics GetMemoryStatistics() const override
-    {
-        auto statistics = ReadAndParseStatFile(GetCGroupFilePath(CGroupPath_, "memory.stat"));
-
-        return TMemoryStatistics{
-            .ResidentAnon = statistics["anon"],
-            .TmpfsUsage = statistics["shmem"],
-            .MappedFile = statistics["mapped_file"],
-            .MajorPageFaults = statistics["pgmajfault"],
-            .Cache = statistics["file"],
-            .RssHuge = statistics["anon_thp"],
-            .Dirty = statistics["file_dirty"],
-            .Writeback = statistics["file_writeback"],
-        };
-    }
-
-    TMemoryLimits GetMemoryLimits() const override
-    {
-        return TMemoryLimits{
-            .MemoryLimit = ReadMemoryLimit(GetCGroupFilePath(CGroupPath_, "memory.max")),
-            .AnonymousMemoryLimit = ReadMemoryLimit(GetCGroupFilePath(CGroupPath_, "memory.anon.limit")),
-        };
-    }
-
-    TCpuStatistics GetCpuStatistics() const override
-    {
-        auto cpuStatistics = ReadAndParseStatFile(GetCGroupFilePath(CGroupPath_, "cpu.stat"));
-
-        return TCpuStatistics{
-            .UserTime = TDuration::MicroSeconds(cpuStatistics["user_usec"]),
-            .SystemTime = TDuration::MicroSeconds(cpuStatistics["system_usec"]),
-        };
-    }
-
-    TCpuThrottlingStatistics GetCpuThrottlingStatistics() const override
-    {
-        auto cpuStatistics = ReadAndParseStatFile(GetCGroupFilePath(CGroupPath_, "cpu.stat"));
-
-        return TCpuThrottlingStatistics{
-            .NrPeriods = static_cast<ui64>(cpuStatistics["nr_periods"]),
-            .NrThrottled = static_cast<ui64>(cpuStatistics["nr_throttled"]),
-            .ThrottledTime = TDuration::MicroSeconds(cpuStatistics["h_throttled_usec"]),
-            .WaitTime = ReadCpuWaitTime(),
-        };
-    }
-
-    TBlockIOStatistics GetBlockIOStatistics() const override
-    {
-        auto ioStatPath = GetCGroupFilePath(CGroupPath_, "io.stat");
-        if (!NFs::Exists(ioStatPath)) {
+        if (!CpuAcctLocation) {
             return {};
         }
-        auto ioStatistics = ReadAndParseIOStatFile(ioStatPath);
 
-        return TBlockIOStatistics{
-            .IOReadByte = ioStatistics["rbytes"],
-            .IOWriteByte = ioStatistics["wbytes"],
-            .IOReadOps = ioStatistics["rios"],
-            .IOWriteOps = ioStatistics["wios"],
+        auto statPath = StatFilePath(CpuAcctLocation->Path, CpuAcctLocation->IsV2 ? "cpu.stat" : "cpuacct.stat");
+        auto statistics = ReadAndParseStatFile(statPath);
+
+        if (CpuAcctLocation->IsV2) {
+            return TCpuStatistics{
+                .UserTime = TDuration::MicroSeconds(statistics["user_usec"]),
+                .SystemTime = TDuration::MicroSeconds(statistics["system_usec"]),
+            };
+        } else {
+            static const auto ticksPerSecond = [] () -> i64 {
+                #if defined(__linux__)
+                    return sysconf(_SC_CLK_TCK);
+                #else
+                    return 1'000'000'000;
+                #endif
+            }();
+
+            auto fromJiffies = [&] (i64 jiffies) {
+                return TDuration::MicroSeconds(1'000'000 * jiffies / ticksPerSecond);
+            };
+
+            return TCpuStatistics{
+                .UserTime = fromJiffies(statistics["user"]),
+                .SystemTime = fromJiffies(statistics["system"]),
+            };
+        }
+    }
+
+    TCpuThrottlingStatistics GetThrottlingStatistics() const
+    {
+        if (!CpuLocation) {
+            return {};
+        }
+
+        auto statistics = ReadAndParseStatFile(StatFilePath(CpuLocation->Path, "cpu.stat"));
+
+        return TCpuThrottlingStatistics{
+            .NrPeriods = static_cast<ui64>(statistics["nr_periods"]),
+            .NrThrottled = static_cast<ui64>(statistics["nr_throttled"]),
+            .ThrottledTime = CpuLocation->IsV2
+                ? TDuration::MicroSeconds(statistics["h_throttled_usec"])
+                : TDuration::MicroSeconds(statistics["h_throttled_time"] / 1000),
+            .WaitTime = GetWaitTime(),
         };
     }
 
-    i64 GetOomKillCount() const override
+    // NB(pavook): we prefer cpuacct.wait (kernel extension) because it is an honest sum of individual thread wait times,
+    // not the union of those wait times ("pressure", upstream).
+    TDuration GetWaitTime() const
     {
-        auto oomPath = GetCGroupFilePath(CGroupPath_, "memory.events");
-        if (!NFs::Exists(oomPath)) {
-            return 0;
+        if (!CpuAcctLocation) {
+            return TDuration::Zero();
         }
-        auto statistics = ReadAndParseStatFile(oomPath);
-        return statistics["oom_kill"];
-    }
 
-private:
-    const std::string CGroupPath_;
-
-    // Tries cpuacct.wait (kernel extension, nanoseconds),
-    // falls back to PSI cpu.pressure (upstream kernel, microseconds).
-    // NB(pavook): we prefer cpuacct.wait because it is an honest sum of
-    // individual thread wait times, not the union of those wait times ("pressure").
-    TDuration ReadCpuWaitTime() const
-    {
-        auto cpuacctWaitPath = GetCGroupFilePath(CGroupPath_, "cpuacct.wait");
-        try {
-            if (NFs::Exists(cpuacctWaitPath)) {
-                auto ns = FromString<ui64>(TFileInput(cpuacctWaitPath).ReadLine());
+        auto waitPath = StatFilePath(CpuAcctLocation->Path, "cpuacct.wait");
+        if (NFs::Exists(waitPath)) {
+            try {
+                auto ns = FromString<ui64>(TFileInput(waitPath).ReadLine());
                 return TDuration::MicroSeconds(ns / 1000);
+            } catch (const std::exception&) {
             }
-        } catch (const std::exception&) {
         }
 
-        auto cpuPressurePath = GetCGroupFilePath(CGroupPath_, "cpu.pressure");
+        // The PSI fallback only exists in the v2 unified hierarchy.
+        if (!(CpuLocation && CpuLocation->IsV2)) {
+            return TDuration::Zero();
+        }
+
+        auto pressurePath = StatFilePath(CpuLocation->Path, "cpu.pressure");
         try {
-            auto raw = TFileInput(cpuPressurePath).ReadAll();
+            auto raw = TFileInput(pressurePath).ReadAll();
             for (const auto& line : SplitString(raw, "\n")) {
                 if (!line.StartsWith("some ")) {
                     continue;
@@ -382,113 +348,182 @@ private:
         return TDuration::Zero();
     }
 
-    static THashMap<std::string, i64> ReadAndParseIOStatFile(const TString& fileName)
-    {
-        THashMap<std::string, i64> statistics;
-
-        auto rawStatFile = TFileInput(fileName).ReadAll();
-        for (auto line : SplitString(rawStatFile, "\n")) {
-            auto fields = SplitString(line, " ");
-            for (int index = 1; index < std::ssize(fields); ++index) {
-                auto tokens = SplitString(fields[index], "=");
-                if (tokens.size() != 2) {
-                    continue;
-                }
-                statistics[tokens[0]] += FromString<i64>(tokens[1]);
-            }
-        }
-
-        return statistics;
-    }
+    const std::optional<TCGroupLocation> CpuLocation;
+    const std::optional<TCGroupLocation> CpuAcctLocation;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DetectIsV2()
+class TIOStatisticsFetcher
 {
-    struct statfs sfs;
-    if (statfs("/sys/fs/cgroup", &sfs) != 0) {
-        YT_LOG_WARNING("Failed to statfs /sys/fs/cgroup, assuming cgroup v1");
-        return false;
+public:
+    explicit TIOStatisticsFetcher(const THashMap<std::string, std::string>& selfCGroups)
+        : Location(ResolveController({"blkio", "blkio.reset_stats", "io.stat"}, selfCGroups))
+    { }
+
+    TIOStatistics GetStatistics() const
+    {
+        if (!Location) {
+            return {};
+        }
+
+        if (Location->IsV2) {
+            auto ioStatistics = ReadAndParseIOStatFile(StatFilePath(Location->Path, "io.stat"));
+
+            return TIOStatistics{
+                .IOReadByte = ioStatistics["rbytes"],
+                .IOWriteByte = ioStatistics["wbytes"],
+                .IOReadOps = ioStatistics["rios"],
+                .IOWriteOps = ioStatistics["wios"],
+            };
+        } else {
+            TIOStatistics statistics;
+
+            for (auto fileName : {"blkio.io_service_bytes_recursive", "blkio.throttle.io_service_bytes_recursive"}) {
+                auto filePath = StatFilePath(Location->Path, fileName);
+                if (!NFs::Exists(filePath)) {
+                    continue;
+                }
+
+                auto blkioStatistics = ReadAndParseBlkIOStatFile(filePath);
+                statistics.IOReadByte += blkioStatistics["Read"];
+                statistics.IOWriteByte += blkioStatistics["Write"];
+                break;
+            }
+
+            for (auto fileName : {"blkio.io_serviced_recursive", "blkio.throttle.io_serviced_recursive"}) {
+                auto filePath = StatFilePath(Location->Path, fileName);
+                if (!NFs::Exists(filePath)) {
+                    continue;
+                }
+
+                auto blkioStatistics = ReadAndParseBlkIOStatFile(filePath);
+                statistics.IOReadOps += blkioStatistics["Read"];
+                statistics.IOWriteOps += blkioStatistics["Write"];
+                break;
+            }
+
+            return statistics;
+        }
     }
 
-    if (sfs.f_type == CGROUP2_SUPER_MAGIC) {
-        return true;
+    const std::optional<TCGroupLocation> Location;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: only used for determining whether the pids controller is v2 or not.
+class TPidsStatisticsFetcher
+{
+public:
+    explicit TPidsStatisticsFetcher(const THashMap<std::string, std::string>& selfCGroups)
+        : Location(ResolveController({"pids", "cgroup.procs", "cgroup.procs"}, selfCGroups))
+    { }
+
+    const std::optional<TCGroupLocation> Location;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Reads each controller from its own resolved location, in that controller's format.
+class TCGroupStatisticsFetcher
+    : public ICGroupStatisticsFetcher
+{
+public:
+    explicit TCGroupStatisticsFetcher(const THashMap<std::string, std::string>& selfCGroups)
+        : Memory_(selfCGroups)
+        , Cpu_(selfCGroups)
+        , IO_(selfCGroups)
+        , Pids_(selfCGroups)
+    {
+        THashMap<ECGroupController, std::optional<TCGroupLocation>> resolved;
+        resolved[ECGroupController::Memory] = Memory_.Location;
+        resolved[ECGroupController::Cpu] = Cpu_.CpuLocation;
+        resolved[ECGroupController::CpuAcct] = Cpu_.CpuAcctLocation;
+        resolved[ECGroupController::IO] = IO_.Location;
+        resolved[ECGroupController::Pids] = Pids_.Location;
+        YT_LOG_INFO("CGroups statistics fetcher initialized (Controllers: %v)",
+            resolved);
     }
 
-    // On v1 systems, /sys/fs/cgroup should be a tmpfs with per-controller mounts underneath.
-    if (sfs.f_type != TMPFS_MAGIC) {
-        YT_LOG_ERROR(
-            "Unexpected filesystem type on /sys/fs/cgroup (FsType: 0x%x), assuming cgroup v1",
-            sfs.f_type);
+    bool IsControllerV2(ECGroupController controller) const override
+    {
+        std::optional<TCGroupLocation> location;
+        switch (controller) {
+            case ECGroupController::Memory:
+                location = Memory_.Location;
+                break;
+            case ECGroupController::Cpu:
+                location = Cpu_.CpuLocation;
+                break;
+            case ECGroupController::CpuAcct:
+                location = Cpu_.CpuAcctLocation;
+                break;
+            case ECGroupController::IO:
+                location = IO_.Location;
+                break;
+            case ECGroupController::Pids:
+                location = Pids_.Location;
+                break;
+        }
+
+        // If the controller couldn't be resolved, fall back to V1.
+        return location ? location->IsV2 : false;
     }
 
-    return false;
+    TMemoryStatistics GetMemoryStatistics() const override
+    {
+        return Memory_.GetStatistics();
+    }
+
+    TMemoryLimits GetMemoryLimits() const override
+    {
+        return Memory_.GetLimits();
+    }
+
+    TCpuStatistics GetCpuStatistics() const override
+    {
+        return Cpu_.GetStatistics();
+    }
+
+    TCpuThrottlingStatistics GetCpuThrottlingStatistics() const override
+    {
+        return Cpu_.GetThrottlingStatistics();
+    }
+
+    TIOStatistics GetIOStatistics() const override
+    {
+        return IO_.GetStatistics();
+    }
+
+    i64 GetOomKillCount() const override
+    {
+        return Memory_.GetOomKillCount();
+    }
+
+private:
+    const TMemoryStatisticsFetcher Memory_;
+    const TCpuStatisticsFetcher Cpu_;
+    const TIOStatisticsFetcher IO_;
+    const TPidsStatisticsFetcher Pids_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString ReadProcFile(const TString& path)
+{
+    try {
+        return TFileInput(path).ReadAll();
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING("Failed to read %v (Error: %v)", path, ex.what());
+        return {};
+    }
 }
 
-// Parses /proc/self/cgroup to extract the cgroup path for the current process.
-// For v2: returns the unified cgroup path from the "0::" line.
-// For v1: returns per-controller mount names and paths.
 std::unique_ptr<ICGroupStatisticsFetcher> CreateFetcher()
 {
-    bool isV2 = DetectIsV2();
-
-    TString rawSelfCGroups;
-    try {
-        rawSelfCGroups = TFileInput("/proc/self/cgroup").ReadAll();
-    } catch (const std::exception& ex) {
-        YT_LOG_WARNING("Failed to read /proc/self/cgroup (Error: %v)", ex.what());
-    }
-
-    if (isV2) {
-        // Extract the unified cgroup path from the "0::<path>" line.
-        for (const auto& line : SplitString(rawSelfCGroups, "\n")) {
-            std::vector<std::string> tokens = StringSplitter(line).Split(':').Limit(3);
-            if (tokens.size() < 3 || !tokens[1].empty()) {
-                continue;
-            }
-
-            // NB: There are issues with cgroup namespaces in Kubernetes
-            // (see https://github.com/kubernetes/enhancements/pull/1370),
-            // where /proc/self/cgroup contains real cgroup path
-            // but in /sys/fs/cgroup it is just root cgroup.
-            auto cgroupPath = tokens[2];
-            if (!NFs::Exists(GetCGroupFilePath(cgroupPath, "memory.stat"))) {
-                cgroupPath = "/";
-            }
-
-            return std::make_unique<TV2CGroupStatisticsFetcher>(std::move(cgroupPath));
-        }
-
-        YT_LOG_WARNING("Failed to find v2 cgroup path in /proc/self/cgroup, falling back to root");
-        return std::make_unique<TV2CGroupStatisticsFetcher>("/");
-    }
-
-    // V1: parse per-controller entries.
-    THashMap<std::string, TV1ControllerInfo> v1Controllers;
-
-    for (const auto& line : SplitString(rawSelfCGroups, "\n")) {
-        std::vector<std::string> tokens = StringSplitter(line).Split(':').Limit(3);
-        if (tokens.size() < 3 || tokens[1].empty()) {
-            continue;
-        }
-
-        const auto& cgroupType = tokens[1];
-        const auto& cgroup = tokens[2];
-
-        for (const auto& controller : StringSplitter(cgroupType).Split(',')) {
-            v1Controllers[controller] = TV1ControllerInfo{
-                .MountName = cgroupType,
-                .CGroupPath = cgroup,
-            };
-        }
-    }
-
-    if (v1Controllers.empty()) {
-        YT_LOG_WARNING("Failed to parse /proc/self/cgroup, no v1 controllers found");
-    }
-
-    return std::make_unique<TV1CGroupStatisticsFetcher>(std::move(v1Controllers));
+    auto selfCGroups = ParseProcessCGroups(ReadProcFile("/proc/self/cgroup"));
+    return std::make_unique<TCGroupStatisticsFetcher>(selfCGroups);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
