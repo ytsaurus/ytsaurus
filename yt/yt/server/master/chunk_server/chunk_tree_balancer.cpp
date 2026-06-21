@@ -106,7 +106,8 @@ TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::Rebalance(TChunkLis
     YT_VERIFY(newStatistics.HunkDataWeight == oldStatistics.HunkDataWeight);
     YT_VERIFY(newStatistics.HunkDataSize == oldStatistics.HunkDataSize);
     YT_VERIFY(newStatistics.HunkRegularDiskSpace == oldStatistics.HunkRegularDiskSpace);
-    YT_VERIFY(newStatistics.HunkErasureDiskSpace == oldStatistics.HunkErasureDiskSpace);
+    // NB: We do not compare HunkErasureDiskSpace field because it is unreliable
+    // due to integer arithmetics in ComputeDiskSpaceFromDataSize.
 
     // Should we schedule a requisition update here? We shouldn't. Here's why.
     // First of all, it would be prohibitively expensive (trust me, I checked).
