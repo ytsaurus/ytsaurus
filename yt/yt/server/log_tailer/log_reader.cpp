@@ -28,7 +28,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TryParseInstantFromLogInstant(TString logInstant, TInstant& instant)
+bool TryParseInstantFromLogInstant(std::string logInstant, TInstant& instant)
 {
     //          01234567890123456789012
     // Log:     2019-07-12 13:43:05,183
@@ -42,7 +42,7 @@ bool TryParseInstantFromLogInstant(TString logInstant, TInstant& instant)
     return TInstant::TryParseIso8601(logInstant, instant);
 }
 
-TString GetBoundaryTimestampString(const TLogRecord& firstRecord, const TLogRecord& lastRecord)
+std::string GetBoundaryTimestampString(const TLogRecord& firstRecord, const TLogRecord& lastRecord)
 {
     // It may happen that boundary timestamps are ill-formed as there may appear arbitrary garbage in logs.
     bool boundaryTimestampsWellFormed = true;
@@ -57,7 +57,7 @@ TString GetBoundaryTimestampString(const TLogRecord& firstRecord, const TLogReco
     }
 }
 
-TLogRecord ParseLogRecord(const TString& rawLogRecord)
+TLogRecord ParseLogRecord(const std::string& rawLogRecord)
 {
     TVector<TString> tokens;
     StringSplitter(rawLogRecord).Split('\t').Collect(&tokens);
@@ -82,7 +82,7 @@ TUnversionedRow LogRecordToUnversionedRow(
     const TLogRecord& record,
     const TRowBufferPtr& rowBuffer,
     const TNameTablePtr& nameTable,
-    const std::vector<std::pair<TString, TString>>& extraLogTableColumns = {})
+    const std::vector<std::pair<std::string, std::string>>& extraLogTableColumns = {})
 {
     TUnversionedRowBuilder builder;
     builder.AddValue(ToUnversionedValue(record.Timestamp, rowBuffer, nameTable->GetId("timestamp")));
@@ -106,7 +106,7 @@ TUnversionedRow LogRecordToUnversionedRow(
 TLogFileReader::TLogFileReader(
     TLogFileConfigPtr config,
     TBootstrap* bootstrap,
-    std::vector<std::pair<TString, TString>> extraLogTableColumns)
+    std::vector<std::pair<std::string, std::string>> extraLogTableColumns)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , RowBuffer_(New<TRowBuffer>())
@@ -215,7 +215,7 @@ void TLogFileReader::DoReadLog()
 void TLogFileReader::DoOpenLogFile()
 {
     if (!Log_) {
-        TFile file(Config_->Path, OpenExisting | RdOnly | Seq);
+        TFile file(TString(Config_->Path), OpenExisting | RdOnly | Seq);
         TFileStat fstat(file.GetHandle());
         YT_LOG_INFO("Log is not open; trying to open (Inode: %v)", fstat.INode);
         Log_ = TUnbufferedFileInput(file);
