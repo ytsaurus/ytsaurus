@@ -204,37 +204,67 @@ protected:
             TColumnSchema("value1", EValueType::Int64),
             TColumnSchema("value2", EValueType::Int64)});
     }
+
+    TConstExpressionPtr ConvertPredicate(const char* predicate) const
+    {
+        auto schema = GetSampleTableSchema();
+
+        auto context = CreateQueryContext();
+
+        auto conversionSettings = TConversionSettings::Create(TCompositeSettings::Create(true));
+        auto columns = DB::ColumnsDescription(ToNamesAndTypesList(*schema, conversionSettings));
+        auto storage = std::make_shared<DB::StorageDummy>(DB::StorageID{"YT", "test"}, columns);
+
+        auto tableNode = std::make_shared<DB::TableNode>(storage, context);
+
+        DB::ParserExpressionWithOptionalAlias parser(false);
+        auto predicateAst = DB::parseQuery(parser, predicate, 0 /*maxQuerySize*/, 0 /*maxQueryDepth*/, 0 /*max_parser_backtracks*/);
+        auto queryTree = DB::buildQueryTree(predicateAst, context);
+
+        DB::QueryAnalysisPass queryAnalysisPass(tableNode);
+        queryAnalysisPass.run(queryTree, context);
+
+        return ConvertToConstExpression(std::move(queryTree), schema, conversionSettings);
+    }
 };
 
 TEST_P(TQueryTreeConverterTest, Simple)
 {
-    auto schema = GetSampleTableSchema();
-
-    auto context = CreateQueryContext();
-
-    auto conversionSettings = TConversionSettings::Create(TCompositeSettings::Create(true));
-    auto columns = DB::ColumnsDescription(ToNamesAndTypesList(*schema, conversionSettings));
-    auto storage = std::make_shared<DB::StorageDummy>(DB::StorageID{"YT", "test"}, columns);
-
-    auto tableNode = std::make_shared<DB::TableNode>(storage, context);
-
     auto& param = GetParam();
 
     auto expected = std::get<0>(param);
 
-    DB::ParserExpressionWithOptionalAlias parser(false);
-    auto predicateAst = DB::parseQuery(parser, std::get<1>(param), 0 /*maxQuerySize*/, 0 /*maxQueryDepth*/, 0 /*max_parser_backtracks*/);
-    auto queryTree = DB::buildQueryTree(predicateAst, context);
-
-    DB::QueryAnalysisPass queryAnalysisPass(tableNode);
-    queryAnalysisPass.run(queryTree, context);
-
-    auto expr = ConvertToConstExpression(std::move(queryTree), schema, conversionSettings);
+    auto expr = ConvertPredicate(std::get<1>(param));
     ASSERT_TRUE(expr != nullptr);
 
     EXPECT_TRUE(Equal(expr, expected))
         << "got: " << InferName(expr) << std::endl
         << "expected: " <<  InferName(expected) << std::endl;
+}
+
+TEST_F(TQueryTreeConverterTest, DropUnconvertibleOperand)
+{
+    {
+        auto expr = ConvertPredicate("(key = 1) and (lower(key_str) = '2')");
+        ASSERT_TRUE(expr != nullptr);
+        EXPECT_TRUE(Equal(expr,
+            MakeBinaryExpression(EBinaryOp::Equal,
+                MakeReferenceExpression("key"),
+                MakeLiteralExpression(MakeUnversionedInt64Value(1)))))
+            << "got: " << InferName(expr);
+    }
+    {
+        auto expr = ConvertPredicate("not ((key = 1) or (lower(key_str) = '2'))");
+        ASSERT_TRUE(expr != nullptr);
+        EXPECT_TRUE(Equal(expr,
+            MakeUnaryExpression(EUnaryOp::Not,
+                MakeBinaryExpression(EBinaryOp::Equal,
+                    MakeReferenceExpression("key"),
+                    MakeLiteralExpression(MakeUnversionedInt64Value(1))))))
+            << "got: " << InferName(expr);
+    }
+    EXPECT_EQ(ConvertPredicate("(key = 1) or (lower(key_str) = '2')"), nullptr);
+    EXPECT_EQ(ConvertPredicate("not ((key = 1) and (lower(key_str) = '2'))"), nullptr);
 }
 
 // TODO (buyval01) : Add test with CH implicit cast of uint8 values to bool
@@ -320,6 +350,32 @@ INSTANTIATE_TEST_SUITE_P(
                         MakeReferenceExpression("key"),
                         MakeLiteralExpression(MakeUnversionedInt64Value(2))))),
             "not ((key < 3) and (key >= 2))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            MakeBinaryExpression(EBinaryOp::Or,
+                MakeBinaryExpression(EBinaryOp::Or,
+                    MakeBinaryExpression(EBinaryOp::Equal,
+                        MakeReferenceExpression("key"),
+                        MakeLiteralExpression(MakeUnversionedInt64Value(1))),
+                    MakeBinaryExpression(EBinaryOp::Equal,
+                        MakeReferenceExpression("key"),
+                        MakeLiteralExpression(MakeUnversionedInt64Value(2)))),
+                MakeBinaryExpression(EBinaryOp::Equal,
+                    MakeReferenceExpression("key"),
+                    MakeLiteralExpression(MakeUnversionedInt64Value(3)))),
+            "(key = 1) or (key = 2) or (key = 3)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            MakeBinaryExpression(EBinaryOp::And,
+                MakeBinaryExpression(EBinaryOp::And,
+                    MakeBinaryExpression(EBinaryOp::Greater,
+                        MakeReferenceExpression("key"),
+                        MakeLiteralExpression(MakeUnversionedInt64Value(1))),
+                    MakeBinaryExpression(EBinaryOp::Less,
+                        MakeReferenceExpression("key"),
+                        MakeLiteralExpression(MakeUnversionedInt64Value(10)))),
+                MakeBinaryExpression(EBinaryOp::NotEqual,
+                    MakeReferenceExpression("key"),
+                    MakeLiteralExpression(MakeUnversionedInt64Value(5)))),
+            "(key > 1) and (key < 10) and (key != 5)"),
         std::tuple<TConstExpressionPtr, const char*>(
             New<TInExpression>(
                 std::initializer_list<TConstExpressionPtr>({
