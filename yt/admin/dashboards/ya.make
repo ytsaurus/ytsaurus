@@ -53,6 +53,7 @@ PY_SRCS(
     yt_dashboards/data_node_local.py
     yt_dashboards/queue_agent.py
     yt_dashboards/queue_and_consumer_metrics.py
+    yt_dashboards/table_dispersion.py
     yt_dashboards/user_load.py
     yt_dashboards/common/__init__.py
     yt_dashboards/common/postprocessors.py
