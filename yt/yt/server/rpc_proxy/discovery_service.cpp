@@ -153,11 +153,11 @@ private:
     const IProxyCoordinatorPtr ProxyCoordinator_;
     const NApi::NNative::IConnectionPtr Connection_;
     const NApi::NNative::IClientPtr RootClient_;
-    const TString ProxyPath_;
+    const NYPath::TYPath ProxyPath_;
     const TPeriodicExecutorPtr AliveUpdateExecutor_;
     const TPeriodicExecutorPtr ProxyUpdateExecutor_;
     const std::optional<int> GrpcPort_;
-    const std::optional<TString> GrpcProxyPath_;
+    const std::optional<NYPath::TYPath> GrpcProxyPath_;
     TCompactVector<ICypressRegistrarPtr, 2> CypressRegistrars_;
 
     std::atomic<TInstant> LastSuccessTimestamp_ = Now();
@@ -190,7 +190,7 @@ private:
         return port;
     }
 
-    std::optional<TString> BuildGrpcProxyPath()
+    std::optional<NYPath::TYPath> BuildGrpcProxyPath()
     {
         if (!GrpcPort_) {
             return std::nullopt;
@@ -202,7 +202,7 @@ private:
     struct TProxyDescriptor
     {
         TProxyAddressMap Addresses;
-        TString CypressPath;
+        NYPath::TYPath CypressPath;
         bool IsGrpc = false;
     };
 
@@ -237,9 +237,9 @@ private:
         return descriptors;
     }
 
-    std::vector<TString> GetCypressPaths() const
+    std::vector<NYPath::TYPath> GetCypressPaths() const
     {
-        std::vector<TString> paths = {ProxyPath_};
+        std::vector<NYPath::TYPath> paths = {ProxyPath_};
         if (GrpcProxyPath_) {
             paths.push_back(*GrpcProxyPath_);
         }
@@ -391,7 +391,7 @@ private:
             bool changed = ProxyCoordinator_->SetBannedState(banned);
             if (changed) {
                 if (banned) {
-                    ProxyCoordinator_->SetBanMessage(attributes->Get(BanMessageAttributeName, TString()));
+                    ProxyCoordinator_->SetBanMessage(attributes->Get(BanMessageAttributeName, std::string()));
                 }
                 YT_LOG_INFO("Proxy has been %v (Path: %v)", banned ? "banned" : "unbanned", ProxyPath_);
             }

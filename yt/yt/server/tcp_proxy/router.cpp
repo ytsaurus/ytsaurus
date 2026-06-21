@@ -237,19 +237,19 @@ private:
 
         TRoutingTable routingTable;
         for (const auto& item : ConvertTo<IListNodePtr>(listResult)->GetChildren()) {
-            auto key = item->GetValue<TString>();
+            auto key = item->GetValue<std::string>();
             ui16 port;
             if (!TryFromString(key, port)) {
                 THROW_ERROR_EXCEPTION("Unrecognized port %Qv in routing table", key);
             }
 
             TEndpoints endpoints;
-            for (const auto& address : item->Attributes().Get<std::vector<TString>>("endpoints")) {
+            for (const auto& address : item->Attributes().Get<std::vector<std::string>>("endpoints")) {
                 TStringBuf host;
                 int port;
                 ParseServiceAddress(address, &host, &port);
                 endpoints.push_back(TEndpoint{
-                    .Host = TString(host),
+                    .Host = std::string(host),
                     .Port = ui16(port),
                 });
             }
@@ -274,7 +274,7 @@ private:
         RoutingTableUpdateExecutor_->SetPeriod(GetDynamicConfig()->RoutingTableUpdatePeriod);
     }
 
-    static TString GetLoggingString(const TEndpoints& endpoints)
+    static std::string GetLoggingString(const TEndpoints& endpoints)
     {
         TStringBuilder builder;
         builder.AppendString("{");

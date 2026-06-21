@@ -237,7 +237,7 @@ const char* TProgramException::what() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString CheckPathExistsArgMapper(const TString& arg)
+std::string CheckPathExistsArgMapper(const std::string& arg)
 {
     if (!NFS::Exists(arg)) {
         throw TProgramException(Format("File %v does not exist", arg));

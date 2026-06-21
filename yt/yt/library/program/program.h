@@ -116,7 +116,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Helper for TOpt::StoreMappedResult to validate file paths for existence.
-TString CheckPathExistsArgMapper(const TString& arg);
+std::string CheckPathExistsArgMapper(const std::string& arg);
 
 //! Helper for TOpt::StoreMappedResult to parse types with #FromString.
 template <class T>

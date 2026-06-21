@@ -176,7 +176,7 @@ public:
     TFuture<void> Run() final;
 
     void LoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         ESerializationDumpMode dumpMode,
         TSerializationDumpScopeFilter dumpScopeFilter,
         bool checkInvariants);
@@ -285,7 +285,7 @@ protected:
     void InitializeTimestampProvider();
 
     void DoLoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         ESerializationDumpMode dumpMode,
         TSerializationDumpScopeFilter dumpScopeFilter,
         bool checkInvariants);

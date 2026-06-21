@@ -64,7 +64,7 @@ public:
     void Initialize();
 
     void LoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         ESerializationDumpMode dumpMode);
 
 private:
@@ -93,7 +93,7 @@ private:
     void DoStart();
 
     void DoLoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         ESerializationDumpMode dumpMode);
 
     NYTree::IYPathServicePtr CreateCellOrchidService() const;

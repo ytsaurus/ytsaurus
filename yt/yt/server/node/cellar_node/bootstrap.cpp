@@ -245,7 +245,7 @@ public:
     }
 
     void LoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         NHydra::NProto::TSnapshotMeta meta,
         ESerializationDumpMode dumpMode,
         bool checkInvariants) override
@@ -334,7 +334,7 @@ private:
     }
 
     void DoLoadSnapshot(
-        const TString& fileName,
+        const std::string& fileName,
         const NHydra::NProto::TSnapshotMeta& meta,
         ESerializationDumpMode dumpMode,
         bool checkInvariants)

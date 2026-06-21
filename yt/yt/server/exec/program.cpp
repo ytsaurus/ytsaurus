@@ -43,7 +43,7 @@ public:
 
 private:
     TFile ExecutorStderr_;
-    TString JobId_;
+    std::string JobId_;
 
     std::vector<int> GetReservedDescriptors()
     {
@@ -208,7 +208,7 @@ private:
         std::vector<const char*> args;
         args.push_back("/bin/bash");
 
-        TString command;
+        std::string command;
         if (!config->Command.empty()) {
             // :; is added avoid fork/exec (one-shot) optimization.
             command = ":; " + config->Command;

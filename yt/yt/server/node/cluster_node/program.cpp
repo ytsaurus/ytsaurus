@@ -296,7 +296,7 @@ private:
     bool ValidateSnapshotFlag_ = false;
     bool AbortOnAlert_ = false;
     bool CheckInvariants_ = true;
-    TString LoadSnapshotPath_;
+    std::string LoadSnapshotPath_;
     bool ReplayChangelogsFlag_ = false;
     std::vector<TString> ReplayChangelogsPaths_;
     bool CellIdFlag_ = false;
@@ -304,7 +304,7 @@ private:
     std::string TabletCellBundle_ = "fake-bundle";
     TCellTag::TUnderlying ClockClusterTag_ = InvalidCellTag.Underlying();
     bool BuildSnapshotFlag_ = false;
-    TString BuildSnapshotPath_;
+    std::string BuildSnapshotPath_;
     bool SnapshotMetaFlag_ = false;
     NYson::TYsonString SnapshotMeta_;
     bool SkipTvmServiceEnvValidationFlag_ = false;

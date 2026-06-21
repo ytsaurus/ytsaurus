@@ -33,8 +33,8 @@ public:
     }
 
 protected:
-    TString ToolName_;
-    TString ToolSpec_;
+    std::string ToolName_;
+    std::string ToolSpec_;
 
     void DoRun() final
     {

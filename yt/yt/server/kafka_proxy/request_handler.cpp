@@ -77,8 +77,8 @@ constinit const auto Logger = KafkaProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString OAuthBearerSaslMechanism = "OAUTHBEARER";
-static const TString PlainSaslMechanism = "PLAIN";
+static const std::string OAuthBearerSaslMechanism = "OAUTHBEARER";
+static const std::string PlainSaslMechanism = "PLAIN";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -294,7 +294,7 @@ private:
                 regexReplacementCount);
         }
 
-        return TString(outputTopicName);
+        return TYPath(outputTopicName);
     }
 
     std::string GetUserName(const TConnectionStatePtr& connectionState) const
@@ -438,7 +438,7 @@ private:
             return response;
         }
 
-        auto fillError = [&response] (const TString& message) {
+        auto fillError = [&response] (const std::string& message) {
             response.ErrorCode = NKafka::EErrorCode::SaslAuthenticationFailed;
             response.ErrorMessage = message;
         };
@@ -461,7 +461,7 @@ private:
         };
 
         std::string token;
-        std::optional<TString> expectedUserName;
+        std::optional<std::string> expectedUserName;
 
         if (*connectionState->SaslMechanism == OAuthBearerSaslMechanism) {
             YT_LOG_DEBUG("Authenticating using OAUTHBEARER SASL mechanism");

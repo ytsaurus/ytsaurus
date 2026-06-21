@@ -175,7 +175,7 @@ public:
     }
 
 private:
-    TString ProgramName_;
+    std::string ProgramName_;
 
     void DoRun() override
     {
