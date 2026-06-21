@@ -361,7 +361,7 @@ IListNodePtr TClusterStateProvider::FetchNodes()
     TListNodeOptions options;
     options.Attributes = TAttributeFilter({}, {TabletStaticPath, TabletSlotsPath});
 
-    static const TString TabletNodesPath = "//sys/tablet_nodes";
+    static const NYPath::TYPath TabletNodesPath = "//sys/tablet_nodes";
 
     YT_LOG_DEBUG("Started fetching node statistics");
 

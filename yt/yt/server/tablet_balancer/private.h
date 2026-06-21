@@ -18,8 +18,8 @@ static const NYPath::TYPath DefaultTabletBalancerDynamicConfigPath = DefaultTabl
 static const NYPath::TYPath TabletCellBundlesPath("//sys/tablet_cell_bundles");
 
 // TODO(alexelex): rename TabletStaticPath to TabletStaticMemory.
-static const TString TabletStaticPath = "/statistics/memory/tablet_static";
-static const TString TabletSlotsPath = "/tablet_slots";
+static const NYPath::TYPath TabletStaticPath = "/statistics/memory/tablet_static";
+static const NYPath::TYPath TabletSlotsPath = "/tablet_slots";
 
 ////////////////////////////////////////////////////////////////////////////////
 

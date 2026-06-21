@@ -11,7 +11,7 @@
 namespace NYT::NTabletBalancer {
 
 const TTimeFormula DefaultTabletBalancerSchedule = MakeTimeFormula("minutes % 5 == 0");
-const TString StatisticsTableDefaultPath = "//sys/tablet_balancer/performance_counters";
+const NYPath::TYPath StatisticsTableDefaultPath = "//sys/tablet_balancer/performance_counters";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,8 +57,7 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(0.0)
         .GreaterThanOrEqual(0);
     registrar.Parameter("default_parameterized_metric", &TThis::DefaultParameterizedMetric)
-        // TODO(navasardianna): change TString in the config to std::string.
-        .Default(static_cast<TString>(DefaultParameterizedMetricFormula))
+        .Default(DefaultParameterizedMetricFormula)
         .NonEmpty();
     registrar.Parameter("parameterized_factors", &TThis::ParameterizedFactors)
         .DefaultCtor([] {

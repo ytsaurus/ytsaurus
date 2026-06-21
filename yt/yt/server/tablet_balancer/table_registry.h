@@ -15,7 +15,7 @@ namespace NYT::NTabletBalancer {
 struct TTableProfilingCounters
 {
     std::string BundleName;
-    TString GroupName;
+    std::string GroupName;
     NProfiling::TCounter InMemoryMoves;
     NProfiling::TCounter OrdinaryMoves;
     NProfiling::TCounter TabletMerges;
@@ -36,7 +36,7 @@ struct TTableProfilingCounters
 class TTableRegistry final
 {
 public:
-    TTableProfilingCounters& GetProfilingCounters(const TTable* table, const TString& groupName);
+    TTableProfilingCounters& GetProfilingCounters(const TTable* table, const std::string& groupName);
 
 private:
     THashSet<TTableId> TablesWithAlienTable_;
@@ -46,7 +46,7 @@ private:
     THashMap<TTableId, TTableProfilingCounters> ProfilingCounters_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProfilingCountersLock_);
 
-    TTableProfilingCounters InitializeProfilingCounters(const TTable* table, const TString& groupName) const;
+    TTableProfilingCounters InitializeProfilingCounters(const TTable* table, const std::string& groupName) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableRegistry)

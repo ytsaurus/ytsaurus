@@ -23,7 +23,7 @@ struct IMoveIteration
     virtual void LogDisabledBalancing() const = 0;
 
     virtual const std::string& GetBundleName() const = 0;
-    virtual const TString& GetGroupName() const = 0;
+    virtual const std::string& GetGroupName() const = 0;
     virtual const TTabletCellBundlePtr& GetBundle() const = 0;
     virtual const TTabletBalancerDynamicConfigPtr& GetDynamicConfig() const = 0;
     virtual const TTabletBalancingGroupConfigPtr& GetGroupConfig() const = 0;
@@ -50,14 +50,14 @@ IMoveIterationPtr CreateInMemoryMoveIteration(
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IMoveIterationPtr CreateParameterizedMoveIteration(
-    TString groupName,
+    std::string groupName,
     TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IMoveIterationPtr CreateReplicaMoveIteration(
-    TString groupName,
+    std::string groupName,
     TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,

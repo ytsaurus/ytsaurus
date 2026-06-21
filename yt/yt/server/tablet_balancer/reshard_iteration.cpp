@@ -335,7 +335,8 @@ public:
             BundleSnapshot_->PerformanceCountersKeys,
             TParameterizedResharderConfig{
                 .EnableReshardByDefault = DynamicConfig_->EnableParameterizedReshardByDefault,
-                .Metric = DynamicConfig_->DefaultParameterizedMetric,
+                // TODO(babenko): migrate to std::string
+                .Metric = TString(DynamicConfig_->DefaultParameterizedMetric),
             }.MergeWith(groupConfig->Parameterized),
             GroupName_,
             Logger());

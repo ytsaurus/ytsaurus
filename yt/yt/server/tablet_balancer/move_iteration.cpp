@@ -31,7 +31,7 @@ class TMoveIterationBase
 {
 public:
     TMoveIterationBase(
-        TString groupName,
+        std::string groupName,
         TBundleSnapshotPtr bundleSnapshot,
         TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
@@ -72,7 +72,7 @@ public:
         return BundleName_;
     }
 
-    const TString& GetGroupName() const override
+    const std::string& GetGroupName() const override
     {
         return GroupName_;
     }
@@ -266,7 +266,7 @@ class TParameterizedMoveIterationBase
 {
 public:
     TParameterizedMoveIterationBase(
-        TString groupName,
+        std::string groupName,
         TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
@@ -294,7 +294,8 @@ protected:
             .NodeDeviationThreshold = DynamicConfig_->ParameterizedNodeDeviationThreshold,
             .CellDeviationThreshold = DynamicConfig_->ParameterizedCellDeviationThreshold,
             .MinRelativeMetricImprovement = DynamicConfig_->ParameterizedMinRelativeMetricImprovement,
-            .Metric = DynamicConfig_->DefaultParameterizedMetric,
+            // TODO(babenko): migrate to std::string
+            .Metric = TString(DynamicConfig_->DefaultParameterizedMetric),
             .Factors = DynamicConfig_->ParameterizedFactors,
         }.MergeWith(
             GroupConfig_->Parameterized,
@@ -309,7 +310,7 @@ class TParameterizedMoveIteration
 {
 public:
     TParameterizedMoveIteration(
-        TString groupName,
+        std::string groupName,
         TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
@@ -368,7 +369,7 @@ class TReplicaMoveIteration
 {
 public:
     TReplicaMoveIteration(
-        TString groupName,
+        std::string groupName,
         TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
@@ -516,7 +517,7 @@ IMoveIterationPtr CreateInMemoryMoveIteration(
 }
 
 IMoveIterationPtr CreateParameterizedMoveIteration(
-    TString groupName,
+    std::string groupName,
     TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
@@ -531,7 +532,7 @@ IMoveIterationPtr CreateParameterizedMoveIteration(
 }
 
 IMoveIterationPtr CreateReplicaMoveIteration(
-    TString groupName,
+    std::string groupName,
     TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
