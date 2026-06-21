@@ -526,6 +526,8 @@ void TDictionaryRepositoryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("root_path", &TThis::RootPath)
         .NonEmpty();
+    registrar.Parameter("update_period", &TThis::UpdatePeriod)
+        .Default(TDuration::Seconds(30));
 }
 
 void TDictionaryAccessControlConfig::Register(TRegistrar registrar)
