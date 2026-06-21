@@ -63,13 +63,14 @@ TJournalChunk::TJournalChunk(
     TStoreLocationPtr location,
     const TChunkDescriptor& descriptor)
     : TChunkBase(
-        context,
+        std::move(context),
         location,
         descriptor.Id)
-    , StoreLocation_(location)
+    , StoreLocation_(std::move(location))
 {
     FlushedRowCount_.store(descriptor.RowCount);
     DataSize_.store(descriptor.DiskSpace);
+    OpeningDelayed_.store(descriptor.OpeningDelayed);
     Sealed_.store(descriptor.Sealed);
 }
 
@@ -115,6 +116,10 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
         StartReadSession(session, options);
     } catch (const std::exception& ex) {
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
+    }
+
+    if (IsOpeningDelayed()) {
+        FinishDelayedOpening(/*changelog*/ nullptr);
     }
 
     TMiscExt miscExt;
@@ -690,12 +695,16 @@ i64 TJournalChunk::GetFlushedRowCount() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    YT_VERIFY(!OpeningDelayed_);
+
     return FlushedRowCount_.load();
 }
 
 void TJournalChunk::UpdateFlushedRowCount(i64 rowCount)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    YT_VERIFY(!OpeningDelayed_);
 
     UpdateMax(FlushedRowCount_, rowCount);
 }
@@ -712,6 +721,31 @@ void TJournalChunk::UpdateDataSize(i64 dataSize)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     UpdateMax(DataSize_, dataSize);
+}
+
+bool TJournalChunk::IsOpeningDelayed() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return OpeningDelayed_.load();
+}
+
+void TJournalChunk::FinishDelayedOpening(const NHydra::IFileChangelogPtr& changelog)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    if (OpeningDelayed_) {
+        YT_VERIFY(Sealed_);
+
+        auto actualChangelog = changelog
+            ? changelog
+            : GetChangelog();
+
+        FlushedRowCount_ = actualChangelog->GetRecordCount();
+        // TODO(akozhikhov): Check that data size matches after we learn to truncate it during seal.
+
+        OpeningDelayed_ = false;
+    }
 }
 
 bool TJournalChunk::IsSealed() const

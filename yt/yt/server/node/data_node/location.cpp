@@ -1888,17 +1888,31 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(TChunkId chun
 
     if (hasData) {
         const auto& dispatcher = ChunkContext_->JournalDispatcher;
-        // NB: This also creates the index file, if missing.
-        auto changelog = WaitFor(dispatcher->OpenJournal(this, chunkId))
-            .ValueOrThrow();
+
         TChunkDescriptor descriptor;
         descriptor.Id = chunkId;
-        descriptor.DiskSpace = changelog->GetDataSize();
-        descriptor.RowCount = changelog->GetRecordCount();
-        descriptor.Sealed = WaitFor(dispatcher->IsJournalSealed(this, chunkId))
-            .ValueOrThrow();
-        return descriptor;
 
+        if (dispatcher->IsJournalSealed(this, chunkId)) {
+            // TODO(akozhikhov): Include index data size too.
+            descriptor.DiskSpace = NFS::GetPathStatistics(dataFileName).Size;
+            descriptor.Sealed = true;
+            descriptor.RowCount = -1;
+            descriptor.OpeningDelayed = true;
+
+            YT_LOG_DEBUG("Created journal chunk descriptor with delayed opening (ChunkId: %v, DiskSpace: %v)",
+                chunkId,
+                descriptor.DiskSpace);
+        } else {
+            // NB: This also creates the index file, if missing.
+            auto changelog = WaitFor(dispatcher->OpenJournal(this, chunkId))
+                .ValueOrThrow();
+
+            descriptor.DiskSpace = changelog->GetDataSize();
+            descriptor.RowCount = changelog->GetRecordCount();
+            descriptor.Sealed = false;
+        }
+
+        return descriptor;
     } else if (!hasData && hasIndex) {
         YT_LOG_WARNING("Journal data file %v is missing, moving index file %v to trash",
             dataFileName,

@@ -85,9 +85,9 @@ public:
         const TJournalChunkPtr& chunk,
         bool enableMultiplexing) override;
 
-    TFuture<bool> IsJournalSealed(
+    bool IsJournalSealed(
         const TStoreLocationPtr& location,
-        TChunkId chunkId) override;
+        TChunkId chunkId) const override;
 
     TFuture<void> SealJournal(TJournalChunkPtr chunk) override;
 
@@ -354,9 +354,9 @@ TFuture<void> TJournalDispatcher::RemoveJournal(
     return journalManager->RemoveChangelog(chunk, enableMultiplexing);
 }
 
-TFuture<bool> TJournalDispatcher::IsJournalSealed(
+bool TJournalDispatcher::IsJournalSealed(
     const TStoreLocationPtr& location,
-    TChunkId chunkId)
+    TChunkId chunkId) const
 {
     const auto& journalManager = location->GetJournalManager();
     return journalManager->IsChangelogSealed(chunkId);

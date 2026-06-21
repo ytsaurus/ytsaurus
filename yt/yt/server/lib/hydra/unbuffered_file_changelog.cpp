@@ -122,6 +122,7 @@ public:
                         FileHeaderSize_ = sizeof(TChangelogHeader_5);
                         RecordHeaderSize_ = sizeof(TChangelogRecordHeader_5);
                         break;
+
                     default:
                         THROW_ERROR_EXCEPTION(
                             NHydra::EErrorCode::BrokenChangelog,
@@ -303,6 +304,8 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        ValidateOpen();
+
         return Meta_;
     }
 
@@ -310,12 +313,16 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        ValidateOpen();
+
         return RecordCount_.load();
     }
 
     i64 GetDataSize() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        ValidateOpen();
 
         return CurrentFileOffset_.load();
     }
@@ -346,6 +353,7 @@ public:
             case EFileChangelogFormat::V5:
                 DoAppend<TChangelogRecordHeader_5>(firstRecordIndex, records);
                 break;
+
             default:
                 YT_ABORT();
         }
@@ -401,6 +409,7 @@ public:
         switch (Format_) {
             case EFileChangelogFormat::V5:
                 return DoRead<TChangelogRecordHeader_5>(firstRecordIndex, maxRecords, maxBytes);
+
             default:
                 YT_ABORT();
         }
@@ -411,9 +420,12 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        ValidateOpen();
+
         switch (Format_) {
             case EFileChangelogFormat::V5:
                 return DoMakeChunkFragmentReadRequest<TChangelogRecordHeader_5>(fragmentDescriptor);
+
             default:
                 YT_ABORT();
         }
@@ -532,7 +544,8 @@ private:
         auto amplification = static_cast<double>(MediaWrittenBytes_) / PayloadWrittenBytes_;
         WriteAmplificationRatio_.store(amplification, std::memory_order::relaxed);
 
-        YT_LOG_DEBUG("Updating write amplification (PayloadWrittenBytes: %v, MediaWrittenBytes: %v, WriteAmplification: %v)",
+        YT_LOG_DEBUG("Updating write amplification "
+            "(PayloadWrittenBytes: %v, MediaWrittenBytes: %v, WriteAmplification: %v)",
             PayloadWrittenBytes_,
             MediaWrittenBytes_,
             amplification);
@@ -572,7 +585,7 @@ private:
         CurrentFileSize_ = -1;
     }
 
-    void ValidateOpen()
+    void ValidateOpen() const
     {
         if (!Open_) {
             THROW_ERROR_EXCEPTION(
@@ -581,7 +594,7 @@ private:
         }
     }
 
-    void ValidateNotOpen()
+    void ValidateNotOpen() const
     {
         if (Open_) {
             THROW_ERROR_EXCEPTION(
@@ -596,7 +609,11 @@ private:
         while (true) {
             YT_LOG_DEBUG("Locking data file");
 
-            auto error = WaitFor(IOEngine_->Lock({.Handle = DataFileHandle_, .Mode = ELockFileMode::Exclusive, .Nonblocking = true}));
+            auto error = WaitFor(IOEngine_->Lock({
+                .Handle = DataFileHandle_,
+                .Mode = ELockFileMode::Exclusive,
+                .Nonblocking = true
+            }));
             if (error.IsOK()) {
                 break;
             }
@@ -681,6 +698,7 @@ private:
             case EFileChangelogFormat::V5:
                 DoCreateDataFile<TChangelogHeader_5, TChangelogRecordHeader_5>();
                 break;
+
             default:
                 YT_ABORT();
         }
@@ -899,6 +917,7 @@ private:
         switch (Format_) {
             case EFileChangelogFormat::V5:
                 return DoGuessRecordReadSize<TChangelogRecordHeader_5>(offset, dataFileLength);
+
             default:
                 YT_ABORT();
         }
@@ -949,6 +968,7 @@ private:
         switch (Format_) {
             case EFileChangelogFormat::V5:
                 return DoReadAndParseRange<TChangelogRecordHeader_5>(range, firstRecordIndex, throwOnError);
+
             default:
                 YT_ABORT();
         }

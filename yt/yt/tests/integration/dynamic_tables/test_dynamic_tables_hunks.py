@@ -2292,6 +2292,55 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: not exists("#{}".format(store_chunk_id)))
 
     @authors("akozhikhov")
+    def test_journal_hunk_chunks_survive_restart(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "store_removal_grace_period": 100,
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+
+        sync_mount_table("//tmp/t")
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows1)
+
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        hunk_chunk_ids = [chunk_id for chunk_id in get("//tmp/t/@chunk_ids") if chunk_id != store_chunk_id]
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+
+        def _check_fully_sealed():
+            if not get("#{}/@sealed".format(hunk_chunk_id)):
+                return False
+            hunk_chunk_stored_replicas = get("#{}/@stored_replicas".format(hunk_chunk_id))
+            assert len(hunk_chunk_stored_replicas) == 3
+            if not all(r.attributes["state"] == "sealed" for r in hunk_chunk_stored_replicas):
+                return False
+            return True
+
+        wait(lambda: _check_fully_sealed())
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10, 20)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows2)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: get("//sys/tablet_cell_bundles/default/@health") != "good")
+
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health") == "good")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2)
+
+    @authors("akozhikhov")
     def test_read_from_erasure_hunk_storage_with_repair(self):
         self._separate_tablet_and_data_nodes()
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
