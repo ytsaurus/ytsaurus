@@ -71,7 +71,10 @@ private:
             options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
             auto chunkMeta = NYT::NConcurrency::WaitFor(chunk->ReadMeta(options))
                 .ValueOrThrow();
+
+            auto miscExt = FindProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta->extensions());
             auto blocksExt = FindProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta->extensions());
+
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("disk_space").Value(chunk->GetInfo().disk_space())
@@ -82,8 +85,9 @@ private:
                             .Item("block_count").Value(blocksExt->blocks_size());
                     })
                     .DoIf(chunk->IsJournalChunk(), [&] (TFluentMap fluent) {
+                        YT_VERIFY(miscExt);
                         fluent
-                            .Item("flushed_row_count").Value(chunk->AsJournalChunk()->GetFlushedRowCount());
+                            .Item("flushed_row_count").Value(miscExt->row_count());
                     })
                     .DoIf(static_cast<bool>(AllyReplicaManager_), [&] (TFluentMap fluent) {
                         AllyReplicaManager_->BuildChunkOrchidYson(fluent, chunk->GetId());

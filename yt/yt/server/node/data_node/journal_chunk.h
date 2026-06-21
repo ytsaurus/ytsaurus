@@ -51,11 +51,18 @@ public:
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
         bool useDirectIO) override;
 
+    // Returns flushed row count.
+    // NB: Cannot be accessed if journal chunk is in OpeningDelayed state.
     i64 GetFlushedRowCount() const;
+    // Updates flushed row count to maximum of the current value and #rowCount.
+    // NB: Cannot be accessed if journal chunk is in OpeningDelayed state.
     void UpdateFlushedRowCount(i64 rowCount);
 
     i64 GetDataSize() const;
     void UpdateDataSize(i64 dataSize);
+
+    bool IsOpeningDelayed() const;
+    void FinishDelayedOpening(const NHydra::IFileChangelogPtr& changelog);
 
     TFuture<void> ExecuteSeal();
     void SetSealed();
@@ -68,6 +75,7 @@ private:
 
     std::atomic<i64> FlushedRowCount_ = 0;
     std::atomic<i64> DataSize_ = 0;
+    std::atomic<bool> OpeningDelayed_ = false;
 
     std::atomic<bool> Sealed_ = false;
 

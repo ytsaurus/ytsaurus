@@ -1079,7 +1079,16 @@ public:
         return MultiplexedWriter_->EstimateWriteSize(payloadSize);
     }
 
-    TFuture<bool> IsChangelogSealed(TChunkId chunkId) override
+    bool IsChangelogSealed(TChunkId chunkId) const override
+    {
+        return Location_->DisableOnError(BIND(
+            &TJournalManager::DoIsChangelogSealed,
+            MakeStrong(this),
+            chunkId))
+            .Run();
+    }
+
+    TFuture<bool> AsyncIsChangelogSealed(TChunkId chunkId)
     {
         return BIND(Location_->DisableOnError(BIND(&TJournalManager::DoIsChangelogSealed, MakeStrong(this), chunkId)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
@@ -1170,18 +1179,22 @@ private:
         chunk->SyncRemove(false);
     }
 
-    bool DoIsChangelogSealed(TChunkId chunkId)
+    bool DoIsChangelogSealed(TChunkId chunkId) const
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         return NFS::Exists(GetSealedFlagFileName(chunkId));
     }
 
-    void DoSealChangelog(const TJournalChunkPtr& chunk)
+    void DoSealChangelog(const TJournalChunkPtr& chunk) const
     {
         TFile file(GetSealedFlagFileName(chunk->GetId()), CreateNew);
     }
 
-    TString GetSealedFlagFileName(TChunkId chunkId)
+    TString GetSealedFlagFileName(TChunkId chunkId) const
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         return Location_->GetChunkPath(chunkId) + "." + SealedFlagExtension;
     }
 
@@ -1255,6 +1268,10 @@ private:
             auto changelog = WaitFor(changelogFuture)
                 .ValueOrThrow();
 
+            if (journalChunk->IsOpeningDelayed()) {
+                journalChunk->FinishDelayedOpening(changelog);
+            }
+
             EmplaceOrCrash(IdToChangelog_, chunkId, changelog);
 
             return changelog;
@@ -1297,7 +1314,7 @@ private:
 
         bool IsSplitChangelogSealed(TChunkId chunkId) override
         {
-            return WaitFor(Impl_->IsChangelogSealed(chunkId))
+            return WaitFor(Impl_->AsyncIsChangelogSealed(chunkId))
                 .ValueOrThrow();
         }
 

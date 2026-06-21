@@ -458,23 +458,34 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
 
             case EObjectType::JournalChunk:
             case EObjectType::ErasureJournalChunk: {
-                auto longerRowCount = chunk->AsJournalChunk()->GetFlushedRowCount();
-                auto shorterRowCount = oldChunk->AsJournalChunk()->GetFlushedRowCount();
+                std::optional<i64> longerRowCount;
+                std::optional<i64> shorterRowCount;
+                if (!chunk->AsJournalChunk()->IsSealed()) {
+                    longerRowCount = chunk->AsJournalChunk()->GetFlushedRowCount();
+                }
+                if (!oldChunk->AsJournalChunk()->IsSealed()) {
+                    shorterRowCount = oldChunk->AsJournalChunk()->GetFlushedRowCount();
+                }
 
                 auto longerChunk = chunk;
                 auto shorterChunk = oldChunk;
 
-                if (longerRowCount < shorterRowCount) {
+                if (longerRowCount && !shorterRowCount ||
+                    longerRowCount && shorterRowCount && longerRowCount < shorterRowCount)
+                {
                     std::swap(longerRowCount, shorterRowCount);
                     std::swap(longerChunk, shorterChunk);
                 }
 
                 // Remove shorter replica.
-                YT_LOG_WARNING("Removing shorter journal chunk: %v (%v rows) vs %v (%v rows)",
+                YT_LOG_WARNING("Removing shorter journal chunk: %v (RowCount: %v, Sealed: %v) vs %v (RowCount: %v, Sealed: %v)",
                     shorterChunk->GetFileName(),
                     shorterRowCount,
+                    shorterChunk->AsJournalChunk()->IsSealed(),
                     longerChunk->GetFileName(),
-                    longerRowCount);
+                    longerRowCount,
+                    longerChunk->AsJournalChunk()->IsSealed());
+
                 shorterChunk->SyncRemove(true);
                 if (shorterChunk == oldChunk) {
                     // But register new chunk.
@@ -561,7 +572,7 @@ void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
 
 void TChunkStore::UpdateExistingChunk(
     const IChunkPtr& chunk,
-    const NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>&)
+    const NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& /*guard*/)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ChunkMapLock_);

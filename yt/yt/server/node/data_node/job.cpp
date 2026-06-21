@@ -358,6 +358,7 @@ IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
 }
+
 IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, TChunkLocationUuid locationUuid)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1246,6 +1247,8 @@ private:
             YT_LOG_DEBUG("Finished downloading missing journal chunk rows");
         }
 
+        // TODO(akozhikhov): Truncate excess rows?
+
         YT_LOG_DEBUG("Started sealing journal chunk (RowCount: %v)",
             sealRowCount);
 
@@ -1256,10 +1259,15 @@ private:
             const auto& chunkStore = Bootstrap_->GetChunkStore();
             auto guard = chunkStore->AcquireChunkMapWriterLock();
 
+            auto recordCount = changelog->GetRecordCount();
+            auto dataSize = changelog->GetDataSize();
+
             journalChunk->SetSealed();
-            YT_LOG_DEBUG("Finished sealing journal chunk");
-            journalChunk->UpdateFlushedRowCount(changelog->GetRecordCount());
-            journalChunk->UpdateDataSize(changelog->GetDataSize());
+            YT_LOG_DEBUG("Finished sealing journal chunk (RowCount: %v, DataSize: %v)",
+                recordCount,
+                dataSize);
+            journalChunk->UpdateFlushedRowCount(recordCount);
+            journalChunk->UpdateDataSize(dataSize);
 
             chunkStore->UpdateExistingChunk(chunk, guard);
         }

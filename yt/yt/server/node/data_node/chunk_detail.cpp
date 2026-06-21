@@ -56,7 +56,7 @@ TChunkBase::TChunkBase(
     TChunkLocationPtr location,
     TChunkId id)
     : Context_(std::move(context))
-    , Location_(location)
+    , Location_(std::move(location))
     , Id_(id)
 { }
 
