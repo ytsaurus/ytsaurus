@@ -116,6 +116,8 @@ struct TNodeTrackerDynamicConfig
 
     TDuration HeartbeatTimeout;
 
+    int MaxDetectedOfflineNodes;
+
     REGISTER_YSON_STRUCT(TNodeTrackerDynamicConfig);
 
     static void Register(TRegistrar registrar);

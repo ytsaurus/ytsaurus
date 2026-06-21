@@ -131,7 +131,7 @@ public:
     TBundleController(IBootstrap* bootstrap, TBundleControllerConfigPtr config)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
-        , Profiler("/bundle_controller")
+        , Profiler(BundleControllerProfiler())
         , SuccessfulScanBundleCounter_(Profiler.Counter("/successful_scan_bundles_count"))
         , FailedScanBundleCounter_(Profiler.Counter("/failed_scan_bundles_count"))
         , SuccessfulScanChaosBundleCounter_(Profiler.Counter("/succesful_scan_chaos_bundles_count"))
