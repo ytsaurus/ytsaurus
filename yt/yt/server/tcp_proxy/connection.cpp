@@ -39,7 +39,7 @@ void PipeConnectionReaderToWriter(
         struct TConnectionProxyTag
         { };
 
-        auto buffer = TSharedMutableRef::Allocate<TConnectionProxyTag>(1_MB);
+        auto buffer = TSharedMutableRef::Allocate<TConnectionProxyTag>(1_MB, {.InitializeStorage = false});
         while (true) {
             // TODO(gritukan): Get rid of WaitFor here one day.
             auto readSize = WaitFor(reader->Read(buffer))
