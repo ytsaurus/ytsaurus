@@ -53,7 +53,7 @@ protected:
     const NYPath::TYPath StateRoot_;
     const IInvokerPtr ControlInvoker_;
     const TEngineConfigBasePtr Config_;
-    const TString Query_;
+    const std::string Query_;
     const TQueryId QueryId_;
     const i64 Incarnation_;
     const std::string User_;

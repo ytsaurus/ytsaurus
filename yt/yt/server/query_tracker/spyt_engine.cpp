@@ -69,9 +69,9 @@ struct TSpytSettings
 
     std::optional<TYPath> DiscoveryPath;
 
-    THashMap<TString, TString> SparkConf;
+    THashMap<std::string, std::string> SparkConf;
 
-    THashMap<TString, TString> Params;
+    THashMap<std::string, std::string> Params;
 
     int NumExecutors;
 
@@ -129,7 +129,7 @@ struct TSpytQueryResult
 {
     const bool IsTruncated;
     const TArrowSchemaPtr ArrowSchema;
-    const std::vector<TString> ArrowData;
+    const std::vector<std::string> ArrowData;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,7 +335,7 @@ public:
     }
 
 private:
-    const TString DriverOperationDescription_;
+    const std::string DriverOperationDescription_;
 
     TOperationId DriverOperationId_;
 
@@ -805,7 +805,7 @@ private:
         return ServerLauncher_->WaitForSparkConnectEndpoint();
     }
 
-    TSpytQueryResult SubmitQuery(const TString& endpoint)
+    TSpytQueryResult SubmitQuery(const std::string& endpoint)
     {
         auto sessionId = ServerLauncher_->GetSessionId();
         ExecutePlanRequest request;
@@ -830,13 +830,14 @@ private:
         YT_LOG_DEBUG("Created gRPC request for executing a plan (ExecutePlanRequest: %v)",
             request.DebugString());
 
-        auto channel = grpc::CreateChannel(endpoint, grpc::InsecureChannelCredentials());
+        // TODO(babenko): migrate to std::string
+        auto channel = grpc::CreateChannel(TString(endpoint), grpc::InsecureChannelCredentials());
         auto service = SparkConnectService::NewStub(channel);
 
         auto responseReader = service->ExecutePlan(GrpcContext_.get(), request);
         ExecutePlanResponse responsePart;
         i64 rowCount = 0;
-        std::vector<TString> arrowData;
+        std::vector<std::string> arrowData;
         std::optional<TArrowSchemaPtr> arrowSchema;
         while (responseReader->Read(&responsePart)) {
             if (responsePart.has_arrow_batch()) {
@@ -886,7 +887,7 @@ private:
 
     TSpytQueryResult Execute()
     {
-        TString endpoint = PrepareSession();
+        std::string endpoint = PrepareSession();
         try {
             return SubmitQuery(endpoint);
         } catch (const std::exception& ex) {

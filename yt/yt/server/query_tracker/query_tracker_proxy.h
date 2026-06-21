@@ -30,7 +30,7 @@ public:
     void StartQuery(
         const TQueryId queryId,
         const EQueryEngine engine,
-        const TString& query,
+        const std::string& query,
         const NApi::TStartQueryOptions& options,
         const std::string& user);
 
