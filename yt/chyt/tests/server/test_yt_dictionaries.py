@@ -142,6 +142,85 @@ class TestYtDictionaries(ClickHouseTestBase):
             )
         assert result == [{"value": "a1"}, {"value": "a2"}, {"value": "b1"}, {"value": "n/a"}]
 
+    @authors("buyval01")
+    def test_sparse_table_read(self):
+        create(
+            "table",
+            "//tmp/dict",
+            attributes={
+                "schema": [
+                    {"name": "tmp1", "type": "int64", "required": True},
+                    {"name": "key", "type": "uint64", "required": True},
+                    {"name": "value_i64", "type": "int64", "required": True},
+                    {"name": "tmp2", "type": "int64", "required": True},
+                    {"name": "value_str", "type": "string", "required": True},
+                ]
+            },
+        )
+        write_table(
+            "//tmp/dict",
+            [
+                {
+                    "tmp1": i,
+                    "key": i,
+                    "value_i64": i * i,
+                    "tmp2": i,
+                    "value_str": "str" + str(i),
+                }
+                for i in [1, 3, 5]
+            ],
+        )
+
+        with Clique(
+                1,
+                config_patch={
+                    "clickhouse": {
+                        "dictionaries": [
+                            {
+                                "name": "dict1",
+                                "layout": {"flat": {}},
+                                "structure": {
+                                    "id": {"name": "key"},
+                                    # Attribute order intentionally differs from the table column order.
+                                    "attribute": [
+                                        {"name": "value_str", "type": "String", "null_value": "n/a"},
+                                        {"name": "value_i64", "type": "Int64", "null_value": 42},
+                                    ],
+                                },
+                                "lifetime": 0,
+                                "source": {"yt": {"path": "//tmp/dict"}},
+                            },
+                            {
+                                "name": "dict2",
+                                "layout": {"flat": {}},
+                                "structure": {
+                                    "id": {"name": "key"},
+                                    "attribute": [
+                                        {"name": "value_str", "type": "String", "null_value": "n/a"},
+                                        {"name": "absent", "type": "Int64", "null_value": 0},
+                                    ],
+                                },
+                                "lifetime": 0,
+                                "source": {"yt": {"path": "//tmp/dict"}},
+                            }
+                        ]
+                    }
+                },
+        ) as clique:
+            assert clique.make_query(
+                "select number, dictGetString('dict1', 'value_str', number) as str, "
+                "dictGetInt64('dict1', 'value_i64', number) as i64 from numbers(5)"
+            ) == [
+                {"number": 0, "str": "n/a", "i64": 42},
+                {"number": 1, "str": "str1", "i64": 1},
+                {"number": 2, "str": "n/a", "i64": 42},
+                {"number": 3, "str": "str3", "i64": 9},
+                {"number": 4, "str": "n/a", "i64": 42},
+            ]
+
+            with raises_yt_error(message_pattern="is missing in the source table schema"):
+                clique.make_query("select dictGetInt64('dict2', 'absent', CAST(1 as UInt64))")
+
     @authors("max42")
     @flaky(max_runs=3)
     def test_lifetime(self):

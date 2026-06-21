@@ -93,7 +93,7 @@ public:
 
         auto table = FetchTable();
 
-        ValidateSchema(*table->Schema);
+        auto readSchema = BuildReadSchema(*table->Schema);
 
         auto tableReadSpec = FetchSingleTableReadSpec(TFetchSingleTableReadSpecOptions{
             .RichPath = Path_,
@@ -111,12 +111,12 @@ public:
             tableReadSpec,
             TClientChunkReadOptions(),
             true,
-            NTableClient::TNameTable::FromSchema(*table->Schema),
-            NTableClient::TColumnFilter(table->Schema->GetColumnCount()));
+            NTableClient::TNameTable::FromSchema(*readSchema),
+            NTableClient::TColumnFilter(readSchema->GetColumnCount()));
 
         auto source = CreateSecondaryQuerySource(
             reader,
-            BuildSimpleReadPlan(table->Schema->Columns()),
+            BuildSimpleReadPlan(readSchema->Columns()),
             /*traceContext*/ nullptr,
             Host_,
             Host_->GetConfig()->QuerySettings,
@@ -197,14 +197,32 @@ private:
     bool SupportsSelectiveLoad_;
     std::shared_ptr<DB::Session> Session_;
 
-    void ValidateSchema(const TTableSchema& schema)
+    TTableSchemaPtr BuildReadSchema(const TTableSchema& tableSchema)
     {
-        auto namesAndTypesList = ToNamesAndTypesList(schema, New<TConversionSettings>());
+        std::vector<TColumnSchema> columns;
+        columns.reserve(NamesAndTypesList_.size());
+        for (const auto& nameAndType : NamesAndTypesList_) {
+            const auto* column = tableSchema.FindColumn(nameAndType.name);
+            if (!column) {
+                THROW_ERROR_EXCEPTION("Dictionary column %Qv is missing in the source table schema",
+                    nameAndType.name)
+                    << TErrorAttribute("config_schema", NamesAndTypesList_.toString())
+                    << TErrorAttribute("actual_schema",
+                        ToNamesAndTypesList(tableSchema, New<TConversionSettings>()).toString());
+            }
+            columns.emplace_back(*column);
+        }
+
+        auto readSchema = New<TTableSchema>(std::move(columns));
+
+        auto namesAndTypesList = ToNamesAndTypesList(*readSchema, New<TConversionSettings>());
         if (namesAndTypesList != NamesAndTypesList_) {
-            THROW_ERROR_EXCEPTION("Dictionary table schema does not match schema from config")
+            THROW_ERROR_EXCEPTION("Dictionary schema does not match the source table schema")
                 << TErrorAttribute("config_schema", NamesAndTypesList_.toString())
                 << TErrorAttribute("actual_schema", namesAndTypesList.toString());
         }
+
+        return readSchema;
     }
 
     TTablePtr FetchTable() {
