@@ -26,8 +26,8 @@ void ConvertAcoToOldFormat(NApi::TQuery& query);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString Compress(const TString& data, std::optional<ui64> maxCompressedStringSize = std::nullopt, int quality = 9);
-TString Decompress(const std::string& data);
+std::string Compress(const std::string& data, std::optional<ui64> maxCompressedStringSize = std::nullopt, int quality = 9);
+std::string Decompress(const std::string& data);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -55,13 +55,13 @@ struct TChytSettings
 {
     std::optional<std::string> Cluster;
 
-    std::optional<TString> Clique;
+    std::optional<std::string> Clique;
 
     std::optional<ui64> Instance;
 
     TDuration QueryTimeout;
 
-    THashMap<TString, TString> QuerySettings;
+    THashMap<std::string, std::string> QuerySettings;
 
     REGISTER_YSON_STRUCT(TChytSettings);
 
@@ -140,7 +140,7 @@ public:
 private:
     const TChytSettingsPtr Settings_;
     const TChytEngineConfigPtr Config_;
-    TString Clique_;
+    std::string Clique_;
     std::string Cluster_;
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::IClientPtr QueryClient_;
@@ -241,7 +241,7 @@ private:
             Logger);
     }
 
-    TString GetStringRepresentation(const INodePtr& node)
+    std::string GetStringRepresentation(const INodePtr& node)
     {
         switch (node->GetType()) {
             case ENodeType::Int64:
@@ -253,15 +253,14 @@ private:
             case ENodeType::Boolean:
                 return node->AsBoolean()->GetValue() ? "1" : "0";
             case ENodeType::String:
-                // TODO(babenko): migrate to std::string
-                return TString(node->AsString()->GetValue());
+                return node->AsString()->GetValue();
             default:
                 THROW_ERROR_EXCEPTION("Cannot convert non-scalar data of type %Qlv to string", node->GetType());
         }
     }
 
     void DFSForUnrecognizedSettings(
-        THashMap<TString, TString>& flattenedSettings,
+        THashMap<std::string, std::string>& flattenedSettings,
         const INodePtr& node)
     {
         auto type = node->GetType();
@@ -285,10 +284,10 @@ private:
         }
     }
 
-    THashMap<TString, TString> GetUnrecognizedFlattenedSettings()
+    THashMap<std::string, std::string> GetUnrecognizedFlattenedSettings()
     {
         auto unrecognized = Settings_->GetLocalUnrecognized();
-        THashMap<TString, TString> flattenedSettings;
+        THashMap<std::string, std::string> flattenedSettings;
         DFSForUnrecognizedSettings(flattenedSettings, unrecognized);
         return flattenedSettings;
     }

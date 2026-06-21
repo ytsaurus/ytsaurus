@@ -51,14 +51,14 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     query.AccessControlObjects = partialRecord.AccessControlObjects.value_or(TYsonString(TString("[]")));
     query.State = partialRecord.State;
     query.ResultCount = partialRecord.ResultCount.value_or(std::nullopt);
-    query.Progress = TYsonString(partialRecord.Progress ? Decompress(partialRecord.Progress.value()) : TString("{}"));
+    query.Progress = TYsonString(partialRecord.Progress ? Decompress(partialRecord.Progress.value()) : std::string("{}"));
     query.Error = partialRecord.Error.value_or(std::nullopt);
     query.Annotations = partialRecord.Annotations.value_or(TYsonString());
     query.Secrets = partialRecord.Secrets.value_or(TYsonString(TString("[]")));
     query.IsIndexed = partialRecord.IsIndexed;
 
     IAttributeDictionaryPtr otherAttributes;
-    auto fillIfPresent = [&] (const TString& key, const auto& value) {
+    auto fillIfPresent = [&] (const std::string& key, const auto& value) {
         if (value) {
             if (!otherAttributes) {
                 otherAttributes = CreateEphemeralAttributes();
@@ -105,7 +105,7 @@ THashSet<std::string> GetUserSubjects(const std::string& user, const IClientPtr&
 
 void ConvertAcoToOldFormat(TQuery& query)
 {
-    auto accessControlObjectList = ConvertTo<std::optional<std::vector<TString>>>(query.AccessControlObjects);
+    auto accessControlObjectList = ConvertTo<std::optional<std::vector<std::string>>>(query.AccessControlObjects);
 
     if (!accessControlObjectList || accessControlObjectList->empty()) {
         return;
@@ -122,7 +122,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString DoCompress(const TString& data, int quality = 9)
+std::string DoCompress(const std::string& data, int quality = 9)
 {
     TString compressed;
     TStringOutput output(compressed);
@@ -139,15 +139,15 @@ TString DoCompress(const TString& data, int quality = 9)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString DefaultCompressedValue = DoCompress(TString("{}"));
+const std::string DefaultCompressedValue = DoCompress("{}");
 
-TString Compress(const TString& data, std::optional<ui64> maxCompressedStringSize, int quality)
+std::string Compress(const std::string& data, std::optional<ui64> maxCompressedStringSize, int quality)
 {
     auto compressedValue = DoCompress(data, quality);
     return maxCompressedStringSize.has_value() && compressedValue.size() > maxCompressedStringSize.value() ? DefaultCompressedValue : compressedValue;
 }
 
-TString Decompress(const std::string& data)
+std::string Decompress(const std::string& data)
 {
     TMemoryInput input(data.begin(), data.size());
     TZstdDecompress decompressStream(&input);

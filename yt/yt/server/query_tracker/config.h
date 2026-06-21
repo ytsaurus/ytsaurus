@@ -62,7 +62,7 @@ DEFINE_REFCOUNTED_TYPE(TYqlEngineConfig)
 struct TChytEngineConfig
     : public TEngineConfigBase
 {
-    TString DefaultClique;
+    std::string DefaultClique;
     std::string DefaultCluster;
     TDuration ProgressPollPeriod;
 
@@ -191,9 +191,9 @@ struct TQueryTrackerBootstrapConfig
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
 
-    TString Root;
+    NYPath::TYPath Root;
 
     REGISTER_YSON_STRUCT(TQueryTrackerBootstrapConfig);
 

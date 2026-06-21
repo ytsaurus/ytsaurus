@@ -68,15 +68,15 @@ constexpr int MaxAccessControlObjectsPerQuery = 10;
 const NYPath::TYPath QueriesAcoNamespacePath = "//sys/access_control_object_namespaces/queries";
 
 static const TYsonString EmptyMap = TYsonString(TString("{}"));
-static const TString CompressedEmptyMap = Compress(EmptyMap.ToString(), MaxDyntableStringSize);
+static const std::string CompressedEmptyMap = Compress(EmptyMap.ToString(), MaxDyntableStringSize);
 
 //! Lookup one of query tracker state tables by query id.
 template <class TRecordDescriptor>
 TFuture<typename TRecordDescriptor::TRecordPartial> LookupQueryTrackerRecord(
     TQueryId queryId,
     const IClientPtr& client,
-    const TString& tablePath,
-    const TString& tableKind,
+    const NYPath::TYPath& tablePath,
+    const std::string& tableKind,
     const std::optional<std::vector<std::string>>& lookupKeys,
     TTimestamp timestamp)
 {
@@ -130,7 +130,7 @@ ESecurityAction CheckAccessControl(
         return NSecurityClient::ESecurityAction::Allow;
     }
 
-    auto accessControlObjectList = ConvertTo<std::optional<std::vector<TString>>>(accessControlObjects);
+    auto accessControlObjectList = ConvertTo<std::optional<std::vector<std::string>>>(accessControlObjects);
     if (!accessControlObjectList) {
         return NSecurityClient::ESecurityAction::Deny;
     }
@@ -176,7 +176,7 @@ void ThrowAccessDeniedException(
 TQuery LookupQuery(
     TQueryId queryId,
     const IClientPtr& client,
-    const TString& root,
+    const NYPath::TYPath& root,
     const std::optional<std::vector<std::string>>& lookupKeys,
     TTimestamp timestamp,
     const TLogger& logger)
@@ -223,7 +223,7 @@ TQuery LookupQuery(
 
 void ValidateQueryPermissions(
     TQueryId queryId,
-    const TString& root,
+    const NYPath::TYPath& root,
     TTimestamp timestamp,
     const std::string& user,
     const IClientPtr& client,
@@ -360,7 +360,7 @@ void TQueryTrackerProxy::Reconfigure(
 void TQueryTrackerProxy::StartQuery(
     const TQueryId queryId,
     const EQueryEngine engine,
-    const TString& query,
+    const std::string& query,
     const TStartQueryOptions& options,
     const std::string& user)
 {
@@ -422,7 +422,7 @@ void TQueryTrackerProxy::StartQuery(
     }
 
     if (options.Draft) {
-        TString filterFactors;
+        std::string filterFactors;
         {
             static_assert(TFinishedQueryDescriptor::FieldCount == 19);
             TFinishedQueryPartial newRecord{
@@ -671,7 +671,7 @@ IUnversionedRowsetPtr TQueryTrackerProxy::ReadQueryResult(
     auto timestamp = WaitFor(StateClient_->GetTimestampProvider()->GenerateTimestamps())
         .ValueOrThrow();
 
-    TString wireRowset;
+    std::string wireRowset;
     TTableSchemaPtr schema;
     {
         auto rowBuffer = New<TRowBuffer>();

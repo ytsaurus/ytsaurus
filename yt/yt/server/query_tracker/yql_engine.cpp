@@ -144,19 +144,19 @@ public:
     }
 
 private:
-    const TString Query_;
+    const std::string Query_;
     const TYqlEngineConfigPtr Config_;
     const std::vector<TQueryFilePtr> Files_;
     const NApi::NNative::IConnectionPtr Connection_;
     const TYqlSettingsPtr Settings_;
-    const TString Stage_;
+    const std::string Stage_;
     const EExecuteMode ExecuteMode_;
     const IInvokerPtr ProgressInvoker_;
     const std::vector<TQuerySecretPtr> Secrets_;
 
     IRoamingChannelProviderPtr YqlAgentChannelProvider_;
     TYqlAgentChannelConfigPtr YqlAgentChannelProviderConfig_;
-    TString YqlServiceName_;
+    std::string YqlServiceName_;
 
     IChannelPtr YqlServiceChannel_;
     TPeriodicExecutorPtr ProgressGetterExecutor_;

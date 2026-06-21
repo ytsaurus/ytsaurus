@@ -40,8 +40,8 @@ static NLogging::TLogger Logger("SearchIndex");
 static const TYsonString EmptyMap = TYsonString(TString("{}"));
 static const ui64 ShrunkFormattableViewLimit = 20;
 
-const TString FinishedQueriesByAcoAndStartTimeTable = "finished_queries_by_aco_and_start_time";
-const TString FinishedQueriesByUserAndStartTimeTable = "finished_queries_by_user_and_start_time";
+const std::string FinishedQueriesByAcoAndStartTimeTable = "finished_queries_by_aco_and_start_time";
+const std::string FinishedQueriesByUserAndStartTimeTable = "finished_queries_by_user_and_start_time";
 const std::string SearchIndexTable = "search_inverted_index";
 const std::string SearchMetaTable = "search_meta";
 
@@ -467,7 +467,7 @@ public:
         }
         auto rowBuffer = New<TRowBuffer>();
 
-        auto filterFactors = TString(GetFilterFactors(query));
+        auto filterFactors = GetFilterFactors(query);
         auto isTutorial = query.OtherAttributes ? query.OtherAttributes->Get("is_tutorial", false) : false;
 
         auto accessControlObjects = query.AccessControlObjects ? ConvertTo<std::vector<std::string>>(query.AccessControlObjects) : std::vector<std::string>{};
@@ -543,7 +543,7 @@ public:
         }
         auto rowBuffer = New<TRowBuffer>();
 
-        auto filterFactors = TString(GetFilterFactors(query));
+        auto filterFactors = GetFilterFactors(query);
         auto isTutorial = query.OtherAttributes ? query.OtherAttributes->Get("is_tutorial", false) : false;
 
         auto accessControlObjects = query.AccessControlObjects ? ConvertTo<std::vector<std::string>>(query.AccessControlObjects) : std::vector<std::string>{};
@@ -613,10 +613,10 @@ public:
         }
 
         auto rowBuffer = New<TRowBuffer>();
-        auto filterFactors = TString(BuildFilterFactors(
+        auto filterFactors = BuildFilterFactors(
             query.Query.value(),
             options.NewAnnotations ? ConvertToYsonString(options.NewAnnotations, EYsonFormat::Text) : TYsonString(),
-            options.NewAccessControlObjects ? ConvertToYsonString(options.NewAccessControlObjects) : TYsonString()));
+            options.NewAccessControlObjects ? ConvertToYsonString(options.NewAccessControlObjects) : TYsonString());
         auto isTutorial = query.OtherAttributes ? query.OtherAttributes->Get("is_tutorial", false) : false;
 
         {
@@ -751,7 +751,7 @@ private:
         const TListQueriesOptions& options,
         const std::string& user,
         const std::vector<std::string>& acosForUser,
-        const TString& table,
+        const std::string& table,
         bool isSuperuser)
     {
         auto fromTime = options.FromTime ? std::make_optional<i64>(options.FromTime->MicroSeconds()) : std::nullopt;
@@ -835,7 +835,7 @@ private:
         const TTimestamp timestamp,
         const std::string& user,
         const std::vector<std::string>& acosForUser,
-        const TString& tableName,
+        const std::string& tableName,
         std::vector<std::pair<TTimestamp, TQueryId>>& results,
         bool isSuperuser = false)
     {
@@ -883,7 +883,7 @@ private:
                 options,
                 indexSearchOptions.User,
                 indexSearchOptions.AcosForUser,
-                TString("active_queries"),
+                "active_queries",
                 indexSearchOptions.IsSuperuser);
             AddSelectExpressionsFromAttributes(builder, TActiveQueryDescriptor::Get()->GetNameTable(), indexSearchOptions.Attributes);
             AddSelectExpressionsForMerging(builder, indexSearchOptions.Attributes);
