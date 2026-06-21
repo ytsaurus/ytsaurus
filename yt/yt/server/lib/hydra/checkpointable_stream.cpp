@@ -305,7 +305,7 @@ private:
     void Reset()
     {
         CurrentBufferSize_ = 0;
-        Buffer_ = TSharedMutableRef::Allocate<TBufferTag>(BufferCapacity_);
+        Buffer_ = TSharedMutableRef::Allocate<TBufferTag>(BufferCapacity_, {.InitializeStorage = false});
     }
 
     void* WriteToBuffer(const void* data, size_t length)
