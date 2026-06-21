@@ -63,7 +63,7 @@ static constexpr TDuration MinBalanceFrequency = TDuration::Minutes(1);
 
 static constexpr int MaxSavedErrorCount = 10;
 
-using TGlobalGroupTag = std::pair<std::string, TGroupName>;
+using TGlobalGroupTag = std::pair<std::string, std::string>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

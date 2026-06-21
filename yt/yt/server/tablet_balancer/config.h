@@ -67,7 +67,7 @@ struct TTabletBalancerDynamicConfig
     double ParameterizedNodeDeviationThreshold;
     double ParameterizedCellDeviationThreshold;
     double ParameterizedMinRelativeMetricImprovement;
-    TString DefaultParameterizedMetric;
+    std::string DefaultParameterizedMetric;
     TComponentFactorConfigPtr ParameterizedFactors;
 
     TTimeFormula Schedule;
@@ -197,7 +197,7 @@ struct TTabletBalancerBootstrapConfig
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
 
     TDryRunConfigPtr DryRun;
 

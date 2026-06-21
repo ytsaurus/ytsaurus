@@ -181,7 +181,7 @@ std::tuple<TTablePerformanceCountersMap, TTableSchemaPtr> FetchPerformanceCounte
     const THashSet<TTableId>& tableIds,
     const NYPath::TYPath& tablePath)
 {
-    std::vector<TString> quotedTableIds;
+    std::vector<std::string> quotedTableIds;
     for (auto tableId : tableIds) {
         quotedTableIds.push_back("\"" + ToString(tableId) + "\"");
     }
@@ -199,9 +199,9 @@ std::tuple<TTablePerformanceCountersMap, TTableSchemaPtr> FetchPerformanceCounte
 
     TTablePerformanceCountersMap tableToPerformanceCounters;
     for (const auto& row : selectResult.Rowset->GetRows()) {
-        auto tableId = TGuid::FromString(FromUnversionedValue<TString>(
+        auto tableId = TGuid::FromString(FromUnversionedValue<std::string>(
             row[tableSchema->GetColumnIndexOrThrow("table_id")]));
-        auto tabletId = TGuid::FromString(FromUnversionedValue<TString>(
+        auto tabletId = TGuid::FromString(FromUnversionedValue<std::string>(
             row[tableSchema->GetColumnIndexOrThrow("tablet_id")]));
         tableToPerformanceCounters[tableId][tabletId] = TUnversionedOwningRow(row);
     }

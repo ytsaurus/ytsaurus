@@ -591,7 +591,7 @@ public:
 
 public:
     TBundleState(
-        TString name,
+        std::string name,
         IBootstrap* bootstrap,
         IInvokerPtr fetcherInvoker,
         IInvokerPtr controlInvoker,
@@ -626,7 +626,7 @@ private:
 
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler_;
-    const TString Name_;
+    const std::string Name_;
 
     const NApi::NNative::IClientPtr Client_;
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
@@ -767,7 +767,7 @@ private:
 
     TTableProfilingCounters InitializeProfilingCounters(
         const TTable* table,
-        const TString& groupName) const;
+        const std::string& groupName) const;
 
     THashSet<TTableId> GetReplicaBalancingMajorTables(const TTabletCellBundlePtr& bundle) const;
 
@@ -782,7 +782,7 @@ private:
 };
 
 TBundleState::TBundleState(
-    TString name,
+    std::string name,
     IBootstrap* bootstrap,
     IInvokerPtr invoker,
     IInvokerPtr controlInvoker,
@@ -810,7 +810,7 @@ TBundleState::TBundleState(
     , Counters_(New<TBundleProfilingCounters>(Profiler_))
     , BundleSnapshots_({New<TBundleSnapshot>()})
 {
-    BundleSnapshots_.back()->Bundle = New<TTabletCellBundle>(Name_);
+    BundleSnapshots_.back()->Bundle = New<TTabletCellBundle>(TString(Name_));
     InitializeAttributes(initialAttributes, BundleSnapshots_.back(), /*throwOnError*/ false);
     Start();
 }
@@ -2019,8 +2019,8 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
 {
     YT_VERIFY(nodeStatisticsList);
 
-    static const TString TabletStaticPath = "/statistics/memory/tablet_static";
-    static const TString TabletSlotsPath = "/tablet_slots";
+    static const NYPath::TYPath TabletStaticPath = "/statistics/memory/tablet_static";
+    static const NYPath::TYPath TabletSlotsPath = "/tablet_slots";
 
     THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> nodeStatistics;
     for (const auto& node : nodeStatisticsList->GetChildren()) {
@@ -2554,7 +2554,7 @@ THashSet<TTableId> TBundleState::GetReplicaBalancingMajorTables(const TTabletCel
 ////////////////////////////////////////////////////////////////////////////////
 
 IBundleStatePtr CreateBundleState(
-    TString name,
+    std::string name,
     IBootstrap* bootstrap,
     IInvokerPtr fetcherInvoker,
     IInvokerPtr controlInvoker,
