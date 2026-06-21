@@ -131,6 +131,9 @@ void TNodeTrackerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
         .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("max_detected_offline_nodes", &TThis::MaxDetectedOfflineNodes)
+        .Default(5);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
