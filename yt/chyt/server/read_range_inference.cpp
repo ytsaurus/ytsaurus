@@ -165,7 +165,8 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
     DB::QueryTreeNodePtr node,
     const DB::DataTypePtr& desiredDataType,
     std::optional<EValueType> desiredValueType,
-    const TConversionContext& context)
+    const TConversionContext& context,
+    bool negated)
 {
     std::optional<TExpressionConvertionResult> result;
 
@@ -224,7 +225,7 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
 
             if (name == "not") {
                 auto argument = AdjustToYTBooleanExpression(arguments[0]);
-                if (auto arg = ConnverterImpl(argument, GetDataTypeBoolean(), EValueType::Boolean, context)) {
+                if (auto arg = ConnverterImpl(argument, GetDataTypeBoolean(), EValueType::Boolean, context, !negated)) {
                     result.emplace();
                     result->Expression = New<TUnaryOpExpression>(
                         EValueType::Boolean,
@@ -232,7 +233,7 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
                         std::move(arg->Expression));
                 }
             } else if (name == "isNull" || name == "isNotNull") {
-                if (auto arg = ConnverterImpl(arguments[0], desiredDataType, desiredValueType, context)) {
+                if (auto arg = ConnverterImpl(arguments[0], desiredDataType, desiredValueType, context, negated)) {
                     TConstExpressionPtr expr = New<TFunctionExpression>(
                         EValueType::Boolean,
                         "is_null",
@@ -246,6 +247,45 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
                     result.emplace();
                     result->Expression = std::move(expr);
                 }
+            } else if (name == "and" || name == "or") {
+                // NB: CH represents `and`/`or` as variadic functions and flattens associative chains,
+                // so `a OR b OR c` arrives as a single `or` node with three arguments. We must fold
+                // *all* of them.
+                //
+                // An operand may fail to convert. Whether we can drop it and keep the rest,
+                // depends on the operator and the current polarity (`negated`):
+                //   - positive AND / negative OR  -> dropping only widens the predicate -> safe to drop;
+                //   - positive OR  / negative AND -> dropping would narrow the predicate -> unsafe.
+                auto opCode = GetOrCrash(BinaryOpNameToOpCode, name);
+                bool canDropOperand = (name == "and") != negated;
+
+                TConstExpressionPtr foldedExpr;
+                bool bailed = false;
+                for (auto& argNode : arguments) {
+                    // NB: CH uses integer literals and columns with the UInt8 data type as boolean values.
+                    // To use QL inferrer, we need to adapt such cases to valid logical expressions.
+                    auto booleanNode = AdjustToYTBooleanExpression(argNode);
+                    auto argExpr = ConnverterImpl(booleanNode, GetDataTypeBoolean(), EValueType::Boolean, context, negated);
+                    if (!argExpr) {
+                        if (canDropOperand) {
+                            continue;
+                        }
+                        bailed = true;
+                        break;
+                    }
+                    foldedExpr = foldedExpr
+                        ? New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            opCode,
+                            std::move(foldedExpr),
+                            std::move(argExpr->Expression))
+                        : std::move(argExpr->Expression);
+                }
+
+                if (!bailed && foldedExpr) {
+                    result.emplace();
+                    result->Expression = std::move(foldedExpr);
+                }
             } else if (auto it = BinaryOpNameToOpCode.find(name); it != BinaryOpNameToOpCode.end()) {
                 auto opCode = it->second;
 
@@ -257,25 +297,12 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
                     opCode = GetOrCrash(BinaryOpToConversedOp, opCode);
                 }
 
-                DB::DataTypePtr desiredLhsDataType;
-                std::optional<EValueType> desiredLhsValueType;
-
-                // NB: CH uses integer literals and columns with the UInt8 data type as boolean values.
-                // To use QL inferrer, we need to adapt such cases to valid logical expressions.
-                if (name == "and" || name == "or") {
-                    lhsNode = AdjustToYTBooleanExpression(lhsNode);
-                    rhsNode = AdjustToYTBooleanExpression(rhsNode);
-
-                    desiredLhsDataType = GetDataTypeBoolean();
-                    desiredLhsValueType = EValueType::Boolean;
-                }
-
-                auto lhsExpr = ConnverterImpl(lhsNode, desiredLhsDataType, desiredLhsValueType, context);
+                auto lhsExpr = ConnverterImpl(lhsNode, /*desiredDataType*/ nullptr, /*desiredValueType*/ std::nullopt, context, negated);
                 if (!lhsExpr) {
                     break;
                 }
 
-                auto rhsExpr = ConnverterImpl(rhsNode, lhsExpr->DataType, lhsExpr->ValueType, context);
+                auto rhsExpr = ConnverterImpl(rhsNode, lhsExpr->DataType, lhsExpr->ValueType, context, negated);
                 if (rhsExpr) {
                     result.emplace();
                     result->Expression = New<TBinaryOpExpression>(
@@ -285,7 +312,7 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
                         std::move(rhsExpr->Expression));
                 }
             } else if (arguments.size() == 2 && name == "in") {
-                auto argument = ConnverterImpl(arguments[0], desiredDataType, desiredValueType, context);
+                auto argument = ConnverterImpl(arguments[0], desiredDataType, desiredValueType, context, negated);
                 if (!argument) {
                     break;
                 }
@@ -341,7 +368,8 @@ TConstExpressionPtr ConvertToConstExpression(
             .Schema = schema,
             .ConversionSettings = settings,
             .SetParams = setParams,
-        });
+        },
+        /*negated*/ false);
     return result ? result->Expression : nullptr;
 }
 
