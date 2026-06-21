@@ -681,6 +681,8 @@ struct TDictionaryRepositoryConfig
 {
     NYPath::TYPath RootPath;
 
+    TDuration UpdatePeriod;
+
     REGISTER_YSON_STRUCT(TDictionaryRepositoryConfig);
 
     static void Register(TRegistrar registrar);

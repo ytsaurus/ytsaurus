@@ -185,7 +185,10 @@ public:
                 YT_ABORT();
         }
         if (Config_->DictionaryRepository) {
-            CypressDictionaryConfigRepository_ = New<TCypressDictionaryConfigRepository>(CreateClient(ChytSqlObjectsUserName), Config_->DictionaryRepository);
+            CypressDictionaryConfigRepository_ = New<TCypressDictionaryConfigRepository>(
+                DictionariesClient_,
+                Config_->DictionaryRepository,
+                FetcherInvoker_);
         }
 
         if (Config_->DictionaryAccessControl) {
@@ -284,6 +287,10 @@ public:
 
         GossipExecutor_->Start();
         HealthChecker_->Start();
+
+        if (CypressDictionaryConfigRepository_) {
+            CypressDictionaryConfigRepository_->Start();
+        }
 
         if (Config_->DictionaryAccessControl) {
             DictionaryAccessControl_->Start(getContext());

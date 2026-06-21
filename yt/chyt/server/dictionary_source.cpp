@@ -1,7 +1,6 @@
 #include "dictionary_source.h"
 
 #include "conversion.h"
-#include "dictionary_access_control.h"
 #include "secondary_query_source.h"
 #include "host.h"
 #include "query_context.h"
@@ -74,9 +73,13 @@ public:
             DB::IdentifierQuotingStyle::Backticks))
         , Session_(std::make_shared<DB::Session>(Host_->GetContext(), DB::ClientInfo::Interface::LOCAL))
     {
+        if (auto user = Client_->GetOptions().User) {
+            ClientUserName_ = *user;
+        }
+
         RegisterNewUser(
             Host_->GetContext()->getAccessControl(),
-            CacheUserName,
+            ClientUserName_,
             Host_->GetUserDefinedDatabaseNames(),
             Host_->HasUserDefinedSqlObjectStorage());
         SupportsSelectiveLoad_ = FetchTable()->IsOrderedDynamic();
@@ -126,7 +129,7 @@ public:
 
     DB::QueryPipeline loadIds(const std::vector<UInt64>& ids) override
     {
-        TString query = QueryBuilder_->composeLoadIdsQuery(ids);
+        auto query = QueryBuilder_->composeLoadIdsQuery(ids);
         return DB::executeQuery(query, GetContext(), DB::QueryFlags{.internal = true}).second.pipeline;
     }
 
@@ -139,7 +142,7 @@ public:
         const DB::Columns& keyColumns,
         const std::vector<size_t>& requestedRows) override
     {
-        TString query = QueryBuilder_->composeLoadKeysQuery(keyColumns, requestedRows, DB::ExternalQueryBuilder::AND_OR_CHAIN);
+        auto query = QueryBuilder_->composeLoadKeysQuery(keyColumns, requestedRows, DB::ExternalQueryBuilder::AND_OR_CHAIN);
         return DB::executeQuery(query, GetContext(), DB::QueryFlags{.internal = true}).second.pipeline;
     }
 
@@ -183,6 +186,7 @@ public:
 private:
     THost* Host_;
     NApi::NNative::IClientPtr Client_;
+    std::string ClientUserName_ = DictionariesUserName;
     DB::DictionaryStructure DictionaryStructure_;
     TRichYPath Path_;
     DB::NamesAndTypesList NamesAndTypesList_;
@@ -204,7 +208,7 @@ private:
     }
 
     TTablePtr FetchTable() {
-        auto fakeQueryContext = TQueryContext::CreateFake(Host_, Host_->GetRootClient());
+        auto fakeQueryContext = TQueryContext::CreateFake(Host_, Client_);
 
         auto table = FetchTablesSoft(
             fakeQueryContext.Get(),
@@ -219,7 +223,7 @@ private:
     DB::ContextMutablePtr GetContext() {
         auto context =  PrepareContextForQuery(
             Session_,
-            CacheUserName,
+            ClientUserName_,
             TDuration::Seconds(0),
             Host_,
             "ChytDictionarySource");
