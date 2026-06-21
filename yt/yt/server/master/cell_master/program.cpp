@@ -121,7 +121,7 @@ private:
     std::vector<std::string> SnapshotDumpScopeFilter_;
     bool ValidateSnapshotFlag_ = false;
     bool ExportSnapshotFlag_ = false;
-    TString LoadSnapshotPath_;
+    std::string LoadSnapshotPath_;
     bool ExportConfigFlag_ = false;
     TString ExportConfigPath_;
     bool ReplayChangelogsFlag_ = false;

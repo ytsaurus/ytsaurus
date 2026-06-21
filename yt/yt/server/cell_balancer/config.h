@@ -180,7 +180,7 @@ struct TCellBalancerBootstrapConfig
     TBundleControllerConfigPtr BundleController;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
 
     REGISTER_YSON_STRUCT(TCellBalancerBootstrapConfig);
 

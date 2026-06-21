@@ -302,7 +302,7 @@ template <class T>
 struct TEffectiveExpirationField
 {
     T Value;
-    TString Path;
+    NYPath::TYPath Path;
 };
 
 struct TEffectiveExpiration

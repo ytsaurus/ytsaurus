@@ -22,7 +22,7 @@ public:
     explicit TDynamicConfigManager(IBootstrap* bootstrap);
 
 private:
-    const std::vector<TString> InstanceTags_;
+    const std::vector<std::string> InstanceTags_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicConfigManager)

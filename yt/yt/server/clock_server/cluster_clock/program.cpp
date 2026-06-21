@@ -118,7 +118,7 @@ private:
     bool DumpSnapshotFlag_ = false;
     ESerializationDumpMode SnapshotDumpMode_ = ESerializationDumpMode::Content;
     bool ValidateSnapshotFlag_ = false;
-    TString LoadSnapshotPath_;
+    std::string LoadSnapshotPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

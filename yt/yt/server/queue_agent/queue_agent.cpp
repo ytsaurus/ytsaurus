@@ -117,7 +117,7 @@ THashMap<TPath, T> GetHashTable(const std::vector<T>& rowList) {
     return result;
 }
 
-TString GetLeadingStatus(const IObjectControllerPtr& controller)
+std::string GetLeadingStatus(const IObjectControllerPtr& controller)
 {
     return controller->IsLeading() ? "leader" : "follower";
 }

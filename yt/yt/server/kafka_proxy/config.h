@@ -14,6 +14,8 @@
 
 #include <yt/yt/library/auth_server/public.h>
 
+#include <yt/yt/core/ypath/public.h>
+
 namespace NYT::NKafkaProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,7 +25,7 @@ struct TStringTransformationConfig
 {
     //! If set, replaces all non-overlapping matches of this pattern with the replacement string.
     NRe2::TRe2Ptr MatchPattern;
-    TString Replacement;
+    std::string Replacement;
 
     REGISTER_YSON_STRUCT(TStringTransformationConfig);
 
@@ -64,7 +66,7 @@ struct TProxyBootstrapConfig
     NAuth::TAuthenticationManagerConfigPtr Auth;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
 
     TCypressRegistrarConfigPtr CypressRegistrar;
 
@@ -133,7 +135,7 @@ struct TProxyDynamicConfig
 
     TGroupCoordinatorConfigPtr GroupCoordinator;
 
-    std::vector<TString> Topics;
+    std::vector<std::string> Topics;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

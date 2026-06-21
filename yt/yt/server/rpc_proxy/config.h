@@ -69,7 +69,7 @@ struct TAccessCheckerConfig
     //! Access checker will check use permission for
     //! PathPrefix/ProxyRole path or
     //! PathPrefix/ProxyRole/principal if UseAccessControlObjects is set.
-    TString PathPrefix;
+    NYPath::TYPath PathPrefix;
 
     // COMPAT(verytable): Drop it after migration to aco roles everywhere.
     bool UseAccessControlObjects;
@@ -146,7 +146,7 @@ struct TProxyBootstrapConfig
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
 
     // COMPAT(gritukan): Drop it after migration to tagged configs.
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
     bool UseTaggedDynamicConfig;
 
     std::string Role;

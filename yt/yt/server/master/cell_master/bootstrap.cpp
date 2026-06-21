@@ -666,7 +666,7 @@ TFuture<void> TBootstrap::Run()
 }
 
 void TBootstrap::LoadSnapshot(
-    const TString& fileName,
+    const std::string& fileName,
     ESerializationDumpMode dumpMode,
     TSerializationDumpScopeFilter dumpScopeFilter,
     bool checkInvariants)
@@ -1249,7 +1249,7 @@ void TBootstrap::DoStart()
 }
 
 void TBootstrap::DoLoadSnapshot(
-    const TString& fileName,
+    const std::string& fileName,
     ESerializationDumpMode dumpMode,
     TSerializationDumpScopeFilter dumpScopeFilter,
     bool checkInvariants)

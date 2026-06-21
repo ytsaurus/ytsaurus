@@ -124,7 +124,7 @@ protected:
         return ConfigNode_;
     }
 
-    const TString& GetConfigPath() const
+    const std::string& GetConfigPath() const
     {
         return ConfigPath_;
     }
@@ -133,7 +133,7 @@ private:
     const TString ArgumentName_;
 
     bool ConfigFlag_;
-    TString ConfigPath_;
+    std::string ConfigPath_;
     bool ConfigSchemaFlag_ = false;
     TString ConfigSchema_;
     bool ConfigTemplateFlag_;
@@ -158,7 +158,8 @@ private:
         }
 
         try {
-            TIFStream stream(ConfigPath_);
+            // NB: TIFStream's buffered wrapper does not accept std::string.
+            TIFStream stream{TString(ConfigPath_)};
             ConfigNode_ = ConvertToNode(&stream);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing %v file %v",

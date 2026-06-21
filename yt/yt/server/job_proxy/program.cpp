@@ -147,7 +147,7 @@ protected:
 private:
     NJobTrackerClient::TOperationId OperationId_;
     NJobTrackerClient::TJobId JobId_;
-    TString StderrPath_ = "stderr";
+    std::string StderrPath_ = "stderr";
     bool DoNotCloseDescriptors_ = false;
 
     static NJobTrackerClient::TJobId JobIdArgMapper(TStringBuf arg)

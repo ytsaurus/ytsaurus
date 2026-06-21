@@ -766,12 +766,12 @@ private:
     {
         const auto& attributes = error.Attributes();
 
-        auto rootstockPath = attributes.Find<TString>("rootstock_path");
+        auto rootstockPath = attributes.Find<NYPath::TYPath>("rootstock_path");
         if (!rootstockPath.has_value()) {
             return;
         }
 
-        auto unresolvedSuffix = attributes.Find<TString>("unresolved_suffix");
+        auto unresolvedSuffix = attributes.Find<NYPath::TYPath>("unresolved_suffix");
         if (!unresolvedSuffix.has_value()) {
             return;
         }
