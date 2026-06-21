@@ -429,8 +429,8 @@ void TClient::ValidateAuthenticationCommandPermissions(
             auto rspNode = ConvertToNode(rsp);
             const auto& attributes = rspNode->Attributes();
 
-            auto hashedPassword = attributes.Get<TString>(HashedPasswordAttribute);
-            auto passwordSalt = attributes.Get<TString>(PasswordSaltAttribute);
+            auto hashedPassword = attributes.Get<std::string>(HashedPasswordAttribute);
+            auto passwordSalt = attributes.Get<std::string>(PasswordSaltAttribute);
             auto passwordRevision = attributes.Get<ui64>(PasswordRevisionAttribute);
 
             if (HashPasswordSha256(passwordSha256, passwordSalt) != hashedPassword) {

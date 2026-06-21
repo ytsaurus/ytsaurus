@@ -425,7 +425,7 @@ public:
     TQueryPreparer(
         ITableMountCachePtr tableMountCache,
         IInvokerPtr invoker,
-        TString udfRegistryPath,
+        TYPath udfRegistryPath,
         IFunctionRegistry* functionRegistry,
         TVersionedReadOptions versionedReadOptions = {},
         TDetailedProfilingInfoPtr detailedProfilingInfo = nullptr,
@@ -472,7 +472,7 @@ public:
 private:
     const ITableMountCachePtr TableMountCache_;
     const IInvokerPtr Invoker_;
-    const TString UdfRegistryPath_;
+    const TYPath UdfRegistryPath_;
     IFunctionRegistry* const FunctionRegistry_;
     const TVersionedReadOptions VersionedReadOptions_;
     const TDetailedProfilingInfoPtr DetailedProfilingInfo_;
@@ -887,7 +887,7 @@ TUnversionedLookupRowsResult TClient::DoLookupRows(
                 nameTable,
                 keys,
                 options,
-                std::nullopt,
+                /*retentionConfig*/ TYsonString(),
                 GetLookupRowsEncoder(),
                 GetLookupRowsDecoder(),
                 fallbackHandler);
@@ -945,9 +945,9 @@ TVersionedLookupRowsResult TClient::DoVersionedLookupRows(
             options.VersionedReadOptions.ReadMode);
     }
 
-    std::optional<TString> retentionConfig;
+    TYsonString retentionConfig;
     if (options.RetentionConfig) {
-        retentionConfig = ConvertToYsonString(options.RetentionConfig).ToString();
+        retentionConfig = ConvertToYsonString(options.RetentionConfig);
     }
 
     if (options.RetentionTimestamp) {
@@ -1015,7 +1015,7 @@ std::vector<TUnversionedLookupRowsResult> TClient::DoMultiLookupRows(
                             subrequest.NameTable,
                             subrequest.Keys,
                             lookupRowsOptions,
-                            /*retentionConfig*/ std::nullopt,
+                            /*retentionConfig*/ TYsonString(),
                             GetLookupRowsEncoder(),
                             GetLookupRowsDecoder(),
                             fallbackHandler);
@@ -1035,7 +1035,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     const TNameTablePtr& nameTable,
     const TSharedRange<TLegacyKey>& keys,
     const TLookupRowsOptionsBase& options,
-    const std::optional<TString>& retentionConfig,
+    const TYsonString& retentionConfig,
     TEncoderWithMapping encoderWithMapping,
     TDecoderWithMapping decoderWithMapping,
     TReplicaFallbackHandler<TLookupRowsResult<IRowset>> replicaFallbackHandler)
@@ -1462,7 +1462,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         }
 
         if (retentionConfig) {
-            req->set_retention_config(*retentionConfig);
+            ToProto(req->mutable_retention_config(), retentionConfig);
         }
 
         for (const auto& cellDescriptor : cellDescriptors) {
@@ -2232,7 +2232,7 @@ void TClient::ExecuteTabletServiceRequest(
 
     ToProto(req->mutable_table_id(), tableId);
 
-    auto fullPath = tableAttributes->Get<TString>("path");
+    auto fullPath = tableAttributes->Get<TYPath>("path");
     SetDynamicTableCypressRequestFullPath(req, fullPath);
 
     auto actionData = MakeTransactionActionData(*req);

@@ -39,7 +39,7 @@ TYPath GetFilePathInCache(const std::string& md5, const TYPath& cachePath)
 ////////////////////////////////////////////////////////////////////////////////
 
 void TClient::SetTouchedAttribute(
-    const TString& destination,
+    const TYPath& destination,
     const TPrerequisiteOptions& options,
     TTransactionId transactionId)
 {
@@ -102,7 +102,7 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
     auto rsp = rspOrError.Value();
     auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-    auto originalMD5 = attributes->Get<TString>("md5", TString());
+    auto originalMD5 = attributes->Get<std::string>("md5", std::string());
     if (md5 != originalMD5) {
         YT_LOG_DEBUG(
             "File has incorrect MD5 hash "
@@ -211,7 +211,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
         auto rsp = rspOrError.Value();
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-        auto md5 = attributes->Get<TString>("md5");
+        auto md5 = attributes->Get<std::string>("md5");
         if (expectedMD5 != md5) {
             THROW_ERROR_EXCEPTION(
                 "MD5 mismatch: expected %v, got %v",

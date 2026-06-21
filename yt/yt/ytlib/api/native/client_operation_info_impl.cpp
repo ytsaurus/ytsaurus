@@ -87,7 +87,7 @@ static const THashSet<std::string> SupportedOperationAttributes = {
     "has_failed_jobs",
 };
 
-static const THashMap<TString, int> CompatOperationAttributesToArchiveVersion = {
+static const THashMap<std::string, int> CompatOperationAttributesToArchiveVersion = {
     {"scheduling_attributes_per_pool_tree", 52},
 };
 
@@ -1271,7 +1271,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     }
 
     if (options.PoolTree) {
-        TString query;
+        std::string query;
         if (options.Pool) {
             query = Format("try_get_string(pool_tree_to_pool, \"/%v\") = %Qv", *options.PoolTree, *options.Pool);
         } else {

@@ -44,7 +44,7 @@ public:
 
         {
             TTableId tableId;
-            auto tablePath = attributes->Get<TString>("table_path");
+            auto tablePath = attributes->Get<TYPath>("table_path");
             Client_->ValidatePermissionImpl(tablePath, EPermission::Write);
             ResolveExternalTable(Client_, tablePath, &tableId, &cellTag);
             attributes->Set("table_path", FromObjectId(tableId));

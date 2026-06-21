@@ -1265,7 +1265,7 @@ private:
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptionsBase& options,
-        const std::optional<TString>& retentionConfig,
+        const NYson::TYsonString& retentionConfig,
         TEncoderWithMapping encoderWithMapping,
         TDecoderWithMapping decoderWithMapping,
         TReplicaFallbackHandler<TLookupRowsResult<IRowset>> replicaFallbackHandler);
@@ -1395,7 +1395,7 @@ private:
     //
 
     void SetTouchedAttribute(
-        const TString& destination,
+        const NYPath::TYPath& destination,
         const TPrerequisiteOptions& options = TPrerequisiteOptions(),
         NTransactionClient::TTransactionId transactionId = {});
     TPutFileToCacheResult DoAttemptPutFileToCache(

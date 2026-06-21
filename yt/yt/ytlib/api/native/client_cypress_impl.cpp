@@ -346,7 +346,7 @@ protected:
 
     template <class TOptions>
     void StartTransaction(
-        const TString& title,
+        const std::string& title,
         const TOptions& options)
     {
         YT_LOG_DEBUG("Starting transaction");
@@ -1251,7 +1251,7 @@ private:
 
         auto batchReq = proxy.ExecuteBatch();
 
-        auto getAttribute = [&] (TString name, TYsonString* result) {
+        auto getAttribute = [&] (const std::string& name, TYsonString* result) {
             auto req = TObjectYPathProxy::Get(Path_ + "/@" + name);
             req->Tag() = result;
             batchReq->AddRequest(req);
@@ -1918,7 +1918,7 @@ private:
         }
 
         std::optional<EObjectType> commonType;
-        TString pathWithCommonType;
+        TYPath pathWithCommonType;
 
         auto checkType = [&] (const TUserObject& object) {
             auto type = object.Type;
@@ -2394,7 +2394,7 @@ private:
             }
         }
 
-        std::vector<TString> srcObjectPaths;
+        std::vector<TYPath> srcObjectPaths;
         srcObjectPaths.reserve(SrcObjects_.size());
         for (const auto& srcObject : SrcObjects_) {
             srcObjectPaths.push_back(srcObject.GetPath());
