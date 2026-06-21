@@ -605,13 +605,13 @@ public:
                 cursor->Next();
                 cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
                     YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
-                    auto poolTree = ExtractTo<TString>(cursor);
+                    auto poolTree = ExtractTo<std::string>(cursor);
                     cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
                         YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
                         auto innerKey = (*cursor)->UncheckedAsString();
                         if (innerKey == TStringBuf("pool")) {
                             cursor->Next();
-                            auto pool = ExtractTo<TString>(cursor);
+                            auto pool = ExtractTo<std::string>(cursor);
                             CurrentOperation_.FilterAttributes.PoolTreeToPool->emplace(poolTree, pool);
                             SearchSubstring(pool);
                             CurrentOperation_.FilterAttributes.Pools->push_back(std::move(pool));

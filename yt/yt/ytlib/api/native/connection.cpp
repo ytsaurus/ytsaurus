@@ -164,7 +164,7 @@ using std::placeholders::_1;
 
 namespace {
 
-TString MakeConnectionClusterId(const TConnectionStaticConfigPtr& config)
+std::string MakeConnectionClusterId(const TConnectionStaticConfigPtr& config)
 {
     if (config->ClusterName) {
         return Format("Native(Name=%v)", *config->ClusterName);
@@ -1095,7 +1095,7 @@ private:
 
     IChannelPtr OffshoreDataGatewayChannel_;
 
-    THashMap<TString, IChannelPtr> QueueAgentChannels_;
+    THashMap<std::string, IChannelPtr> QueueAgentChannels_;
     IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;

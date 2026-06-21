@@ -256,7 +256,7 @@ static bool DoesArchiveContainAttribute(const std::string& attribute, int archiv
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto FinishedJobStatesString = [] {
-    TCompactVector<TString, TEnumTraits<EJobState>::GetDomainSize()> finishedJobStates;
+    TCompactVector<std::string, TEnumTraits<EJobState>::GetDomainSize()> finishedJobStates;
     for (const auto& jobState : TEnumTraitsImpl_EJobState::GetDomainValues()) {
         if (IsJobFinished(jobState)) {
             finishedJobStates.push_back("\"" + FormatEnum(jobState) + "\"");
@@ -680,7 +680,7 @@ TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
     auto records = ToRecords<NRecords::TJobSpec>(rowset);
     YT_VERIFY(records.size() <= 1);
 
-    std::optional<TString> jobSpecStr;
+    std::optional<std::string> jobSpecStr;
     if (!records.empty()) {
         jobSpecStr = records[0].Spec;
     }
@@ -2080,7 +2080,7 @@ static void AddOrderByExpression(TQueryBuilder* builder, const TListJobsOptions&
         }
         YT_ABORT();
     }();
-    auto orderByFieldExpressions = [&] () -> std::vector<TString> {
+    auto orderByFieldExpressions = [&] () -> std::vector<std::string> {
         switch (options.SortField) {
             case EJobSortField::Type:
                 return {"job_type"};
@@ -2244,7 +2244,7 @@ static void ParseJobsFromControllerAgentResponse(
             }
         }
         if (needTaskName) {
-            job.TaskName = jobMapNode->GetChildValueOrThrow<TString>("task_name");
+            job.TaskName = jobMapNode->GetChildValueOrThrow<std::string>("task_name");
         }
         if (needCoreInfos) {
             if (auto childNode = jobMapNode->FindChild("core_infos")) {
@@ -2269,7 +2269,7 @@ static void ParseJobsFromControllerAgentResponse(
             }
         }
         if (needMonitoringDescriptor) {
-            job.MonitoringDescriptor = jobMapNode->FindChildValue<TString>("monitoring_descriptor");
+            job.MonitoringDescriptor = jobMapNode->FindChildValue<std::string>("monitoring_descriptor");
         }
         if (needOperationIncarnation) {
             job.OperationIncarnation = jobMapNode->FindChildValue<std::string>("operation_incarnation");
@@ -2331,9 +2331,9 @@ static void ParseJobsFromControllerAgentResponse(
         }
         auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");
         auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
-        auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
-        auto monitoringDescriptor = jobMap->FindChildValue<TString>("monitoring_descriptor");
-        auto interruptionInfo = jobMap->FindChildValue<TString>("interruption_info");
+        auto taskName = jobMap->GetChildValueOrThrow<std::string>("task_name");
+        auto monitoringDescriptor = jobMap->FindChildValue<std::string>("monitoring_descriptor");
+        auto interruptionInfo = jobMap->FindChildValue<std::string>("interruption_info");
         auto startTime = jobMap->GetChildValueOrThrow<TInstant>("start_time");
         auto operationIncarnation = jobMap->FindChildValue<std::string>("operation_incarnation");
         return
@@ -2464,7 +2464,7 @@ static TJobComparator GetJobsComparator(
 
     switch (sortField) {
         case EJobSortField::Type:
-            return makeLessBy([] (const TJob& job) -> std::optional<TString> {
+            return makeLessBy([] (const TJob& job) -> std::optional<std::string> {
                 if (auto type = job.Type) {
                     return FormatEnum(*type);
                 } else {
@@ -2472,7 +2472,7 @@ static TJobComparator GetJobsComparator(
                 }
             });
         case EJobSortField::State:
-            return makeLessBy([] (const TJob& job) -> std::optional<TString> {
+            return makeLessBy([] (const TJob& job) -> std::optional<std::string> {
                 if (auto state = job.GetState()) {
                     return FormatEnum(*state);
                 } else {
@@ -2607,7 +2607,7 @@ static TError TryFillJobPools(
             operationId);
     }
 
-    auto schedulingOptionPerPoolTree = ConvertTo<THashMap<TString, INodePtr>>(
+    auto schedulingOptionPerPoolTree = ConvertTo<THashMap<std::string, INodePtr>>(
         TYsonStringBuf(*schedulingOptionsPerPoolTreeYson));
 
     for (auto& job : jobs) {
@@ -2623,7 +2623,7 @@ static TError TryFillJobPools(
         if (!poolNode) {
             return TError("%Qv field is missing in scheduling_options_per_pool_tree for tree %Qv", "pool", *job.PoolTree);
         }
-        job.Pool = ConvertTo<TString>(poolNode);
+        job.Pool = ConvertTo<std::string>(poolNode);
     }
 
     return TError();

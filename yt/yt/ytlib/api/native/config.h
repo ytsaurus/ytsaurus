@@ -216,7 +216,7 @@ struct TConnectionStaticConfig
     NChaosClient::TChaosResidencyCacheConfigPtr ChaosResidencyCache;
 
     //! Visible in profiling as tag `connection_name`.
-    TString ConnectionName;
+    std::string ConnectionName;
 
     //! Region defines geographical location, largest tier in cloud hierarchy.
     std::optional<std::string> Region;

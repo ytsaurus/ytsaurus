@@ -578,7 +578,7 @@ void TClusterBackupSession::FetchClonedReplicaIds()
         for (const auto& [clonedReplicaId, attributesString] : clonedReplicas) {
             auto attributes = ConvertToAttributes(attributesString);
             auto replicaClusterName = attributes->Get<std::string>("cluster_name");
-            auto replicaPath = attributes->Get<TString>("replica_path");
+            auto replicaPath = attributes->Get<TYPath>("replica_path");
 
             bool foundMatching = false;
 
