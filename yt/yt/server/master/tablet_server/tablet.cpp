@@ -322,7 +322,7 @@ TTabletStatistics TTablet::GetTabletStatistics(bool fromAuxiliaryCell) const
         chunkTreeStatistics.RegularDiskSpace,
         chunkTreeStatistics.ErasureDiskSpace);
 
-    if (chunkTreeStatistics.HunkRegularDiskSpace != 0 || chunkTreeStatistics.HunkErasureDiskSpace != 0) {
+    if (chunkTreeStatistics.HunkRegularDiskSpace != 0 || chunkTreeStatistics.HunkErasureDiskSpace > 0) {
         if (table->HunkReplication().GetSize() == 0) {
             accumulateDiskSpaceStatistics(
                 table->Replication(),

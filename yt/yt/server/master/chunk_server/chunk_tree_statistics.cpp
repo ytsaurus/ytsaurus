@@ -120,6 +120,8 @@ void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& conte
 
 bool TChunkTreeStatistics::operator==(const TChunkTreeStatistics& other) const
 {
+    // NB: We do not compare HunkErasureDiskSpace field because it is unreliable
+    // due to integer arithmetics in ComputeDiskSpaceFromDataSize.
     return
         RowCount == other.RowCount &&
         LogicalRowCount == other.LogicalRowCount &&
@@ -130,7 +132,6 @@ bool TChunkTreeStatistics::operator==(const TChunkTreeStatistics& other) const
         HunkDataWeight == other.HunkDataWeight &&
         HunkDataSize == other.HunkDataSize &&
         HunkRegularDiskSpace == other.HunkRegularDiskSpace &&
-        HunkErasureDiskSpace == other.HunkErasureDiskSpace &&
         ChunkCount == other.ChunkCount &&
         ChunkListCount == other.ChunkListCount &&
         Rank == other.Rank &&
@@ -213,9 +214,10 @@ void THunkChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& c
 
 bool THunkChunkTreeStatistics::operator==(const THunkChunkTreeStatistics& other) const
 {
+    // NB: We do not compare ReferencedErasureDiskSpace field because it is unreliable
+    // due to integer division in ComputeDiskSpaceFromDataSize.
     return
         ReferencedRegularDiskSpace == other.ReferencedRegularDiskSpace &&
-        ReferencedErasureDiskSpace == other.ReferencedErasureDiskSpace &&
         RegularDiskSpace == other.RegularDiskSpace &&
         ErasureDiskSpace == other.ErasureDiskSpace &&
         ChunkCount == other.ChunkCount;

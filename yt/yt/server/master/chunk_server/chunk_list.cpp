@@ -173,6 +173,10 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     bool applyHunkTreeStatisticsOverhaulCompat = context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul ||
         (context.GetVersion() >= NCellMaster::EMasterReign::Start_26_2 &&
          context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2);
+    // COMPAT(akozhikhov)
+    bool applyHunkTreeStatisticsOverhaulCompatAgain = context.GetVersion() < NCellMaster::EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain ||
+        (context.GetVersion() >= NCellMaster::EMasterReign::Start_26_2 &&
+         context.GetVersion() < NCellMaster::EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain_26_2);
 
     // COMPAT(akozhikhov)
     TChunkTreeStatistics statistics;
@@ -204,6 +208,13 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
             chunkListTraits.Statistics = std::move(statistics);
             chunkListTraits.PivotKey = pivotKey;
             ChunkListTraits_ = std::move(chunkListTraits);
+        }
+    }
+
+    // COMPAT(akozhikhov)
+    if (applyHunkTreeStatisticsOverhaulCompatAgain) {
+        if (!IsHunkRelatedChunkList(this)) {
+            std::get<TMainTreeChunkListTraits>(ChunkListTraits_).Statistics.HunkErasureDiskSpace = 0;
         }
     }
 
@@ -599,9 +610,9 @@ void TChunkList::AccumulateNewlyReferencedHunkDataSize(TChunk* chunk, i64 dataSi
 
     hunkTraits.Statistics.Accumulate(deltaStatistics);
 
-    if (hunkTraits.Statistics.ReferencedRegularDiskSpace < 0 ||
-        hunkTraits.Statistics.ReferencedErasureDiskSpace < 0)
-    {
+    // NB: We do not check ReferencedErasureDiskSpace field because it is unreliable
+    // due to integer arithmetics in ComputeDiskSpaceFromDataSize.
+    if (hunkTraits.Statistics.ReferencedRegularDiskSpace < 0) {
         YT_LOG_ALERT("Encountered inconsistent referenced disk space upon referencing hunk data in a chunk list "
             "(ChunkListId: %v, ChunkId: %v, DataSizeDelta: %v, Statistics: %v)",
             GetId(),
