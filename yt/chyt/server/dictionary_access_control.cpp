@@ -116,7 +116,6 @@ private:
         auto permissionResult = WaitFor(PermissionCache_->GetMany(permissionCacheKeys))
             .ValueOrDefault(std::vector<TErrorOr<TPermissionValue>>(permissionCacheKeys.size(), TError("", TError::DisableFormat)));
 
-
         std::vector<DB::AccessRights> userGrantedRights(users.size());
         std::vector<DB::AccessRights> userRevokedRights(users.size());
         {

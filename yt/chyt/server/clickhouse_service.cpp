@@ -115,6 +115,8 @@ private:
 
         context->SetRequestInfo("ConfigPath: %v", configPath);
 
+        Host_->GetCypressDictionaryConfigRepository()->RefreshSnapshot();
+
         const auto& loader = Host_->GetContext()->getExternalDictionariesLoader();
         loader.reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName, configPath);
 
