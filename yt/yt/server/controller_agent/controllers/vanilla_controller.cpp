@@ -961,9 +961,9 @@ public:
     TJobletPtr CreateJoblet(
         TTask* task,
         TJobId jobId,
-        TString treeId,
+        std::string treeId,
         int taskJobIndex,
-        std::optional<TString> poolPath,
+        std::optional<std::string> poolPath,
         bool treeIsTentative) final;
 
     bool IsOperationGang() const noexcept final;
@@ -1519,9 +1519,9 @@ bool TGangOperationController::OnJobAborted(
 TJobletPtr TGangOperationController::CreateJoblet(
     TTask* task,
     TJobId jobId,
-    TString treeId,
+    std::string treeId,
     int taskJobIndex,
-    std::optional<TString> poolPath,
+    std::optional<std::string> poolPath,
     bool treeIsTentative)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(CancelableInvokerPool_);

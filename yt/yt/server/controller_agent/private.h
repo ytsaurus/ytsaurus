@@ -116,9 +116,9 @@ NTracing::TTraceContextGuard CreateOperationTraceContextGuard(
 struct TCompositePendingJobCount
 {
     int DefaultCount = 0;
-    THashMap<TString, int> CountByPoolTree = {};
+    THashMap<std::string, int> CountByPoolTree = {};
 
-    int GetJobCountFor(const TString& tree) const;
+    int GetJobCountFor(const std::string& tree) const;
     bool IsZero() const;
 
     PHOENIX_DECLARE_TYPE(TCompositePendingJobCount, 0x7ba21384);

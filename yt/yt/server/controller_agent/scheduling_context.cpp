@@ -26,13 +26,13 @@ using NYT::FromProto;
 TSchedulingContext::TSchedulingContext(
     TAllocationId allocationId,
     TJobNodeDescriptor nodeDescriptor,
-    std::optional<TString> poolPath)
+    std::optional<std::string> poolPath)
     : AllocationId_(allocationId)
     , NodeDescriptor_(std::move(nodeDescriptor))
     , PoolPath_(std::move(poolPath))
 { }
 
-const std::optional<TString>& TSchedulingContext::GetPoolPath() const
+const std::optional<std::string>& TSchedulingContext::GetPoolPath() const
 {
     return PoolPath_;
 }
@@ -68,7 +68,7 @@ TAllocationSchedulingContext::TAllocationSchedulingContext(
     TJobResources resourceLimits,
     NScheduler::TDiskResources diskResources,
     TJobNodeDescriptor nodeDescriptor,
-    std::optional<TString> poolPath,
+    std::optional<std::string> poolPath,
     const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec,
     std::optional<std::string> requestedTaskName)
     : TSchedulingContext(allocationId, std::move(nodeDescriptor), std::move(poolPath))
@@ -137,7 +137,7 @@ TJobSchedulingContext::TJobSchedulingContext(
     TAllocationId allocationId,
     NScheduler::TDiskQuota diskQuota,
     TJobNodeDescriptor nodeDescriptor,
-    std::optional<TString> poolPath)
+    std::optional<std::string> poolPath)
     : TSchedulingContext(allocationId, std::move(nodeDescriptor), std::move(poolPath))
     , DiskQuota_(std::move(diskQuota))
 { }

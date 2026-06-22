@@ -4756,7 +4756,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 
 TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAllocation(
     const TAllocationSchedulingContext& context,
-    const TString& treeId)
+    const std::string& treeId)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->ScheduleAllocationControllerQueue));
 
@@ -5088,7 +5088,7 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
 void TOperationControllerBase::DoScheduleAllocation(
     TAllocation& allocation,
     const TAllocationSchedulingContext& context,
-    const TString& treeId,
+    const std::string& treeId,
     TControllerScheduleAllocationResult* scheduleAllocationResult)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->ScheduleAllocationControllerQueue));
@@ -5316,17 +5316,17 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleJob(
     return task.TryScheduleJob(allocation, context, previousJobId, IsTreeTentative(allocation.TreeId));
 }
 
-bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
+bool TOperationControllerBase::IsTreeTentative(const std::string& treeId) const
 {
     return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).Tentative;
 }
 
-bool TOperationControllerBase::IsTreeProbing(const TString& treeId) const
+bool TOperationControllerBase::IsTreeProbing(const std::string& treeId) const
 {
     return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).Probing;
 }
 
-bool TOperationControllerBase::IsIdleCpuPolicyAllowedInTree(const TString& treeId) const
+bool TOperationControllerBase::IsIdleCpuPolicyAllowedInTree(const std::string& treeId) const
 {
     return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).AllowIdleCpuPolicy;
 }
@@ -6181,9 +6181,9 @@ std::expected<TJobId, EScheduleFailReason> TOperationControllerBase::GenerateJob
 TJobletPtr TOperationControllerBase::CreateJoblet(
     TTask* task,
     TJobId jobId,
-    TString treeId,
+    std::string treeId,
     int taskJobIndex,
-    std::optional<TString> poolPath,
+    std::optional<std::string> poolPath,
     bool treeIsTentative)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

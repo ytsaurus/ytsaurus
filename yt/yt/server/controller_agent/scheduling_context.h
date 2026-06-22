@@ -24,9 +24,9 @@ public:
     TSchedulingContext(
         TAllocationId allocationId,
         NControllers::TJobNodeDescriptor nodeDescriptor,
-        std::optional<TString> poolPath);
+        std::optional<std::string> poolPath);
 
-    const std::optional<TString>& GetPoolPath() const;
+    const std::optional<std::string>& GetPoolPath() const;
 
     const NControllers::TJobNodeDescriptor& GetNodeDescriptor() const;
 
@@ -49,7 +49,7 @@ private:
     const TAllocationId AllocationId_;
 
     const NControllers::TJobNodeDescriptor NodeDescriptor_;
-    const std::optional<TString> PoolPath_;
+    const std::optional<std::string> PoolPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,7 +63,7 @@ public:
         TJobResources resourceLimits,
         NScheduler::TDiskResources diskResources,
         NControllers::TJobNodeDescriptor nodeDescriptor,
-        std::optional<TString> poolPath,
+        std::optional<std::string> poolPath,
         const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec,
         std::optional<std::string> requestedTaskName);
 
@@ -95,7 +95,7 @@ public:
         TAllocationId allocationId,
         NScheduler::TDiskQuota diskQuota,
         NControllers::TJobNodeDescriptor nodeDescriptor,
-        std::optional<TString> poolPath);
+        std::optional<std::string> poolPath);
 
     bool CanSatisfyDemand(const NScheduler::TJobResourcesWithQuota& demand) const final;
 

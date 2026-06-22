@@ -411,7 +411,7 @@ public:
 
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
         const TAllocationSchedulingContext& context,
-        const TString& treeId) override
+        const std::string& treeId) override
     {
         return DoExecuteGuarded(&IOperationController::ScheduleAllocation, context, treeId);
     }
