@@ -3338,15 +3338,18 @@ private:
                     TTransactionAbortRequest abortRequest = {.Force = finishRequest->abort().force() };
                     fillUserFinishRequest(&abortRequest);
                     transactionFinisher->PersistRequest(transaction, abortRequest);
-                } break;
+                    break;
+                }
                 case ETransactionFinishRequest::Commit: {
                     TTransactionCommitRequest commitRequest;
                     FromProto(&commitRequest.PrerequisiteTransactionIds, finishRequest->commit().prerequisite_transaction_ids());
                     fillUserFinishRequest(&commitRequest);
                     transactionFinisher->PersistRequest(transaction, commitRequest);
-                } break;
+                    break;
+                }
                 case ETransactionFinishRequest::Expiration:
                     transactionFinisher->PersistRequest(transaction, TTransactionExpirationRequest{}, /*update*/ true);
+                    break;
             }
         });
 
