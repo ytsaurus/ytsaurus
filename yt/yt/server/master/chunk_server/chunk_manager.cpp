@@ -2715,6 +2715,9 @@ private:
     // COMPAT(akozhikhov)
     bool RecomputeHunkRelatedChunkStatistics_ = false;
 
+    // COMPAT(akozhikhov)
+    bool RecomputeHunkRelatedChunkStatisticsAgain_ = false;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -5853,6 +5856,7 @@ private:
         RecomputeHistoricallyNonVital_ = context.GetVersion() < EMasterReign::IncreaseVitalReplicationFactor;
 
         RecomputeHunkRelatedChunkStatistics_ = context.GetVersion() < EMasterReign::HunkChunkTreeStatisticsOverhaul;
+        RecomputeHunkRelatedChunkStatisticsAgain_ = context.GetVersion() < EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain;
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -6016,103 +6020,203 @@ private:
         }
 
         if (RecomputeHunkRelatedChunkStatistics_) {
-            YT_LOG_INFO("Started recomputing hunk related chunk statistics");
+            RecomputeHunkRelatedChunkStatistics();
+        } else if (RecomputeHunkRelatedChunkStatisticsAgain_) {
+            RecomputeHunkRelatedChunkStatisticsAgain();
+        }
 
-            for (auto [_, chunk] : ChunkMap_) {
-                if (!chunk->IsConfirmed()) {
+        if (RecomputeHunkRelatedChunkStatisticsAgain_) {
+            for (auto [nodeId, node] : Bootstrap_->GetCypressManager()->Nodes()) {
+                if (!IsTableType(node->GetType()) || !node->As<TTableNode>()->IsDynamic()) {
                     continue;
                 }
 
-                if (auto hunkChunkRefsExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
-                    TChunkTreeStatistics statisticsDelta;
+                auto* tabletOwner = node->As<TTabletOwnerBase>();
+                auto tabletStatistics = tabletOwner->GetTabletStatistics();
 
-                    TEnumIndexedArray<NErasure::ECodec, int> codecToDataSize;
-                    for (const auto& protoRef : hunkChunkRefsExt->refs()) {
-                        auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
-                        auto* hunkChunk = FindChunk(hunkChunkId);
-                        if (!IsObjectAlive(hunkChunk)) {
-                            YT_LOG_ALERT("Upon recomputation of hunk related chunk statistics encountered hunk reference "
-                                "leading to an unknown hunk chunk (ChunkId: %v, HunkChunkId: %v)",
-                                chunk->GetId(),
-                                hunkChunkId);
-                            continue;
-                        }
-
-                        auto hunkDataWeight = protoRef.total_hunk_length();
-                        auto hunkDataSize = ComputeHunkDataSize(protoRef);
-
-                        hunkChunk->AccumulateNewlyReferencedHunkStatistics(hunkDataWeight, hunkDataSize);
-
-                        statisticsDelta.HunkDataWeight += hunkDataWeight;
-                        statisticsDelta.HunkDataSize += hunkDataSize;
-                        codecToDataSize[FromProto<NErasure::ECodec>(protoRef.erasure_codec())] += hunkDataSize;
-                    }
-
-                    for (int index = 0; index < std::ssize(codecToDataSize); ++index) {
-                        auto codec = static_cast<NErasure::ECodec>(index);
-                        auto codecDataSize = codecToDataSize[codec];
-                        if (codecDataSize == 0) {
-                            continue;
-                        }
-
-                        if (codec == NErasure::ECodec::None) {
-                            statisticsDelta.HunkRegularDiskSpace += codecDataSize;
-                        } else {
-                            // NB: Include size of parity parts to disk space statistics.
-                            statisticsDelta.HunkErasureDiskSpace += ComputeDiskSpaceFromDataSize(codecDataSize, codec);
-                        }
-                    }
-
-                    std::queue<TChunkListRawPtr> chunkListQueue;
-                    for (auto [parent, _] : chunk->Parents()) {
-                        if (parent->GetType() == EObjectType::ChunkList) {
-                            chunkListQueue.push(parent->AsChunkList());
-                        } else if (parent->GetType() == EObjectType::ChunkView) {
-                            for (auto chunkViewParent : parent->AsChunkView()->Parents()) {
-                                YT_VERIFY(chunkViewParent->GetType() == EObjectType::ChunkList);
-                                chunkListQueue.push(chunkViewParent->AsChunkList());
-                            }
-                        } else {
-                            YT_LOG_ALERT("Upon recomputation of hunk related chunk statistics encountered chunk parent "
-                                "of an unexpected type; skipping it (ChunkId: %v, ParentId: %v, ParentType: %v)",
-                                chunk->GetId(),
-                                parent->GetId(),
-                                parent->GetType());
-                            continue;
-                        }
-                    }
-
-                    while (!chunkListQueue.empty()) {
-                        auto parent = chunkListQueue.front();
-                        chunkListQueue.pop();
-
-                        parent->Statistics().Accumulate(statisticsDelta);
-
-                        for (auto grandparent : parent->Parents()) {
-                            chunkListQueue.push(grandparent);
-                        }
+                if (tabletStatistics.HunkUncompressedDataSize > 0) {
+                    tabletOwner->ResetTabletStatistics();
+                    for (auto tablet : tabletOwner->Tablets()) {
+                        tabletOwner->AccountTabletStatistics(tablet->GetTabletStatistics());
                     }
                 }
             }
-
-            for (auto [_, chunk] : ChunkMap_) {
-                if (!chunk->IsConfirmed()) {
-                    continue;
-                }
-
-                if (!IsHunkChunkFormat(chunk->GetChunkFormat())) {
-                    continue;
-                }
-
-                VisitAllAncestorsInHunkTree(chunk, [&] (TChunkList* chunkList, bool /*firstOccurrence*/) {
-                    chunkList->AccumulateHunkStatistics(chunk);
-                });
-            }
-
-            YT_LOG_INFO("Finished recomputing hunk related chunk statistics");
         }
     }
 
+    // COMPAT(akozhikhov)
+    void RecomputeHunkRelatedChunkStatistics()
+    {
+        YT_LOG_INFO("Started recomputing hunk related chunk statistics");
+
+        for (auto [_, chunk] : ChunkMap_) {
+            if (!chunk->IsConfirmed()) {
+                continue;
+            }
+
+            if (auto hunkChunkRefsExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
+                TChunkTreeStatistics statisticsDelta;
+
+                TEnumIndexedArray<NErasure::ECodec, int> codecToDataSize;
+                for (const auto& protoRef : hunkChunkRefsExt->refs()) {
+                    auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
+                    auto* hunkChunk = FindChunk(hunkChunkId);
+                    if (!IsObjectAlive(hunkChunk)) {
+                        YT_LOG_ALERT("Upon recomputation of hunk related chunk statistics encountered hunk reference "
+                            "leading to an unknown hunk chunk (ChunkId: %v, HunkChunkId: %v)",
+                            chunk->GetId(),
+                            hunkChunkId);
+                        continue;
+                    }
+
+                    auto hunkDataWeight = protoRef.total_hunk_length();
+                    auto hunkDataSize = ComputeHunkDataSize(protoRef);
+
+                    hunkChunk->AccumulateNewlyReferencedHunkStatistics(hunkDataWeight, hunkDataSize);
+
+                    statisticsDelta.HunkDataWeight += hunkDataWeight;
+                    statisticsDelta.HunkDataSize += hunkDataSize;
+                    codecToDataSize[FromProto<NErasure::ECodec>(protoRef.erasure_codec())] += hunkDataSize;
+                }
+
+                for (int index = 0; index < std::ssize(codecToDataSize); ++index) {
+                    auto codec = static_cast<NErasure::ECodec>(index);
+                    auto codecDataSize = codecToDataSize[codec];
+                    if (codecDataSize == 0) {
+                        continue;
+                    }
+
+                    if (codec == NErasure::ECodec::None) {
+                        statisticsDelta.HunkRegularDiskSpace += codecDataSize;
+                    } else {
+                        // NB: Include size of parity parts to disk space statistics.
+                        statisticsDelta.HunkErasureDiskSpace += ComputeDiskSpaceFromDataSize(codecDataSize, codec);
+                    }
+                }
+
+                std::queue<TChunkListRawPtr> chunkListQueue;
+                for (auto [parent, _] : chunk->Parents()) {
+                    if (parent->GetType() == EObjectType::ChunkList) {
+                        chunkListQueue.push(parent->AsChunkList());
+                    } else if (parent->GetType() == EObjectType::ChunkView) {
+                        for (auto chunkViewParent : parent->AsChunkView()->Parents()) {
+                            YT_VERIFY(chunkViewParent->GetType() == EObjectType::ChunkList);
+                            chunkListQueue.push(chunkViewParent->AsChunkList());
+                        }
+                    } else {
+                        YT_LOG_ALERT("Upon recomputation of hunk related chunk statistics encountered chunk parent "
+                            "of an unexpected type; skipping it (ChunkId: %v, ParentId: %v, ParentType: %v)",
+                            chunk->GetId(),
+                            parent->GetId(),
+                            parent->GetType());
+                        continue;
+                    }
+                }
+
+                while (!chunkListQueue.empty()) {
+                    auto parent = chunkListQueue.front();
+                    chunkListQueue.pop();
+
+                    parent->Statistics().Accumulate(statisticsDelta);
+
+                    for (auto grandparent : parent->Parents()) {
+                        chunkListQueue.push(grandparent);
+                    }
+                }
+            }
+        }
+
+        for (auto [_, chunk] : ChunkMap_) {
+            if (!chunk->IsConfirmed()) {
+                continue;
+            }
+
+            if (!IsHunkChunkFormat(chunk->GetChunkFormat())) {
+                continue;
+            }
+
+            VisitAllAncestorsInHunkTree(chunk, [&] (TChunkList* chunkList, bool /*firstOccurrence*/) {
+                chunkList->AccumulateHunkStatistics(chunk);
+            });
+        }
+
+        YT_LOG_INFO("Finished recomputing hunk related chunk statistics");
+    }
+
+    // COMPAT(akozhikhov)
+    void RecomputeHunkRelatedChunkStatisticsAgain()
+    {
+        YT_LOG_INFO("Started recomputing hunk related chunk statistics again");
+
+        for (auto [_, chunk] : ChunkMap_) {
+            if (!chunk->IsConfirmed()) {
+                continue;
+            }
+
+            if (auto hunkChunkRefsExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
+                TChunkTreeStatistics statisticsDelta;
+
+                TEnumIndexedArray<NErasure::ECodec, int> codecToDataSize;
+                for (const auto& protoRef : hunkChunkRefsExt->refs()) {
+                    auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
+                    auto* hunkChunk = FindChunk(hunkChunkId);
+                    if (!IsObjectAlive(hunkChunk)) {
+                        YT_LOG_ALERT("Upon recomputation of hunk related chunk statistics encountered hunk reference "
+                            "leading to an unknown hunk chunk (ChunkId: %v, HunkChunkId: %v)",
+                            chunk->GetId(),
+                            hunkChunkId);
+                        continue;
+                    }
+
+                    auto hunkDataSize = ComputeHunkDataSize(protoRef);
+                    codecToDataSize[FromProto<NErasure::ECodec>(protoRef.erasure_codec())] += hunkDataSize;
+                }
+
+                for (int index = 0; index < std::ssize(codecToDataSize); ++index) {
+                    auto codec = static_cast<NErasure::ECodec>(index);
+                    auto codecDataSize = codecToDataSize[codec];
+                    if (codecDataSize == 0 || codec == NErasure::ECodec::None) {
+                        continue;
+                    }
+
+                    // NB: Include size of parity parts to disk space statistics.
+                    statisticsDelta.HunkErasureDiskSpace += ComputeDiskSpaceFromDataSize(codecDataSize, codec);
+                }
+
+                std::queue<TChunkListRawPtr> chunkListQueue;
+                for (auto [parent, _] : chunk->Parents()) {
+                    if (parent->GetType() == EObjectType::ChunkList) {
+                        chunkListQueue.push(parent->AsChunkList());
+                    } else if (parent->GetType() == EObjectType::ChunkView) {
+                        for (auto chunkViewParent : parent->AsChunkView()->Parents()) {
+                            YT_VERIFY(chunkViewParent->GetType() == EObjectType::ChunkList);
+                            chunkListQueue.push(chunkViewParent->AsChunkList());
+                        }
+                    } else {
+                        YT_LOG_ALERT("Upon recomputation of hunk related chunk statistics encountered chunk parent "
+                            "of an unexpected type; skipping it (ChunkId: %v, ParentId: %v, ParentType: %v)",
+                            chunk->GetId(),
+                            parent->GetId(),
+                            parent->GetType());
+                        continue;
+                    }
+                }
+
+                while (!chunkListQueue.empty()) {
+                    auto parent = chunkListQueue.front();
+                    chunkListQueue.pop();
+
+                    parent->Statistics().Accumulate(statisticsDelta);
+
+                    for (auto grandparent : parent->Parents()) {
+                        chunkListQueue.push(grandparent);
+                    }
+                }
+            }
+        }
+
+        YT_LOG_INFO("Finished recomputing hunk related chunk statistics again");
+    }
 
     void Clear() override
     {
@@ -6177,6 +6281,7 @@ private:
         LastSequoiaReplicasCommitTimestamp_ = NullTimestamp;
 
         RecomputeHunkRelatedChunkStatistics_ = false;
+        RecomputeHunkRelatedChunkStatisticsAgain_ = false;
     }
 
     void SetZeroState() override

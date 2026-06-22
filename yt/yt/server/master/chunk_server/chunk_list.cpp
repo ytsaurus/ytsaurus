@@ -202,6 +202,13 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
         }
     }
 
+    // COMPAT(akozhikhov)
+    if (context.GetVersion() < NCellMaster::EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain) {
+        if (!IsHunkRelatedChunkList(this)) {
+            std::get<TMainTreeChunkListTraits>(ChunkListTraits_).Statistics.HunkErasureDiskSpace = 0;
+        }
+    }
+
     if (HasChildToIndexMapping()) {
         for (int index = 0; index < std::ssize(Children_); ++index) {
             auto child = Children_[index];
@@ -594,9 +601,9 @@ void TChunkList::AccumulateNewlyReferencedHunkDataSize(TChunk* chunk, i64 dataSi
 
     hunkTraits.Statistics.Accumulate(deltaStatistics);
 
-    if (hunkTraits.Statistics.ReferencedRegularDiskSpace < 0 ||
-        hunkTraits.Statistics.ReferencedErasureDiskSpace < 0)
-    {
+    // NB: We do not check ReferencedErasureDiskSpace field because it is unreliable
+    // due to integer arithmetics in ComputeDiskSpaceFromDataSize.
+    if (hunkTraits.Statistics.ReferencedRegularDiskSpace < 0) {
         YT_LOG_ALERT("Encountered inconsistent referenced disk space upon referencing hunk data in a chunk list "
             "(ChunkListId: %v, ChunkId: %v, DataSizeDelta: %v, Statistics: %v)",
             GetId(),
