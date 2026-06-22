@@ -158,8 +158,8 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         assert "tmpfs_volumes" in task_spec
         assert len(task_spec["tmpfs_volumes"]) == 1
-        assert "job_volumes_mounts" in task_spec
-        assert len(task_spec["job_volumes_mounts"]) == 2
+        assert "job_volume_mounts" in task_spec
+        assert len(task_spec["job_volume_mounts"]) == 2
         assert "volumes" in task_spec
         assert len(task_spec["volumes"]) == 2
 
@@ -1047,23 +1047,18 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        op = map(
-            command="[ -d tmpfs ] || echo -n 'Success' >&2",
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            spec={
-                "mapper": {
-                    "tmpfs_size": 1024 * 1024,
-                    "tmpfs_path": "tmpfs",
-                }
-            },
-        )
-
-        job_ids = op.list_jobs()
-        assert len(job_ids) == 1
-        content = op.read_stderr(job_ids[0]).decode("ascii")
-        words = content.strip().split()
-        assert ["Success"] == words
+        with raises_yt_error("Tmpfs creation is disabled on this cluster. The operation cannot be started because tmpfs is requested in its specification"):
+            map(
+                command="[ -d tmpfs ] || echo -n 'Success' >&2",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_size": 1024 * 1024,
+                        "tmpfs_path": "tmpfs",
+                    }
+                },
+            )
 
 
 ##################################################################

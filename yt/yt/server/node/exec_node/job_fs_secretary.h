@@ -38,6 +38,7 @@ struct TJobFSDescription
     bool RootVolumeAllowReusing = false;
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams;
     std::vector<TVolumeMountPtr> JobVolumeMounts;
+    THashMap<TString, std::vector<TVolumeMountPtr>> SidecarsVolumeMounts;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
 };
 
@@ -111,6 +112,8 @@ public:
 
     const std::vector<TVolumeMountPtr>& GetJobVolumeMounts() const;
 
+    const THashMap<TString, std::vector<TVolumeMountPtr>>& GetSidecarsVolumeMounts() const;
+
     const TArtifactDescription& GetUserArtifact(const TString& name) const;
 
     //! Adds prepared overlay layers to the allocation-scoped cache.
@@ -161,6 +164,7 @@ private:
     bool RootVolumeReusingAllowed_ = false;
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams_;
     std::vector<TVolumeMountPtr> JobVolumeMounts_;
+    THashMap<TString, std::vector<TVolumeMountPtr>> SidecarsVolumeMounts_;
     bool HasVirtualSandboxArtifacts_ = false;
     bool ArtifactsCached_ = false;
 

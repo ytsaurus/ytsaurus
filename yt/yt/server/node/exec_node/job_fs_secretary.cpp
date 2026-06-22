@@ -177,6 +177,36 @@ TError CheckJobVolumeMounts(
     return {};
 }
 
+TError CheckSidecarsVolumeMounts(
+    const THashMap<TString, std::vector<TVolumeMountPtr>>& baseline,
+    const THashMap<TString, std::vector<TVolumeMountPtr>>& current)
+{
+    if (baseline.size() != current.size()) {
+        return TError("Job spec sidecar volume mounts count differs from the first job in this allocation")
+            << TErrorAttribute("baseline_count", baseline.size())
+            << TErrorAttribute("current_count", current.size());
+    }
+
+    for (const auto& [baselineSidecarName, baselineSidecarMounts] : baseline) {
+        auto it = current.find(baselineSidecarName);
+        if (it == current.end()) {
+            return TError("Job spec sidecar volume mounts count differs from the first job in this allocation")
+                << TErrorAttribute("baseline_count", baseline.size())
+                << TErrorAttribute("current_count", current.size());
+        }
+        const auto& currentSidecarMounts = it->second;
+        for (int i = 0; i < ssize(current); ++i) {
+            if (*baselineSidecarMounts[i] != *currentSidecarMounts[i]) {
+                return TError("Job spec sidecar volume mounts differ from the first job in this allocation")
+                    << TErrorAttribute("mount_index", i)
+                    << TErrorAttribute("baseline", baselineSidecarMounts[i])
+                    << TErrorAttribute("current", currentSidecarMounts[i]);
+            }
+        }
+    }
+    return {};
+}
+
 TError CheckSandboxNbdRootVolumeData(
     const std::optional<TSandboxNbdRootVolumeData>& baseline,
     const std::optional<TSandboxNbdRootVolumeData>& current)
@@ -285,6 +315,7 @@ void TJobFSSecretary::VerifyDescriptionMatchesApplied(const TJobFSDescription& c
             current.RootVolumeInodeLimit));
     crashIfFailed(CheckNonRootVolumeParams(NonRootVolumeParams_, current.NonRootVolumeParams));
     crashIfFailed(CheckJobVolumeMounts(JobVolumeMounts_, current.JobVolumeMounts));
+    crashIfFailed(CheckSidecarsVolumeMounts(SidecarsVolumeMounts_, current.SidecarsVolumeMounts));
     crashIfFailed(CheckSandboxNbdRootVolumeData(SandboxNbdRootVolumeData_, current.SandboxNbdRootVolumeData));
 }
 
@@ -300,6 +331,7 @@ void TJobFSSecretary::ApplyDescription(TNonNullPtr<TJobFSDescription> descriptio
     RootVolumeReusingAllowed_ = description->RootVolumeAllowReusing;
     NonRootVolumeParams_ = std::move(description->NonRootVolumeParams);
     JobVolumeMounts_ = std::move(description->JobVolumeMounts);
+    SidecarsVolumeMounts_ = std::move(description->SidecarsVolumeMounts);
     SandboxNbdRootVolumeData_ = std::move(description->SandboxNbdRootVolumeData);
 }
 
@@ -470,10 +502,7 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
         return;
     }
 
-    std::optional<std::string_view> rootVolumeId;
-    description->JobVolumeMounts.reserve(userJobSpec->job_volume_mounts().size());
-    for (const auto& protoVolumeMount : userJobSpec->job_volume_mounts()) {
-        auto volumeMount = New<TVolumeMount>();
+    auto fromProtoVolumeMount = [&] (const TVolumeMountPtr& volumeMount, const NControllerAgent::NProto::TVolumeMount& protoVolumeMount) {
         std::filesystem::path mountPath(std::string(protoVolumeMount.mount_path()));
         if (!mountPath.is_absolute()) {
             if (description->RootVolumeLayerArtifactKeys.empty() || Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS) {
@@ -486,19 +515,58 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
         }
         volumeMount->VolumeId = protoVolumeMount.volume_id();
         volumeMount->ReadOnly = protoVolumeMount.read_only();
+    };
+
+    std::optional<std::string_view> jobRootVolumeId;
+    description->JobVolumeMounts.reserve(userJobSpec->job_volume_mounts().size());
+    for (const auto& protoVolumeMount : userJobSpec->job_volume_mounts()) {
+        auto volumeMount = New<TVolumeMount>();
+        fromProtoVolumeMount(volumeMount, protoVolumeMount);
 
         if (volumeMount->MountPath == TAbsoluteNormalizedPath("/")) {
-            rootVolumeId = volumeMount->VolumeId;
+            jobRootVolumeId = volumeMount->VolumeId;
         }
 
         description->JobVolumeMounts.push_back(std::move(volumeMount));
+    }
+    std::sort(description->JobVolumeMounts.begin(), description->JobVolumeMounts.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs->MountPath < rhs->MountPath;
+    });
+
+    description->SidecarsVolumeMounts.reserve(userJobSpec->sidecars().size());
+    for (const auto& [sidecarName, sidecar] : userJobSpec->sidecars()) {
+        if (Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto) {
+            if (sidecar.has_docker_image()) {
+                THROW_ERROR_EXCEPTION(
+                    NExecNode::EErrorCode::DockerImagePullingFailed,
+                    "External sidecar docker image is not supported in porto job environment");
+            }
+        } else if (Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Cri) {
+            if (!sidecar.sidecar_volume_mounts().empty()) {
+                THROW_ERROR_EXCEPTION(
+                    NExecNode::EErrorCode::LayerUnpackingFailed,
+                    "Porto volumes are not supported in cri job environment");
+            }
+        }
+
+        auto& sidecarVolumeMounts = description->SidecarsVolumeMounts[sidecarName];
+        sidecarVolumeMounts.reserve(sidecar.sidecar_volume_mounts().size());
+
+        for (const auto& protoVolumeMount : sidecar.sidecar_volume_mounts()) {
+            auto volumeMount = New<TVolumeMount>();
+            fromProtoVolumeMount(volumeMount, protoVolumeMount);
+            sidecarVolumeMounts.push_back(std::move(volumeMount));
+        }
+        std::sort(sidecarVolumeMounts.begin(), sidecarVolumeMounts.end(), [] (const auto& lhs, const auto& rhs) {
+            return lhs->MountPath < rhs->MountPath;
+        });
     }
 
     for (const auto& [volumeId, protoVolume] : userJobSpec->volumes()) {
         using TProtoMessage = NControllerAgent::NProto::TVolume;
         switch (protoVolume.disk_request_case()) {
             case TProtoMessage::DISK_REQUEST_NOT_SET:
-                YT_VERIFY(volumeId == rootVolumeId);
+                YT_VERIFY(volumeId == jobRootVolumeId);
                 for (const auto& layerKey : protoVolume.layers()) {
                     description->RootVolumeLayerArtifactKeys.emplace_back(layerKey);
                 }
@@ -509,7 +577,7 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
                 break;
             case TProtoMessage::kLocalDiskRequest: {
                 const auto& localDiskRequest = protoVolume.local_disk_request();
-                if (rootVolumeId && rootVolumeId.value() == volumeId) {
+                if (jobRootVolumeId && jobRootVolumeId.value() == volumeId) {
                     description->RootVolumeDiskSpace = localDiskRequest.disk_request().storage_request_common_parameters().disk_space();
                     if (localDiskRequest.disk_request().has_inode_count()) {
                         description->RootVolumeInodeLimit = localDiskRequest.disk_request().inode_count();
@@ -834,6 +902,11 @@ const std::vector<TBaseVolumeParamsPtr>& TJobFSSecretary::GetNonRootVolumeParams
 const std::vector<TVolumeMountPtr>& TJobFSSecretary::GetJobVolumeMounts() const
 {
     return JobVolumeMounts_;
+}
+
+const THashMap<TString, std::vector<TVolumeMountPtr>>& TJobFSSecretary::GetSidecarsVolumeMounts() const
+{
+    return SidecarsVolumeMounts_;
 }
 
 const TArtifactDescription& TJobFSSecretary::GetUserArtifact(const TString& name) const

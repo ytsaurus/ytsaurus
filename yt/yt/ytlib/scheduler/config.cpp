@@ -1203,6 +1203,9 @@ void TSidecarJobSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("graceful_shutdown", &TThis::GracefulShutdown)
         .Default();
+
+    registrar.Parameter("sidecar_volume_mounts", &TThis::SidecarVolumeMounts)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1465,7 +1468,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("volumes", &TThis::Volumes)
         .Default();
 
-    registrar.Parameter("job_volumes_mounts", &TThis::JobVolumeMounts)
+    registrar.Parameter("job_volume_mounts", &TThis::JobVolumeMounts)
+        // TODO(krasovav): Deprecate this.
+        .Alias("job_volumes_mounts")
         .Default();
 
     registrar.Postprocessor([] (TUserJobSpec* spec) {
