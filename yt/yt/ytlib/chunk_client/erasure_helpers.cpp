@@ -312,7 +312,7 @@ public:
             int blockPosition = BlockRanges_[CurrentBlockIndex_].Begin + PositionInCurrentBlock_ - range.Begin;
             YT_VERIFY(blockPosition >= 0);
 
-            CurrentBlock_ = TSharedMutableRef::Allocate<TPartWriterTag>(BlockRanges_[CurrentBlockIndex_].Size());
+            CurrentBlock_ = TSharedMutableRef::Allocate<TPartWriterTag>(BlockRanges_[CurrentBlockIndex_].Size(), {.InitializeStorage = false});
             i64 copySize = Min<i64>(block.Size(), range.Size() - blockPosition);
             memcpy(CurrentBlock_.Begin(), block.Begin() + blockPosition, copySize);
             PositionInCurrentBlock_ += copySize;

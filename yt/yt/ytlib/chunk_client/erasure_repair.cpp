@@ -342,7 +342,7 @@ public:
     {
         for (int index = 0; index < std::ssize(Ranges_); ++index) {
             auto size = Ranges_[index].Size();
-            Blocks_[index] = TSharedMutableRef::Allocate<TPartBlockSaverTag>(size);
+            Blocks_[index] = TSharedMutableRef::Allocate<TPartBlockSaverTag>(size, {.InitializeStorage = false});
             TotalBytes_ += size;
         }
     }

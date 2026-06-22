@@ -127,7 +127,7 @@ private:
 
             if (std::ssize(Buffer_) < size) {
                 struct TErasureWriterSliceTag { };
-                Buffer_ = TSharedMutableRef::Allocate<TErasureWriterSliceTag>(size);
+                Buffer_ = TSharedMutableRef::Allocate<TErasureWriterSliceTag>(size, {.InitializeStorage = false});
             }
 
             *dataSize = 0;
