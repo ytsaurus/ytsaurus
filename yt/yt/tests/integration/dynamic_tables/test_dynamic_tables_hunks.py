@@ -3187,7 +3187,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
         sync_unmount_table("//tmp/t")
 
         store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
@@ -4901,7 +4901,6 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
     @authors("akozhikhov")
     @pytest.mark.skip(reason="YT-26629")
     def test_value_compression_hunk_statistics(self):
-
         sync_create_cells(1)
         self._create_table()
         self._setup_for_dictionary_compression("//tmp/t")
