@@ -61,6 +61,7 @@ public:
         : TMasterHeartbeatReporterBase(
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ true,
+            ENodeHeartbeatType::Cellar,
             CellarNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Cellar))
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->CellarNode->MasterConnector)
