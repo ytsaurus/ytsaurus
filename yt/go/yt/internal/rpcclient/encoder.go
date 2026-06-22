@@ -1379,7 +1379,7 @@ func (e *Encoder) startTabletTx(
 		Durability:                 nil, // todo
 		Attributes:                 nil, // todo
 		Deadline:                   nil, // todo
-		PrerequisiteTransactionIds: nil, // todo
+		PrerequisiteTransactionIds: convertPrerequisiteTxIDs(opts.PrerequisiteTransactionIDs),
 	}
 
 	call := e.newCall(MethodStartTransaction, NewStartTxRequest(req), nil)

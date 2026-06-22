@@ -47,6 +47,7 @@ func TestTabletClient(t *testing.T) {
 		{Name: "TabletTx", Test: suite.TestTabletTx},
 		{Name: "TabletTxDuration", Test: suite.TestTabletTxDuration},
 		{Name: "ExecTabletTx", Test: suite.TestExecTabletTx},
+		{Name: "TabletTxPrerequisite", Test: suite.TestTabletTxPrerequisite},
 		{Name: "LookupColumnFilter", Test: suite.TestLookupColumnFilter},
 		{Name: "ReadTimestamp", Test: suite.TestReadTimestamp},
 		{Name: "InsertRows_map", Test: suite.TestInsertRows_map},
@@ -61,6 +62,47 @@ func TestTabletClient(t *testing.T) {
 		{Name: "MultiLookupRows_EmptySubrequests", Test: suite.TestMultiLookupRows_EmptySubrequests, SkipHTTP: true},
 		{Name: "SelectRowsWithPlaceholders", Test: suite.SelectRowsWithPlaceholders},
 	})
+}
+
+func (s *Suite) TestTabletTxPrerequisite(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(ctx, yc, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, testTable))
+
+	liveTx, err := yc.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	tx, err := yc.BeginTabletTx(ctx, &yt.StartTabletTxOptions{
+		PrerequisiteTransactionIDs: []yt.TxID{liveTx.ID()},
+	})
+	require.NoError(t, err)
+	require.NoError(t, tx.InsertRows(ctx, testTable, []any{&testRow{"foo", "1"}}, nil))
+	require.NoError(t, tx.Commit())
+	require.NoError(t, liveTx.Abort())
+
+	r, err := yc.LookupRows(ctx, testTable, []any{&testKey{"foo"}}, nil)
+	require.NoError(t, err)
+	require.True(t, r.Next(), "committed row must be present")
+	var row testRow
+	require.NoError(t, r.Scan(&row))
+	require.Equal(t, &testRow{"foo", "1"}, &row)
+	require.NoError(t, r.Close())
+
+	deadTx, err := yc.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	tx, err = yc.BeginTabletTx(ctx, &yt.StartTabletTxOptions{
+		PrerequisiteTransactionIDs: []yt.TxID{deadTx.ID()},
+	})
+	require.NoError(t, err)
+	require.NoError(t, tx.InsertRows(ctx, testTable, []any{&testRow{"bar", "2"}}, nil))
+	require.NoError(t, deadTx.Abort())
+	require.Error(t, tx.Commit())
+
+	r, err = yc.LookupRows(ctx, testTable, []any{&testKey{"bar"}}, nil)
+	require.NoError(t, err)
+	require.False(t, r.Next(), "fenced row must be absent")
+	require.NoError(t, r.Close())
 }
 
 func (s *Suite) TestTabletTx(ctx context.Context, t *testing.T, yc yt.Client) {

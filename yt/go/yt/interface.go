@@ -1392,6 +1392,8 @@ type StartTabletTxOptions struct {
 
 	Type   TxType `http:"type"`
 	Sticky bool   `http:"sticky"`
+
+	PrerequisiteTransactionIDs []TxID `http:"prerequisite_transaction_ids,omitnil"`
 }
 
 type PushQueueProducerResult struct {
