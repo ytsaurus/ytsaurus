@@ -8,6 +8,7 @@ SRCS(
     enforce_aggregate.cpp
     filter_introspection.cpp
     helpers.cpp
+    implication_checker.cpp
     misc.cpp
     query_optimizer.cpp
     query_rewriter.cpp
