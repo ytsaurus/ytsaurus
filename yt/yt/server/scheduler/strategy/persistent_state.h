@@ -30,7 +30,7 @@ void FormatValue(TStringBuilderBase* builder, const TPersistentPoolStatePtr& sta
 struct TPersistentTreeState
     : public NYTree::TYsonStruct
 {
-    THashMap<TString, TPersistentPoolStatePtr> PoolStates;
+    THashMap<std::string, TPersistentPoolStatePtr> PoolStates;
 
     NYTree::INodePtr SchedulingPolicyState;
     NYTree::INodePtr GpuSchedulingPolicyState;

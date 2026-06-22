@@ -37,7 +37,7 @@ TPoolTreeSnapshot::TPoolTreeSnapshot(
     , ResourceLimitsByTagFilter_(std::move(resourceLimitsByTagFilter))
 { }
 
-TPoolTreePoolElement* TPoolTreeSnapshot::FindPool(const TString& poolName) const
+TPoolTreePoolElement* TPoolTreeSnapshot::FindPool(const std::string& poolName) const
 {
     auto it = PoolMap_.find(poolName);
     return it != PoolMap_.end() ? it->second : nullptr;
@@ -127,7 +127,7 @@ TResourceUsageSnapshotPtr BuildResourceUsageSnapshot(const TPoolTreeSnapshotPtr&
 
     auto operationResourceUsageMap = THashMap<TOperationId, TJobResources>(treeSnapshot->EnabledOperationMap().size());
     auto operationResourceUsageWithPrecommitMap = THashMap<TOperationId, TJobResources>(treeSnapshot->EnabledOperationMap().size());
-    auto poolResourceUsageMap = THashMap<TString, TJobResources>(treeSnapshot->PoolMap().size());
+    auto poolResourceUsageMap = THashMap<std::string, TJobResources>(treeSnapshot->PoolMap().size());
     auto aliveOperationIds = THashSet<TOperationId>(treeSnapshot->EnabledOperationMap().size());
 
     for (const auto& [operationId, element] : treeSnapshot->EnabledOperationMap()) {

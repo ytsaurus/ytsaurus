@@ -224,7 +224,7 @@ struct IStrategy
      *
      *  The implementation must be synchronous.
      */
-    virtual THashMap<TString, TError> GetPoolLimitViolations(
+    virtual THashMap<std::string, TError> GetPoolLimitViolations(
         const IOperation* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) = 0;
 

@@ -26,7 +26,7 @@ public:
 
     TResourceTreeElement(
         TResourceTree* resourceTree,
-        const TString& id,
+        const std::string& id,
         EResourceTreeElementKind elementKind);
 
     TJobResources GetResourceUsage();
@@ -50,13 +50,13 @@ public:
 
     NThreading::TWriterGuard<NThreading::TPaddedReaderWriterSpinLock> AcquireWriteLock();
 
-    inline const TString& GetId();
+    inline const std::string& GetId();
 
     void MarkInitialized();
 
 private:
     TResourceTree* ResourceTree_;
-    const TString Id_;
+    const std::string Id_;
     const EResourceTreeElementKind Kind_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TPaddedReaderWriterSpinLock, ResourceUsageLock_);

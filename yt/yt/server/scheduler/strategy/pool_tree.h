@@ -14,7 +14,7 @@ namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters);
+THashMap<std::string, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +81,7 @@ struct IPoolTree
 
     virtual TStrategyTreeConfigPtr GetSnapshottedConfig() const = 0;
     virtual TJobResources GetSnapshottedTotalResourceLimits() const = 0;
-    virtual std::optional<TPoolTreeElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
+    virtual std::optional<TPoolTreeElementStateSnapshot> GetMaybeStateSnapshotForPool(const std::string& poolId) const = 0;
     virtual void BuildSchedulingAttributesStringForNode(
         const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         NNodeTrackerClient::TNodeId nodeId,
@@ -164,8 +164,8 @@ struct IPoolTree
     virtual void ProcessActivatableOperations() = 0;
     virtual void TryRunAllPendingOperations() = 0;
 
-    virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const std::string& user) const = 0;
-    virtual const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const std::string& user) const = 0;
+    virtual TPoolName CreatePoolName(const std::optional<std::string>& poolFromSpec, const std::string& user) const = 0;
+    virtual const TOffloadingSettings& GetOffloadingSettingsFor(const std::string& poolName, const std::string& user) const = 0;
 
     virtual TPoolsUpdateResult UpdatePools(const NYTree::INodePtr& poolsNode, bool forceUpdate) = 0;
     virtual TError ValidateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) = 0;
@@ -174,7 +174,7 @@ struct IPoolTree
     virtual void ValidatePoolLimitsOnPoolChange(const IOperation* operation, const TPoolName& newPoolName) const = 0;
     virtual TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperation* operation, const TPoolName& poolName) const = 0;
     virtual TFuture<void> ValidateOperationPoolPermissions(TOperationId operationId, const std::string& user, NYTree::EPermissionSet permissions) const = 0;
-    virtual void EnsureOperationPoolExistence(const TString& poolName) const = 0;
+    virtual void EnsureOperationPoolExistence(const std::string& poolName) const = 0;
 
     virtual void ActualizeEphemeralPoolParents(const THashMap<std::string, TString>& userToDefaultPoolMap) = 0;
 
