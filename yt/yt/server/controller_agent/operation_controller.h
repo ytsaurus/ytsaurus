@@ -90,7 +90,7 @@ struct TOperationControllerReviveResult
         TInstant PreemptibleProgressStartTime;
         TJobResources ResourceLimits;
         NScheduler::TDiskQuota DiskQuota;
-        TString TreeId;
+        std::string TreeId;
         NNodeTrackerClient::TNodeId NodeId;
         std::string NodeAddress;
         std::string AllocationGroupName;
@@ -469,7 +469,7 @@ struct IOperationController
      */
     virtual NScheduler::TControllerScheduleAllocationResultPtr ScheduleAllocation(
         const TAllocationSchedulingContext& context,
-        const TString& treeId) = 0;
+        const std::string& treeId) = 0;
 
     //! Called during schedule allocation when failure happens even before calling #IOperationController::ScheduleAllocation().
     //! Used to account such failures in operation progress.

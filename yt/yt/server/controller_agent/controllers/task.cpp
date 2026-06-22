@@ -237,7 +237,7 @@ bool TTask::HasNoPendingJobs() const
     return GetPendingJobCount().IsZero();
 }
 
-bool TTask::HasNoPendingJobs(const TString& poolTree) const
+bool TTask::HasNoPendingJobs(const std::string& poolTree) const
 {
     return GetPendingJobCount().GetJobCountFor(poolTree) == 0;
 }
@@ -2164,7 +2164,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
     auto ioTags = CreateEphemeralAttributes();
     if (joblet->PoolPath) {
         const auto& poolPath = *joblet->PoolPath;
-        AddTagToBaggage(ioTags, EAggregateIOTag::Pool, DirNameAndBaseName(poolPath).second);
+        // TODO(babenko): migrate to std::string
+        AddTagToBaggage(ioTags, EAggregateIOTag::Pool, DirNameAndBaseName(TString(poolPath)).second);
         AddTagToBaggage(ioTags, EAggregateIOTag::PoolPath, poolPath);
     }
     AddTagToBaggage(ioTags, EAggregateIOTag::OperationType, FormatEnum(GetTaskHost()->GetOperationType()));

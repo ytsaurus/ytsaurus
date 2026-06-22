@@ -164,7 +164,7 @@ private: \
         public,
         NScheduler::TControllerScheduleAllocationResultPtr,
         ScheduleAllocation,
-        (const TAllocationSchedulingContext& context, const TString& treeId),
+        (const TAllocationSchedulingContext& context, const std::string& treeId),
         (context, treeId),
         true)
 
@@ -487,9 +487,9 @@ public:
     TJobletPtr CreateJoblet(
         TTask* task,
         TJobId jobId,
-        TString treeId,
+        std::string treeId,
         int taskJobIndex,
-        std::optional<TString> poolPath,
+        std::optional<std::string> poolPath,
         bool treeIsTentative) override;
 
     std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override;
@@ -678,7 +678,7 @@ protected:
     void DoScheduleAllocation(
         TAllocation& allocation,
         const TAllocationSchedulingContext& context,
-        const TString& treeId,
+        const std::string& treeId,
         NScheduler::TControllerScheduleAllocationResult* scheduleAllocationResult);
 
     void TryScheduleFirstJob(
@@ -1195,14 +1195,14 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobMetricsDeltaPerTreeLock_);
     //! Delta of job metrics that was not reported to scheduler.
-    THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
+    THashMap<std::string, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
     std::atomic<TDuration> CachedJobMetricsReportPeriodCpuDuration_;
     // NB(eshcherbin): this is very ad-hoc and hopefully temporary. We need to get the total time
     // per tree in the end of the operation, however, (1) job metrics are sent as deltas and
     // are not accumulated, and (2) job statistics don't provide per tree granularity.
     //! Aggregated total time of jobs per tree.
-    THashMap<TString, i64> TotalTimePerTree_;
-    THashMap<TString, i64> MainResourceConsumptionPerTree_;
+    THashMap<std::string, i64> TotalTimePerTree_;
+    THashMap<std::string, i64> MainResourceConsumptionPerTree_;
     NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_ = 0;
 
     //! Aggregated schedule job statistics.
@@ -1494,9 +1494,9 @@ private:
 
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
-    bool IsIdleCpuPolicyAllowedInTree(const TString& treeId) const override;
-    bool IsTreeTentative(const TString& treeId) const;
-    bool IsTreeProbing(const TString& treeId) const override;
+    bool IsIdleCpuPolicyAllowedInTree(const std::string& treeId) const override;
+    bool IsTreeTentative(const std::string& treeId) const;
+    bool IsTreeProbing(const std::string& treeId) const override;
     void MaybeBanInTentativeTree(const std::string& treeId);
 
     void RegisterTestingSpeculativeJobIfNeeded(TTask& task, TAllocationId allocationId);

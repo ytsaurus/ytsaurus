@@ -56,7 +56,7 @@ bool TCompositePendingJobCount::IsZero() const
     return true;
 }
 
-int TCompositePendingJobCount::GetJobCountFor(const TString& tree) const
+int TCompositePendingJobCount::GetJobCountFor(const std::string& tree) const
 {
     auto it = CountByPoolTree.find(tree);
     return it != CountByPoolTree.end()

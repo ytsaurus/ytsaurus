@@ -160,7 +160,7 @@ void TJobProfiler::ProfileAbortedJob(const TJoblet& joblet, const TAbortedJobSum
 
 template <class EErrorCodeType>
 void TJobProfiler::ProfileAbortedJobByError(
-    const TString& treeId,
+    const std::string& treeId,
     EJobType jobType,
     const TError& error,
     EErrorCodeType errorCode)
@@ -183,7 +183,7 @@ void TJobProfiler::ProfileAbortedJobByError(
 void TJobProfiler::UpdateInProgressJobCount(
     EJobState jobState,
     EJobType jobType,
-    const TString& treeId,
+    const std::string& treeId,
     bool increment)
 {
     YT_VERIFY(jobState <= EJobState::Running);
@@ -211,7 +211,7 @@ void TJobProfiler::UpdateInProgressJobCount(
 void TJobProfiler::ProfileFinishedJob(
     EJobType jobType,
     std::optional<EJobState> previousJobState,
-    const TString& treeId)
+    const std::string& treeId)
 {
     if (!previousJobState) {
         return;

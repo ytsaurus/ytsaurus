@@ -93,7 +93,7 @@ TJoblet::TJoblet(
     TTask* task,
     int jobIndex,
     int taskJobIndex,
-    const TString& treeId,
+    const std::string& treeId,
     bool treeIsTentative)
     : Task(task)
     , JobIndex(jobIndex)
@@ -162,7 +162,8 @@ TJobStatisticsTags TJoblet::GetAggregationTags(EJobState state)
     return {
         .JobState = statisticsState,
         .JobType = Task->GetVertexDescriptorForJoblet(MakeStrong(this)),
-        .PoolTree = TreeId,
+        // TODO(babenko): migrate to std::string
+        .PoolTree = TString(TreeId),
     };
 }
 

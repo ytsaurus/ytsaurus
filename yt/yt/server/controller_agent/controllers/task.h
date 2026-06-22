@@ -113,7 +113,7 @@ public:
     virtual TCompositePendingJobCount GetPendingJobCount() const;
     TCompositePendingJobCount GetPendingJobCountDelta();
     bool HasNoPendingJobs() const;
-    bool HasNoPendingJobs(const TString& poolTree) const;
+    bool HasNoPendingJobs(const std::string& poolTree) const;
 
     virtual int GetTotalJobCount() const;
     int GetTotalJobCountDelta();
