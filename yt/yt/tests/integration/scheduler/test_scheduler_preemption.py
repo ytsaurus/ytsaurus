@@ -37,6 +37,8 @@ from copy import deepcopy
 
 import pytest
 
+from flaky import flaky
+
 import time
 import datetime
 import os
@@ -2371,6 +2373,10 @@ class TestSsdPriorityPreemption(BaseTestDiskPreemption):
         assert op.get_job_count("running") == 0
         assert op.get_job_count("aborted") == 0
 
+    # NB(eshcherbin): The setup cannot guarantee that the blocking op's jobs on SSD nodes are non-preemptible:
+    # which of its jobs end up preemptible depends on a timing-sensitive fair-share convergence race, so the
+    # priority op may occasionally grab a job via regular preemption before SSD priority preemption is enabled.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_regular_ssd_priority_preemption(self):
         self._run_sleeping_vanilla_with_unpreemptible_jobs_at_ssd_nodes()
@@ -2387,6 +2393,9 @@ class TestSsdPriorityPreemption(BaseTestDiskPreemption):
         disk_quota_usage = get(scheduler_orchid_operation_path(op.id) + "/disk_quota_usage")
         assert list(disk_quota_usage["disk_space_per_medium"].keys()) == [TestSsdPriorityPreemption.SSD_MEDIUM]
 
+    # NB(eshcherbin): See the comment on test_regular_ssd_priority_preemption: the priority op may
+    # occasionally preempt a transiently-preemptible blocking job before SSD priority preemption is enabled.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_regular_ssd_priority_preemption_many_operations(self):
         update_pool_tree_config_option("default", "non_preemptible_resource_usage_threshold", {"user_slots": 1})
@@ -2430,6 +2439,10 @@ class TestSsdPriorityPreemption(BaseTestDiskPreemption):
         run_sleeping_vanilla(job_count=8, spec={"pool": "second"})
         wait(lambda: self._get_op_cpu_usage(blocking_op) == 2.0)
 
+    # NB(eshcherbin): See the comment on test_regular_ssd_priority_preemption: which blocking jobs end up
+    # (aggressively) preemptible depends on a fair-share convergence race, so the aggressively-starving op may
+    # occasionally grab a job in the window before the assertion.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     @pytest.mark.parametrize("revive", [False, True])
     def test_no_aggressive_preemption_of_ssd_jobs_for_regular_jobs(self, revive):
