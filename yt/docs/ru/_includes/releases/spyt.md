@@ -16,10 +16,12 @@ Is released as a docker image.
 **Release page:** [2.10.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.10.0)
 
 
-**Docker image:** [ghcr.io/ytsaurus/spyt:2.10.0](https://github.com/orgs/ytsaurus/packages/container/spyt/765852936?tag=2.10.0)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.10.0](https://github.com/orgs/ytsaurus/packages/container/spyt/894673032?tag=2.10.0)
 
 
-- Spark 4.0.x and Spark 4.1.x support
+Major release that enables support for Spark 4.0.x and 4.1.x.
+
+- Added Scala 2.13 support along with Scala 2.12
 - pyspark-client Python package support for writing client-side logic using Spark Connect protocol without JVM
 - Transactional Streaming
 - Drop Spark 3.2.x support
@@ -29,9 +31,17 @@ Is released as a docker image.
 
 {% endcut %}
 
+
 {% cut "**2.9.2**" %}
 
 **Release date:** 2026-05-22
+
+
+**Release page:** [2.9.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.2)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.9.2](https://github.com/orgs/ytsaurus/packages/container/spyt/884346974?tag=2.9.2)
+
 
 Maintenance release with minor enhancements
 
@@ -42,7 +52,9 @@ Maintenance release with minor enhancements
 - Fix writing nullable values of composite columns in dynamic tables
 - Other minor fixes and improvements
 
+
 {% endcut %}
+
 
 {% cut "**2.9.1**" %}
 
@@ -298,9 +310,6 @@ Maintenance release with minor enhancements and bug fixes
 
 
 **Release page:** [2.6.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.6.0)
-
-
-**Docker image:** [ghcr.io/ytsaurus/spyt:2.6.0](https://github.com/orgs/ytsaurus/packages/container/spyt/401104738?tag=2.6.0)
 
 
 - Java 17 support
