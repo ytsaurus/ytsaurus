@@ -36,6 +36,8 @@ struct TDistributedChunkSessionReaderStatistics
     std::atomic<i64> ReadBlocksCount = 0;
     std::atomic<i64> ErrorAttemptCount = 0;
     std::atomic<i64> PollIterationCount = 0;
+    std::atomic<i64> PrefetchWindowCount = 0;
+    std::atomic<i64> PrefetchRetryCount = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDistributedChunkSessionReaderStatistics)
@@ -48,8 +50,8 @@ DEFINE_REFCOUNTED_TYPE(TDistributedChunkSessionReaderStatistics)
  *  written chunk and converges on the sealed-chunk view once writes complete.
  *
  *  Delivery contract:
- *    - records are returned in journal-index order;
- *    - the cursor advances monotonically, so no record index is delivered twice;
+ *    - no record index is delivered twice;
+ *    - records may be delivered out of order when prefetching is enabled;
  *    - the stream may include uncommitted records — upper layers must filter or deduplicate.
  *
  *  Threading:
@@ -63,10 +65,14 @@ struct IDistributedChunkSessionReader
     //! `Finished` is set once the cursor reaches the effective end of the range.
     virtual TFuture<TChunkReadResult> Read() = 0;
 
-    //! Signals that no further writes will occur, so the reader can stop probing
-    //! replicas for new data. If `finalRecordCount` is provided, it is used as the
-    //! chunk size and the reader skips the `ComputeQuorumInfo` round trip.
-    virtual void SetAllWritersFinished(std::optional<i64> finalRecordCount = {}) = 0;
+    //! Signals that no further writes will occur, so the reader can stop probing replicas
+    //! for new data. The final chunk size is learned lazily via `ComputeQuorumInfo`.
+    virtual void SetAllWritersFinished() = 0;
+
+    //! As above, but supplies the final record count and compressed data size directly so
+    //! the reader skips the `ComputeQuorumInfo` round trip. The compressed size is required
+    //! because it sizes prefetch reads.
+    virtual void SetAllWritersFinished(i64 finalRecordCount, i64 finalCompressedDataSize) = 0;
 
     //! Returns a read-only view of the live statistics counters.
     virtual TDistributedChunkSessionReaderStatisticsConstPtr GetStatistics() const = 0;

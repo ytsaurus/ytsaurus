@@ -80,6 +80,14 @@ struct TDistributedChunkSessionReaderConfig
     TDuration QuorumProbeTimeout;
     i64 ReplicaLagLimit;
 
+    //! Number of parallel windows the read range is split into.
+    int PrefetchWindowCount;
+    //! Target size in bytes of each sequential read request within a window.
+    i64 SequentialReadSize;
+    //! Maximum number of reads each window may have outstanding (in flight plus
+    //! buffered) before it pauses and waits for the consumer to drain them.
+    int PrefetchDepth;
+
     REGISTER_YSON_STRUCT(TDistributedChunkSessionReaderConfig);
 
     static void Register(TRegistrar registrar);

@@ -60,7 +60,12 @@ public:
         return PendingPromise_.ToFuture();
     }
 
-    void SetAllWritersFinished(std::optional<i64> /*finalRecordCount*/ = {}) override
+    void SetAllWritersFinished() override
+    {
+        SetAllWritersFinishedCalled_ = true;
+    }
+
+    void SetAllWritersFinished(i64 /*finalRecordCount*/, i64 /*finalCompressedDataSize*/) override
     {
         SetAllWritersFinishedCalled_ = true;
     }
