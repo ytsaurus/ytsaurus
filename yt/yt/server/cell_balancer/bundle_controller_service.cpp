@@ -277,7 +277,7 @@ private:
             nodeAddress);
 
         if (!Bootstrap_->GetElectionManager()->IsLeader()) {
-            THROW_ERROR_EXCEPTION("Bundle controller instance is not leading");
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Bundle controller instance is not leading");
         }
 
         Bootstrap_->GetNodeTracker()->ProcessNodeHeartbeat(&context->Request(), &context->Response());
