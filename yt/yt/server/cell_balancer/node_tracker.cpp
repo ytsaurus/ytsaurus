@@ -69,8 +69,7 @@ public:
 
         int reportedOfflineNodeCount = 0;
 
-        // Drop obsolete nodes and recompute the number of occupied offline slots:
-        // a slot is freed when a previously offline node is gone or came back online.
+        // Drop obsolete nodes and recompute the number of nodes reported offline.
         for (auto it = NodeHeartbeatStates_.begin(); it != NodeHeartbeatStates_.end(); ) {
             const auto& [address, heartbeatState] = *it;
 
@@ -186,6 +185,7 @@ private:
     };
 
     NProfiling::TGauge ReportedOfflineNodeCountGauge_ = BundleControllerProfiler()
+        .WithSparse()
         .Gauge("/node_tracker/reported_offline_node_count");
 
     THashMap<std::string, TNodeState> NodeHeartbeatStates_;
