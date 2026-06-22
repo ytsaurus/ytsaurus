@@ -1082,7 +1082,7 @@ struct TSchedulerConfig
     TResourceMeteringConfigPtr ResourceMetering;
 
     //! All registered scheduler experiments keyed by experiment names.
-    THashMap<TString, TExperimentConfigPtr> Experiments;
+    THashMap<std::string, TExperimentConfigPtr> Experiments;
 
     //! How often to check for errors on matching operations against experiment filters.
     TDuration ExperimentAssignmentErrorCheckPeriod;

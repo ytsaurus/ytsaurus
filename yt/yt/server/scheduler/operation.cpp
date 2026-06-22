@@ -528,9 +528,9 @@ void TOperation::EraseTrees(const std::vector<std::string>& treeIds)
     }
 }
 
-std::vector<TString> TOperation::GetExperimentAssignmentNames() const
+std::vector<std::string> TOperation::GetExperimentAssignmentNames() const
 {
-    std::vector<TString> result;
+    std::vector<std::string> result;
     result.reserve(ExperimentAssignments_.size());
     for (const auto& experimentAssignment : ExperimentAssignments_) {
         result.emplace_back(experimentAssignment->GetName());

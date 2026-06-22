@@ -794,7 +794,7 @@ public:
         if (auto experimentAssignmentsYson = attributes.FindYson("experiment_assignments")) {
             result.ExperimentAssignments = experimentAssignmentsYson;
             auto experimentAssignments = ConvertTo<std::vector<TExperimentAssignmentPtr>>(experimentAssignmentsYson);
-            std::vector<TString> experimentAssignmentNames;
+            std::vector<std::string> experimentAssignmentNames;
             experimentAssignmentNames.reserve(experimentAssignments.size());
             for (const auto& experimentAssignment : experimentAssignments) {
                 experimentAssignmentNames.emplace_back(experimentAssignment->GetName());

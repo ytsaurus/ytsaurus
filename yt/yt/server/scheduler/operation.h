@@ -348,7 +348,7 @@ public:
 
     //! Returns vector of experiment assignment names with each
     //! name being of form "<experiment name>.<group name>".
-    std::vector<TString> GetExperimentAssignmentNames() const;
+    std::vector<std::string> GetExperimentAssignmentNames() const;
 
     std::vector<std::string> GetJobShellOwners(const std::string& jobShellName);
 
