@@ -9,6 +9,15 @@ spec:
   adminCredentials:
     name: ytadminsec
 
+  bootstrap:
+    tabletCellBundles:
+      sys:
+        tabletCellCount: 2
+        nodeTagFilter: sys
+      default:
+        tabletCellCount: 1
+        nodeTagFilter: default
+
   discovery:
     instanceCount: 1
     loggers: &loggers
@@ -113,6 +122,20 @@ spec:
 
   rpcProxies:
     - instanceCount: 1
+      loggers: *loggers
+
+      locations:
+        - locationType: Logs
+          path: /yt/rpc-proxy-logs
+
+      volumeMounts:
+        - name: rpc-proxy-logs
+          mountPath: /yt/rpc-proxy-logs
+
+      volumeClaimTemplates:
+        - metadata:
+            name: rpc-proxy-logs
+          spec: *logsVolumeSpec
 
   dataNodes:
     - instanceCount: 3
@@ -124,7 +147,7 @@ spec:
               - key: yt_component
                 operator: In
                 values:
-                - ytbench-yt-data-node
+                - {{ cluster_name }}-yt-data-node
             topologyKey: "kubernetes.io/hostname"
 
       loggers: *loggers
@@ -165,7 +188,7 @@ spec:
               - key: yt_component
                 operator: In
                 values:
-                - ytbench-yt-exec-node
+                - {{ cluster_name }}-yt-exec-node
             topologyKey: "kubernetes.io/hostname"
 
       loggers: *loggers
@@ -176,7 +199,7 @@ spec:
           writerType: file
           useTimestampSuffix: true
           rotationPolicy: &rotationPolicyJobs
-            maxTotalSizeToKeep: 10485760  # 10Mi
+            maxTotalSizeToKeep: 100485760  # 10Mi
             rotationPeriodMilliseconds: 900000  # 15Min
           categoriesFilter:
             type: exclude
@@ -225,21 +248,135 @@ spec:
           memory: 32768Mi
 
   tabletNodes:
-    - instanceCount: 1
+    - name: sys
+      instanceCount: 2
+      tags:
+        - sys
+
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: yt_component
+                operator: In
+                values:
+                - {{ cluster_name }}-yt-tablet-node-sys
+            topologyKey: "kubernetes.io/hostname"
+
+      loggers: *loggers
+
+      resources: &tabletNodeResources
+        requests:
+          cpu: 4
+          memory: 8Gi
+        limits:
+          memory: 8Gi
+
+      locations: &tabletNodeLocations
+        - locationType: Logs
+          path: /yt/tablet-node-logs
+
+      volumeMounts: &tabletNodeVolumeMounts
+        - name: tablet-node-logs
+          mountPath: /yt/tablet-node-logs
+
+      volumeClaimTemplates: &tabletNodeVolumeClaimTemplates
+        - metadata:
+            name: tablet-node-logs
+          spec: *logsVolumeSpec
+
+    - name: default
+      instanceCount: 1
+      tags:
+        - default
+
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: yt_component
+                operator: In
+                values:
+                - {{ cluster_name }}-yt-tablet-node
+            topologyKey: "kubernetes.io/hostname"
+
+      loggers: *loggers
+      resources: *tabletNodeResources
+      locations: *tabletNodeLocations
+      volumeMounts: *tabletNodeVolumeMounts
+      volumeClaimTemplates: *tabletNodeVolumeClaimTemplates
 
   queryTrackers:
     image: {{ images.query_tracker }}
     instanceCount: 1
+    loggers: *loggers
+
+    locations:
+      - locationType: Logs
+        path: /yt/query-tracker-logs
+
+    volumeMounts:
+      - name: query-tracker-logs
+        mountPath: /yt/query-tracker-logs
+
+    volumeClaimTemplates:
+      - metadata:
+          name: query-tracker-logs
+        spec: *logsVolumeSpec
 
   yqlAgents:
     image: {{ images.query_tracker }}
     instanceCount: 1
+    loggers: *loggers
+
+    locations:
+      - locationType: Logs
+        path: /yt/yql-agent-logs
+
+    volumeMounts:
+      - name: yql-agent-logs
+        mountPath: /yt/yql-agent-logs
+
+    volumeClaimTemplates:
+      - metadata:
+          name: yql-agent-logs
+        spec: *logsVolumeSpec
 
   schedulers:
     instanceCount: 1
+    loggers: *loggers
+
+    locations:
+      - locationType: Logs
+        path: /yt/scheduler-logs
+
+    volumeMounts:
+      - name: scheduler-logs
+        mountPath: /yt/scheduler-logs
+
+    volumeClaimTemplates:
+      - metadata:
+          name: scheduler-logs
+        spec: *logsVolumeSpec
 
   controllerAgents:
     instanceCount: 1
+    loggers: *loggers
+
+    locations:
+      - locationType: Logs
+        path: /yt/controller-agent-logs
+
+    volumeMounts:
+      - name: controller-agent-logs
+        mountPath: /yt/controller-agent-logs
+
+    volumeClaimTemplates:
+      - metadata:
+          name: controller-agent-logs
+        spec: *logsVolumeSpec
 
   strawberry:
     image: {{ images.strawberry }}
