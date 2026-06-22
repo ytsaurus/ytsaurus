@@ -43,6 +43,8 @@
 
 #include <yt/yt/core/https/public.h>
 
+#include <yt/yt/core/ypath/public.h>
+
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,7 +59,7 @@ struct TProfilingEndpointProviderConfig
     //! A list of native solomon shards names to pull.
     //! The endpoint provider will produce a separate endpoint with each shard and a corresponding instance tag for each discovered host.
     //! Defaults to the `all` shard.
-    std::vector<TString> Shards;
+    std::vector<std::string> Shards;
 
     //! If set to true, instance names will contain the discovered main port of the corresponding service.
     //! Set to false by default. Mostly useful in tests, real clusters have anti-affinity rules.
@@ -94,7 +96,7 @@ struct TCoordinatorConfig
     bool Enable;
     bool Announce;
 
-    std::optional<TString> PublicFqdn;
+    std::optional<std::string> PublicFqdn;
     std::optional<std::string> DefaultRoleFilter;
 
     TDuration HeartbeatInterval;
@@ -125,8 +127,8 @@ struct TDelayBeforeCommand
     : public NYTree::TYsonStruct
 {
     TDuration Delay;
-    TString ParameterPath;
-    TString Substring;
+    NYPath::TYPath ParameterPath;
+    std::string Substring;
 
     REGISTER_YSON_STRUCT(TDelayBeforeCommand);
 
@@ -140,7 +142,7 @@ DEFINE_REFCOUNTED_TYPE(TDelayBeforeCommand)
 struct TApiTestingOptions
     : public NYTree::TYsonStruct
 {
-    THashMap<TString, TIntrusivePtr<TDelayBeforeCommand>> DelayBeforeCommand;
+    THashMap<std::string, TIntrusivePtr<TDelayBeforeCommand>> DelayBeforeCommand;
 
     NServer::THeapProfilerTestingOptionsPtr HeapProfiler;
 
@@ -272,7 +274,7 @@ struct TAccessCheckerConfig
     //! Access checker will check use permission for
     //! PathPrefix/ProxyRole path or
     //! PathPrefix/ProxyRole/principal if UseAccessControlObjects is set.
-    TString PathPrefix;
+    NYPath::TYPath PathPrefix;
 
     // COMPAT(verytable): Drop it after migration to aco roles everywhere.
     bool UseAccessControlObjects;
@@ -335,7 +337,7 @@ struct TProxyBootstrapConfig
 
     NClickHouse::TStaticClickHouseConfigPtr ClickHouse;
 
-    TString UIRedirectUrl;
+    std::string UIRedirectUrl;
 
     NYTree::IMapNodePtr CypressAnnotations;
 
@@ -344,13 +346,13 @@ struct TProxyBootstrapConfig
     //! Sets default value for option `cancel_fiber_on_connection_close` in all http-servers (http/https/tvm/chyt/etc)
     bool CancelFiberOnConnectionClose;
 
-    TString DefaultNetwork;
-    THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
+    std::string DefaultNetwork;
+    THashMap<std::string, std::vector<NNet::TIP6Network>> Networks;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
 
     // COMPAT(gritukan): Drop it after migration to tagged configs.
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
     bool UseTaggedDynamicConfig;
 
     //! Configuration for solomon proxy, which allows collecting merged metrics from other YT components through HTTP proxies.
@@ -394,7 +396,7 @@ struct TProxyDynamicConfig
 
     NTracing::TSamplerConfigPtr Tracing;
 
-    TString FitnessFunction;
+    std::string FitnessFunction;
     double CpuWeight;
     double CpuWaitWeight;
     double ConcurrentRequestsWeight;

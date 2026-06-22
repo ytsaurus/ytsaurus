@@ -89,7 +89,7 @@ private:
     TDuration ProfiledCpuTime_;
     TDuration ResultCpuTime_;
 
-    TString Parameters_;
+    std::string Parameters_;
 
     std::optional<TSemaphoreGuard> SemaphoreGuard_;
 
@@ -104,7 +104,7 @@ private:
     std::optional<NHttp::TContentEncoding> InputContentEncoding_;
 
     std::optional<NFormats::TFormat> OutputFormat_;
-    std::optional<TString> ContentType_;
+    std::optional<std::string> ContentType_;
     std::optional<NHttp::TContentEncoding> OutputContentEncoding_;
 
     std::optional<NFormats::TFormat> ErrorFormat_;
@@ -128,9 +128,9 @@ private:
 
     template <class TJsonProducer>
     void DispatchJson(const TJsonProducer& producer);
-    void DispatchUnauthorized(const TString& scope, const TString& message);
+    void DispatchUnauthorized(const std::string& scope, const std::string& message);
     void DispatchUnavailable(const TError& error);
-    void DispatchNotFound(const TString& message);
+    void DispatchNotFound(const std::string& message);
 
     void ReplyError(const TError& error);
 
@@ -145,7 +145,7 @@ private:
     void AllocateTestData(const NTracing::TTraceContextPtr& traceContext);
 
     IInvokerPtr GetCompressionInvoker() const;
-    void ProfileCumulativeCpu(const NTracing::TTraceContextPtr& traceContext, const std::string& authenticatedUser, const TString& commandName);
+    void ProfileCumulativeCpu(const NTracing::TTraceContextPtr& traceContext, const std::string& authenticatedUser, const std::string& commandName);
 };
 
 DEFINE_REFCOUNTED_TYPE(TContext)

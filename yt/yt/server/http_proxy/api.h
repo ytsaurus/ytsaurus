@@ -25,7 +25,7 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TUserCommandPair = std::pair<std::string, TString>;
+using TUserCommandPair = std::pair<std::string, std::string>;
 using TUserCounterMap = NConcurrency::TSyncMap<std::pair<std::string, std::string>, NProfiling::TCounter>;
 
 class TSemaphoreGuard
@@ -72,7 +72,7 @@ public:
     void ValidateUser(const std::string& user);
     TError CheckAccess(const std::string& user);
 
-    std::optional<TSemaphoreGuard> AcquireSemaphore(const std::string& user, const TString& command);
+    std::optional<TSemaphoreGuard> AcquireSemaphore(const std::string& user, const std::string& command);
     void ReleaseSemaphore(const TUserCommandPair& key);
 
     void IncrementBytesOutProfilingCounters(
@@ -91,7 +91,7 @@ public:
 
     void IncrementProfilingCounters(
         const std::string& user,
-        const TString& command,
+        const std::string& command,
         std::optional<NHttp::EStatusCode> httpStatusCode,
         TErrorCode apiErrorCode,
         TDuration wallTime,
@@ -100,7 +100,7 @@ public:
 
     void IncrementCpuProfilingCounter(
         const std::string& user,
-        const TString& command,
+        const std::string& command,
         TDuration cpuTime);
 
     void IncrementHttpCode(NHttp::EStatusCode httpStatusCode);
@@ -132,13 +132,13 @@ private:
 
     const NSecurityServer::IUserAccessValidatorPtr UserAccessValidator_;
 
-    std::vector<std::pair<NNet::TIP6Network, TString>> Networks_;
-    TString DefaultNetworkName_;
+    std::vector<std::pair<NNet::TIP6Network, std::string>> Networks_;
+    std::string DefaultNetworkName_;
 
     std::string GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BanCacheLock_);
-    THashMap<TString, TInstant> BanCache_;
+    THashMap<std::string, TInstant> BanCache_;
 
     struct TProfilingCounters
     {
@@ -167,7 +167,7 @@ private:
 
     NConcurrency::TSyncMap<NHttp::EStatusCode, NProfiling::TCounter> HttpCodes_;
     NConcurrency::TSyncMap<std::pair<std::string, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByUser_;
-    NConcurrency::TSyncMap<std::pair<TString, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByCommand_;
+    NConcurrency::TSyncMap<std::pair<std::string, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByCommand_;
 
     TProfilingCounters* GetProfilingCounters(const TUserCommandPair& key);
 

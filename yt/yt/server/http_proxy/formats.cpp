@@ -125,7 +125,7 @@ TFormat InferHeaderFormat(const TFormatManager& formatManager, const std::string
     return formatManager.ConvertToFormat(formatNode, "header format from X-YT-Header-Format header");
 }
 
-TString FormatToMime(const NFormats::TFormat& format)
+std::string FormatToMime(const NFormats::TFormat& format)
 {
     switch (format.GetType()) {
         case EFormatType::SchemafulDsv:

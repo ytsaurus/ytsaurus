@@ -80,7 +80,7 @@ struct TDynamicClickHouseConfig
     : public NYTree::TYsonStruct
 {
     //! Path to folder in Cypress which contains general information about all cliques.
-    TString DiscoveryPath;
+    NYPath::TYPath DiscoveryPath;
 
     NHttp::TClientConfigPtr HttpClient;
 
