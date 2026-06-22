@@ -424,7 +424,7 @@ private:
         auto partSize = dataSize / dataPartCount;
 
         struct TErasureWriterTag { };
-        auto data = TSharedMutableRef::Allocate<TErasureWriterTag>(dataSize);
+        auto data = TSharedMutableRef::Allocate<TErasureWriterTag>(dataSize, {.InitializeStorage = false});
 
         i64 dataOffset = 0;
         for (const auto& block : segment) {
