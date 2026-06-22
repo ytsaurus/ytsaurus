@@ -858,7 +858,7 @@ class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestControllerAgentMemoryAlert(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
+    ENABLE_MULTIDAEMON = False  # Checks memory.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
