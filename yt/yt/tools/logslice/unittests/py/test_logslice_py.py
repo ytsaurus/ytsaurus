@@ -265,6 +265,137 @@ class SemicolonQuotingTest(unittest.TestCase):
                 self.assertEqual(shlex.split(remote), expected)
 
 
+class ParseUserTimeTest(unittest.TestCase):
+    """Covers every format parse_user_time accepts. These mirror the formats of
+    logslice/lib/time_parser.h, since logslice.py forwards the raw -t/-e string
+    to the remote logslice binary -- any format accepted here must round-trip
+    through that C++ parser too."""
+
+    def setUp(self):
+        from datetime import datetime
+        self.datetime = datetime
+
+    def test_now_is_recent(self):
+        from datetime import datetime, timedelta
+        now = logslice.parse_user_time("now")
+        self.assertIsNotNone(now)
+        self.assertLess(abs(datetime.now() - now), timedelta(seconds=5))
+
+    def test_time_of_day_uses_today(self):
+        today = self.datetime.now().date()
+        hm = logslice.parse_user_time("14:30")
+        self.assertEqual((hm.year, hm.month, hm.day), (today.year, today.month, today.day))
+        self.assertEqual((hm.hour, hm.minute, hm.second), (14, 30, 0))
+        hms = logslice.parse_user_time("12:23:34")
+        self.assertEqual((hms.hour, hms.minute, hms.second), (12, 23, 34))
+
+    def test_bare_date_is_midnight(self):
+        self.assertEqual(logslice.parse_user_time("2026-06-19"),
+                         self.datetime(2026, 6, 19, 0, 0, 0))
+
+    def test_date_and_hour(self):
+        self.assertEqual(logslice.parse_user_time("2026-06-19 15"),
+                         self.datetime(2026, 6, 19, 15, 0, 0))
+
+    def test_date_hour_minute(self):
+        self.assertEqual(logslice.parse_user_time("2026-06-19 15:52"),
+                         self.datetime(2026, 6, 19, 15, 52, 0))
+
+    def test_full_timestamp(self):
+        self.assertEqual(logslice.parse_user_time("2018-11-09 05:10:43"),
+                         self.datetime(2018, 11, 9, 5, 10, 43))
+
+    def test_subsecond_comma_and_dot(self):
+        self.assertEqual(logslice.parse_user_time("2026-06-18 06:00:10,246995"),
+                         self.datetime(2026, 6, 18, 6, 0, 10, 246995))
+        self.assertEqual(logslice.parse_user_time("2026-06-18 06:00:10.246995"),
+                         self.datetime(2026, 6, 18, 6, 0, 10, 246995))
+
+    def test_subsecond_is_right_padded(self):
+        # "5" -> 500000 us, "246" -> 246000 us, matching the C++ parser.
+        self.assertEqual(logslice.parse_user_time("2026-06-18 06:00:10,5"),
+                         self.datetime(2026, 6, 18, 6, 0, 10, 500000))
+        self.assertEqual(logslice.parse_user_time("2026-06-18 06:00:10,246"),
+                         self.datetime(2026, 6, 18, 6, 0, 10, 246000))
+
+    def test_web_ui_format(self):
+        # Same instant as the equivalent full local timestamp.
+        self.assertEqual(logslice.parse_user_time("16 Nov 2018 13:56:14"),
+                         logslice.parse_user_time("2018-11-16 13:56:14"))
+
+    def test_web_ui_month_is_case_insensitive(self):
+        self.assertEqual(logslice.parse_user_time("5 jan 2020 00:00:01"),
+                         self.datetime(2020, 1, 5, 0, 0, 1))
+
+    def test_iso_utc_is_converted_to_local(self):
+        # 2019-09-19T11:46:04.848360Z as a UTC-aware instant, then made naive
+        # local; comparing the epoch is timezone-independent.
+        from datetime import datetime, timezone
+        got = logslice.parse_user_time("2019-09-19T11:46:04.848360Z")
+        expected_utc = datetime(2019, 9, 19, 11, 46, 4, 848360, tzinfo=timezone.utc)
+        self.assertEqual(got.replace(tzinfo=None),
+                         expected_utc.astimezone().replace(tzinfo=None))
+
+    def test_partial_fields_are_rejected(self):
+        # Half-written time fields and a fraction without seconds are not parsed
+        # (parse_user_time returns None so the caller falls back to a full scan).
+        for text in ["2026-06-19 1", "2026-06-19 15:5", "2026-06-19 15:52:3",
+                     "2026-06-19 15:52.5"]:
+            with self.subTest(text=text):
+                self.assertIsNone(logslice.parse_user_time(text))
+
+    def test_unparseable_returns_none(self):
+        for text in ["garbage", "", "   "]:
+            with self.subTest(text=text):
+                self.assertIsNone(logslice.parse_user_time(text))
+
+    def test_out_of_range_date_returns_none(self):
+        # A well-formed but invalid calendar date is reported as unrecognised
+        # rather than raising.
+        self.assertIsNone(logslice.parse_user_time("2026-13-40"))
+
+
+class SplitTimeRangeTest(unittest.TestCase):
+    """A single -t value may carry the whole window as "start - end", split on a
+    space-padded hyphen so the bare hyphens inside dates/times are untouched."""
+
+    def test_full_timestamp_range_is_split(self):
+        self.assertEqual(
+            logslice.split_time_range(
+                "2026-06-15 11:27:18 - 2026-06-15 11:28:43"),
+            ("2026-06-15 11:27:18", "2026-06-15 11:28:43"))
+
+    def test_time_of_day_range_is_split(self):
+        self.assertEqual(
+            logslice.split_time_range("11:27 - 11:28"),
+            ("11:27", "11:28"))
+
+    def test_bare_date_in_range_keeps_internal_hyphens(self):
+        self.assertEqual(
+            logslice.split_time_range("2026-06-15 - 2026-06-16"),
+            ("2026-06-15", "2026-06-16"))
+
+    def test_single_value_is_unchanged(self):
+        # No " - " separator: the value passes through untouched, end is None.
+        self.assertEqual(
+            logslice.split_time_range("2026-06-15 11:27:18"),
+            ("2026-06-15 11:27:18", None))
+
+    def test_bare_date_alone_is_not_a_range(self):
+        # The date's internal hyphens have no surrounding spaces, so it is not
+        # mistaken for a "start - end" window.
+        self.assertEqual(
+            logslice.split_time_range("2026-06-15"),
+            ("2026-06-15", None))
+
+    def test_only_first_separator_splits(self):
+        # split is anchored to the first " - "; a stray separator in the end part
+        # stays inside the end value (logslice then reports it as unparseable).
+        self.assertEqual(
+            logslice.split_time_range("11:27 - 11:28 - 11:29"),
+            ("11:27", "11:28 - 11:29"))
+
+
 def _info_time(hour, minute):
     """A logslice --info timestamp on the incident day, matching INFO_RE."""
     return "2026-06-19 {:02d}:{:02d}:00,000000".format(hour, minute)

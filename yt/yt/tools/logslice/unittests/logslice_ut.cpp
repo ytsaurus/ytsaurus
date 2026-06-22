@@ -217,6 +217,11 @@ TEST_F(TLogSliceTest, ParseQueryTimeFormats)
     auto iso = ParseQueryTime("2019-09-19T11:46:04.848360Z");
     EXPECT_EQ(TInstant::Seconds(1568893564) + TDuration::MicroSeconds(848360), iso);
 
+    // Time-of-day forms share today's date; "HH:MM" is the "HH:MM:SS" with zero
+    // seconds, and the seconds field offsets it as expected.
+    EXPECT_EQ(ParseQueryTime("14:30:00"), ParseQueryTime("14:30"));
+    EXPECT_EQ(ParseQueryTime("12:23:00") + TDuration::Seconds(34), ParseQueryTime("12:23:34"));
+
     // "now" is close to the current instant.
     auto now = ParseQueryTime("now");
     EXPECT_LT(TInstant::Now() - now, TDuration::Seconds(5));
@@ -251,6 +256,31 @@ TEST_F(TLogSliceTest, ParseQueryTimeSubsecond)
     EXPECT_THROW(ParseQueryTime("2026-06-18 06:00:10,"), std::exception);
     EXPECT_THROW(ParseQueryTime("2026-06-18 06:00:10,1234567"), std::exception);
     EXPECT_THROW(ParseQueryTime("2026-06-18 06:00:10,12x"), std::exception);
+}
+
+TEST_F(TLogSliceTest, ParseQueryTimeTruncated)
+{
+    // A bare date is that day's midnight; each coarser prefix matches the full
+    // timestamp with the absent finer fields zeroed.
+    EXPECT_EQ(ParseQueryTime("2026-06-19 00:00:00"), ParseQueryTime("2026-06-19"));
+    EXPECT_EQ(ParseQueryTime("2026-06-19 15:00:00"), ParseQueryTime("2026-06-19 15"));
+    EXPECT_EQ(ParseQueryTime("2026-06-19 15:52:00"), ParseQueryTime("2026-06-19 15:52"));
+
+    // The time-of-day refines the date by exactly the expected offset.
+    EXPECT_EQ(
+        ParseQueryTime("2026-06-19") + TDuration::Hours(15) + TDuration::Minutes(52),
+        ParseQueryTime("2026-06-19 15:52"));
+
+    // A half-written field (too few digits, or a dangling separator) is rejected
+    // rather than silently zero-padded. (A bare trailing space is not tested
+    // here: ParseQueryTime strips it, leaving the valid bare date.)
+    EXPECT_THROW(ParseQueryTime("2026-06-19 1"), std::exception);
+    EXPECT_THROW(ParseQueryTime("2026-06-19 15:"), std::exception);
+    EXPECT_THROW(ParseQueryTime("2026-06-19 15:5"), std::exception);
+    EXPECT_THROW(ParseQueryTime("2026-06-19 15:52:"), std::exception);
+    EXPECT_THROW(ParseQueryTime("2026-06-19 15:52:3"), std::exception);
+    // A subsecond fraction still requires the seconds field to be present.
+    EXPECT_THROW(ParseQueryTime("2026-06-19 15:52.5"), std::exception);
 }
 
 TEST_F(TLogSliceTest, CodecDetectionAndParsing)

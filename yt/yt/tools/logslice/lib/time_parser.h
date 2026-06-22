@@ -16,10 +16,16 @@ namespace NYT::NLogSlice {
  *    - "now"                          -- the current instant;
  *    - "14:30"                        -- today's date at HH:MM (local/Moscow time);
  *    - "12:23:34"                     -- today's date at HH:MM:SS (local/Moscow time);
+ *    - "2018-11-09"                   -- a bare date, i.e. that day's midnight in local/Moscow time;
+ *    - "2018-11-09 05"                -- date and hour in local/Moscow time;
+ *    - "2018-11-09 05:10"             -- date down to the minute in local/Moscow time;
  *    - "2018-11-09 05:10:43"          -- full timestamp in local/Moscow time;
  *    - "2018-11-09 05:10:43,341345"   -- full timestamp in local/Moscow time, with fraction of a second;
  *    - "16 Nov 2018 13:56:14"         -- full timestamp in local/Moscow time (web UI format);
  *    - "2019-09-19T11:46:04.848360Z"  -- full timestamp in UTC (YT server-side format).
+ *
+ *  For the bare-date and date-and-hour/minute forms the absent finer fields
+ *  default to zero.
  *
  *  Throws on an unrecognized format.
  */

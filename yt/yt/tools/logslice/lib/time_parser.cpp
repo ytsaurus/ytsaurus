@@ -132,23 +132,50 @@ bool ParseFractionMicroseconds(TStringBuf fraction, ui64* micros)
     return true;
 }
 
-//! Parses "YYYY-MM-DD HH:MM:SS" in local time, with an optional subsecond
-//! selector of 1 to 6 digits delimited by either ',' or '.' (e.g.
-//! "2026-06-18 06:00:10,246995" or "2026-06-18 06:00:10.246995").
+//! Parses a local-time timestamp at a flexible level of detail: a bare date
+//! "YYYY-MM-DD", or with a progressively finer time-of-day suffix
+//! "YYYY-MM-DD HH", "YYYY-MM-DD HH:MM", "YYYY-MM-DD HH:MM:SS", plus an optional
+//! subsecond selector of 1 to 6 digits delimited by ',' or '.' (e.g.
+//! "2026-06-18 06:00:10,246995" or "2026-06-18 06:00:10.246995"). Each finer
+//! field requires the coarser ones to be present, and absent fields default to
+//! zero, so "2026-06-19" denotes that day's midnight in local time.
 std::optional<TInstant> TryParseLocalFull(TStringBuf s)
 {
-    if (s.size() < 19) {
+    // Date part "YYYY-MM-DD" is mandatory.
+    if (s.size() < 10) {
         return std::nullopt;
     }
     const char* p = s.data();
     if (!IsDigits(p, 4) || p[4] != '-' || !IsDigits(p + 5, 2) || p[7] != '-' ||
-        !IsDigits(p + 8, 2) || p[10] != ' ' || !IsDigits(p + 11, 2) || p[13] != ':' ||
-        !IsDigits(p + 14, 2) || p[16] != ':' || !IsDigits(p + 17, 2))
+        !IsDigits(p + 8, 2))
     {
         return std::nullopt;
     }
 
+    // Optional time-of-day, each level gated on the previous one being present:
+    // " HH", then ":MM", then ":SS", then a ",uuuuuu"/".uuuuuu" subsecond.
+    int hour = 0;
+    int minute = 0;
+    int second = 0;
     ui64 micros = 0;
+    if (s.size() > 10) {
+        if (s[10] != ' ' || s.size() < 13 || !IsDigits(p + 11, 2)) {
+            return std::nullopt;
+        }
+        hour = ReadInt(p + 11, 2);
+    }
+    if (s.size() > 13) {
+        if (s[13] != ':' || s.size() < 16 || !IsDigits(p + 14, 2)) {
+            return std::nullopt;
+        }
+        minute = ReadInt(p + 14, 2);
+    }
+    if (s.size() > 16) {
+        if (s[16] != ':' || s.size() < 19 || !IsDigits(p + 17, 2)) {
+            return std::nullopt;
+        }
+        second = ReadInt(p + 17, 2);
+    }
     if (s.size() > 19) {
         if ((s[19] != ',' && s[19] != '.') || !ParseFractionMicroseconds(s.SubStr(20), &micros)) {
             return std::nullopt;
@@ -156,8 +183,7 @@ std::optional<TInstant> TryParseLocalFull(TStringBuf s)
     }
 
     auto result = TInstant::Seconds(LocalBrokenDownToEpoch(
-        ReadInt(p, 4), ReadInt(p + 5, 2), ReadInt(p + 8, 2),
-        ReadInt(p + 11, 2), ReadInt(p + 14, 2), ReadInt(p + 17, 2)));
+        ReadInt(p, 4), ReadInt(p + 5, 2), ReadInt(p + 8, 2), hour, minute, second));
     return result + TDuration::MicroSeconds(micros);
 }
 
