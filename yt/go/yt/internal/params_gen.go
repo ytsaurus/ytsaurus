@@ -2392,6 +2392,10 @@ func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
 	w.Any(o.Type)
 	w.MapKeyString("sticky")
 	w.Any(o.Sticky)
+	if o.PrerequisiteTransactionIDs != nil {
+		w.MapKeyString("prerequisite_transaction_ids")
+		w.Any(o.PrerequisiteTransactionIDs)
+	}
 }
 
 func logStartTabletTxOptions(o *yt.StartTabletTxOptions) []log.Field {
@@ -2411,6 +2415,9 @@ func logStartTabletTxOptions(o *yt.StartTabletTxOptions) []log.Field {
 	}
 	if o.Sticky {
 		fields = append(fields, log.Any("sticky", o.Sticky))
+	}
+	if o.PrerequisiteTransactionIDs != nil {
+		fields = append(fields, log.Any("prerequisite_transaction_ids", o.PrerequisiteTransactionIDs))
 	}
 	return fields
 }

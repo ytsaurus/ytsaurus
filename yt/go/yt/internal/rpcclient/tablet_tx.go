@@ -63,10 +63,11 @@ func (c *client) BeginTabletTx(
 	}
 
 	startOptions := &yt.StartTabletTxOptions{
-		Type:      yt.TxTypeTablet,
-		Sticky:    true,
-		Atomicity: opts.Atomicity,
-		Timeout:   &txTimeout,
+		Type:                       yt.TxTypeTablet,
+		Sticky:                     true,
+		Atomicity:                  opts.Atomicity,
+		Timeout:                    &txTimeout,
+		PrerequisiteTransactionIDs: opts.PrerequisiteTransactionIDs,
 	}
 
 	tx.txID, tx.txStartTimestamp, err = tx.startTabletTx(ctx, startOptions)
