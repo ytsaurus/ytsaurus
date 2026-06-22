@@ -261,6 +261,7 @@ class TestJobProber(YTEnvSetup):
     def test_run_job_shell_command(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
 
         output1 = run_job_shell_command(
             job_id,
