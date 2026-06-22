@@ -4,6 +4,7 @@
 #include "config.h"
 #include "profiler.h"
 
+#include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/profiling/timing.h>
 
@@ -33,12 +34,11 @@ public:
         IChannelPtr channel,
         TSessionId sessionId,
         TLogger logger)
-        : ExportId_(exportId)
+        : ExportId_(std::move(exportId))
         , Config_(std::move(config))
         , ReadThrottler_(std::move(readThrottler))
         , WriteThrottler_(std::move(writeThrottler))
         , Invoker_(std::move(invoker))
-        , SensorTag_("rw")
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
         , ChunkHandler_(CreateChunkHandler(
             this,
@@ -80,7 +80,7 @@ public:
 
     std::string DebugString() const override
     {
-        return Format("{Size, %v}", GetTotalSize());
+        return Format("{Size: %v}", GetTotalSize());
     }
 
     std::string GetProfileSensorTag() const override
@@ -104,81 +104,98 @@ public:
             return MakeFuture<TReadResponse>({});
         }
 
-        // Register this read request and collect futures of conflicting writes.
-        // The guard automatically unregisters the request and signals on destruction.
-        auto [guard, conflicts] = RegisterInflightRequest(offset, length, /*isWrite*/ false);
-
-        TWallTimer conflictWaitTimer;
-        // Wait for conflicting requests → throttle → RPC.
-        return AllSucceeded(std::move(conflicts))
+        // Acquire reader lock to prevent concurrent Initialize/Finalize, then chain
+        // the request through conflict-wait → throttle → RPC stages. The stages are
+        // flat (not nested): pipeline state (guard, reader lock, timings) is threaded
+        // between them via TRequestPipeline and .AsUnique().
+        return TAsyncLockReaderGuard::Acquire(&InitLock_)
+            .AsUnique()
             .Apply(BIND(
-                [=,
-                    guard = std::move(guard),
-                    conflictWaitTimer = std::move(conflictWaitTimer),
-                    this,
-                    this_ = MakeStrong(this)
-                ] (const TError& conflictError) mutable -> TFuture<TReadResponse>
-            {
-                auto conflictWaitDuration = conflictWaitTimer.GetElapsedTime();
+                [=, this, this_ = MakeStrong(this)] (TReaderGuardPtr&& readerGuard) {
+                    // Register this read request and collect futures of conflicting requests.
+                    // The guard automatically unregisters the request and signals on destruction.
+                    auto [guard, conflicts] = RegisterInflightRequest(offset, length, /*isWrite*/ false);
 
-                if (!conflictError.IsOK()) {
-                    guard.SetError(conflictError);
+                    // Wait for conflicting requests to finish before issuing the read.
+                    // We use AllSet (not AllSucceeded) so that a failed predecessor does not
+                    // propagate its error into this request: we only need to wait for the range
+                    // to be vacated, regardless of whether the conflicting request succeeded.
+                    TWallTimer conflictWaitTimer;
+                    return AllSet(std::move(conflicts))
+                        .Apply(BIND(
+                            [=,
+                                guard = std::move(guard),
+                                readerGuard = std::move(readerGuard),
+                                conflictWaitTimer = std::move(conflictWaitTimer)
+                            ] (const std::vector<TErrorOr<void>>& /*conflicts*/) mutable {
+                                return TRequestPipeline{
+                                    .Guard = std::move(guard),
+                                    .ReaderGuard = std::move(readerGuard),
+                                    .ConflictWaitDuration = conflictWaitTimer.GetElapsedTime(),
+                                };
+                            }))
+                        // TRequestPipeline is move-only, so the inner future must be
+                        // unique for the result to be moved (not copied) into the chain.
+                        .AsUnique();
+                }))
+            .AsUnique()
+            .Apply(BIND(
+                [=, this, this_ = MakeStrong(this)] (TRequestPipeline&& pipeline) {
+                    auto conflictWaitDuration = pipeline.ConflictWaitDuration;
 
-                    YT_LOG_WARNING(conflictError, "Failed to read from chunk while waiting for conflicts (Offset: %v, Length: %v, ConflictWaitDuration: %v, Cookie: %x)",
-                        offset,
-                        length,
-                        conflictWaitDuration,
-                        options.Cookie);
+                    TWallTimer throttleTimer;
+                    return ReadThrottler_->Throttle(length)
+                        .Apply(BIND(
+                            [=,
+                                pipeline = std::move(pipeline),
+                                throttleTimer = std::move(throttleTimer),
+                                this,
+                                this_ = this_
+                            ] (const TError& throttleError) mutable {
+                                auto throttleWaitDuration = throttleTimer.GetElapsedTime();
 
-                    THROW_ERROR conflictError;
-                }
-
-                TWallTimer throttleTimer;
-                return ReadThrottler_->Throttle(length)
-                    .Apply(BIND(
-                        [=,
-                            guard = std::move(guard),
-                            throttleTimer = std::move(throttleTimer),
-                            this,
-                            this_ = this_
-                        ] (const TError& throttleError) mutable -> TFuture<TReadResponse>
-                    {
-                        auto throttleDuration = throttleTimer.GetElapsedTime();
-
-                        if (!throttleError.IsOK()) {
-                            guard.SetError(throttleError);
-
-                            YT_LOG_WARNING(throttleError, "Failed to read from chunk (Offset: %v, ExpectedLength: %v, ConflictWaitDuration: %v, ThrottleDuration: %v, Cookie: %x)",
-                                offset,
-                                length,
-                                conflictWaitDuration,
-                                throttleDuration,
-                                options.Cookie);
-
-                            THROW_ERROR throttleError;
-                        }
-
-                        TWallTimer rpcTimer;
-                        return ChunkHandler_->Read(offset, length, options)
-                            .Apply(BIND(
-                                [=,
-                                    guard = std::move(guard),
-                                    rpcTimer = std::move(rpcTimer),
-                                    this,
-                                    this_ = this_
-                                ] (const TErrorOr<TReadResponse>& rspOrError) mutable -> TReadResponse
-                            {
-                                auto rpcDuration = rpcTimer.GetElapsedTime();
-
-                                if (!rspOrError.IsOK()) {
-                                    guard.SetError(rspOrError);
-
-                                    YT_LOG_WARNING(rspOrError, "Failed to read from chunk (Offset: %v, ExpectedLength: %v, ConflictWaitDuration: %v, ThrottleDuration: %v, RpcDuration: %v, Cookie: %x)",
+                                if (!throttleError.IsOK()) {
+                                    YT_LOG_WARNING(throttleError, "Failed to read from chunk (Offset: %v, ExpectedLength: %v, ConflictWaitDuration: %v, ThrottleWaitDuration: %v, Cookie: %x)",
                                         offset,
                                         length,
                                         conflictWaitDuration,
-                                        throttleDuration,
-                                        rpcDuration,
+                                        throttleWaitDuration,
+                                        options.Cookie);
+
+                                    THROW_ERROR throttleError;
+                                }
+
+                                pipeline.ThrottleWaitDuration = throttleWaitDuration;
+                                return std::move(pipeline);
+                            }))
+                        // TRequestPipeline is move-only, so the inner future must be
+                        // unique for the result to be moved (not copied) into the chain.
+                        .AsUnique();
+                }))
+            .AsUnique()
+            .Apply(BIND(
+                [=, this, this_ = MakeStrong(this)] (TRequestPipeline&& pipeline) {
+                    auto conflictWaitDuration = pipeline.ConflictWaitDuration;
+                    auto throttleWaitDuration = pipeline.ThrottleWaitDuration;
+
+                    TWallTimer rpcTimer;
+                    return ChunkHandler_->Read(offset, length, options)
+                        .Apply(BIND(
+                            [=,
+                                pipeline = std::move(pipeline),
+                                rpcTimer = std::move(rpcTimer),
+                                this,
+                                this_ = this_
+                            ] (const TErrorOr<TReadResponse>& rspOrError) mutable -> TReadResponse {
+                                auto rpcWaitDuration = rpcTimer.GetElapsedTime();
+
+                                if (!rspOrError.IsOK()) {
+                                    YT_LOG_WARNING(rspOrError, "Failed to read from chunk (Offset: %v, ExpectedLength: %v, ConflictWaitDuration: %v, ThrottleWaitDuration: %v, RpcWaitDuration: %v, Cookie: %x)",
+                                        offset,
+                                        length,
+                                        conflictWaitDuration,
+                                        throttleWaitDuration,
+                                        rpcWaitDuration,
                                         options.Cookie);
 
                                     THROW_ERROR rspOrError;
@@ -186,21 +203,21 @@ public:
 
                                 const auto& response = rspOrError.Value();
 
-                                YT_LOG_DEBUG("Finished reading from chunk (Offset: %v, ExpectedLength: %v, ResultLength: %v, ShouldStopUsingDevice: %v, ConflictWaitDuration: %v, ThrottleDuration: %v, RpcDuration: %v, Cookie: %x)",
+                                YT_LOG_DEBUG("Finished reading from chunk (Offset: %v, ExpectedLength: %v, ResultLength: %v, ShouldStopUsingDevice: %v, ConflictWaitDuration: %v, ThrottleWaitDuration: %v, RpcWaitDuration: %v, Cookie: %x)",
                                     offset,
                                     length,
                                     response.Data.Size(),
                                     response.ShouldStopUsingDevice,
                                     conflictWaitDuration,
-                                    throttleDuration,
-                                    rpcDuration,
+                                    throttleWaitDuration,
+                                    rpcWaitDuration,
                                     options.Cookie);
 
                                 return response;
-                                // guard is destroyed here: unregisters the request and signals Done.
+                                // pipeline (guard + reader lock) is destroyed here:
+                                // unregisters the request, signals Done, releases the reader lock.
                             }));
-                    }));
-            }));
+                }));
     }
 
     TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
@@ -219,82 +236,99 @@ public:
             return MakeFuture<TWriteResponse>({});
         }
 
-        // Register this write request and collect futures of all conflicting requests
-        // (both reads and writes that overlap with this range).
-        // The guard automatically unregisters the request and signals on destruction.
-        auto [guard, conflicts] = RegisterInflightRequest(offset, data.size(), /*isWrite*/ true);
-
-        TWallTimer conflictWaitTimer;
-        // Wait for conflicting requests → throttle → RPC.
-        return AllSucceeded(std::move(conflicts))
+        // Acquire reader lock to prevent concurrent Initialize/Finalize, then chain
+        // the request through conflict-wait → throttle → RPC stages. The stages are
+        // flat (not nested): pipeline state (guard, reader lock, timings) is threaded
+        // between them via TRequestPipeline and .AsUnique().
+        return TAsyncLockReaderGuard::Acquire(&InitLock_)
+            .AsUnique()
             .Apply(BIND(
-                [=,
-                    guard = std::move(guard),
-                    conflictWaitTimer = std::move(conflictWaitTimer),
-                    this,
-                    this_ = MakeStrong(this)
-                ] (const TError& conflictError) mutable -> TFuture<TWriteResponse>
-            {
-                auto conflictWaitDuration = conflictWaitTimer.GetElapsedTime();
+                [=, this, this_ = MakeStrong(this)] (TReaderGuardPtr&& readerGuard) {
+                    // Register this write request and collect futures of all conflicting requests
+                    // (both reads and writes that overlap with this range).
+                    // The guard automatically unregisters the request and signals on destruction.
+                    auto [guard, conflicts] = RegisterInflightRequest(offset, data.size(), /*isWrite*/ true);
 
-                if (!conflictError.IsOK()) {
-                    guard.SetError(conflictError);
+                    // Wait for conflicting requests to finish before issuing the write.
+                    // We use AllSet (not AllSucceeded) so that a failed predecessor does not
+                    // propagate its error into this request: we only need to wait for the range
+                    // to be vacated, regardless of whether the conflicting request succeeded.
+                    TWallTimer conflictWaitTimer;
+                    return AllSet(std::move(conflicts))
+                        .Apply(BIND(
+                            [=,
+                                guard = std::move(guard),
+                                readerGuard = std::move(readerGuard),
+                                conflictWaitTimer = std::move(conflictWaitTimer)
+                            ] (const std::vector<TErrorOr<void>>& /*conflicts*/) mutable {
+                                return TRequestPipeline{
+                                    .Guard = std::move(guard),
+                                    .ReaderGuard = std::move(readerGuard),
+                                    .ConflictWaitDuration = conflictWaitTimer.GetElapsedTime(),
+                                };
+                            }))
+                        // TRequestPipeline is move-only, so the inner future must be
+                        // unique for the result to be moved (not copied) into the chain.
+                        .AsUnique();
+                }))
+            .AsUnique()
+            .Apply(BIND(
+                [=, this, this_ = MakeStrong(this)] (TRequestPipeline&& pipeline) {
+                    auto conflictWaitDuration = pipeline.ConflictWaitDuration;
 
-                    YT_LOG_WARNING(conflictError, "Failed to write to chunk while waiting for conflicts (Offset: %v, Length: %v, ConflictWaitDuration: %v, Cookie: %x)",
-                        offset,
-                        data.size(),
-                        conflictWaitDuration,
-                        options.Cookie);
+                    TWallTimer throttleTimer;
+                    return WriteThrottler_->Throttle(data.size())
+                        .Apply(BIND(
+                            [=,
+                                pipeline = std::move(pipeline),
+                                throttleTimer = std::move(throttleTimer),
+                                this,
+                                this_ = this_
+                            ] (const TError& throttleError) mutable {
+                                auto throttleWaitDuration = throttleTimer.GetElapsedTime();
 
-                    THROW_ERROR conflictError;
-                }
-
-                TWallTimer throttleTimer;
-                return WriteThrottler_->Throttle(data.size())
-                    .Apply(BIND(
-                        [=,
-                            guard = std::move(guard),
-                            throttleTimer = std::move(throttleTimer),
-                            this,
-                            this_ = this_
-                        ] (const TError& throttleError) mutable -> TFuture<TWriteResponse>
-                    {
-                        auto throttleDuration = throttleTimer.GetElapsedTime();
-
-                        if (!throttleError.IsOK()) {
-                            guard.SetError(throttleError);
-
-                            YT_LOG_WARNING(throttleError, "Failed to write to chunk (Offset: %v, Length: %v, ConflictWaitDuration: %v, ThrottleDuration: %v, Cookie: %x)",
-                                offset,
-                                data.size(),
-                                conflictWaitDuration,
-                                throttleDuration,
-                                options.Cookie);
-
-                            THROW_ERROR throttleError;
-                        }
-
-                        TWallTimer rpcTimer;
-                        return ChunkHandler_->Write(offset, data, options)
-                            .Apply(BIND(
-                                [=,
-                                    guard = std::move(guard),
-                                    rpcTimer = std::move(rpcTimer),
-                                    this,
-                                    this_ = this_
-                                ] (const TErrorOr<TWriteResponse>& rspOrError) mutable -> TWriteResponse
-                            {
-                                auto rpcDuration = rpcTimer.GetElapsedTime();
-
-                                if (!rspOrError.IsOK()) {
-                                    guard.SetError(rspOrError);
-
-                                    YT_LOG_WARNING(rspOrError, "Failed to write to chunk (Offset: %v, Length: %v, ConflictWaitDuration: %v, ThrottleDuration: %v, RpcDuration: %v, Cookie: %x)",
+                                if (!throttleError.IsOK()) {
+                                    YT_LOG_WARNING(throttleError, "Failed to write to chunk (Offset: %v, Length: %v, ConflictWaitDuration: %v, ThrottleWaitDuration: %v, Cookie: %x)",
                                         offset,
                                         data.size(),
                                         conflictWaitDuration,
-                                        throttleDuration,
-                                        rpcDuration,
+                                        throttleWaitDuration,
+                                        options.Cookie);
+
+                                    THROW_ERROR throttleError;
+                                }
+
+                                pipeline.ThrottleWaitDuration = throttleWaitDuration;
+                                return std::move(pipeline);
+                            }))
+                        // TRequestPipeline is move-only, so the inner future must be
+                        // unique for the result to be moved (not copied) into the chain.
+                        .AsUnique();
+                }))
+            .AsUnique()
+            .Apply(BIND(
+                [=, this, this_ = MakeStrong(this)] (TRequestPipeline&& pipeline) {
+                    auto conflictWaitDuration = pipeline.ConflictWaitDuration;
+                    auto throttleWaitDuration = pipeline.ThrottleWaitDuration;
+
+                    TWallTimer rpcTimer;
+                    return ChunkHandler_->Write(offset, data, options)
+                        .Apply(BIND(
+                            [=,
+                                pipeline = std::move(pipeline),
+                                rpcTimer = std::move(rpcTimer),
+                                this,
+                                this_ = this_
+                            ] (const TErrorOr<TWriteResponse>& rspOrError) mutable -> TWriteResponse {
+                                auto rpcWaitDuration = rpcTimer.GetElapsedTime();
+
+                                if (!rspOrError.IsOK()) {
+                                    YT_LOG_WARNING(rspOrError, "Failed to write to chunk (Offset: %v, Length: %v, ConflictWaitDuration: %v, ThrottleWaitDuration: %v, RpcWaitDuration: %v, Cookie: %x)",
+                                        offset,
+                                        data.size(),
+                                        conflictWaitDuration,
+                                        throttleWaitDuration,
+                                        rpcWaitDuration,
                                         options.Cookie);
 
                                     THROW_ERROR rspOrError;
@@ -302,50 +336,72 @@ public:
 
                                 const auto& response = rspOrError.Value();
 
-                                YT_LOG_DEBUG("Finished writing to chunk (Offset: %v, Length: %v, ShouldStopUsingDevice: %v, ConflictWaitDuration: %v, ThrottleDuration: %v, RpcDuration: %v, Cookie: %x)",
+                                YT_LOG_DEBUG("Finished writing to chunk (Offset: %v, Length: %v, ShouldStopUsingDevice: %v, ConflictWaitDuration: %v, ThrottleWaitDuration: %v, RpcWaitDuration: %v, Cookie: %x)",
                                     offset,
                                     data.size(),
                                     response.ShouldStopUsingDevice,
                                     conflictWaitDuration,
-                                    throttleDuration,
-                                    rpcDuration,
+                                    throttleWaitDuration,
+                                    rpcWaitDuration,
                                     options.Cookie);
 
                                 return response;
-                                // guard is destroyed here: unregisters the request and signals Done.
+                                // pipeline (guard + reader lock) is destroyed here:
+                                // unregisters the request, signals Done, releases the reader lock.
                             }));
-                    }));
-            }));
+                }));
     }
 
     TFuture<void> Flush() override
     {
-        // Wait for all pending requests to finish.
-        return AllSucceeded(CollectAllInflightFutures());
+        // Wait for all requests that were in-flight at the moment of the call to finish.
+        // NB: Unlike Initialize/Finalize, Flush does not take the writer lock and thus
+        // does not block new Read/Write requests. This matches the NBD_CMD_FLUSH barrier
+        // semantics: only requests submitted before the flush are guaranteed to be durable.
+        //
+        // We use AllSet (not AllSucceeded): Flush is a pure ordering barrier — it must wait
+        // for all preceding requests to complete, regardless of whether they succeeded.
+        // Individual request errors are already reported to their own callers; propagating
+        // them through Flush would confuse the flush caller with someone else's error.
+        return AllSet(CollectAllInflightFutures()).AsVoid();
     }
 
     TFuture<void> Initialize() override
     {
-        return AllSucceeded(CollectAllInflightFutures())
+        // Acquire writer lock: waits for all in-flight Read/Write operations to release
+        // their reader locks, then blocks new ones until Initialize completes.
+        return TAsyncLockWriterGuard::Acquire(&InitLock_)
             .Apply(BIND(
                 [
                     this,
                     this_ = MakeStrong(this)
-                ] () {
-                    return ChunkHandler_->Initialize();
-                }));
+                ] (TIntrusivePtr<TAsyncLockWriterGuard> writerGuard) -> TFuture<void>
+            {
+                return ChunkHandler_->Initialize()
+                    .Apply(BIND(
+                        [writerGuard = std::move(writerGuard)] () {
+                            // writerGuard is destroyed here, releasing the writer lock.
+                        }));
+            }));
     }
 
     TFuture<void> Finalize() override
     {
-        return AllSucceeded(CollectAllInflightFutures())
+        // Acquire writer lock: waits for all in-flight Read/Write operations to release
+        // their reader locks, then blocks new ones until Finalize completes.
+        return TAsyncLockWriterGuard::Acquire(&InitLock_)
             .Apply(BIND(
                 [
                     this,
                     this_ = MakeStrong(this)
-                ] () {
-                    return ChunkHandler_->Finalize();
-                }));
+                ] (TIntrusivePtr<TAsyncLockWriterGuard> writerGuard) -> TFuture<void>
+            {
+                return ChunkHandler_->Finalize()
+                    .Apply(BIND(
+                        [writerGuard = std::move(writerGuard)] () {
+                            // writerGuard is destroyed here, releasing the writer lock.
+                        }));
+            }));
     }
 
 private:
@@ -354,9 +410,13 @@ private:
     const IThroughputThrottlerPtr ReadThrottler_;
     const IThroughputThrottlerPtr WriteThrottler_;
     const IInvokerPtr Invoker_;
-    const std::string SensorTag_;
+    static constexpr const char* SensorTag_ = "rw";
     const TLogger Logger;
     const IChunkHandlerPtr ChunkHandler_;
+
+    //! Async RW lock protecting Initialize/Finalize from concurrent Read/Write:
+    //! Read and Write acquire reader locks; Initialize and Finalize acquire the writer lock.
+    TAsyncReaderWriterLock InitLock_;
 
     struct TInflightRequest
     {
@@ -368,8 +428,8 @@ private:
 
     using TInflightList = std::list<TInflightRequest>;
 
-    YT_DECLARE_SPIN_LOCK(TSpinLock, InflightLock_);
-    TInflightList InflightRequests_;
+    mutable YT_DECLARE_SPIN_LOCK(TSpinLock, InflightLock_);
+    mutable TInflightList InflightRequests_;
 
     //! RAII guard that automatically unregisters an inflight request
     //! and signals its Done promise on destruction.
@@ -396,7 +456,7 @@ private:
                 return;
             }
 
-            // Signal Done (with success if not already set with an error).
+            // Signal Done with success.
             It_->Done.TrySet();
 
             // Unregister from the inflight list.
@@ -409,17 +469,24 @@ private:
         TInflightRequestGuard& operator=(const TInflightRequestGuard&) = delete;
         TInflightRequestGuard& operator=(TInflightRequestGuard&&) = delete;
 
-        //! Propagates an error to waiters before the guard is destroyed.
-        void SetError(const TError& error)
-        {
-            It_->Done.TrySet(error);
-        }
-
     private:
         TInflightList* const List_;
         TSpinLock* const Lock_;
         const TInflightList::iterator It_;
         bool Moved_ = false;
+    };
+
+    using TReaderGuardPtr = TIntrusivePtr<TAsyncLockReaderGuard>;
+
+    //! State threaded between the flat request-pipeline stages (conflict-wait →
+    //! throttle → RPC). Holds the RAII guards that must outlive the whole chain
+    //! and the per-stage timings accumulated so far.
+    struct TRequestPipeline
+    {
+        TInflightRequestGuard Guard;
+        TReaderGuardPtr ReaderGuard;
+        TDuration ConflictWaitDuration;
+        TDuration ThrottleWaitDuration;
     };
 
     static bool Overlaps(i64 offset1, i64 length1, i64 offset2, i64 length2)
@@ -461,7 +528,7 @@ private:
     }
 
     //! Collects futures of all currently inflight requests.
-    std::vector<TFuture<void>> CollectAllInflightFutures()
+    std::vector<TFuture<void>> CollectAllInflightFutures() const
     {
         auto guard = Guard(InflightLock_);
         std::vector<TFuture<void>> futures;
