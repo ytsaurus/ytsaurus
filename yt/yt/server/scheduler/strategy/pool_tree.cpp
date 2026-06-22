@@ -142,7 +142,7 @@ public:
         LastLocalUpdateTime_ = now;
     }
 
-    THashMap<TString, TResourceVolume> ExtractPoolResourceUsages()
+    THashMap<std::string, TResourceVolume> ExtractPoolResourceUsages()
     {
         YT_VERIFY(AccumulateForPools_);
 
@@ -183,13 +183,13 @@ private:
     const bool AccumulateForOperations_;
 
     // This maps is updated regularly from some thread pool, no parallel updates are possible.
-    THashMap<TString, TResourceVolume> LocalPoolToAccumulatedResourceUsage_;
+    THashMap<std::string, TResourceVolume> LocalPoolToAccumulatedResourceUsage_;
     THashMap<TOperationId, TAccumulatedResourceDistribution> LocalOperationIdToAccumulatedResourceDistribution_;
     TInstant LastLocalUpdateTime_;
 
     // This maps is updated rarely and accessed from Control thread.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    THashMap<TString, TResourceVolume> PoolToAccumulatedResourceUsage_;
+    THashMap<std::string, TResourceVolume> PoolToAccumulatedResourceUsage_;
     THashMap<TOperationId, TAccumulatedResourceDistribution> OperationIdToAccumulatedResourceDistribution_;
     TInstant LastUpdateTime_;
 };
@@ -227,9 +227,9 @@ void Serialize(const TAccumulatedResourceDistribution& volume, NYson::IYsonConsu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters)
+THashMap<std::string, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters)
 {
-    THashMap<TString, TPoolName> pools;
+    THashMap<std::string, TPoolName> pools;
     for (const auto& [treeId, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
         pools.emplace(treeId, options->Pool);
     }
@@ -814,20 +814,18 @@ public:
         }
     }
 
-    TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const std::string& user) const override
+    TPoolName CreatePoolName(const std::optional<std::string>& poolFromSpec, const std::string& user) const override
     {
-        // TODO(babenko): switch to std::string
-        auto poolName = poolFromSpec.value_or(TString(user));
+        auto poolName = poolFromSpec.value_or(user);
 
         auto pool = FindPool(poolName);
         if (pool && pool->GetConfig()->CreateEphemeralSubpools) {
-            // TODO(babenko): switch to std::string
-            return TPoolName(TString(user), poolName);
+            return TPoolName(user, poolName);
         }
         return TPoolName(poolName, std::nullopt);
     }
 
-    const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const std::string& user) const override
+    const TOffloadingSettings& GetOffloadingSettingsFor(const std::string& poolName, const std::string& user) const override
     {
         const TPoolTreeCompositeElement* pool = FindPool(poolName).Get();
         if (!pool) {
@@ -856,8 +854,8 @@ public:
 
         LastPoolsNodeUpdate_ = poolsNode;
 
-        THashMap<TString, TString> poolToParentMap;
-        THashSet<TString> ephemeralPools;
+        THashMap<std::string, std::string> poolToParentMap;
+        THashSet<std::string> ephemeralPools;
         for (const auto& [poolId, pool] : Pools_) {
             poolToParentMap[poolId] = pool->GetParent()->GetId();
             if (pool->IsDefaultConfigured()) {
@@ -1024,7 +1022,7 @@ public:
             .Run(operationId, user, permissions);
     }
 
-    void EnsureOperationPoolExistence(const TString& poolName) const override
+    void EnsureOperationPoolExistence(const std::string& poolName) const override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1157,9 +1155,9 @@ public:
         return SchedulingPolicy_->CheckOperationSchedulingInSeveralTreesAllowed(element.Get());
     }
 
-    std::vector<TString> GetAncestorPoolNames(const TPoolTreeOperationElement* element) const
+    std::vector<std::string> GetAncestorPoolNames(const TPoolTreeOperationElement* element) const
     {
-        std::vector<TString> result;
+        std::vector<std::string> result;
         const auto* current = element->GetParent();
         while (!current->IsRoot()) {
             result.push_back(current->GetId());
@@ -1417,8 +1415,8 @@ private:
 
     THashMap<std::string, THashSet<std::string>> UserToEphemeralPoolsInDefaultPool_;
 
-    THashMap<TString, THashSet<int>> PoolToSpareSlotIndices_;
-    THashMap<TString, int> PoolToMinUnusedSlotIndex_;
+    THashMap<std::string, THashSet<int>> PoolToSpareSlotIndices_;
+    THashMap<std::string, int> PoolToMinUnusedSlotIndex_;
 
     TOperationElementMap OperationIdToElement_;
 
@@ -1481,7 +1479,7 @@ private:
             return ResolveSelf("/@" + path, context);
         }
 
-        virtual IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const TString& poolName) = 0;
+        virtual IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const std::string& poolName) = 0;
 
         TResolveResult ResolveRecursive(
             const TYPath& path,
@@ -1493,8 +1491,7 @@ private:
             tokenizer.Advance();
             tokenizer.Expect(NYPath::ETokenType::Literal);
 
-            // TODO(babenko): migrate to std::string
-            TString poolName(tokenizer.GetLiteralValue());
+            std::string poolName(tokenizer.GetLiteralValue());
             if (poolName != RootPoolName && !poolTreeSnapshot->PoolMap().contains(poolName)) {
                 // TODO(omgronny): rewrite it properly
                 if (context->GetMethod() == "Exists") {
@@ -1534,10 +1531,9 @@ private:
             bool incomplete = false;
             const auto& poolMap = poolTreeSnapshot->PoolMap();
 
-            std::vector<TString> result;
+            std::vector<std::string> result;
             result.reserve(std::ssize(poolMap) + 1);
-            // TODO(babenko): migrate to std::string
-            result.push_back(TString(RootPoolName));
+            result.push_back(RootPoolName);
             for (const auto& [name, _] : poolMap) {
                 result.push_back(name);
             }
@@ -1598,7 +1594,7 @@ private:
                 }));
         }
 
-        IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const TString& poolName) override
+        IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const std::string& poolName) override
         {
             return TPoolTree::FromProducer(BIND(
                 [poolTreeSnapshot = std::move(poolTreeSnapshot), poolName]
@@ -1651,7 +1647,7 @@ private:
                 }));
         }
 
-        IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const TString& poolName) override
+        IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const std::string& poolName) override
         {
             return TPoolTree::FromProducer(BIND(
                 [poolTreeSnapshot = std::move(poolTreeSnapshot), poolName]
@@ -2089,8 +2085,7 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        // TODO(babenko): migrate to std::string
-        auto pool = FindPool(TString(poolName.GetPool()));
+        auto pool = FindPool(poolName.GetPool());
         if (pool) {
             return pool;
         }
@@ -2099,8 +2094,7 @@ private:
         auto poolConfig = New<TPoolConfig>();
 
         TPoolTreeCompositeElement* parent = poolName.GetParentPool()
-            // TODO(babenko): migrate to std::string
-            ? GetPool(TString(*poolName.GetParentPool())).Get()
+            ? GetPool(*poolName.GetParentPool()).Get()
             : GetDefaultParentPoolForUser(userName).Get();
 
         ApplyEphemeralSubpoolConfig(parent, poolConfig);
@@ -2108,8 +2102,7 @@ private:
         pool = New<TPoolTreePoolElement>(
             StrategyHost_,
             this,
-            // TODO(babenko): migrate to std::string
-            TString(poolName.GetPool()),
+            poolName.GetPool(),
             TGuid(),
             poolConfig,
             /*defaultConfigured*/ true,
@@ -2119,8 +2112,7 @@ private:
 
         if (!poolName.GetParentPool()) {
             pool->SetEphemeralInDefaultParentPool();
-            // TODO(babenko): migrate to std::string
-            UserToEphemeralPoolsInDefaultPool_[userName].insert(std::string(poolName.GetPool()));
+            UserToEphemeralPoolsInDefaultPool_[userName].insert(poolName.GetPool());
         }
 
         pool->SetUserName(userName);
@@ -2149,7 +2141,7 @@ private:
         targetConfig->ResourceLimits = source->ResourceLimits;
     }
 
-    bool TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
+    bool TryAllocatePoolSlotIndex(const std::string& poolName, int slotIndex)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2170,7 +2162,7 @@ private:
         }
     }
 
-    int AllocateOperationSlotIndex(const TStrategyOperationStatePtr& state, const TString& poolName)
+    int AllocateOperationSlotIndex(const TStrategyOperationStatePtr& state, const std::string& poolName)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2208,7 +2200,7 @@ private:
         return newSlotIndex;
     }
 
-    void ReleaseOperationSlotIndex(const TStrategyOperationStatePtr& state, const TString& poolName)
+    void ReleaseOperationSlotIndex(const TStrategyOperationStatePtr& state, const std::string& poolName)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2454,16 +2446,14 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        // TODO(babenko): migrate to std::string
-        TPoolTreeCompositeElementPtr pool = FindPool(TString(poolName.GetPool()));
+        TPoolTreeCompositeElementPtr pool = FindPool(poolName.GetPool());
         if (pool) {
             return pool;
         }
         if (!poolName.GetParentPool()) {
             return GetDefaultParentPoolForUser(userName);
         }
-        // TODO(babenko): migrate to std::string
-        pool = FindPool(TString(*poolName.GetParentPool()));
+        pool = FindPool(*poolName.GetParentPool());
         if (!pool) {
             THROW_ERROR_EXCEPTION("Parent pool %Qv does not exist", poolName.GetParentPool());
         }
@@ -2547,8 +2537,7 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        // TODO(babenko): migrate to std::string
-        auto pool = FindPool(TString(poolName.GetPool()));
+        auto pool = FindPool(poolName.GetPool());
         if (pool) {
             return;
         }
@@ -2615,8 +2604,7 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        // TODO(babenko): migrate to std::string
-        const TPoolTreeCompositeElement* pool = FindPool(TString(poolName.GetPool())).Get();
+        const TPoolTreeCompositeElement* pool = FindPool(poolName.GetPool()).Get();
         // NB: Check is not performed if operation is started in default or unknown pool.
         if (pool && pool->AreImmediateOperationsForbidden()) {
             THROW_ERROR_EXCEPTION("Starting operations immediately in pool %Qv is forbidden", poolName.GetPool());
@@ -2685,7 +2673,7 @@ private:
         return Pools_.size();
     }
 
-    TPoolTreePoolElementPtr FindPool(const TString& id) const
+    TPoolTreePoolElementPtr FindPool(const std::string& id) const
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2693,7 +2681,7 @@ private:
         return it == Pools_.end() ? nullptr : it->second;
     }
 
-    TPoolTreePoolElementPtr GetPool(const TString& id) const
+    TPoolTreePoolElementPtr GetPool(const std::string& id) const
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2881,7 +2869,7 @@ private:
         return treeSnapshot->ResourceLimits();
     }
 
-    std::optional<TPoolTreeElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override
+    std::optional<TPoolTreeElementStateSnapshot> GetMaybeStateSnapshotForPool(const std::string& poolId) const override
     {
         auto treeSnapshot = GetTreeSnapshot();
 
@@ -3285,7 +3273,7 @@ private:
     static void BuildChildPoolsByPoolInfo(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const TFieldFilter& filter,
-        const TString& parentPoolName,
+        const std::string& parentPoolName,
         TFluentMap fluent)
     {
         auto* parentPool = [&] () -> TPoolTreeCompositeElement* {

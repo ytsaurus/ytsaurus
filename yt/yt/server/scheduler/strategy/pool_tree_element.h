@@ -340,7 +340,7 @@ public:
     //! Other methods based on tree snapshot.
     virtual void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
-        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        const THashMap<std::string, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const;
 
     bool IsDemandFullySatisfied() const;
@@ -356,7 +356,7 @@ protected:
         IPoolTreeElementHost* treeElementHost,
         TStrategyTreeConfigPtr treeConfig,
         std::string treeId,
-        TString id,
+        std::string id,
         EResourceTreeElementKind elementKind,
         const NLogging::TLogger& logger);
     TPoolTreeElement(
@@ -456,7 +456,7 @@ public:
         IPoolTreeElementHost* treeElementHost,
         TStrategyTreeConfigPtr treeConfig,
         const std::string& treeId,
-        const TString& id,
+        const std::string& id,
         EResourceTreeElementKind elementKind,
         const NLogging::TLogger& logger);
     TPoolTreeCompositeElement(
@@ -598,9 +598,9 @@ DEFINE_REFCOUNTED_TYPE(TPoolTreeCompositeElement)
 class TPoolTreePoolElementFixedState
 {
 protected:
-    TPoolTreePoolElementFixedState(TString id, NObjectClient::TObjectId objectId);
+    TPoolTreePoolElementFixedState(std::string id, NObjectClient::TObjectId objectId);
 
-    const TString Id_;
+    const std::string Id_;
 
     // Used only in trunk node.
     bool DefaultConfigured_ = true;
@@ -624,7 +624,7 @@ public:
     TPoolTreePoolElement(
         IStrategyHost* strategyHost,
         IPoolTreeElementHost* treeElementHost,
-        const TString& id,
+        const std::string& id,
         TGuid objectId,
         TPoolConfigPtr config,
         bool defaultConfigured,
@@ -716,7 +716,7 @@ public:
     //! Other methods.
     void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
-        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        const THashMap<std::string, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const override;
 
     THashSet<TString> GetAllowedProfilingTags() const override;
@@ -1088,7 +1088,7 @@ public:
 
     void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
-        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        const THashMap<std::string, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const override;
 
     TResourceDistributionInfo GetResourceDistributionInfo() const;

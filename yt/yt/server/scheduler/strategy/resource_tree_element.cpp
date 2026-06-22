@@ -17,7 +17,7 @@ constinit const auto Logger = StrategyLogger;
 
 TResourceTreeElement::TResourceTreeElement(
     TResourceTree* resourceTree,
-    const TString& id,
+    const std::string& id,
     EResourceTreeElementKind elementKind)
     : ResourceTree_(resourceTree)
     , Id_(id)

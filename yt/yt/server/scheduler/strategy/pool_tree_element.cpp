@@ -374,7 +374,7 @@ TPoolTreeElement::TPoolTreeElement(
     IPoolTreeElementHost* treeElementHost,
     TStrategyTreeConfigPtr treeConfig,
     std::string treeId,
-    TString id,
+    std::string id,
     EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
     : TPoolTreeElementFixedState(strategyHost, treeElementHost, std::move(treeConfig), std::move(treeId))
@@ -589,7 +589,7 @@ TJobResourcesConfigPtr TPoolTreeElement::GetSpecifiedResourceLimitsOvercommitTol
 
 void TPoolTreeElement::BuildResourceMetering(
     const std::optional<TMeteringKey>& /*lowestMeteredAncestorKey*/,
-    const THashMap<TString, TResourceVolume>& /*poolResourceUsages*/,
+    const THashMap<std::string, TResourceVolume>& /*poolResourceUsages*/,
     TMeteringMap* /*statistics*/) const
 { }
 
@@ -672,7 +672,7 @@ TPoolTreeCompositeElement::TPoolTreeCompositeElement(
     IPoolTreeElementHost* treeElementHost,
     TStrategyTreeConfigPtr treeConfig,
     const std::string& treeId,
-    const TString& id,
+    const std::string& id,
     EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
     : TPoolTreeElement(strategyHost, treeElementHost, std::move(treeConfig), treeId, id, elementKind, logger)
@@ -1218,7 +1218,7 @@ std::optional<std::string> TPoolTreeCompositeElement::GetRedirectToCluster() con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPoolTreePoolElementFixedState::TPoolTreePoolElementFixedState(TString id, NObjectClient::TObjectId objectId)
+TPoolTreePoolElementFixedState::TPoolTreePoolElementFixedState(std::string id, NObjectClient::TObjectId objectId)
     : Id_(std::move(id))
     , ObjectId_(objectId)
 { }
@@ -1228,7 +1228,7 @@ TPoolTreePoolElementFixedState::TPoolTreePoolElementFixedState(TString id, NObje
 TPoolTreePoolElement::TPoolTreePoolElement(
     IStrategyHost* strategyHost,
     IPoolTreeElementHost* treeElementHost,
-    const TString& id,
+    const std::string& id,
     TGuid objectId,
     TPoolConfigPtr config,
     bool defaultConfigured,
@@ -1531,7 +1531,7 @@ std::optional<TDuration> TPoolTreePoolElement::GetMaybeHistoricUsageAggregatorPe
 
 void TPoolTreePoolElement::BuildResourceMetering(
     const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
-    const THashMap<TString, TResourceVolume>& poolResourceUsages,
+    const THashMap<std::string, TResourceVolume>& poolResourceUsages,
     TMeteringMap* meteringMap) const
 {
     YT_VERIFY(lowestMeteredAncestorKey);
@@ -2657,8 +2657,7 @@ TPoolTreeRootElement::TPoolTreeRootElement(
         treeElementHost,
         treeConfig,
         treeId,
-        // TODO(babenko): migrate to std::string
-        TString(RootPoolName),
+        RootPoolName,
         EResourceTreeElementKind::Root,
         logger.WithTag("Pool: %v, SchedulingMode: %v",
             RootPoolName,
@@ -2738,8 +2737,7 @@ const TSchedulingTagFilter& TPoolTreeRootElement::GetSchedulingTagFilter() const
 
 std::string TPoolTreeRootElement::GetId() const
 {
-    // TODO(babenko): migrate to std::string
-    return TString(RootPoolName);
+    return RootPoolName;
 }
 
 std::optional<double> TPoolTreeRootElement::GetSpecifiedWeight() const
@@ -2883,7 +2881,7 @@ std::optional<TDuration> TPoolTreeRootElement::GetMaybeHistoricUsageAggregatorPe
 
 void TPoolTreeRootElement::BuildResourceMetering(
     const std::optional<TMeteringKey>& /*lowestMeteredAncestorKey*/,
-    const THashMap<TString, TResourceVolume>& poolResourceUsages,
+    const THashMap<std::string, TResourceVolume>& poolResourceUsages,
     TMeteringMap* meteringMap) const
 {
     auto key = TMeteringKey{

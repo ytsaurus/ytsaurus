@@ -609,7 +609,7 @@ public:
             .Item("accumulated_resource_distribution_per_tree").Value(accumulatedResourceDistributionPerTree)
             .Item("accumulated_resource_usage_per_tree").DoMapFor(
                 accumulatedResourceDistributionPerTree,
-                [] (TFluentMap fluent, const std::pair<TString, TAccumulatedResourceDistribution>& pair) {
+                [] (TFluentMap fluent, const std::pair<std::string, TAccumulatedResourceDistribution>& pair) {
                     const auto& [treeId, distribution] = pair;
                     fluent.Item(treeId).Value(distribution.Usage());
                 });
@@ -653,7 +653,7 @@ public:
             auto treeParams = New<TOperationPoolTreeRuntimeParameters>();
             auto specIt = spec->SchedulingOptionsPerPoolTree.find(poolTreeDescription.Id);
             auto tree = GetTree(poolTreeDescription.Id);
-            std::optional<TString> poolFromSpec;
+            std::optional<std::string> poolFromSpec;
             if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
                 treeParams->Weight = specIt->second->Weight ? specIt->second->Weight : spec->Weight;
                 treeParams->ResourceLimits = specIt->second->ResourceLimits->IsNonTrivial() ? specIt->second->ResourceLimits : spec->ResourceLimits;
@@ -676,8 +676,7 @@ public:
         }
 
         for (const auto& [treeId, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
-            // TODO(babenko): migrate to std::string
-            const auto& offloadingSettings = GetTree(treeId)->GetOffloadingSettingsFor(TString(options->Pool.GetSpecifiedPoolName()), user);
+            const auto& offloadingSettings = GetTree(treeId)->GetOffloadingSettingsFor(options->Pool.GetSpecifiedPoolName(), user);
             if (offloadingSettings.empty()) {
                 continue;
             }
@@ -709,8 +708,7 @@ public:
                         auto treeParams = New<TOperationPoolTreeRuntimeParameters>();
                         treeParams->Weight = offloadingPoolSettings->Weight;
                         const auto& poolName = offloadingPoolSettings->Pool.value_or(options->Pool.GetSpecifiedPoolName());
-                        // TODO(babenko): migrate to std::string
-                        treeParams->Pool = tree->CreatePoolName(TString(poolName), user);
+                        treeParams->Pool = tree->CreatePoolName(poolName, user);
                         treeParams->Tentative = offloadingPoolSettings->Tentative;
                         treeParams->ResourceLimits = offloadingPoolSettings->ResourceLimits;
                         treeParams->Offloading = true;
@@ -741,8 +739,7 @@ public:
                 treeParams->Weight = *update->Weight;
             }
             if (newPoolName) {
-                // TODO(babenko): migrate to std::string
-                treeParams->Pool = GetTree(poolTree)->CreatePoolName(TString(*newPoolName), user);
+                treeParams->Pool = GetTree(poolTree)->CreatePoolName(*newPoolName, user);
             }
         }
     }
@@ -888,7 +885,7 @@ public:
         return ValidateOperationPoolsCanBeUsed(operation, operation->GetRuntimeParameters());
     }
 
-    THashMap<TString, TError> GetPoolLimitViolations(
+    THashMap<std::string, TError> GetPoolLimitViolations(
         const IOperation* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
     {
@@ -896,7 +893,7 @@ public:
 
         auto pools = GetOperationPools(runtimeParameters);
 
-        THashMap<TString, TError> result;
+        THashMap<std::string, TError> result;
 
         for (const auto& [treeId, pool] : pools) {
             auto tree = GetTree(treeId);
@@ -1042,9 +1039,9 @@ public:
         }
     }
 
-    THashMap<TString, TAccumulatedResourceDistribution> ExtractAccumulatedResourceDistributionForLogging(TOperationId operationId)
+    THashMap<std::string, TAccumulatedResourceDistribution> ExtractAccumulatedResourceDistributionForLogging(TOperationId operationId)
     {
-        THashMap<TString, TAccumulatedResourceDistribution> result;
+        THashMap<std::string, TAccumulatedResourceDistribution> result;
 
         const auto& state = GetOperationState(operationId);
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
@@ -1342,8 +1339,7 @@ public:
             // then its demand and guaranteed resources ratio are considered to be zero.
             TResourceVector currentDemandShare;
             TResourceVector estimatedGuaranteeShare;
-            // TODO(babenko): migrate to std::string
-            if (auto poolStateSnapshot = tree->GetMaybeStateSnapshotForPool(TString(poolName.GetPool()))) {
+            if (auto poolStateSnapshot = tree->GetMaybeStateSnapshotForPool(poolName.GetPool())) {
                 currentDemandShare = poolStateSnapshot->DemandShare;
                 estimatedGuaranteeShare = poolStateSnapshot->EstimatedGuaranteeShare;
             }
@@ -1635,7 +1631,7 @@ private:
     TAtomicIntrusivePtr<TPoolTreeSetSnapshot> TreeSetSnapshot_;
 
     // Topology describes set of trees and their node filters.
-    using TTreeSetTopology = std::vector<std::pair<TString, TSchedulingTagFilter>>;
+    using TTreeSetTopology = std::vector<std::pair<std::string, TSchedulingTagFilter>>;
     TTreeSetTopology TreeSetTopology_;
     int TreeSetTopologyVersion_ = 0;
 
@@ -1895,7 +1891,7 @@ private:
 
         fluent
             .Item("scheduling_info_per_pool_tree")
-                .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<TString, TPoolName>& value) {
+                .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<std::string, TPoolName>& value) {
                     const auto& treeId = value.first;
                     auto tree = GetTree(treeId);
 
@@ -1982,9 +1978,7 @@ private:
         THashSet<std::string>* treeIdsWithChangedFilter,
         THashMap<std::string, TSchedulingTagFilter>* treeIdToFilter) const
     {
-        for (const auto& key_ : poolsMap->GetKeys()) {
-            // TODO(babenko): migrate to std::string
-            auto key = TString(key_);
+        for (const auto& key : poolsMap->GetKeys()) {
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treeIdsToAdd->insert(key);
                 try {

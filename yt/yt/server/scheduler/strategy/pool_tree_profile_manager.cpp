@@ -528,7 +528,7 @@ void TPoolTreeProfileManager::ProfilePools(const TPoolTreeSnapshotPtr& treeSnaps
         poolNameToState = PoolNameToState_;
     }
 
-    auto findPoolBufferedProducer = [&poolNameToState] (const TString& poolName) -> NProfiling::TBufferedProducerPtr {
+    auto findPoolBufferedProducer = [&poolNameToState] (const std::string& poolName) -> NProfiling::TBufferedProducerPtr {
         auto it = poolNameToState.find(poolName);
         if (it == poolNameToState.end()) {
             return nullptr;
