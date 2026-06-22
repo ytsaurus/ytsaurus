@@ -32,6 +32,8 @@ using TRspIssueLeases = NTransactionClient::NProto::TRspIssueLeases;
 using TReqRegisterLockableDynamicTables = NTransactionClient::NProto::TReqRegisterLockableDynamicTables;
 using TRspRegisterLockableDynamicTables = NTransactionClient::NProto::TRspRegisterLockableDynamicTables;
 
+class TTransactionFinishRequest;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

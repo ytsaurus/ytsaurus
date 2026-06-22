@@ -1628,7 +1628,7 @@ public:
             std::move(sequoiaClient),
             coordinatorCellId,
             "doom",
-            Format("Sequoia transaction: mark Cypress transaction %Qv as doomed", transactionId),
+            Format("Sequoia transaction: mark Cypress transaction %v as doomed", transactionId),
             std::move(invoker),
             std::move(logger))
         , TransactionId_(transactionId)
