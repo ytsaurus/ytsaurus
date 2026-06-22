@@ -44,7 +44,7 @@ struct TExperimentEffectConfig
     NYTree::INodePtr ControllerOptionsPatch;
 
     //! If set, only controller agents with this tag may be assigned to operations of this group.
-    std::optional<TString> ControllerAgentTag;
+    std::optional<std::string> ControllerAgentTag;
 
     REGISTER_YSON_STRUCT(TExperimentEffectConfig);
 
@@ -76,21 +76,21 @@ struct TExperimentConfig
     : public NYTree::TYsonStruct
 {
     //! Ticket containing details about this experiment (required, non-empty).
-    TString Ticket;
+    std::string Ticket;
 
     //! Query a-la YP filters defining precondition on operation to be included in experiment.
     //! e.g. [/type] == "map" && [/spec/ordered] == "ordered".
-    std::optional<TString> Filter;
+    std::optional<std::string> Filter;
 
     //! Each operation is assigned to at most one experiment from each dimension by sampling an (independent) random variable
     //! from U[0,1] defining which experiment to take from this dimension. In particular, total fraction
     //! of all experiments from same dimension should not exceed 1.0 (with absolute tolerance 1e-6).
-    TString Dimension = "default";
+    std::string Dimension = "default";
 
     //! Probability of experiment enabling among all operations from either exclusive or non-exclusive operation domain.
     double Fraction;
 
-    using TGroups = THashMap<TString, TExperimentGroupConfigPtr>;
+    using TGroups = THashMap<std::string, TExperimentGroupConfigPtr>;
 
     //! Specification of testing groups. Typical situation with AB-experiment involving two groups
     //! (control and treatment) may be set up using shorthand option 'ab_treatment_group' below.
@@ -116,13 +116,13 @@ struct TExperimentAssignment
     : public NYTree::TYsonStruct
 {
     //! Experiment name.
-    TString Experiment;
+    std::string Experiment;
     //! Group name.
-    TString Group;
+    std::string Group;
     //! Ticket for clarity.
-    TString Ticket;
+    std::string Ticket;
     //! Experiment dimension.
-    TString Dimension;
+    std::string Dimension;
     //! Assigned experiment uniform sample for debugging purposes.
     double ExperimentUniformSample;
     //! Assigned group uniform sample for debugging purposes.
@@ -132,13 +132,13 @@ struct TExperimentAssignment
     TExperimentEffectConfigPtr Effect;
 
     //! Returns experiment assignment name of form "<experiment>.<group>".
-    TString GetName() const;
+    std::string GetName() const;
 
     void SetFields(
-        TString experiment,
-        TString group,
-        TString ticket,
-        TString dimension,
+        std::string experiment,
+        std::string group,
+        std::string ticket,
+        std::string dimension,
         double experimentUniformSample,
         double groupUniformSample,
         TExperimentEffectConfigPtr effect);
@@ -155,9 +155,9 @@ DEFINE_REFCOUNTED_TYPE(TExperimentAssignment)
 class TExperimentAssigner
 {
 public:
-    explicit TExperimentAssigner(THashMap<TString, TExperimentConfigPtr> experiments);
+    explicit TExperimentAssigner(THashMap<std::string, TExperimentConfigPtr> experiments);
 
-    void UpdateExperimentConfigs(const THashMap<TString, TExperimentConfigPtr>& experiments);
+    void UpdateExperimentConfigs(const THashMap<std::string, TExperimentConfigPtr>& experiments);
 
     //! This method assigns experiments to an operation considering the possible
     //! specification of experiment overrides in operation spec.
@@ -197,7 +197,7 @@ public:
 
     struct TPreparedExperiments final
     {
-        using TExperiments = THashMap<TString, TPreparedExperimentPtr>;
+        using TExperiments = THashMap<std::string, TPreparedExperimentPtr>;
         TExperiments Experiments;
     };
 
@@ -225,7 +225,7 @@ private:
 //! - validate total fraction sum over each dimension;
 //! - validate that under no circumstances operation may be assigned
 //!   to two different controller agent tags simultaneously.
-void ValidateExperiments(const THashMap<TString, TExperimentConfigPtr>& experiments);
+void ValidateExperiments(const THashMap<std::string, TExperimentConfigPtr>& experiments);
 
 ////////////////////////////////////////////////////////////////////////////////
 
