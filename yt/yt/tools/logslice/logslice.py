@@ -390,6 +390,11 @@ def discover_archive(ssh, log_type, start_time, end_time, archive_dir):
 # Time handling (good enough for file selection; logslice does the real work).
 ########################################################################
 
+MONTH_BY_NAME = {name.lower(): i + 1 for i, name in enumerate(
+    ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])}
+
+
 def parse_user_time(text):
     """Parses a -t/-e value into a naive local datetime for file selection.
 
@@ -411,14 +416,27 @@ def parse_user_time(text):
         utc = datetime(y, mo, d, h, mi, s, micro, tzinfo=timezone.utc)
         return utc.astimezone().replace(tzinfo=None)
 
-    # "YYYY-MM-DD HH:MM:SS[,uuuuuu | .uuuuuu]" and "YYYY-MM-DD HH:MM".
-    full = re.match(r"^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})"
-                    r"(?::(\d{2}))?(?:[.,](\d+))?$", text)
+    # Local timestamp at a flexible level of detail: a bare date "YYYY-MM-DD",
+    # or with a progressively finer time-of-day suffix " HH", " HH:MM",
+    # " HH:MM:SS" and an optional "[,.]uuuuuu" subsecond (the fraction needs
+    # seconds). Absent fields default to zero, so a bare date is that day's
+    # midnight. Mirrors TryParseLocalFull in logslice/lib/time_parser.h.
+    full = re.match(r"^(\d{4})-(\d{2})-(\d{2})"
+                    r"(?:[ T](\d{2})(?::(\d{2})(?::(\d{2})(?:[.,](\d+))?)?)?)?$",
+                    text)
     if full:
-        y, mo, d, h, mi = (int(full.group(i)) for i in range(1, 6))
+        y, mo, d = (int(full.group(i)) for i in range(1, 4))
+        h = int(full.group(4) or 0)
+        mi = int(full.group(5) or 0)
         s = int(full.group(6) or 0)
         micro = int((full.group(7) or "0").ljust(6, "0")[:6])
-        return datetime(y, mo, d, h, mi, s, micro)
+        # A well-formed but out-of-range date (e.g. month 13) is treated as
+        # unrecognised so the caller falls back to a full scan rather than
+        # crashing; datetime is stricter here than the C++ mktime path.
+        try:
+            return datetime(y, mo, d, h, mi, s, micro)
+        except ValueError:
+            return None
 
     # "HH:MM" or "HH:MM:SS" -> today's date.
     tod = re.match(r"^(\d{2}):(\d{2})(?::(\d{2}))?$", text)
@@ -427,7 +445,29 @@ def parse_user_time(text):
         return now.replace(hour=int(tod.group(1)), minute=int(tod.group(2)),
                            second=int(tod.group(3) or 0), microsecond=0)
 
+    # Web UI format "16 Nov 2018 13:56:14" (local time): 1-2 digit day, a
+    # case-insensitive 3-letter month name, 4-digit year and HH:MM:SS.
+    web = re.match(r"^(\d{1,2}) ([A-Za-z]{3}) (\d{4}) "
+                   r"(\d{2}):(\d{2}):(\d{2})$", text)
+    if web:
+        month = MONTH_BY_NAME.get(web.group(2).lower())
+        if month is not None:
+            return datetime(int(web.group(3)), month, int(web.group(1)),
+                            int(web.group(4)), int(web.group(5)),
+                            int(web.group(6)))
+
     return None
+
+
+def split_time_range(text):
+    """Splits a combined "start - end" -t value into (start, end); returns
+    (text, None) when the " - " separator is absent. The separator is a
+    space-padded hyphen, so the bare hyphens inside dates and times are left
+    untouched."""
+    parts = text.split(" - ", 1)
+    if len(parts) == 2:
+        return parts[0].strip(), parts[1].strip()
+    return text, None
 
 
 INFO_RE = re.compile(
@@ -661,7 +701,9 @@ def main():
     parser.add_argument("-l", dest="logslice", default=None,
                         help="path to a logslice binary")
     parser.add_argument("-t", dest="start", default=None,
-                        help="time window start (passed to logslice)")
+                        help="time window start (passed to logslice); may also "
+                             "carry the whole window as \"start - end\", which "
+                             "fills -e when -e is not given")
     parser.add_argument("-e", dest="end", default=None,
                         help="time window end (passed to logslice)")
     parser.add_argument("--archive-dir", dest="archive_dir",
@@ -692,6 +734,13 @@ def main():
         Ssh.validate_pipeline(stages)
     except ValueError as ex:
         sys.exit(str(ex))
+
+    # A single -t may carry the whole window as "start - end"; its right-hand
+    # side fills -e unless -e was given explicitly.
+    if args.start:
+        args.start, end_from_start = split_time_range(args.start)
+        if end_from_start is not None and not args.end:
+            args.end = end_from_start
 
     local_bin = resolve_logslice(args.logslice)
 
