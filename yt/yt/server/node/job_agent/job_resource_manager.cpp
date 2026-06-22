@@ -850,7 +850,8 @@ public:
             Bootstrap_
                 ->GetExecNodeBootstrap()
                 ->GetGpuManager()
-                ->VerifyCudaToolkitDriverVersion(allocationAttributes.CudaToolkitVersion.value());
+                // TODO(babenko): migrate to std::string
+                ->VerifyCudaToolkitDriverVersion(TString(allocationAttributes.CudaToolkitVersion.value()));
         }
 
         auto [success, acquiredResources, resourceAcquisitionFailedGuard] = TryAcquirePhysicalResources(resourceHolder, neededResources);

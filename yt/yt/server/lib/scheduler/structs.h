@@ -28,7 +28,7 @@ struct TAllocationAttributes
     };
 
     std::optional<TDuration> WaitingForResourcesOnNodeTimeout;
-    std::optional<TString> CudaToolkitVersion;
+    std::optional<std::string> CudaToolkitVersion;
     TDiskRequest DiskRequest;
     bool AllowIdleCpuPolicy = false;
     int PortCount = 0;
@@ -102,7 +102,7 @@ struct TPoolTreeControllerSettings
     bool AllowIdleCpuPolicy;
 };
 
-using TPoolTreeControllerSettingsMap = THashMap<TString, TPoolTreeControllerSettings>;
+using TPoolTreeControllerSettingsMap = THashMap<std::string, TPoolTreeControllerSettings>;
 
 void ToProto(
     NControllerAgent::NProto::TPoolTreeControllerSettingsMap* protoPoolTreeControllerSettingsMap,
