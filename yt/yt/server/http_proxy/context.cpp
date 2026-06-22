@@ -421,8 +421,7 @@ bool TContext::TryGetErrorFormat()
 
 bool TContext::TryAcquireConcurrencySemaphore()
 {
-    // TODO(babenko): migrate to std::string
-    SemaphoreGuard_ = Api_->AcquireSemaphore(DriverRequest_.AuthenticatedUser, TString(DriverRequest_.CommandName));
+    SemaphoreGuard_ = Api_->AcquireSemaphore(DriverRequest_.AuthenticatedUser, DriverRequest_.CommandName);
     if (!SemaphoreGuard_) {
         DispatchUnavailable(TError{
             NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
@@ -503,15 +502,15 @@ void TContext::SetETagRevision()
 
 void TContext::SetContentDispositionAndMimeType()
 {
-    TString disposition = "attachment";
+    std::string disposition = "attachment";
     if (Descriptor_->Heavy) {
-        TString filename;
+        std::string filename;
         if (Descriptor_->CommandName == "download" ||
             Descriptor_->CommandName == "read_table" ||
             Descriptor_->CommandName == "read_file")
         {
             if (auto pathNode = DriverRequest_.Parameters->FindChild("path")) {
-                filename = "yt_" + pathNode->GetValue<TString>();
+                filename = "yt_" + pathNode->GetValue<std::string>();
             }
         } else if (Descriptor_->CommandName == "get_job_stderr") {
             auto operationIdNode = DriverRequest_.Parameters->FindChild("operation_id");
@@ -541,7 +540,7 @@ void TContext::SetContentDispositionAndMimeType()
         }
 
         if (auto passedFilenameNode = DriverRequest_.Parameters->FindChild("filename")) {
-            filename = passedFilenameNode->GetValue<TString>();
+            filename = passedFilenameNode->GetValue<std::string>();
         }
 
         for (size_t i = 0; i < filename.size(); ++i) {
@@ -550,13 +549,15 @@ void TContext::SetContentDispositionAndMimeType()
             }
         }
 
-        if (filename.Contains("sys_operations") && filename.Contains("stderr")) {
+        if (filename.contains("sys_operations") && filename.contains("stderr")) {
             disposition = "inline";
         }
 
         if (auto passedDispositionNode = DriverRequest_.Parameters->FindChild("disposition")) {
-            auto sanitizedDisposition = passedDispositionNode->GetValue<TString>();
-            sanitizedDisposition.to_lower();
+            auto sanitizedDisposition = passedDispositionNode->GetValue<std::string>();
+            for (auto& c : sanitizedDisposition) {
+                c = AsciiToLower(c);
+            }
             if (sanitizedDisposition == "inline" || sanitizedDisposition == "attachment") {
                 disposition = sanitizedDisposition;
             }
@@ -570,7 +571,7 @@ void TContext::SetContentDispositionAndMimeType()
     }
 
     if (Descriptor_->OutputType == EDataType::Binary) {
-        if (disposition.StartsWith("inline")) {
+        if (disposition.starts_with("inline")) {
             ContentType_ = "text/plain; charset=\"utf-8\"";
         } else {
             ContentType_ = "application/octet-stream";
@@ -585,8 +586,7 @@ void TContext::SetContentDispositionAndMimeType()
 void TContext::LogRequest()
 {
     Parameters_ = ConvertToYsonString(
-        // TODO(babenko): migrate to std::string
-        HideSecretParameters(TString(Descriptor_->CommandName), DriverRequest_.Parameters),
+        HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
         EYsonFormat::Text).ToString();
     YT_LOG_INFO("Gathered request parameters (Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v, ErrorFormat: %v)",
         Descriptor_->CommandName,
@@ -849,7 +849,7 @@ void TContext::SetEnrichedError(const TError& error)
     if (DriverRequest_.Parameters) {
         if (auto path = DriverRequest_.Parameters->FindChild("path")) {
             Error_ = Error_
-                << TErrorAttribute("path", path->GetValue<TString>());
+                << TErrorAttribute("path", path->GetValue<TYPath>());
         }
     }
 
@@ -866,12 +866,12 @@ void TContext::ProcessFormatsInOperationSpec()
     auto specNode = DriverRequest_.Parameters->FindChild("spec");
     auto commandName = DriverRequest_.CommandName;
     auto operationTypeNode = DriverRequest_.Parameters->FindChild("operation_type");
-    TString operationTypeString;
+    std::string operationTypeString;
     if (commandName == "start_op" || commandName == "start_operation") {
         if (!operationTypeNode || operationTypeNode->GetType() != ENodeType::String) {
             return;
         }
-        operationTypeString = operationTypeNode->GetValue<TString>();
+        operationTypeString = operationTypeNode->GetValue<std::string>();
     } else {
         operationTypeString = commandName;
     }
@@ -908,8 +908,7 @@ void TContext::SetupCumulativeCpuProfiling()
             MakeWeak(this),
             TTraceContextPtr(TryGetCurrentTraceContext()),
             DriverRequest_.AuthenticatedUser,
-            // TODO(babenko): migrate to std::string
-            TString(DriverRequest_.CommandName)),
+            DriverRequest_.CommandName),
         Api_->GetConfig()->CpuUpdatePeriod);
 
     CumulativeCpuProfilingExecutor_->Start();
@@ -1050,10 +1049,9 @@ void TContext::LogAndProfile()
 
     LogStructuredRequest();
 
-    // TODO(babenko): migrate to std::string
     Api_->IncrementProfilingCounters(
         DriverRequest_.AuthenticatedUser,
-        TString(DriverRequest_.CommandName),
+        DriverRequest_.CommandName,
         Response_->GetStatus(),
         Error_.GetNonTrivialCode(),
         WallTime_,
@@ -1148,7 +1146,7 @@ void TContext::DispatchJson(const TJsonProducer& producer)
     });
 }
 
-void TContext::DispatchUnauthorized(const TString& scope, const TString& message)
+void TContext::DispatchUnauthorized(const std::string& scope, const std::string& message)
 {
     Response_->SetStatus(EStatusCode::Unauthorized);
     Response_->GetHeaders()->Set("WWW-Authenticate", scope);
@@ -1163,7 +1161,7 @@ void TContext::DispatchUnavailable(const TError& error)
     ReplyError(error);
 }
 
-void TContext::DispatchNotFound(const TString& message)
+void TContext::DispatchNotFound(const std::string& message)
 {
     Response_->SetStatus(EStatusCode::NotFound);
     ReplyError(TError(TRuntimeFormat(message)));
@@ -1279,7 +1277,7 @@ IInvokerPtr TContext::GetCompressionInvoker() const
 void TContext::ProfileCumulativeCpu(
     const TTraceContextPtr& traceContext,
     const std::string& authenticatedUser,
-    const TString& commandName)
+    const std::string& commandName)
 {
     if (traceContext) {
         auto currentCpuTime = traceContext->GetElapsedTime();

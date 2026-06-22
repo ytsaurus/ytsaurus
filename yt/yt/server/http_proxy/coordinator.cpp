@@ -128,7 +128,7 @@ TCoordinator::TCoordinator(
     auto selfEntry = New<TProxyEntry>();
     selfEntry->Endpoint = Config_->PublicFqdn
         ? *Config_->PublicFqdn
-        : Format("%v:%v", NNet::GetLocalHostName(), config->Port);
+        : std::string(Format("%v:%v", NNet::GetLocalHostName(), config->Port));
     selfEntry->Role = config->Role;
     SetSelf(New<TCoordinatorProxy>(std::move(selfEntry)));
 
@@ -243,7 +243,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListProxies(
     }
 
     auto dynamicConfig = Bootstrap_->GetDynamicConfig();
-    TString fitnessFunction = dynamicConfig->FitnessFunction;
+    std::string fitnessFunction = dynamicConfig->FitnessFunction;
 
     std::vector<std::pair<double, TCoordinatorProxyPtr>> ordered;
     for (const auto& proxy : filtered) {
@@ -332,7 +332,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
     for (const auto& proxyNode : proxiesList->GetChildren()) {
         try {
             auto proxy = ConvertTo<TProxyEntryPtr>(proxyNode->Attributes());
-            proxy->Endpoint = proxyNode->GetValue<TString>();
+            proxy->Endpoint = proxyNode->GetValue<std::string>();
             proxies.push_back(New<TCoordinatorProxy>(std::move(proxy)));
         } catch (std::exception& ex) {
             YT_LOG_WARNING(ex, "Broken proxy node found in Cypress (ProxyNode: %v)",

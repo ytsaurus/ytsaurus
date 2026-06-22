@@ -644,7 +644,7 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
                 rsp->GetHeaders()->Add("Location", "https://oauth.yt.yandex.net");
             } else if (req->GetUrl().Path == "/" || req->GetUrl().Path == "/ui") {
                 rsp->SetStatus(EStatusCode::SeeOther);
-                rsp->GetHeaders()->Add("Location", config->UIRedirectUrl + "?" + req->GetUrl().RawQuery);
+                rsp->GetHeaders()->Add("Location", Format("%v?%v", config->UIRedirectUrl, req->GetUrl().RawQuery));
             } else {
                 rsp->SetStatus(EStatusCode::NotFound);
             }

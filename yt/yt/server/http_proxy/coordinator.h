@@ -51,7 +51,7 @@ struct TProxyEntry
     TLivenessPtr Liveness;
 
     bool IsBanned;
-    std::optional<TString> BanMessage;
+    std::optional<std::string> BanMessage;
 
     std::string GetHost() const;
 
