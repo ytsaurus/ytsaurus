@@ -8,6 +8,7 @@ SRCS(
     expression_evaluator_ut.cpp
     filter_introspection_ut.cpp
     filter_matcher_ut.cpp
+    implication_checker_ut.cpp
     query_optimizer_ut.cpp
     query_rewriter_ut.cpp
     split_filter_ut.cpp

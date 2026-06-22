@@ -62,6 +62,9 @@ bool IsAnyExprATargetReference(
 
 bool IsSingleConstant(const NQueryClient::NAst::TExpressionList& exprs);
 
+std::optional<NQueryClient::NAst::TLiteralValue> TryExtractSingleLiteralValue(
+    const NQueryClient::NAst::TExpressionList& exprs);
+
 std::vector<NQueryClient::NAst::TReference> ExtractAllReferences(const NQueryClient::NAst::TExpressionList& exprs);
 
 std::optional<NQueryClient::NAst::TReference> TryExtractReference(const NQueryClient::NAst::TExpressionList& exprs);
