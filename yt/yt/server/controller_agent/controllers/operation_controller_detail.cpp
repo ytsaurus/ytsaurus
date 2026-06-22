@@ -3689,7 +3689,7 @@ bool TOperationControllerBase::OnJobAborted(
         abortReason,
         joblet->JobType);
 
-    const auto& error = jobSummary->Error;
+    auto error = jobSummary->Error;
 
     if (!error) {
         YT_LOG_ERROR("No job error provided for aborted job (JobId: %v)", jobId);
@@ -3783,7 +3783,7 @@ bool TOperationControllerBase::OnJobAborted(
             JobAbortsUntilOperationFailure_.clear();
             auto wrappedError = TError("Operation failed due to excessive successive job aborts");
             if (error) {
-                wrappedError <<= *error;
+                wrappedError <<= std::move(*error);
             }
             OnOperationFailed(wrappedError);
             return false;
