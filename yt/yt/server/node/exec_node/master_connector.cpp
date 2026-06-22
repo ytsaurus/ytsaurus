@@ -45,6 +45,7 @@ public:
         : TMasterHeartbeatReporterBase(
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ false,
+            ENodeHeartbeatType::Exec,
             ExecNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Exec))
         , Bootstrap_(bootstrap)
         , DynamicConfig_(New<TMasterConnectorDynamicConfig>())

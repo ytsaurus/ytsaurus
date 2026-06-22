@@ -116,6 +116,7 @@ public:
         : TMasterHeartbeatReporterBase(
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ true,
+            ENodeHeartbeatType::Data,
             DataNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Data))
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->DataNode->MasterConnector)
