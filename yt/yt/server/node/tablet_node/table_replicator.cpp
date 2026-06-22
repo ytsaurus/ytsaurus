@@ -695,7 +695,6 @@ private:
                     isVersioned);
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
-                    YT_VERIFY(row.GetHeader() == readerRows[0].GetHeader());
                     YT_LOG_INFO("Replication log row violates timestamp bound "
                         "(StartReplicationTimestamp: %v, LogRecordTimestamp: %v)",
                         replicaSnapshot->StartReplicationTimestamp,
