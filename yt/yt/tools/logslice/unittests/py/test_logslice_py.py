@@ -265,6 +265,193 @@ class SemicolonQuotingTest(unittest.TestCase):
                 self.assertEqual(shlex.split(remote), expected)
 
 
+def _info_time(hour, minute):
+    """A logslice --info timestamp on the incident day, matching INFO_RE."""
+    return "2026-06-19 {:02d}:{:02d}:00,000000".format(hour, minute)
+
+
+class FakeSsh:
+    """In-memory stand-in for Ssh used by the file-selection tests. It answers
+    the only two remote calls selection makes: ``ls -1 <dir>`` (directory
+    listings) and ``<bin> --info <path>`` (the first/last record timestamps of a
+    file). A missing directory behaves like the real ``ls`` under check=False:
+    empty output rather than an abort."""
+
+    def __init__(self, listings, info):
+        # listings: {directory: [names]}; info: {path: (first(h,m), last(h,m))}
+        self._listings = listings
+        self._info = info
+        self.info_calls = []
+
+    def run(self, argv, capture=True, check=True):
+        if argv[:2] == ["ls", "-1"]:
+            directory = argv[2]
+            if directory not in self._listings:
+                if check:
+                    raise AssertionError("unexpected ls of " + directory)
+                return ""  # missing dir -> empty, like ls 2>/dev/null
+            return "".join(name + "\n" for name in self._listings[directory])
+        if len(argv) == 3 and argv[1] == "--info":
+            path = argv[2]
+            self.info_calls.append(path)
+            (fh, fm), (lh, lm) = self._info[path]
+            return "first: {}\nlast: {}\n".format(
+                _info_time(fh, fm), _info_time(lh, lm))
+        raise AssertionError("unexpected remote call: {!r}".format(argv))
+
+
+# A realistic layout: the live `logs` dir holds the two newest (sequence-named)
+# rotations, older ones have been moved to the per-day archive. The handoff is at
+# 11:00 -- archive ends there, live begins there.
+LIVE_DIR = logslice.REMOTE_LOGS_DIR
+ARCHIVE_DIR = "/yt/master-logs-archive"
+ARCHIVE_DAY = ARCHIVE_DIR + "/2026-06-19"
+
+LIVE_CURRENT = "master.debug.log"               # 11:30 - 12:00 (newest)
+LIVE_ROT1 = "master.debug.log.1.zst"            # 11:00 - 11:30
+ARCH_EARLY = "master.debug.log.2026-06-19_10-30.zst"  # 10:00 - 10:30
+ARCH_LATE = "master.debug.log.2026-06-19_11-00.zst"   # 10:30 - 11:00 (newest archive)
+
+
+def _make_ssh():
+    listings = {
+        LIVE_DIR: [
+            LIVE_CURRENT, LIVE_ROT1,
+            "master.error.log",                 # wrong channel: ignored for debug
+            "master.debug.log.1.zst.trindex",   # index sidecar: not a log file
+        ],
+        ARCHIVE_DIR: ["2026-06-19"],
+        ARCHIVE_DAY: [ARCH_EARLY, ARCH_LATE],
+    }
+    info = {
+        LIVE_DIR + "/" + LIVE_CURRENT: ((11, 30), (12, 0)),
+        LIVE_DIR + "/" + LIVE_ROT1: ((11, 0), (11, 30)),
+        ARCHIVE_DAY + "/" + ARCH_EARLY: ((10, 0), (10, 30)),
+        ARCHIVE_DAY + "/" + ARCH_LATE: ((10, 30), (11, 0)),
+    }
+    return FakeSsh(listings, info)
+
+
+def _select(ssh, start, end, archive_dir=ARCHIVE_DIR):
+    start_time = logslice.parse_user_time(start) if start else None
+    end_time = logslice.parse_user_time(end) if end else None
+    series = logslice.discover_series(
+        ssh, "debug", start_time, end_time, archive_dir)
+    selected, _ = logslice.select_log_files(
+        ssh, "/tmp/logslice", series, start_time, end_time)
+    return selected
+
+
+def _names_with_dirs(selected):
+    return [(f.directory, f.name) for f in selected]
+
+
+class ArchiveParsingTest(unittest.TestCase):
+    def test_parses_archive_filename(self):
+        from datetime import datetime
+        f = logslice.parse_log_name(ARCH_LATE, ARCHIVE_DAY)
+        self.assertIsNotNone(f)
+        self.assertEqual(f.base, "master")
+        self.assertEqual(f.channel, "debug")
+        self.assertEqual(f.timestamp, datetime(2026, 6, 19, 11, 0))
+        self.assertFalse(f.is_current)
+        self.assertEqual(f.directory, ARCHIVE_DAY)
+        self.assertEqual(f.path, ARCHIVE_DAY + "/" + ARCH_LATE)
+
+    def test_default_directory_is_live(self):
+        f = logslice.parse_log_name(LIVE_CURRENT)
+        self.assertTrue(f.is_current)
+        self.assertEqual(f.directory, logslice.REMOTE_LOGS_DIR)
+
+    def test_index_sidecar_rejected(self):
+        self.assertIsNone(
+            logslice.parse_log_name("master.debug.log.1.zst.trindex", LIVE_DIR))
+
+
+class ArchiveDayDirsTest(unittest.TestCase):
+    def test_keeps_window_days_with_one_day_margin(self):
+        names = ["2026-06-17", "2026-06-18", "2026-06-19", "2026-06-20",
+                 "2026-06-21", "not-a-day"]
+        start = logslice.parse_user_time("2026-06-19 10:00")
+        end = logslice.parse_user_time("2026-06-19 11:00")
+        # [start-1, end+1] = 06-18 .. 06-20; 06-17 and 06-21 are out, junk dropped.
+        self.assertEqual(
+            logslice.archive_day_dirs(names, start, end),
+            ["2026-06-18", "2026-06-19", "2026-06-20"])
+
+    def test_no_window_keeps_all_days(self):
+        names = ["2026-06-18", "2026-06-19"]
+        self.assertEqual(
+            logslice.archive_day_dirs(names, None, None),
+            ["2026-06-18", "2026-06-19"])
+
+
+class ArchiveDiscoveryTest(unittest.TestCase):
+    def test_archive_skipped_without_window(self):
+        # An unbounded scan of the whole archive is never wanted.
+        ssh = _make_ssh()
+        base, files = logslice.discover_archive(
+            ssh, "debug", None, None, ARCHIVE_DIR)
+        self.assertEqual(files, [])
+
+    def test_archive_disabled(self):
+        ssh = _make_ssh()
+        start = logslice.parse_user_time("2026-06-19 10:45")
+        end = logslice.parse_user_time("2026-06-19 11:15")
+        base, files = logslice.discover_archive(
+            ssh, "debug", start, end, None)
+        self.assertEqual(files, [])
+
+    def test_archive_missing_dir_is_not_fatal(self):
+        # Hosts without an archive (the common case) must still work: discover
+        # returns empty and live discovery is unaffected.
+        ssh = FakeSsh({LIVE_DIR: [LIVE_CURRENT]},
+                      {LIVE_DIR + "/" + LIVE_CURRENT: ((11, 30), (12, 0))})
+        start = logslice.parse_user_time("2026-06-19 11:40")
+        end = logslice.parse_user_time("2026-06-19 11:50")
+        base, files = logslice.discover_archive(
+            ssh, "debug", start, end, ARCHIVE_DIR)
+        self.assertEqual(files, [])
+
+
+class ArchiveSelectionTest(unittest.TestCase):
+    def test_pure_archive_window_selects_only_archive(self):
+        selected = _select(_make_ssh(), "2026-06-19 10:05", "2026-06-19 10:25")
+        self.assertEqual(_names_with_dirs(selected),
+                         [(ARCHIVE_DAY, ARCH_EARLY)])
+
+    def test_pure_live_window_selects_only_live(self):
+        selected = _select(_make_ssh(), "2026-06-19 11:40", "2026-06-19 11:55")
+        self.assertEqual(_names_with_dirs(selected),
+                         [(LIVE_DIR, LIVE_CURRENT)])
+
+    def test_boundary_straddling_window_selects_from_both(self):
+        # The window 10:45 - 11:15 spans the 11:00 archive/live handoff: it must
+        # pick the tail of the archive AND the head of the live logs, ordered
+        # oldest -> newest.
+        selected = _select(_make_ssh(), "2026-06-19 10:45", "2026-06-19 11:15")
+        self.assertEqual(
+            _names_with_dirs(selected),
+            [(ARCHIVE_DAY, ARCH_LATE), (LIVE_DIR, LIVE_ROT1)])
+
+    def test_straddling_window_spans_archive_tail_and_live_head(self):
+        # A wider straddle: from inside the earliest archive file to inside the
+        # current live file pulls every file in between, across both dirs.
+        selected = _select(_make_ssh(), "2026-06-19 10:15", "2026-06-19 11:45")
+        self.assertEqual(
+            _names_with_dirs(selected),
+            [(ARCHIVE_DAY, ARCH_EARLY), (ARCHIVE_DAY, ARCH_LATE),
+             (LIVE_DIR, LIVE_ROT1), (LIVE_DIR, LIVE_CURRENT)])
+
+    def test_wrong_channel_and_sidecar_ignored(self):
+        # The error-channel file and the .trindex sidecar in the live dir must
+        # never be selected for a debug query.
+        selected = _select(_make_ssh(), "2026-06-19 10:15", "2026-06-19 11:45")
+        names = [name for _, name in _names_with_dirs(selected)]
+        self.assertNotIn("master.error.log", names)
+        self.assertNotIn("master.debug.log.1.zst.trindex", names)
+
+
 @unittest.skipUnless(_ssh_localhost_works(), "ssh localhost unavailable")
 class SshIntegrationTest(unittest.TestCase):
     def setUp(self):

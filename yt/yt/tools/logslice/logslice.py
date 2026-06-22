@@ -11,6 +11,12 @@ ones that overlap the requested [start_time, end_time] window (using the file
 rotation hints plus a binary search driven by `logslice --info`), and finally
 runs `logslice` on each selected file, forwarding the grep arguments.
 
+Besides the live ``logs`` directory the script also looks into the master log
+archive (``/yt/master-logs-archive/<YYYY-MM-DD>/...``, see ``--archive-dir``),
+where old rotated files are moved under per-day subdirectories. The archive is
+only consulted when a time window is given, and only for the day subdirectories
+overlapping that window.
+
 All times are interpreted exactly as `logslice` interprets them (server local
 time); the precise filtering is always delegated to `logslice` itself, so the
 in-script time handling only needs to be good enough to pick the right files.
@@ -29,6 +35,10 @@ from datetime import datetime
 REMOTE_DIR = "/tmp"
 REMOTE_BIN = REMOTE_DIR + "/logslice"
 REMOTE_LOGS_DIR = "logs"
+
+# Old rotated master logs are moved here, under per-day subdirectories named
+# "YYYY-MM-DD", e.g. /yt/master-logs-archive/2026-06-19/master-klg0-0941.debug.log.2026-06-19_07-15.zst
+ARCHIVE_DIR_DEFAULT = "/yt/master-logs-archive"
 
 # A debug logslice is hundreds of MiB; a release one is well under this. Anything
 # below the limit is assumed to be a usable release build.
@@ -131,7 +141,7 @@ class Ssh:
     # right next to the ssh invocation, so there is no path that reaches the remote
     # shell without passing the whitelist; stage arguments are always shlex-quoted.
     # Do NOT add "awk" in this list (because of `system()` call).
-    PIPELINE_WHITELIST = frozenset(["grep", "wc", "cut", "sed"])
+    PIPELINE_WHITELIST = frozenset(["grep", "wc", "cut", "sed", "head", "tail"])
 
     def __init__(self, host, verbose=False):
         self.host = host
@@ -156,16 +166,20 @@ class Ssh:
     def _remote_command(self, argv):
         return " ".join(shlex.quote(token) for token in argv)
 
-    def run(self, argv, capture=True):
+    def run(self, argv, capture=True, check=True):
         """Runs argv on the remote host. Returns stdout (text) when capture is
-        set, otherwise streams stdout/stderr straight through."""
+        set, otherwise streams stdout/stderr straight through.
+
+        With check=False a non-zero exit is not fatal: the (possibly empty)
+        stdout is returned instead of aborting. Used for optional probes such as
+        listing the log archive, which simply does not exist on most hosts."""
         cmd = ["ssh"] + self._base_opts + [self.host, self._remote_command(argv)]
         if self.verbose:
             eprint("Executing: {}".format(" ".join(shlex.quote(c) for c in cmd)))
         if capture:
             result = subprocess.run(cmd, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, text=True)
-            if result.returncode != 0:
+            if result.returncode != 0 and check:
                 sys.exit("ssh {} failed: {}".format(
                     " ".join(argv), result.stderr.strip()))
             return result.stdout
@@ -232,11 +246,12 @@ BLACKLISTED_BASES = frozenset(["timbertruck"])
 class LogFile:
     """A single rotated log file of a recognised YT log series."""
 
-    def __init__(self, name, base, channel, rotation):
+    def __init__(self, name, base, channel, rotation, directory):
         self.name = name
         self.base = base
         self.channel = channel
         self.rotation = rotation  # "" for the current file
+        self.directory = directory  # remote dir holding this file
 
         self.is_current = (rotation == "")
         self.sequence = None
@@ -248,8 +263,12 @@ class LogFile:
             elif SEQUENCE_RE.match(rotation):
                 self.sequence = int(rotation)
 
+    @property
+    def path(self):
+        return "{}/{}".format(self.directory, self.name)
 
-def parse_log_name(name):
+
+def parse_log_name(name, directory=REMOTE_LOGS_DIR):
     """Parses a directory entry into a LogFile, or returns None if it is not a
     recognised plain/zst/gz log file.
 
@@ -279,18 +298,18 @@ def parse_log_name(name):
     if rotation and not (TIMESTAMP_RE.match(rotation) or SEQUENCE_RE.match(rotation)):
         return None
 
-    return LogFile(name, base, channel, rotation)
+    return LogFile(name, base, channel, rotation, directory)
 
 
-def collect_series(names, log_type):
-    """From a directory listing, returns the ordered (oldest -> newest) list of
-    log files for the requested type. Groups by base component and, if several
-    components are present, picks the one with the most files."""
+def order_series(parsed_files, log_type):
+    """From already-parsed log files (all from the same logical source), returns
+    the ordered (oldest -> newest) list for the requested type. Groups by base
+    component and, if several components are present, picks the one with the most
+    files."""
     wanted_channel = CHANNEL_BY_TYPE[log_type]
 
     by_base = {}
-    for name in names:
-        parsed = parse_log_name(name)
+    for parsed in parsed_files:
         if parsed is None or parsed.channel != wanted_channel:
             continue
         if parsed.base in BLACKLISTED_BASES:
@@ -313,6 +332,58 @@ def collect_series(names, log_type):
     # Oldest first; the current (un-rotated) file is the newest.
     ordered = sequenced + timestamped + current
     return base, ordered
+
+
+# Archive subdirectories are named by calendar day: "YYYY-MM-DD".
+ARCHIVE_DAY_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+
+
+def list_remote_dir(ssh, directory):
+    """Lists a remote directory, returning the entry names. Missing/unreadable
+    directories yield an empty list instead of aborting."""
+    out = ssh.run(["ls", "-1", directory], check=False)
+    return [line for line in out.splitlines() if line]
+
+
+def discover_live(ssh, log_type):
+    """The live ``logs`` directory: returns (base, ordered_files)."""
+    parsed = [parse_log_name(name, REMOTE_LOGS_DIR)
+              for name in list_remote_dir(ssh, REMOTE_LOGS_DIR)]
+    return order_series(parsed, log_type)
+
+
+def archive_day_dirs(names, start_time, end_time):
+    """From the archive root listing, the day subdirectories overlapping the
+    window. A one-day margin on each side covers files whose content spills past
+    the day boundary named in their path."""
+    from datetime import timedelta
+    lo = (start_time.date() - timedelta(days=1)) if start_time else None
+    hi = (end_time.date() + timedelta(days=1)) if end_time else None
+    days = []
+    for name in names:
+        m = ARCHIVE_DAY_RE.match(name)
+        if not m:
+            continue
+        day = datetime(*(int(g) for g in m.groups())).date()
+        if (lo is None or day >= lo) and (hi is None or day <= hi):
+            days.append(name)
+    return sorted(days)
+
+
+def discover_archive(ssh, log_type, start_time, end_time, archive_dir):
+    """The master log archive: returns (base, ordered_files). Only the day
+    subdirectories overlapping the window are scanned. Consulted only when a
+    window bound is given (an unbounded scan of the whole archive is never what
+    is wanted); returns (None, []) when the archive is absent or out of range."""
+    if archive_dir is None or (start_time is None and end_time is None):
+        return None, []
+    days = archive_day_dirs(list_remote_dir(ssh, archive_dir), start_time, end_time)
+    parsed = []
+    for day in days:
+        directory = "{}/{}".format(archive_dir, day)
+        for name in list_remote_dir(ssh, directory):
+            parsed.append(parse_log_name(name, directory))
+    return order_series(parsed, log_type)
 
 
 ########################################################################
@@ -385,7 +456,7 @@ class FileSelector:
     def info(self, index):
         """Returns (first_dt, last_dt) for files[index], or (None, None)."""
         if index not in self._info_cache:
-            path = "{}/{}".format(REMOTE_LOGS_DIR, self.files[index].name)
+            path = self.files[index].path
             out = self.ssh.run([self.remote_bin, "--info", path])
             first = last = None
             for line in out.splitlines():
@@ -502,6 +573,42 @@ class FileSelector:
         return self.files[start_index:end_index + 1]
 
 
+def discover_series(ssh, log_type, start_time, end_time, archive_dir):
+    """The log series to search, ordered oldest -> newest: the archive (when a
+    window is given and day subdirectories are in range) followed by the live
+    ``logs`` directory. Each entry is an ``(origin, base, ordered_files)`` tuple;
+    a series with no files is dropped."""
+    series = []
+    archive_base, archive_files = discover_archive(
+        ssh, log_type, start_time, end_time, archive_dir)
+    if archive_files:
+        series.append(("archive", archive_base, archive_files))
+    live_base, live_files = discover_live(ssh, log_type)
+    if live_files:
+        series.append(("live", live_base, live_files))
+    return series
+
+
+def select_log_files(ssh, remote_bin, series, start_time, end_time):
+    """Selects the overlapping files from every series independently and returns
+    the flat oldest -> newest list, plus a per-series ``(origin, base, total,
+    selected)`` summary for logging.
+
+    Selecting each series on its own is what makes a window that straddles the
+    archive/live boundary work: each binary search runs over a single monotonic
+    ordering, so the tail of the archive and the head of the live logs are both
+    picked up. Merging the two into one list would break that monotonicity,
+    because live files may be sequence-numbered while archive files are
+    timestamped."""
+    selected = []
+    summary = []
+    for origin, base, files in series:
+        sel = FileSelector(ssh, remote_bin, files).select(start_time, end_time)
+        summary.append((origin, base, len(files), sel))
+        selected.extend(sel)
+    return selected, summary
+
+
 ########################################################################
 # Post-processing pipeline (whitelisted unix tools run after logslice).
 ########################################################################
@@ -557,6 +664,11 @@ def main():
                         help="time window start (passed to logslice)")
     parser.add_argument("-e", dest="end", default=None,
                         help="time window end (passed to logslice)")
+    parser.add_argument("--archive-dir", dest="archive_dir",
+                        default=ARCHIVE_DIR_DEFAULT,
+                        help="root of the per-day master log archive to also "
+                             "search (default: {}); pass '' to disable."
+                             .format(ARCHIVE_DIR_DEFAULT))
     parser.add_argument("-x", dest="execute", default=None,
                         help="pipe-separated post-processing commands run after "
                              "logslice, e.g. \"grep Error | wc -l\". "
@@ -597,24 +709,31 @@ def main():
     ssh.scp(local_bin, REMOTE_BIN)
     ssh.run(["chmod", "+x", REMOTE_BIN])
 
-    listing = ssh.run(["ls", "-1", REMOTE_LOGS_DIR]).splitlines()
-    base, files = collect_series(listing, args.type)
-    if not files:
+    # The archive (older, time-named files) is searched alongside the live logs;
+    # discover_series returns them oldest -> newest and select_log_files selects
+    # each independently, so a window straddling the archive/live boundary picks
+    # up files from both.
+    series = discover_series(
+        ssh, args.type, start_time, end_time, args.archive_dir or None)
+    if not series:
         sys.exit("No {} log files found on {}.".format(args.type, args.host))
-    eprint("Found {} {} log file(s) for component '{}'."
-           .format(len(files), args.type, base))
 
-    selector = FileSelector(ssh, REMOTE_BIN, files)
-    selected = selector.select(start_time, end_time)
+    selected, summary = select_log_files(
+        ssh, REMOTE_BIN, series, start_time, end_time)
+    for origin, base, total, sel in summary:
+        eprint("Found {} {} log file(s) for component '{}' ({})."
+               .format(total, args.type, base, origin))
+        if sel:
+            eprint("Selected {} {} file(s): {} .. {}".format(
+                len(sel), origin, sel[0].name, sel[-1].name))
+
     if not selected:
         eprint("No log files overlap the requested time window.")
         return
-    eprint("Selected {} file(s): {} .. {}".format(
-        len(selected), selected[0].name, selected[-1].name))
 
     failures = []
     for log_file in selected:
-        path = "{}/{}".format(REMOTE_LOGS_DIR, log_file.name)
+        path = log_file.path
         head = [REMOTE_BIN]
         # Pass the window bounds to every selected file: the boundary files need
         # them and for the interior files they are a harmless no-op. This keeps
