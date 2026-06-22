@@ -241,13 +241,7 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
                 // NB: CH represents `and`/`or` as variadic functions and flattens associative chains,
                 // so `a OR b OR c` arrives as a single `or` node with three arguments. We must fold
                 // *all* of them.
-                //
-                // An operand may fail to convert. Whether we can drop it and keep the rest,
-                // depends on the operator and the current polarity (`negated`):
-                //   - positive AND / negative OR  -> dropping only widens the predicate -> safe to drop;
-                //   - positive OR  / negative AND -> dropping would narrow the predicate -> unsafe.
                 auto opCode = GetOrCrash(BinaryOpNameToOpCode, name);
-                bool canDropOperand = (name == "and") != negated;
 
                 TConstExpressionPtr foldedExpr;
                 bool bailed = false;
@@ -257,9 +251,6 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
                     auto booleanNode = AdjustToYTBooleanExpression(argNode);
                     auto argExpr = ConnverterImpl(booleanNode, GetDataTypeBoolean(), EValueType::Boolean, context, negated);
                     if (!argExpr) {
-                        if (canDropOperand) {
-                            continue;
-                        }
                         bailed = true;
                         break;
                     }

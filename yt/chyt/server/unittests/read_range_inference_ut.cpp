@@ -252,31 +252,6 @@ TEST_P(TQueryTreeConverterTest, Simple)
         << "expected: " <<  InferName(expected) << std::endl;
 }
 
-TEST_F(TQueryTreeConverterTest, DropUnconvertibleOperand)
-{
-    {
-        auto expr = ConvertPredicate("(key = 1) and (lower(key_str) = '2')");
-        ASSERT_TRUE(expr != nullptr);
-        EXPECT_TRUE(Equal(expr,
-            MakeBinaryExpression(EBinaryOp::Equal,
-                MakeReferenceExpression("key"),
-                MakeLiteralExpression(MakeUnversionedInt64Value(1)))))
-            << "got: " << InferName(expr);
-    }
-    {
-        auto expr = ConvertPredicate("not ((key = 1) or (lower(key_str) = '2'))");
-        ASSERT_TRUE(expr != nullptr);
-        EXPECT_TRUE(Equal(expr,
-            MakeUnaryExpression(EUnaryOp::Not,
-                MakeBinaryExpression(EBinaryOp::Equal,
-                    MakeReferenceExpression("key"),
-                    MakeLiteralExpression(MakeUnversionedInt64Value(1))))))
-            << "got: " << InferName(expr);
-    }
-    EXPECT_EQ(ConvertPredicate("(key = 1) or (lower(key_str) = '2')"), nullptr);
-    EXPECT_EQ(ConvertPredicate("not ((key = 1) and (lower(key_str) = '2'))"), nullptr);
-}
-
 // TODO (buyval01) : Add test with CH implicit cast of uint8 values to bool
 
 INSTANTIATE_TEST_SUITE_P(
