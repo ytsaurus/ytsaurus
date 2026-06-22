@@ -189,7 +189,7 @@ private:
                 fragments.push_back(std::move(sharedFragment));
             } else {
                 auto clonedFragment = TSharedMutableRef::Allocate<TKafkaConnectionTag>(
-                    fragment.size());
+                    fragment.size(), {.InitializeStorage = false});
                 memcpy(clonedFragment.begin(), fragment.begin(), fragment.size());
                 fragments.push_back(std::move(clonedFragment));
             }
