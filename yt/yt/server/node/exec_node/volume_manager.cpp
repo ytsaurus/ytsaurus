@@ -4852,9 +4852,10 @@ public:
                         this_ = MakeStrong(this)
                     ] (const TErrorOr<TRWNbdVolumePtr>& errorOrVolume) {
                         if (!errorOrVolume.IsOK()) {
-                            THROW_ERROR_EXCEPTION("Failed to find RW NBD volume")
+                            THROW_ERROR_EXCEPTION("Failed to create RW NBD volume")
                                 << TErrorAttribute("job_id", jobId)
-                                << TErrorAttribute("device_id", data.DeviceId);
+                                << TErrorAttribute("device_id", data.DeviceId)
+                                << errorOrVolume;
                         }
 
                         auto device = Bootstrap_->GetNbdServer()->FindDevice(data.DeviceId);
