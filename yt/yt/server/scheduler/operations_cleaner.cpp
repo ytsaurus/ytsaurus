@@ -290,7 +290,7 @@ std::string GetFilterFactors(const TArchiveOperationRequest& request)
     parts.insert(parts.end(), pools.begin(), pools.end());
 
     auto result = JoinToString(parts.begin(), parts.end(), TStringBuf(" "));
-    return to_lower(result);
+    return to_lower(TString(result));
 }
 
 bool HasFailedJobs(const TYsonString& briefProgress)
