@@ -94,6 +94,18 @@ void TDistributedChunkSessionReaderConfig::Register(TRegistrar registrar)
     registrar.Parameter("replica_lag_limit", &TThis::ReplicaLagLimit)
         .GreaterThanOrEqual(0)
         .Default(1'000'000);
+
+    registrar.Parameter("prefetch_window_count", &TThis::PrefetchWindowCount)
+        .GreaterThan(0)
+        .Default(4);
+
+    registrar.Parameter("sequential_read_size", &TThis::SequentialReadSize)
+        .GreaterThan(0)
+        .Default(16_MB);
+
+    registrar.Parameter("prefetch_depth", &TThis::PrefetchDepth)
+        .GreaterThan(0)
+        .Default(2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
