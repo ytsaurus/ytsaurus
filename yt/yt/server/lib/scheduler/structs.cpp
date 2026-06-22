@@ -56,7 +56,7 @@ void FromProto(
     }
     if (protoAttributes.has_cuda_toolkit_version()) {
         attributes->CudaToolkitVersion
-            = FromProto<TString>(protoAttributes.cuda_toolkit_version());
+            = FromProto<std::string>(protoAttributes.cuda_toolkit_version());
     }
     {
         auto& diskRequest =
