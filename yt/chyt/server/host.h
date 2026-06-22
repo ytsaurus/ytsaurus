@@ -45,15 +45,15 @@ public:
 
     TFuture<void> StopDiscovery();
 
-    void ValidateCliquePermission(const TString& user, NYTree::EPermission permission) const;
+    void ValidateCliquePermission(const std::string& user, NYTree::EPermission permission) const;
 
     std::vector<TRowLevelAcl> ValidateTableReadPermissionsAndGetRowLevelAcl(
         const std::vector<NYPath::TRichYPath>& paths,
-        const TString& user);
+        const std::string& user);
 
     TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> PreliminaryCheckPermissions(
         const std::vector<NYPath::TYPath>& paths,
-        const TString& user);
+        const std::string& user);
 
     //! Get object attributes directly from specified master channel.
     TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> GetObjectAttributesDirect(

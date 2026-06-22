@@ -313,7 +313,7 @@ public:
         return Discovery_->Leave();
     }
 
-    void ValidateCliquePermission(const TString& user, EPermission permission) const
+    void ValidateCliquePermission(const std::string& user, EPermission permission) const
     {
         auto key = TPermissionKey{
             .Path = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(Config_->CliqueAlias)),
@@ -326,7 +326,7 @@ public:
 
     std::vector<THost::TRowLevelAcl> ValidateTableReadPermissionsAndGetRowLevelAcl(
         const std::vector<TRichYPath>& paths,
-        const TString& user)
+        const std::string& user)
     {
         std::vector<TPermissionKey> permissionCacheKeys;
         permissionCacheKeys.reserve(paths.size());
@@ -370,7 +370,7 @@ public:
 
     TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> PreliminaryCheckPermissions(
         const std::vector<TYPath>& paths,
-        const TString& user)
+        const std::string& user)
     {
         std::vector<TErrorOr<EPreliminaryCheckPermissionResult>> results(paths.size());
         std::vector<int> requestIndexToResultIndex;
@@ -1229,21 +1229,21 @@ TFuture<void> THost::StopDiscovery()
     return Impl_->StopDiscovery();
 }
 
-void THost::ValidateCliquePermission(const TString& user, EPermission permission) const
+void THost::ValidateCliquePermission(const std::string& user, EPermission permission) const
 {
     return Impl_->ValidateCliquePermission(user, permission);
 }
 
 std::vector<THost::TRowLevelAcl> THost::ValidateTableReadPermissionsAndGetRowLevelAcl(
     const std::vector<TRichYPath>& paths,
-    const TString& user)
+    const std::string& user)
 {
     return Impl_->ValidateTableReadPermissionsAndGetRowLevelAcl(paths, user);
 }
 
 TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> THost::PreliminaryCheckPermissions(
     const std::vector<TYPath>& paths,
-    const TString& user)
+    const std::string& user)
 {
     return Impl_->PreliminaryCheckPermissions(paths, user);
 }
