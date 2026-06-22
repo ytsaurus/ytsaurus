@@ -2326,7 +2326,7 @@ private:
             .Reign = GetCurrentMutationContext()->Request().Reign,
             .Type = std::move(*message.mutable_type()),
             .Data = TSharedRef::FromString(std::move(*message.mutable_data())),
-         };
+        };
 
         TMutationContext mutationContext(GetCurrentMutationContext(), &request);
         TMutationContextGuard mutationContextGuard(&mutationContext);
