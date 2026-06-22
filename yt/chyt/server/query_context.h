@@ -68,17 +68,17 @@ struct TQueryContext
 {
 public:
     NLogging::TLogger Logger;
-    const TString User;
+    const std::string User;
 
     const NTracing::TTraceContextPtr TraceContext;
     const TQueryId QueryId;
     const EQueryKind QueryKind;
     THost* const Host;
     TString Query;
-    TString CurrentUser;
-    TString CurrentAddress;
-    TString InitialUser;
-    TString InitialAddress;
+    std::string CurrentUser;
+    std::string CurrentAddress;
+    std::string InitialUser;
+    std::string InitialAddress;
     TQueryId InitialQueryId;
     std::optional<TQueryId> ParentQueryId;
     //! Text of the initial query. Used for better debugging.

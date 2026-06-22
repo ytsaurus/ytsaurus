@@ -192,7 +192,7 @@ private:
         bool replaceIfExists,
         const DB::Settings& /*settings*/) override
     {
-        Host_->ValidateCliquePermission(TString(currentContext->getClientInfo().initial_user), EPermission::Manage);
+        Host_->ValidateCliquePermission(currentContext->getClientInfo().initial_user, EPermission::Manage);
 
         auto path = GetCypressPath(objectType, objectName);
 
@@ -232,7 +232,7 @@ private:
         const String& objectName,
         bool throwIfNotExists) override
     {
-        Host_->ValidateCliquePermission(TString(currentContext->getClientInfo().initial_user), EPermission::Manage);
+        Host_->ValidateCliquePermission(currentContext->getClientInfo().initial_user, EPermission::Manage);
 
         auto path = GetCypressPath(objectType, objectName);
 

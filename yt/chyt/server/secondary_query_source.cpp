@@ -815,7 +815,7 @@ DB::SourcePtr CreateSecondaryQuerySource(
         nullGuard.Release();
     }
 
-    auto chunkReadOptions = CreateChunkReadOptions(queryContext->User, std::move(granuleFilter));
+    auto chunkReadOptions = CreateChunkReadOptions(TString(queryContext->User), std::move(granuleFilter));
     auto nameTable = GetPlanNameTable(readPlan);
     auto readerFactory = std::make_unique<TReaderFactory>(
         storageContext,

@@ -75,7 +75,7 @@ public:
         return nullptr;
     }
 
-    const DB::ProcessListForUserInfo* FindProcessListForUserInfoByUser(const TString& user) const
+    const DB::ProcessListForUserInfo* FindProcessListForUserInfoByUser(const std::string& user) const
     {
         auto it = UserToProcessListForUserInfo_.find(user);
         if (it != UserToProcessListForUserInfo_.end()) {
@@ -84,7 +84,7 @@ public:
         return nullptr;
     }
 
-    const THashMap<TString, DB::ProcessListForUserInfo>& GetUserToProcessListForUserInfo() const
+    const THashMap<std::string, DB::ProcessListForUserInfo>& GetUserToProcessListForUserInfo() const
     {
         return UserToProcessListForUserInfo_;
     }
@@ -92,7 +92,7 @@ public:
 private:
     std::vector<DB::QueryStatusInfo> QueryStatusInfos_;
     THashMap<TQueryId, const DB::QueryStatusInfo*> QueryIdToQueryStatusInfo_;
-    THashMap<TString, DB::ProcessListForUserInfo> UserToProcessListForUserInfo_;
+    THashMap<std::string, DB::ProcessListForUserInfo> UserToProcessListForUserInfo_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -486,7 +486,7 @@ private:
 
     NProfiling::TProfiler QueryRegistryProfiler_;
 
-    THashMap<TString, TUserProfilingEntryPtr> UserToUserProfilingEntry_;
+    THashMap<std::string, TUserProfilingEntryPtr> UserToUserProfilingEntry_;
 
     TPromise<void> IdlePromise_;
 
@@ -529,11 +529,11 @@ private:
             .EndMap();
     }
 
-    TUserProfilingEntry& GetOrRegisterUserProfilingEntry(const TString& user)
+    TUserProfilingEntry& GetOrRegisterUserProfilingEntry(const std::string& user)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        THashMap<TString, TUserProfilingEntryPtr>::insert_ctx ctx;
+        THashMap<std::string, TUserProfilingEntryPtr>::insert_ctx ctx;
         auto it = UserToUserProfilingEntry_.find(user, ctx);
         if (it == UserToUserProfilingEntry_.end()) {
             auto profiler = QueryRegistryProfiler_

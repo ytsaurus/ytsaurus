@@ -233,7 +233,7 @@ void TCypressDictionaryConfigRepository::DeleteDictionary(
     const auto* queryContext = GetQueryContext(context);
     const auto& client = queryContext->Client();
     const auto* host = queryContext->Host;
-    host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
+    host->ValidateCliquePermission(context->getClientInfo().initial_user, EPermission::Manage);
 
     const auto& externalDictionariesLoader = context->getExternalDictionariesLoader();
     if (!externalDictionariesLoader.has(storageId.getInternalDictionaryName())) {

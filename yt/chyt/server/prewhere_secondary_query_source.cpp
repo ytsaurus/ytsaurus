@@ -71,7 +71,7 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
         prewhereReadPlan->GetReadColumnCount(),
         readPlan->GetReadColumnCount());
 
-    auto chunkReadOptions = CreateChunkReadOptions(queryContext->User, std::move(granuleFilter));
+    auto chunkReadOptions = CreateChunkReadOptions(TString(queryContext->User), std::move(granuleFilter));
     auto reader = CreateSourceReader(
         storageContext,
         subquerySpec,

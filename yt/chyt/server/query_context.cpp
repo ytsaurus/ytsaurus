@@ -187,7 +187,7 @@ TQueryContext::TQueryContext(
     std::vector<std::pair<TString, TString>> httpHeaders,
     std::vector<TQueryId> additionalQueryIds)
     : Logger(QueryLogger)
-    , User(TString(context->getClientInfo().initial_user))
+    , User(context->getClientInfo().initial_user)
     , TraceContext(std::move(traceContext))
     , QueryId(queryId)
     , QueryKind(static_cast<EQueryKind>(context->getClientInfo().query_kind))
@@ -509,7 +509,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             YT_VERIFY(QueryKind == EQueryKind::NoQuery);
             auto rootUser = Client()->GetOptions().User;
             YT_VERIFY(rootUser);
-            return TString(*rootUser);
+            return *rootUser;
         }();
 
         auto attributesUnderTxFuture = FetchTableAttributesAsync(pathsToFetchUnderTx, ReadTransactionId);
