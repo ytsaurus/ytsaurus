@@ -231,9 +231,9 @@ struct TFilteredSpecAttributes
 
 std::string GetFilterFactors(const TArchiveOperationRequest& request)
 {
-    auto getOriginalPath = [] (const INodePtr& node) -> std::optional<TString> {
+    auto getOriginalPath = [] (const INodePtr& node) -> std::optional<NYPath::TYPath> {
         try {
-            if (auto originalPath = node->Attributes().Find<TString>("original_path")) {
+            if (auto originalPath = node->Attributes().Find<NYPath::TYPath>("original_path")) {
                 return *originalPath;
             }
             return NYPath::TRichYPath::Parse(node->AsString()->GetValue()).GetPath();
