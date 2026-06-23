@@ -1,3 +1,8 @@
+---
+title: Task Proxy | {{product-name}}
+description: A single entry point for accessing web services within {{product-name}} operations.
+---
+
 # Task proxy
 
 {{product-name}} operations often require deploying web services. These can be debugging UIs (such as Spark UI in [SPYT](../../../user-guide/data-processing/spyt/overview.md)), ML model inference servers, or APIs inside jobs.
@@ -23,6 +28,7 @@ Each service is described by entities:
 
 Task proxy balances incoming traffic between all running jobs of one task, directing the request to a specific service of that job. If one of the jobs fails or moves to another node, the proxy automatically redirects traffic to available instances.
 
+
 ![](../../../../images/task-proxy.png)
 
 Automatic discovery (service discovery) works for:
@@ -31,6 +37,7 @@ Automatic discovery (service discovery) works for:
 - SPYT operations (Standalone cluster and Direct Submit) — they are discovered automatically without additional configuration.
 
 ## Launching HTTP service {#quickstart}
+
 
 To launch an operation with a web service accessible through Task proxy:
 
@@ -69,11 +76,11 @@ Below is an example of the table contents. Each row describes its own service:
 - The fifth row relates to SPYT [direct submit](../../../user-guide/data-processing/spyt/direct-submit/desc.md).
 
 ## Methods of connecting to services {#connection-methods}
-
 To access a service, authentication is required. Supported:
 
 - **Tokens:** OAuth token or IAM token (in the `Authorization` header).
 - **Cookie:** Authentication cookie (cookie name is set by the administrator).
+
 
 ### Through browser {#browser}
 
@@ -82,7 +89,6 @@ To access the UI (for example, Spark UI), simply open the service domain (`https
 ### Through Ingress (public access) {#ingress}
 
 If an ingress controller is configured in the cluster, you can access the domain directly via the internet. In this case, DNS and TLS settings are not performed within Task proxy, but are carried out separately by your installation administrators.
-
 ```sh
 curl \
   -H "Authorization: Bearer ${IAM_TOKEN}" \
@@ -90,6 +96,7 @@ curl \
 ```
 
 ### Directly to Task proxy (inside K8s) {#k8s}
+
 
 If you are inside the network perimeter (for example, in Kubernetes where Task proxy is deployed), you can access the K8s service directly. In this case, you **must** specify the service domain in the `Host` header.
 
@@ -102,12 +109,94 @@ curl \
 
 ### Alternative to wildcard domains {#wildcard-domains}
 
+
 If the infrastructure does not support wildcard domains (like `*.ytsaurus.example.net`), use the `x-yt-taskproxy-id` header. Pass the left part of the domain (hash) as the value.
 
 ```sh
 curl \
   -H "Authorization: Bearer ${IAM_TOKEN}" \
   -H "x-yt-taskproxy-id: 645236d8" \
+  "https://task-proxy.my-cluster.ytsaurus.example.net"
+```
+
+
+### Accessing services by alias (without a hash) {#alias}
+
+{% note info %}
+
+This feature is available in task-proxy version 0.3.0 and later.
+
+{% endnote %}
+
+By default, a service URL is generated using a hash (for example, `645236d8`) derived from the operation ID. Since the {{product-name}} cluster generates this ID only when the operation starts, you cannot know the final service URL in advance. Instead, you have to look it up in a system table after the launch.
+
+If you need predictable URLs (for example, to automate requests to a job API), you can access the service using a unique combination of three parameters instead of the hash: `(operation_id_or_alias, task_name, service)`. This allows you to know the exact service URL before starting the operation.
+
+#### Setting an operation alias at launch {#set-alias}
+
+To make the URL predictable, assign an alias to the operation. The method depends on the type of operation:
+
+| Operation          | Launch command                                                             |
+|--------------------|----------------------------------------------------------------------------|
+| Vanilla            | `yt vanilla --spec '{alias="*myvanilla", ...}' ...`                        |
+| SPYT standalone    | `spark-launch-yt --operation-alias *myspark ...`                           |
+| SPYT direct submit | `spark-submit --conf spark.ytsaurus.driver.operation.alias="*myspark" ...` |
+
+{% note warning %}
+
+When accessing the service (in the URL or HTTP headers), specify the alias **without the asterisk** (for example, `myspark`), even though it is defined as `*myspark` in the specification.
+
+{% endnote %}
+
+{% note info %}
+
+The `operation_alias`, `task_name`, and `service` values must match the `^[a-z0-9_]{1,30}$` regular expression. They can contain only lowercase letters, digits, and underscores (`_`), with a maximum length of 30 characters.
+
+{% endnote %}
+
+#### Accessing a service by alias {#access-by-alias}
+
+Once you know the operation alias, `task_name`, and `service`, you can access the service in one of two ways: via a domain name or HTTP headers.
+
+{% list tabs %}
+
+- Via a domain name
+
+  You can combine the parameters using hyphens directly in the URL:
+
+  ```sh
+  curl \
+    -H "Authorization: Bearer ${IAM_TOKEN}" \
+    "https://${operation_alias}-${task_name}-${service}.my-cluster.ytsaurus.example.net"
+  ```
+
+- Via HTTP headers
+
+  If you make a request to the base Task-proxy domain, you can pass the parameters using the `x-yt-taskproxy-*` headers:
+
+  ```sh
+  curl \
+    -H "Authorization: Bearer ${IAM_TOKEN}" \
+    -H "x-yt-taskproxy-operation-alias: ${operation_alias}" \
+    -H "x-yt-taskproxy-task-name: ${task_name}" \
+    -H "x-yt-taskproxy-service: ${service}" \
+    "https://task-proxy.my-cluster.ytsaurus.example.net"
+  ```
+
+{% endlist %}
+
+--------
+
+#### Access by operation ID (if an alias is not set) {#access-by-operation-id}
+
+If you haven't set an alias but still want to avoid using the hash, you can access the service by passing its `operation_id` in the HTTP headers:
+
+```sh
+curl \
+  -H "Authorization: Bearer ${IAM_TOKEN}" \
+  -H "x-yt-taskproxy-operation-id: ${operation_id}" \
+  -H "x-yt-taskproxy-task-name: ${task_name}" \
+  -H "x-yt-taskproxy-service: ${service}" \
   "https://task-proxy.my-cluster.ytsaurus.example.net"
 ```
 
@@ -124,7 +213,6 @@ If you want to set other settings — for example, use the gRPC protocol, set a 
 ### Launching gRPC service {#grpc}
 
 Let's launch a [gRPC server example](https://github.com/ytsaurus/ytsaurus-task-proxy/tree/main/examples/grpc-service) using the extended annotation:
-
 ```sh
 yt vanilla \
     --tasks '{example_grpc_server={job_count=2; command="./yt-sample-grpc-service"; file_paths = ["//home/yt-sample-grpc-service"]; port_count=1}}' \
@@ -138,15 +226,13 @@ Breakdown of the `tasks_info` parameter:
         - `protocol="grpc"` — protocol specification.
         - `port_index=0` — use the first port from `port_count` (corresponds to `YT_PORT_0`).
 
-
 ### Accessing gRPC service {#grpcurl}
 
 gRPC requests also require authorization.
 
+
 #### Through Ingress (public access) {#grpc-ingress}
-
 Note that the port for gRPC on the ingress controller may differ (in the example below — `9090`).
-
 ```sh
 grpcurl \
   -H "Cookie: YTCypressCookie ${AUTH_COOKIE_VALUE}" \
@@ -155,7 +241,6 @@ grpcurl \
 ```
 
 #### Directly to Task proxy (inside K8s) {#grpc-task-proxy}
-
 ```sh
 grpcurl \
   -plaintext \
@@ -163,3 +248,4 @@ grpcurl \
   -H "Authorization: Bearer ${IAM_TOKEN}" \
   "task-proxy.${NAMESPACE}.svc.cluster.local:80" \
   "helloworld.Greeter/SayHello"
+```
