@@ -5499,8 +5499,7 @@ void TApiService::DoModifyRows(
             FromProto(&lockMask, request.row_locks(index));
         }
 
-        switch (request.row_modification_types(index))
-        {
+        switch (request.row_modification_types(index)) {
             case NApi::NRpcProxy::NProto::ERowModificationType::RMT_WRITE:
                 THROW_ERROR_EXCEPTION_IF(!lockMask.IsNone(),
                     "Cannot perform lock by \"write\" modification type; use \"write_and_lock\"");

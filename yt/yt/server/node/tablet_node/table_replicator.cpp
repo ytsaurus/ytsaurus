@@ -748,7 +748,7 @@ private:
                         break;
 
                     default:
-                        // ParseLogRow does not produce ERowModificaion::WriteAndLock.
+                        // ParseLogRow does not produce ERowModificationType::WriteAndLock.
                         YT_ABORT();
                 }
 
