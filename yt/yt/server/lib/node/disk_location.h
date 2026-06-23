@@ -65,21 +65,20 @@ public:
     ~TDiskLocation();
 
 protected:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StateChangingLock_);
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActionsContainerLock_);
 
     const std::string Id_;
     const NLogging::TLogger Logger;
 
     THashSet<TFuture<void>> Actions_;
-    std::atomic<ELocationState> State_ = ELocationState::Enabling;
 
     void ValidateMinimumSpace() const;
     void ValidateLockFile() const;
 
     i64 GetTotalSpace() const;
 
-    bool ChangeState(
+    // On success, returns the old state.
+    std::optional<ELocationState> ChangeState(
         ELocationState newState,
         std::optional<ELocationState> expectedState = std::nullopt,
         const TError& disableReason = {});
@@ -89,6 +88,9 @@ protected:
 
 private:
     const NServer::TDiskLocationConfigPtr StaticConfig_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StateChangingLock_);
+    std::atomic<ELocationState> State_ = ELocationState::Enabling;
 
     TAtomicIntrusivePtr<NServer::TDiskLocationConfig> RuntimeConfig_;
 
