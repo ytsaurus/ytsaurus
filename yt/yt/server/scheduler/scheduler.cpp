@@ -1637,7 +1637,7 @@ public:
         return *OperationBaseAcl_;
     }
 
-    TString FormatResources(const TJobResourcesWithQuota& resources) const override
+    std::string FormatResources(const TJobResourcesWithQuota& resources) const override
     {
         return NScheduler::FormatResources(resources);
     }
@@ -1660,7 +1660,7 @@ public:
         NScheduler::SerializeDiskQuota(diskQuota, mediumDirectory, consumer);
     }
 
-    TString FormatHeartbeatResourceUsage(
+    std::string FormatHeartbeatResourceUsage(
         const TJobResources& usage,
         const TJobResources& limits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
@@ -4653,7 +4653,7 @@ int TScheduler::GetOperationsArchiveVersion() const
     return Impl_->GetOperationsArchiveVersion();
 }
 
-TString TScheduler::FormatResources(const TJobResourcesWithQuota& resources) const
+std::string TScheduler::FormatResources(const TJobResourcesWithQuota& resources) const
 {
     return Impl_->FormatResources(resources);
 }

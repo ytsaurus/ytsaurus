@@ -244,7 +244,7 @@ TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodeList)
     std::vector<std::vector<std::string>> nodeAddressesPerShard(NodeShards_.size());
 
     for (const auto& child : nodeList->GetChildren()) {
-        auto address = child->GetValue<TString>();
+        auto address = child->GetValue<std::string>();
         auto objectId = child->Attributes().Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
         auto shardId = GetNodeShardId(nodeId);

@@ -240,7 +240,7 @@ public:
         return static_cast<bool>(Tags_);
     }
 
-    const std::vector<TString>& GetTags() const
+    const std::vector<std::string>& GetTags() const
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -260,7 +260,7 @@ public:
                 Tags_);
         } else {
             auto rsp = rspOrError.ValueOrThrow();
-            Tags_ = ConvertTo<std::vector<TString>>(TYsonString(rsp->value()));
+            Tags_ = ConvertTo<std::vector<std::string>>(TYsonString(rsp->value()));
             YT_LOG_DEBUG("Tags fetched from Cypress (Tags: %v)",
                 Tags_);
         }
@@ -287,7 +287,7 @@ private:
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
 
-    mutable std::optional<std::vector<TString>> Tags_;
+    mutable std::optional<std::vector<std::string>> Tags_;
 
     struct TLivePreviewRequest
     {
@@ -1702,7 +1702,7 @@ bool TMasterConnector::TagsLoaded() const
     return Impl_->TagsLoaded();
 }
 
-const std::vector<TString>& TMasterConnector::GetTags() const
+const std::vector<std::string>& TMasterConnector::GetTags() const
 {
     return Impl_->GetTags();
 }

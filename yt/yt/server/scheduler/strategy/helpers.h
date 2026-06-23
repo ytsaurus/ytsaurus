@@ -15,7 +15,7 @@ TOperationPoolTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(const IOp
 struct TSchedulerTreeAlertDescriptor
 {
     ESchedulerAlertType Type;
-    TString Message;
+    std::string Message;
 };
 
 const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescriptors();

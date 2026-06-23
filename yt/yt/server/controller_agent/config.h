@@ -814,7 +814,7 @@ DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
 struct TRemoteOperationsConfig
     : public NYTree::TYsonStruct
 {
-    THashSet<TString> AllowedUsers;
+    THashSet<std::string> AllowedUsers;
 
     bool AllowedForEveryone;
 
@@ -1128,7 +1128,7 @@ struct TControllerAgentConfig
     NYTree::INodePtr VanillaOperationOptionsNode;
 
     //! Default environment variables set for every job.
-    THashMap<TString, TString> Environment;
+    THashMap<std::string, std::string> Environment;
 
     //! If |true|, jobs are revived from snapshot.
     bool EnableJobRevival;
@@ -1257,7 +1257,7 @@ struct TControllerAgentConfig
     bool EnableBypassArtifactCache;
 
     //! List of the tags assigned to controller agent.
-    std::vector<TString> Tags;
+    std::vector<std::string> Tags;
 
     TUserJobMonitoringConfigPtr UserJobMonitoring;
 
@@ -1310,7 +1310,7 @@ struct TControllerAgentConfig
 
     TJobTrackerConfigPtr JobTracker;
 
-    THashSet<TString> NetworkProjectsAllowedForOffloading;
+    THashSet<std::string> NetworkProjectsAllowedForOffloading;
 
     bool EnableNetworkInOperationDemand;
 

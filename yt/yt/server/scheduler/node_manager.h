@@ -15,7 +15,7 @@ struct INodeManagerHost
 {
     virtual ~INodeManagerHost() = default;
 
-    virtual TString FormatHeartbeatResourceUsage(
+    virtual std::string FormatHeartbeatResourceUsage(
         const TJobResources& usage,
         const TJobResources& limits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const = 0;

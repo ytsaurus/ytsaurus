@@ -50,7 +50,7 @@ void Serialize(const TExtendedJobResources& resources, IYsonConsumer* consumer)
         .EndMap();
 }
 
-TString FormatResources(const TExtendedJobResources& resources)
+std::string FormatResources(const TExtendedJobResources& resources)
 {
     return Format(
         "{UserSlots: %v, Cpu: %v, Gpu: %v, JobProxyMemory: %vMB, "

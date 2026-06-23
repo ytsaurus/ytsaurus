@@ -185,7 +185,7 @@ public:
         return nullptr;
     }
 
-    TString FormatResources(const TJobResourcesWithQuota& resources) const override
+    std::string FormatResources(const TJobResourcesWithQuota& resources) const override
     {
         YT_VERIFY(MediumDirectory_);
         return NScheduler::FormatResources(resources);

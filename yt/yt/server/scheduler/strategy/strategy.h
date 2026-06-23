@@ -54,7 +54,7 @@ struct IStrategyHost
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
 
-    virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
+    virtual std::string FormatResources(const TJobResourcesWithQuota& resources) const = 0;
     virtual void SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const = 0;
     virtual void SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const = 0;
 

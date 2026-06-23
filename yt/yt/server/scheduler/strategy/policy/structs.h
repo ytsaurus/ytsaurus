@@ -28,7 +28,7 @@ struct TRunningAllocationStatistics
 };
 
 void FormatValue(TStringBuilderBase* builder, const TRunningAllocationStatistics& statistics, TStringBuf /*spec*/);
-TString FormatRunningAllocationStatisticsCompact(const TRunningAllocationStatistics& statistics);
+std::string FormatRunningAllocationStatisticsCompact(const TRunningAllocationStatistics& statistics);
 void Serialize(const TRunningAllocationStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////

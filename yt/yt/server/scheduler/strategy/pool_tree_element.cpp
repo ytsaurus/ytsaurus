@@ -179,7 +179,7 @@ void TPoolTreeElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrapp
         GetAccumulatedResourceRatioVolume());
 }
 
-TString TPoolTreeElement::GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const
+std::string TPoolTreeElement::GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const
 {
     TStringBuilder builder;
     builder.AppendFormat("Scheduling info for tree %Qv = {", GetTreeId());
