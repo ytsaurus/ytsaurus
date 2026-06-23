@@ -71,9 +71,6 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_fast_path_prerequisite_transaction_check", &TThis::EnableFastPathPrerequisiteTransactionCheck)
         .Default(true);
 
-    registrar.Parameter("request_rate_limit_factor", &TThis::RequestRateLimitFactor)
-        .Default(10);
-
     registrar.Parameter("sync_ground_update_queue_on_every_request", &TThis::SyncGroundUpdateQueueOnEveryRequest)
         .Default(true);
 

@@ -216,10 +216,6 @@ private:
             }
 
             auto limit = GetUserRequestRateLimit(*descriptor, userNameAndWorkloadType.second);
-            if (limit) {
-                limit = *limit * dynamicConfig->RequestRateLimitFactor;
-            }
-
             auto newConfig = TThroughputThrottlerConfig::Create(limit);
             queue->ConfigureWeightThrottler(newConfig);
             queue->SetQueueSizeLimit(descriptor->QueueSizeLimit);
@@ -264,12 +260,7 @@ private:
 
             YT_LOG_DEBUG("Per-user request weight throttling was %v",
                 newObjectServiceConfig->EnablePerUserRequestWeightThrottling ? "enabled" : "disabled");
-        } else if (newObjectServiceConfig->EnablePerUserRequestWeightThrottling &&
-            newObjectServiceConfig->RequestRateLimitFactor != oldObjectServiceConfig->RequestRateLimitFactor)
-        {
-            RequestQueueProvider_->ReconfigureAllQueues();
         }
-
     }
 };
 

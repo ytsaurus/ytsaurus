@@ -112,9 +112,6 @@ struct TObjectServiceDynamicConfig
     // For testing purposes.
     bool EnableFastPathPrerequisiteTransactionCheck;
 
-    // COMPAT(h0pless): remove once cypress proxy throttlers are stable.
-    int RequestRateLimitFactor;
-
     bool SyncGroundUpdateQueueOnEveryRequest;
 
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
