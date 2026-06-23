@@ -105,6 +105,8 @@ def _format_job_status(status):
             color = "blue"
         case enums.JobStatus.FAULT:
             color = "red"
+        case enums.JobStatus.ABORTED:
+            color = "red"
         case enums.JobStatus.UNSPECIFIED:
             color = "magenta"
         case _:

@@ -2,6 +2,7 @@ from enum import StrEnum
 
 
 class JobStatus(StrEnum):
+    ABORTED = "TASK_STATUS_ABORTED"
     FINISHED = "TASK_STATUS_FINISHED"
     NEW = "TASK_STATUS_NEW"
     PENDING = "TASK_STATUS_PENDING"
