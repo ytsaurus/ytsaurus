@@ -117,7 +117,7 @@ struct TJoblet
     EJobPhase Phase = EJobPhase::Missing;
     TEnumIndexedArray<EJobCompetitionType, TJobId> CompetitionIds;
     TEnumIndexedArray<EJobCompetitionType, bool> HasCompetitors;
-    TString TaskName;
+    std::string TaskName;
 
     struct TCollectiveInfo
     {
