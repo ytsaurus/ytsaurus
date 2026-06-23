@@ -596,10 +596,7 @@ class TestSequoiaInternals(YTEnvSetup):
             }
         })
 
-        BASE_REQUEST_COUNT = 10
-        REQUEST_COUNT_FACTOR = 1 + self.NUM_SECONDARY_MASTER_CELLS
-        REQUEST_COUNT = BASE_REQUEST_COUNT * REQUEST_COUNT_FACTOR
-        set("//sys/cypress_proxies/@config/object_service/request_rate_limit_factor", REQUEST_COUNT_FACTOR)
+        REQUEST_COUNT = 10
         sleep(1)
 
         def measure_read_time():
@@ -627,7 +624,7 @@ class TestSequoiaInternals(YTEnvSetup):
                                                target=wait_for_counter_to_change)
 
         # Last request empties the throttler, but we don't wait for it to be replenished.
-        expected_time = BASE_REQUEST_COUNT - 1
+        expected_time = REQUEST_COUNT - 1
 
         # Since requests are very quick and throttlers take time to synchronize,
         # add the multiplier to the expected time.
