@@ -42,8 +42,8 @@ struct TMeteringKey
     // e.g. personal experimental pools.
     int AbcId = UndefinedAbcId;
     std::string TreeId;
-    TString PoolId;
-    THashMap<TString, TString> MeteringTags;
+    std::string PoolId;
+    THashMap<std::string, std::string> MeteringTags;
 
     bool operator==(const TMeteringKey& other) const;
 };

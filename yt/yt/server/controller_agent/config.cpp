@@ -1464,7 +1464,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         BuildOptions(&config->RemoteCopyOperationOptions, config->RemoteCopyOperationOptionsNode, config->OperationOptions);
         BuildOptions(&config->VanillaOperationOptions, config->VanillaOperationOptionsNode, config->OperationOptions);
 
-        THashSet<TString> customJobMetricsProfilingNames;
+        THashSet<std::string> customJobMetricsProfilingNames;
         for (const auto& customJobMetricDescription : config->CustomJobMetrics) {
             const auto& profilingName = customJobMetricDescription.ProfilingName;
 

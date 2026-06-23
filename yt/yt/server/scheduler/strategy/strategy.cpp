@@ -2403,7 +2403,7 @@ private:
 
         for (const auto& tree : snapshot->Trees()) {
             TMeteringMap newStatisticsPerTree;
-            THashMap<TString, TString> customMeteringTags;
+            THashMap<std::string, std::string> customMeteringTags;
             tree->BuildResourceMetering(&newStatisticsPerTree, &customMeteringTags);
 
             for (auto& [key, value] : newStatisticsPerTree) {

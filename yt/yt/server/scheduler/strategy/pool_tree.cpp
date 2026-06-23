@@ -2886,7 +2886,7 @@ private:
 
     void BuildResourceMetering(
         TMeteringMap* meteringMap,
-        THashMap<TString, TString>* customMeteringTags) const override
+        THashMap<std::string, std::string>* customMeteringTags) const override
     {
         auto treeSnapshot = GetTreeSnapshot();
 

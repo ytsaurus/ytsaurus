@@ -473,7 +473,7 @@ struct TStrategyTreeConfig
 
     EJobResourceType MainResource;
 
-    THashMap<TString, TString> MeteringTags;
+    THashMap<std::string, std::string> MeteringTags;
 
     THashMap<TString, NYTree::INodePtr> PoolConfigPresets;
 

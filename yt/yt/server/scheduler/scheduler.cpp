@@ -1488,7 +1488,7 @@ public:
     void LogResourceMetering(
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
-        const THashMap<TString, TString>& otherTags,
+        const THashMap<std::string, std::string>& otherTags,
         TInstant connectionTime,
         TInstant previousLogTime,
         TInstant currentTime) override
@@ -1525,10 +1525,10 @@ public:
                     .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
                     .Item("cluster").Value(ClusterName_)
                     .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
-                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
                 .EndMap();
@@ -1547,10 +1547,10 @@ public:
                     .Item("allocated_resources").Value(averageAllocatedResources * timeRatio)
                     .Item("cluster").Value(ClusterName_)
                     .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
-                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
                 .EndMap();
