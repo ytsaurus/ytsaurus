@@ -164,8 +164,13 @@ public:
             return false;
         }
 
+        if (!zoneInfo->MaxTabletNodeCount) {
+            // No limit configured, treat it as infinite.
+            return false;
+        }
+
         int currentDataCenterNodeCount = std::ssize(dataCenterIt->second);
-        int datacenterMaxNodeCount = zoneInfo->MaxTabletNodeCount / std::ssize(zoneInfo->DataCenters);
+        int datacenterMaxNodeCount = *zoneInfo->MaxTabletNodeCount / std::ssize(zoneInfo->DataCenters);
 
         if (currentDataCenterNodeCount >= datacenterMaxNodeCount) {
             YT_LOG_WARNING("Max nodes count limit reached"
@@ -173,7 +178,7 @@ public:
                 zoneName,
                 dataCenterName,
                 currentDataCenterNodeCount,
-                zoneInfo->MaxTabletNodeCount,
+                *zoneInfo->MaxTabletNodeCount,
                 datacenterMaxNodeCount);
             return true;
         }
