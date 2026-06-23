@@ -162,6 +162,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropOngoingStatisticsUpdateRequestMapping)                    (3257))  // danilalexeev
     ((FixReferencedHunkErasureDiskSpace_26_1)                       (3258))  // akozhikhov
     ((RecomputeHunkRelatedChunkStatisticsAgain)                     (3259))  // akozhikhov
+    ((FixHunkStorageRemovalError_26_1)                              (3260))  // akozhikhov
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
@@ -189,6 +190,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropOngoingStatisticsUpdateRequestMapping_26_2)               (3322))  // danilalexeev
     ((FixReferencedHunkErasureDiskSpace)                            (3323))  // akozhikhov
     ((RecomputeHunkRelatedChunkStatisticsAgain_26_2)                (3324))  // akozhikhov
+    ((FixHunkStorageRemovalError)                                   (3325))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

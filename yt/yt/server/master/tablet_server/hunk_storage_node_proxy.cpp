@@ -45,8 +45,11 @@ private:
     void ValidateRemoval()
     {
         const auto* hunkStorage = GetThisImpl();
-        const auto& associatedNodeIds = hunkStorage->AssociatedNodeIds();
-        if (!associatedNodeIds.empty()) {
+        if (!hunkStorage->AssociatedNodeIds().empty()) {
+            auto associatedNodeIds = std::vector(
+                hunkStorage->AssociatedNodeIds().begin(),
+                hunkStorage->AssociatedNodeIds().end());
+            Sort(associatedNodeIds);
             THROW_ERROR_EXCEPTION("Cannot remove a hunk storage that is being used by nodes %v",
                 MakeShrunkFormattableView(associatedNodeIds, TDefaultFormatter(), 10));
         }
