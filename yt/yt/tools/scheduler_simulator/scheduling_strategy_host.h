@@ -94,7 +94,7 @@ public:
     void LogResourceMetering(
         const NScheduler::TMeteringKey& key,
         const NScheduler::TMeteringStatistics& statistics,
-        const THashMap<TString, TString>& otherTags,
+        const THashMap<std::string, std::string>& otherTags,
         TInstant connectionTime,
         TInstant previousLogTime,
         TInstant currentTime) override;

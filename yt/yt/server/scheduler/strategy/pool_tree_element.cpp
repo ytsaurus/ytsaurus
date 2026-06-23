@@ -1538,16 +1538,11 @@ void TPoolTreePoolElement::BuildResourceMetering(
 
     std::optional<TMeteringKey> key;
     if (Config_->Abc) {
-        // TODO(babenko): migrate to std::string
-        THashMap<TString, TString> meteringTags;
-        for (const auto& [k, v] : Config_->MeteringTags) {
-            meteringTags[TString(k)] = TString(v);
-        }
         key = TMeteringKey{
             .AbcId  = Config_->Abc->Id,
             .TreeId = GetTreeId(),
             .PoolId = GetId(),
-            .MeteringTags = std::move(meteringTags),
+            .MeteringTags = Config_->MeteringTags,
         };
 
         auto accumulatedResourceUsageVolume = GetOrDefault(poolResourceUsages, GetId(), TResourceVolume{});

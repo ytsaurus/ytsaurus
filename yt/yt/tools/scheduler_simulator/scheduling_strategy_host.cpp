@@ -241,7 +241,7 @@ TFuture<void> TStrategyHost::SetOperationAlert(
 void TStrategyHost::LogResourceMetering(
     const TMeteringKey& /*key*/,
     const TMeteringStatistics& /*statistics*/,
-    const THashMap<TString, TString>& /*otherTags*/,
+    const THashMap<std::string, std::string>& /*otherTags*/,
     TInstant /*connectionTime*/,
     TInstant /*previousLogTime*/,
     TInstant /*currentTime*/)

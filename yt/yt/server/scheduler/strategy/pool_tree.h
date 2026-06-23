@@ -96,7 +96,7 @@ struct IPoolTree
 
     virtual void BuildResourceMetering(
         TMeteringMap* meteringMap,
-        THashMap<TString, TString>* customMeteringTags) const = 0;
+        THashMap<std::string, std::string>* customMeteringTags) const = 0;
 
     virtual void ProfileFairShare() const = 0;
     virtual void LogFairShareAt(TInstant now) const = 0;
