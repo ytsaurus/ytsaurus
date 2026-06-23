@@ -70,7 +70,7 @@ public:
     TFuture<void> OnIndexModifications(std::function<void(
         NYPath::TYPath path,
         TNameTablePtr nameTable,
-        TSharedRange<NFuture::TRowModification> modifications)> enqueueModificationRequests) const override;
+        TSharedRange<TRowModification> modifications)> enqueueModificationRequests) const override;
 
 private:
     using TInitialRowMap = THashMap<TKey, TMutableUnversionedRow>;
@@ -108,16 +108,16 @@ private:
 
     void InitializeMapping(std::vector<int> tableColumnIds);
 
-    TFuture<TSharedRange<NFuture::TRowModification>> ProduceModificationsForIndex(int index) const;
+    TFuture<TSharedRange<TRowModification>> ProduceModificationsForIndex(int index) const;
 
-    TFuture<TSharedRange<NFuture::TRowModification>> ProduceFullSyncModifications(
+    TFuture<TSharedRange<TRowModification>> ProduceFullSyncModifications(
         TNameTableToSchemaIdMapping indexIdMapping,
         TNameTableToSchemaIdMapping keyIndexIdMapping,
         TTableSchemaPtr indexSchema,
         std::optional<int> predicatePosition,
         std::optional<TUnversionedValue> empty) const;
 
-    TFuture<TSharedRange<NFuture::TRowModification>> ProduceUnfoldingModifications(
+    TFuture<TSharedRange<TRowModification>> ProduceUnfoldingModifications(
         TNameTableToSchemaIdMapping indexIdMapping,
         TNameTableToSchemaIdMapping keyIndexIdMapping,
         TTableSchemaPtr indexSchema,
@@ -126,7 +126,7 @@ private:
         const TUnfoldedColumns& unfoldedColumns,
         const std::vector<int>& aggregatePositions) const;
 
-    TFuture<TSharedRange<NFuture::TRowModification>> ProduceUniqueModifications(
+    TFuture<TSharedRange<TRowModification>> ProduceUniqueModifications(
         const NYPath::TYPath& uniqueIndexPath,
         TNameTableToSchemaIdMapping indexIdMapping,
         TNameTableToSchemaIdMapping keyIndexIdMapping,
@@ -448,7 +448,7 @@ void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<TUnversion
 TFuture<void> TSecondaryIndexModifier::OnIndexModifications(std::function<void(
     NYPath::TYPath path,
     TNameTablePtr nameTable,
-    TSharedRange<NFuture::TRowModification> modifications)> enqueueModificationRequests) const
+    TSharedRange<TRowModification> modifications)> enqueueModificationRequests) const
 {
     std::vector<TFuture<void>> modificationRequestEvents;
     modificationRequestEvents.reserve(IndexTableMountInfos_.size());
@@ -461,7 +461,7 @@ TFuture<void> TSecondaryIndexModifier::OnIndexModifications(std::function<void(
                     this_ = MakeStrong(this),
                     index,
                     enqueueModificationRequests
-                ] (TSharedRange<NFuture::TRowModification>&& modifications) {
+                ] (TSharedRange<TRowModification>&& modifications) {
                     enqueueModificationRequests(
                         IndexTableMountInfos_[index]->Path,
                         NameTable_,
@@ -472,7 +472,7 @@ TFuture<void> TSecondaryIndexModifier::OnIndexModifications(std::function<void(
     return AllSucceeded(std::move(modificationRequestEvents));
 }
 
-TFuture<TSharedRange<NFuture::TRowModification>> TSecondaryIndexModifier::ProduceModificationsForIndex(int index) const
+TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceModificationsForIndex(int index) const
 {
     auto indexSchema = IndexTableMountInfos_[index]->Schemas[ETableSchemaKind::Write];
     auto indexIdMapping = BuildColumnIdMapping(
@@ -523,14 +523,14 @@ TFuture<TSharedRange<NFuture::TRowModification>> TSecondaryIndexModifier::Produc
     }
 }
 
-TFuture<TSharedRange<NFuture::TRowModification>> TSecondaryIndexModifier::ProduceFullSyncModifications(
+TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceFullSyncModifications(
     TNameTableToSchemaIdMapping indexIdMapping,
     TNameTableToSchemaIdMapping keyIndexIdMapping,
     TTableSchemaPtr indexSchema,
     std::optional<int> predicatePosition,
     std::optional<TUnversionedValue> empty) const
 {
-    std::vector<NFuture::TRowModification> secondaryModifications;
+    std::vector<TRowModification> secondaryModifications;
 
     for (const auto& [_, initialRow] : InitialRowMap_) {
         if (initialRow && IsPredicateGood(predicatePosition, initialRow)) {
@@ -542,7 +542,7 @@ TFuture<TSharedRange<NFuture::TRowModification>> TSecondaryIndexModifier::Produc
                 /*validateDuplicateAndRequiredValueColumns*/ false,
                 /*preserveIds*/ true);
 
-            secondaryModifications.push_back(NFuture::NRowModifications::TDeleteRow(rowToDelete));
+            secondaryModifications.push_back(NRowModifications::TDeleteRow(rowToDelete));
         }
     }
 
@@ -557,14 +557,14 @@ TFuture<TSharedRange<NFuture::TRowModification>> TSecondaryIndexModifier::Produc
                 /*preserveIds*/ true,
                 empty);
 
-            secondaryModifications.push_back(NFuture::NRowModifications::TWriteRow(rowToWrite));
+            secondaryModifications.push_back(NRowModifications::TWriteRow(rowToWrite));
         }
     }
 
     return MakeFuture(MakeSharedRange(std::move(secondaryModifications), RowBuffer_, LookedUpRows_));
 }
 
-TFuture<TSharedRange<NFuture::TRowModification>> TSecondaryIndexModifier::ProduceUnfoldingModifications(
+TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldingModifications(
     TNameTableToSchemaIdMapping indexIdMapping,
     TNameTableToSchemaIdMapping keyIndexIdMapping,
     TTableSchemaPtr indexSchema,
@@ -577,7 +577,7 @@ TFuture<TSharedRange<NFuture::TRowModification>> TSecondaryIndexModifier::Produc
     int unfoldedTableColumnPosition = ResultingSchema_->GetColumnIndexOrThrow(unfoldedColumns.TableColumn);
     int unfoldedIndexColumnId = NameTable_->GetIdOrThrow(unfoldedColumns.IndexColumn);
 
-    std::vector<NFuture::TRowModification> secondaryModifications;
+    std::vector<TRowModification> secondaryModifications;
 
     auto unfoldValue = [&] (TUnversionedRow row, std::function<void(TUnversionedRow)> consumeRow) {
         if (row[unfoldedIndexColumnPosition].Type == EValueType::Null) {
@@ -644,7 +644,7 @@ TFuture<TSharedRange<NFuture::TRowModification>> TSecondaryIndexModifier::Produc
                 /*preserveIds*/ true);
 
             unfoldValue(permuttedRow, [&] (TUnversionedRow rowToDelete) {
-                secondaryModifications.push_back(NFuture::NRowModifications::TDeleteRow(rowToDelete));
+                secondaryModifications.push_back(NRowModifications::TDeleteRow(rowToDelete));
             });
         }
     }
@@ -669,7 +669,7 @@ TFuture<TSharedRange<NFuture::TRowModification>> TSecondaryIndexModifier::Produc
             }
 
             unfoldValue(permuttedRow, [&] (TUnversionedRow rowToWrite) {
-                secondaryModifications.push_back(NFuture::NRowModifications::TWriteRow(rowToWrite));
+                secondaryModifications.push_back(NRowModifications::TWriteRow(rowToWrite));
             });
         }
     }
@@ -677,7 +677,7 @@ TFuture<TSharedRange<NFuture::TRowModification>> TSecondaryIndexModifier::Produc
     return MakeFuture(MakeSharedRange(std::move(secondaryModifications), RowBuffer_, LookedUpRows_));
 }
 
-TFuture<TSharedRange<NFuture::TRowModification>> TSecondaryIndexModifier::ProduceUniqueModifications(
+TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUniqueModifications(
     const NYPath::TYPath& uniqueIndexPath,
     TNameTableToSchemaIdMapping indexIdMapping,
     TNameTableToSchemaIdMapping keyIndexIdMapping,

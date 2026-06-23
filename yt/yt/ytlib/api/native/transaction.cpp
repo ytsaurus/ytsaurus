@@ -92,37 +92,37 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTypeErasedRow GetTypeErasedRow(const NFuture::TRowModification& modification)
+TTypeErasedRow GetTypeErasedRow(const TRowModification& modification)
 {
     return Visit(modification,
-        [] (const NFuture::NRowModifications::TWriteRow& modification) {
+        [] (const NRowModifications::TWriteRow& modification) {
             return modification.Row.ToTypeErasedRow();
         },
-        [] (const NFuture::NRowModifications::TDeleteRow& modification) {
+        [] (const NRowModifications::TDeleteRow& modification) {
             return modification.Key.ToTypeErasedRow();
         },
-        [] (const NFuture::NRowModifications::TVersionedWriteRow& modification) {
+        [] (const NRowModifications::TVersionedWriteRow& modification) {
             return modification.Row;
         },
-        [] (const NFuture::NRowModifications::TWriteAndLockRow& modification) {
+        [] (const NRowModifications::TWriteAndLockRow& modification) {
             return modification.Row.ToTypeErasedRow();
         });
 }
 
-TLockMask ExtractLocks(const NFuture::TRowModification& modification)
+TLockMask GetLocks(const TRowModification& modification)
 {
     return Visit(modification,
-        [] (const NFuture::NRowModifications::TWriteRow&) -> TLockMask {
+        [] (const NRowModifications::TWriteRow&) -> TLockMask {
             return {};
         },
-        [] (const NFuture::NRowModifications::TDeleteRow&) -> TLockMask {
+        [] (const NRowModifications::TDeleteRow&) -> TLockMask {
             return {};
         },
-        [] (const NFuture::NRowModifications::TVersionedWriteRow&) -> TLockMask {
+        [] (const NRowModifications::TVersionedWriteRow&) -> TLockMask {
             return {};
         },
-        [] (const NFuture::NRowModifications::TWriteAndLockRow& modification) {
-            return std::move(modification.Locks);
+        [] (const NRowModifications::TWriteAndLockRow& modification) {
+            return modification.Locks;
         });
 }
 
@@ -442,10 +442,10 @@ public:
             .Run(producerPath, queuePath, sessionId, epoch, nameTable, serializedRows, options);
     }
 
-    void FutureModifyRows(
+    void ModifyRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        TSharedRange<NFuture::TRowModification> modifications,
+        TSharedRange<TRowModification> modifications,
         const TModifyRowsOptions& options) override
     {
         ValidateTabletTransactionId(GetId());
@@ -721,7 +721,7 @@ private:
             TYPath path,
             TNameTablePtr nameTable,
             TChunkedMemoryPool* memoryPool,
-            TSharedRange<NFuture::TRowModification> modifications,
+            TSharedRange<TRowModification> modifications,
             const TModifyRowsOptions& options)
             : Transaction_(transaction)
             , Connection_(std::move(connection))
@@ -799,7 +799,7 @@ private:
                     if (syncReplica.Transaction) {
                         YT_LOG_DEBUG("Submitting remote sync replication modifications (Count: %v)",
                             Modifications_.Size());
-                        syncReplica.Transaction->FutureModifyRows(
+                        syncReplica.Transaction->ModifyRows(
                             syncReplica.ReplicaInfo->ReplicaPath,
                             NameTable_,
                             Modifications_,
@@ -862,7 +862,7 @@ private:
 
             for (const auto& modification : Modifications_) {
                 Visit(modification,
-                    [&] (const NFuture::NRowModifications::TWriteRow& modification) {
+                    [&] (const NRowModifications::TWriteRow& modification) {
                         ValidateClientDataRow(
                             modification.Row,
                             *writeSchema,
@@ -871,7 +871,7 @@ private:
                             tabletIndexColumnId,
                             Options_.AllowMissingKeyColumns);
                     },
-                    [&] (const NFuture::NRowModifications::TVersionedWriteRow& modification) {
+                    [&] (const NRowModifications::TVersionedWriteRow& modification) {
                         if (tableInfo->IsReplicated()) {
                             THROW_ERROR_EXCEPTION(
                                 NTabletClient::EErrorCode::TableMustNotBeReplicated,
@@ -895,7 +895,7 @@ private:
                                 Options_.AllowMissingKeyColumns);
                         }
                     },
-                    [&] (const NFuture::NRowModifications::TDeleteRow& modification) {
+                    [&] (const NRowModifications::TDeleteRow& modification) {
                         if (!tableInfo->IsSorted()) {
                             THROW_ERROR_EXCEPTION(
                                 NTabletClient::EErrorCode::TableMustBeSorted,
@@ -909,7 +909,7 @@ private:
                             NameTable_,
                             Options_.AllowMissingKeyColumns);
                     },
-                    [&] (const NFuture::NRowModifications::TWriteAndLockRow& modification) {
+                    [&] (const NRowModifications::TWriteAndLockRow& modification) {
                         if (!tableInfo->IsSorted()) {
                             THROW_ERROR_EXCEPTION(
                                 NTabletClient::EErrorCode::TableMustBeSorted,
@@ -952,16 +952,16 @@ private:
                 const auto& modification = Modifications_[modificationIndex];
                 auto& modificationsData = ModificationsData_[modificationIndex];
 
-                if (std::holds_alternative<NFuture::NRowModifications::TWriteRow>(modification) ||
-                    std::holds_alternative<NFuture::NRowModifications::TDeleteRow>(modification) ||
-                    std::holds_alternative<NFuture::NRowModifications::TWriteAndLockRow>(modification))
+                if (std::holds_alternative<NRowModifications::TWriteRow>(modification) ||
+                    std::holds_alternative<NRowModifications::TDeleteRow>(modification) ||
+                    std::holds_alternative<NRowModifications::TWriteAndLockRow>(modification))
                 {
                     modificationsData.CapturedRow = rowBuffer->CaptureAndPermuteRow(
                         TUnversionedRow(GetTypeErasedRow(modification)),
                         *modificationSchema,
                         modificationSchema->GetKeyColumnCount(),
                         modificationIdMapping,
-                        /*validateDuplicateAndRequiredValueColumns*/ std::holds_alternative<NFuture::NRowModifications::TWriteRow>(modification));
+                        /*validateDuplicateAndRequiredValueColumns*/ std::holds_alternative<NRowModifications::TWriteRow>(modification));
 
                     if (tableInfo->HunkStorageId) {
                         auto rowPayloads = ExtractHunks(modificationsData.CapturedRow, modificationSchema);
@@ -1089,9 +1089,9 @@ private:
                 const auto& modification = Modifications_[modificationIndex];
                 auto& modificationData = ModificationsData_[modificationIndex];
 
-                if (std::holds_alternative<NFuture::NRowModifications::TWriteRow>(modification) ||
-                    std::holds_alternative<NFuture::NRowModifications::TDeleteRow>(modification) ||
-                    std::holds_alternative<NFuture::NRowModifications::TWriteAndLockRow>(modification))
+                if (std::holds_alternative<NRowModifications::TWriteRow>(modification) ||
+                    std::holds_alternative<NRowModifications::TDeleteRow>(modification) ||
+                    std::holds_alternative<NRowModifications::TWriteAndLockRow>(modification))
                 {
                     auto capturedRow = std::move(modificationData.CapturedRow);
 
@@ -1111,7 +1111,7 @@ private:
                     }
 
                     auto command = GetCommand(modification);
-                    auto locks = ExtractLocks(modification);
+                    auto locks = GetLocks(modification);
 
                     if (!tableInfo->Indices.empty()) {
                         for (int index = 0; index < locks.GetSize(); ++index) {
@@ -1191,7 +1191,7 @@ private:
 
                     session->SubmitUnversionedRow(command, capturedRow, std::move(locks));
                 } else {
-                    const auto* versionedWrite = std::get_if<NFuture::NRowModifications::TVersionedWriteRow>(&modification);
+                    const auto* versionedWrite = std::get_if<NRowModifications::TVersionedWriteRow>(&modification);
                     YT_VERIFY(versionedWrite);
 
                     TTypeErasedRow row;
@@ -1237,7 +1237,7 @@ private:
         const TYPath Path_;
         const TNameTablePtr NameTable_;
         TChunkedMemoryPool* HunkMemoryPool_;
-        const TSharedRange<NFuture::TRowModification> Modifications_;
+        const TSharedRange<TRowModification> Modifications_;
         const TModifyRowsOptions Options_;
 
         const NLogging::TLogger& Logger;
@@ -1253,19 +1253,19 @@ private:
         std::vector<TRef> HunkPayloads_;
         std::vector<THunkDescriptor> HunkDescriptors_;
 
-        static EWireProtocolCommand GetCommand(const NFuture::TRowModification& modification)
+        static EWireProtocolCommand GetCommand(const TRowModification& modification)
         {
             return Visit(modification,
-                [] (const NFuture::NRowModifications::TWriteRow&) {
+                [] (const NRowModifications::TWriteRow&) {
                     return EWireProtocolCommand::WriteRow;
                 },
-                [] (const NFuture::NRowModifications::TDeleteRow&) {
+                [] (const NRowModifications::TDeleteRow&) {
                     return EWireProtocolCommand::DeleteRow;
                 },
-                [] (const NFuture::NRowModifications::TVersionedWriteRow&) {
+                [] (const NRowModifications::TVersionedWriteRow&) {
                     return EWireProtocolCommand::VersionedWriteRow;
                 },
-                [] (const NFuture::NRowModifications::TWriteAndLockRow&) {
+                [] (const NRowModifications::TWriteAndLockRow&) {
                     return EWireProtocolCommand::WriteAndLockRow;
                 });
         }
@@ -2154,7 +2154,7 @@ private:
                 modifier->OnIndexModifications([&, modifyRowsOptions = std::move(modifyRowsOptions)] (
                     TYPath path,
                     TNameTablePtr nameTable,
-                    TSharedRange<NFuture::TRowModification> modifications)
+                    TSharedRange<TRowModification> modifications)
                 {
                     EnqueueModificationRequest(std::make_unique<TModificationRequest>(
                         this,
