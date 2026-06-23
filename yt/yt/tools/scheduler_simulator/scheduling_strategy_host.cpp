@@ -270,9 +270,9 @@ void TStrategyHost::CloseEventLogger()
     }
 }
 
-const THashMap<std::string, TString>& TStrategyHost::GetUserDefaultParentPoolMap() const
+const THashMap<std::string, std::string>& TStrategyHost::GetUserDefaultParentPoolMap() const
 {
-    static const THashMap<std::string, TString> stub;
+    static const THashMap<std::string, std::string> stub;
     return stub;
 }
 

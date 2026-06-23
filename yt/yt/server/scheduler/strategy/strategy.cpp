@@ -472,7 +472,7 @@ public:
         LastTemplatePoolTreeConfigMapYson_ = ConvertToYsonString(templatePoolTreeConfigMap);
     }
 
-    TError UpdateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) override
+    TError UpdateUserToDefaultPoolMap(const THashMap<std::string, std::string>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 

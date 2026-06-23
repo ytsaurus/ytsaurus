@@ -156,7 +156,7 @@ TOperationTransactions AttachControllerTransactions(
 
     // NB(coteeq): This could've been a bare noexcept in callback signature,
     // but neither std::function, nor TCallback offer an noexcept'able overload.
-    auto attachTransactionNoexcept = [&] (TTransactionId transactionId, const TString& name) {
+    auto attachTransactionNoexcept = [&] (TTransactionId transactionId, const std::string& name) {
         try {
             return attachTransaction(transactionId, name);
         } catch (const std::exception& ex) {
@@ -164,7 +164,7 @@ TOperationTransactions AttachControllerTransactions(
         }
     };
 
-    auto attachIfNotAttached = [&] (TTransactionId transactionId, const TString& name) {
+    auto attachIfNotAttached = [&] (TTransactionId transactionId, const std::string& name) {
         auto it = transactionIdToTransaction.find(transactionId);
         if (it != transactionIdToTransaction.end()) {
             return it->second;
