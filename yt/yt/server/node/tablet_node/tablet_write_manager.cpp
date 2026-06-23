@@ -120,6 +120,11 @@ public:
             auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
             auto& prelockedRows = transientWriteState->PrelockedRows;
 
+            // Geometric reserve: LockedRows accumulates across write records, so an exact reserve would degrade to O(n^2).
+            auto& lockedRows = *writeContext.LockedRows;
+            if (size_t needed = lockedRows.size() + writeRecord.RowCount; needed > lockedRows.capacity()) {
+                lockedRows.reserve(std::max(needed, lockedRows.capacity() * 2));
+            }
             for (int index = 0; index < writeRecord.RowCount; ++index) {
                 YT_ASSERT(!prelockedRows.empty());
                 auto rowRef = prelockedRows.front();
