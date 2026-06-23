@@ -15,7 +15,7 @@ class TProfilingMultiChunkReader
     , public TFirstBatchTimeTrackingBase
 {
 public:
-    TProfilingMultiChunkReader(ISchemalessMultiChunkReaderPtr underlying, TInstant start)
+    TProfilingMultiChunkReader(ISchemalessMultiChunkReaderPtr underlying, TCpuInstant start)
         : TFirstBatchTimeTrackingBase(start)
         , Underlying_(std::move(underlying))
     { }
@@ -118,7 +118,7 @@ private:
 
 IProfilingMultiChunkReaderPtr CreateProfilingMultiChunkReader(
     ISchemalessMultiChunkReaderPtr underlying,
-    TInstant start)
+    TCpuInstant start)
 {
     return New<TProfilingMultiChunkReader>(std::move(underlying), start);
 }

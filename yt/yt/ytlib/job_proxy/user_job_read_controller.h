@@ -17,6 +17,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <library/cpp/yt/cpu_clock/clock.h>
+
 #include <library/cpp/yt/memory/blob.h>
 
 namespace NYT::NJobProxy {
@@ -58,7 +60,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     std::string localHostName,
     TDuration adaptiveConfigTimeoutThreshold = TDuration::Zero(),
     i64 adaptiveRowCountUpperBound = std::numeric_limits<i64>::max(),
-    TInstant ioStartTime = GetInstant());
+    TCpuInstant ioStartTime = GetCpuInstant());
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/formats/format.h>
 
+#include <library/cpp/yt/cpu_clock/public.h>
+
 namespace NYT::NJobProxy {
 
 struct TWriterTimingStatistics
@@ -41,11 +43,11 @@ DEFINE_REFCOUNTED_TYPE(IProfilingSchemalessFormatWriter)
 
 IProfilingMultiChunkWriterPtr CreateProfilingMultiChunkWriter(
     NTableClient::ISchemalessMultiChunkWriterPtr underlying,
-    TInstant start);
+    TCpuInstant start);
 
 IProfilingSchemalessFormatWriterPtr CreateProfilingSchemalessFormatWriter(
     NFormats::ISchemalessFormatWriterPtr underlying,
-    TInstant start);
+    TCpuInstant start);
 
 ////////////////////////////////////////////////////////////////////////////////
 

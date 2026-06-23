@@ -68,7 +68,7 @@ public:
         std::optional<std::string> udfDirectory,
         TDuration threshold,
         i64 adaptiveRowCountUpperBound,
-        TInstant ioStartTime)
+        TCpuInstant ioStartTime)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker), "user_job_read_controller"))
         , ChunkReadOptions_(std::move(chunkReadOptions))
@@ -248,7 +248,7 @@ private:
     const TClientChunkReadOptions ChunkReadOptions_;
     const TMultiChunkReaderHostPtr ChunkReaderHost_;
     const TClosure OnNetworkRelease_;
-    const TInstant IOStartTime_;
+    const TCpuInstant IOStartTime_;
 
     IProfilingMultiChunkReaderPtr Reader_;
     std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
@@ -576,7 +576,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     std::string /*localHostName*/,
     TDuration adaptiveConfigTimeoutThreshold,
     i64 adaptiveRowCountUpperBound,
-    TInstant ioStartTime)
+    TCpuInstant ioStartTime)
 {
     const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla && !jobSpecExt.user_job_spec().is_secondary_distributed()) {
