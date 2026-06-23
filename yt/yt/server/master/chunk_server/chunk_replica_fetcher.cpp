@@ -305,7 +305,7 @@ public:
         if (state->ChunkIdsToFetchReplicasFromSequoia.empty()) {
             TChunkToStoredChunkReplicaList result;
             for (const auto& chunk : chunks) {
-                result.emplace(chunk->GetId(), chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ false));
+                result.try_emplace(chunk->GetId(), chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ false));
             }
             return result;
         }
@@ -382,7 +382,7 @@ public:
         if (state->ChunkIdsToFetchReplicasFromSequoia.empty()) {
             THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>> result;
             for (auto&& [chunkId, replicas] : std::move(state->MasterReplicas)) {
-                EmplaceOrCrash(result, chunkId, std::move(replicas));
+                result.try_emplace(chunkId, std::move(replicas));
             }
             return MakeFuture(std::move(result));
         }
