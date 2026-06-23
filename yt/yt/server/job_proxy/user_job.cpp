@@ -94,6 +94,8 @@
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
+#include <library/cpp/yt/cpu_clock/clock.h>
+
 #include <library/cpp/yt/error/error_helpers.h>
 
 #include <library/cpp/yt/system/env.h>
@@ -295,8 +297,8 @@ public:
     {
         TJob::Initialize();
 
-        IOStartTime_ = GetInstant();
-        YT_LOG_INFO("Started measuring I/O time (IOStartTime: %v)", IOStartTime_);
+        IOStartTime_ = GetCpuInstant();
+        YT_LOG_INFO("Started measuring I/O time (IOStartTime: %v)", CpuInstantToInstant(IOStartTime_));
 
         UserJobReadController_ = CreateUserJobReadController(
             Host_->GetJobSpecHelper(),

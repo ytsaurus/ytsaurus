@@ -36,6 +36,8 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
+#include <library/cpp/yt/cpu_clock/clock.h>
+
 namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
@@ -234,8 +236,8 @@ TJobResult TSimpleJobBase::Run()
     const auto& jobSpec = Host_->GetJobSpecHelper()->GetJobSpecExt();
     auto enableRowFilter = jobSpec.input_query_spec().options().enable_row_filter();
 
-    IOStartTime_ = GetInstant();
-    YT_LOG_INFO("Started measuring I/O time (IOStartTime: %v)", IOStartTime_);
+    IOStartTime_ = GetCpuInstant();
+    YT_LOG_INFO("Started measuring I/O time (IOStartTime: %v)", CpuInstantToInstant(IOStartTime_));
 
     if (jobSpec.has_input_query_spec() && enableRowFilter) {
         RunQuery(

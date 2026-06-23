@@ -16,6 +16,8 @@
 
 #include <yt/yt/ytlib/table_client/schemaful_reader_adapter.h>
 
+#include <library/cpp/yt/cpu_clock/public.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +58,7 @@ protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;
 
-    TInstant IOStartTime_;
+    TCpuInstant IOStartTime_;
 
     std::unique_ptr<IJobProfiler> JobProfiler_;
 
