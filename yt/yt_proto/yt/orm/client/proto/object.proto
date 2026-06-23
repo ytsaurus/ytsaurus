@@ -583,6 +583,9 @@ extend google.protobuf.FileOptions
     // If true, treats default value and field absence as equal.
     optional bool compare_absent_value_as_default = 30056;
 
+    // Exposes the /control/partition_objects method on the schema object. Off by default during
+    // rollout: the codegen drops the schema control field unless this is set.
+    optional bool enable_schema_partition_objects = 30062;
     // Exposes the /control/watch_log_info method on the schema object. Off by default during
     // rollout: the codegen drops the schema control field unless this is set.
     optional bool enable_schema_watch_log_info = 30060;
