@@ -2,12 +2,15 @@ import itertools
 import json
 import os
 import os.path
+import shutil
 
 import pytest
 
 import yatest.common
 
 import library.python.ydb.federated_topic_client as federated_topic_client
+
+import yt.yson as yson
 
 from yt.yt.experiments.private.flow.yandex.extensions.monium.python.mock import _MoniumServerMock
 
@@ -19,12 +22,21 @@ from library.python.port_manager import PortManager
 from contextlib import closing
 
 from yt.environment import init_operations_archive
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import (
+    assert_items_equal,
+    read_config,
+    wait_for_dynamic_config_update,
+)
+
 from yt.wrapper.flow_commands import PipelineState
+
 from yt.yql.tests.common.test_framework.test_utils import (
     wait_pipeline_state_or_failed_jobs,
     create_flow_logs_replicators,
     dump_pipeline_jobs_stderr,
+    convert_gateways_config_to_proto_text,
+    wait_for_debug,
+    FlowDebugHelper,
 )
 
 from yt_commands import (
@@ -308,20 +320,24 @@ class TestYtflowBase(TestQueueAgentBase):
     SOLOMON_SERVICE = "service"
     SOLOMON_CLUSTER = "cluster"
 
+    YTFLOW_WORKER_BIN = yatest.common.binary_path("yt/yql/tools/ytflow_worker/ytflow_worker")
+
     def setup_method(self, method):
         super(TestYtflowBase, self).setup_method(method)
         init_operations_archive.create_tables_latest_version(self.Env.create_client())
 
     @classmethod
     def modify_yql_agent_config(cls, config):
+        run_vanilla_operation = cls.debug_flow_output_directory is None
+
         config['yql_agent']['ytflow_gateway_config'] = dict(
-            ytflow_worker_bin=yatest.common.binary_path("yt/yql/tools/ytflow_worker/ytflow_worker"),
+            ytflow_worker_bin=cls.YTFLOW_WORKER_BIN,
             gateway_threads=1,
             default_settings=[
                 dict(name='_RpcTimeout', value='10s'),
                 dict(name='_MasterLockTimeout', value='2m'),
                 dict(name='_MasterLockPingPeriod', value='30s'),
-                dict(name='_FiniteStreams', value='1'),
+                dict(name='_FiniteStreams', value=str(run_vanilla_operation)),
                 dict(name='_UseCpuAwareBalancer', value='false'),
                 dict(name='_ControllerWriteFullLogsToYT', value='true'),
                 dict(name='_ControllerWriteLogsToFile', value='false'),
@@ -338,6 +354,7 @@ class TestYtflowBase(TestQueueAgentBase):
                 dict(name='_LogbrokerMirrorToCluster', value='all_original'),
                 dict(name='_LogbrokerConfigManagerPollingPeriod', value='100ms'),
                 dict(name='_SwitchComputationNodeBufferSizeBytes', value='0'),
+                dict(name='_RunVanillaOperation', value=str(run_vanilla_operation)),
             ],
             cluster_mapping=[dict(
                 name=cls.Env.id,
@@ -372,6 +389,86 @@ class TestYtflowBase(TestQueueAgentBase):
             yt_gateway_config['mr_job_udfs_dir'],
             yatest.common.binary_path("yt/yql/tests/agent/throwing_udf"),
         ])
+
+    @classmethod
+    def set_default_setting(cls, name, value, client):
+        config = client.get("//sys/yql_agent/config")
+
+        current_map = config
+        for key in ("yql_agent", "gateways", "ytflow"):
+            current_map = current_map.setdefault(key, yson.YsonMap())
+
+        settings = current_map.setdefault("default_settings", yson.YsonList())
+
+        result_setting = yson.YsonMap({
+            "name": name,
+            "value": value
+        })
+
+        found = False
+        for setting in settings:
+            if setting["name"] == name:
+                found = True
+                setting.update(result_setting)
+
+        if not found:
+            settings.append(result_setting)
+
+        client.set("//sys/yql_agent/config", config)
+
+        wait_for_dynamic_config_update(client, config, "//sys/yql_agent/instances")
+
+    @classmethod
+    def dump_gateways_from_yql_agent_config_as_proto_text(
+        cls, yql_agent_config_path, destination_gateways_conf_path
+    ):
+        yql_agent_config = read_config(yql_agent_config_path)
+
+        gateways_config = {
+            "yt": yql_agent_config['yql_agent']['gateway_config'],
+            "ytflow": yql_agent_config['yql_agent']['ytflow_gateway_config'],
+            "solomon": yql_agent_config['yql_agent']['solomon_gateway_config'],
+        }
+
+        yt_cluster_mapping = gateways_config['yt']['cluster_mapping']
+        assert len(yt_cluster_mapping) == 1
+        yt_cluster_mapping[0]['YTToken'] = "dummy_token"
+
+        ytflow_cluster_mapping = gateways_config['ytflow']['cluster_mapping']
+        assert len(ytflow_cluster_mapping) == 1
+        ytflow_cluster_mapping[0]['token'] = "dummy_token"
+
+        if has_logbroker_federation():
+            gateways_config["pq"] = yql_agent_config['yql_agent']['pq_gateway_config']
+
+        with open(destination_gateways_conf_path, "w") as f:
+            f.write(convert_gateways_config_to_proto_text(gateways_config))
+
+    @classmethod
+    def setup_yql_debug_environment(
+        cls, yql_agent_config_path, destination_gateways_conf_path,
+        query_text_source_path, query_text_destination_path
+    ):
+        cls.dump_gateways_from_yql_agent_config_as_proto_text(
+            yql_agent_config_path, destination_gateways_conf_path)
+
+        shutil.copy(query_text_source_path, query_text_destination_path)
+
+        wait_for_debug()
+
+    @pytest.fixture(scope="class", autouse=True)
+    def setup_debug_yql_output_directory(self):
+        cls = type(self)
+        cls.debug_yql_output_directory = os.getenv("DEBUG_YQL_OUTPUT_DIRECTORY")
+        if cls.debug_yql_output_directory is not None:
+            os.makedirs(cls.debug_yql_output_directory, exist_ok=True)
+
+    @pytest.fixture(scope="class", autouse=True)
+    def setup_debug_flow_output_directory(self):
+        cls = type(self)
+        cls.debug_flow_output_directory = os.getenv("DEBUG_FLOW_OUTPUT_DIRECTORY")
+        if cls.debug_flow_output_directory is not None:
+            os.makedirs(cls.debug_flow_output_directory, exist_ok=True)
 
     @pytest.fixture(autouse=True)
     def setup_yt_utils(self):
@@ -461,6 +558,38 @@ class TestYtflowBase(TestQueueAgentBase):
 
     @pytest.fixture
     def run_query(self, request):
+        test_output_directory = os.path.join(
+            yatest.common.output_path(), get_test_id(request))
+
+        os.makedirs(test_output_directory)
+
+        query_text_path = os.path.join(test_output_directory, "query.yql")
+
+        def wait_if_yql_debug_requested():
+            if self.debug_yql_output_directory is not None:
+                self.setup_yql_debug_environment(
+                    os.path.join(yatest.common.output_path(), "yql_agent_configs", "yql_agent-0.yson"),
+                    os.path.join(self.debug_yql_output_directory, "gateways.conf"),
+                    query_text_path,
+                    os.path.join(self.debug_yql_output_directory, "query.yql"))
+
+        def wait_if_flow_debug_requested(client, port_manager):
+            if self.debug_flow_output_directory is not None:
+                flowDebugHelper = FlowDebugHelper(
+                    "primary",
+                    self.Env.get_http_proxy_address(),
+                    client,
+                    self.PIPELINE_PATH,
+                    self.YTFLOW_WORKER_BIN,
+                    port_manager)
+
+                flowDebugHelper.setup_flow_debug_environment(
+                    os.path.join(test_output_directory, "setup_pipeline_spec_config.yson"),
+                    self.debug_flow_output_directory,
+                    controller_wait_retries=5,
+                    controller_retry_delay=5,
+                    flow_command_timeout=600)
+
         def impl(query_text):
             with PortManager() as port_manager:
                 pipeline_path = self.PIPELINE_PATH
@@ -495,20 +624,27 @@ pragma Ytflow.LogbrokerWriteCompressionLevel = "{self.LOGBROKER_COMPRESSION_LEVE
 
                 query_text = '\n'.join([query_text_header, query_text])
 
+                with open(query_text_path, "w") as f:
+                    f.write(query_text)
+
+                wait_if_yql_debug_requested()
+
                 client = self.Env.create_client()
 
-                test_id = get_test_id(request)
+                self.set_default_setting("_DumpPipelineSpecToDirectory", test_output_directory, client)
 
                 controller_logs_replicator, worker_logs_replicator = create_flow_logs_replicators(
                     self.PIPELINE_PATH,
-                    yatest.common.output_path(),
+                    test_output_directory,
                     logs_batch_size=1000,
-                    output_file_prefix=test_id,
+                    output_file_prefix="",
                     yt_client=client)
 
                 with controller_logs_replicator, worker_logs_replicator:
                     query = start_query("yql", query_text)
                     query.track()
+
+                    wait_if_flow_debug_requested(client, port_manager)
 
                     try:
                         wait_pipeline_state_or_failed_jobs(
@@ -519,7 +655,7 @@ pragma Ytflow.LogbrokerWriteCompressionLevel = "{self.LOGBROKER_COMPRESSION_LEVE
                     finally:
                         dump_pipeline_jobs_stderr(
                             self.PIPELINE_PATH,
-                            os.path.join(yatest.common.output_path(), f"{test_id}_pipeline_jobs.stderr"),
+                            os.path.join(test_output_directory, "pipeline_jobs.stderr"),
                             client=client)
 
         return impl

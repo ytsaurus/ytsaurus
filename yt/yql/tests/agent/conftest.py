@@ -10,6 +10,8 @@ from yt.common import YtError
 
 import os
 
+import shutil
+
 import pytest
 
 import yatest.common
@@ -39,6 +41,13 @@ class YqlAgent():
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.yql_agent.stop()
+
+
+def copy_yql_configs_to_test_folder(yql_agent):
+    for config_path in yql_agent.config_paths:
+        test_folder_configs_path = os.path.join(yatest.common.output_path(), "yql_agent_configs")
+        os.makedirs(test_folder_configs_path, exist_ok=True)
+        shutil.copy(config_path, test_folder_configs_path)
 
 
 def update_yql_agent_environment(cls, yql_agent):
@@ -88,4 +97,5 @@ def yql_agent(request):
 
     with YqlAgent(cls.Env, cls.remote_envs, count, libraries, config) as yql_agent:
         update_yql_agent_environment(cls, yql_agent)
+        copy_yql_configs_to_test_folder(yql_agent.yql_agent)
         yield yql_agent
