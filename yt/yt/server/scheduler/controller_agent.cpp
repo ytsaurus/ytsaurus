@@ -35,7 +35,7 @@ void ToProto(NProto::TScheduleAllocationRequest* protoRequest, const TScheduleAl
 TControllerAgent::TControllerAgent(
     const TAgentId& id,
     const NNodeTrackerClient::TAddressMap& agentAddresses,
-    THashSet<TString> tags,
+    THashSet<std::string> tags,
     NRpc::IChannelPtr channel,
     const IInvokerPtr& invoker,
     const IInvokerPtr& heartbeatInvoker,
@@ -67,7 +67,7 @@ const NNodeTrackerClient::TAddressMap& TControllerAgent::GetAgentAddresses() con
     return AgentAddresses_;
 }
 
-const THashSet<TString>& TControllerAgent::GetTags() const
+const THashSet<std::string>& TControllerAgent::GetTags() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
