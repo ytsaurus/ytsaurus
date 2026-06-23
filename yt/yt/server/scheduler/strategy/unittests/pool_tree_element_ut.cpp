@@ -244,9 +244,9 @@ public:
         return OKFuture;
     }
 
-    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, std::string>& GetUserDefaultParentPoolMap() const override
     {
-        static const THashMap<std::string, TString> stub;
+        static const THashMap<std::string, std::string> stub;
         return stub;
     }
 

@@ -693,8 +693,7 @@ public:
             user,
             /*startTime*/ TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
-            // TODO(babenko): migrate to std::string
-            spec->Alias ? std::make_optional(TString(*spec->Alias)) : std::nullopt,
+            spec->Alias,
             std::move(preprocessedSpec.ExperimentAssignments),
             std::move(preprocessedSpec.ProvidedSpecString));
 
@@ -1815,7 +1814,7 @@ private:
     };
 
     THashMap<TOperationId, TOperationPtr> IdToOperation_;
-    THashMap<TString, TOperationAlias> OperationAliases_;
+    THashMap<std::string, TOperationAlias> OperationAliases_;
     THashMap<TOperationId, IYPathServicePtr> IdToOperationService_;
 
     THashMap<TOperationId, TOperationPtr> IdToStartingOperation_;
@@ -1878,7 +1877,7 @@ private:
     NYTree::ICachedYPathServicePtr StaticOrchidService_;
     NYTree::IServiceCombinerPtr CombinedOrchidService_;
 
-    THashMap<std::string, TString> UserToDefaultPoolMap_;
+    THashMap<std::string, std::string> UserToDefaultPoolMap_;
 
     TExperimentAssigner ExperimentsAssigner_;
     TError LastExperimentAssignmentError_;
@@ -2519,7 +2518,7 @@ private:
 
         auto future =
             BIND([userToDefaultPoolMapYson = TYsonString(rspOrError.Value()->value())] {
-                return ConvertTo<THashMap<std::string, TString>>(userToDefaultPoolMapYson);
+                return ConvertTo<THashMap<std::string, std::string>>(userToDefaultPoolMapYson);
             })
             .AsyncVia(GetBackgroundInvoker())
             .Run();
@@ -2766,7 +2765,7 @@ private:
         return briefSpec;
     }
 
-    ITransactionPtr AttachTransaction(TOperationId operationId, TTransactionId transactionId, const TString& name)
+    ITransactionPtr AttachTransaction(TOperationId operationId, TTransactionId transactionId, const std::string& name)
     {
         if (!transactionId) {
             return nullptr;
@@ -4113,7 +4112,7 @@ private:
         return result;
     }
 
-    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, std::string>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
     }
@@ -4326,7 +4325,7 @@ private:
                 // If it has finished, but we still have an entry in alias -> operation id internal
                 // mapping, we return a fictive map { operation_id = <operation_id> }. It is useful
                 // for alias resolution when operation is not archived yet but already finished.
-                auto it = Scheduler_->OperationAliases_.find(TString(key));
+                auto it = Scheduler_->OperationAliases_.find(key);
                 if (it == Scheduler_->OperationAliases_.end()) {
                     return nullptr;
                 } else {
