@@ -141,7 +141,7 @@ ELocationState TDiskLocation::GetState() const
     return State_.load();
 }
 
-bool TDiskLocation::ChangeState(
+std::optional<ELocationState> TDiskLocation::ChangeState(
     ELocationState newState,
     std::optional<ELocationState> expectedState,
     const TError& disableReason)
@@ -166,7 +166,7 @@ bool TDiskLocation::ChangeState(
                 "Incompatible location state (Expected: %v, Actual: %v)",
                 expectedState,
                 currentState);
-            return false;
+            return std::nullopt;
         }
     }
 
@@ -181,7 +181,7 @@ bool TDiskLocation::ChangeState(
         }
     }
 
-    return true;
+    return oldState;
 }
 
 void TDiskLocation::InitializeDiskLocationProfiling(const NProfiling::TProfiler& profiler)
