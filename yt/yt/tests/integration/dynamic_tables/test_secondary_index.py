@@ -610,7 +610,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             "Alias.valueA": 100,
             "Alias.valueB": False,
         }]
-        rows = select_rows(f"""Alias.keyA, Alias.keyB, Alias.valueA, Alias.valueB
+        rows = select_rows("""Alias.keyA, Alias.keyB, Alias.valueA, Alias.valueB
             from [//tmp/table] Alias with index [//tmp/secondary] I""")
         assert_items_equal(sorted_dicts(rows), sorted_dicts(aliased_table_rows))
 
