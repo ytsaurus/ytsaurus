@@ -61,6 +61,11 @@ message LoggerConfig {
     optional ConsoleLoggerBackendConfig ConsoleBackend = 4;
 }
 
+message SubprocessWorkerConfig {
+    optional uint64 MemoryLimitBytes = 1;
+    optional uint64 TimeoutSeconds = 2;
+}
+
 message YqlTornadoBackendConfig {
     optional uint64 MaxBodySize = 1;
     optional uint64 Processes = 2 [default = 12];
@@ -68,6 +73,7 @@ message YqlTornadoBackendConfig {
     repeated LoggerConfig Loggers = 4;
     optional string CertFile = 5;
     optional string PkFile = 6;
+    optional SubprocessWorkerConfig SubprocessWorker = 7;
 }
 
 message YqlTornadoConfig {
