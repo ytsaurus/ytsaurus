@@ -16,7 +16,7 @@ class YCFunctionAuth:
 class CloudFunctionClient:
     SUBMIT_TASK_ID = "d4ee6v3cr3udu6bpnova"
     RUN_TASK_ID = "d4ei35u5bejcoiccbkcf"
-    GET_TASK_ID = "d4ev9b826qs0dsnt006q"
+    GET_TASK_ID = "d4ehkeh7g21o51hqn3kq"
     LIST_TASKS_ID = "d4ef48hr1t9ll3mbioil"
 
     def __init__(self, auth: YCFunctionAuth, max_retries: int = 3, backoff_factor: int = 1.0):

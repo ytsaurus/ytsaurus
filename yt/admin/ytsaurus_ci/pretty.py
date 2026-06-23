@@ -40,7 +40,7 @@ def print_job_info(data, job_id):
     click.secho("  Duration:  ", nl=False, bold=True)
     click.echo(_format_duration(data))
 
-    logs = data.get("logs_urls", [])
+    logs = [url for url in data.get("logs_urls", []) if url]
     if logs:
         click.echo()
         click.secho("  Logs:", bold=True)
