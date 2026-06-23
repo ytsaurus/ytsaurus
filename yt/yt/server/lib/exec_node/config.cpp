@@ -182,6 +182,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_async_artifact_copy", &TThis::EnableAsyncArtifactCopy)
         .Default(false);
 
+    registrar.Parameter("artifact_pipe_size", &TThis::ArtifactPipeSize)
+        .Default(1_MB);
+
     registrar.Parameter("copy_rate_aggregator_half_life", &TThis::CopyRateAggregatorHalfLife)
         .Default(TDuration::Minutes(1));
 

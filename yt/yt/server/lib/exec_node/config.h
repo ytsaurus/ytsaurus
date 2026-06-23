@@ -183,6 +183,8 @@ struct TSlotManagerDynamicConfig
     //! Copy artifacts without blocking any of the slot location IO invokers.
     bool EnableAsyncArtifactCopy;
 
+    std::optional<i64> ArtifactPipeSize;
+
     TDuration CopyRateAggregatorHalfLife;
 
     //! Polymorphic job environment configuration.
