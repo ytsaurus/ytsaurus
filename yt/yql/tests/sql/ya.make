@@ -7,6 +7,7 @@ RECURSE(
 IF (NOT OPENSOURCE OR OPENSOURCE_PROJECT == "ydb")
     RECURSE(
         dq_file
+        hybrid_file
     )
 ENDIF()
 
