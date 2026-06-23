@@ -22,6 +22,8 @@
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
+#include <library/cpp/yson/node/node_io.h>
+
 namespace NYT::NYqlPlugin {
 
 using namespace NConcurrency;
@@ -157,7 +159,7 @@ public:
             data.SetUsername(user);
             data.SetResultFormat(NYql::NProto::EDataFormat::YSON_TEXT);
             data.SetAttributes(settings.ToString());
-            data.SetAuthData(credentials.ToString());
+            data.SetAuthData(SerializeCredentials(credentials));
             data.SetIsSystemRequest(false);
 
             auto patch = GatewaysConfigPatch_.Load();
@@ -298,6 +300,26 @@ private:
     THashMap<TQueryId, TActiveQuery> ActiveQueries_;
 
     NThreading::TAtomicObject<TString> GatewaysConfigPatch_;
+
+    TString SerializeCredentials(const TYsonString& credentials)
+    {
+        NYql::NProto::TTaskAuthTokens authTokens;
+
+        auto credentialsNode = NodeFromYsonString(credentials.ToString());
+        if (!credentialsNode.IsMap()) {
+            return authTokens.SerializeAsString();
+        }
+
+        for (const auto& [alias, value] : credentialsNode.AsMap()) {
+            auto* token = authTokens.AddTokens();
+            token->SetAlias(alias);
+            token->SetCategory(value.HasKey("category") ? value.ChildAsString("category") : "");
+            token->SetSubcategory(value.HasKey("subcategory") ? value.ChildAsString("subcategory") : "");
+            token->SetContent(value.HasKey("content") ? value.ChildAsString("content") : "");
+        }
+
+        return authTokens.SerializeAsString();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
