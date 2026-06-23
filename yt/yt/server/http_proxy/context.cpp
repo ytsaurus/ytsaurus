@@ -451,7 +451,7 @@ void TContext::CaptureParameters()
     try {
         auto header = GatherHeader(Request_->GetHeaders(), "x-yt-parameters");
         if (header) {
-            TMemoryInput stream(header->data(), header->size());
+            TMemoryInput stream(*header);
             auto fromHeaders = ConvertToNode(CreateProducerForFormat(
                 *HeadersFormat_,
                 EDataType::Structured,

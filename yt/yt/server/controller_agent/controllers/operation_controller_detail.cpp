@@ -166,6 +166,8 @@
 
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <library/cpp/iterator/concatenate.h>
 #include <library/cpp/iterator/zip.h>
 
@@ -1438,7 +1440,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         UpdateAllTasks();
 
         if (Config_->TestingOptions->EnableSnapshotCycleAfterMaterialization) {
-            TStringStream stringStream;
+            TStdStringStream stringStream;
             SaveSnapshot(&stringStream);
             TOperationSnapshot snapshot;
             snapshot.Version = ToUnderlying(GetCurrentSnapshotVersion());
