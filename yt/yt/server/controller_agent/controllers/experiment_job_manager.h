@@ -56,7 +56,7 @@ public:
     TLayerJobExperiment();
 
     TLayerJobExperiment(
-        TString defaultBaseLayerPath,
+        NYPath::TYPath defaultBaseLayerPath,
         TUserFile baseLayer,
         bool enableBypassArtifactCache,
         const NLogging::TLogger& logger);
@@ -73,7 +73,7 @@ public:
     TError GetAlert(const TOperationSpecBasePtr& operationSpec) const override;
 
 private:
-    TString DefaultBaseLayerPath_;
+    NYPath::TYPath DefaultBaseLayerPath_;
     TUserFile BaseLayer_;
     NLogging::TSerializableLogger Logger;
     bool EnableBypassArtifactCache_;

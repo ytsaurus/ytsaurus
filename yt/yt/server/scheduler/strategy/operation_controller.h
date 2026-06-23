@@ -99,7 +99,7 @@ public:
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,
         const std::string& treeId,
-        const TString& poolPath,
+        const NYPath::TYPath& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout,
         std::optional<std::string> allocationGroupName);
 
