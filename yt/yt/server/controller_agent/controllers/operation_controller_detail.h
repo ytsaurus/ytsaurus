@@ -1188,7 +1188,7 @@ private:
     TAggregatedJobStatistics AggregatedFinishedJobStatistics_;
 
     //! Per task: first job that exceeded the thread count limit (for operation alerts).
-    THashMap<TString, THighThreadCountJobInfo> HighThreadCountJobPerTask_;
+    THashMap<std::string, THighThreadCountJobInfo> HighThreadCountJobPerTask_;
 
     //! Records peak memory usage.
     i64 PeakMemoryUsage_ = 0;

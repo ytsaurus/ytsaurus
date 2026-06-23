@@ -3197,7 +3197,8 @@ void TOperationControllerBase::OnJobStarted(const TJobletPtr& joblet)
     YT_LOG_DEBUG("Job started (JobId: %v)", joblet->JobId);
 
     joblet->LastActivityTime = TInstant::Now();
-    joblet->TaskName = joblet->Task->GetVertexDescriptor();
+    // TODO(babenko): migrate to std::string
+    joblet->TaskName = TString(joblet->Task->GetVertexDescriptor());
 
     GetJobProfiler()->ProfileStartedJob(*joblet);
 
@@ -4617,7 +4618,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
     int nonMatchingFilterNodeCount = 0;
-    THashMap<TString, TEnumIndexedArray<EJobResourceWithDiskQuotaType, i64>> insufficientResourcesNodeCountPerTask;
+    THashMap<std::string, TEnumIndexedArray<EJobResourceWithDiskQuotaType, i64>> insufficientResourcesNodeCountPerTask;
     for (const auto& [_, descriptor] : GetSuitableExecNodeDescriptors()) {
         if (!descriptor->CanSchedule(tagFilter)) {
             ++nonMatchingFilterNodeCount;
