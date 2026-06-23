@@ -13,31 +13,37 @@ namespace NYT::NQueueAgent::NDetail {
 template <EObjectKind Kind, typename TRow>
 NProfiling::TTagSet CreateObjectProfilingTags(
     const TRow& row,
-    bool enablePathAggregation,
-    bool addObjectType,
-    std::optional<bool> leading)
+    const TProfilingOptions& options)
 {
     auto pathTag = TrimProfilingTagValue(row.Path.GetPath());
 
     NProfiling::TTagSet tags;
     tags.AddRequiredTag({Format("%lv_cluster", Kind), row.Path.GetCluster().value()});
 
-    if (enablePathAggregation) {
-        tags.AddTag({Format("%lv_path", Kind), pathTag}, /*parent*/ -1); // Parent is queue_cluster.
-        tags.AddTag({Format("%lv_tag", Kind), row.GetProfilingTag().value_or(NoneProfilingTag)}, /*parent*/ -2); // Parent is queue_cluster.
-        if (addObjectType) {
-            tags.AddTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)}, /*parent*/ -3); // Parent is queue_cluster.
+    if (options.EnablePathAggregation) {
+        tags.AddTag({Format("%lv_path", Kind), pathTag}, /*parent*/ -1); // Parent is cluster.
+        tags.AddTag({Format("%lv_tag", Kind), row.GetProfilingTag().value_or(NoneProfilingTag)}, /*parent*/ -2); // Parent is cluster.
+        int parent = -3;
+        if (options.Name) {
+            tags.AddTag({Format("%lv_name", Kind), TrimProfilingTagValue(*options.Name)}, parent); // Parent is cluster.
+            --parent;
+        }
+        if (options.AddObjectType) {
+            tags.AddTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)}, parent); // Parent is cluster.
         }
     } else {
         tags.AddRequiredTag({Format("%lv_path", Kind), pathTag});
         tags.AddRequiredTag({Format("%lv_tag", Kind), row.GetProfilingTag().value_or(NoneProfilingTag)});
-        if (addObjectType) {
+        if (options.Name) {
+            tags.AddRequiredTag({Format("%lv_name", Kind), TrimProfilingTagValue(*options.Name)});
+        }
+        if (options.AddObjectType) {
             tags.AddRequiredTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)});
         }
     }
 
-    if (leading.has_value()) {
-        tags.AddRequiredTag({"leading", *leading ? "true" : "false"});
+    if (options.Leading) {
+        tags.AddRequiredTag({"leading", *options.Leading ? "true" : "false"});
     }
 
     return tags;
