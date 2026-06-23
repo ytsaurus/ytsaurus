@@ -41,6 +41,7 @@
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
@@ -103,10 +104,10 @@ void TBootstrap::Run()
     ControlQueue_ = New<TActionQueue>("Control");
     ControlInvoker_ = ControlQueue_->GetInvoker();
 
-    BIND(&TBootstrap::DoRun, this)
-        .AsyncVia(ControlInvoker_)
-        .Run()
-        .BlockingGet()
+    NYT::NConcurrency::WaitForFast(
+        BIND(&TBootstrap::DoRun, this)
+            .AsyncVia(ControlInvoker_)
+            .Run())
         .ThrowOnError();
 
     Sleep(TDuration::Max());
