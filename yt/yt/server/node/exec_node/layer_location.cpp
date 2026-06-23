@@ -70,7 +70,7 @@ TLayerLocation::TLayerLocation(
     // More details here: PORTO-460.
     , PlacePath_((Config_->LocationIsAbsolute ? "" : "//") + Config_->Path)
 {
-    auto profiler = NProfiling::TProfiler()
+    auto profiler = ExecNodeProfiler()
         .WithPrefix("/layer")
         .WithTag("location_id", Id_);
 
