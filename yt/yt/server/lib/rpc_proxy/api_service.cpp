@@ -5478,7 +5478,7 @@ void TApiService::DoModifyRows(
             << TErrorAttribute("row_modification_types_size", request.row_modification_types_size());
     }
 
-    std::vector<NFuture::TRowModification> modifications;
+    std::vector<TRowModification> modifications;
     modifications.reserve(rowsetSize);
     for (ssize_t index = 0; index < rowsetSize; ++index) {
         TLockMask lockMask;
@@ -5505,18 +5505,18 @@ void TApiService::DoModifyRows(
                 THROW_ERROR_EXCEPTION_IF(!lockMask.IsNone(),
                     "Cannot perform lock by \"write\" modification type; use \"write_and_lock\"");
 
-                modifications.push_back(NFuture::NRowModifications::TWriteRow(rowsetRows[index]));
+                modifications.push_back(NRowModifications::TWriteRow(rowsetRows[index]));
                 break;
 
             case NApi::NRpcProxy::NProto::ERowModificationType::RMT_DELETE:
                 THROW_ERROR_EXCEPTION_IF(!lockMask.IsNone(),
                     "Cannot perform lock by \"delete\" modification type; use \"write_and_lock\"");
 
-                modifications.push_back(NFuture::NRowModifications::TDeleteRow(rowsetRows[index]));
+                modifications.push_back(NRowModifications::TDeleteRow(rowsetRows[index]));
                 break;
 
             case NApi::NRpcProxy::NProto::ERowModificationType::RMT_MODIFY:
-                modifications.push_back(NFuture::NRowModifications::TWriteAndLockRow(rowsetRows[index], std::move(lockMask)));
+                modifications.push_back(NRowModifications::TWriteAndLockRow(rowsetRows[index], std::move(lockMask)));
                 break;
 
             default:
@@ -5544,7 +5544,7 @@ void TApiService::DoModifyRows(
         options.SequenceNumberSourceId = request.sequence_number_source_id();
     }
 
-    transaction->FutureModifyRows(
+    transaction->ModifyRows(
         path,
         rowset->GetNameTable(),
         MakeSharedRange(std::move(modifications), rowset),

@@ -52,19 +52,19 @@ const TIndexInfo DefaultIndexInfo = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ERowModificationType GetModificationType(const NFuture::TRowModification& modification)
+ERowModificationType GetModificationType(const TRowModification& modification)
 {
     return Visit(modification,
-        [] (const NFuture::NRowModifications::TWriteRow&) {
+        [] (const NRowModifications::TWriteRow&) {
             return ERowModificationType::Write;
         },
-        [] (const NFuture::NRowModifications::TDeleteRow&) {
+        [] (const NRowModifications::TDeleteRow&) {
             return ERowModificationType::Delete;
         },
-        [] (const NFuture::NRowModifications::TVersionedWriteRow&) {
+        [] (const NRowModifications::TVersionedWriteRow&) {
             return ERowModificationType::VersionedWrite;
         },
-        [] (const NFuture::NRowModifications::TWriteAndLockRow&) {
+        [] (const NRowModifications::TWriteAndLockRow&) {
             return ERowModificationType::WriteAndLock;
         });
 }
@@ -148,7 +148,7 @@ public:
             "Expected a write modification, got %v",
             modificationType);
 
-        const auto& indexWrite = std::get<NFuture::NRowModifications::TWriteRow>(indexModification);
+        const auto& indexWrite = std::get<NRowModifications::TWriteRow>(indexModification);
         for (auto val : indexWrite.Row) {
             auto primaryIndex = val.Id;
             if (primaryIndex >= columnCount) {
@@ -158,7 +158,7 @@ public:
         }
     }
 
-    TSharedRange<NFuture::TRowModification> Run(
+    TSharedRange<TRowModification> Run(
         TTableSchemaPtr tableSchema,
         TTableSchemaPtr indexSchema,
         TRange<TUnversionedSubmittedRow> tableModifications = {},
@@ -181,12 +181,12 @@ public:
         WaitForFast(modifier->LookupRows())
             .ThrowOnError();
 
-        TSharedRange<NFuture::TRowModification> indexModifications;
+        TSharedRange<TRowModification> indexModifications;
 
         WaitForFast(modifier->OnIndexModifications([&] (
                 NYPath::TYPath,
                 TNameTablePtr,
-                TSharedRange<NFuture::TRowModification> modifications)
+                TSharedRange<TRowModification> modifications)
             {
                 indexModifications = std::move(modifications);
             }))
@@ -647,13 +647,13 @@ TEST_F(TSecondaryIndexTest, OverwriteRow)
         (GetModificationType(indexModifications[1]) == ERowModificationType::Write));
 
     for (auto& im : indexModifications) {
-        if (const auto* indexWrite = std::get_if<NFuture::NRowModifications::TWriteRow>(&im);
+        if (const auto* indexWrite = std::get_if<NRowModifications::TWriteRow>(&im);
             indexWrite)
         {
             EXPECT_EQ(indexWrite->Row[0].Data.Int64, 1);
             EXPECT_EQ(indexWrite->Row[1].Data.Int64, 0);
 
-        } else if (const auto* indexDelete = std::get_if<NFuture::NRowModifications::TDeleteRow>(&im);
+        } else if (const auto* indexDelete = std::get_if<NRowModifications::TDeleteRow>(&im);
             indexDelete)
         {
             EXPECT_EQ(indexDelete->Key[0].Data.Int64, 0);
