@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from yt_queue_agent_test_base import TestQueueAgentBase, QueueAgentOrchid
+from yt_queue_agent_test_base import TestQueueAgentBase, QueueAgentOrchid, GenericObjectPath
 
 from yt_commands import (
     print_debug,
@@ -43,6 +43,77 @@ def get_profilers() -> dict[str, Profiler]:
 ##################################################################
 
 
+class ConsumerMetricsHelper:
+    def __init__(self, profiler: Profiler, tags: dict[str, str] | None = None):
+        self.profiler = profiler
+        self.tags = tags
+
+    def _get_gauge_summary_metric(self, name):
+        return int(self.profiler.summary(f"queue_agent/consumer_partition/{name}", fixed_tags=self.tags).get_all()[0]["value"])
+
+    def _get_counter_metric(self, name):
+        return self.profiler.counter(f"queue_agent/consumer_partition/{name}", tags=self.tags).get_delta()
+
+    def _get_gauge_time_summary_metric(self, name):
+        return self.profiler.summary(f"queue_agent/consumer_partition/{name}", fixed_tags=self.tags).get_all()[0]["value"]
+
+    def _get_closest_bins_gauge_histogram_metric(self, name):
+        bins = self.profiler.histogram(f"queue_agent/consumer_partition/{name}", fixed_tags=self.tags).get_all()[0]["value"]
+
+        for i, bin in enumerate(bins):
+            if bin["count"] > 0:
+                assert bin["count"] == 1
+                if i > 0:
+                    return bins[i - 1]["bound"] / 1000, bin["bound"] / 1000
+                return 0, bin["bound"] / 1000
+
+        raise Exception("No bins with count > 0")
+
+    def get_lag_data_weight(self):
+        return self._get_gauge_summary_metric("lag_data_weight")
+
+    def get_lag_rows(self):
+        return self._get_gauge_summary_metric("lag_rows")
+
+    def get_offset(self):
+        return self._get_gauge_summary_metric("offset")
+
+    def get_rows_consumed(self):
+        return self._get_counter_metric("rows_consumed")
+
+    def get_data_weight_consumed(self):
+        return self._get_counter_metric("data_weight_consumed")
+
+    def get_lag_time(self):
+        return self._get_gauge_time_summary_metric("lag_time")
+
+    def get_lag_time_histogram(self):
+        return self._get_closest_bins_gauge_histogram_metric("lag_time_histogram")
+
+    def check_lag_time(self, time_before_insert, time_after_insert):
+        expected_lower_bound = time.time() - time_after_insert
+        lag_time = self.get_lag_time()
+        expected_upper_bound = time.time() - time_before_insert
+        print_debug(
+            f"""Checking lag time. {lag_time=},
+            expected: [{expected_lower_bound}, {expected_upper_bound}]"""
+        )
+        return 0 < lag_time <= expected_upper_bound * TIME_METRIC_NON_FLAP_MULTIPLIER
+
+    def check_histogram_metric(self, time_before_insert, time_after_insert):
+        expected_lower_bound = time.time() - time_after_insert
+        lower_bin, upper_bin = self.get_lag_time_histogram()
+        expected_upper_bound = time.time() - time_before_insert + 1
+        print_debug(
+            f"""Checking histogram. {lower_bin=}, {upper_bin=},
+            expected: [{expected_lower_bound}, {expected_upper_bound}]"""
+        )
+        return 0 < lower_bin <= expected_upper_bound * TIME_METRIC_NON_FLAP_MULTIPLIER
+
+
+##################################################################
+
+
 class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -67,37 +138,19 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         consumer_orchid = orchid.get_consumer_orchid(f"primary:{consumer_path}")
         queue_orchid = orchid.get_queue_orchid(f"primary:{queue}")
 
-        profiler = get_profiler()
-
-        def get_gauge_summary_metric(name):
-            return int(profiler.summary(f"queue_agent/consumer_partition/{name}").get_all()[0]["value"])
-
-        def get_counter_metric(name):
-            return profiler.counter(f"queue_agent/consumer_partition/{name}").get_delta()
-
-        def get_gauge_time_summary_metric(name):
-            return profiler.summary(f"queue_agent/consumer_partition/{name}").get_all()[0]["value"]
-
-        def get_closest_bins_gauge_histogram_metric(name):
-            bins = profiler.histogram(f"queue_agent/consumer_partition/{name}").get_all()[0]["value"]
-
-            for i, bin in enumerate(bins):
-                if bin["count"] > 0:
-                    assert bin["count"] == 1
-                    if i > 0:
-                        return bins[i - 1]["bound"] / 1000, bin["bound"] / 1000
-                    return 0, bin["bound"] / 1000
-
-            raise Exception("No bins with count > 0")
+        consumer_metrics = ConsumerMetricsHelper(get_profiler(), tags={
+            "consumer_path": consumer_path,
+            "consumer_cluster": "primary",
+        })
 
         queue_orchid.wait_fresh_pass()
         consumer_orchid.wait_fresh_pass()
 
-        wait(lambda: get_gauge_summary_metric("lag_data_weight") == 0, ignore_exceptions=True)
-        wait(lambda: get_gauge_summary_metric("lag_rows") == 0, ignore_exceptions=True)
-        wait(lambda: get_gauge_summary_metric("offset") == 0, ignore_exceptions=True)
-        wait(lambda: get_counter_metric("rows_consumed") == 0, ignore_exceptions=True)
-        wait(lambda: get_counter_metric("data_weight_consumed") == 0, ignore_exceptions=True)
+        wait(lambda: consumer_metrics.get_lag_data_weight() == 0, ignore_exceptions=True)
+        wait(lambda: consumer_metrics.get_lag_rows() == 0, ignore_exceptions=True)
+        wait(lambda: consumer_metrics.get_offset() == 0, ignore_exceptions=True)
+        wait(lambda: consumer_metrics.get_rows_consumed() == 0, ignore_exceptions=True)
+        wait(lambda: consumer_metrics.get_data_weight_consumed() == 0, ignore_exceptions=True)
 
         time_before_insert = time.time()
 
@@ -107,65 +160,43 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
 
         time_after_insert = time.time()
 
-        def check_histogram_metric(name):
-            expected_lower_bound = time.time() - time_after_insert
-            lower_bin, upper_bin = get_closest_bins_gauge_histogram_metric(name)
-            expected_upper_bound = time.time() - time_before_insert + 1
-            print_debug(
-                f"""Checking histogram. {lower_bin=}, {upper_bin=},
-                expected: [{expected_lower_bound}, {expected_upper_bound}]"""
-            )
-            return 0 < lower_bin <= expected_upper_bound * TIME_METRIC_NON_FLAP_MULTIPLIER
+        wait(lambda: consumer_metrics.get_lag_data_weight() == 0)  # We haven't started consuming yet
+        wait(lambda: consumer_metrics.get_lag_rows() == 3)
+        wait(lambda: consumer_metrics.get_offset() == 0)
+        wait(lambda: consumer_metrics.get_rows_consumed() == 0)
+        wait(lambda: consumer_metrics.get_data_weight_consumed() == 0)
 
-        def check_lag_time(name):
-            expected_lower_bound = time.time() - time_after_insert
-            lag_time = get_gauge_time_summary_metric(name)
-            expected_upper_bound = time.time() - time_before_insert
-            print_debug(
-                f"""Checking lag time. {lag_time=},
-                expected: [{expected_lower_bound}, {expected_upper_bound}]"""
-            )
-            return (
-                0 < get_gauge_time_summary_metric("lag_time") <= expected_upper_bound * TIME_METRIC_NON_FLAP_MULTIPLIER
-            )
-
-        wait(lambda: get_gauge_summary_metric("lag_data_weight") == 0)  # We haven't started consuming yet
-        wait(lambda: get_gauge_summary_metric("lag_rows") == 3)
-        wait(lambda: get_gauge_summary_metric("offset") == 0)
-        wait(lambda: get_counter_metric("rows_consumed") == 0)
-        wait(lambda: get_counter_metric("data_weight_consumed") == 0)
-
-        wait(lambda: check_lag_time("lag_time"), ignore_exceptions=True)
-        wait(lambda: check_histogram_metric("lag_time_histogram"), ignore_exceptions=True)
+        wait(lambda: consumer_metrics.check_lag_time(time_before_insert, time_after_insert), ignore_exceptions=True)
+        wait(lambda: consumer_metrics.check_histogram_metric(time_before_insert, time_after_insert), ignore_exceptions=True)
 
         advance_consumer(consumer_path, queue, partition_index=0, old_offset=None, new_offset=1)
         queue_orchid.wait_fresh_pass()
         consumer_orchid.wait_fresh_pass()
 
-        wait(lambda: get_gauge_summary_metric("lag_data_weight") == 40)
-        wait(lambda: get_gauge_summary_metric("lag_rows") == 2)
-        wait(lambda: get_gauge_summary_metric("offset") == 1)
+        wait(lambda: consumer_metrics.get_lag_data_weight() == 40)
+        wait(lambda: consumer_metrics.get_lag_rows() == 2)
+        wait(lambda: consumer_metrics.get_offset() == 1)
 
-        wait(lambda: check_lag_time("lag_time"))
-        wait(lambda: check_histogram_metric("lag_time_histogram"))
+        wait(lambda: consumer_metrics.check_lag_time(time_before_insert, time_after_insert))
+        wait(lambda: consumer_metrics.check_histogram_metric(time_before_insert, time_after_insert))
 
         # We could see less than expected here if we had more than 1 pass
-        wait(lambda: get_counter_metric("rows_consumed") <= 1)
-        wait(lambda: get_counter_metric("data_weight_consumed") <= 20)
+        wait(lambda: consumer_metrics.get_rows_consumed() <= 1)
+        wait(lambda: consumer_metrics.get_data_weight_consumed() <= 20)
 
         advance_consumer(consumer_path, queue, partition_index=0, old_offset=1, new_offset=3)
         queue_orchid.wait_fresh_pass()
         consumer_orchid.wait_fresh_pass()
 
-        wait(lambda: get_gauge_summary_metric("lag_data_weight") == 0)
-        wait(lambda: get_gauge_summary_metric("lag_rows") == 0)
-        wait(lambda: get_gauge_summary_metric("offset") == 3)
+        wait(lambda: consumer_metrics.get_lag_data_weight() == 0)
+        wait(lambda: consumer_metrics.get_lag_rows() == 0)
+        wait(lambda: consumer_metrics.get_offset() == 3)
 
         # We could see less than expected here if we had more than 1 pass
-        wait(lambda: get_counter_metric("rows_consumed") <= 2)
-        wait(lambda: get_counter_metric("data_weight_consumed") <= 40)
-        wait(lambda: get_gauge_time_summary_metric("lag_time") == 0.0)
-        wait(lambda: get_closest_bins_gauge_histogram_metric("lag_time_histogram")[0] == 0.0)
+        wait(lambda: consumer_metrics.get_rows_consumed() <= 2)
+        wait(lambda: consumer_metrics.get_data_weight_consumed() <= 40)
+        wait(lambda: consumer_metrics.get_lag_time() == 0.0)
+        wait(lambda: consumer_metrics.get_lag_time_histogram()[0] == 0.0)
 
     @authors("panesher")
     @pytest.mark.parametrize(
@@ -275,21 +306,56 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
 
         wait(lambda: int(get_consumers_gauge()[0]["value"]) == 0, ignore_exceptions=True)
 
+        queue = self.create_queue_path()
+        self._create_queue(queue, mount=True)
+
+        time_before_insert = time.time()
+        insert_rows(queue, [{"data": "foo", "$tablet_index": 0}] * 3)
+        time_after_insert = time.time()
+
         names = ["consumer_1", "consumer_2", "consumer_3"]
-        insert_rows(multi_consumer_path, [
-            {
-                "queue_consumer_name": name,
-                "queue_cluster": "primary",
-                "queue_path": "//tmp/any_queue",
-                "partition_index": 0,
-                "offset": 0,
-            }
-            for name in names
-        ])
+        refs: list[GenericObjectPath] = []
+        for name in names:
+            consumer_ref = self._create_registered_consumer(multi_consumer_path, queue, vital=True, consumer_name=name)
+            self._advance_consumer(consumer_ref, queue, partition_index=0, offset=0)
+            refs.append(consumer_ref)
 
         multi_consumer_orchid.wait_fresh_pass()
 
         wait(lambda: int(get_consumers_gauge()[0]["value"]) == len(names), ignore_exceptions=True)
+
+        consumer_orchids = [orchid.get_consumer_orchid(ref) for ref in refs]
+        for consumer_orchid in consumer_orchids:
+            consumer_orchid.wait_fresh_pass()
+
+        consumer_metrics = [ConsumerMetricsHelper(get_profiler(), tags={
+            "consumer_path": ref.get_path(),
+            "consumer_cluster": ref.get_cluster(),
+            "consumer_name": ref.get_queue_consumer_name(),
+        }) for ref in refs]
+
+        def check_metrics_for_not_started_consumer(consumer_metric: ConsumerMetricsHelper, ignore_exceptions: bool = False):
+            wait(lambda: consumer_metric.get_lag_data_weight() == 0, ignore_exceptions=ignore_exceptions)
+            wait(lambda: consumer_metric.get_lag_rows() == 3, ignore_exceptions=ignore_exceptions)
+            wait(lambda: consumer_metric.get_offset() == 0, ignore_exceptions=ignore_exceptions)
+            wait(lambda: consumer_metric.get_rows_consumed() == 0, ignore_exceptions=ignore_exceptions)
+            wait(lambda: consumer_metric.get_data_weight_consumed() == 0, ignore_exceptions=ignore_exceptions)
+            wait(lambda: consumer_metric.check_lag_time(time_before_insert, time_after_insert), ignore_exceptions=ignore_exceptions)
+            wait(lambda: consumer_metric.check_histogram_metric(time_before_insert, time_after_insert), ignore_exceptions=ignore_exceptions)
+
+        for consumer_metric in consumer_metrics:
+            check_metrics_for_not_started_consumer(consumer_metric, ignore_exceptions=True)
+
+        advance_consumer(refs[0], queue, partition_index=0, old_offset=0, new_offset=1)
+        consumer_orchids[0].wait_fresh_pass()
+        wait(lambda: consumer_metrics[0].get_lag_data_weight() == 40)
+        wait(lambda: consumer_metrics[0].get_lag_rows() == 2)
+        wait(lambda: consumer_metrics[0].get_offset() == 1)
+        wait(lambda: consumer_metrics[0].check_lag_time(time_before_insert, time_after_insert))
+        wait(lambda: consumer_metrics[0].check_histogram_metric(time_before_insert, time_after_insert))
+
+        for consumer_metric in consumer_metrics[1:]:
+            check_metrics_for_not_started_consumer(consumer_metric)
 
 
 class TestQueueAgentQueueProfiling(TestQueueAgentBase):

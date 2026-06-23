@@ -41,13 +41,22 @@ public:
                     .WithPrefix("/multi_consumer")},
             {EProfilerScope::ObjectPass,
                 profiler
-                    .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::MultiConsumer>(row, /*enablePathAggregation*/ true, /*addObjectType*/ true))
+                    .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::MultiConsumer>(
+                        row,
+                        NDetail::TProfilingOptions{
+                            .EnablePathAggregation = true,
+                            .AddObjectType = true,
+                        }))
                     .WithPrefix("/multi_consumer/controller")},
             {EProfilerScope::ObjectPartition, profiler},
             {
                 EProfilerScope::AlertManager,
                 profiler
-                    .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::MultiConsumer>(row, /*enablePathAggregation*/ true))
+                    .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::MultiConsumer>(
+                        row,
+                        NDetail::TProfilingOptions{
+                            .EnablePathAggregation = true,
+                        }))
                     .WithGlobal()
                     .WithPrefix("/multi_consumer/controller")
             }
