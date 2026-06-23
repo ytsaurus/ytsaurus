@@ -68,7 +68,7 @@ void ParseInferrumKVCacheReplicasDelta(
         return;
     }
 
-    TMemoryInput input(delta->Data.String, delta->Length);
+    TMemoryInput input(delta->AsStringBuf());
     TYsonPullParser parser(&input, EYsonType::ListFragment);
     TYsonPullParserCursor cursor(&parser);
 

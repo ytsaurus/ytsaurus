@@ -194,7 +194,7 @@ NYTree::INodePtr ConvertBytesToNode(
     TStringBuf bytes,
     const NFormats::TFormat& format)
 {
-    TMemoryInput stream{bytes.data(), bytes.size()};
+    TMemoryInput stream{bytes};
     return ConvertToNode(CreateProducerForFormat(
         format,
         EDataType::Structured,
