@@ -163,7 +163,7 @@ const std::string& TStrategyHost::GetMediumNameByIndex(int /*mediumIndex*/) cons
     return defaultMediumName;
 }
 
-TString TStrategyHost::FormatResources(const TJobResourcesWithQuota& resources) const
+std::string TStrategyHost::FormatResources(const TJobResourcesWithQuota& resources) const
 {
     return NScheduler::FormatResources(resources);
 }

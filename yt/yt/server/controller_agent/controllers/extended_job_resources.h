@@ -36,7 +36,7 @@ public:
 };
 
 void Serialize(const TExtendedJobResources& resources, NYson::IYsonConsumer* consumer);
-TString FormatResources(const TExtendedJobResources& resources);
+std::string FormatResources(const TExtendedJobResources& resources);
 
 ////////////////////////////////////////////////////////////////////////////////
 

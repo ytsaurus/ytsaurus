@@ -1313,7 +1313,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     // COMPAT(gritukan): This default is quite dangerous, change it when all controller agents will have fresh configs.
     registrar.Parameter("tags", &TThis::Tags)
-        .Default(std::vector<TString>({"default"}));
+        .Default(std::vector<std::string>({"default"}));
 
     registrar.Parameter("user_job_monitoring", &TThis::UserJobMonitoring)
         .DefaultNew();

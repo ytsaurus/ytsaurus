@@ -84,15 +84,15 @@ void SafeUpdateAggregatedJobStatistics(
 
 struct TDockerImageSpec
 {
-    TString Registry;
-    TString Image;
-    TString Tag;
-    TString Digest;
+    std::string Registry;
+    std::string Image;
+    std::string Tag;
+    std::string Digest;
 
     bool IsInternal = false;
 
     TDockerImageSpec(const std::string& dockerImage, const TDockerRegistryConfigPtr& config);
-    TString GetDockerImage() const;
+    std::string GetDockerImage() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

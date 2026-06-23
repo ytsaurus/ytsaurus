@@ -10785,9 +10785,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_caching_artifacts_phase(true);
 
     auto normalizeDockerImage = [this] (const std::string& dockerImage, bool& needDockerAuth) {
-        std::optional<TString> normalizedImage;
+        std::optional<std::string> normalizedImage;
 
-        TDockerImageSpec dockerImageSpec(TString(dockerImage), Config_->DockerRegistry);
+        TDockerImageSpec dockerImageSpec(dockerImage, Config_->DockerRegistry);
         if (!dockerImageSpec.IsInternal || Config_->DockerRegistry->ForwardInternalImagesToJobSpecs) {
             normalizedImage = dockerImageSpec.GetDockerImage();
         }

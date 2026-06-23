@@ -94,7 +94,7 @@ const std::optional<std::string>& TAllocationSchedulingContext::GetRequestedTask
     return RequestedTaskName_;
 }
 
-TString TAllocationSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const
+std::string TAllocationSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const
 {
     TStringBuilder builder;
     builder.Reserve(256);
@@ -114,7 +114,7 @@ TString TAllocationSchedulingContext::ToString(const NChunkClient::TMediumDirect
     return builder.Flush();
 }
 
-TString TAllocationSchedulingContext::GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const
+std::string TAllocationSchedulingContext::GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const
 {
     TStringBuilder builder;
     builder.Reserve(128);
@@ -154,7 +154,7 @@ const NScheduler::NProto::TScheduleAllocationSpec* TJobSchedulingContext::GetSch
     return nullptr;
 }
 
-TString TJobSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr& /*mediumDirectory*/) const
+std::string TJobSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr& /*mediumDirectory*/) const
 {
     TStringBuilder builder;
     builder.Reserve(256);
@@ -172,7 +172,7 @@ TString TJobSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr&
     return builder.Flush();
 }
 
-TString TJobSchedulingContext::GetResourcesString(const NChunkClient::TMediumDirectoryPtr& /*mediumDirectory*/) const
+std::string TJobSchedulingContext::GetResourcesString(const NChunkClient::TMediumDirectoryPtr& /*mediumDirectory*/) const
 {
     TStringBuilder builder;
     builder.Reserve(128);
