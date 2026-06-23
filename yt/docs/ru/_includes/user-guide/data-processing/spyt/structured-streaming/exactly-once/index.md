@@ -41,7 +41,7 @@
 
 ## См. также
 
-- [Транзакционный режим](../../../../../..//user-guide/data-processing/spyt/structured-streaming/exactly-once/transactional-mode.md) — инструкция по включению
+- [Транзакционный режим](../../../../../../user-guide/data-processing/spyt/structured-streaming/exactly-once/transactional-mode.md) — инструкция по включению
 - [Идемпотентный приёмник](../../../../../../user-guide/data-processing/spyt/structured-streaming/exactly-once/idempotent-receiver.md) — альтернатива для stateless 1:1 трансформаций
 - [Structured Streaming](../../../../../../user-guide/data-processing/spyt/structured-streaming/index.md) — обзор и основные сценарии
 - [Опции стриминга](../../../../../../user-guide/data-processing/spyt/thesaurus/streaming-options.md) — справочник опций
