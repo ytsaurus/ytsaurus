@@ -1612,6 +1612,85 @@ class TestAllocatingGpuSchedulingPolicyPreemption(AllocatingGpuSchedulingPolicyB
 
 ##################################################################
 
+class TestAllocatingGpuPolicyDisableDuringScheduleAllocation(AllocatingGpuSchedulingPolicyBaseConfig):
+    # A single 8-GPU node so that an operation with two 4-GPU jobs gets both of its
+    # preliminary assignments placed on the same node, hence handled within one
+    # ScheduleAllocations(node) loop.
+    NUM_NODES = 1
+
+    @authors("yaishenka")
+    def test_disable_operation_while_scheduling_first_assignment(self):
+        # Regression for the YT_VERIFY coredump in ScheduleAllocations.
+        #
+        # ScheduleAllocations iterates a *copy* of node->Assignments(). For the first
+        # preliminary assignment it calls DoScheduleAllocation, which parks on
+        # WaitFor(scheduleAllocationFuture) waiting for the controller. While the fiber is
+        # parked (the control thread is free), op.abort() runs DisableOperation /
+        # UnregisterOperation, which removes ALL of the operation's assignments from both the
+        # node and the operation. When the parked heartbeat resumes and the loop reaches the
+        # second assignment, the operation is no longer enabled, so the disabled branch ran
+        # RemoveAssignment(assignment, /*strict*/ true) -> YT_VERIFY(node/operation contains
+        # assignment) fails (the assignment was already removed) -> scheduler crash.
+        #
+        # schedule_allocation_delay_scheduler is a *scheduler-side* delay applied inside the GPU
+        # policy's DoScheduleAllocation (on the control thread), independent of the controller
+        # agent. With type "async" it yields the heartbeat fiber without any controller call in
+        # flight, so:
+        #   * the park cannot be cut short by op.abort() (which only completes the controller
+        #     schedule-allocation future), and
+        #   * op.abort()'s scheduler-side DisableOperation is not gated on a slow controller call,
+        #     so it runs promptly while the heartbeat is parked mid-loop and removes both
+        #     assignments.
+        # (A controller-agent-side schedule_allocation_delay does NOT work here: op.abort() returns
+        # the scheduler-side wait immediately but defers DisableOperation until the in-flight CA
+        # call finishes, so the loop drains both assignments before the operation is disabled.)
+        schedule_allocation_delay = 8000
+
+        op = run_sleeping_vanilla(
+            job_count=2,
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            spec={
+                "testing": {
+                    "schedule_allocation_delay_scheduler": {
+                        "duration": schedule_allocation_delay,
+                        "type": "async",
+                    },
+                },
+            },
+        )
+
+        # Both 4-GPU jobs fit on the single 8-GPU node: the planner places two preliminary
+        # assignments there, both processed in one ScheduleAllocations loop. The delay keeps
+        # them from being realized, so they stay preliminary.
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=2, exactly=True)
+
+        assignments = get_operation_gpu_assignments_from_gpu_policy_orchid(op)
+        assert len(assignments) == 2
+        for assignment in assignments:
+            assert is_default_guid(assignment.get("allocation_id")), \
+                "assignments must still be preliminary (schedule allocation parked)"
+
+        # Give a scheduling heartbeat time to enter DoScheduleAllocation for the first assignment
+        # and park inside the scheduler-side delay. The park lasts ~schedule_allocation_delay, so
+        # the abort below reliably lands while the fiber is parked.
+        time.sleep(2)
+
+        # Non-blocking: returns once the abort is accepted. The scheduler-side DisableOperation /
+        # UnregisterOperation then run on the control thread during the park, removing both
+        # assignments while the heartbeat is still parked.
+        op.abort()
+
+        # Let the parked heartbeat resume (after the scheduler-side delay) so the loop reaches the
+        # already-removed second assignment and executes the disabled branch. Without the fix the
+        # YT_VERIFY in RemoveAssignment(strict=true) fires and crashes the scheduler, which marks
+        # the test red on its own. With the fix the scheduler survives and the operation cleans up.
+        time.sleep(schedule_allocation_delay / 1000.0 + 2)
+
+        wait_operation_unregistered(op.id)
+
+
+##################################################################
+
 class AllocatingGpuSchedulingPolicyMultiModuleBaseConfig(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
