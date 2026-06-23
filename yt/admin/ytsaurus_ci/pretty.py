@@ -5,6 +5,25 @@ import click
 from yt.admin.ytsaurus_ci import enums
 
 
+def print_tasks_list(data):
+    tasks = data.get("tasks", [])
+    total = data.get("total", len(tasks))
+
+    click.echo()
+    click.secho(f"  Tasks ({total}):", bold=True)
+    click.secho("  " + "─" * 50, fg="bright_black")
+
+    if not tasks:
+        click.secho("  No tasks found", fg="yellow")
+        click.echo()
+        return
+
+    for job_id in tasks:
+        click.secho(f"    • {job_id}", fg="blue")
+
+    click.echo()
+
+
 def print_job_info(data, job_id):
     status, status_color = _format_job_status(data.get("status", ""))
 
@@ -21,7 +40,7 @@ def print_job_info(data, job_id):
     click.secho("  Duration:  ", nl=False, bold=True)
     click.echo(_format_duration(data))
 
-    logs = data.get("logs_urls", [])
+    logs = [url for url in data.get("logs_urls", []) if url]
     if logs:
         click.echo()
         click.secho("  Logs:", bold=True)
@@ -40,7 +59,7 @@ def print_job_info(data, job_id):
         click.echo()
         click.secho("  Operator:", bold=True)
         _print_component(operator.get("operator", {}))
-        click.secho(f"    {'Helm:':<12}", nl=False)
+        click.secho(f"    {'Helm:':<15}", nl=False)
         click.secho(operator.get("helm_url", "—"), fg="bright_black")
 
     failed = data.get("failed_checks", [])
@@ -63,14 +82,14 @@ def _format_duration(data):
     if not from_str or not to_str:
         return "—"
 
-    t0 = datetime.strptime(from_str, "%Y-%m-%dT%H:%M:%SZ")
-    t1 = datetime.strptime(to_str, "%Y-%m-%dT%H:%M:%SZ")
+    t0 = datetime.fromisoformat(from_str.replace("Z", "+00:00")).replace(tzinfo=None)
+    t1 = datetime.fromisoformat(to_str.replace("Z", "+00:00")).replace(tzinfo=None)
     minutes = int((t1 - t0).total_seconds() // 60)
     return f"{t0.strftime('%Y-%m-%d %H:%M')} → {t1.strftime('%H:%M')} ({minutes}m)"
 
 
 def _print_component(c):
-    click.secho(f"    {c.get('name', '—'):<12}", nl=False, bold=True)
+    click.secho(f"    {c.get('name', '—'):<15}", nl=False, bold=True)
     click.secho(f"{c.get('branch', '—'):<8}", nl=False)
     click.secho(f"v{c.get('version', '—'):<10}", nl=False, fg="cyan")
     click.secho(f"({c.get('revision', '—')[:7]}, {c.get('commit_date', '—')})", fg="bright_black")
@@ -85,6 +104,8 @@ def _format_job_status(status):
         case enums.JobStatus.PENDING:
             color = "blue"
         case enums.JobStatus.FAULT:
+            color = "red"
+        case enums.JobStatus.ABORTED:
             color = "red"
         case enums.JobStatus.UNSPECIFIED:
             color = "magenta"

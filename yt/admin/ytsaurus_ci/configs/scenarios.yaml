@@ -42,3 +42,9 @@ checks:
       helmUrl: oci://ghcr.io/ytsaurus/odin-chart
       releaseName: odin
       version: 0.0.4
+  odin_latest:
+    type: ODIN
+    description:
+      helmUrl: oci://ghcr.io/ytsaurus/odin-chart
+      releaseName: odin
+      version: 0.0.10
