@@ -11,8 +11,8 @@ namespace NYT::NControllerAgent::NControllers {
 struct TJobStatisticsTags
 {
     EJobState JobState;
-    TString JobType;
-    TString PoolTree;
+    std::string JobType;
+    std::string PoolTree;
 
     using TSaveContext = NYT::TStreamSaveContext;
     using TLoadContext = NYT::TStreamLoadContext;
@@ -40,12 +40,12 @@ public:
     i64 GetSumByJobStateAndType(
         const NStatisticPath::TStatisticPath& statisticPath,
         EJobState jobState,
-        const TString& jobType) const;
+        const std::string& jobType) const;
 
     std::optional<TSummary> FindSummaryByJobStateAndType(
         const NStatisticPath::TStatisticPath& statisticPath,
         EJobState state,
-        const TString& taskName) const;
+        const std::string& taskName) const;
 
     void SerializeCustom(
         NYson::IYsonConsumer* consumer,
