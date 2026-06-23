@@ -356,8 +356,8 @@ struct TZoneInfo
 
     std::optional<std::string> ShortName;
 
-    int MaxTabletNodeCount;
-    int MaxRpcProxyCount;
+    std::optional<int> MaxTabletNodeCount;
+    std::optional<int> MaxRpcProxyCount;
 
     THashMap<std::string, NBundleControllerClient::TInstanceSizePtr> TabletNodeSizes;
     THashMap<std::string, NBundleControllerClient::TInstanceSizePtr> RpcProxySizes;
