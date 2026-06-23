@@ -108,7 +108,7 @@ public:
 
     //! Human-readable title of a particular task that appears in logging. For builtin tasks it coincides
     //! with the vertex descriptor and a task level in brackets (if applicable).
-    virtual TString GetTitle() const;
+    virtual std::string GetTitle() const;
 
     virtual TCompositePendingJobCount GetPendingJobCount() const;
     TCompositePendingJobCount GetPendingJobCountDelta();
@@ -251,7 +251,7 @@ public:
     //! Modifies the job spec so the job will use the experimental setup if required.
     void PatchUserJobSpec(NControllerAgent::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const;
 
-    virtual THashMap<TString, TString> BuildJobEnvironment() const;
+    virtual THashMap<std::string, std::string> BuildJobEnvironment() const;
 
     NScheduler::TAllocationStartDescriptor CreateAllocationStartDescriptor(
         const TAllocation& allocation,

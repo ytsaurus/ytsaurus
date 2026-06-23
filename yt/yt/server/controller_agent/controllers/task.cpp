@@ -171,7 +171,7 @@ void TTask::Prepare()
     }
 }
 
-TString TTask::GetTitle() const
+std::string TTask::GetTitle() const
 {
     return ToString(GetJobType());
 }
@@ -477,7 +477,7 @@ void TTask::PatchUserJobSpec(NControllerAgent::NProto::TUserJobSpec* jobSpec, TJ
     ExperimentJobManager_.PatchUserJobSpec(jobSpec, joblet);
 }
 
-THashMap<TString, TString> TTask::BuildJobEnvironment() const
+THashMap<std::string, std::string> TTask::BuildJobEnvironment() const
 {
     return {};
 }

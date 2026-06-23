@@ -99,7 +99,7 @@ public:
         this->TaskHost_->GetAutoMergeDirector()->SubscribeStateChanged(BIND(&TAutoMergeableOutputMixin::UpdateSelf, MakeWeak(this)));
     }
 
-    TString GetTitle() const override
+    std::string GetTitle() const override
     {
         return TUnderlyingTask::GetTitle() + " + AutoMergeableOutputMixin";
     }

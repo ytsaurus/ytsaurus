@@ -75,7 +75,7 @@ public:
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
         std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors);
 
-    TString GetTitle() const override;
+    std::string GetTitle() const override;
     TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
     TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForJoblet(const TJobletPtr& joblet) const override;
     TVertexDescriptorList GetAllVertexDescriptors() const override;

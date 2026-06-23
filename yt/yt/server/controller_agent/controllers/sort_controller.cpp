@@ -577,7 +577,7 @@ protected:
             GetChunkPoolOutput()->GetJobCounter()->AddParent(Controller_->PartitionJobCounter_);
         }
 
-        TString GetTitle() const override
+        std::string GetTitle() const override
         {
             return Format("Partition(%v)", Level_);
         }
@@ -1374,7 +1374,7 @@ protected:
                 : TDuration::Zero();
         }
 
-        TString GetTitle() const override
+        std::string GetTitle() const override
         {
             return Format("SimpleSort");
         }

@@ -813,7 +813,7 @@ private:
 
     void AnalyzeTasksUnavailableNetworkBandwidthToClustersDuration()
     {
-        std::optional<TString> taskWithLongUnavailableNetworkBandwidthTime;
+        std::optional<std::string> taskWithLongUnavailableNetworkBandwidthTime;
         for (const auto& task : Host_->GetTasks()) {
             auto totalDuration = task->GetTotalDuration();
             auto unavailableNetworkBandwidthDuration = task->GetUnavailableNetworkBandwidthDuration();
