@@ -112,6 +112,7 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 class TStoreTrimmer
     : public IStoreTrimmer
 {
@@ -328,20 +329,13 @@ private:
                     return;
                 }
 
-                tabletInvoker->Invoke(BIND([
+                tabletInvoker->Invoke(BIND(
+                    &TStoreTrimmer::CommitTrimRowsMutation,
+                    std::move(slot),
                     tabletId,
-                    slot = std::move(slot),
-                    startRowIndex = *errorOrStartRowIndex.Value(),
-                    finallyGuard = std::move(finallyGuard),
-                    logger = Logger
-                ] () mutable {
-                    TStoreTrimmer::CommitTrimRowsMutation(
-                        std::move(slot),
-                        tabletId,
-                        startRowIndex,
-                        std::move(finallyGuard),
-                        std::move(logger));
-                }));
+                    *errorOrStartRowIndex.Value(),
+                    Passed(std::move(finallyGuard)),
+                    Logger));
             }));
     }
 
