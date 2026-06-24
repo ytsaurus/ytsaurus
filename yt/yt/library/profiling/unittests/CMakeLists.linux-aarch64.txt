@@ -62,6 +62,8 @@ target_link_options(unittester-library-profiling PRIVATE
 )
 
 target_sources(unittester-library-profiling PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/per_cpu_sensor_impl_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/simple_sensor_impl_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_service_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/name_conflicts_ut.cpp
@@ -72,6 +74,7 @@ target_sources(unittester-library-profiling PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/cube_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/encoder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/exporter_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/rseq_sensor_impl_ut.cpp
 )
 
 
