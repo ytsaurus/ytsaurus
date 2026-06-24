@@ -5,7 +5,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/library/profiling/sensor_impl.h>
+#include <yt/yt/library/profiling/simple_sensor_impl.h>
 
 namespace NYT::NChunkClient {
 

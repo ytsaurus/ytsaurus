@@ -137,7 +137,7 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/yt/library/profiling/sensor_impl.h>
+#include <yt/yt/library/profiling/simple_sensor_impl.h>
 
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
