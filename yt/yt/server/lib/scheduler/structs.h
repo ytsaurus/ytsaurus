@@ -149,7 +149,7 @@ TCompositeNeededResources operator+(const TCompositeNeededResources& lhs, const 
 TCompositeNeededResources operator-(const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
 TCompositeNeededResources operator-(const TCompositeNeededResources& rhs);
 
-TString FormatResources(const TCompositeNeededResources& resources);
+std::string FormatResources(const TCompositeNeededResources& resources);
 
 void ToProto(NControllerAgent::NProto::TCompositeNeededResources* protoNeededResources, const TCompositeNeededResources& neededResources);
 void FromProto(TCompositeNeededResources* neededResources, const NControllerAgent::NProto::TCompositeNeededResources& protoNeededResources);

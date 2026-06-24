@@ -48,7 +48,7 @@ struct TControllerTransactionIds
     NTransactionClient::TTransactionId DebugCompletionId;
     std::vector<TRichTransactionId> InputIds;
 
-    static const std::vector<TString> AttributeKeys;
+    static const std::vector<std::string> AttributeKeys;
 
     NYTree::IAttributeDictionaryPtr ToCypressAttributes() const;
     static TControllerTransactionIds FromCypressAttributes(NYTree::IAttributeDictionaryPtr attributes);

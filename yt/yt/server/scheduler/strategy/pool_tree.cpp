@@ -2373,7 +2373,7 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto tryGetValidPool = [&] (const TString& poolName, const char* poolCaption, const std::string& loggedAttributes) -> TPoolTreeCompositeElementPtr {
+        auto tryGetValidPool = [&] (const std::string& poolName, const char* poolCaption, const std::string& loggedAttributes) -> TPoolTreeCompositeElementPtr {
             auto pool = FindPool(poolName);
             if (pool) {
                 if (pool->GetMode() != ESchedulingMode::Fifo) {
@@ -2392,8 +2392,7 @@ private:
             auto it = userToDefaultPoolMap.find(userName);
             if (it != userToDefaultPoolMap.end()) {
                 auto loggedAttributes = Format("(PoolName: %v, UserName: %v)", it->second, userName);
-                // TODO(babenko): migrate to std::string
-                if (auto pool = tryGetValidPool(TString(it->second), "User default parent pool", loggedAttributes)) {
+                if (auto pool = tryGetValidPool(it->second, "User default parent pool", loggedAttributes)) {
                     return pool;
                 }
             }

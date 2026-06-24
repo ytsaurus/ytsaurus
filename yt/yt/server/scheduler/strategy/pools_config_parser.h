@@ -34,7 +34,7 @@ public:
     TPoolsConfigParser(
         THashMap<std::string, std::string> poolToParentMap,
         THashSet<std::string> ephemeralPools,
-        THashMap<TString, NYTree::INodePtr> poolConfigPresets);
+        THashMap<std::string, NYTree::INodePtr> poolConfigPresets);
 
     TError TryParse(const NYTree::INodePtr& rootNode);
 
@@ -43,7 +43,7 @@ public:
 private:
     const THashMap<std::string, std::string> OldPoolToParentMap_;
     const THashSet<std::string> EphemeralPools_;
-    const THashMap<TString, NYTree::INodePtr> PoolConfigPresets_;
+    const THashMap<std::string, NYTree::INodePtr> PoolConfigPresets_;
 
     THashSet<std::string> EphemeralPoolParents_;
     THashSet<std::string> ParsedPoolNames_;
