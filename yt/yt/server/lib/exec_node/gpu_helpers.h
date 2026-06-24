@@ -18,7 +18,7 @@ struct TGpuDeviceDescriptor
 
 std::vector<TGpuDeviceDescriptor> ListNvidiaGpuDevices();
 
-TString GetNvidiaGpuDeviceName(int deviceIndex);
+std::string GetNvidiaGpuDeviceName(int deviceIndex);
 
 void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const NGpu::TGpuInfo& gpuInfo);
 
@@ -32,12 +32,12 @@ struct TGpuDriverVersion
 
 bool operator<(const TGpuDriverVersion& lhs, const TGpuDriverVersion& rhs);
 
-TString GetNvidiaGpuDriverVersionString();
-TString GetDummyGpuDriverVersionString();
+std::string GetNvidiaGpuDriverVersionString();
+std::string GetDummyGpuDriverVersionString();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> ListInfinibandDevices();
+std::vector<std::string> ListInfinibandDevices();
 
 ////////////////////////////////////////////////////////////////////////////////
 

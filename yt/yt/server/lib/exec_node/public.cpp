@@ -4,7 +4,7 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames{
+const TEnumIndexedArray<ESandboxKind, std::string> SandboxDirectoryNames{
     {ESandboxKind::User, "sandbox"},
     {ESandboxKind::Udf, "udf"},
     {ESandboxKind::Home, "home"},

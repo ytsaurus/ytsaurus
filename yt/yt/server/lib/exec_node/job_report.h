@@ -25,14 +25,14 @@ public:
     TNodeJobReport Statistics(const NYson::TYsonString& statistics);
     TNodeJobReport Events(const NServer::TJobEvents& events);
     TNodeJobReport StderrSize(i64 stderrSize);
-    TNodeJobReport Stderr(const TString& stderr);
+    TNodeJobReport Stderr(const std::string& stderr);
     TNodeJobReport GpuCheckStderr(std::string gpuCheckStderr);
-    TNodeJobReport FailContext(const TString& failContext);
+    TNodeJobReport FailContext(const std::string& failContext);
     TNodeJobReport Profile(const NJobAgent::TJobProfile& profile);
     TNodeJobReport CoreInfos(NControllerAgent::TCoreInfos coreInfos);
     TNodeJobReport ExecAttributes(const NYson::TYsonString& execAttributes);
-    TNodeJobReport TreeId(TString treeId);
-    TNodeJobReport MonitoringDescriptor(TString monitoringDescriptor);
+    TNodeJobReport TreeId(std::string treeId);
+    TNodeJobReport MonitoringDescriptor(std::string monitoringDescriptor);
     TNodeJobReport Address(std::optional<std::string> address);
     TNodeJobReport Addresses(std::optional<NNodeTrackerClient::TAddressMap> addresses);
     TNodeJobReport ArchiveFeatures(const NYson::TYsonString& archiveFeatures);
@@ -42,7 +42,7 @@ public:
     void SetFinishTime(TInstant finishTime);
     void SetJobCompetitionId(TJobId jobCompetitionId);
     void SetProbingJobCompetitionId(TJobId CompetitionId);
-    void SetTaskName(const TString& taskName);
+    void SetTaskName(const std::string& taskName);
     void SetTtl(TDuration ttl);
 };
 
