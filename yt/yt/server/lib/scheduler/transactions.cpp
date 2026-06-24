@@ -113,7 +113,7 @@ TControllerTransactionIds TControllerTransactionIds::FromCypressAttributes(NYTre
     };
 }
 
-const std::vector<TString> TControllerTransactionIds::AttributeKeys = {
+const std::vector<std::string> TControllerTransactionIds::AttributeKeys = {
     "async_scheduler_transaction_id",
     "input_transaction_id",
     "output_transaction_id",

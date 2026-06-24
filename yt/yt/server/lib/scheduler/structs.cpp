@@ -279,7 +279,7 @@ TCompositeNeededResources operator-(const TCompositeNeededResources& resources)
     return result;
 }
 
-TString FormatResources(const TCompositeNeededResources& resources)
+std::string FormatResources(const TCompositeNeededResources& resources)
 {
     return Format("{DefaultResources: %v, ResourcesByPoolTree: %v}", resources.DefaultResources, resources.ResourcesByPoolTreeId);
 }

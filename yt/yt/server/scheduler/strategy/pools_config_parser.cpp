@@ -16,7 +16,7 @@ using namespace NYTree;
 TPoolsConfigParser::TPoolsConfigParser(
     THashMap<std::string, std::string> poolToParentMap,
     THashSet<std::string> ephemeralPools,
-    THashMap<TString, INodePtr> poolConfigPresets)
+    THashMap<std::string, INodePtr> poolConfigPresets)
     : OldPoolToParentMap_(std::move(poolToParentMap))
     , EphemeralPools_(std::move(ephemeralPools))
     , PoolConfigPresets_(std::move(poolConfigPresets))

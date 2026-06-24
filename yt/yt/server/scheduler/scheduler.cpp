@@ -539,7 +539,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto path = poolObjectId
-            ? Format("#%v", poolObjectId)
+            ? TYPath(Format("#%v", poolObjectId))
             : Config_->PoolTreesRoot;
 
         YT_LOG_DEBUG("Validating pool permission (Permission: %v, User: %v, Pool: %v, Path: %v, TreeId: %v)",
