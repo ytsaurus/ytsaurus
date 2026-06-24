@@ -873,6 +873,13 @@ void TWebAssemblyCompartment::AddExportsToGlobalOffsetTable(const IR::Module& ir
     }
 }
 
+[[noreturn]] static void ThrowWavmRuntimeException(WAVM::Runtime::Exception* ex)
+{
+    auto description = WAVM::Runtime::describeException(ex);
+    WAVM::Runtime::destroyException(ex);
+    THROW_ERROR_EXCEPTION("WAVM Runtime Exception: %Qv", description);
+}
+
 void TWebAssemblyCompartment::InstantiateModule(
     const Runtime::ModuleRef& wavmModule,
     const Runtime::LinkResult& linkResult,
@@ -880,7 +887,12 @@ void TWebAssemblyCompartment::InstantiateModule(
 {
     YT_VERIFY(linkResult.success);
 
-    auto instance = Runtime::instantiateModule(Compartment_, wavmModule, Runtime::ImportBindings{linkResult.resolvedImports}, debugName.data());
+    Runtime::Instance* instance = nullptr;
+    try {
+        instance = Runtime::instantiateModule(Compartment_, wavmModule, Runtime::ImportBindings{linkResult.resolvedImports}, debugName.data());
+    } catch (WAVM::Runtime::Exception* ex) {
+        ThrowWavmRuntimeException(ex);
+    }
     THROW_ERROR_EXCEPTION_IF(instance == nullptr, "WebAssembly instantiate module failed");
     Modules_.push_back(wavmModule);
     Instances_.push_back(instance);
@@ -929,9 +941,7 @@ void TWebAssemblyCompartment::ApplyDataRelocationsAndCallConstructors(Runtime::I
                 try {
                     Runtime::invokeFunction(Context_, function, signature, arguments.data(), {});
                 } catch (WAVM::Runtime::Exception* ex) {
-                    auto description = WAVM::Runtime::describeException(ex);
-                    WAVM::Runtime::destroyException(ex);
-                    THROW_ERROR_EXCEPTION("WAVM Runtime Exception: %Qv", description);
+                    ThrowWavmRuntimeException(ex);
                 }
             });
         }
