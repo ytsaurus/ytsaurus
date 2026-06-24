@@ -30,13 +30,13 @@ void ApplyMoveDescriptors(
 TTabletActionBatch Balance(
     EBalancingMode mode,
     const TTabletCellBundlePtr& bundle,
-    const TString& group,
+    const TGroupName& group,
     const TString& parameterizedConfig);
 
 TTabletActionBatch BalanceAndPrintDescriptors(
     EBalancingMode mode,
     const TTabletCellBundlePtr& bundle,
-    const TString& group,
+    const TGroupName& group,
     const TString& parameterizedConfig);
 
 ////////////////////////////////////////////////////////////////////////////////

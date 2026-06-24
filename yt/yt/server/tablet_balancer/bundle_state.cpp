@@ -810,7 +810,7 @@ TBundleState::TBundleState(
     , Counters_(New<TBundleProfilingCounters>(Profiler_))
     , BundleSnapshots_({New<TBundleSnapshot>()})
 {
-    BundleSnapshots_.back()->Bundle = New<TTabletCellBundle>(TString(Name_));
+    BundleSnapshots_.back()->Bundle = New<TTabletCellBundle>(Name_);
     InitializeAttributes(initialAttributes, BundleSnapshots_.back(), /*throwOnError*/ false);
     Start();
 }

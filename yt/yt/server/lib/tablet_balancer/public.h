@@ -57,7 +57,7 @@ struct TMoveDescriptor;
 using TActionDescriptor = std::variant<TMoveDescriptor, TReshardDescriptor>;
 
 using TNodeAddress = std::string;
-using TGroupName = TString;
+using TGroupName = std::string;
 using TClusterName = std::string;
 
 struct TParameterizedReassignSolverConfig;

@@ -112,7 +112,7 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
             config->Factors = New<TComponentFactorConfig>();
         }
 
-        auto replicaClustersUnique = THashSet<TString>(config->ReplicaClusters.begin(), config->ReplicaClusters.end());
+        auto replicaClustersUnique = THashSet<TClusterName>(config->ReplicaClusters.begin(), config->ReplicaClusters.end());
         if (std::ssize(replicaClustersUnique) != std::ssize(config->ReplicaClusters)) {
             THROW_ERROR_EXCEPTION("\"replica_clusters\" must contain unique cluster names");
         }
