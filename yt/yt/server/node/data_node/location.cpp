@@ -1560,12 +1560,12 @@ i64 TStoreLocation::GetTrashSpace() const
     return TrashSpace_.load();
 }
 
-TString TStoreLocation::GetTrashPath() const
+std::string TStoreLocation::GetTrashPath() const
 {
     return NFS::CombinePaths(GetPath(), TrashDirectory);
 }
 
-TString TStoreLocation::GetTrashChunkPath(TChunkId chunkId) const
+std::string TStoreLocation::GetTrashChunkPath(TChunkId chunkId) const
 {
     return NFS::CombinePaths(GetTrashPath(), GetRelativeChunkPath(chunkId));
 }
@@ -1957,9 +1957,9 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairChunk(TChunkId chunkId)
     return optionalDescriptor;
 }
 
-std::vector<TString> TStoreLocation::GetChunkPartNames(TChunkId chunkId) const
+std::vector<std::string> TStoreLocation::GetChunkPartNames(TChunkId chunkId) const
 {
-    auto primaryName = ToString(chunkId);
+    std::string primaryName = ToString(chunkId);
     switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
