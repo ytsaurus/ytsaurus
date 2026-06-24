@@ -6481,6 +6481,7 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
         driver0 = self._get_drivers()[0]
 
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+        wait(lambda: len(get(f"#{cell_id}/@peers")) != 0)
 
         sorted_schema = self._get_schemas_by_name(["sorted_simple"])[0]
         create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c", "schema": sorted_schema})
