@@ -26,6 +26,8 @@
 
 #include <library/cpp/uri/encode.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NAuth {
 
 using namespace NConcurrency;
@@ -389,8 +391,8 @@ private:
     TSharedRef MakeGetSecretsRequestBody(
         const std::vector<TSecretSubrequest>& subrequests)
     {
-        TString body;
-        TStringOutput stream(body);
+        std::string body;
+        TStdStringOutput stream(body);
         auto jsonWriter = CreateJsonConsumer(&stream);
         BuildYsonFluently(jsonWriter.get())
             .BeginMap()
@@ -424,8 +426,8 @@ private:
 
     TSharedRef MakeGetDelegationTokenRequestBody(const TDelegationTokenRequest& request)
     {
-        TString body;
-        TStringOutput stream(body);
+        std::string body;
+        TStdStringOutput stream(body);
         auto jsonWriter = CreateJsonConsumer(&stream);
         BuildYsonFluently(jsonWriter.get())
             .BeginMap()
@@ -442,8 +444,8 @@ private:
 
     TSharedRef MakeRevokeDelegationTokenRequestBody(const TRevokeDelegationTokenRequest& request)
     {
-        TString body;
-        TStringOutput stream(body);
+        std::string body;
+        TStdStringOutput stream(body);
         auto jsonWriter = CreateJsonConsumer(&stream);
         const auto& tvmService = GetTvmService(request.TvmId, DefaultTvmIdForExistingTokens_);
         const auto vaultTicket = tvmService->GetServiceTicket(Config_->VaultServiceId);

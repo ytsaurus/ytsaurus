@@ -5,6 +5,8 @@
 
 #include <library/cpp/streams/zstd/zstd.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <contrib/libs/pfr/include/pfr/tuple_size.hpp>
 
 namespace NYT::NQueryTracker {
@@ -124,8 +126,8 @@ namespace {
 
 std::string DoCompress(const std::string& data, int quality = 9)
 {
-    TString compressed;
-    TStringOutput output(compressed);
+    std::string compressed;
+    TStdStringOutput output(compressed);
     TZstdCompress compressStream(&output, quality);
     compressStream.Write(data.data(), data.size());
     compressStream.Finish();

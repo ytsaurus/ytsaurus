@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ytree/serialize.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,8 +16,8 @@ template <class T>
 NYson::TYsonString ConvertToYsonStringExtendedFormat(const T& value, EExtendedYsonFormat format)
 {
     auto type = NYTree::GetYsonType(value);
-    TString result;
-    TStringOutput stringOutput(result);
+    std::string result;
+    TStdStringOutput stringOutput(result);
     TExtendedYsonWriter writer(&stringOutput, format, type);
     Serialize(value, &writer);
     return NYson::TYsonString(std::move(result), type);

@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <util/stream/mem.h>
 
 namespace NYT::NHydra {
@@ -128,8 +130,8 @@ TSimpleHydraManagerMock::TSnapshot TSimpleHydraManagerMock::DoSaveSnapshot()
 {
     YT_ASSERT_INVOKER_AFFINITY(AutomatonInvoker_);
 
-    TString snapshotData;
-    TStringOutput output(snapshotData);
+    std::string snapshotData;
+    TStdStringOutput output(snapshotData);
     auto writer = CreateAsyncAdapter(&output);
 
     TFuture<void> future;
