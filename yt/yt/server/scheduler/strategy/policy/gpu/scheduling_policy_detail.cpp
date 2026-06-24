@@ -1215,7 +1215,10 @@ void TSchedulingPolicy::PreemptAllocations(
     auto runningAllocationInfos = CollectRunningAllocationInfos(schedulingHeartbeatContext, treeSnapshot);
 
     THashSet<TAllocationId> preemptedAllocations;
-    for (auto allocationId : node->AllocationsToPreempt()) {
+    // NB(yaishenka): Copy with |GetItems|, because PreemptAllocation may yield (testing delay), and a
+    // concurrent ProcessAllocationUpdate can call node->PreemptAllocation, mutating AllocationsToPreempt_
+    // and invalidating the iterator.
+    for (auto allocationId : GetItems(node->AllocationsToPreempt())) {
         auto it = runningAllocationInfos.find(allocationId);
         if (it == runningAllocationInfos.end()) {
             YT_LOG_DEBUG("No running allocation to preempt (AllocationId: %v)", allocationId);
@@ -1299,19 +1302,30 @@ void TSchedulingPolicy::ScheduleAllocations(
         auto operationElement = treeSnapshot->FindEnabledOperationElement(operationId);
         auto operation = GetOrDefault(EnabledOperations_, operationId);
 
-        if (!operationElement || !operation) {
-            YT_LOG_WARNING("Cannot schedule allocation because operation is %v",
-                treeSnapshot->FindDisabledOperationElement(operationId)
-                    ? "disabled"
-                    : "missing in snapshot");
-
-            RemoveAssignment(assignment);
+        // NB(yaishenka): A previous assignment's DoScheduleAllocation could have yielded, during which
+        // this operation was disabled (and possibly unregistered). When the operation is gone from
+        // EnabledOperations_, DisableOperation has already removed this preliminary assignment from
+        // both the node and the operation, and the operation object may already be destroyed. Since
+        // TAssignment holds a raw TOperation*, we must NOT call RemoveAssignment here (it dereferences
+        // assignment->Operation): there is nothing left to remove and the pointer dangles.
+        if (!operation) {
+            YT_LOG_WARNING("Cannot schedule allocation because operation is disabled");
             continue;
         }
 
+        // NB(yaishenka): The operation is still alive but missing from the tree snapshot.
+        // The assignment may already have been removed (e.g. by a disable/enable cycle while we waited),
+        // so removal is non-strict.
+        if (!operationElement) {
+            YT_LOG_WARNING("Cannot schedule allocation because operation is missing in snapshot");
+            RemoveAssignment(assignment, /*strict*/ false);
+            continue;
+        }
+
+        // NB(yaishenka): Same case as above: assignment may already have been removed by disable/enable cycle.
         if (!operation->Assignments().contains(assignment)) {
             YT_LOG_WARNING("Assignment does not belong to operation anymore");
-            RemoveAssignment(assignment, /*strict*/ true);
+            RemoveAssignment(assignment, /*strict*/ false);
             continue;
         }
 
@@ -1509,6 +1523,8 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
 
     const auto NodeLogger = MakeNodeLogger(node->Descriptor());
     const auto Logger = NodeLogger.WithTag("OperationId: %v", operationElement->GetOperationId());
+
+    MaybeDelay(operationElement->Spec()->TestingOperationOptions->ScheduleAllocationDelayScheduler);
 
     auto nodeShardId = StrategyHost_->GetNodeShardId(node->GetId());
     const auto& nodeShardInvoker = StrategyHost_->GetNodeShardInvokers()[nodeShardId];
