@@ -1487,8 +1487,9 @@ def query_parsing_search_reducer(_, rows):
     user = row.get("user")
     yield from do_query_parsing_for_search_map(row, engine, "")
     yield from do_query_parsing_for_search_map(row, "", "")
-    yield from do_query_parsing_for_search_map(row, "", user)
-    yield from do_query_parsing_for_search_map(row, engine, user)
+    if user != "":
+        yield from do_query_parsing_for_search_map(row, "", user)
+        yield from do_query_parsing_for_search_map(row, engine, user)
 
 
 def group_by_pk_search_reducer(keys, rows):
