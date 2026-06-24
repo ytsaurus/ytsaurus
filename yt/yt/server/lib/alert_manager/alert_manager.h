@@ -17,11 +17,11 @@ struct TAlert
     TErrorCode ErrorCode;
     //! Human-readable representation of the error code above.
     //! NB: Alerts with the same category name *must* have the same error code value.
-    TString Category;
+    std::string Category;
     //! Human-readable description of alert instance.
     //! It is possible to have different description variants for the same error code,
     //! but only one description can be used for a group of alerts at any moment in the alert manager's lifetime.
-    TString Description;
+    std::string Description;
     //! A set of tags to be added to the error as attributes *and* used in profiling.
     //! The intent of these tags is to distinguish between alerts within the same category.
     //! E.g. when the same operation is performed for different clusters, each alert within the category should be
@@ -60,7 +60,7 @@ struct IAlertManager
     //! Returns an orchid service representing a snapshot of the stored alerts.
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
     //! Returns a snapshot of managed alerts.
-    virtual THashMap<TString, TError> GetAlerts() const = 0;
+    virtual THashMap<std::string, TError> GetAlerts() const = 0;
 
     virtual NLogging::TLogger GetLogger() const = 0;
     virtual NProfiling::TProfiler GetAlertProfiler() const = 0;
