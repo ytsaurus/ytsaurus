@@ -572,6 +572,21 @@ private:
     TWebAssemblyCompartment* const Compartment_;
     const IR::Module* const IncomingModule_;
 
+    void GrowGlobalOffsetTableIfNeeded(Uptr newTableBase)
+    {
+        Uptr totalElementCount = 0;
+        for (const auto& elemSegment : IncomingModule_->elemSegments) {
+            totalElementCount += elemSegment.contents->elemIndices.size();
+        }
+
+        Uptr requiredSize = newTableBase + totalElementCount;
+        Uptr currentSize = Runtime::getTableNumElements(Compartment_->GetGlobalOffsetTable());
+        if (requiredSize > currentSize) {
+            auto growResult = Runtime::growTable(Compartment_->GetGlobalOffsetTable(), requiredSize - currentSize, nullptr);
+            THROW_ERROR_EXCEPTION_IF(growResult != Runtime::GrowResult::success, "Failed to grow GOT in WebAssembly runtime");
+        }
+    }
+
     std::optional<Runtime::Object*> ResolveMemoryLayoutGlobals(
         const std::string& /*moduleName*/,
         const std::string& objectName,
@@ -592,15 +607,18 @@ private:
             Runtime::initializeGlobal(result, newMemoryBase);
             return Runtime::asObject(result);
         } else if (objectName == "__table_base") {
-            // TODO(dtorilov): Grow table here if needed.
             YT_VERIFY(std::ssize(Compartment_->MemoryLayoutData_.TableBases) == std::ssize(Compartment_->Modules_) + 1);
             Uptr newTableBase = Compartment_->MemoryLayoutData_.TableBases.back();
+            GrowGlobalOffsetTableIfNeeded(newTableBase);
+
             auto* result = Runtime::createGlobal(Compartment_->Compartment_, IR::GlobalType{IR::ValueType::i64, false}, "__table_base");
             Runtime::initializeGlobal(result, newTableBase);
             return Runtime::asObject(result);
         } else if (objectName == "__table_base32") {
             YT_VERIFY(std::ssize(Compartment_->MemoryLayoutData_.TableBases) == std::ssize(Compartment_->Modules_) + 1);
             Uptr newTableBase = Compartment_->MemoryLayoutData_.TableBases.back();
+            GrowGlobalOffsetTableIfNeeded(newTableBase);
+
             auto* result = Runtime::createGlobal(Compartment_->Compartment_, IR::GlobalType{IR::ValueType::i32, false}, "__table_base");
             THROW_ERROR_EXCEPTION_IF(newTableBase > std::numeric_limits<I32>::max(), "WebAssembly linkage error: new table base is bigger than max i32 value");
             Runtime::initializeGlobal(result, static_cast<I32>(newTableBase));
@@ -669,7 +687,7 @@ private:
             if (object != nullptr && object->kind == Runtime::ObjectKind::function) {
                 Uptr indexInGOT = -1;
                 auto growResult = Runtime::growTable(Compartment_->GetGlobalOffsetTable(), 1, &indexInGOT);
-                THROW_ERROR_EXCEPTION_IF(growResult != Runtime::GrowResult::success, "WebAssembly grow GOT error");
+                THROW_ERROR_EXCEPTION_IF(growResult != Runtime::GrowResult::success, "Failed to grow GOT in WebAssembly runtime");
                 Runtime::setTableElement(Compartment_->GetGlobalOffsetTable(), indexInGOT, object);
                 Compartment_->GlobalOffsetTableElements_.Functions[objectName] = indexInGOT;
                 return ResolveFunctionFromGlobalOffsetTable(moduleName, objectName, type);
