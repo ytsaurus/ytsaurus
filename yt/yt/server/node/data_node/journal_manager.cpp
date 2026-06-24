@@ -1195,7 +1195,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return Location_->GetChunkPath(chunkId) + "." + SealedFlagExtension;
+        // TODO(babenko): migrate to std::string (result is fed to TFile, which is TString-only).
+        return TString(Location_->GetChunkPath(chunkId) + "." + SealedFlagExtension);
     }
 
 

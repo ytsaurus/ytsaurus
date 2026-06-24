@@ -22,7 +22,7 @@ YT_DEFINE_GLOBAL(const NProfiling::TProfiler, P2PProfiler, DataNodeProfiler().Wi
 inline const TString MultiplexedDirectory("multiplexed");
 inline const TString TrashDirectory("trash");
 inline const TString CleanExtension("clean");
-inline const TString SealedFlagExtension("sealed");
+inline const std::string SealedFlagExtension("sealed");
 
 ////////////////////////////////////////////////////////////////////////////////
 

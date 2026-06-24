@@ -84,7 +84,8 @@ TString TChunkBase::GetFileName() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Location_->GetChunkPath(Id_);
+    // TODO(babenko): migrate to std::string (IChunk::GetFileName is declared TString).
+    return TString(Location_->GetChunkPath(Id_));
 }
 
 int TChunkBase::GetVersion() const
