@@ -5,6 +5,7 @@
 #include "functions.h"
 #include "helpers.h"
 #include "lexer.h"
+#include "private.h"
 #include "push_down_group_by.h"
 #include "query_helpers.h"
 #include "query_visitors.h"
@@ -1352,6 +1353,11 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     IMemoryUsageTrackerPtr memoryTracker,
     int depth)
 {
+    if (depth > MaxSubqueryDepth) {
+        THROW_ERROR_EXCEPTION("Maximum subquery depth exceeded")
+            << TErrorAttribute("max_subquery_depth", MaxSubqueryDepth);
+    }
+
     auto query = New<TQuery>(TGuid::Create());
 
     auto Logger = MakeQueryLogger(query);
