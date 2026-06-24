@@ -794,7 +794,7 @@ private:
             {
                 Annotations_.clear();
                 TStdStringOutput output(Annotations_);
-                TYsonWriter writer(&output, EYsonFormat::Text); // TODO(egor-gutrov): write binary yson here
+                TYsonWriter writer(&output, EYsonFormat::Binary);
                 cursor->TransferComplexValue(&writer);
             }
             SearchSubstring(Annotations_);
