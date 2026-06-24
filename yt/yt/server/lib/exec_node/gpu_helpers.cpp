@@ -102,7 +102,7 @@ std::vector<TGpuDeviceDescriptor> ListNvidiaGpuDevices()
     return result;
 }
 
-TString GetNvidiaGpuDeviceName(int deviceNumber)
+std::string GetNvidiaGpuDeviceName(int deviceNumber)
 {
     return DevNvidiaPath + ToString(deviceNumber);
 }
@@ -145,7 +145,7 @@ bool operator<(const TGpuDriverVersion& lhs, const TGpuDriverVersion& rhs)
     return lhs.Components < rhs.Components;
 }
 
-TString GetNvidiaGpuDriverVersionString()
+std::string GetNvidiaGpuDriverVersionString()
 {
     try {
         TFileInput moduleVersion(NvidiaModuleVersionPath);
@@ -155,21 +155,21 @@ TString GetNvidiaGpuDriverVersionString()
     }
 }
 
-TString GetDummyGpuDriverVersionString()
+std::string GetDummyGpuDriverVersionString()
 {
-    static TString version = "dummy";
-    return version;
+    static const std::string Version = "dummy";
+    return Version;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> ListInfinibandDevices()
+std::vector<std::string> ListInfinibandDevices()
 {
     if (!NFS::Exists(DevInfinibandPath)) {
         return {};
     }
 
-    std::vector<TString> devices;
+    std::vector<std::string> devices;
     TDirIterator dir(DevInfinibandPath, TDirIterator::TOptions().SetMaxLevel(1));
 
     for (auto file = dir.begin(); file != dir.end(); ++file) {
