@@ -2674,14 +2674,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         remove("//tmp/sparrow")
         gc_collect()
-        wait(
-            lambda: cluster_resources_equal(
-                get("//sys/accounts/sparrow/@resource_usage"),
-                self._build_resource_limits(include_disk_space=False)
-            )
-            and self._get_master_memory_usage("sparrow") == 0
-            and self._get_detailed_master_memory_usage("sparrow", "nodes") == 0
-        )
+        wait(lambda: account_usage_all_zero(get("//sys/accounts/sparrow/@recursive_resource_usage")))
         remove_account("sparrow", recursive=True, force=True, sync=False)
         wait(lambda: not exists("//sys/account_tree/sparrow"))
 
@@ -2708,14 +2701,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         remove("//tmp/max42")
         gc_collect()
-        wait(
-            lambda: cluster_resources_equal(
-                get("//sys/accounts/max42/@resource_usage"),
-                self._build_resource_limits(include_disk_space=False))
-            and self._get_master_memory_usage("max42") == 0
-            and self._get_detailed_master_memory_usage("max42", "nodes") == 0
-        )
-
+        wait(lambda: account_usage_all_zero(get("//sys/accounts/max42/@recursive_resource_usage")))
         remove_account("max", recursive=True, force=True, sync=False)
         wait(lambda: not exists("//sys/account_tree/max"))
 
