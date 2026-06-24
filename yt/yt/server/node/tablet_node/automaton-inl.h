@@ -15,7 +15,7 @@ namespace NYT::NTabletNode {
 template <class TRequest>
 void TTabletAutomatonPart::RegisterMethod(
     TCallback<void(TRequest*)> callback,
-    const std::vector<TString>& aliases,
+    const std::vector<std::string>& aliases,
     bool exceptionsAreNormal)
 {
     NHydra::TCompositeAutomatonPart::RegisterMethod(

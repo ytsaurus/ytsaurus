@@ -23,7 +23,7 @@ namespace NYT::NHydra {
 struct TMutationRequest
 {
     TReign Reign = 0;
-    TString Type;
+    std::string Type;
     TSharedRef Data;
     TCallback<void(TMutationContext*)> Handler;
     bool AllowLeaderForwarding = false;

@@ -56,7 +56,7 @@ TFuture<TMutationResponse> TMutation::CommitAndReply(NRpc::IServiceContextPtr co
     return Commit().Apply(std::move(callback));
 }
 
-void TMutation::SetRequestData(TSharedRef data, TString type)
+void TMutation::SetRequestData(TSharedRef data, std::string type)
 {
     Request_.Data = std::move(data);
     Request_.Type = std::move(type);
@@ -101,7 +101,7 @@ void TMutation::SetCurrentTraceContext()
     SetTraceContext(NTracing::TryGetCurrentTraceContext());
 }
 
-const TString& TMutation::GetType() const
+const std::string& TMutation::GetType() const
 {
     return Request_.Type;
 }

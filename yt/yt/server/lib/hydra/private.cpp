@@ -24,7 +24,7 @@ TDistributedHydraManagerConfigPtr TConfigWrapper::Get() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsSystemMutationType(const TString& mutationType)
+bool IsSystemMutationType(const std::string& mutationType)
 {
     return mutationType == NHydra::HeartbeatMutationType ||
         mutationType == ExitReadOnlyMutationType ||

@@ -73,7 +73,7 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
 
 void TCompositeAutomatonPart::RegisterSaver(
     ESyncSerializationPriority priority,
-    const TString& name,
+    const std::string& name,
     TCallback<void(TSaveContext&)> callback)
 {
     // Check for duplicate part names.
@@ -89,7 +89,7 @@ void TCompositeAutomatonPart::RegisterSaver(
 
 void TCompositeAutomatonPart::RegisterSaver(
     EAsyncSerializationPriority priority,
-    const TString& name,
+    const std::string& name,
     TCallback<TCallback<void(TSaveContext&)>()> callback)
 {
     // Check for duplicate part names.
@@ -104,7 +104,7 @@ void TCompositeAutomatonPart::RegisterSaver(
 }
 
 void TCompositeAutomatonPart::RegisterLoader(
-    const TString& name,
+    const std::string& name,
     TCallback<void(TLoadContext&)> callback)
 {
     TCompositeAutomaton::TLoaderDescriptor descriptor;
@@ -271,7 +271,7 @@ void TCompositeAutomaton::SetupLoadContext(TLoadContext* context)
 }
 
 void TCompositeAutomaton::RegisterMethod(
-    const TString& type,
+    const std::string& type,
     TCallback<void(TMutationContext*)> callback,
     bool exceptionsAreNormal)
 {
@@ -400,7 +400,7 @@ void TCompositeAutomaton::LoadSnapshot(const TSnapshotLoadContext& context)
             SERIALIZATION_DUMP_WRITE(context, "parts[%v]", partCount);
             SERIALIZATION_DUMP_INDENT(context) {
                 for (int partIndex = 0; partIndex < partCount; ++partIndex) {
-                    auto name = LoadSuspended<TString>(context);
+                    auto name = LoadSuspended<std::string>(context);
                     int version = LoadSuspended<i32>(context);
                     SERIALIZATION_DUMP_WRITE(context, "%v@%v =>", name, version);
 
@@ -617,7 +617,7 @@ void TCompositeAutomaton::OnRecoveryStarted()
 void TCompositeAutomaton::OnRecoveryComplete()
 { }
 
-TCompositeAutomaton::TMethodDescriptor* TCompositeAutomaton::GetMethodDescriptor(const TString& mutationType)
+TCompositeAutomaton::TMethodDescriptor* TCompositeAutomaton::GetMethodDescriptor(const std::string& mutationType)
 {
     auto it = MethodNameToDescriptor_.find(mutationType);
     if (it == MethodNameToDescriptor_.end()) {
