@@ -825,15 +825,15 @@ ru:
 
     # Flow: connectors → extensions split
     - from: /flow/connectors/logbroker.md
-      to: /flow/extensions/logbroker.md
+      to: /flow/yandex/extensions/logbroker.md
       type: redirect
 
     - from: /flow/connectors/bigrt.md
-      to: /flow/extensions/bigrt.md
+      to: /flow/yandex/extensions/bigrt.md
       type: redirect
 
     - from: /flow/connectors/grut-watchlog.md
-      to: /flow/extensions/grut-watchlog.md
+      to: /flow/yandex/extensions/grut-watchlog.md
       type: redirect
 
     # Redirects for Cluster Access article
@@ -883,5 +883,102 @@ ru:
       type: redirect
 
     - from: /yandex-specific/flow/extensions/solomon.md
-      to: /yandex-specific/flow/extensions/monium.md
+      to: /yandex-specific/flow/yandex/extensions/monium.md
+      type: redirect
+
+    # Flow: wholly-internal pages moved under yandex/ (YTFLOW-649)
+    - from: /yandex-specific/flow/ai-agent.md
+      to: /yandex-specific/flow/yandex/ai-agent.md
+      type: redirect
+
+    - from: /yandex-specific/flow/extensions/bigrt.md
+      to: /yandex-specific/flow/yandex/extensions/bigrt.md
+      type: redirect
+
+    - from: /yandex-specific/flow/extensions/grut-watchlog.md
+      to: /yandex-specific/flow/yandex/extensions/grut-watchlog.md
+      type: redirect
+
+    - from: /yandex-specific/flow/release/ui.md
+      to: /yandex-specific/flow/yandex/release/ui.md
+      type: redirect
+
+    - from: /yandex-specific/flow/other/framework_users.md
+      to: /yandex-specific/flow/yandex/other/framework_users.md
+      type: redirect
+
+    - from: /yandex-specific/flow/other/video-posts.md
+      to: /yandex-specific/flow/yandex/other/video-posts.md
+      type: redirect
+
+    - from: /flow/ai-agent.md
+      to: /flow/yandex/ai-agent.md
+      type: redirect
+
+    - from: /flow/extensions/bigrt.md
+      to: /flow/yandex/extensions/bigrt.md
+      type: redirect
+
+    - from: /flow/extensions/grut-watchlog.md
+      to: /flow/yandex/extensions/grut-watchlog.md
+      type: redirect
+
+    - from: /flow/release/ui.md
+      to: /flow/yandex/release/ui.md
+      type: redirect
+
+    - from: /flow/other/framework_users.md
+      to: /flow/yandex/other/framework_users.md
+      type: redirect
+
+    - from: /flow/other/video-posts.md
+      to: /flow/yandex/other/video-posts.md
+      type: redirect
+
+    - from: /yandex-specific/flow/extensions/about.md
+      to: /yandex-specific/flow/yandex/extensions/about.md
+      type: redirect
+
+    - from: /yandex-specific/flow/extensions/logbroker.md
+      to: /yandex-specific/flow/yandex/extensions/logbroker.md
+      type: redirect
+
+    - from: /yandex-specific/flow/extensions/monium.md
+      to: /yandex-specific/flow/yandex/extensions/monium.md
+      type: redirect
+
+    - from: /yandex-specific/flow/extensions/serializable-profile.md
+      to: /yandex-specific/flow/yandex/extensions/serializable-profile.md
+      type: redirect
+
+    - from: /yandex-specific/flow/other/comparison.md
+      to: /yandex-specific/flow/yandex/other/comparison.md
+      type: redirect
+
+    - from: /yandex-specific/flow/release/yp.md
+      to: /yandex-specific/flow/yandex/release/yp.md
+      type: redirect
+
+    - from: /flow/extensions/about.md
+      to: /flow/yandex/extensions/about.md
+      type: redirect
+
+    - from: /flow/extensions/logbroker.md
+      to: /flow/yandex/extensions/logbroker.md
+      type: redirect
+
+    - from: /flow/extensions/monium.md
+      to: /flow/yandex/extensions/monium.md
+      type: redirect
+
+    - from: /flow/extensions/serializable-profile.md
+      to: /flow/yandex/extensions/serializable-profile.md
+      type: redirect
+
+    - from: /flow/other/comparison.md
+      to: /flow/yandex/other/comparison.md
+      type: redirect
+
+    - from: /flow/release/yp.md
+      to: /flow/yandex/release/yp.md
       type: redirect
