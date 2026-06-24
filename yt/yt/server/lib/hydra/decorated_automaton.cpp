@@ -421,7 +421,7 @@ private:
     public:
         TCommunicationChannel(
             const NLogging::TLogger& Logger,
-            const TString& kind)
+            const std::string& kind)
         {
             Pipe_ = TPipeFactory().Create();
             YT_LOG_INFO("Communication channel created (Kind: %v, Pipe: %v)",

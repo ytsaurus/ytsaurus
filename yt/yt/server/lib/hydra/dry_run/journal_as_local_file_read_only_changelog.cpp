@@ -23,7 +23,7 @@ void TJournalAsLocalFileReadOnlyChangelog::Open(const std::string& path)
     TYsonPullParser parser(&input, EYsonType::ListFragment);
     TYsonPullParserCursor cursor(&parser);
     YT_VERIFY(cursor.TryConsumeFragmentStart());
-    static const TString PayloadKey("payload");
+    static const std::string PayloadKey("payload");
     while (!cursor->IsEndOfStream()) {
         cursor.ParseMap([&] (TYsonPullParserCursor* cursor) {
             auto valueType = (*cursor)->GetType();

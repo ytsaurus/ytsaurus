@@ -600,8 +600,7 @@ public:
     {
         return {
             .Reign = GetCurrentReign(),
-            // TODO(babenko): migrate to std::string
-            .Type = TString(mutationType)
+            .Type = mutationType
         };
     }
 
