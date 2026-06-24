@@ -6293,7 +6293,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermissionByAcl)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
-    std::optional<TString> user;
+    std::optional<std::string> user;
     if (request->has_user()) {
         user = request->user();
     }
@@ -6764,7 +6764,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteTable)
         path);
 
     NApi::TTableWriterOptions options;
-    TString tableWriterConfig("{}");
+    std::string tableWriterConfig("{}");
     if (request->has_config()) {
         tableWriterConfig = request->config();
     }
