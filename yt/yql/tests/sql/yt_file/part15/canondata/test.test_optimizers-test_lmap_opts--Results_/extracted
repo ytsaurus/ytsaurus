@@ -1,29 +1,29 @@
 <tmp_path>/program.sql:<main>: Warning: Type annotation
 
-    <tmp_path>/program.sql:<main>:46:1: Warning: At function: RemovePrefixMembers, At function: Unordered, At function: PersistableRepr, At function: SqlProject
+    <tmp_path>/program.sql:<main>:45:1: Warning: At function: RemovePrefixMembers, At function: Unordered, At function: PersistableRepr, At function: SqlProject
     	SELECT Avg(Length(FinalResult)) AS AvgResultLength FROM $p4;
 	^
-        <tmp_path>/program.sql:<main>:46:57: Warning: At function: AssumeColumnOrderPartial, At function: Aggregate
+        <tmp_path>/program.sql:<main>:45:57: Warning: At function: AssumeColumnOrderPartial, At function: Aggregate
         	SELECT Avg(Length(FinalResult)) AS AvgResultLength FROM $p4;
 	                                                        ^
-            <tmp_path>/program.sql:<main>:43:5: Warning: At function: PersistableRepr, At function: OrderedSqlProject
+            <tmp_path>/program.sql:<main>:42:5: Warning: At function: PersistableRepr, At function: OrderedSqlProject
             	    SELECT Data AS FinalResult FROM $p3
 	    ^
-                <tmp_path>/program.sql:<main>:39:5: Warning: At function: AutoDemux, At function: PersistableRepr, At function: SqlProcess
+                <tmp_path>/program.sql:<main>:38:5: Warning: At function: AutoDemux, At function: PersistableRepr, At function: SqlProcess
                 	    PROCESS $p2 USING Streaming::Process(TableRows(), "grep", AsList("180"))
 	    ^
-                    <tmp_path>/program.sql:<main>:39:34: Warning: At function: Udf, At function: TupleType, At function: TupleType, At function: TypeOf
+                    <tmp_path>/program.sql:<main>:38:34: Warning: At function: Udf, At function: TupleType, At function: TupleType, At function: TypeOf
                     	    PROCESS $p2 USING Streaming::Process(TableRows(), "grep", AsList("180"))
 	                                 ^
-                        <tmp_path>/program.sql:<main>:39:42: Warning: At function: RemoveSystemMembers
+                        <tmp_path>/program.sql:<main>:38:42: Warning: At function: RemoveSystemMembers
                         	    PROCESS $p2 USING Streaming::Process(TableRows(), "grep", AsList("180"))
 	                                         ^
-                            <tmp_path>/program.sql:<main>:35:5: Warning: At function: PersistableRepr, At function: OrderedSqlProject
+                            <tmp_path>/program.sql:<main>:34:5: Warning: At function: PersistableRepr, At function: OrderedSqlProject
                             	    SELECT Result AS Data FROM $p1
 	    ^
-                                <tmp_path>/program.sql:<main>:31:5: Warning: At function: AutoDemux, At function: PersistableRepr, At function: SqlProcess
+                                <tmp_path>/program.sql:<main>:30:5: Warning: At function: AutoDemux, At function: PersistableRepr, At function: SqlProcess
                                 	    PROCESS $data USING $udf($prefix, TableRows(), "=") WHERE Name != "foo"
 	    ^
-                                    <tmp_path>/program.sql:<main>:19:16: Warning: The Udf used in PROCESS accepts List argument type, which prevents some optimizations. Consider to rewrite it using Stream argument type
+                                    <tmp_path>/program.sql:<main>:18:16: Warning: The Udf used in PROCESS accepts List argument type, which prevents some optimizations. Consider to rewrite it using Stream argument type
                                     	$udf = Python::processRows(
 	               ^
