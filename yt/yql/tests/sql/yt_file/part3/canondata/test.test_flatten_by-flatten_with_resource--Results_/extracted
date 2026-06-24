@@ -1,11 +1,11 @@
 <tmp_path>/program.sql:<main>: Warning: Type annotation
 
-    <tmp_path>/program.sql:<main>:18:1: Warning: At function: RemovePrefixMembers, At function: Unordered, At function: PersistableRepr, At function: OrderedSqlProject, At function: OrderedFlatMap
+    <tmp_path>/program.sql:<main>:17:1: Warning: At function: RemovePrefixMembers, At function: Unordered, At function: PersistableRepr, At function: OrderedSqlProject, At function: OrderedFlatMap
     	SELECT key, $load(resourceList) AS value FROM $input FLATTEN BY resourceList;
 	^
-        <tmp_path>/program.sql:<main>:15:5: Warning: At function: PersistableRepr
+        <tmp_path>/program.sql:<main>:14:5: Warning: At function: PersistableRepr
         	    SELECT key, AsList($save(value), $save(subkey)) AS resourceList FROM plato.Input
 	    ^
-            <tmp_path>/program.sql:<main>:15:5: Warning: Persistable required. Atom, key, world, datasink, datasource, callable, resource, stream and lambda are not persistable
+            <tmp_path>/program.sql:<main>:14:5: Warning: Persistable required. Atom, key, world, datasink, datasource, callable, resource, stream and lambda are not persistable
             	    SELECT key, AsList($save(value), $save(subkey)) AS resourceList FROM plato.Input
 	    ^

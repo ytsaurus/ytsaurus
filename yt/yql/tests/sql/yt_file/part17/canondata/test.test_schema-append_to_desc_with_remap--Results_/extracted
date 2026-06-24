@@ -6,9 +6,9 @@
         
 <tmp_path>/program.sql:<main>: Warning: Type annotation (repeat)
 
-    <tmp_path>/program.sql:<main>:4:13: Warning: At function: YtPublish!
+    <tmp_path>/program.sql:<main>:3:13: Warning: At function: YtPublish!
     	insert into Output
 	            ^
-        <tmp_path>/program.sql:<main>:4:13: Warning: Sort order of written data differs from the order of "Output" table content. Result table content will be unordered
+        <tmp_path>/program.sql:<main>:3:13: Warning: Sort order of written data differs from the order of "Output" table content. Result table content will be unordered
         	insert into Output
 	            ^
