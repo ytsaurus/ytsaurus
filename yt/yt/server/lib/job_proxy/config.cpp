@@ -4,7 +4,7 @@
 
 #include <yt/yt/library/stockpile/config.h>
 
-#include <util/system/env.h>
+#include <library/cpp/yt/system/env.h>
 
 namespace NYT::NJobProxy {
 
@@ -137,10 +137,10 @@ void TEnvironmentVariableConfig::Register(TRegistrar registrar)
     });
 }
 
-TString TEnvironmentVariableConfig::LoadValue() const
+std::string TEnvironmentVariableConfig::LoadValue() const
 {
     if (EnvironmentVariable) {
-        if (auto value = TryGetEnv(*EnvironmentVariable)) {
+        if (auto value = TryGetEnvValue(*EnvironmentVariable)) {
             return *std::move(value);
         }
     }
@@ -148,7 +148,8 @@ TString TEnvironmentVariableConfig::LoadValue() const
         return *Value;
     }
     if (FileName) {
-        return TFileInput(*FileName).ReadAll();
+        // TODO(babenko): migrate to std::string
+        return TFileInput(TString(*FileName)).ReadAll();
     }
     THROW_ERROR_EXCEPTION("Cannot load environment variable %Qv", EnvironmentVariable);
 }

@@ -3370,8 +3370,14 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->RootPath = FSSecretary_->GetRootVolume()->GetPath();
     } else {
         // Pass docker image if root volume is not materialized yet.
-        proxyInternalConfig->DockerImage = FSSecretary_->GetDockerImage();
-        proxyInternalConfig->DockerImageId = FSSecretary_->GetDockerImageId();
+        // TODO(babenko): migrate to std::string
+        if (const auto& dockerImage = FSSecretary_->GetDockerImage()) {
+            proxyInternalConfig->DockerImage = *dockerImage;
+        }
+        // TODO(babenko): migrate to std::string
+        if (const auto& dockerImageId = FSSecretary_->GetDockerImageId()) {
+            proxyInternalConfig->DockerImageId = *dockerImageId;
+        }
     }
 
     if (FSSecretary_->GetRootVolume() || FSSecretary_->GetDockerImage()) {
@@ -3430,7 +3436,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
 
-            *proxyInternalConfig->StderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyInternalConfig->StderrPath);
+            // TODO(babenko): migrate to std::string
+            *proxyInternalConfig->StderrPath = jobProxyLogManager->AdjustLogPath(Id_, TString(*proxyInternalConfig->StderrPath));
             YT_LOG_DEBUG("Job proxy stderr path replaced (NewPath: %v)", *proxyInternalConfig->StderrPath);
         }
     }
@@ -3440,7 +3447,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
 
-            *proxyInternalConfig->ExecutorStderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyInternalConfig->ExecutorStderrPath);
+            // TODO(babenko): migrate to std::string
+            *proxyInternalConfig->ExecutorStderrPath = jobProxyLogManager->AdjustLogPath(Id_, TString(*proxyInternalConfig->ExecutorStderrPath));
             YT_LOG_DEBUG("Executor stderr path replaced (NewPath: %v)", *proxyInternalConfig->ExecutorStderrPath);
         }
     }
