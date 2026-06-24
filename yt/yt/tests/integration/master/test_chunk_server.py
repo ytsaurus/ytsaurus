@@ -487,12 +487,18 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 4)
 
     @authors("kvk1920")
-    def test_last_seen_replicas(self):
+    @pytest.mark.parametrize("erasure", [False, True])
+    def test_last_seen_replicas(self, erasure):
+        expected_replica_count = 6 if erasure else 3
+
         # This makes current test deterministic.
         nodes = ls("//sys/data_nodes")
-        set_nodes_banned(nodes[3:], True)
+        set_nodes_banned(nodes[expected_replica_count:], True)
 
         create("table", "//tmp/t")
+        if erasure:
+            set("//tmp/t/@erasure_codec", "reed_solomon_3_3")
+
         write_table("//tmp/t", [{"key": 42, "value": "hello!"}])
         chunk_id = get_singular_chunk_id("//tmp/t")
 
@@ -502,19 +508,20 @@ class TestChunkServer(YTEnvSetup):
         def get_last_seen_replicas():
             return [str(r) for r in get(f"#{chunk_id}/@last_seen_replicas")]
 
-        # Last seen replica count is 5 for regular chunks.
         for _ in range(6):
-            wait(lambda: len(get_stored_replicas()) == 3)
+            wait(lambda: len(get_stored_replicas()) == expected_replica_count)
             set_node_banned(nodes[0], True)
-            wait(lambda: len(get_stored_replicas()) == 2)
+            wait(lambda: len(get_stored_replicas()) == expected_replica_count - 1)
             set_node_banned(nodes[0], False)
-            wait(lambda: len(get_stored_replicas()) == 3)
+            wait(lambda: len(get_stored_replicas()) == expected_replica_count)
 
         stored_replicas = get_stored_replicas()
         last_seen_replicas = get_last_seen_replicas()
         assert stored_replicas == builtins.set(last_seen_replicas)
-        # First last seen replica is the newest one.
-        assert nodes[0] == last_seen_replicas[0]
+
+        if not erasure:
+            # First last seen replica is the newest one.
+            assert nodes[0] == last_seen_replicas[0]
 
     @authors("grphil")
     def test_fetch_only_online_replicas(self):

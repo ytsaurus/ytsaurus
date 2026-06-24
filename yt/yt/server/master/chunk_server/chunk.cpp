@@ -1058,40 +1058,40 @@ TStoredChunkReplicaList TChunk::GetStoredReplicaList(bool includeNonOnlineReplic
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::TReplicasData()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::TReplicasData()
 {
     std::fill(LastSeenReplicas.begin(), LastSeenReplicas.end(), InvalidNodeId);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-const TStoredChunkReplicaList& TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::StoredReplicaList() const
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+const TStoredChunkReplicaList& TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::StoredReplicaList() const
 {
     return StoredReplicas;
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TMutableRange<TAugmentedStoredChunkReplicaPtr> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableStoredReplicas()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+TMutableRange<TAugmentedStoredChunkReplicaPtr> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::MutableStoredReplicas()
 {
     return TMutableRange(StoredReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddStoredReplica(TAugmentedStoredChunkReplicaPtr replica)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::AddStoredReplica(TAugmentedStoredChunkReplicaPtr replica)
 {
     StoredReplicas.push_back(replica);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::RemoveStoredReplica(int replicaIndex)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::RemoveStoredReplica(int replicaIndex)
 {
     std::swap(StoredReplicas[replicaIndex], StoredReplicas.back());
     StoredReplicas.pop_back();
     StoredReplicas.shrink_to_small();
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddLastSeenReplica(TNodeId nodeId)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::AddLastSeenReplica(TNodeId nodeId)
 {
     if constexpr (MaxLastSeenReplicaCount > 0) {
         LastSeenReplicaCount =
@@ -1105,20 +1105,22 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::
     }
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetLastSeenReplicas() const
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+TRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::GetLastSeenReplicas() const
 {
-    return TRange(LastSeenReplicas.data(), LastSeenReplicaCount);
+    return IsErasure
+        ? TRange(LastSeenReplicas)
+        : TRange(LastSeenReplicas.data(), LastSeenReplicaCount);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableLastSeenReplicas()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::MutableLastSeenReplicas()
 {
     return TMutableRange(LastSeenReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::Load(NCellMaster::TLoadContext& context)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
@@ -1128,8 +1130,8 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::
     Load(context, ApprovedReplicaCount);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Save(NCellMaster::TSaveContext& context) const
+template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount, bool IsErasure>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount, IsErasure>::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
 

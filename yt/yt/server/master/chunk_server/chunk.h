@@ -431,7 +431,7 @@ private:
         virtual void Save(NCellMaster::TSaveContext& context) const = 0;
     };
 
-    template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+    template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
     struct TReplicasData
         : public TReplicasDataBase
     {
@@ -461,12 +461,18 @@ private:
 
     static constexpr int RegularChunkTypicalReplicaCount = 5;
     static constexpr int RegularChunkLastSeenReplicaCount = 5;
-    using TRegularChunkReplicasData = TReplicasData<RegularChunkTypicalReplicaCount, RegularChunkLastSeenReplicaCount>;
+    using TRegularChunkReplicasData = TReplicasData<
+        RegularChunkTypicalReplicaCount,
+        RegularChunkLastSeenReplicaCount,
+        /*IsErasure*/ false>;
 
     static constexpr int ErasureChunkTypicalReplicaCount = 24;
     static constexpr int ErasureChunkLastSeenReplicaCount = 16;
     static_assert(ErasureChunkLastSeenReplicaCount >= ::NErasure::MaxTotalPartCount, "ErasureChunkLastSeenReplicaCount < NErasure::MaxTotalPartCount");
-    using TErasureChunkReplicasData = TReplicasData<ErasureChunkTypicalReplicaCount, ErasureChunkLastSeenReplicaCount>;
+    using TErasureChunkReplicasData = TReplicasData<
+        ErasureChunkTypicalReplicaCount,
+        ErasureChunkLastSeenReplicaCount,
+        /*IsErasure*/ true>;
 
     //! This additional indirection helps to save up some space since
     //! no replicas are being maintained for foreign chunks.
@@ -487,7 +493,7 @@ private:
 
     void OnMiscExtUpdated(const NChunkClient::NProto::TMiscExt& miscExt);
 
-    using TEmptyChunkReplicasData = TReplicasData<0, 0>;
+    using TEmptyChunkReplicasData = TReplicasData<0, 0, false>;
     static const TEmptyChunkReplicasData EmptyChunkReplicasData;
 };
 
