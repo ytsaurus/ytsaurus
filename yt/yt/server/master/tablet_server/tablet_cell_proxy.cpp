@@ -24,6 +24,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <util/string/cast.h>
 
 namespace NYT::NTabletServer {
@@ -51,8 +53,8 @@ TYsonString CombineObjectIds(
     const std::vector<TObjectId>& objectIds,
     const std::vector<std::vector<TObjectId>>& remoteObjectIds)
 {
-    TString result;
-    TStringOutput stringOutput(result);
+    std::string result;
+    TStdStringOutput stringOutput(result);
 
     auto writer = CreateYsonWriter(
         &stringOutput,

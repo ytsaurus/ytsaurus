@@ -108,6 +108,7 @@
 #include <library/cpp/yt/misc/cast.h>
 
 #include <library/cpp/yt/string/string.h>
+#include <library/cpp/yt/string/stream.h>
 
 #include <algorithm>
 
@@ -1442,8 +1443,8 @@ void TApiService::InitContext(TApiServiceContext<TRequestMessage, TResponseMessa
 
     // NB: We try to do heavy work only if we are actually going to omit corresponding message. Conserve priceless CPU time.
     if (shouldEmit(config->StructuredLoggingMainTopic)) {
-        TString requestYson;
-        TStringOutput requestOutput(requestYson);
+        std::string requestYson;
+        TStdStringOutput requestOutput(requestYson);
         TYsonWriter requestYsonWriter(&requestOutput, EYsonFormat::Text);
         TProtobufParserOptions parserOptions{
             .SkipUnknownFields = true,

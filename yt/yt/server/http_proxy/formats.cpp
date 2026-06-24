@@ -13,6 +13,8 @@
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NHttpProxy {
 
 using namespace NFormats;
@@ -208,8 +210,8 @@ void FillFormattedYTError(
     const TError& error,
     const TFormat& format)
 {
-    TString errorString;
-    TStringOutput errorStringOutput(errorString);
+    std::string errorString;
+    TStdStringOutput errorStringOutput(errorString);
 
     auto consumer = CreateConsumerForFormat(
         format,

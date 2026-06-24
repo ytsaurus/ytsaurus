@@ -5,6 +5,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/yt/string/string_builder.h>
+#include <library/cpp/yt/string/stream.h>
 
 #include <library/cpp/yt/yson_string/public.h>
 
@@ -24,9 +25,8 @@ void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& a
         return;
     }
 
-    // TODO(babenko): migrate to std::string
-    TString attrString;
-    TStringOutput output(attrString);
+    std::string attrString;
+    TStdStringOutput output(attrString);
     TYsonWriter attrWriter(&output, EYsonFormat::Text, EYsonType::MapFragment);
 
     std::ranges::sort(attributePairs, [] (const auto& lhs, const auto& rhs) {
