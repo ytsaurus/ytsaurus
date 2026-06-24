@@ -325,6 +325,28 @@ TEST_F(TQueryPrepareTest, TooBigQuery2)
         ContainsRegex("Maximum expression depth exceeded"));
 }
 
+TEST_F(TQueryPrepareTest, DeeplyNestedSubquery)
+{
+    constexpr int Depth = 2000;
+
+    std::string query;
+    query.reserve(Depth * 20);
+    for (int level = 0; level < Depth; ++level) {
+        query += "SELECT * FROM (\n";
+    }
+    query += "SELECT * FROM [//t]";
+    for (int level = 0; level < Depth; ++level) {
+        query += ")";
+    }
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSimpleSplit())));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        query,
+        HasSubstr("Maximum subquery depth exceeded"));
+}
+
 #endif // !defined(_asan_enabled_) && !defined(_msan_enabled_)
 
 TEST_F(TQueryPrepareTest, BigQuery)

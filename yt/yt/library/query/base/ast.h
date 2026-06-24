@@ -5,6 +5,8 @@
 
 #include <yt/yt/library/query/misc/objects_holder.h>
 
+#include <util/generic/noncopyable.h>
+
 #include <variant>
 
 namespace NYT::NQueryClient::NAst {
@@ -563,10 +565,14 @@ struct TAstHead
 struct TQueryAstHead
     : public TObjectsHolder
     , public TRefCounted
+    , private TNonCopyable
 {
     TQuery Ast;
     TAliasMap AliasMap;
     std::optional<std::string> Alias;
+
+    TQueryAstHead() = default;
+    ~TQueryAstHead();
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
