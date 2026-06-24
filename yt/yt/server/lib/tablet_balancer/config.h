@@ -8,9 +8,9 @@
 
 namespace NYT::NTabletBalancer {
 
-const TString DefaultGroupName = "default";
-const TString LegacyOrdinaryGroupName = "legacy";
-const TString LegacyInMemoryGroupName = "legacy_in_memory";
+const TGroupName DefaultGroupName = "default";
+const TGroupName LegacyOrdinaryGroupName = "legacy";
+const TGroupName LegacyInMemoryGroupName = "legacy_in_memory";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +56,7 @@ DEFINE_REFCOUNTED_TYPE(TComponentFactorConfig)
 struct TParameterizedBalancingConfig
     : public NYTree::TYsonStruct
 {
-    TString Metric;
+    std::string Metric;
     std::optional<bool> EnableReshard;
     std::optional<bool> PerTableUniform;
     std::optional<int> MaxActionCount;
@@ -137,11 +137,11 @@ struct TBundleTabletBalancerConfig
     , public TFeatureFlagConfig
 {
     bool EnableParameterizedByDefault;
-    std::optional<TString> DefaultInMemoryGroup;
+    std::optional<TGroupName> DefaultInMemoryGroup;
     bool EnablePickPivotKeys;
     double SafeUsedTabletStaticRatio;
 
-    THashMap<TString, TTabletBalancingGroupConfigPtr> Groups;
+    THashMap<TGroupName, TTabletBalancingGroupConfigPtr> Groups;
 
     REGISTER_YSON_STRUCT(TBundleTabletBalancerConfig);
 
@@ -193,7 +193,7 @@ struct TTableTabletBalancerConfig
     , public TFeatureFlagConfig
 {
     std::optional<bool> EnableParameterized;
-    std::optional<TString> Group;
+    std::optional<TGroupName> Group;
     std::optional<double> DesiredTabletMetric;
     THashMap<TClusterName, std::vector<NYPath::TYPath>> ReplicaPathOverrides;
 
