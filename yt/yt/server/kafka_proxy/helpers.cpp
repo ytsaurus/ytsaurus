@@ -161,7 +161,7 @@ TErrorOr<TRecordBatch> ConvertGenericQueueRowsToRecordBatch(
     TBlobOutput blobOutput;
     auto writer = TYsonWriter(
         &blobOutput,
-        EYsonFormat::Text,
+        EYsonFormat::Binary,
         EYsonType::Node,
         /*enableRaw*/ true);
 

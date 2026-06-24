@@ -402,7 +402,7 @@ TStateMutation TState::FlushMutation()
     NCompression::ICodec* patchCodec = NCompression::GetCodec(Format_->PatchCompression);
 
     if (Rewrite_ && Schema_->FormatColumn) {
-        auto serializedFormat = ConvertToYsonString(Format_, EYsonFormat::Text);
+        auto serializedFormat = ConvertToYsonString(Format_, EYsonFormat::Binary);
         auto value = MakeUnversionedAnyValue(serializedFormat.AsStringBuf(), *Schema_->FormatColumn);
         (*TableRow_)[*Schema_->FormatColumn] = TUnversionedOwningValue(value);
         updateBuilder.AddValue((*TableRow_)[*Schema_->FormatColumn]);
