@@ -61,7 +61,7 @@ IArchiveReporterPtr CreateArchiveReporter(
     TArchiveReporterConfigPtr reporterConfig,
     TArchiveHandlerConfigPtr handlerConfig,
     NTableClient::TNameTablePtr nameTable,
-    TString reporterName,
+    std::string reporterName,
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,
     NProfiling::TProfiler profiler);

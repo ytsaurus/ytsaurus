@@ -6,13 +6,13 @@ namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString ExecProgramName("ytserver-exec");
-const TString JobProxyProgramName("ytserver-job-proxy");
+const std::string ExecProgramName("ytserver-exec");
+const std::string JobProxyProgramName("ytserver-job-proxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString BanMessageAttributeName("ban_message");
-const TString ConfigAttributeName("config");
+const std::string BanMessageAttributeName("ban_message");
+const std::string ConfigAttributeName("config");
 
 ////////////////////////////////////////////////////////////////////////////////
 

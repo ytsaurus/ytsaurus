@@ -323,7 +323,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
     options.SuppressUpstreamSync = true;
     options.SuppressStronglyOrderedTransactionBarrier = true;
     options.ReadFrom = EMasterChannelKind::Cache;
-    options.Attributes = {"role", "banned", "liveness", BanMessageAttributeName};
+    options.Attributes = std::vector<std::string>{"role", "banned", "liveness", BanMessageAttributeName};
 
     auto proxiesYson = WaitFor(Client_->ListNode(NApi::HttpProxiesPath, options))
         .ValueOrThrow();
