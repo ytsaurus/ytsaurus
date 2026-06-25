@@ -74,7 +74,7 @@ void SerializeField(
             break;
         }
         case NSkiff::EWireType::Yson32: {
-            auto value = ConvertToYsonString(object, EYsonFormat::Text);
+            auto value = ConvertToYsonString(object, EYsonFormat::Binary);
             skiffWriter->WriteYson32(value.AsStringBuf());
             break;
         }

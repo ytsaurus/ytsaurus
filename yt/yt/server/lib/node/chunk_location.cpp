@@ -78,6 +78,8 @@ TChunkLocationBase::TChunkLocationBase(
     , CellId_(cellId)
     , Type_(type)
     , StaticConfig_(std::move(config))
+    , Path_(StaticConfig_->Path)
+    , DiskFamily_(StaticConfig_->DiskFamily)
     , RuntimeConfig_(StaticConfig_)
     , GetBriefConfigCallback_(std::move(getBriefConfigCallback))
 {
@@ -120,7 +122,8 @@ TChunkLocationBase::TChunkLocationBase(
 
     HealthChecker_ = New<TDiskHealthChecker>(
         StaticConfig_->DiskHealthChecker,
-        GetPath(),
+        // TODO(babenko): migrate to std::string (TDiskHealthChecker takes const TString& path).
+        TString(GetPath()),
         GetAuxPoolInvoker(),
         Logger,
         Profiler_);
@@ -222,11 +225,11 @@ void TChunkLocationBase::SetIndex(TChunkLocationIndex index)
     Index_ = index;
 }
 
-const TString& TChunkLocationBase::GetDiskFamily() const
+const std::string& TChunkLocationBase::GetDiskFamily() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return StaticConfig_->DiskFamily;
+    return DiskFamily_;
 }
 
 const NProfiling::TProfiler& TChunkLocationBase::GetProfiler() const
@@ -236,11 +239,11 @@ const NProfiling::TProfiler& TChunkLocationBase::GetProfiler() const
     return Profiler_;
 }
 
-const TString& TChunkLocationBase::GetPath() const
+const std::string& TChunkLocationBase::GetPath() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return StaticConfig_->Path;
+    return Path_;
 }
 
 i64 TChunkLocationBase::GetQuota() const
@@ -402,7 +405,7 @@ int TChunkLocationBase::GetChunkCount() const
     return ChunkCount_;
 }
 
-TString TChunkLocationBase::GetChunkPath(TChunkId chunkId) const
+std::string TChunkLocationBase::GetChunkPath(TChunkId chunkId) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -446,13 +449,13 @@ void TChunkLocationBase::RemoveChunkFiles(TChunkId chunkId, bool /*force*/)
     RemoveChunkFilesPermanently(chunkId);
 }
 
-TString TChunkLocationBase::GetRelativeChunkPath(TChunkId chunkId)
+std::string TChunkLocationBase::GetRelativeChunkPath(TChunkId chunkId)
 {
     int hashByte = chunkId.Parts32[0] & 0xff;
     return NFS::CombinePaths(Format("%02x", hashByte), ToString(chunkId));
 }
 
-void TChunkLocationBase::ForceHashDirectories(const TString& rootPath)
+void TChunkLocationBase::ForceHashDirectories(const std::string& rootPath)
 {
     for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
         auto hashDirectory = Format("%02x", hashByte);

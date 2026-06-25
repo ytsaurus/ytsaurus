@@ -961,7 +961,7 @@ public:
         return {LastPoolsNodeUpdateError_, true};
     }
 
-    TError ValidateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) override
+    TError ValidateUserToDefaultPoolMap(const THashMap<std::string, std::string>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -969,13 +969,14 @@ public:
             return TError();
         }
 
-        THashSet<TString> uniquePoolNames;
+        THashSet<std::string> uniquePoolNames;
         for (const auto& [userName, poolName] : userToDefaultPoolMap) {
             uniquePoolNames.insert(poolName);
         }
 
         for (const auto& poolName : uniquePoolNames) {
-            if (!FindPool(poolName)) {
+            // TODO(babenko): migrate to std::string
+            if (!FindPool(TString(poolName))) {
                 return TError(
                     "User default parent pool %Qv is missing in pool tree %Qv",
                     poolName,
@@ -2372,7 +2373,7 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto tryGetValidPool = [&] (const TString& poolName, const char* poolCaption, const std::string& loggedAttributes) -> TPoolTreeCompositeElementPtr {
+        auto tryGetValidPool = [&] (const std::string& poolName, const char* poolCaption, const std::string& loggedAttributes) -> TPoolTreeCompositeElementPtr {
             auto pool = FindPool(poolName);
             if (pool) {
                 if (pool->GetMode() != ESchedulingMode::Fifo) {
@@ -2407,7 +2408,7 @@ private:
         return RootElement_;
     }
 
-    void ActualizeEphemeralPoolParents(const THashMap<std::string, TString>& userToDefaultPoolMap) override
+    void ActualizeEphemeralPoolParents(const THashMap<std::string, std::string>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2422,7 +2423,8 @@ private:
                 auto it = userToDefaultPoolMap.find(poolName);
                 if (it != userToDefaultPoolMap.end() && it->second != actualParentName) {
                     const auto& configuredParentName = it->second;
-                    auto newParent = FindPool(configuredParentName);
+                    // TODO(babenko): migrate to std::string
+                    auto newParent = FindPool(TString(configuredParentName));
                     if (!newParent) {
                         YT_LOG_DEBUG(
                             "Configured parent of ephemeral pool not found; skipping (Pool: %v, ActualParent: %v, ConfiguredParent: %v)",
@@ -2886,7 +2888,7 @@ private:
 
     void BuildResourceMetering(
         TMeteringMap* meteringMap,
-        THashMap<TString, TString>* customMeteringTags) const override
+        THashMap<std::string, std::string>* customMeteringTags) const override
     {
         auto treeSnapshot = GetTreeSnapshot();
 

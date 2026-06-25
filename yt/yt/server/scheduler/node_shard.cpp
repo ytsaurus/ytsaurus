@@ -88,7 +88,7 @@ void AddAllocationToPreempt(
     NProto::NNode::TRspHeartbeat* response,
     TAllocationId allocationId,
     TDuration duration,
-    const std::optional<TString>& preemptionReason,
+    const std::optional<std::string>& preemptionReason,
     const std::optional<TPreemptedFor>& preemptedFor)
 {
     auto allocationToPreempt = response->add_allocations_to_preempt();
@@ -109,7 +109,7 @@ void AddAllocationToPreempt(
 
 std::optional<EAbortReason> ParseAbortReason(const TError& error, TAllocationId allocationId, const NLogging::TLogger& Logger)
 {
-    auto abortReasonString = error.Attributes().Find<TString>("abort_reason");
+    auto abortReasonString = error.Attributes().Find<std::string>("abort_reason");
     if (!abortReasonString) {
         return {};
     }

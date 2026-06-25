@@ -210,9 +210,9 @@ std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(TChunkId chunkId)
     return optionalDescriptor;
 }
 
-std::vector<TString> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
+std::vector<std::string> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
 {
-    auto primaryName = ToString(chunkId);
+    std::string primaryName = ToString(chunkId);
     switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
         case EObjectType::Chunk:
             return {

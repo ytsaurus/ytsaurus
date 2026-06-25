@@ -294,8 +294,7 @@ protected:
             .NodeDeviationThreshold = DynamicConfig_->ParameterizedNodeDeviationThreshold,
             .CellDeviationThreshold = DynamicConfig_->ParameterizedCellDeviationThreshold,
             .MinRelativeMetricImprovement = DynamicConfig_->ParameterizedMinRelativeMetricImprovement,
-            // TODO(babenko): migrate to std::string
-            .Metric = TString(DynamicConfig_->DefaultParameterizedMetric),
+            .Metric = DynamicConfig_->DefaultParameterizedMetric,
             .Factors = DynamicConfig_->ParameterizedFactors,
         }.MergeWith(
             GroupConfig_->Parameterized,

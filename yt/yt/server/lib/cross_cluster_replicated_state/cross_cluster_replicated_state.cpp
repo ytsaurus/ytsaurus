@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/core/ypath/tokenizer.h>
 #include <library/cpp/iterator/enumerate.h>
 
@@ -12,6 +14,7 @@ namespace NYT::NCrossClusterReplicatedState {
 
 using namespace NApi;
 using namespace NLogging;
+using namespace NObjectClient;
 using namespace NYPath;
 using namespace NYTree;
 
@@ -73,11 +76,14 @@ public:
                 }))
                 .AsUnique()
                 .Apply(BIND([this, this_ = MakeStrong(this), index] (NYson::TYsonString&& stateDirectoryType) {
-                    if (ConvertTo<TString>(stateDirectoryType) != "map_node") {
+                    auto type = ConvertTo<EObjectType>(stateDirectoryType);
+                    if (type != EObjectType::MapNode) {
                         THROW_ERROR_EXCEPTION(
-                            "State directory %Qv on cluster with index %v isn't a map_node",
+                            "Invalid node type of state directory %v on cluster with index %v: expected %Qlv, found %Qlv",
                             PathPrefixes_[index],
-                            index);
+                            index,
+                            EObjectType::MapNode,
+                            type);
                     }
                     return std::monostate();
                 }));
@@ -88,7 +94,7 @@ public:
 
     }
 
-    TFuture<THashMap<TString, TString>> FetchVersions() override
+    TFuture<THashMap<std::string, std::string>> FetchVersions() override
     {
         auto listNodesWithVersions = [this, this_ = MakeStrong(this)] (const ISingleClusterClientPtr& client) {
             auto index = client->GetIndex();
@@ -127,9 +133,9 @@ private:
     std::vector<TYPath> PathPrefixes_;
     TLogger Logger;
 
-    THashMap<TString, TString> MergeVersions(std::vector<TErrorOr<IListNodePtr>>&& versionLists)
+    THashMap<std::string, std::string> MergeVersions(std::vector<TErrorOr<IListNodePtr>>&& versionLists)
     {
-        THashMap<TString, TString> entryVersions;
+        THashMap<std::string, std::string> entryVersions;
 
         std::vector<int> failedClusters;
         std::vector<TError> innerErrors;
@@ -154,7 +160,7 @@ private:
     }
 
     void MergeVersionList(
-        THashMap<TString, TString>& entryVersions, const IListNodePtr& versionList, int replicaIndex)
+        THashMap<std::string, std::string>& entryVersions, const IListNodePtr& versionList, int replicaIndex)
     {
         for (const auto& versionEntry : versionList->GetChildren()) {
             try {
@@ -166,7 +172,7 @@ private:
                 }
 
                 auto entry = versionEntry->AsString()->GetValue();
-                auto version = ConvertTo<TString>(rawVersion);
+                auto version = ConvertTo<std::string>(rawVersion);
                 entryVersions[entry] = std::max(entryVersions[entry], version);
             } catch (const TErrorException& error) {
                 YT_LOG_ERROR(

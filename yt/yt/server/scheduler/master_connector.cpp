@@ -950,7 +950,7 @@ private:
             auto proxy = CreateObjectServiceWriteProxy(Owner_->Bootstrap_->GetClient());
             auto batchReq = proxy.ExecuteBatch();
             // TODO(dgolear): Switch to std::string.
-            TString path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses_));
+            auto path = TYPath(Format("//sys/scheduler/instances/%v", ToYPathLiteral(GetDefaultAddress(ServiceAddresses_))));
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
@@ -1411,8 +1411,7 @@ private:
                 user,
                 attributes.Get<TInstant>("start_time"),
                 cancelableOperationInvoker,
-                // TODO(babenko): migrate to std::string
-                spec->Alias ? std::make_optional(TString(*spec->Alias)) : std::nullopt,
+                spec->Alias,
                 std::move(preprocessedSpec.ExperimentAssignments),
                 providedSpecString,
                 attributes.Get<EOperationState>("state"),
@@ -1555,9 +1554,9 @@ private:
     void GetTransactionsAndRevivalDescriptor(const TOperationPtr& operation, IAttributeDictionaryPtr attributes)
     {
         auto operationId = operation->GetId();
-        auto attachTransaction = [&] (TTransactionId transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
+        auto attachTransaction = [&] (TTransactionId transactionId, bool ping, const std::string& name = std::string()) -> ITransactionPtr {
             if (!transactionId) {
-                if (name) {
+                if (!name.empty()) {
                     YT_LOG_DEBUG("Missing %v transaction (OperationId: %v)",
                         name,
                         operationId);

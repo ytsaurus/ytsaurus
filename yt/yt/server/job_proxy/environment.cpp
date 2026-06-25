@@ -289,7 +289,8 @@ public:
             Environment_.push_back(Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile));
         }
         for (const auto& networkAddress : Options_.NetworkAddresses) {
-            Environment_.push_back(Format("YT_IP_ADDRESS_%v=%v", to_upper(networkAddress->Name), networkAddress->Address));
+            // TODO(babenko): migrate to std::string
+            Environment_.push_back(Format("YT_IP_ADDRESS_%v=%v", to_upper(TString(networkAddress->Name)), networkAddress->Address));
         }
     }
 

@@ -65,7 +65,7 @@ public:
     //! Used only for persistence.
     TVanillaTask() = default;
 
-    TString GetTitle() const override;
+    std::string GetTitle() const override;
     TString GetName() const;
 
     TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
@@ -82,7 +82,7 @@ public:
 
     void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override;
 
-    THashMap<TString, TString> BuildJobEnvironment() const override;
+    THashMap<std::string, std::string> BuildJobEnvironment() const override;
 
     EJobType GetJobType() const override;
 
@@ -261,7 +261,7 @@ void TVanillaTask::RegisterMetadata(auto&& registrar)
     });
 }
 
-TString TVanillaTask::GetTitle() const
+std::string TVanillaTask::GetTitle() const
 {
     return Format("Vanilla(%v)", Name_);
 }
@@ -325,11 +325,11 @@ void TVanillaTask::BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
     AddOutputTableSpecs(jobSpec, joblet);
 }
 
-THashMap<TString, TString> TVanillaTask::BuildJobEnvironment() const
+THashMap<std::string, std::string> TVanillaTask::BuildJobEnvironment() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return THashMap<TString, TString>{
+    return THashMap<std::string, std::string>{
         {"YT_TASK_NAME", GetName()},
     };
 }
@@ -909,7 +909,7 @@ private:
     IChunkPoolOutput::TCookie ExtractCookieForAllocation(
         const TAllocation& allocation) final;
 
-    THashMap<TString, TString> BuildJobEnvironment() const final;
+    THashMap<std::string, std::string> BuildJobEnvironment() const final;
 
     TGangOperationController& GetOperationController() const;
 
@@ -1231,7 +1231,7 @@ IChunkPoolOutput::TCookie TGangTask::ExtractCookieForAllocation(
     return VanillaChunkPool_->Extract(NodeIdFromAllocationId(allocation.Id));
 }
 
-THashMap<TString, TString> TGangTask::BuildJobEnvironment() const
+THashMap<std::string, std::string> TGangTask::BuildJobEnvironment() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

@@ -32,7 +32,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TVertexDescriptor = TString;
+using TVertexDescriptor = std::string;
 
 const TVertexDescriptor TDataFlowGraph::SourceDescriptor("source");
 const TVertexDescriptor TDataFlowGraph::SinkDescriptor("sink");
@@ -132,7 +132,7 @@ public:
 
     void BuildDirectionYson(TFluentMap fluent)
     {
-        auto getVertexName = [] (const TVertexDescriptor& descriptor) -> TString {
+        auto getVertexName = [] (const TVertexDescriptor& descriptor) -> std::string {
             if (descriptor == TDataFlowGraph::SourceDescriptor) {
                 return "input";
             } else if (descriptor == TDataFlowGraph::SinkDescriptor) {

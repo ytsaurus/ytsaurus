@@ -21,7 +21,7 @@ class TDataFlowGraph
 {
 public:
     class TImpl;
-    using TVertexDescriptor = TString;
+    using TVertexDescriptor = std::string;
 
     static const TVertexDescriptor SourceDescriptor;
     static const TVertexDescriptor SinkDescriptor;

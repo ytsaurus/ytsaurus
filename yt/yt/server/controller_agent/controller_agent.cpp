@@ -1207,7 +1207,7 @@ private:
     bool ConnectScheduled_ = false;
     std::atomic<TInstant> ConnectionTime_ = TInstant::Zero();
     TIncarnationId IncarnationId_;
-    TString SchedulerVersion_;
+    std::string SchedulerVersion_;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;

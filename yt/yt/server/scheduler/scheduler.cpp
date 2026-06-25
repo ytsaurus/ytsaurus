@@ -539,7 +539,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto path = poolObjectId
-            ? Format("#%v", poolObjectId)
+            ? TYPath(Format("#%v", poolObjectId))
             : Config_->PoolTreesRoot;
 
         YT_LOG_DEBUG("Validating pool permission (Permission: %v, User: %v, Pool: %v, Path: %v, TreeId: %v)",
@@ -693,8 +693,7 @@ public:
             user,
             /*startTime*/ TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
-            // TODO(babenko): migrate to std::string
-            spec->Alias ? std::make_optional(TString(*spec->Alias)) : std::nullopt,
+            spec->Alias,
             std::move(preprocessedSpec.ExperimentAssignments),
             std::move(preprocessedSpec.ProvidedSpecString));
 
@@ -1488,7 +1487,7 @@ public:
     void LogResourceMetering(
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
-        const THashMap<TString, TString>& otherTags,
+        const THashMap<std::string, std::string>& otherTags,
         TInstant connectionTime,
         TInstant previousLogTime,
         TInstant currentTime) override
@@ -1525,10 +1524,10 @@ public:
                     .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
                     .Item("cluster").Value(ClusterName_)
                     .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
-                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
                 .EndMap();
@@ -1547,10 +1546,10 @@ public:
                     .Item("allocated_resources").Value(averageAllocatedResources * timeRatio)
                     .Item("cluster").Value(ClusterName_)
                     .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
-                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
                 .EndMap();
@@ -1638,7 +1637,7 @@ public:
         return *OperationBaseAcl_;
     }
 
-    TString FormatResources(const TJobResourcesWithQuota& resources) const override
+    std::string FormatResources(const TJobResourcesWithQuota& resources) const override
     {
         return NScheduler::FormatResources(resources);
     }
@@ -1661,7 +1660,7 @@ public:
         NScheduler::SerializeDiskQuota(diskQuota, mediumDirectory, consumer);
     }
 
-    TString FormatHeartbeatResourceUsage(
+    std::string FormatHeartbeatResourceUsage(
         const TJobResources& usage,
         const TJobResources& limits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
@@ -1815,7 +1814,7 @@ private:
     };
 
     THashMap<TOperationId, TOperationPtr> IdToOperation_;
-    THashMap<TString, TOperationAlias> OperationAliases_;
+    THashMap<std::string, TOperationAlias> OperationAliases_;
     THashMap<TOperationId, IYPathServicePtr> IdToOperationService_;
 
     THashMap<TOperationId, TOperationPtr> IdToStartingOperation_;
@@ -1878,7 +1877,7 @@ private:
     NYTree::ICachedYPathServicePtr StaticOrchidService_;
     NYTree::IServiceCombinerPtr CombinedOrchidService_;
 
-    THashMap<std::string, TString> UserToDefaultPoolMap_;
+    THashMap<std::string, std::string> UserToDefaultPoolMap_;
 
     TExperimentAssigner ExperimentsAssigner_;
     TError LastExperimentAssignmentError_;
@@ -2519,7 +2518,7 @@ private:
 
         auto future =
             BIND([userToDefaultPoolMapYson = TYsonString(rspOrError.Value()->value())] {
-                return ConvertTo<THashMap<std::string, TString>>(userToDefaultPoolMapYson);
+                return ConvertTo<THashMap<std::string, std::string>>(userToDefaultPoolMapYson);
             })
             .AsyncVia(GetBackgroundInvoker())
             .Run();
@@ -2766,7 +2765,7 @@ private:
         return briefSpec;
     }
 
-    ITransactionPtr AttachTransaction(TOperationId operationId, TTransactionId transactionId, const TString& name)
+    ITransactionPtr AttachTransaction(TOperationId operationId, TTransactionId transactionId, const std::string& name)
     {
         if (!transactionId) {
             return nullptr;
@@ -4113,7 +4112,7 @@ private:
         return result;
     }
 
-    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, std::string>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
     }
@@ -4326,7 +4325,7 @@ private:
                 // If it has finished, but we still have an entry in alias -> operation id internal
                 // mapping, we return a fictive map { operation_id = <operation_id> }. It is useful
                 // for alias resolution when operation is not archived yet but already finished.
-                auto it = Scheduler_->OperationAliases_.find(TString(key));
+                auto it = Scheduler_->OperationAliases_.find(key);
                 if (it == Scheduler_->OperationAliases_.end()) {
                     return nullptr;
                 } else {
@@ -4654,7 +4653,7 @@ int TScheduler::GetOperationsArchiveVersion() const
     return Impl_->GetOperationsArchiveVersion();
 }
 
-TString TScheduler::FormatResources(const TJobResourcesWithQuota& resources) const
+std::string TScheduler::FormatResources(const TJobResourcesWithQuota& resources) const
 {
     return Impl_->FormatResources(resources);
 }

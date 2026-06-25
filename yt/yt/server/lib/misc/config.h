@@ -68,12 +68,12 @@ struct TDiskLocationConfig
     std::optional<i64> MinDiskSpace;
 
     //! Block device name.
-    TString DeviceName;
-    static inline const TString UnknownDeviceName = "UNKNOWN";
+    std::string DeviceName;
+    static inline const std::string UnknownDeviceName = "UNKNOWN";
 
     //! Storage device vendor info.
-    TString DeviceModel;
-    static inline const TString UnknownDeviceModel = "UNKNOWN";
+    std::string DeviceModel;
+    static inline const std::string UnknownDeviceModel = "UNKNOWN";
 
     //! Disk family in this location (HDD, SDD, etc.)
     TString DiskFamily;

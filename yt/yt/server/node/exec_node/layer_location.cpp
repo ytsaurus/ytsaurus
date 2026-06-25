@@ -70,7 +70,7 @@ TLayerLocation::TLayerLocation(
     // More details here: PORTO-460.
     , PlacePath_((Config_->LocationIsAbsolute ? "" : "//") + Config_->Path)
 {
-    auto profiler = NProfiling::TProfiler()
+    auto profiler = ExecNodeProfiler()
         .WithPrefix("/layer")
         .WithTag("location_id", Id_);
 
@@ -326,7 +326,7 @@ void TLayerLocation::Disable(const TError& error, bool persistentDisable)
     }
 
     // TODO(don-dron): Research and fix unconditional Disabled.
-    if (State_.exchange(ELocationState::Disabled) != ELocationState::Enabled) {
+    if (auto oldState = ChangeState(ELocationState::Disabled); *oldState != ELocationState::Enabled) {
         return;
     }
 

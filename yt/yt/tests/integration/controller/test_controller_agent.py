@@ -761,8 +761,8 @@ class TestTotalControllerMemoryLimit(YTEnvSetup):
         "controller_agent": {
             "memory_watchdog": {
                 "memory_usage_check_period": 10,
-                "operation_controller_memory_overconsumption_threshold": 10 * 1024 ** 2,
-                "total_controller_memory_limit": 50 * 1024 ** 2,
+                "operation_controller_memory_overconsumption_threshold": 50 * 1024 ** 2,
+                "total_controller_memory_limit": 150 * 1024 ** 2,
             },
         }
     }
@@ -790,7 +790,7 @@ class TestTotalControllerMemoryLimit(YTEnvSetup):
             track=False,
             spec={
                 "testing": {
-                    "allocation_size": 100 * 1024 ** 2,
+                    "allocation_size": 500 * 1024 ** 2,
                     "allocation_release_delay": 60000,
                 },
             })
@@ -812,7 +812,7 @@ class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
         "controller_agent": {
             "memory_watchdog": {
                 "memory_usage_check_period": 10,
-                "total_controller_memory_limit": 100 * 1024 ** 2,
+                "total_controller_memory_limit": 150 * 1024 ** 2,
             },
         }
     }
@@ -844,7 +844,7 @@ class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
             track=False,
             spec={
                 "testing": {
-                    "allocation_size": 400 * 1024 ** 2,
+                    "allocation_size": 500 * 1024 ** 2,
                     "allocation_release_delay": 30000,
                 },
             })
@@ -867,8 +867,8 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
         "controller_agent": {
             "memory_watchdog": {
                 "memory_usage_check_period": 10,
-                "total_controller_memory_limit": 50 * 1024 ** 2,
-                "operation_controller_memory_overconsumption_threshold": 100 * 1024 ** 2,
+                "total_controller_memory_limit": 150 * 1024 ** 2,
+                "operation_controller_memory_overconsumption_threshold": 180 * 1024 ** 2,
             },
         },
     }
@@ -903,7 +903,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
             with_breakpoint("BREAKPOINT"),
             spec={
                 "testing": {
-                    "allocation_size": 50 * 1024 ** 2,
+                    "allocation_size": 100 * 1024 ** 2,
                     "allocation_release_delay": 30000,
                 },
             },
@@ -913,7 +913,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
             with_breakpoint("BREAKPOINT"),
             spec={
                 "testing": {
-                    "allocation_size": 50 * 1024 ** 2,
+                    "allocation_size": 100 * 1024 ** 2,
                     "allocation_release_delay": 30000,
                 },
             },
@@ -923,7 +923,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
             with_breakpoint("BREAKPOINT"),
             spec={
                 "testing": {
-                    "allocation_size": 400 * 1024 ** 2,
+                    "allocation_size": 600 * 1024 ** 2,
                     "allocation_release_delay": 30000,
                 },
             },

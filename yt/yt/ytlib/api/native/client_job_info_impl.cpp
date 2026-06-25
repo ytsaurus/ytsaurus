@@ -69,6 +69,8 @@
 
 #include <library/cpp/json/json_writer.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <util/string/join.h>
 
 namespace NYT::NApi::NNative {
@@ -1113,8 +1115,8 @@ TYsonString TClient::DoGetJobSpec(
         jobSpecExt->clear_output_table_specs();
     }
 
-    TString jobSpecYsonBytes;
-    TStringOutput jobSpecYsonBytesOutput(jobSpecYsonBytes);
+    std::string jobSpecYsonBytes;
+    TStdStringOutput jobSpecYsonBytesOutput(jobSpecYsonBytes);
     TYsonWriter jobSpecYsonWriter(&jobSpecYsonBytesOutput);
 
     TProtobufParserOptions parserOptions{

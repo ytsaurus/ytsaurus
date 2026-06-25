@@ -1199,7 +1199,8 @@ public:
 
         // Inject default docker image for job workspace.
         if (!context.FSSecretary->GetDockerImage() && context.FSSecretary->GetRootVolumeLayerArtifactKeys().empty()) {
-            context.FSSecretary->SetDockerImage(ConcreteConfig_->JobProxyImage);
+            // TODO(babenko): migrate to std::string
+            context.FSSecretary->SetDockerImage(TString(ConcreteConfig_->JobProxyImage));
         }
 
         return CreateCriJobWorkspaceBuilder(

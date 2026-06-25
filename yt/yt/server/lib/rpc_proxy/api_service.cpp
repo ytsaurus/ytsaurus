@@ -108,6 +108,7 @@
 #include <library/cpp/yt/misc/cast.h>
 
 #include <library/cpp/yt/string/string.h>
+#include <library/cpp/yt/string/stream.h>
 
 #include <algorithm>
 
@@ -1442,8 +1443,8 @@ void TApiService::InitContext(TApiServiceContext<TRequestMessage, TResponseMessa
 
     // NB: We try to do heavy work only if we are actually going to omit corresponding message. Conserve priceless CPU time.
     if (shouldEmit(config->StructuredLoggingMainTopic)) {
-        TString requestYson;
-        TStringOutput requestOutput(requestYson);
+        std::string requestYson;
+        TStdStringOutput requestOutput(requestYson);
         TYsonWriter requestYsonWriter(&requestOutput, EYsonFormat::Text);
         TProtobufParserOptions parserOptions{
             .SkipUnknownFields = true,
@@ -5478,7 +5479,7 @@ void TApiService::DoModifyRows(
             << TErrorAttribute("row_modification_types_size", request.row_modification_types_size());
     }
 
-    std::vector<NFuture::TRowModification> modifications;
+    std::vector<TRowModification> modifications;
     modifications.reserve(rowsetSize);
     for (ssize_t index = 0; index < rowsetSize; ++index) {
         TLockMask lockMask;
@@ -5499,24 +5500,23 @@ void TApiService::DoModifyRows(
             FromProto(&lockMask, request.row_locks(index));
         }
 
-        switch (request.row_modification_types(index))
-        {
+        switch (request.row_modification_types(index)) {
             case NApi::NRpcProxy::NProto::ERowModificationType::RMT_WRITE:
                 THROW_ERROR_EXCEPTION_IF(!lockMask.IsNone(),
                     "Cannot perform lock by \"write\" modification type; use \"write_and_lock\"");
 
-                modifications.push_back(NFuture::NRowModifications::TWriteRow(rowsetRows[index]));
+                modifications.push_back(NRowModifications::TWriteRow(rowsetRows[index]));
                 break;
 
             case NApi::NRpcProxy::NProto::ERowModificationType::RMT_DELETE:
                 THROW_ERROR_EXCEPTION_IF(!lockMask.IsNone(),
                     "Cannot perform lock by \"delete\" modification type; use \"write_and_lock\"");
 
-                modifications.push_back(NFuture::NRowModifications::TDeleteRow(rowsetRows[index]));
+                modifications.push_back(NRowModifications::TDeleteRow(rowsetRows[index]));
                 break;
 
             case NApi::NRpcProxy::NProto::ERowModificationType::RMT_MODIFY:
-                modifications.push_back(NFuture::NRowModifications::TWriteAndLockRow(rowsetRows[index], std::move(lockMask)));
+                modifications.push_back(NRowModifications::TWriteAndLockRow(rowsetRows[index], std::move(lockMask)));
                 break;
 
             default:
@@ -5544,7 +5544,7 @@ void TApiService::DoModifyRows(
         options.SequenceNumberSourceId = request.sequence_number_source_id();
     }
 
-    transaction->FutureModifyRows(
+    transaction->ModifyRows(
         path,
         rowset->GetNameTable(),
         MakeSharedRange(std::move(modifications), rowset),
@@ -6293,7 +6293,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermissionByAcl)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
-    std::optional<TString> user;
+    std::optional<std::string> user;
     if (request->has_user()) {
         user = request->user();
     }
@@ -6764,7 +6764,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteTable)
         path);
 
     NApi::TTableWriterOptions options;
-    TString tableWriterConfig("{}");
+    std::string tableWriterConfig("{}");
     if (request->has_config()) {
         tableWriterConfig = request->config();
     }

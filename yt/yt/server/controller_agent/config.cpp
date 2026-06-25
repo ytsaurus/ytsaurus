@@ -1313,7 +1313,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     // COMPAT(gritukan): This default is quite dangerous, change it when all controller agents will have fresh configs.
     registrar.Parameter("tags", &TThis::Tags)
-        .Default(std::vector<TString>({"default"}));
+        .Default(std::vector<std::string>({"default"}));
 
     registrar.Parameter("user_job_monitoring", &TThis::UserJobMonitoring)
         .DefaultNew();
@@ -1464,7 +1464,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         BuildOptions(&config->RemoteCopyOperationOptions, config->RemoteCopyOperationOptionsNode, config->OperationOptions);
         BuildOptions(&config->VanillaOperationOptions, config->VanillaOperationOptionsNode, config->OperationOptions);
 
-        THashSet<TString> customJobMetricsProfilingNames;
+        THashSet<std::string> customJobMetricsProfilingNames;
         for (const auto& customJobMetricDescription : config->CustomJobMetrics) {
             const auto& profilingName = customJobMetricDescription.ProfilingName;
 

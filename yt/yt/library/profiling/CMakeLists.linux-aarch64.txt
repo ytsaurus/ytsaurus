@@ -45,16 +45,18 @@ target_link_libraries(yt-library-profiling PUBLIC
   cpp-yt-string
   cpp-yt-memory
   cpp-yt-threading
+  cpp-yt-rseq
 )
 
 target_sources(yt-library-profiling PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/histogram_snapshot.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/impl.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/percpu.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/per_cpu_sensor_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/sensor.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/sensor_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/simple_sensor_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/tag.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/testing.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/rseq_sensor_impl.cpp
 )
 

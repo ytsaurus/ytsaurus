@@ -93,7 +93,7 @@ TNodeJobReport TNodeJobReport::StderrSize(i64 stderrSize)
     return std::move(*this);
 }
 
-TNodeJobReport TNodeJobReport::Stderr(const TString& stderr)
+TNodeJobReport TNodeJobReport::Stderr(const std::string& stderr)
 {
     Stderr_ = stderr;
     StderrSize_ = Stderr_->size();
@@ -106,7 +106,7 @@ TNodeJobReport TNodeJobReport::GpuCheckStderr(std::string gpuCheckStderr)
     return std::move(*this);
 }
 
-TNodeJobReport TNodeJobReport::FailContext(const TString& failContext)
+TNodeJobReport TNodeJobReport::FailContext(const std::string& failContext)
 {
     FailContext_ = failContext;
     return std::move(*this);
@@ -130,13 +130,13 @@ TNodeJobReport TNodeJobReport::ExecAttributes(const TYsonString& execAttributes)
     return std::move(*this);
 }
 
-TNodeJobReport TNodeJobReport::TreeId(TString treeId)
+TNodeJobReport TNodeJobReport::TreeId(std::string treeId)
 {
     TreeId_ = std::move(treeId);
     return std::move(*this);
 }
 
-TNodeJobReport TNodeJobReport::MonitoringDescriptor(TString monitoringDescriptor)
+TNodeJobReport TNodeJobReport::MonitoringDescriptor(std::string monitoringDescriptor)
 {
     MonitoringDescriptor_ = std::move(monitoringDescriptor);
     return std::move(*this);
@@ -179,7 +179,7 @@ void TNodeJobReport::SetProbingJobCompetitionId(TJobId probingJobCompetitionId)
     ProbingJobCompetitionId_ = probingJobCompetitionId;
 }
 
-void TNodeJobReport::SetTaskName(const TString& taskName)
+void TNodeJobReport::SetTaskName(const std::string& taskName)
 {
     TaskName_ = taskName;
 }

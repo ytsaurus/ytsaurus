@@ -19,7 +19,7 @@ TNetworkProject GetNetworkProject(
     const std::string& networkProject)
 {
     // TODO(dgolear): Switch to std::string.
-    TString networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(networkProject);
+    NYPath::TYPath networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(networkProject);
     auto checkPermissionRsp = WaitFor(client->CheckPermission(authenticatedUser, networkProjectPath, EPermission::Use))
         .ValueOrThrow();
     if (checkPermissionRsp.Action == NSecurityClient::ESecurityAction::Deny) {

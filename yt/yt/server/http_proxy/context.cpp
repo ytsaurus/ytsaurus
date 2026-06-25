@@ -40,6 +40,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <util/random/random.h>
 
 #include <util/string/ascii.h>
@@ -451,7 +453,7 @@ void TContext::CaptureParameters()
     try {
         auto header = GatherHeader(Request_->GetHeaders(), "x-yt-parameters");
         if (header) {
-            TMemoryInput stream(header->data(), header->size());
+            TMemoryInput stream(*header);
             auto fromHeaders = ConvertToNode(CreateProducerForFormat(
                 *HeadersFormat_,
                 EDataType::Structured,
@@ -1015,8 +1017,8 @@ TSharedRef DumpError(const TError& error)
     delimiter.append(80, '=');
     delimiter.push_back('\n');
 
-    TString errorMessage;
-    TStringOutput errorStream(errorMessage);
+    std::string errorMessage;
+    TStdStringOutput errorStream(errorMessage);
     errorStream << "\n";
     errorStream << delimiter;
 
@@ -1188,8 +1190,8 @@ void TContext::OnOutputParameters()
         }
     }
 
-    TString headerValue;
-    TStringOutput stream(headerValue);
+    std::string headerValue;
+    TStdStringOutput stream(headerValue);
     auto consumer = CreateConsumerForFormat(*HeadersFormat_, EDataType::Structured, &stream);
     Serialize(OutputParameters_, consumer.get());
     consumer->Flush();

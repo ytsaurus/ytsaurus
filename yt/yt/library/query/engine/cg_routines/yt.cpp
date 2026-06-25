@@ -157,7 +157,7 @@ void ParseReplicasDelta(
         return;
     }
 
-    TMemoryInput input(delta->Data.String, delta->Length);
+    TMemoryInput input(delta->AsStringBuf());
     TYsonPullParser parser(&input, EYsonType::ListFragment);
     TYsonPullParserCursor cursor(&parser);
 
@@ -181,7 +181,7 @@ void ParseReplicas(TUnversionedValue* value, TChunkReplicaList* replicas)
         return;
     }
 
-    TMemoryInput input(value->Data.String, value->Length);
+    TMemoryInput input(value->AsStringBuf());
     TYsonPullParser parser(&input, EYsonType::ListFragment);
     TYsonPullParserCursor cursor(&parser);
 

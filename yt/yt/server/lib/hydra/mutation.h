@@ -26,7 +26,7 @@ public:
     TFuture<TMutationResponse> CommitAndLog(NLogging::TLogger logger);
     TFuture<TMutationResponse> CommitAndReply(NRpc::IServiceContextPtr context);
 
-    void SetRequestData(TSharedRef data, TString type);
+    void SetRequestData(TSharedRef data, std::string type);
     void SetHandler(TCallback<void(TMutationContext*)> handler);
     void SetAllowLeaderForwarding(bool value);
     void SetMutationId(NRpc::TMutationId mutationId, bool retry);
@@ -34,7 +34,7 @@ public:
     void SetTraceContext(NTracing::TTraceContextPtr traceContext);
     void SetCurrentTraceContext();
 
-    const TString& GetType() const;
+    const std::string& GetType() const;
     const TSharedRef& GetData() const;
     NRpc::TMutationId GetMutationId() const;
     bool IsRetry() const;

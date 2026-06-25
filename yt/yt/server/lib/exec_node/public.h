@@ -60,7 +60,7 @@ DEFINE_ENUM(EGpuFlavor,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames;
+extern const TEnumIndexedArray<ESandboxKind, std::string> SandboxDirectoryNames;
 extern const std::string EmptyCpuSet;
 
 ////////////////////////////////////////////////////////////////////////////////

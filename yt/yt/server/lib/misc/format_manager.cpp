@@ -100,7 +100,7 @@ void TFormatManager::ValidateAndPatchOperationSpec(
     }
 }
 
-void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TString origin) const
+void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, std::string origin) const
 {
     EFormatType formatType;
     try {
@@ -147,7 +147,7 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TStr
     }
 }
 
-TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, TString origin) const
+TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, std::string origin) const
 {
     ValidateAndPatchFormatNode(formatNode, origin);
     try {

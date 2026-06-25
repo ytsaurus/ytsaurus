@@ -254,7 +254,7 @@ public:
     const NLogging::TLogger& GetLogger() const override;
     bool AreDetailedLogsEnabled() const override;
 
-    TString GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const;
+    std::string GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const;
 
     TPoolTreeCompositeElement* GetMutableParent();
     const TPoolTreeCompositeElement* GetParent() const;

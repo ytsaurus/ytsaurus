@@ -734,7 +734,24 @@ private:
                 auto rowDataWeight = GetDataWeight(row);
                 dataWeight += rowDataWeight;
                 dataWeightToThrottle += rowDataWeight;
-                replicationRows->push_back({modificationType, replicationRow, TLockMask()});
+                switch (modificationType) {
+                    case ERowModificationType::Write:
+                        replicationRows->push_back(NRowModifications::TWriteRow(TUnversionedRow(replicationRow)));
+                        break;
+
+                    case ERowModificationType::Delete:
+                        replicationRows->push_back(NRowModifications::TDeleteRow(TLegacyKey(replicationRow)));
+                        break;
+
+                    case ERowModificationType::VersionedWrite:
+                        replicationRows->push_back(NRowModifications::TVersionedWriteRow(replicationRow));
+                        break;
+
+                    default:
+                        // ParseLogRow does not produce ERowModificationType::WriteAndLock.
+                        YT_ABORT();
+                }
+
                 prevTimestamp = timestamp;
             }
         }

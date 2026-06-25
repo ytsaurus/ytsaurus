@@ -33,7 +33,7 @@ std::vector<TTabletCellPtr> TTabletCellBundle::GetAliveCells() const
     return cells;
 }
 
-TTabletCellBundle::TTabletCellBundle(TString name)
+TTabletCellBundle::TTabletCellBundle(std::string name)
     : Name(std::move(name))
 { }
 

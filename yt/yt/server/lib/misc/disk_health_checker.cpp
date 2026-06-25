@@ -20,7 +20,7 @@ using namespace NLogging;
 
 TDiskHealthChecker::TDiskHealthChecker(
     TDiskHealthCheckerConfigPtr config,
-    const TString& path,
+    const std::string& path,
     IInvokerPtr invoker,
     TLogger logger,
     const TProfiler& profiler)

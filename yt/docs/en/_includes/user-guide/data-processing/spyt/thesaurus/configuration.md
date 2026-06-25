@@ -2,36 +2,39 @@
 
 This section contains a list of configuration parameters that can be passed when launching Spark tasks. This is done by specifying additional parameters via the `--conf` option of basic Spark commands, such as `spark-submit` and `spark-shell`, as well as {{product-name}} wrappers for them, such as `spark-submit-yt` and `spark-shell-yt`.
 
+
 ## Basic options { #main }
 
 Most of the options are available starting with version 1.23.0, unless otherwise specified.
 
 | **Parameter** | **Default value** | **Description** | **Starting with version** |
 | ------------------- | --------------- | ---------------------------|------------------------------ |
-| `spark.yt.write.batchSize` | `500000` | Size of data sent in a single `WriteTable` operation. |
-| `spark.yt.write.miniBatchSize` | `1000` | Size of a data block sent in `WriteTable`. |
-| `spark.yt.write.timeout` | `120 seconds` | Write timeout limit for a single data block. |
+| `spark.yt.write.batchSize` | `500000` | Size of data sent in a single `WriteTable` operation. | - |
+| `spark.yt.write.miniBatchSize` | `1000` | Size of a data block sent in `WriteTable`. | - |
+| `spark.yt.write.timeout` | `120 seconds` | Write timeout limit for a single data block. | - |
+| `spark.yt.write.dynBatchSize` | `50000` | Maximum number of rows in a single write operation to a dynamic table. Used in [Structured Streaming](../../../../../user-guide/data-processing/spyt/structured-streaming/index.md) | 2.6.5 |
 | `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` before 1.75.2) | `true` | Writing of tables with a schema in [type_v3](../../../../../user-guide/storage/data-types.md) format instead of `type_v1`. | 1.75.3 |
-| `spark.yt.read.vectorized.capacity` | `1000` | Maximum number of rows in a batch for reading via the `wire` protocol. |
-| `spark.yt.read.arrow.enabled` | `true` | Use the `arrow` format to read data (if possible). |
-| `spark.hadoop.yt.timeout` | `300 seconds` | Timeout on reads from {{product-name}}. |
+| `spark.yt.read.vectorized.capacity` | `1000` | Maximum number of rows in a batch for reading via the `wire` protocol. | - |
+| `spark.yt.read.arrow.enabled` | `true` | Use the `arrow` format to read data (if possible). | - |
+| `spark.hadoop.yt.timeout` | `300 seconds` | Timeout on reads from {{product-name}}. | - |
 | `spark.yt.read.typeV3.enabled` (`spark.yt.read.parsingTypeV3.enabled` before 1.75.2) | `true` | Reading of tables with a schema in [type_v3](../../../../../user-guide/storage/data-types.md) format instead of `type_v1`. | 1.75.3 |
-| `spark.yt.read.keyColumnsFilterPushdown.enabled` | `true` | Use Spark query filters to selectively read from {{product-name}}. |
-| `spark.yt.read.keyColumnsFilterPushdown.union.enabled` | `false` | Combine all filters into a continuous range for selective reading. |
-| `spark.yt.read.keyColumnsFilterPushdown.ytPathCount.limit` | `100` | Maximum number of table ranges for selective reading. |
-| `spark.yt.transaction.timeout` | `5 minutes` | Write operation transaction timeout. |
-| `spark.yt.transaction.pingInterval` | `30 seconds` | Pinging interval of a write operation transaction. |
-| `spark.yt.globalTransaction.enabled` | `false` | Use a [global transaction](../../../../../user-guide/data-processing/spyt/read-transaction.md). |
-| `spark.yt.globalTransaction.id` | `None` | Global transaction ID. |
-| `spark.yt.globalTransaction.timeout` | `5 minutes` | Global transaction timeout. |
-| `spark.hadoop.yt.user` | - | {{product-name}} user name. |
-| `spark.hadoop.yt.token` | - | {{product-name}} user token. |
+| `spark.yt.read.keyColumnsFilterPushdown.enabled` | `true` | Use Spark query filters to selectively read from {{product-name}}. | - |
+| `spark.yt.read.keyColumnsFilterPushdown.union.enabled` | `false` | Combine all filters into a continuous range for selective reading. | - |
+| `spark.yt.read.keyColumnsFilterPushdown.ytPathCount.limit` | `100` | Maximum number of table ranges for selective reading. | - |
+| `spark.yt.transaction.timeout` | `5 minutes` | Write operation transaction timeout. | - |
+| `spark.yt.transaction.pingInterval` | `30 seconds` | Pinging interval of a write operation transaction. | - |
+| `spark.yt.globalTransaction.enabled` | `false` | Use a [global transaction](../../../../../user-guide/data-processing/spyt/read-transaction.md). | - |
+| `spark.yt.globalTransaction.id` | `None` | Global transaction ID. | - |
+| `spark.yt.globalTransaction.timeout` | `5 minutes` | Global transaction timeout. | - |
+| `spark.yt.streaming.transactional` | `false` | Enable [streaming transactional mode](../../../../../user-guide/data-processing/spyt/structured-streaming/exactly-once/transactional-mode.md) to guarantee `exactly‑once`. Requires `spark.ytsaurus.rpc.job.proxy.enabled = false` as well. | 2.10 |
+| `spark.hadoop.yt.user` | - | {{product-name}} user name. | - |
+| `spark.hadoop.yt.token` | - | {{product-name}} user token. | - |
 | `spark.yt.read.ytPartitioning.enabled` | `true` | Use table partitioning by {{product-name}}. | 1.72.0 |
-| `spark.yt.read.ytPartitioning.compressedSize.enabled` | `false` | Enable data partitioning when reading by the compressed size of the table. | 2.9.1 |
-| `spark.yt.read.planOptimization.enabled` | `false` | Optimize aggregations and joins on sorted input data. |
-| `spark.yt.read.countOptimization.enabled` | `true` | Use metadata for count() operations. |
-| `spark.yt.read.keyPartitioningSortedTables.enabled` | `true` | Use sorted table partitioning by key, required to optimize plans. |
-| `spark.yt.read.keyPartitioningSortedTables.unionLimit` | `1` | Maximum number of partition joins when switching from reading by index to reading by key. |
+| `spark.yt.read.ytPartitioning.compressedSize.enabled` | `false` | Enable data partitioning when reading by the compressed size of the table. | 2.9.1 | - |
+| `spark.yt.read.planOptimization.enabled` | `false` | Optimize aggregations and joins on sorted input data. | - |
+| `spark.yt.read.countOptimization.enabled` | `true` | Use metadata for count() operations. | - |
+| `spark.yt.read.keyPartitioningSortedTables.enabled` | `true` | Use sorted table partitioning by key, required to optimize plans. | - |
+| `spark.yt.read.keyPartitioningSortedTables.unionLimit` | `1` | Maximum number of partition joins when switching from reading by index to reading by key. | - |
 | `spark.yt.read.transactional` | `true` | Use snapshot lock for reading if transaction is not specified. It is recommended to turn this option off when reading immutable data to improve reading performance. | 2.6.0 |
 | `spark.yt.read.listParentDirectories` | `true` | Batch read of attributes from parent directories when reading by a list of tables. Helps when reading a large number of tables from a single parent directory. | 2.7.5 |
 | `spark.yt.read.ytDistributedReading.enabled` | `false` | Use distributed API for reading data from {{product-name}}. This method reduces the number of requests to the {{product-name}} master when reading data, but is not yet compatible with the `spark.yt.read.planOptimization.enabled` option. | 2.8.0 |
@@ -42,6 +45,7 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 {wide-content title="Basic options"}
 
 ## Options for launching tasks directly { #direct-submit }
+
 
 | **Parameter** | **Default value** | **Description** | **Starting with version** |
 | ------------ | ------------------------- | ------------ | ------------------ |
@@ -97,18 +101,15 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 
 {wide-content title="Configuration options for the {{product-name}} Shuffle service"}
 
-
 ## Options for configuring the Spark Connect server { #spyt-connect }
 | **Parameter** | **Default value** | **Description** | **Starting with version** |
 | ------------ | ------------------------- | ------------ | ------------------ |
 | `spark.ytsaurus.connect.idle.timeout` | 10m | Waiting time since the last request is completed till the Spark Connect server is shut down. | 2.8.0 |
 | `spark.ytsaurus.connect.token.refresh.period` | - | Pinging interval of the temporary token used to execute requests via Spark Connect. Used only together with Query Tracker. | 2.8.0 |
 
-
 {wide-content title="Options for configuring the Spark Connect server"}
 
 ## Options for running tasks in an internal cluster { #spark-submit-yt-conf }
-
 
 To run tasks in an internal cluster, use the `spark-submit-yt` wrapper. Its parameters match those of the `spark-submit` command from the Spark distribution, with the following exception:
 - Instead of `--master`, you should use the parameters `--proxy` and `--discovery-path`. They determine which {{product-name}} cluster will be used to run computations and which internal Spark cluster on that {{product-name}} cluster the task will be sent to, respectively.

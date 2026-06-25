@@ -352,7 +352,7 @@ protected:
             : TRemoteCopyTaskBase(controller)
         { }
 
-        TString GetTitle() const override
+        std::string GetTitle() const override
         {
             return "HunkRemoteCopy";
         }
@@ -395,7 +395,7 @@ protected:
             : TRemoteCopyTaskBase(controller)
         { }
 
-        TString GetTitle() const override
+        std::string GetTitle() const override
         {
             return "CompressionDictionaryRemoteCopy";
         }

@@ -505,8 +505,8 @@ private:
 
     void UpdateTrashChunkCount(int delta);
     void UpdateTrashSpace(i64 size);
-    TString GetTrashPath() const;
-    TString GetTrashChunkPath(TChunkId chunkId) const;
+    std::string GetTrashPath() const;
+    std::string GetTrashChunkPath(TChunkId chunkId) const;
     void RegisterTrashChunk(TChunkId chunkId);
     void OnCheckTrash();
     void CheckTrashTtl();
@@ -526,7 +526,7 @@ private:
     std::optional<NNode::TChunkDescriptor> RepairJournalChunk(TChunkId chunkId);
     std::optional<NNode::TChunkDescriptor> RepairChunk(TChunkId chunkId) override;
 
-    std::vector<TString> GetChunkPartNames(TChunkId chunkId) const override;
+    std::vector<std::string> GetChunkPartNames(TChunkId chunkId) const override;
     bool ShouldSkipFileName(const std::string& fileName) const override;
 
     void DoStart() override;

@@ -201,7 +201,7 @@ public:
         return nullptr;
     }
 
-    TString FormatResources(const TJobResourcesWithQuota& resources) const override
+    std::string FormatResources(const TJobResourcesWithQuota& resources) const override
     {
         YT_VERIFY(MediumDirectory_);
         return NScheduler::FormatResources(resources);
@@ -220,7 +220,7 @@ public:
     void LogResourceMetering(
         const TMeteringKey& /*key*/,
         const TMeteringStatistics& /*statistics*/,
-        const THashMap<TString, TString>& /*otherTags*/,
+        const THashMap<std::string, std::string>& /*otherTags*/,
         TInstant /*connectionTime*/,
         TInstant /*previousLogTime*/,
         TInstant /*currentTime*/) override
@@ -244,9 +244,9 @@ public:
         return OKFuture;
     }
 
-    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, std::string>& GetUserDefaultParentPoolMap() const override
     {
-        static const THashMap<std::string, TString> stub;
+        static const THashMap<std::string, std::string> stub;
         return stub;
     }
 

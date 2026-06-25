@@ -66,7 +66,7 @@ void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree
 {
     auto mapNode = node->AsMap();
     customJobMetricDescription.StatisticsPath = mapNode->GetChildValueOrThrow<TStatisticPath>("statistics_path");
-    customJobMetricDescription.ProfilingName = mapNode->GetChildValueOrThrow<TString>("profiling_name");
+    customJobMetricDescription.ProfilingName = mapNode->GetChildValueOrThrow<std::string>("profiling_name");
 
     if (auto summaryValueTypeNode = mapNode->FindChild("summary_value_type")) {
         customJobMetricDescription.SummaryValueType = summaryValueTypeNode->GetValue<ESummaryValueType>();
@@ -350,7 +350,7 @@ void FromProto(
 
 size_t THash<NYT::NScheduler::TCustomJobMetricDescription>::operator()(const NYT::NScheduler::TCustomJobMetricDescription& jobMetricDescription) const
 {
-    return THash<TString>()(jobMetricDescription.ProfilingName);
+    return THash<std::string>()(jobMetricDescription.ProfilingName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

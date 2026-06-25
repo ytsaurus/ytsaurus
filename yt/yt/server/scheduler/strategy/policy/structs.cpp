@@ -18,7 +18,7 @@ void FormatValue(TStringBuilderBase* builder, const TRunningAllocationStatistics
         statistics.PreemptibleGpuTime);
 }
 
-TString FormatRunningAllocationStatisticsCompact(const TRunningAllocationStatistics& statistics)
+std::string FormatRunningAllocationStatisticsCompact(const TRunningAllocationStatistics& statistics)
 {
     return Format(
         "{TCT: %v, PCT: %v, TGT: %v, PGT: %v}",

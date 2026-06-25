@@ -21,7 +21,7 @@ TError CreateNoSuchTransactionError(TTransactionId transactionId);
 void LockNodeWithWait(
     const NApi::IClientPtr& client,
     const NApi::ITransactionPtr& transaction,
-    const TString& lockPath,
+    const NYPath::TYPath& lockPath,
     TDuration checkBackoff,
     TDuration waitTimeout);
 

@@ -447,7 +447,7 @@ private:
 
     std::vector<TLegacyDataSlicePtr> NonSolidMainDataSlices_;
 
-    TString GetStatisticsDebugString() const
+    std::string GetStatisticsDebugString() const
     {
         return Format(
             "{Main: %v, Buffer: %v, Solid: %v}",

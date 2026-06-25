@@ -54,7 +54,7 @@ struct IStrategyHost
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
 
-    virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
+    virtual std::string FormatResources(const TJobResourcesWithQuota& resources) const = 0;
     virtual void SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const = 0;
     virtual void SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const = 0;
 
@@ -89,7 +89,7 @@ struct IStrategyHost
     virtual void LogResourceMetering(
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
-        const THashMap<TString, TString>& otherTags,
+        const THashMap<std::string, std::string>& otherTags,
         TInstant connectionTime,
         TInstant previousLogTime,
         TInstant currentTime) = 0;
@@ -99,7 +99,7 @@ struct IStrategyHost
 
     virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
 
-    virtual const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const = 0;
+    virtual const THashMap<std::string, std::string>& GetUserDefaultParentPoolMap() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -269,7 +269,7 @@ struct IStrategy
 
     virtual void UpdatePoolTrees(const NYson::TYsonString& poolTreesYson) = 0;
 
-    virtual TError UpdateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) = 0;
+    virtual TError UpdateUserToDefaultPoolMap(const THashMap<std::string, std::string>& userToDefaultPoolMap) = 0;
 
     //! Initializes persistent strategy state.
     virtual void InitPersistentState(const TPersistentStrategyStatePtr& persistentStrategyState) = 0;

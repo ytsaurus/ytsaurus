@@ -803,7 +803,7 @@ private:
                 rowModifications.reserve(resultRows.size());
 
                 for (auto row : resultRows) {
-                    rowModifications.push_back({ERowModificationType::VersionedWrite, row, TLockMask()});
+                    rowModifications.push_back(NRowModifications::TVersionedWriteRow(row));
                 }
 
                 localTransaction->ModifyRows(

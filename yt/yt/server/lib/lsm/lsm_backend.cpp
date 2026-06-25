@@ -65,7 +65,7 @@ void TLsmActionBatch::MergeWith(TLsmActionBatch&& other)
     DoMerge(other, &TLsmActionBatch::CompactionHintUpdates);
 }
 
-TString TLsmActionBatch::GetStatsLoggingString() const
+std::string TLsmActionBatch::GetStatsLoggingString() const
 {
     return Format("Compactions: %v, Partitionings: %v, Samplings: %v, "
         "Splits: %v, Merges: %v, Rotations: %v, CompactionHintUpdates: %v",

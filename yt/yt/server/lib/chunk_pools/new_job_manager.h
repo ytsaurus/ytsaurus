@@ -69,7 +69,7 @@ public:
     i64 GetPreliminaryRowCount() const;
     int GetPreliminarySliceCount() const;
 
-    TString GetDebugString() const;
+    std::string GetDebugString() const;
 
 private:
     //! All the input cookies that provided data that forms this job.

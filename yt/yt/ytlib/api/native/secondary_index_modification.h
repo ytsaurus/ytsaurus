@@ -23,7 +23,7 @@ struct ISecondaryIndexModifier
     virtual TFuture<void> OnIndexModifications(std::function<void(
         NYPath::TYPath path,
         NTableClient::TNameTablePtr nameTable,
-        TSharedRange<NFuture::TRowModification> modifications)> enqueueModificationRequests) const = 0;
+        TSharedRange<TRowModification> modifications)> enqueueModificationRequests) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecondaryIndexModifier)

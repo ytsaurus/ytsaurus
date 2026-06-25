@@ -835,7 +835,7 @@ public:
 
         auto agent = [&] {
             auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(request->agent_addresses());
-            auto tags = FromProto<THashSet<TString>>(request->tags());
+            auto tags = FromProto<THashSet<std::string>>(request->tags());
             // COMPAT(gritukan): Remove it when controller agents will be fresh enough.
             if (tags.empty()) {
                 tags.insert(DefaultOperationTag);
@@ -1091,7 +1091,7 @@ private:
     THashMap<TAgentId, TControllerAgentPtr> IdToAgent_;
     THashMap<TAgentId, TControllerAgentPtr> MirroredIdToAgent_;
 
-    THashSet<TString> TagsWithTooFewAgents_;
+    THashSet<std::string> TagsWithTooFewAgents_;
     bool AgentTagsFetched_{};
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -1288,13 +1288,13 @@ private:
         const auto& rsp = rspOrError.Value();
 
         auto tagToAgentIds = [&] {
-            THashMap<TString, std::vector<TString>> tagToAgentIds;
+            THashMap<std::string, std::vector<std::string>> tagToAgentIds;
 
             auto children = ConvertToNode(TYsonString(rsp->value()))->AsMap()->GetChildren();
             for (const auto& [agentId, node] : children) {
-                const auto tags = [&node{node}, &agentId{agentId}] () -> THashSet<TString> {
+                const auto tags = [&node{node}, &agentId{agentId}] () -> THashSet<std::string> {
                     try {
-                        return node->Attributes().Get<THashSet<TString>>("tags");
+                        return node->Attributes().Get<THashSet<std::string>>("tags");
                     } catch (const std::exception& ex) {
                         YT_LOG_WARNING(ex, "Cannot parse tags of agent %v", agentId);
                         return {};
@@ -1302,8 +1302,7 @@ private:
                 }();
 
                 for (const auto& tag : tags) {
-                    // TODO(babenko): migrate to TString
-                    tagToAgentIds[TString(tag)].push_back(TString(agentId));
+                    tagToAgentIds[tag].push_back(agentId);
                 }
             }
 
@@ -1311,7 +1310,7 @@ private:
         }();
 
         std::vector<TError> errors;
-        THashSet<TString> tagsWithTooFewAgents;
+        THashSet<std::string> tagsWithTooFewAgents;
         for (const auto& [tag, thresholds] : Config_->TagToAliveControllerAgentThresholds) {
             std::vector<TStringBuf> aliveAgentWithCurrentTag;
             aliveAgentWithCurrentTag.reserve(32);

@@ -66,7 +66,7 @@ DEFINE_ENUM(ESummaryValueType,
 struct TCustomJobMetricDescription
 {
     NStatisticPath::TStatisticPath StatisticsPath;
-    TString ProfilingName;
+    std::string ProfilingName;
     ESummaryValueType SummaryValueType = ESummaryValueType::Sum;
     std::optional<NJobTrackerClient::EJobState> JobStateFilter = {};
 

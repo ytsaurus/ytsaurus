@@ -38,7 +38,7 @@ const std::string DefaultParameterizedMetricFormula = "double([/performance_coun
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<TString> ParameterizedBalancingAttributes = {
+const std::vector<NYPath::TYPath> ParameterizedBalancingAttributes = {
     "/statistics",
     "/performance_counters"
 };
@@ -603,7 +603,7 @@ private:
 
         THashMap<TTabletCellId, int> cellInfoIndex;
         THashMap<TTableId, int> tableInfoIndex;
-        THashMap<TString, int> nodeInfoIndex;
+        THashMap<TNodeAddress, int> nodeInfoIndex;
 
         THashMap<TTableId, const TTable*> tablesToCalculateMetrics;
         for (const auto& cell : cells) {

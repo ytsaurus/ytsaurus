@@ -9,15 +9,6 @@ spec:
   adminCredentials:
     name: ytadminsec
 
-  bootstrap:
-    tabletCellBundles:
-      sys:
-        tabletCellCount: 2
-        nodeTagFilter: sys
-      default:
-        tabletCellCount: 1
-        nodeTagFilter: default
-
   discovery:
     instanceCount: 1
     loggers: &loggers
@@ -248,65 +239,28 @@ spec:
           memory: 32768Mi
 
   tabletNodes:
-    - name: sys
-      instanceCount: 2
-      tags:
-        - sys
+    - loggers: *loggers
+      instanceCount: 1
 
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-              - key: yt_component
-                operator: In
-                values:
-                - {{ cluster_name }}-yt-tablet-node-sys
-            topologyKey: "kubernetes.io/hostname"
-
-      loggers: *loggers
-
-      resources: &tabletNodeResources
+      resources:
         requests:
           cpu: 4
           memory: 8Gi
         limits:
           memory: 8Gi
 
-      locations: &tabletNodeLocations
+      locations:
         - locationType: Logs
           path: /yt/tablet-node-logs
 
-      volumeMounts: &tabletNodeVolumeMounts
+      volumeMounts:
         - name: tablet-node-logs
           mountPath: /yt/tablet-node-logs
 
-      volumeClaimTemplates: &tabletNodeVolumeClaimTemplates
+      volumeClaimTemplates:
         - metadata:
             name: tablet-node-logs
           spec: *logsVolumeSpec
-
-    - name: default
-      instanceCount: 1
-      tags:
-        - default
-
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-              - key: yt_component
-                operator: In
-                values:
-                - {{ cluster_name }}-yt-tablet-node
-            topologyKey: "kubernetes.io/hostname"
-
-      loggers: *loggers
-      resources: *tabletNodeResources
-      locations: *tabletNodeLocations
-      volumeMounts: *tabletNodeVolumeMounts
-      volumeClaimTemplates: *tabletNodeVolumeClaimTemplates
 
   queryTrackers:
     image: {{ images.query_tracker }}

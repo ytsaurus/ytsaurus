@@ -1533,8 +1533,8 @@ private:
 
         auto dataFileName = location->GetChunkPath(chunkId);
         auto metaFileName = dataFileName + ArtifactMetaSuffix;
-        auto tempDataFileName = dataFileName + NFS::TempFileSuffix;
-        auto tempMetaFileName = metaFileName + NFS::TempFileSuffix;
+        auto tempDataFileName = dataFileName + std::string(NFS::TempFileSuffix);
+        auto tempMetaFileName = metaFileName + std::string(NFS::TempFileSuffix);
 
         auto metaBlob = SerializeProtoToRef(key);
         TArtifactMetaHeader metaHeader;
@@ -1558,13 +1558,15 @@ private:
         location->DisableOnError(BIND([&] {
             auto guard = Finally(cleanupTempFiles);
 
+            // TODO(babenko): migrate to std::string (TFile is TString-only).
             tempDataFile = std::make_unique<TFile>(
-                tempDataFileName,
+                TString(tempDataFileName),
                 CreateAlways | WrOnly | Seq | CloseOnExec);
             tempDataFile->Flock(LOCK_EX);
 
+            // TODO(babenko): migrate to std::string (TFile is TString-only).
             tempMetaFile = std::make_unique<TFile>(
-                tempMetaFileName,
+                TString(tempMetaFileName),
                 CreateAlways | WrOnly | Seq | CloseOnExec);
             tempMetaFile->Flock(LOCK_EX);
 
@@ -1640,8 +1642,9 @@ private:
         TSharedMutableRef metaBlob;
 
         location->DisableOnError(BIND([&] {
+            // TODO(babenko): migrate to std::string (TFile is TString-only).
             TFile metaFile(
-                metaFileName,
+                TString(metaFileName),
                 OpenExisting | RdOnly | Seq | CloseOnExec);
             TFileInput metaInput(metaFile);
             metaBlob = TSharedMutableRef::Allocate<TArtifactReaderMetaBufferTag>(metaFile.GetLength());

@@ -91,7 +91,7 @@ TOperation::TOperation(
     const std::string& authenticatedUser,
     TInstant startTime,
     IInvokerPtr controlInvoker,
-    const std::optional<TString>& alias,
+    const std::optional<std::string>& alias,
     std::vector<TExperimentAssignmentPtr> experimentAssignments,
     NYson::TYsonString providedSpecString,
     EOperationState state,
@@ -601,7 +601,7 @@ TFuture<void> TOperation::AbortCommonTransactions()
         });
 }
 
-bool TOperation::AddSecureVaultEntry(const TString& key, const INodePtr& value)
+bool TOperation::AddSecureVaultEntry(const std::string& key, const INodePtr& value)
 {
     YT_VERIFY(State_ == EOperationState::Starting);
 
@@ -622,8 +622,7 @@ void TOperation::SetTemporaryToken(const std::string& token, const TNodeId& node
     YT_VERIFY(State_ == EOperationState::Starting);
     YT_VERIFY(Spec_->IssueTemporaryToken);
     // We allow issuing unused temporary tokens to support enabling this option by default.
-    // TODO(babenko): migrate to std::string
-    if (!AddSecureVaultEntry(TString(Spec_->TemporaryTokenEnvironmentVariableName), ConvertToNode(token))) {
+    if (!AddSecureVaultEntry(Spec_->TemporaryTokenEnvironmentVariableName, ConvertToNode(token))) {
         YT_LOG_DEBUG("Not using temporary token as there is an explicit one");
     }
 

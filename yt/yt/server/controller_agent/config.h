@@ -814,7 +814,7 @@ DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
 struct TRemoteOperationsConfig
     : public NYTree::TYsonStruct
 {
-    THashSet<TString> AllowedUsers;
+    THashSet<std::string> AllowedUsers;
 
     bool AllowedForEveryone;
 
@@ -1128,7 +1128,7 @@ struct TControllerAgentConfig
     NYTree::INodePtr VanillaOperationOptionsNode;
 
     //! Default environment variables set for every job.
-    THashMap<TString, TString> Environment;
+    THashMap<std::string, std::string> Environment;
 
     //! If |true|, jobs are revived from snapshot.
     bool EnableJobRevival;
@@ -1175,15 +1175,15 @@ struct TControllerAgentConfig
     // Cypress path to a special layer containing YT-specific data required to
     // run jobs with custom rootfs, e.g. statically linked ytserver-exec.
     // Is applied on top of user layers if they are used.
-    std::optional<TString> SystemLayerPath;
+    std::optional<NYPath::TYPath> SystemLayerPath;
 
     // Cypress path to a default layer for user jobs, if no layers were specified explicitly.
-    std::optional<TString> DefaultLayerPath;
+    std::optional<NYPath::TYPath> DefaultLayerPath;
 
     // Cypress path to the directory with CUDA toolkit layers which are required for some
     // GPU jobs. The layer is applied as an additional user layer on top of the others if they are
     // present.
-    std::optional<TString> CudaToolkitLayerDirectoryPath;
+    std::optional<NYPath::TYPath> CudaToolkitLayerDirectoryPath;
 
     //! Controls handling docker images specified in user spec.
     TDockerRegistryConfigPtr DockerRegistry;
@@ -1257,7 +1257,7 @@ struct TControllerAgentConfig
     bool EnableBypassArtifactCache;
 
     //! List of the tags assigned to controller agent.
-    std::vector<TString> Tags;
+    std::vector<std::string> Tags;
 
     TUserJobMonitoringConfigPtr UserJobMonitoring;
 
@@ -1297,7 +1297,7 @@ struct TControllerAgentConfig
     //! Enables job profiling.
     bool EnableJobProfiling;
 
-    std::optional<TString> CudaProfilerLayerPath;
+    std::optional<NYPath::TYPath> CudaProfilerLayerPath;
 
     THashMap<std::string, std::string> CudaProfilerEnvironmentVariables;
     // COMPAT(omgronnny)
@@ -1310,7 +1310,7 @@ struct TControllerAgentConfig
 
     TJobTrackerConfigPtr JobTracker;
 
-    THashSet<TString> NetworkProjectsAllowedForOffloading;
+    THashSet<std::string> NetworkProjectsAllowedForOffloading;
 
     bool EnableNetworkInOperationDemand;
 

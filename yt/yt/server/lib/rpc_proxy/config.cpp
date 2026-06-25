@@ -132,7 +132,7 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
             auto structuredLoggingMainTopic = New<TStructuredLoggingTopicDynamicConfig>();
 
             structuredLoggingMainTopic->SuppressedMethods =
-                THashSet<TString>{
+                THashSet<std::string>{
                     "ModifyRows",
                     "BatchModifyRows",
                     "LookupRows",

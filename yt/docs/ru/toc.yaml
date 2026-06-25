@@ -631,6 +631,10 @@ items:
   - name: Release notes
     when: audience == "public"
     href: admin-guide/releases.md
+  - name: Release notes
+    restricted-access: yt-team
+    when: audience == "internal"
+    href: admin-guide/releases.md
   - name: Совместимость компонент кластера
     when: audience == "public"
     href: admin-guide/compatibility.md

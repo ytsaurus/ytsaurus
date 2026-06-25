@@ -29,6 +29,8 @@
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <pyspark/sql/connect/proto/base.grpc.pb.h>
 
 #include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
@@ -672,8 +674,8 @@ private:
 
     static std::string ConvertToJson(const INodePtr& ysonNode)
     {
-        TString result;
-        TStringOutput resultOutput(result);
+        std::string result;
+        TStdStringOutput resultOutput(result);
         auto jsonWriter = NJson::CreateJsonConsumer(&resultOutput);
         Serialize(ysonNode, jsonWriter.get());
         jsonWriter->Flush();

@@ -349,7 +349,18 @@ items:
                - name: Troubleshooting
                  href: user-guide/data-processing/spyt/problems.md
              - name: Structured Streaming
-               href: user-guide/data-processing/spyt/structured-streaming.md
+               items:
+                - name: General
+                  href: user-guide/data-processing/spyt/structured-streaming/index.md
+                - name: Exactly-once guarantee
+                  items:
+                    - name: Overview
+                      href: user-guide/data-processing/spyt/structured-streaming/exactly-once/index.md
+                    - name: Transactional streaming mode
+                      href: user-guide/data-processing/spyt/structured-streaming/exactly-once/transactional-mode.md
+                    - name: Idempotent receiver
+                      href: user-guide/data-processing/spyt/structured-streaming/exactly-once/idempotent-receiver.md
+
              - name: Spark SQL
                href: user-guide/data-processing/spyt/spark-sql.md
              - name: Spark UI
@@ -378,6 +389,8 @@ items:
                    href: user-guide/data-processing/spyt/read-transaction.md
                  - name: Write options
                    href: user-guide/data-processing/spyt/thesaurus/write-options.md
+                 - name: Streaming options
+                   href: user-guide/data-processing/spyt/thesaurus/streaming-options.md
                  - name: GPU usage
                    href: user-guide/data-processing/spyt/thesaurus/gpu-usage.md
              - name: Best practices

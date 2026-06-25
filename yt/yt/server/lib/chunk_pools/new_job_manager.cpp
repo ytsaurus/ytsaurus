@@ -115,7 +115,7 @@ int TNewJobStub::GetPreliminarySliceCount() const
     return PrimarySliceCount_ + PreliminaryForeignSliceCount_;
 }
 
-TString TNewJobStub::GetDebugString() const
+std::string TNewJobStub::GetDebugString() const
 {
     TStringBuilder builder;
     builder.AppendString("{");

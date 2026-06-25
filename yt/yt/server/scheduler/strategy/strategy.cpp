@@ -472,7 +472,7 @@ public:
         LastTemplatePoolTreeConfigMapYson_ = ConvertToYsonString(templatePoolTreeConfigMap);
     }
 
-    TError UpdateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) override
+    TError UpdateUserToDefaultPoolMap(const THashMap<std::string, std::string>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2403,7 +2403,7 @@ private:
 
         for (const auto& tree : snapshot->Trees()) {
             TMeteringMap newStatisticsPerTree;
-            THashMap<TString, TString> customMeteringTags;
+            THashMap<std::string, std::string> customMeteringTags;
             tree->BuildResourceMetering(&newStatisticsPerTree, &customMeteringTags);
 
             for (auto& [key, value] : newStatisticsPerTree) {

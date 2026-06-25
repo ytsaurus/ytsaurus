@@ -39,8 +39,8 @@ public:
     // COMPAT(pogorelov)
     virtual const NScheduler::NProto::TScheduleAllocationSpec* GetScheduleAllocationSpec() const = 0;
 
-    virtual TString ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const = 0;
-    virtual TString GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const = 0;
+    virtual std::string ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const = 0;
+    virtual std::string GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const = 0;
 
 protected:
     void FormatCommonPart(TStringBuilderBase& builder) const;
@@ -75,8 +75,8 @@ public:
     //! If set, the scheduler requested scheduling a job from a specific allocation group.
     const std::optional<std::string>& GetRequestedTaskName() const;
 
-    TString ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const final;
-    TString GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const final;
+    std::string ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const final;
+    std::string GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const final;
 
 private:
     TJobResources ResourceLimits_;
@@ -103,8 +103,8 @@ public:
     // Always returns nullptr.
     const NScheduler::NProto::TScheduleAllocationSpec* GetScheduleAllocationSpec() const final;
 
-    TString ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const final;
-    TString GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const final;
+    std::string ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const final;
+    std::string GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const final;
 
 private:
     NScheduler::TDiskQuota DiskQuota_;
