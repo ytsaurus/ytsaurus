@@ -91,6 +91,13 @@ using NYql::GetMethodIndex;
 
 using namespace llvm;
 
+// Explicit alignment value for i128 (TUnboxedValuePod).
+// LLVM16 doesn't have a default alignment value for i128. It's taken from some other type and equals 8.
+// But for compatibility between C++ and LLVM IR code, we need exactly this value because the C++ compiler never generates IR using i128,
+// even representing __int128 in IR as an i64 pair with alignment of 8.
+// In LLVM18, the default alignment value for i128 is explicitly set to 16, and we need to explicitly set it to 8 for our generated instructions.
+const auto i128defaultAlign = llvm::Align(8);
+
 // This macro is needed to mark calls as "calls to LLVM functions".
 // This prevents false positive UBSan triggers at the C++ <-> JIT interface layer.
 // The root cause of these triggers has not been identified.

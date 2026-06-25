@@ -190,8 +190,8 @@ private:
         const auto good = BasicBlock::Create(context, "good", ctx.Func);
         const auto done = BasicBlock::Create(context, "done", ctx.Func);
 
-        const auto pairPtr = new AllocaInst(pairType, 0U, "pair_ptr", block);
-        new StoreInst(ConstantAggregateZero::get(pairType), pairPtr, block);
+        const auto pairPtr = new AllocaInst(pairType, 0U, nullptr, i128defaultAlign, "pair_ptr", block);
+        new StoreInst(ConstantAggregateZero::get(pairType), pairPtr, false, i128defaultAlign, block);
 
         const auto keyPtr = GetElementPtrInst::CreateInBounds(pairType, pairPtr, {ConstantInt::get(indexType, 0), ConstantInt::get(indexType, 0)}, "key_ptr", block);
         const auto payPtr = GetElementPtrInst::CreateInBounds(pairType, pairPtr, {ConstantInt::get(indexType, 0), ConstantInt::get(indexType, 1)}, "pay_ptr", block);
@@ -208,9 +208,9 @@ private:
         const auto output = ResPair.GenNewArray(2U, itemsPtr, ctx, block);
         AddRefBoxed(output, ctx, block);
         const auto items = new LoadInst(itemsType, itemsPtr, "items", block);
-        const auto pair = new LoadInst(pairType, pairPtr, "pair", block);
-        new StoreInst(pair, items, block);
-        new StoreInst(output, valuePtr, block);
+        const auto pair = new LoadInst(pairType, pairPtr, "pair", false, i128defaultAlign, block);
+        new StoreInst(pair, items, false, i128defaultAlign, block);
+        new StoreInst(output, valuePtr, false, i128defaultAlign, block);
         BranchInst::Create(done, block);
 
         block = done;
