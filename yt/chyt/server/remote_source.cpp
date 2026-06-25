@@ -398,7 +398,6 @@ void TDistributedQueryExecutor::Fire()
     // TODO(max42): do we need them?
     auto throttler = CreateNetThrottler(settings);
 
-
     YT_VERIFY(!DistributeInfo_.SecondaryQueries.empty());
     bool isInsert = DistributeInfo_.SecondaryQueries[0].Query->as<DB::ASTInsertQuery>();
     DB::Block blockHeader;
@@ -532,11 +531,6 @@ std::vector<std::shared_ptr<IChytIndexStat>> TDistributedQueryExecutor::ExtractI
 DB::Header TDistributedQueryExecutor::GetOutputHeader() const
 {
     return DistributeInfo_.OutputHeader;
-}
-
-bool TDistributedQueryExecutor::PushDownPredicate() const
-{
-    return QueryAnalysisResult_->AllowPushDownPredicate;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,7 +38,6 @@ struct TQueryAnalysisResult
     EPoolKind PoolKind;
     EReadInOrderMode ReadInOrderMode = EReadInOrderMode::None;
     bool EnableMinMaxOptimization = false;
-    bool AllowPushDownPredicate = false;
     NYTree::IAttributeDictionaryPtr AnalysisVariables = NYTree::CreateEphemeralAttributes();
 };
 
@@ -156,7 +155,6 @@ private:
     //! If the query can be done using only min/max column statistics.
     bool EnableMinMaxOptimization_ = false;
 
-    bool AllowPushDownPredicate_ = false;
 
     bool Prepared_ = false;
 

@@ -1092,10 +1092,6 @@ void TQueryAnalyzer::ParseQuery()
         }
     }
 
-    AllowPushDownPredicate_ =
-        getContext()->getSettingsRef()[DB::Setting::allow_push_predicate_ast_for_distributed_subqueries] &&
-        TableExpressions_.size() == 1;
-
     YT_VERIFY(!Storages_.empty());
 
     // In the case of a global join, the second table will materialize on read.
@@ -1466,7 +1462,6 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     }
 
     result.EnableMinMaxOptimization = EnableMinMaxOptimization_;
-    result.AllowPushDownPredicate = AllowPushDownPredicate_;
     result.QueryTree = QueryInfo_.query_tree->clone();
 
     return result;
