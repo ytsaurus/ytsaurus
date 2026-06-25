@@ -297,9 +297,8 @@ DEFINE_REFCOUNTED_TYPE(TDataBalancerOptions)
 struct TUserJobOptions
     : public NYTree::TYsonStruct
 {
-    //! Thread limit for the user job is ceil(#InitialThreadLimit + #ThreadLimitMultiplier * JobCpuLimit);
-    i64 ThreadLimitMultiplier;
-    i64 InitialThreadLimit;
+    //! Thread limit for the user job container as a function of cpu (variable "cpu" = ceil(job cpu_limit)).
+    TArithmeticFormula ThreadLimitFormula;
 
     REGISTER_YSON_STRUCT(TUserJobOptions);
 

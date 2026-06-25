@@ -1293,8 +1293,7 @@ class TestUserJobIsolation(YTEnvSetup):
             "vanilla_operation_options": {
                 # NB: ytserver-exec requires many threads on start.
                 "user_job_options": {
-                    "thread_limit_multiplier": 5,
-                    "initial_thread_limit": 100,
+                    "thread_limit_formula": "100 + 5 * cpu",
                 },
             },
         },

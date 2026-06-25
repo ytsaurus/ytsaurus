@@ -112,6 +112,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixInputStreamDirectory)               (302132))
     ((HighThreadCountJobPerTask)             (302133))
     ((PersistVanillaJobCounts)               (302134))
+    ((HighThreadCountJobThreshold)           (302135))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
