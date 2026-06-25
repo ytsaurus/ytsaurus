@@ -12,6 +12,7 @@ struct THighThreadCountJobInfo
 {
     NJobTrackerClient::TJobId JobId;
     i64 ThreadCount = 0;
+    i64 Threshold = 0;
 
     PHOENIX_DECLARE_TYPE(THighThreadCountJobInfo, 0xfb21a9c1);
 };
