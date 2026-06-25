@@ -376,9 +376,9 @@ private:
         }
 
         auto updateMountInfo = [&] (auto&& tabletInfo, auto&& tableInfo, bool cellChanged) {
-            YT_LOG_DEBUG("Retrying sending transaction rows after %v "
+            YT_LOG_DEBUG("Retrying sending transaction rows%v "
                 "(LogicalMountRevision: %x, OldMountRevision: %x, NewMountRevision: %x%v)",
-                cellChanged ? "tablet moved to a different cell" : "mount revision changed",
+                cellChanged ? " after tablet moved to a different cell" : "",
                 TabletInfo_->LogicalMountRevision,
                 TabletInfo_->MountRevision,
                 newTabletInfo->MountRevision,
