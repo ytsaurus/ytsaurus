@@ -11,7 +11,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedTableSchema::TCachedTableSchema(
-    TGuid schemaId,
+    TObjectId schemaId,
     TTableSchemaPtr schema)
     : TSyncCacheValueBase(schemaId)
     , TableSchema_(std::move(schema))
@@ -42,7 +42,7 @@ TTableSchemaCache::TTableSchemaCache(
     });
 }
 
-TTableSchemaPtr TTableSchemaCache::Get(TGuid schemaId)
+TTableSchemaPtr TTableSchemaCache::Get(TObjectId schemaId)
 {
     auto result = Find(schemaId);
     if (result) {
@@ -52,7 +52,7 @@ TTableSchemaPtr TTableSchemaCache::Get(TGuid schemaId)
     return nullptr;
 }
 
-void TTableSchemaCache::Insert(TGuid schemaId, TTableSchemaPtr schema)
+void TTableSchemaCache::Insert(TObjectId schemaId, TTableSchemaPtr schema)
 {
     auto cachedSchema = New<TCachedTableSchema>(schemaId, std::move(schema));
     if (TryInsert(std::move(cachedSchema))) {
@@ -74,7 +74,6 @@ i64 TTableSchemaCache::GetWeight(const TCachedTableSchemaPtr& value) const
 {
     return value->GetWeight();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

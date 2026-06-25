@@ -13,11 +13,11 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedTableSchema
-    : public TSyncCacheValueBase<TGuid, TCachedTableSchema>
+    : public TSyncCacheValueBase<NObjectClient::TObjectId, TCachedTableSchema>
 {
 public:
     TCachedTableSchema(
-        TGuid schemaId,
+        NObjectClient::TObjectId schemaId,
         NTableClient::TTableSchemaPtr schema);
 
     i64 GetWeight() const;
@@ -33,15 +33,15 @@ DEFINE_REFCOUNTED_TYPE(TCachedTableSchema)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableSchemaCache
-    : public TSyncSlruCacheBase<TGuid, TCachedTableSchema>
+    : public TSyncSlruCacheBase<NObjectClient::TObjectId, TCachedTableSchema>
 {
 public:
     explicit TTableSchemaCache(
         TSlruCacheConfigPtr config,
         NProfiling::TProfiler profiler = {});
 
-    NTableClient::TTableSchemaPtr Get(TGuid schemaId);
-    void Insert(TGuid schemaId, NTableClient::TTableSchemaPtr schema);
+    NTableClient::TTableSchemaPtr Get(NObjectClient::TObjectId schemaId);
+    void Insert(NObjectClient::TObjectId schemaId, NTableClient::TTableSchemaPtr schema);
 
 private:
     std::atomic<int> EntryCount_ = 0;

@@ -218,7 +218,7 @@ class TestYtDictionaries(ClickHouseTestBase):
                 {"number": 4, "str": "n/a", "i64": 42},
             ]
 
-            with raises_yt_error(message_pattern="is missing in the source table schema"):
+            with raises_yt_error("is missing in the source table schema"):
                 clique.make_query("select dictGetInt64('dict2', 'absent', CAST(1 as UInt64))")
 
     @authors("max42")

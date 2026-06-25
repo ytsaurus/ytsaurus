@@ -972,7 +972,7 @@ class ClickHouseTestBase(YTEnvSetup):
 
         create_user("yt-clickhouse-cache")
         create_user("yt-clickhouse")
-        create_user("yt-clikhouse-dictionaries")
+        create_user("yt-clickhouse-dictionaries")
 
         create_user("chyt-sql-objects")
         yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", "chyt-sql-objects", "use"))
