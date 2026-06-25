@@ -459,6 +459,8 @@ PEERDIR(
     library/cpp/getopt
     library/cpp/yt/phdr_cache
 
+    yt/yt/core/https
+
     yt/yt/library/orchid
     yt/yt/library/server_program
     yt/yt/library/monitoring

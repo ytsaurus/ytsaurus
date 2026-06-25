@@ -58,14 +58,30 @@ DEFINE_ENUM(EVerb,
 ////////////////////////////////////////////////////////////////////////////////
 
 void Initialize(
-    const NHttp::IServerPtr& monitoringServer,
+    const NHttp::IServerPtr& monitoringHttpServer,
+    const NProfiling::TSolomonExporterConfigPtr& config,
+    IMonitoringManagerPtr* monitoringManager,
+    NYTree::IMapNodePtr* orchidRoot)
+{
+    Initialize(
+        monitoringHttpServer,
+        /*monitoringHttpsServer*/ nullptr,
+        config,
+        monitoringManager,
+        orchidRoot);
+}
+
+void Initialize(
+    const NHttp::IServerPtr& monitoringHttpServer,
+    const NHttp::IServerPtr& monitoringHttpsServer,
     const NProfiling::TSolomonExporterConfigPtr& config,
     IMonitoringManagerPtr* monitoringManager,
     NYTree::IMapNodePtr* orchidRoot)
 {
     auto solomonExporter = New<NProfiling::TSolomonExporter>(config);
     Initialize(
-        monitoringServer,
+        monitoringHttpServer,
+        monitoringHttpsServer,
         solomonExporter,
         monitoringManager,
         orchidRoot);
@@ -73,7 +89,22 @@ void Initialize(
 }
 
 void Initialize(
-    const NHttp::IServerPtr& monitoringServer,
+    const NHttp::IServerPtr& monitoringHttpServer,
+    const NProfiling::TSolomonExporterPtr& solomonExporter,
+    IMonitoringManagerPtr* monitoringManager,
+    NYTree::IMapNodePtr* orchidRoot)
+{
+    Initialize(
+        monitoringHttpServer,
+        /*monitoringHttpsServer*/ nullptr,
+        solomonExporter,
+        monitoringManager,
+        orchidRoot);
+}
+
+void Initialize(
+    const NHttp::IServerPtr& monitoringHttpServer,
+    const NHttp::IServerPtr& monitoringHttpsServer,
     const NProfiling::TSolomonExporterPtr& solomonExporter,
     IMonitoringManagerPtr* monitoringManager,
     NYTree::IMapNodePtr* orchidRoot)
@@ -118,23 +149,19 @@ void Initialize(
             .EndMap());
 #endif
 
-    if (monitoringServer) {
-        if (solomonExporter) {
-            solomonExporter->Register("/solomon", monitoringServer);
+    if (solomonExporter) {
+        SetNodeByYPath(
+            *orchidRoot,
+            "/sensors",
+            CreateVirtualNode(solomonExporter->GetSensorService()));
+    }
 
-            SetNodeByYPath(
-                *orchidRoot,
-                "/sensors",
-                CreateVirtualNode(solomonExporter->GetSensorService()));
-        }
+    if (monitoringHttpServer) {
+        RegisterMonitoringHandlers(monitoringHttpServer, solomonExporter, *orchidRoot);
+    }
 
-#ifdef _linux_
-        NYTProf::Register(monitoringServer, "/ytprof", buildInfo);
-        NBacktraceIntrospector::Register(monitoringServer, "/backtrace");
-#endif
-        monitoringServer->AddHandler(
-            "/orchid/",
-            GetOrchidYPathHttpHandler(*orchidRoot));
+    if (monitoringHttpsServer) {
+        RegisterMonitoringHandlers(monitoringHttpsServer, solomonExporter, *orchidRoot);
     }
 }
 
@@ -220,6 +247,32 @@ private:
 IHttpHandlerPtr GetOrchidYPathHttpHandler(const IYPathServicePtr& service)
 {
     return CreateErrorWrappingHttpHandler(New<TYPathHttpHandler>(service));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RegisterMonitoringHandlers(
+    const NHttp::IServerPtr& monitoringServer,
+    const NProfiling::TSolomonExporterPtr& solomonExporter,
+    const NYTree::IMapNodePtr& orchidRoot)
+{
+    YT_VERIFY(monitoringServer);
+    YT_VERIFY(orchidRoot);
+
+    if (solomonExporter) {
+        solomonExporter->Register("/solomon", monitoringServer);
+    }
+
+#ifdef _linux_
+    auto buildInfo = NYTProf::TBuildInfo::GetDefault();
+    buildInfo.BinaryVersion = GetVersion();
+    NYTProf::Register(monitoringServer, "/ytprof", buildInfo);
+    NBacktraceIntrospector::Register(monitoringServer, "/backtrace");
+#endif
+
+    monitoringServer->AddHandler(
+        "/orchid/",
+        GetOrchidYPathHttpHandler(orchidRoot));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
