@@ -4,8 +4,8 @@ namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString DisabledLockFileName("disabled");
-const TString HealthCheckFileName("health_check~");
+const std::string DisabledLockFileName("disabled");
+const std::string HealthCheckFileName("health_check~");
 const NYPath::TYPath ClusterThrottlersConfigPath("//sys/cluster_throttlers");
 
 ////////////////////////////////////////////////////////////////////////////////
