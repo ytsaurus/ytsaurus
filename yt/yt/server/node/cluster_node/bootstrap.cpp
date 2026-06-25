@@ -159,6 +159,8 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -696,6 +698,7 @@ private:
     NYT::NBus::NTcp::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
 
     IMapNodePtr OrchidRoot_;
 
@@ -1166,9 +1169,13 @@ private:
         auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+        if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+            HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+        }
 
         NMonitoring::Initialize(
             HttpServer_,
+            HttpsServer_,
             ServiceLocator_->GetServiceOrThrow<TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
@@ -1296,6 +1303,10 @@ private:
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
+        if (HttpsServer_) {
+            YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+            HttpsServer_->Start();
+        }
 
 #ifdef __linux__
         if (ContainerDevicesChecker_) {

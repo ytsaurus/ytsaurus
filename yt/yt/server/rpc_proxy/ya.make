@@ -14,6 +14,8 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/core/https
+
     yt/yt/server/lib
     yt/yt/server/lib/chunk_pools
     yt/yt/server/lib/cypress_registrar
