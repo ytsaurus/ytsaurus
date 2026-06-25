@@ -66,6 +66,7 @@ target_sources(essentials-minikql-computation PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_pack.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_pack_impl.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_pattern_cache.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_pattern_cache_program_key.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_custom_list.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_datum_validate.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_external_node_invalidator.h
