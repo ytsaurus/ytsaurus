@@ -503,8 +503,6 @@ private:
         std::vector<TCypressNodeRawPtr> expiredTrunkNodes;
 
         auto maxExpiredNodesRemovalsPerCommit = GetDynamicConfig()->MaxExpiredNodesRemovalsPerCommit;
-        std::optional<bool> isSequoia;
-
         while (!ExpirationMap_.empty() &&
             std::ssize(expiredTrunkNodes) < maxExpiredNodesRemovalsPerCommit)
         {
@@ -517,16 +515,6 @@ private:
 
             // See comment for ExpirationMap.
             if (!ScheduledForRemovalNodes_.contains(trunkNode)) {
-                if (!isSequoia.has_value()) {
-                    isSequoia = trunkNode->IsSequoia();
-                }
-
-                // Sequoia and Cypress nodes are not expected to be living at
-                // the same cell, so this check is just a precaution.
-                if (isSequoia != trunkNode->IsSequoia()) {
-                    break;
-                }
-
                 if (IsObjectAlive(trunkNode)) {
                     InsertOrCrash(ScheduledForRemovalNodes_, trunkNode);
                     expiredTrunkNodes.push_back(trunkNode);
@@ -546,8 +534,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Starting removal of expired %v nodes (Count: %v)",
-            *isSequoia ? "Sequoia" : "Cypress",
+        YT_LOG_DEBUG("Starting removal of expired nodes (Count: %v)",
             std::ssize(expiredTrunkNodes));
 
         std::vector<TEphemeralObjectPtr<TCypressNode>> trunkNodes;
