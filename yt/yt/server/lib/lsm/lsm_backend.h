@@ -91,7 +91,7 @@ struct TLsmActionBatch
 
     void MergeWith(TLsmActionBatch&& other);
 
-    TString GetStatsLoggingString() const;
+    std::string GetStatsLoggingString() const;
 
 private:
     template <class TRequest>
