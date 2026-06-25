@@ -467,10 +467,7 @@ public:
             modulePassManager = passBuilder.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O2);
         }
 
-        llvm::PassInstrumentationCallbacks passInstrumentationCallbacks;
         if (ExportedSymbols) {
-            mam.registerPass([&] { return llvm::PassInstrumentationAnalysis(&passInstrumentationCallbacks); });
-
             modulePassManager.addPass(llvm::InternalizePass([&](const llvm::GlobalValue& gv) -> bool {
                 auto name = TString(gv.getName().str());
                 return ExportedSymbols->contains(name);
