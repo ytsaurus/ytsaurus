@@ -2433,21 +2433,21 @@ private:
         }
     }
 
-    TString FormatIncomingMailboxEndpoints(TEndpointId endpointId) const
+    std::string FormatIncomingMailboxEndpoints(TEndpointId endpointId) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return FormatMailboxEndpoints(endpointId, /*outgoing*/ false);
     }
 
-    TString FormatOutgoingMailboxEndpoints(TEndpointId endpointId) const
+    std::string FormatOutgoingMailboxEndpoints(TEndpointId endpointId) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return FormatMailboxEndpoints(endpointId, /*outgoing*/ true);
     }
 
-    TString FormatMailboxEndpoints(TEndpointId endpointId, bool outgoing) const
+    std::string FormatMailboxEndpoints(TEndpointId endpointId, bool outgoing) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
