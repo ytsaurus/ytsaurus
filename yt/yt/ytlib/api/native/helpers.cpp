@@ -34,6 +34,7 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NScheduler;
+using namespace NTabletClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
@@ -219,7 +220,7 @@ TError MakeRevivalError(
 
 void CheckPermission(
     const NYPath::TYPath& path,
-    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTableMountInfoPtr& tableInfo,
     const TAuthenticationOptions& options,
     const IConnectionPtr& connection,
     EPermission permission)
@@ -236,7 +237,7 @@ void CheckPermission(
 
 void CheckReadPermission(
     const NYPath::TYPath& path,
-    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTableMountInfoPtr& tableInfo,
     const TAuthenticationOptions& options,
     const IConnectionPtr& connection)
 {
@@ -245,7 +246,7 @@ void CheckReadPermission(
 
 void CheckWritePermission(
     const NYPath::TYPath& path,
-    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTableMountInfoPtr& tableInfo,
     const TAuthenticationOptions& options,
     const IConnectionPtr& connection)
 {
@@ -289,14 +290,16 @@ TDuration InvalidateMountCacheAndGetRetryDelay(
     const TDetailedProfilingInfoPtr& profilingInfo,
     const TLogger& Logger,
     const TError& error,
-    int* retryCount)
+    int* retryCount,
+    TTabletId tabletIdHint)
 {
     const auto& config = connection->GetStaticConfig();
     const auto& tableMountCache = connection->GetTableMountCache();
 
     auto invalidationResult = tableMountCache->InvalidateOnError(
         error,
-        /*forceRetry*/ false);
+        /*forceRetry*/ false,
+        tabletIdHint);
 
     TDuration timeToWait;
     if (invalidationResult.Retryable && ++(*retryCount) <= config->TableMountCache->OnErrorRetryCount) {

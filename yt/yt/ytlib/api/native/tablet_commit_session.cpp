@@ -342,7 +342,8 @@ private:
                 /*profilingInfo*/ nullptr,
                 Logger,
                 firstBatchError,
-                &commitContext->LocalRetryIndex);
+                &commitContext->LocalRetryIndex,
+                /*tabletIdHint*/ TabletInfo_->TabletId);
 
             if (delay) {
                 return TDelayedExecutor::MakeDelayed(delay);
@@ -530,7 +531,10 @@ private:
                 << TErrorAttribute("cell_id", TabletInfo_->CellId)
                 << TErrorAttribute("batch_index", commitContext->BatchIndex)
                 << error;
-            Client_->GetTableMountCache()->InvalidateOnError(wrappedError, /*forceRetry*/ true);
+            Client_->GetTableMountCache()->InvalidateOnError(
+                wrappedError,
+                /*forceRetry*/ true,
+                /*tabletIdHint*/ TabletInfo_->TabletId);
             commitContext->CommitPromise.Set(wrappedError);
             return;
         } else if (commitContext->LocalRetryIndex > 0 && commitContext->BatchIndex == 0) {
