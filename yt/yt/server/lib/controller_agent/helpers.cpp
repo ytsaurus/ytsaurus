@@ -60,7 +60,7 @@ TNodeId NodeIdFromJobId(TJobId jobId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString JobTypeAsKey(EJobType jobType)
+std::string JobTypeAsKey(EJobType jobType)
 {
     return Format("%lv", jobType);
 }
