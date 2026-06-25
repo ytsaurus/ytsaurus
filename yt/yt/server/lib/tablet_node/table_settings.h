@@ -80,7 +80,7 @@ struct TTableConfigExperiment
     //! Arbitrary string necessary to make experiments independent. Used to seed a random
     //! generator before tossing a coin to check if a certain table is affected by the
     //! experiment.
-    TString Salt;
+    std::string Salt;
 
     //! Fraction of tables of the domain that are affected by the experiment.
     //! Stored as a rational number to make deterministic choices and avoid precision errors.
@@ -134,7 +134,7 @@ DEFINE_REFCOUNTED_TYPE(TTableConfigExperiment)
 struct TClusterTableConfigPatchSet
     : public TTableConfigPatch
 {
-    std::map<TString, TTableConfigExperimentPtr> TableConfigExperiments;
+    std::map<std::string, TTableConfigExperimentPtr> TableConfigExperiments;
 
     REGISTER_YSON_STRUCT(TClusterTableConfigPatchSet);
 
@@ -202,7 +202,7 @@ struct TRawTableSettings
     TTableConfigPatchPtr GlobalPatch;
     // NB: Use tree map to ensure deterministic order and allow efficient
     // set difference and set intersection.
-    std::map<TString, TTableConfigExperimentPtr> Experiments;
+    std::map<std::string, TTableConfigExperimentPtr> Experiments;
 
     //! Initializes all provided IO configs with corresponding New<...>().
     void CreateNewProvidedConfigs();
@@ -216,7 +216,7 @@ struct TRawTableSettings
     //! error is appended to |errors|.
     TTableSettings BuildEffectiveSettings(
         std::vector<TError>* errors,
-        std::vector<TString>* malformedExperimentNames) const;
+        std::vector<std::string>* malformedExperimentNames) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,7 +35,7 @@ TTableProfilerPtr TTabletProfilerManager::CreateTableProfiler(
     EDynamicTableProfilingMode profilingMode,
     const std::string& bundle,
     const NYPath::TYPath& tablePath,
-    const TString& tableTag,
+    const std::string& tableTag,
     const std::string& account,
     const std::string& medium,
     NObjectClient::TObjectId schemaId,
@@ -46,7 +46,7 @@ TTableProfilerPtr TTabletProfilerManager::CreateTableProfiler(
     TProfilerKey key;
     switch (profilingMode) {
         case EDynamicTableProfilingMode::Path:
-            key = {profilingMode, bundle, tablePath, account, medium, schemaId};
+            key = {profilingMode, bundle, std::string(tablePath), account, medium, schemaId};
             AllTables_.insert(tablePath);
             ConsumedTableTags_.Update(AllTables_.size());
             break;
@@ -56,7 +56,7 @@ TTableProfilerPtr TTabletProfilerManager::CreateTableProfiler(
             break;
 
         case EDynamicTableProfilingMode::PathLetters:
-            key = {profilingMode, bundle, HideDigits(tablePath), account, medium, schemaId};
+            key = {profilingMode, bundle, std::string(HideDigits(tablePath)), account, medium, schemaId};
             AllTables_.insert(HideDigits(tablePath));
             ConsumedTableTags_.Update(AllTables_.size());
             break;
