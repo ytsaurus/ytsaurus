@@ -60,7 +60,7 @@ void ThrowNoSuchTransaction(TTransactionId transactionId)
 void LockNodeWithWait(
     const IClientPtr& client,
     const ITransactionPtr& transaction,
-    const TString& lockPath,
+    const NYPath::TYPath& lockPath,
     TDuration checkBackoff,
     TDuration waitTimeout)
 {
