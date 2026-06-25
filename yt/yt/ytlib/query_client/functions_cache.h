@@ -122,7 +122,7 @@ void FetchFunctionImplementationsFromCypress(
     const TFunctionImplCachePtr& cache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     NWebAssembly::TModuleBytecode* sdk,
-    NCodegen::EExecutionBackend executionBackend);
+    const TQueryOptions& queryOptions);
 
 void FetchFunctionImplementationsFromFiles(
     const TFunctionProfilerMapPtr& functionProfilers,

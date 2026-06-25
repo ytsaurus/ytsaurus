@@ -39,6 +39,7 @@ struct TQueryEngineDynamicConfig
     std::optional<bool> UseOrderByInJoinSubqueries;
     std::optional<int> ExpressionBuilderVersion;
     std::optional<NCodegen::EOptimizationLevel> OptimizationLevel;
+    std::optional<bool> AllowUdfObjectCodeCache;
     std::optional<bool> AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse;
     std::optional<int> TruncatedQueryLengthForTracing;
     std::optional<bool> AllowHeavyRangeInferenceInJoins;

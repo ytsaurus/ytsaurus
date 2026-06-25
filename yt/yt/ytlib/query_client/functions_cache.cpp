@@ -3,6 +3,7 @@
 #include <yt/yt/library/query/engine_api/append_function_implementation.h>
 
 #include <yt/yt/library/query/base/private.h>
+#include <yt/yt/library/query/base/query_common.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -1269,6 +1270,7 @@ void AppendFunctionImplementation(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TExternalFunctionImpl& function,
+    const TQueryOptions& options,
     const TEnumIndexedArray<EExecutionBackend, TSharedRef>& impl)
 {
     AppendFunctionImplementation(
@@ -1282,6 +1284,7 @@ void AppendFunctionImplementation(
         function.RepeatedArgType,
         function.RepeatedArgIndex,
         function.UseFunctionContext,
+        options,
         impl);
 }
 
@@ -1294,7 +1297,7 @@ void FetchFunctionImplementationsFromCypress(
     const TFunctionImplCachePtr& cache,
     const TClientChunkReadOptions& chunkReadOptions,
     NWebAssembly::TModuleBytecode* sdk,
-    NCodegen::EExecutionBackend executionBackend)
+    const TQueryOptions& queryOptions)
 {
     std::vector<TFuture<TFunctionImplCacheEntryPtr>> asyncResults;
 
@@ -1315,7 +1318,7 @@ void FetchFunctionImplementationsFromCypress(
         asyncResults.push_back(cache->FetchImplementation(key, externalCGInfo->NodeDirectory, chunkReadOptions));
     }
 
-    if (executionBackend == EExecutionBackend::WebAssembly) {
+    if (queryOptions.ExecutionBackend == EExecutionBackend::WebAssembly) {
         YT_LOG_DEBUG("Fetching SDK implementation (ReadSessionId: %v)",
             chunkReadOptions.ReadSessionId);
 
@@ -1335,16 +1338,17 @@ void FetchFunctionImplementationsFromCypress(
         const auto& function = externalCGInfo->Functions[index];
 
         auto implementationFiles = TEnumIndexedArray<EExecutionBackend, TSharedRef>();
-        implementationFiles[executionBackend] = results[index]->File;
+        implementationFiles[queryOptions.ExecutionBackend] = results[index]->File;
 
         AppendFunctionImplementation(
             functionProfilers,
             aggregateProfilers,
             function,
+            queryOptions,
             implementationFiles);
     }
 
-    if (executionBackend == EExecutionBackend::WebAssembly) {
+    if (queryOptions.ExecutionBackend == EExecutionBackend::WebAssembly) {
         sdk->Data = results.back()->File;
     }
 }
@@ -1366,7 +1370,7 @@ void FetchFunctionImplementationsFromFiles(
         auto implementationFiles = TEnumIndexedArray<EExecutionBackend, TSharedRef>();
         implementationFiles[EExecutionBackend::Native] = TSharedRef::FromString(file.ReadAll());
 
-        AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, implementationFiles);
+        AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, TQueryOptions{.AllowUdfObjectCodeCache = false}, implementationFiles);
     }
 }
 

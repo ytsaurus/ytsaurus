@@ -1,13 +1,16 @@
 #pragma once
 
-#include <yt/yt/core/misc/public.h>
+#include "public.h"
 
 namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TCGModule)
-DECLARE_REFCOUNTED_STRUCT(IObjectCode)
+struct IObjectCode
+    : public TRefCounted
+{ };
+
+DEFINE_REFCOUNTED_TYPE(IObjectCode)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -212,6 +212,7 @@ struct TQueryOptions
     bool AdaptiveOrderedSchemafulReader = true;
     // COMPAT(sabdenovch)
     bool UseOrderByInJoinSubqueries = false;
+    bool AllowUdfObjectCodeCache = false;
 
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
 };

@@ -44,6 +44,9 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("codegen_optimization_level", &TThis::OptimizationLevel)
         .Optional();
 
+    registrar.Parameter("allow_udf_object_code_cache", &TThis::AllowUdfObjectCodeCache)
+        .Optional();
+
     registrar.Parameter("allow_join_with_async_last_committed_timestamp_if_require_sync_replica_is_false", &TThis::AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse)
         .Optional();
 

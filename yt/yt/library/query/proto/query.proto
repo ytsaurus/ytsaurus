@@ -312,6 +312,9 @@ message TQueryOptions
     optional int32 statistics_aggregation = 27; // EStatisticsAggregation
     optional int32 read_from = 28; // NHydra::EPeerKind
     optional int32 optimization_level = 29; // EOptimizationLevel
+    optional int64 join_cache_size = 30;
+    optional bool enable_parallelize_unordered_group_by = 31;
+    optional bool allow_udf_object_code_cache = 32;
 }
 
 message TFeatureFlags

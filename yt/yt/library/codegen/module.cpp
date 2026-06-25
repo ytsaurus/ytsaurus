@@ -27,6 +27,7 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/MC/MCContext.h>
+#include <llvm/Object/Binary.h>
 #include <llvm/Object/ObjectFile.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/raw_ostream.h>
@@ -119,6 +120,30 @@ MSAN_TLS_STUBS
 
         address = RoutineRegistry_->GetAddress(name.c_str());
         return address;
+    }
+
+    void registerEHFrames(ui8* frameData, uint64_t loadAddress, size_t frameDataSize) override
+    {
+        const ui8* cursor = frameData;
+        const ui8* frameDataEnd = frameData + frameDataSize;
+        constexpr ui32 DwarfZeroLengthTerminator = 0;
+
+        while (cursor + sizeof(ui32) <= frameDataEnd) {
+            ui32 entryLength = 0;
+
+            ::memcpy(&entryLength, cursor, sizeof(entryLength));
+
+            if (entryLength == DwarfZeroLengthTerminator) {
+                break;
+            }
+
+            llvm::SectionMemoryManager::registerEHFrames(
+                const_cast<ui8*>(cursor),
+                loadAddress + static_cast<uint64_t>(cursor - frameData),
+                entryLength + sizeof(entryLength));
+
+            cursor += sizeof(entryLength) + entryLength;
+        }
     }
 
 private:
@@ -291,10 +316,49 @@ public:
         return Engine_->getFunctionAddress(name.c_str());
     }
 
-    void AddObjectFile(
-        std::unique_ptr<llvm::object::ObjectFile> sharedObject)
+    void AddObjectFile(llvm::object::OwningBinary<llvm::object::ObjectFile> owningObject)
     {
-        Engine_->addObjectFile(std::move(sharedObject));
+        Engine_->addObjectFile(std::move(owningObject));
+    }
+
+    llvm::object::OwningBinary<llvm::object::ObjectFile> BuildNativeObjectCode()
+    {
+        YT_VERIFY(ExecutionBackend_ == EExecutionBackend::Native);
+        YT_VERIFY(!Compiled_);
+
+        ClearComdatSection();
+        YT_VERIFY(!llvm::verifyModule(*Module_, &llvm::errs()));
+        RunInternalizePass();
+        OptimizeIR();
+
+        llvm::SmallVector<char, 0> objectCode;
+        {
+            std::lock_guard locked(Engine_->lock);
+            llvm::cantFail(Module_->materializeAll());
+
+            llvm::legacy::PassManager passManager;
+            llvm::raw_svector_ostream stream(objectCode);
+
+            bool err = Engine_->getTargetMachine()->addPassesToEmitFile(
+                passManager,
+                stream,
+                /*DwoOut*/ nullptr,
+                llvm::CodeGenFileType::ObjectFile,
+                !Engine_->getVerifyModules());
+
+            THROW_ERROR_EXCEPTION_IF(err, "Target does not support object file emission for native backend");
+
+            passManager.run(*Module_);
+        }
+
+        auto buffer = std::make_unique<llvm::SmallVectorMemoryBuffer>(std::move(objectCode));
+        auto objectFileOrErr = llvm::object::ObjectFile::createObjectFile(buffer->getMemBufferRef());
+        if (!objectFileOrErr) {
+            THROW_ERROR_EXCEPTION("Failed to parse native object code: %v",
+                llvm::toString(objectFileOrErr.takeError()));
+        }
+
+        return llvm::object::OwningBinary<llvm::object::ObjectFile>(std::move(*objectFileOrErr), std::move(buffer));
     }
 
     bool IsSymbolLoaded(const std::string& symbol)
@@ -668,9 +732,14 @@ uint64_t TCGModule::GetFunctionAddress(const std::string& name)
 }
 
 void TCGModule::AddObjectFile(
-    std::unique_ptr<llvm::object::ObjectFile> sharedObject)
+    llvm::object::OwningBinary<llvm::object::ObjectFile> owningObject)
 {
-    Impl_->AddObjectFile(std::move(sharedObject));
+    Impl_->AddObjectFile(std::move(owningObject));
+}
+
+llvm::object::OwningBinary<llvm::object::ObjectFile> TCGModule::BuildNativeObjectCode()
+{
+    return Impl_->BuildNativeObjectCode();
 }
 
 bool TCGModule::IsSymbolLoaded(const std::string& symbol) const

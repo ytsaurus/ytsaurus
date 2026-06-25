@@ -10,6 +10,13 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NCodegen::IObjectCodePtr MakeUdfNativeObjectCode(
+    const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
+    const std::string& functionName,
+    const std::vector<std::string>& requiredSymbols);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IFunctionCodegen
     : public TRefCounted
 {
@@ -133,12 +140,14 @@ public:
         const std::string& functionName,
         const std::string& symbolName,
         const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
+        NCodegen::IObjectCodePtr nativeObjectCode,
         ICallingConventionPtr callingConvention,
         TSharedRef fingerprint,
         bool useFunctionContext = false)
         : FunctionName_(functionName)
         , SymbolName_(symbolName)
         , ImplementationFiles_(implementationFiles)
+        , NativeObjectCode_(std::move(nativeObjectCode))
         , CallingConvention_(callingConvention)
         , Fingerprint_(fingerprint)
         , UseFunctionContext_(useFunctionContext)
@@ -148,6 +157,7 @@ public:
         const std::string& functionName,
         const std::string& symbolName,
         const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
+        NCodegen::IObjectCodePtr nativeObjectCode,
         ECallingConvention callingConvention,
         TType repeatedArgType,
         int repeatedArgIndex,
@@ -157,6 +167,7 @@ public:
             functionName,
             symbolName,
             implementationFiles,
+            std::move(nativeObjectCode),
             GetCallingConvention(callingConvention, repeatedArgIndex, repeatedArgType),
             fingerprint,
             useFunctionContext)
@@ -178,6 +189,7 @@ private:
     const std::string FunctionName_;
     const std::string SymbolName_;
     const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> ImplementationFiles_;
+    const NCodegen::IObjectCodePtr NativeObjectCode_;
     const ICallingConventionPtr CallingConvention_;
     const TSharedRef Fingerprint_;
     const bool UseFunctionContext_;
