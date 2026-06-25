@@ -165,7 +165,7 @@ DB::ASTPtr TryBuildAdditionalFilterAST(
 
         // Allow to skip children only for AND function.
         auto funcName = node->function_base->getName();
-        if (funcName == "name") {
+        if (funcName == "and") {
             if (arguments.empty()) {
                 continue;
             }
@@ -184,29 +184,29 @@ DB::ASTPtr TryBuildAdditionalFilterAST(
     return nodeToAst[dag.getOutputs().front()];
 }
 
-void AddFilterToQuery(
+bool AddFilterToQuery(
     const DB::ContextMutablePtr& context,
     const DB::ASTPtr& queryAst,
-    const DB::TableWithColumnNamesAndTypes& tableWithColumns,
-    const DB::ASTPtr& pushedDownPredicate)
+    const DB::ASTPtr& filter)
 {
-    const auto& settings = context->getSettingsRef();
-    if (!settings[DB::Setting::allow_push_predicate_ast_for_distributed_subqueries]) {
-        return;
+    if (!filter) {
+        return false;
     }
 
+    const auto& settings = context->getSettingsRef();
     bool optimizeFinal = settings[DB::Setting::enable_optimize_predicate_expression_to_final_subquery];
     bool optimizeWith = settings[DB::Setting::allow_push_predicate_when_subquery_contains_with];
 
-    DB::ASTs predicates{pushedDownPredicate};
-    DB::PredicateRewriteVisitor::Data data(context, predicates, tableWithColumns, optimizeFinal, optimizeWith);
+    DB::ASTs filters{filter};
+    DB::TableWithColumnNamesAndTypes tableWithColumns(DB::DatabaseAndTableWithAlias{}, DB::NamesAndTypesList{});
+    DB::PredicateRewriteVisitor::Data data(context, filters, tableWithColumns, optimizeFinal, optimizeWith);
 
     auto ast = queryAst;
     if (const auto* explain = ast->as<DB::ASTExplainQuery>()) {
         ast = explain->getExplainedQuery();
     }
 
-    data.rewriteSubquery(ast->as<DB::ASTSelectQuery&>(), tableWithColumns.columns.getNames());
+    return data.rewriteSubquery(ast->as<DB::ASTSelectQuery&>(), DB::Names{});
 }
 
 } // namespace
@@ -240,37 +240,16 @@ String TReadFromYTStep::getName() const
 
 void TReadFromYTStep::initializePipeline(DB::QueryPipelineBuilder& pipeline, const DB::BuildQueryPipelineSettings&)
 {
-    if (Executor_.PushDownPredicate() && filter_actions_dag) {
-        DB::ASTPtr pushedDownPredicate = TryBuildAdditionalFilterAST(
-            QueryInfo_.planner_context,
-            QueryInfo_.query_tree,
-            *filter_actions_dag);
+    const auto& plannerContext = QueryInfo_.planner_context;
+    const auto& context = plannerContext->getMutableQueryContext();
+    const auto& settings = context->getSettingsRef();
 
-        if (pushedDownPredicate) {
-            const auto& context = QueryInfo_.planner_context->getMutableQueryContext();
-
-            const auto* tableNode = QueryInfo_.table_expression->as<DB::TableNode>();
-            const auto* tableFunctionNode = QueryInfo_.table_expression->as<DB::TableFunctionNode>();
-
-            DB::DatabaseAndTableWithAlias tableWithAlias;
-            DB::StorageSnapshotPtr snapshot;
-            if (tableNode) {
-                tableWithAlias = DB::DatabaseAndTableWithAlias(tableNode->toASTIdentifier());
-                snapshot = tableNode->getStorageSnapshot();
-            } else if (tableFunctionNode) {
-                snapshot = tableFunctionNode->getStorageSnapshot();
-            }
-
-            if (snapshot) {
-                DB::TableWithColumnNamesAndTypes tableWithColumns(
-                    tableWithAlias,
-                    snapshot->getColumns(DB::GetColumnsOptions::Kind::Ordinary));
-                tableWithColumns.table.alias = QueryInfo_.table_expression->getAlias();
-
-                Executor_.ModifySecondaryQueries([&] (DB::ASTPtr& query) {
-                    AddFilterToQuery(context, query, tableWithColumns, pushedDownPredicate);
-                });
-            }
+    if (settings[DB::Setting::allow_push_predicate_ast_for_distributed_subqueries] && filter_actions_dag) {
+        auto filterAst = TryBuildAdditionalFilterAST(plannerContext, QueryInfo_.query_tree, *filter_actions_dag);
+        if (filterAst) {
+            Executor_.ModifySecondaryQueries([&] (DB::ASTPtr& query) {
+                AddFilterToQuery(context, query, filterAst);
+            });
         }
     }
 
@@ -316,6 +295,10 @@ void TReadFromYTStep::describeActions(FormatSettings& formatSettings) const
 
     std::string prefix(formatSettings.offset, formatSettings.indent_char);
 
+    if (auto pushedFilter = DescribeFilterPushDown()) {
+        out << prefix << "Pushed filter: " << pushedFilter->formatForLogging() << '\n';
+    }
+
     if (PrewhereInfo_) {
         out << prefix << "Prewhere info" << '\n';
         out << prefix << "Need filter: " << PrewhereInfo_->need_filter << '\n';
@@ -332,6 +315,10 @@ void TReadFromYTStep::describeActions(FormatSettings& formatSettings) const
 
 void TReadFromYTStep::describeActions(DB::JSONBuilder::JSONMap& map) const
 {
+    if (auto pushedFilter = DescribeFilterPushDown()) {
+        map.add("Pushed filter", pushedFilter->formatForLogging());
+    }
+
     if (PrewhereInfo_) {
         auto prewhereInfoMap = std::make_unique<DB::JSONBuilder::JSONMap>();
         prewhereInfoMap->add("Need filter", PrewhereInfo_->need_filter);
@@ -342,6 +329,29 @@ void TReadFromYTStep::describeActions(DB::JSONBuilder::JSONMap& map) const
         map.add("Prewhere info", std::move(prewhereInfoMap));
     }
 }
+
+DB::ASTPtr TReadFromYTStep::DescribeFilterPushDown() const
+{
+    if (!filter_actions_dag) {
+        return nullptr;
+    }
+
+    const auto& plannerContext = QueryInfo_.planner_context;
+    const auto& context = plannerContext->getMutableQueryContext();
+    const auto& settings = context->getSettingsRef();
+
+    if (!settings[DB::Setting::allow_push_predicate_ast_for_distributed_subqueries]) {
+        return nullptr;
+    }
+
+    DB::ASTPtr filterAst = TryBuildAdditionalFilterAST(plannerContext, QueryInfo_.query_tree, *filter_actions_dag);
+    if (!AddFilterToQuery(context, QueryInfo_.query->clone(), filterAst)) {
+        filterAst = nullptr;
+    }
+
+    return filterAst;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

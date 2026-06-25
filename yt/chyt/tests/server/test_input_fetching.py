@@ -1093,6 +1093,10 @@ class TestInputFetching(ClickHouseTestBase):
         for chunk in [[0, 1, 2, 3, 4], [10, 11, 12, 13, 14], [16, 17, 18, 19, 20], [30, 31, 32, 33, 34]]:
             write_table("<append=%true>" + table_path, [{"a": v} for v in chunk])
 
+        create("table", "//tmp/tt", attributes={"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}]})
+        write_table("<append=%true>//tmp/tt", [{"a": 2, "b": 4}, {"a": 16, "b": 256}])
+        write_table("<append=%true>//tmp/tt", [{"a": 4, "b": 16}, {"a": 20, "b": 400}])
+
         config_patch = {
             "yt": {
                 "settings": {
@@ -1103,10 +1107,36 @@ class TestInputFetching(ClickHouseTestBase):
             }
         }
         with Clique(1, config_patch=config_patch) as clique:
+            query = "select aa as aaa, b from (select t1.a as aa, b from '//tmp/t' t1 global join '//tmp/tt' t2 on t1.a = t2.a) where aaa > 15"
+            assert clique.make_query_and_validate_read_row_count(query, exact=18) == [
+                {"aaa": 16, "b": 256},
+                {"aaa": 20, "b": 400},
+            ]
+
             for table_expression in [f"'{table_path}'", f"ytTables('{table_path}')"]:
                 query = f'select a from (select * from {table_expression}) t where t.a > 19'
                 result = clique.make_query_and_validate_read_row_count(query, exact=10)
                 assert_items_equal([row["a"] for row in result], [20, 30, 31, 32, 33, 34])
+
+    @authors("buyval01")
+    def test_explain_predicate_pushdown(self):
+        table_path = "//tmp/t"
+        create("table", table_path, attributes={"schema": [{"name": "a", "type": "int64"}]})
+        for chunk in [[0, 1, 2, 3, 4], [10, 11, 12, 13, 14], [16, 17, 18, 19, 20], [30, 31, 32, 33, 34]]:
+            write_table("<append=%true>" + table_path, [{"a": v} for v in chunk])
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": True,
+                    },
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            query = f'explain plan actions = 1 select a from (select * from \'{table_path}\') t where t.a > 19'
+            assert any(expl["explain"].strip().startswith("Pushed filter:") for expl in clique.make_query(query))
 
     @authors("buyval01")
     def test_timestamp_key_filtering(self):
