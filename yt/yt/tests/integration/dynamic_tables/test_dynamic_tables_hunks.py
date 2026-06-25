@@ -1694,7 +1694,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         assert read_table("//tmp/t") == rows
