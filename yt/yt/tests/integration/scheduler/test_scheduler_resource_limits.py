@@ -1048,9 +1048,11 @@ class TestPorts(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
+    # NB: start_port is intentionally not hard-coded; the harness allocates the job
+    # port range above the dynamic port pool, so it cannot collide with daemon ports.
+    # The tests read the actually-assigned range via _get_job_port_range.
     DELTA_NODE_CONFIG = {
         "job_resource_manager": {
-            "start_port": 20000,
             "port_count": 3,
             "resource_limits": {"user_slots": 2, "cpu": 2},
         },
@@ -1066,8 +1068,15 @@ class TestPorts(YTEnvSetup):
         },
     }
 
+    def _get_job_port_range(self):
+        job_resource_manager = self.Env.configs["node"][0]["job_resource_manager"]
+        start_port = job_resource_manager["start_port"]
+        return start_port, start_port + job_resource_manager["port_count"]
+
     @authors("ignat")
     def test_simple(self):
+        start_port, end_port = self._get_job_port_range()
+
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         write_table("//tmp/t_in", [{"a": 0}])
 
@@ -1116,7 +1125,7 @@ class TestPorts(YTEnvSetup):
         assert len(ports) == 2
         assert ports[0] != ports[1]
 
-        assert all(port >= 20000 and port < 20003 for port in ports)
+        assert all(start_port <= port < end_port for port in ports)
 
         map(
             in_="//tmp/t_in",
@@ -1139,10 +1148,12 @@ class TestPorts(YTEnvSetup):
         assert len(ports) == 2
         assert ports[0] != ports[1]
 
-        assert all(port >= 20000 and port < 20003 for port in ports)
+        assert all(start_port <= port < end_port for port in ports)
 
     @authors("max42")
     def test_preliminary_bind(self):
+        start_port, _ = self._get_job_port_range()
+
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
         write_table("//tmp/t_in", [{"a": 1}])
@@ -1151,19 +1162,19 @@ class TestPorts(YTEnvSetup):
         try:
             try:
                 server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-                server_socket.bind(("::1", 20001))
+                server_socket.bind(("::1", start_port + 1))
             except Exception as err:
-                pytest.skip("Caught following exception while trying to bind to port 20001: {}".format(err))
+                pytest.skip("Caught following exception while trying to bind to port {}: {}".format(start_port + 1, err))
                 return
 
             # We run test several times to make sure that ports did not stuck inside node.
             for iteration in range(3):
                 if iteration in [0, 1]:
-                    expected_ports = [{"port": 20000}, {"port": 20002}]
+                    expected_ports = [{"port": start_port}, {"port": start_port + 2}]
                 else:
                     server_socket.close()
                     server_socket = None
-                    expected_ports = [{"port": 20000}, {"port": 20001}]
+                    expected_ports = [{"port": start_port}, {"port": start_port + 1}]
 
                 map(
                     in_="//tmp/t_in",
