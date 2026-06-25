@@ -36,7 +36,7 @@ To read timestamp columns in map-reduce operations, add the following attribute 
 
 ### Writing
 
-To write data in map-reduce operations in versioned format, add the following attribute to [rich YPath](../../../user-guide/storage/ypath#rich_ypath) of the output table: `<versioned_write_options = {read_mode = latest_timestamp}>`. Timestamp will be written for all columns where it is specified. For columns without a specified timestamp, the commit timestamp of the bulk insert transaction will be written instead.
+To write data in map-reduce operations in versioned format, add the following attribute to [rich YPath](../../../user-guide/storage/ypath#rich_ypath) of the output table: `<versioned_write_options = {write_mode = latest_timestamp}>`. Timestamp will be written for all columns where it is specified. For columns without a specified timestamp, the commit timestamp of the bulk insert transaction will be written instead.
 
 {% note warning "Attention" %}
 

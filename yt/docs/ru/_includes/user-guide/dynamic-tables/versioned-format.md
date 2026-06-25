@@ -36,7 +36,7 @@ yt select-rows 'col_a, [$timestamp:col_a] as ts_a, [$timestamp:col_b] as ts_b fr
 
 ### Запись
 
-Для записи данных в map-reduce операциях в версионированном формате необходимо добавить в [rich YPath](../../../user-guide/storage/ypath#rich_ypath) выходной таблицы `<versioned_write_options = {read_mode = latest_timestamp}>`. Для колонок, для которых указан timestamp будет записан он, для остальных будет взят commit timestamp транзакции bulk insert. 
+Для записи данных в map-reduce операциях в версионированном формате необходимо добавить в [rich YPath](../../../user-guide/storage/ypath#rich_ypath) выходной таблицы `<versioned_write_options = {write_mode = latest_timestamp}>`. Для колонок, для которых указан timestamp будет записан он, для остальных будет взят commit timestamp транзакции bulk insert. 
 
 {% note warning "Внимание" %}
 
