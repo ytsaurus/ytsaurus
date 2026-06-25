@@ -1,6 +1,7 @@
 #include "yt_database_base.h"
 
 #include "storage_distributor.h"
+#include "dictionary_source.h"
 #include "helpers.h"
 #include "query_context.h"
 #include "table.h"
@@ -351,7 +352,7 @@ DB::StoragePtr TYtDatabaseBase::DoGetYTTable(DB::ContextPtr context, TQueryConte
     }
 }
 
-DB::StoragePtr TYtDatabaseBase::DoGetDictionary(DB::ContextPtr context, TQueryContext* /*qC*/, const DB::StorageID& storageId) const {
+DB::StoragePtr TYtDatabaseBase::DoGetDictionary(DB::ContextPtr context, TQueryContext* queryContext, const DB::StorageID& storageId) const {
     auto name = storageId.getInternalDictionaryName();
 
     auto& loader = context->getExternalDictionariesLoader();
@@ -364,13 +365,21 @@ DB::StoragePtr TYtDatabaseBase::DoGetDictionary(DB::ContextPtr context, TQueryCo
         return nullptr;
     }
 
-    return std::make_shared<DB::StorageDictionary>(
+    auto result = std::make_shared<DB::StorageDictionary>(
         storageId,
         loadResult.name,
         DB::ExternalDictionariesLoader::getDictionaryStructure(*loadResult.config),
         loadResult.config->config->getString("dictionary.comment", ""),
         DB::StorageDictionary::Location::SameDatabaseAndNameAsDictionary,
         context);
+
+    if (queryContext) {
+        if (TryGetTableDictionarySourcePath(result->getDictionary()->getSource())) {
+            queryContext->Host->ValidateDictionaryGrants(context->getUserName(), storageId);
+        }
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
