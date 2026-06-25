@@ -81,6 +81,7 @@ ContainerDoesNotExist = 12004
 
 class Scheduler(object):
     NoSuchOperation = 200
+    NoSuchAllocation = 203
     JobResourceLimitsRestrictionsViolated = 220
     CannotUseBothAclAndAco = 221
     GangOperationsAllowedOnlyInFifoPools = 222
