@@ -46,7 +46,7 @@ void TUserJobExecutorConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         for (const auto& variable : config->Environment) {
-            if (variable.find('=') == TString::npos) {
+            if (variable.find('=') == std::string::npos) {
                 THROW_ERROR_EXCEPTION("Bad environment variable: missing '=' in %Qv", variable);
             }
         }
