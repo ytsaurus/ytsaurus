@@ -157,6 +157,8 @@ public:
 
     void PrepareClickHouseUser(const std::string& userName);
 
+    void ValidateDictionaryGrants(const std::string& userName, const DB::StorageID& storageId);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
