@@ -355,7 +355,7 @@ std::pair<TTableSettings, TTableConfigPatchPtr> TryApplySinglePatch(
 
 TTableSettings TRawTableSettings::BuildEffectiveSettings(
     std::vector<TError>* errors,
-    std::vector<TString>* unappliedExperimentNames) const
+    std::vector<std::string>* unappliedExperimentNames) const
 {
     TTableSettings initialSettings{
         .StoreReaderConfig = Provided.StoreReaderConfig,

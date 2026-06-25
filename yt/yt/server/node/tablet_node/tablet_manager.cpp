@@ -1850,7 +1850,7 @@ private:
 
         TRawTableSettings newRawSettings(tablet->RawSettings());
 
-        newRawSettings.Experiments = ConvertTo<std::map<TString, TTableConfigExperimentPtr>>(
+        newRawSettings.Experiments = ConvertTo<std::map<std::string, TTableConfigExperimentPtr>>(
             TYsonString(request->experiments()));
         newRawSettings.GlobalPatch = ConvertTo<TTableConfigPatchPtr>(TYsonString(request->global_patch()));
 
@@ -5228,7 +5228,7 @@ private:
 
         // COMPAT(ifsmirnov)
         if (tableSettings.has_experiments()) {
-            settings.Experiments = ConvertTo<std::map<TString, TTableConfigExperimentPtr>>(
+            settings.Experiments = ConvertTo<std::map<std::string, TTableConfigExperimentPtr>>(
                 TYsonString(tableSettings.experiments()));
         }
 
@@ -5880,7 +5880,7 @@ private:
         // NB: Fixed-order container is crucial for simultaneous traversal.
         static_assert(std::is_same_v<
             decltype(currentSettings.Experiments),
-            std::map<TString, TTableConfigExperimentPtr>>);
+            std::map<std::string, TTableConfigExperimentPtr>>);
 
         auto it = currentSettings.Experiments.begin();
         auto jt = patch->TableConfigExperiments.begin();
