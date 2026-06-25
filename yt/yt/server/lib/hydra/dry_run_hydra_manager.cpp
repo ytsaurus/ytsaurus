@@ -60,7 +60,7 @@ public:
             YT_UNIMPLEMENTED();
         }
 
-        TString FormatPriority(TPeerPriority /*priority*/) override
+        std::string FormatPriority(TPeerPriority /*priority*/) override
         {
             YT_UNIMPLEMENTED();
         }

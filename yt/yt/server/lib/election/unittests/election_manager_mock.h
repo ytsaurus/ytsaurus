@@ -21,7 +21,7 @@ public:
     MOCK_METHOD(void, OnStopVoting, (const TError&), (override));
 
     MOCK_METHOD(TPeerPriority, GetPriority, (), (override));
-    MOCK_METHOD(TString, FormatPriority, (TPeerPriority priority), (override));
+    MOCK_METHOD(std::string, FormatPriority, (TPeerPriority priority), (override));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
