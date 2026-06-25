@@ -41,6 +41,8 @@ private:
     const std::vector<std::shared_ptr<IChytIndexStat>> IndexStats_;
     const DB::PrewhereInfoPtr PrewhereInfo_;
     TDistributedQueryExecutor Executor_;
+
+    DB::ASTPtr DescribeFilterPushDown() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
