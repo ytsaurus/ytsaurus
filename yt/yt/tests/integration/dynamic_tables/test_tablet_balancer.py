@@ -1514,6 +1514,7 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, TestStati
 
         set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [])
 
+        wait_for_tablet_state("//tmp/t", "mounted")
         sync_unmount_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [10]])
         sync_mount_table("//tmp/t")
