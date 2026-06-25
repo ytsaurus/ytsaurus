@@ -92,7 +92,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
-    THashMap<TString, TCacheProfilingCountersPtr> UserToCounters_;
+    THashMap<std::string, TCacheProfilingCountersPtr> UserToCounters_;
 
     TCacheProfilingCountersPtr GetProfilingCounters(const std::string& user);
 
