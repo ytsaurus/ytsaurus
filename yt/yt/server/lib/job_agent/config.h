@@ -92,7 +92,7 @@ struct TJobResourceManagerConfig
     TResourceLimitsConfigPtr ResourceLimits;
 
     std::optional<double> CpuToVCpuFactor;
-    std::optional<TString> CpuModel;
+    std::optional<std::string> CpuModel;
 
     REGISTER_YSON_STRUCT(TJobResourceManagerConfig);
 
@@ -109,7 +109,7 @@ struct TJobResourceManagerDynamicConfig
     std::optional<double> CpuToVCpuFactor;
     bool EnableCpuToVCpuFactor;
 
-    std::optional<THashMap<TString, double>> CpuModelToCpuToVCpuFactor;
+    std::optional<THashMap<std::string, double>> CpuModelToCpuToVCpuFactor;
 
     TDuration ProfilingPeriod;
 
