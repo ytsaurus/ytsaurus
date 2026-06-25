@@ -148,6 +148,7 @@ class UpgradeTaskCI(TaskCI):
         if self._upgrade_to:
             upgrade_config = {
                 "targetK8sSpec": self._render_manifest(self._upgrade_components),
+                "upgradeComponents": [component.to_dict() for component in self._upgrade_components],
             }
             if self._upgrade_operator:
                 upgrade_config["upgradeOperator"] = self._upgrade_operator.to_dict()

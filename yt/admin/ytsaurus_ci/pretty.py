@@ -62,6 +62,25 @@ def print_job_info(data, job_id):
         click.secho(f"    {'Helm:':<15}", nl=False)
         click.secho(operator.get("helm_url", "—"), fg="bright_black")
 
+    upgrade = data.get("upgrade", {})
+    if upgrade:
+        click.echo()
+        scenario = upgrade.get("scenario_name", "")
+        click.secho("  Upgrade target", nl=False, bold=True)
+        if scenario:
+            click.secho(f" ({scenario}):", bold=True)
+        else:
+            click.secho(":", bold=True)
+
+        for c in upgrade.get("upgrade_components", []):
+            _print_component(c)
+
+        target_operator = upgrade.get("upgrade_operator", {})
+        if target_operator:
+            _print_component(target_operator.get("operator", {}))
+            click.secho(f"    {'Helm:':<15}", nl=False)
+            click.secho(target_operator.get("helm_url", "—"), fg="bright_black")
+
     failed = data.get("failed_checks", [])
     click.echo()
     if failed:
