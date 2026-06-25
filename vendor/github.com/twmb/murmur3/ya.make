@@ -27,6 +27,18 @@ IF (ARCH_ARM64)
     )
 ENDIF()
 
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
+    SRCS(
+        murmur128_gen.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        murmur128_gen.go
+    )
+ENDIF()
+
 END()
 
 IF (OS_LINUX)
