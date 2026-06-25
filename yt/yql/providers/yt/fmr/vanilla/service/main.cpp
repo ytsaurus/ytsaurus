@@ -142,8 +142,10 @@ public:
         IFmrJobFactory::TPtr jobFactory;
         IFmrWorker::TPtr worker;
         if (selfIndex > 0) {
-            // Vanilla coordinator client: routes to cookie=0 at port 8001.
-            auto coordClient = MakeVanillaFmrCoordinatorClient(tracker, TVanillaFmrCoordinatorClientSettings{
+            // Vanilla coordinator client: reuses the existing peer tracker instead of
+            // creating a new one, halving the number of ListJobs polls.
+            auto coordClient = MakeVanillaFmrCoordinatorClient(TVanillaFmrCoordinatorClientSettings{
+                .ExternalPeerTracker = &tracker,
                 .CoordinatorPort = 8001,
             });
 
