@@ -385,14 +385,16 @@ private:
         dynamicConfig->BundleStateProvider = New<TBundleStateProviderConfig>();
         dynamicConfig->ClusterStateProvider = New<TClusterStateProviderConfig>();
 
-        dynamicConfig->ActionManager->CreateActionBatchSizeLimit = 500;
+        dynamicConfig->ActionManager->CreateActionBatchSizeLimit = 50;
         dynamicConfig->ActionManager->TabletActionPollingPeriod = TDuration::Seconds(3);
 
         dynamicConfig->ParameterizedTimeoutOnStart = TDuration{};
         dynamicConfig->ParameterizedTimeout = TDuration{};
 
-        dynamicConfig->MaxActionsPerGroup = 10000;
-        dynamicConfig->MaxActionsPerReshardType = 10000;
+        if (dryRunConfig->MaxActionCount) {
+            dynamicConfig->MaxActionsPerGroup = *dryRunConfig->MaxActionCount;
+            dynamicConfig->MaxActionsPerReshardType = dynamicConfig->MaxActionsPerGroup / 2;
+        }
 
         // Effectively infinite.
         dynamicConfig->MaxUnhealthyBundlesOnReplicaCluster = 1000;

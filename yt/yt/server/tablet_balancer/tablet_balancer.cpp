@@ -362,6 +362,8 @@ private:
 
     //! Thread affinity: Control.
     std::vector<std::string> UpdateBundleList();
+    //! Thread affinity: Control.
+    void DropRemovedBundles(const THashSet<std::string>& currentBundles = {});
 
     //! Takes reader guard on Lock_.
     bool DidBundleBalancingTimeHappen(
@@ -692,6 +694,9 @@ void TTabletBalancer::ExecuteBalancerIteration(TDryRunConfigPtr dryRunConfig, TT
     auto futures = BalancerIteration();
     YT_VERIFY(futures.size() <= 1);
     WaitFor(AllSet(futures)).ThrowOnError();
+
+    // Drop the bundle to stop its state provider's periodic logging.
+    DropRemovedBundles();
 
     if (!DryRunConfig_->CreateTabletActions) {
         auto actionCount = ActionManager_->GetPendingActionCount(bundleName);
@@ -1430,6 +1435,12 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
 
     // Find bundles that are not in the list of bundles (probably deleted)
     // and erase them.
+    DropRemovedBundles(currentBundles);
+    return newBundles;
+}
+
+void TTabletBalancer::DropRemovedBundles(const THashSet<std::string>& currentBundles)
+{
     auto guard = Guard(BundleErrorsLock_);
     for (auto it = Bundles_.begin(); it != Bundles_.end();) {
         if (currentBundles.contains(it->first)) {
@@ -1441,7 +1452,6 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
         BundleErrors_.erase(it->first);
         Bundles_.erase(it++);
     }
-    return newBundles;
 }
 
 bool TTabletBalancer::DidBundleBalancingTimeHappen(
