@@ -578,7 +578,7 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("default_partition_data_weight_for_merging", &TThis::DefaultPartitionDataWeightForMerging)
-        .Default(50_MBs)
+        .Default(128_MBs)
         .GreaterThanOrEqual(1);
 }
 
