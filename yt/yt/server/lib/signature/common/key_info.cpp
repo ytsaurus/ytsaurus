@@ -111,7 +111,7 @@ struct TDeserializeVisitor
 
 void Deserialize(TKeyPairMetadata& metadata, INodePtr node)
 {
-    TString version = node->AsMap()->GetChildValueOrThrow<TString>("version");
+    auto version = node->AsMap()->GetChildValueOrThrow<std::string>("version");
     if (version == "0.1") {
         metadata = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>();
     } else {
