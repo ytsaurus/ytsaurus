@@ -15,15 +15,18 @@
                     <tmp_path>/program.sql:<main>:15:57: Warning: Integral type implicit bitcast: Optional<Uint32> and Int32
                     	FROM Input JOIN $data AS d on cast(Input.key as uint32) / 100 == d.mod
 	                                                        ^
-            <tmp_path>/program.sql:<main>:15:6: Warning: At tuple, At function: RemoveSystemMembers
+            <tmp_path>/program.sql:<main>:15:6: Warning: At tuple
             	FROM Input JOIN $data AS d on cast(Input.key as uint32) / 100 == d.mod
 	     ^
-                <tmp_path>/program.sql:<main>:4:11: Warning: At function: PersistableRepr, At function: OrderedSqlProject, At tuple, At function: SqlProjectItem, At lambda
-                	$data = ( select
+                <tmp_path>/program.sql:<main>:6:34: Warning: At function: RemoveSystemMembers
+                	    (key as kk, subkey as sk) as struct_field
+	                                 ^
+                    <tmp_path>/program.sql:<main>:4:11: Warning: At function: PersistableRepr, At function: OrderedSqlProject, At tuple, At function: SqlProjectItem, At lambda
+                    	$data = ( select
 	          ^
-                    <tmp_path>/program.sql:<main>:5:25: Warning: At function: %
-                    	    cast(key as uint32) % 10 as mod,
-	                        ^
-                        <tmp_path>/program.sql:<main>:5:25: Warning: Integral type implicit bitcast: Optional<Uint32> and Int32
+                        <tmp_path>/program.sql:<main>:5:25: Warning: At function: %
                         	    cast(key as uint32) % 10 as mod,
+	                        ^
+                            <tmp_path>/program.sql:<main>:5:25: Warning: Integral type implicit bitcast: Optional<Uint32> and Int32
+                            	    cast(key as uint32) % 10 as mod,
 	                        ^
