@@ -12,6 +12,7 @@ import yt.yson as yson
 import time
 import threading
 from flaky import flaky
+import pytest
 
 
 class TestYtDictionaries(ClickHouseTestBase):
@@ -610,6 +611,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             ]
 
     @authors("buyval01")
+    @pytest.mark.timeout(0)
     def test_dictionary_source_acl(self):
         schema = [
             {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
@@ -644,25 +646,29 @@ class TestYtDictionaries(ClickHouseTestBase):
             create_query = "CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);"
             clique.make_query(create_query)
 
-            test_query = "Select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value"
+            dict_get_q = ("select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value", [{"value": 2}])
+            select_q = ("select * from t_dict", [{"a": 0, "b": 0}, {"a": 1, "b": 2}, {"a": 2, "b": 4}])
 
-            def success(user):
+            def success(user, query_and_result):
                 def closure():
-                    result = clique.make_query(test_query, user=user, full_response=True)
-                    return result.status_code == 200 and result.json()["data"] == [{"value": 2}]
+                    result = clique.make_query(query_and_result[0], user=user, full_response=True)
+                    return result.status_code == 200 and result.json()["data"] == query_and_result[1]
 
                 return closure
 
-            def failure(user):
+            def failure(user, query_and_result):
                 def closure():
-                    result = clique.make_query(test_query, user=user, full_response=True)
+                    result = clique.make_query(query_and_result[0], user=user, full_response=True)
                     return result.status_code != 200 and "Not enough privileges" in result.json().get("exception", "")
 
                 return closure
 
+            # clique.attach_gdb(ex=['b contrib/clickhouse/src/Storages/StorageDictionary.cpp:194', 'set substitute-path /home/buyval01 /home/buyval01/arcadia'], autoresume=False)
             # Initially both users don't have access.
-            assert failure("u1")()
-            assert failure("u2")()
+            assert failure("u1", dict_get_q)()
+            assert failure("u1", select_q)()
+            assert failure("u2", dict_get_q)()
+            assert failure("u2", select_q)()
 
             yt_set(
                 "//tmp/t/@acl",
@@ -672,8 +678,10 @@ class TestYtDictionaries(ClickHouseTestBase):
                 ],
             )
 
-            wait(success("u1"))
-            wait(failure("u2"))
+            wait(success("u1", dict_get_q))
+            wait(success("u1", select_q))
+            wait(failure("u2", dict_get_q))
+            wait(failure("u2", select_q))
 
             acl = [
                 make_ace("allow", "u1", "read"),
@@ -681,16 +689,20 @@ class TestYtDictionaries(ClickHouseTestBase):
             ]
             yt_set("//tmp/t/@acl", acl)
 
-            wait(success("u1"))
-            wait(success("u2"))
+            wait(success("u1", dict_get_q))
+            wait(success("u1", select_q))
+            wait(success("u2", dict_get_q))
+            wait(success("u2", select_q))
 
             acl[0]["row_access_predicate"] = "a = 42"
             acl[1]["row_access_predicate"] = "a = 42"
             yt_set("//tmp/t/@acl", acl)
 
             # If there is rls, user does not have access to the dictionary.
-            wait(failure("u1"))
-            wait(failure("u2"))
+            wait(failure("u1", dict_get_q))
+            wait(failure("u1", select_q))
+            wait(failure("u2", dict_get_q))
+            wait(failure("u2", select_q))
 
             yt_set(
                 "//tmp/t/@acl",
@@ -700,8 +712,10 @@ class TestYtDictionaries(ClickHouseTestBase):
                 ],
             )
 
-            wait(failure("u1"))
-            wait(failure("u2"))
+            wait(failure("u1", dict_get_q))
+            wait(failure("u1", select_q))
+            wait(failure("u2", dict_get_q))
+            wait(failure("u2", select_q))
 
 
 @enable_sequoia

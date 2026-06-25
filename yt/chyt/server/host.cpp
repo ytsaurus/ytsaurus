@@ -54,6 +54,9 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 
+#include <Access/AccessControl.h>
+#include <Access/User.h>
+
 #include <Common/DateLUT.h>
 #include <Common/Exception.h>
 #include <Common/StringUtils.h>
@@ -887,6 +890,30 @@ public:
         }
     }
 
+    void ValidateDictionaryGrants(const std::string& userName, const DB::StorageID& storageId)
+    {
+        if (!DictionaryAccessControl_) {
+            return;
+        }
+
+        auto& accessControl = getContext()->getAccessControl();
+        auto userId = accessControl.find(DB::AccessEntityType::USER, userName);
+        auto entity = accessControl.read(*userId);
+        auto user = std::static_pointer_cast<DB::User>(entity->clone());
+
+        bool hasDictGet = user->access.isGranted(DB::AccessType::dictGet, storageId.database_name, storageId.table_name);
+        bool hasSelect = user->access.isGranted(DB::AccessType::SELECT, storageId.database_name, storageId.table_name);
+
+        if (hasDictGet == hasSelect || hasDictGet) {
+            return;
+        }
+
+        user->access.revoke(DB::AccessType::SELECT, storageId.database_name, storageId.table_name);
+        accessControl.tryUpdate(*userId, [&] (const DB::AccessEntityPtr&, const DB::UUID&) {
+            return user;
+        });
+    }
+
 private:
     THost* const Owner_;
     const IInvokerPtr ControlInvoker_;
@@ -1463,6 +1490,11 @@ TCypressDictionaryConfigRepositoryPtr THost::GetCypressDictionaryConfigRepositor
 void THost::PrepareClickHouseUser(const std::string& userName)
 {
     Impl_->PrepareClickHouseUser(userName);
+}
+
+void THost::ValidateDictionaryGrants(const std::string& userName, const DB::StorageID& storageId)
+{
+    Impl_->ValidateDictionaryGrants(userName, storageId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
