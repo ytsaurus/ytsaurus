@@ -132,7 +132,7 @@ public:
             return owner->GetElectionPriority();
         }
 
-        TString FormatPriority(TPeerPriority priority) override
+        std::string FormatPriority(TPeerPriority priority) override
         {
             return Format("{Term: %v, SequenceNumber: %v, Boost: %v}",
                 priority.first,
