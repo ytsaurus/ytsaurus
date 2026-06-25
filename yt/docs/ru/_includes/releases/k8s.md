@@ -8,6 +8,27 @@ Is released as helm charts on [GitHub Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**v0.32.1**" %}
+
+**Release date:** 2026-06-04
+
+
+**Release page:** [v0.32.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.32.1)
+
+
+**Helm chart:** [0.32.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/968345595?tag=0.32.1)
+
+
+#### What's Changed
+* Use configmap for timbertruck config and fix update flow when TT is enabled by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/812
+* Fix manual restart of init jobs by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/810
+* Remove default insecure admin password and token by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/814
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/v0.32.0...v0.32.1
+
+{% endcut %}
+
+
 {% cut "**v0.32.0**" %}
 
 **Release date:** 2026-05-29

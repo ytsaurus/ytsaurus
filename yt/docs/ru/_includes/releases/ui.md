@@ -8,6 +8,43 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**3.15.0**" %}
+
+**Release date:** 2026-06-11
+
+
+**Release page:** [3.15.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.15.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.15.0](https://github.com/orgs/ytsaurus/packages/container/ui/936669709?tag=3.15.0)
+
+
+#### [3.15.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.14.0...ui-v3.15.0) (2026-06-10)
+
+
+#### Features
+
+* **DownloadManager:** add CSV tab [YTFRONT-3983] ([4727540](https://github.com/ytsaurus/ytsaurus-ui/commit/47275403f529cc1ee4b2ce7d952d434052c623f9))
+* **Navigation:** add CurrentPathActions [YTFRONT-4037] ([d8acc22](https://github.com/ytsaurus/ytsaurus-ui/commit/d8acc229d2364eeb7b6d43a9ee9f5c44b252d28a))
+* **Navigation/Attributes:** view opaque attributes [YTFRONT-2241] ([ce8596a](https://github.com/ytsaurus/ytsaurus-ui/commit/ce8596a24f1c2d4d11a82e28b7addce759b95f86))
+* **Navigation/Table:** add rls-access meta table item [YTFRONT-5782] ([13d7b3a](https://github.com/ytsaurus/ytsaurus-ui/commit/13d7b3a9d0ee95670faa1b71ca2611bcc73ac91f))
+* **Queries/History:** add ctrl check [YTFRONT-5793] ([bb5d027](https://github.com/ytsaurus/ytsaurus-ui/commit/bb5d027ef647c12877258b3bc740e0a732284462))
+
+
+#### Bug Fixes
+
+* **Components/Suggest:** handle 'Tab', 'Shift+Tab' [YTFRONT-5823] ([0508ae6](https://github.com/ytsaurus/ytsaurus-ui/commit/0508ae64ab1b108225c74f5e95eef659a3428fb3))
+* **Flow:** fix a misprint [YTFRONT-5826] ([8ef5e88](https://github.com/ytsaurus/ytsaurus-ui/commit/8ef5e88ab1adf0310adc4ff86d018f07d3351c94))
+* **Flow/Messages:** make body of dialog scrollable [YTFRONT-5780] ([84a810f](https://github.com/ytsaurus/ytsaurus-ui/commit/84a810fbc0ff9c3868d11aebf2d5dc75974bc316))
+* **Operations:** fix operation's job showing [YTFRONT-5699] ([a9ffe4e](https://github.com/ytsaurus/ytsaurus-ui/commit/a9ffe4e6c4291fbda1aba46f796ddc16944e8f25))
+* **Queries:** minor css fix [YTFRONT-5850] ([bf0e94c](https://github.com/ytsaurus/ytsaurus-ui/commit/bf0e94c82c78c379fdbe115bf327155c78e5f474))
+* **SegmentedRadioGroupOrSelect:** add new component [YTFRONT-5790] ([eab0716](https://github.com/ytsaurus/ytsaurus-ui/commit/eab0716184cc2d1376a81d2b4d88ed7dab5fbcd1))
+* **Scheduling:** allow any pool name suggestion [YTFRONT-4228] ([9f115f4](https://github.com/ytsaurus/ytsaurus-ui/commit/9f115f4300520400797ceb1563e862a41fe50fff))
+* **YTErrorBlock:** handle properly unexpected error format [YTFRONT-5665] ([bb940ed](https://github.com/ytsaurus/ytsaurus-ui/commit/bb940eddfcb25e2045c631607b20bfc27368bab3))
+
+{% endcut %}
+
+
 {% cut "**3.13.0**" %}
 
 **Release date:** 2026-05-27
