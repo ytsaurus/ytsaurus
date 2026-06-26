@@ -355,6 +355,7 @@ class TestYtflowBase(TestQueueAgentBase):
                 dict(name='_LogbrokerConfigManagerPollingPeriod', value='100ms'),
                 dict(name='_SwitchComputationNodeBufferSizeBytes', value='0'),
                 dict(name='_RunVanillaOperation', value=str(run_vanilla_operation)),
+                dict(name='_MoniumDriverSecure', value='false'),
             ],
             cluster_mapping=[dict(
                 name=cls.Env.id,
