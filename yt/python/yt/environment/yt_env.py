@@ -1388,10 +1388,15 @@ class YTInstance(object):
     def _dump_backtraces(self, pid):
         from .arcadia_interop import get_gdb_path
 
+        gdb_path = get_gdb_path()
+        if not shutil.which(gdb_path):
+            logger.warning("Cannot dump backtraces of process %s: gdb is not available (path: %s)", pid, gdb_path)
+            return
+
         try:
             gdb_output = subprocess.check_output(
                 [
-                    get_gdb_path(),
+                    gdb_path,
                     "-p",
                     str(pid),
                     "--batch",
