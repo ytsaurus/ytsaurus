@@ -159,8 +159,9 @@ void TServerAddressPool::OnEndpointsResolved(
     }
 
     if (errors.size() == endpointSets.size()) {
-        YT_LOG_ERROR("Endpoints could not be resolved in any cluster (EndpointSetId: %v)",
-            endpointSetId);
+        YT_LOG_ERROR("Endpoints could not be resolved in any cluster (EndpointSetId: %v, EndpointSetCount: %v)",
+            endpointSetId,
+            endpointSets.size());
         return;
     }
 
