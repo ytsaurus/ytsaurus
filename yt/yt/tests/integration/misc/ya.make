@@ -27,10 +27,6 @@ TEST_SRCS(
     test_admin_commands_acl.py
 )
 
-PEERDIR(
-    library/python/port_manager
-)
-
 END()
 
 RECURSE_FOR_TESTS(
