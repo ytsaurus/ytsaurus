@@ -243,21 +243,25 @@ func (w *tableWriter) lockTable() error {
 }
 
 func (w *tableWriter) sendBatchWithRetries() error {
+	return writeBatchWithRetries(w.ctx, w.yc, w.retryCount, func(attemptTx Tx) error {
+		opts := &WriteTableOptions{Format: w.format, TableWriter: w.tableWriterConfig}
+		return attemptTx.(rawTableWriter).WriteTableRaw(w.ctx, w.path, opts, w.buffer)
+	})
+}
+
+func writeBatchWithRetries(ctx context.Context, yc cypressWithBeginTx, retryCount uint64, send func(attemptTx Tx) error) error {
 	var lastErr error
 	var retries uint64
 
 	for {
-		attemptTx, err := w.yc.BeginTx(w.ctx, &StartTxOptions{
+		attemptTx, err := yc.BeginTx(ctx, &StartTxOptions{
 			Timeout: ptr.T(yson.Duration(writeTableAttemptTxTimeout)),
 		})
 		if err != nil {
 			return xerrors.Errorf("yt: failed to start attempt transaction: %w", err)
 		}
 
-		attemptWriter := attemptTx.(rawTableWriter)
-
-		opts := &WriteTableOptions{Format: w.format, TableWriter: w.tableWriterConfig}
-		err = attemptWriter.WriteTableRaw(w.ctx, w.path, opts, w.buffer)
+		err = send(attemptTx)
 		if err == nil {
 			if commitErr := attemptTx.Commit(); commitErr != nil {
 				return xerrors.Errorf("yt: failed to commit attempt transaction: %w", commitErr)
@@ -274,15 +278,15 @@ func (w *tableWriter) sendBatchWithRetries() error {
 			return err
 		}
 
-		if retries >= w.retryCount {
+		if retries >= retryCount {
 			break
 		}
 		retries++
 
 		select {
 		case <-time.After(*backoff):
-		case <-w.ctx.Done():
-			return w.ctx.Err()
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
 
@@ -450,6 +454,158 @@ func tryGetBackoffDuration(err error) *time.Duration {
 	}
 
 	return nil
+}
+
+type (
+	WriteFileOption func(*fileWriter)
+
+	rawFileWriter interface {
+		WriteFileRaw(
+			ctx context.Context,
+			path ypath.YPath,
+			options *WriteFileOptions,
+			body *bytes.Buffer,
+		) (err error)
+	}
+
+	fileWriter struct {
+		ctx  context.Context
+		yc   cypressWithBeginTx
+		tx   Tx
+		path *ypath.Rich
+
+		batchSize     int
+		retryCount    uint64
+		createOptions *CreateNodeOptions
+
+		buffer *bytes.Buffer
+		err    error
+	}
+)
+
+// WithFileBatchSize sets batch size (in bytes) for WriteFile.
+func WithFileBatchSize(batchSize int) WriteFileOption {
+	return func(w *fileWriter) {
+		w.batchSize = batchSize
+	}
+}
+
+// WithFileRetries allows to retry flushing several times in case of an error.
+func WithFileRetries(count uint64) WriteFileOption {
+	return func(w *fileWriter) {
+		w.retryCount = count
+	}
+}
+
+// WithFileCreateOptions sets options used to create the file.
+func WithFileCreateOptions(options *CreateNodeOptions) WriteFileOption {
+	return func(w *fileWriter) {
+		w.createOptions = options
+	}
+}
+
+func (w *fileWriter) Write(p []byte) (int, error) {
+	if w.err != nil {
+		return 0, w.err
+	}
+
+	w.buffer.Write(p)
+	if w.buffer.Len() >= w.batchSize {
+		if err := w.flush(); err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
+}
+
+func (w *fileWriter) flush() error {
+	if w.buffer.Len() == 0 {
+		return nil
+	}
+
+	w.err = writeBatchWithRetries(w.ctx, w.yc, w.retryCount, func(attemptTx Tx) error {
+		return attemptTx.(rawFileWriter).WriteFileRaw(w.ctx, w.path, &WriteFileOptions{}, w.buffer)
+	})
+	if w.err != nil {
+		return w.err
+	}
+
+	w.path.SetAppend()
+	w.buffer.Reset()
+	return nil
+}
+
+func (w *fileWriter) Close() (closeErr error) {
+	defer func() {
+		if closeErr != nil && w.tx != nil {
+			_ = w.tx.Abort()
+			w.tx = nil
+		}
+	}()
+
+	if w.err != nil {
+		return w.err
+	}
+
+	if err := w.flush(); err != nil {
+		return err
+	}
+
+	if w.tx != nil {
+		if err := w.tx.Commit(); err != nil {
+			w.err = xerrors.Errorf("yt: failed to commit write transaction: %w", err)
+			return w.err
+		}
+		w.tx = nil
+	}
+
+	w.err = errYtWriterClosed
+	return nil
+}
+
+// WriteFile creates high level file writer.
+//
+// By default, WriteFile creates a new file, writing it in retriable batches.
+// Use WithFileCreateOptions to control file creation.
+func WriteFile(ctx context.Context, yc CypressClient, path ypath.Path, opts ...WriteFileOption) (io.WriteCloser, error) {
+	w := &fileWriter{
+		ctx:        ctx,
+		batchSize:  defaultBatchSize,
+		retryCount: 10,
+		buffer:     new(bytes.Buffer),
+	}
+
+	var ok bool
+	if w.yc, ok = yc.(cypressWithBeginTx); !ok {
+		return nil, xerrors.Errorf("yt: client %T does not support transactions", yc)
+	}
+	if _, ok = w.yc.(rawFileWriter); !ok {
+		return nil, xerrors.Errorf("yt: client %T is not compatible with yt.WriteFile", yc)
+	}
+
+	var err error
+	w.path, err = ypath.Parse(string(path))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, opt := range opts {
+		opt(w)
+	}
+
+	tx, err := w.yc.BeginTx(w.ctx, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("yt: failed to start write transaction: %w", err)
+	}
+	w.yc = tx
+	w.tx = tx
+
+	if _, err := w.yc.CreateNode(w.ctx, w.path.Path, NodeFile, w.createOptions); err != nil {
+		_ = w.tx.Abort()
+		return nil, xerrors.Errorf("yt: failed to create file: %w", err)
+	}
+
+	return w, nil
 }
 
 // WriteTable creates high level table writer.

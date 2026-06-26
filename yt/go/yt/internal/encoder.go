@@ -683,6 +683,19 @@ func (e *Encoder) WriteTableRaw(
 	return
 }
 
+func (e *Encoder) WriteFileRaw(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.WriteFileOptions,
+	body *bytes.Buffer,
+) (err error) {
+	call := e.newCall(NewWriteFileParams(path, options))
+	call.YSONValue = body.Bytes()
+	call.DisableRetries = true
+	err = e.do(ctx, call, noopResultDecoder)
+	return
+}
+
 func (e *Encoder) WriteTable(
 	ctx context.Context,
 	path ypath.YPath,
