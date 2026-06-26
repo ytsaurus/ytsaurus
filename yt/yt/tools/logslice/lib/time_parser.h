@@ -5,6 +5,7 @@
 #include <util/generic/string.h>
 
 #include <optional>
+#include <string>
 
 namespace NYT::NLogSlice {
 
@@ -41,7 +42,7 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line);
 
 //! Formats [instant] as "YYYY-MM-DD HH:MM:SS,uuuuuu" in local (Moscow) time --
 //! the exact log-line timestamp format and the inverse of ParseLogLineTime.
-TString FormatLogTime(TInstant instant);
+std::string FormatLogTime(TInstant instant);
 
 ////////////////////////////////////////////////////////////////////////////////
 
