@@ -193,6 +193,7 @@ DEFINE_ENUM(EMasterReign,
     ((RecomputeHunkRelatedChunkStatisticsAgain_26_2)                (3324))  // akozhikhov
     ((FixHunkStorageRemovalError)                                   (3325))  // akozhikhov
     ((DeadSequoiaReplicasRemovalHydraTermCheck_26_2)                (3326))  // grphil
+    ((ValidateChaosReplicationProgressOnTableMount)                 (3327))  // osidorkin
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
