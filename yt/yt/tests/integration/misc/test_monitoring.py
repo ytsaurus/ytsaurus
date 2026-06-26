@@ -6,8 +6,7 @@ import yt.packages.requests as requests
 import yt.yson as yson
 
 from yt.environment.tls_helpers import create_ca, create_certificate
-
-from library.python.port_manager import PortManager
+from yt.environment.helpers import OpenPortIterator
 
 import os
 import pytest
@@ -23,7 +22,7 @@ class TestHttpsMonitoringServer(YTEnvSetup):
 
     # Populated during apply_config_patches before any test runs.
     _ca_cert = None
-    _port_manager = None
+    _port_iterator = None
     _scheduler_https_monitoring_port = None
     _master_https_monitoring_port = None
     _node_https_monitoring_port = None
@@ -35,8 +34,8 @@ class TestHttpsMonitoringServer(YTEnvSetup):
         if cluster_index != 0:
             return
 
-        # Keep PortManager alive so reserved ports are not released before servers start.
-        cls._port_manager = PortManager()
+        # Keep OpenPortIterator alive so reserved ports are not released before servers start.
+        cls._port_iterator = OpenPortIterator()
 
         ca_cert = os.path.join(cluster_path, "monitoring_ca.crt")
         ca_cert_key = os.path.join(cluster_path, "monitoring_ca.key")
@@ -61,7 +60,7 @@ class TestHttpsMonitoringServer(YTEnvSetup):
 
         # Inject HTTPS monitoring port into each scheduler.
         for i, config in enumerate(configs["scheduler"]):
-            port = cls._port_manager.get_port()
+            port = next(cls._port_iterator)
             config["monitoring_https_port"] = port
             config["monitoring_https_credentials"] = credentials
             if i == 0:
@@ -70,7 +69,7 @@ class TestHttpsMonitoringServer(YTEnvSetup):
         # Inject HTTPS monitoring port into primary cell masters.
         primary_cell_tag = configs["master"]["primary_cell_tag"]
         for i, config in enumerate(configs["master"][primary_cell_tag]):
-            port = cls._port_manager.get_port()
+            port = next(cls._port_iterator)
             config["monitoring_https_port"] = port
             config["monitoring_https_credentials"] = credentials
             if i == 0:
@@ -78,7 +77,7 @@ class TestHttpsMonitoringServer(YTEnvSetup):
 
         # Inject HTTPS monitoring port into each node.
         for i, config in enumerate(configs["node"]):
-            port = cls._port_manager.get_port()
+            port = next(cls._port_iterator)
             config["monitoring_https_port"] = port
             config["monitoring_https_credentials"] = credentials
             if i == 0:
