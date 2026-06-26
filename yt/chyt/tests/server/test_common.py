@@ -2,9 +2,8 @@ from helpers import (get_object_attribute_cache_config, get_schema_from_descript
                      get_breakpoint_node, release_breakpoint, wait_breakpoint)
 
 from yt_commands import (authors, raises_yt_error, create, create_user, make_ace, exists, abort_job, write_table, get,
-                         get_table_columnar_statistics, set_node_banned, ls, abort_transaction, remove, read_table,
-                         sync_create_cells, sync_mount_table, sync_unmount_table, insert_rows, print_debug, merge,
-                         set, remove_user)
+                         get_table_columnar_statistics, set_node_banned, remove, read_table, sync_create_cells, sync_mount_table,
+                         sync_unmount_table, insert_rows, print_debug, merge, set, remove_user)
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
@@ -583,52 +582,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select CAST(a as datetime) from "//tmp/t"')
 
-    @authors("evgenstf")
-    def test_discovery_v1_nodes_self_cleaning(self):
-        patch = {
-            "yt": {
-                "discovery": {
-                    "version": 1,
-                    # Allow node cleaning 1s after creation (default is 5m).
-                    "lock_node_timeout": 1000,
-                }
-            }
-        }
-        with Clique(2, config_patch=patch) as clique:
-            clique_path = "//sys/clickhouse/cliques/{0}".format(clique.op.id)
-
-            nodes_before_resizing = ls(clique_path, verbose=False)
-            assert len(nodes_before_resizing) == 2
-
-            jobs = list(clique.op.get_running_jobs())
-            assert len(jobs) == 2
-
-            clique.resize(1)
-            wait(lambda: len(ls(clique_path, verbose=False)) == 1, iter=10)
-
-    @authors("evgenstf")
-    def test_discovery_v1_transaction_restore(self):
-        patch = {
-            "yt": {
-                "discovery": {
-                    "version": 1
-                }
-            }
-        }
-        with Clique(1, config_patch=patch) as clique:
-            instances_before_transaction_abort = clique.get_active_instances()
-            assert len(instances_before_transaction_abort) == 1
-
-            locks = instances_before_transaction_abort[0].attributes["locks"]
-            assert len(locks) == 1
-
-            transaction_id = locks[0]["transaction_id"]
-
-            abort_transaction(transaction_id)
-            time.sleep(5)
-
-            wait(lambda: clique.get_active_instance_count() == 1, iter=10)
-
     @authors("max42")
     @pytest.mark.parametrize("instance_count", [1, 5])
     def test_avg(self, instance_count):
@@ -982,12 +935,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(clique.make_query("select * from concatYtTablesRange('//tmp/link')")) == 2
 
     @authors("dakovalkov", "gudqeit")
-    @pytest.mark.parametrize("discovery_version", [1, 2])
-    def test_system_clique(self, discovery_version):
+    def test_system_clique(self):
         patch = {
             "yt": {
                 "discovery": {
-                    "version": discovery_version
+                    "version": 2
                 }
             }
         }
