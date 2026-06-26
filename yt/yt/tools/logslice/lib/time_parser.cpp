@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <string>
 
 namespace NYT::NLogSlice {
 
@@ -324,7 +325,7 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line)
     return TInstant::Seconds(epoch) + TDuration::MicroSeconds(ReadInt(p + 20, 6));
 }
 
-TString FormatLogTime(TInstant instant)
+std::string FormatLogTime(TInstant instant)
 {
     time_t seconds = instant.TimeT();
     struct tm tm;
@@ -337,7 +338,7 @@ TString FormatLogTime(TInstant instant)
         tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
         tm.tm_hour, tm.tm_min, tm.tm_sec,
         static_cast<unsigned>(instant.MicroSecondsOfSecond()));
-    return TString(buffer, length);
+    return std::string(buffer, length);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
