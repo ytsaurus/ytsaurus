@@ -18,9 +18,9 @@ DEFINE_ENUM(EFileFormat,
 void ImportFilesFromS3(
     const TString& proxy,
     const std::string& url,
-    const TString& region,
-    const TString& bucket,
-    const TString& prefix,
+    const std::string& region,
+    const std::string& bucket,
+    const std::string& prefix,
     const TString& resultTable,
     EFileFormat format,
     const std::optional<TString>& networkProject = std::nullopt,
@@ -28,14 +28,14 @@ void ImportFilesFromS3(
 
 void ImportFilesFromHuggingface(
     const TString& proxy,
-    const TString& dataset,
-    const TString& subset,
-    const TString& split,
+    const std::string& dataset,
+    const std::string& subset,
+    const std::string& split,
     const TString& resultTable,
     EFileFormat format,
     const std::optional<TString>& networkProject = std::nullopt,
     // TODO(max42): introduce a derived THuggingFaceImportConfig and move next argument there.
-    const std::optional<TString>& urlOverride = std::nullopt,
+    const std::optional<std::string>& urlOverride = std::nullopt,
     TImportConfigPtr config = New<TImportConfig>());
 
 ////////////////////////////////////////////////////////////////////////////////
