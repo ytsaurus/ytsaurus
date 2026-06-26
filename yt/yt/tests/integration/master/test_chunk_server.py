@@ -582,6 +582,16 @@ class TestChunkServer(YTEnvSetup):
         set("//sys/@config/chunk_manager/replica_approve_timeout", 2000)
         wait(lambda: self._get_replicator_queue_size() == 0)
 
+    @authors("grphil")
+    def test_fetch_chunk_multiple_times(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"a": "b"}])
+        concatenate(["//tmp/t", "//tmp/t"], "//tmp/t")
+        assert get("//tmp/t/@chunk_count") == 2
+
+        # This will fetch replicas for chunk twice.
+        get("//tmp/t/@chunk_media_statistics")
+
 
 ##################################################################
 
