@@ -20,7 +20,7 @@ struct TJobDescription
     NScheduler::TJobResources ResourceLimits;
     NControllerAgent::TJobId Id;
     NJobTrackerClient::EJobType Type;
-    TString State;
+    std::string State;
 
     void Persist(const TStreamPersistenceContext& context);
 };
@@ -37,7 +37,7 @@ struct TOperationDescription
     TDuration Duration;
     std::string AuthenticatedUser;
     NScheduler::EOperationType Type;
-    TString State;
+    std::string State;
     bool InTimeframe;
     NYson::TYsonString Spec;
 
