@@ -17,18 +17,19 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GenerateRandomLogFileName()
+std::string GenerateRandomLogFileName()
 {
     return GenerateRandomFileName("log");
 }
 
 void WriteZstdLog(
-    const TString& fileName,
+    const std::string& fileName,
     TStringBuf payload,
     const TAppendableCompressedFileOptions& options)
 {
     auto codec = CreateZstdLogCodec();
-    TFile file(fileName, CreateAlways);
+    // TODO(babenko): migrate to std::string
+    TFile file(TString(fileName), CreateAlways);
     auto output = CreateAppendableCompressedFile(
         std::move(file),
         std::move(codec),
