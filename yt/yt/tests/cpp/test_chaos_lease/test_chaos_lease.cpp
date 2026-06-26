@@ -172,7 +172,7 @@ protected:
 
     static TYPath GetCellOrchidPath(TCellId cellId)
     {
-        auto address = ConvertTo<TString>(WaitFor(Client_->GetNode(Format("#%v/@peers/0/address", cellId)))
+        auto address = ConvertTo<std::string>(WaitFor(Client_->GetNode(Format("#%v/@peers/0/address", cellId)))
             .ValueOrThrow());
         return Format("//sys/cluster_nodes/%v/orchid/chaos_cells/%v", address, cellId);
     }

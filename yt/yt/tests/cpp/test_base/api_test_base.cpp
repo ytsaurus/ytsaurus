@@ -265,14 +265,14 @@ void TDynamicTablesTestBase::SetUpTestCase()
 }
 
 void TDynamicTablesTestBase::CreateTable(
-    const TString& tablePath,
-    const TString& schema,
+    const NYPath::TYPath& tablePath,
+    const NYson::TYsonString& schema,
     bool mount)
 {
     Table_ = tablePath;
     ASSERT_TRUE(tablePath.StartsWith("//tmp"));
 
-    auto attributes = TYsonString("{dynamic=%true;schema=" + schema + "}");
+    auto attributes = TYsonString(std::string("{dynamic=%true;schema=") + std::string(schema.AsStringBuf()) + "}");
     TCreateNodeOptions options;
     options.Attributes = ConvertToAttributes(attributes);
 
@@ -302,8 +302,8 @@ void TDynamicTablesTestBase::SyncUnfreezeTable(const TYPath& path)
 {
     auto currentTabletStateYson = WaitFor(Client_->GetNode(path + "/@tablet_state"))
         .ValueOrThrow();
-    auto currentTabletState = ConvertTo<TString>(currentTabletStateYson);
-    YT_VERIFY(currentTabletState == "frozen");
+    auto currentTabletState = ConvertTo<ETabletState>(currentTabletStateYson);
+    YT_VERIFY(currentTabletState == ETabletState::Frozen);
 
     WaitFor(Client_->UnfreezeTable(path))
         .ThrowOnError();

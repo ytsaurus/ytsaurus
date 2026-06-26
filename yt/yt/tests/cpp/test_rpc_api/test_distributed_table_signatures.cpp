@@ -36,9 +36,9 @@ TEST_F(TDistributedTableSignaturesTest, FinishWithFakeSession)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     {
         TDistributedWriteSession session;
@@ -53,9 +53,9 @@ TEST_F(TDistributedTableSignaturesTest, FinishWithFakeWriteResult)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     auto sessionWithCookies = StartDistributedWriteSession(/*append*/ true, /*cookieCount*/ 0);
 
@@ -74,9 +74,9 @@ TEST_F(TDistributedTableSignaturesTest, WriteFragmentWithFakeCookie)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "<id=0>Foo;",

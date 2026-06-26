@@ -52,8 +52,8 @@ class TDistributedTableApiTest
 {
 public:
     static void CreateStaticTable(
-        const TString& tablePath,
-        const TString& schema);
+        const NYPath::TYPath& tablePath,
+        const NYson::TYsonString& schema);
 
     static void WriteTable(
         std::vector<std::string> columnNames,
@@ -83,7 +83,7 @@ public:
         int chunkListsPerAttachRequest = 42);
 
 private:
-    static inline TString Table_;
+    static inline NYPath::TYPath Table_;
 
     static NYPath::TRichYPath MakeRichPath(bool append);
 
