@@ -106,13 +106,13 @@ public:
     TChunkFileReaderWithCache(
         IIOEnginePtr ioEngine,
         NChunkClient::TChunkId chunkId,
-        TString fileName,
+        std::string fileName,
         bool validateBlocksChecksums = true)
         : TChunkFileReader(ioEngine, chunkId, fileName, validateBlocksChecksums, this)
     { }
 };
 
-IChunkReaderAllowingRepairPtr CreateChunkReader(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
+IChunkReaderAllowingRepairPtr CreateChunkReader(const IIOEnginePtr& ioEngine, const std::string& chunkFileName)
 {
     auto chunkId = TChunkId::FromString(NFS::GetFileName(chunkFileName));
     return CreateChunkFileReaderAdapter(New<TChunkFileReaderWithCache>(
@@ -184,7 +184,7 @@ TTableSchemaPtr GetSchemaFromChunkMeta(const TChunkMeta& meta)
 
 TUnversionedUniversalReader CreateUnversionedUniversalReader(
     const IIOEnginePtr& ioEngine,
-    TString chunkFileName,
+    std::string chunkFileName,
     IBlockCachePtr blockCache,
     TTableSchemaPtr schema,
     TLegacyOwningKey lowerKey,
@@ -256,7 +256,7 @@ void GuardedMain(int argc, char** argv)
     }
     argc -= results.GetFreeArgsPos();
     argv += results.GetFreeArgsPos();
-    TString chunkFileName = argv[0];
+    std::string chunkFileName = argv[0];
 
     TTableSchemaPtr schema;
 
