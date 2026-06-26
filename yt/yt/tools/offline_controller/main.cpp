@@ -393,7 +393,7 @@ private:
 struct TOfflineOperation
 {
     EOperationType Type;
-    TString Spec;
+    std::string Spec;
     int SnapshotVersion;
     std::vector<TSharedRef> Snapshot;
 
@@ -452,7 +452,7 @@ IOperationControllerPtr CreateOperationController(const TOfflineOperation& offli
     return operationController;
 }
 
-TOfflineOperation DownloadOperation(const TString& token, const TString& proxy, const TString& path)
+TOfflineOperation DownloadOperation(const std::string& token, const std::string& proxy, const NYPath::TYPath& path)
 {
     auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
     connectionConfig->ClusterUrl = proxy;
