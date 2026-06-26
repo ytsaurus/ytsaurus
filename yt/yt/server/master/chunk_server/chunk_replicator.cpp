@@ -3137,12 +3137,6 @@ void TChunkReplicator::OnRefresh()
         totalJournalCount,
         aliveJournalCount,
         journalReplicasErrorCount);
-
-    // Journal replicas are always nonsequoia, so it is really concerning if this is nonzero.
-    if (journalReplicasErrorCount > 0) {
-        YT_LOG_ALERT("Chunk refresh iteration completed with nonzero journal replica errors (JournalReplicasErrorCount: %v)",
-            journalReplicasErrorCount);
-    }
 }
 
 const ISequoiaChunkRefresherPtr& TChunkReplicator::GetSequoiaChunkRefresher() const
