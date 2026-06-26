@@ -19,7 +19,7 @@ TSkiffRecord::TSkiffRecord(
     TIntrusivePtr<TSkiffSchema> schema,
     const std::vector<Py::Object>& denseFields,
     const THashMap<ui16, Py::Object>& sparseFields,
-    const THashMap<TString, Py::Object>& otherFields)
+    const THashMap<std::string, Py::Object>& otherFields)
     : Schema_(schema)
     , DenseFields_(denseFields)
     , SparseFields_(sparseFields)
@@ -39,7 +39,7 @@ Py::Object TSkiffRecord::GetField(ui16 index)
     throw Py::IndexError(ToString(index));
 }
 
-Py::Object TSkiffRecord::GetField(const TString& key)
+Py::Object TSkiffRecord::GetField(const std::string& key)
 {
     if (Schema_->HasField(key)) {
         auto fieldIndex = Schema_->GetFieldIndex(key);
@@ -66,7 +66,7 @@ void TSkiffRecord::SetField(ui16 index, const Py::Object& value)
     }
 }
 
-void TSkiffRecord::SetField(const TString& key, const Py::Object& value)
+void TSkiffRecord::SetField(const std::string& key, const Py::Object& value)
 {
     if (Schema_->HasField(key)) {
         auto fieldIndex = Schema_->GetFieldIndex(key);
@@ -187,7 +187,7 @@ void TSkiffRecord::SetSparseField(ui16 index, const Py::Object& value)
     SparseFields_[index] = value;
 }
 
-void TSkiffRecord::SetOtherField(const TString& key, const Py::Object& value)
+void TSkiffRecord::SetOtherField(const std::string& key, const Py::Object& value)
 {
     if (!value.ptr()) {
         OtherFields_.erase(key);
@@ -201,7 +201,7 @@ size_t TSkiffRecord::Size()
     return DenseFields_.size() + SparseFields_.size() + OtherFields_.size();
 }
 
-THashMap<TString, Py::Object>* TSkiffRecord::GetOtherFields()
+THashMap<std::string, Py::Object>* TSkiffRecord::GetOtherFields()
 {
     return &OtherFields_;
 }
@@ -226,7 +226,7 @@ TIntrusivePtr<TSkiffRecord> TSkiffRecord::DeepCopy()
 
     std::vector<Py::Object> denseFields;
     THashMap<ui16, Py::Object> sparseFields;
-    THashMap<TString, Py::Object> otherFields;
+    THashMap<std::string, Py::Object> otherFields;
 
     for (const auto& field : DenseFields_) {
         denseFields.push_back(deepcopyFunction.apply(Py::TupleN(field)));
@@ -271,8 +271,7 @@ Py::Object TSkiffRecordPython::mapping_subscript(const Py::Object& key)
         return Record_->GetField(index);
     }
     auto fieldName = Py::ConvertStringObjectToString(key);
-    // TODO(babenko): migrate to std::string
-    return Record_->GetField(TString(fieldName));
+    return Record_->GetField(fieldName);
 }
 
 int TSkiffRecordPython::mapping_ass_subscript(const Py::Object& key, const Py::Object& value)
@@ -282,8 +281,7 @@ int TSkiffRecordPython::mapping_ass_subscript(const Py::Object& key, const Py::O
         Record_->SetField(index, value);
     } else {
         auto fieldName = Py::ConvertStringObjectToString(key);
-        // TODO(babenko): migrate to std::string
-        Record_->SetField(TString(fieldName), value);
+        Record_->SetField(fieldName, value);
     }
     return 0;
 }
