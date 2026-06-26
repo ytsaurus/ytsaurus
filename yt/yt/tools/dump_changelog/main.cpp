@@ -59,7 +59,7 @@ private:
         TYsonPullParser parser(&input, EYsonType::ListFragment);
         TYsonPullParserCursor cursor(&parser);
         YT_VERIFY(cursor.TryConsumeFragmentStart());
-        static const TString PayloadKey("payload");
+        static const std::string PayloadKey("payload");
         int index = 0;
         while (!cursor->IsEndOfStream()) {
             cursor.ParseMap([&] (TYsonPullParserCursor* cursor) {
