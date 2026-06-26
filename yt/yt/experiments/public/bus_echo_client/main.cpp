@@ -1,6 +1,7 @@
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/core/bus/bus.h>
+#include <yt/yt/core/bus/message_handler.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/client.h>
@@ -32,7 +33,8 @@ public:
 
     virtual void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
+        IBusPtr replyBus,
+        IDirectPlacementTransferPtr /*transfer*/) noexcept override
     {
         const auto& peer = replyBus->GetEndpointDescription();
         auto id = Counter_++;
