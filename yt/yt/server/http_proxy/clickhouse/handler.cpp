@@ -18,7 +18,7 @@
 #include <yt/yt/library/auth_server/helpers.h>
 #include <yt/yt/library/auth_server/token_authenticator.h>
 
-#include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
+#include <yt/yt/library/clickhouse_discovery/discovery.h>
 #include <yt/yt/library/clickhouse_discovery/discovery_v2.h>
 #include <yt/yt/library/clickhouse_discovery/helpers.h>
 
@@ -95,7 +95,6 @@ public:
         const IResponseWriterPtr& rsp,
         const TDynamicClickHouseConfigPtr& config,
         TBootstrap* bootstrap,
-        const NApi::IClientPtr& client,
         const TOperationCachePtr& operationCache,
         const TPermissionCachePtr& permissionCache,
         const TDiscoveryCachePtr discoveryCache,
@@ -109,7 +108,6 @@ public:
         , Response_(rsp)
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , Client_(client)
         , HttpClient_(CreateClient(Config_->HttpClient, Bootstrap_->GetPoller()))
         , OperationCache_(operationCache)
         , PermissionCache_(permissionCache)
@@ -202,7 +200,6 @@ private:
     const IResponseWriterPtr& Response_;
     const TDynamicClickHouseConfigPtr& Config_;
     TBootstrap* const Bootstrap_;
-    const NApi::IClientPtr& Client_;
     NHttp::IClientPtr HttpClient_;
     const TOperationCachePtr OperationCache_;
     const TPermissionCachePtr PermissionCache_;
@@ -713,22 +710,6 @@ private:
         }
     }
 
-    IDiscoveryPtr CreateDiscoveryV1()
-    {
-        auto config = New<TDiscoveryV1Config>();
-        auto path = Format("%v/%v", Config_->DiscoveryPath, OperationId_);
-        config->Directory = path;
-        config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
-        config->ReadFrom = NApi::EMasterChannelKind::Cache;
-        config->MasterCacheExpireTime = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->MasterCacheExpireTime;
-        return NClickHouseServer::CreateDiscoveryV1(
-            std::move(config),
-            Client_,
-            ControlInvoker_,
-            DiscoveryAttributes_,
-            Logger);
-    }
-
     std::string GetOperationAlias() const
     {
         return "*" + *CliqueAlias_;
@@ -739,46 +720,32 @@ private:
         return "/chyt/" + *CliqueAlias_;
     }
 
-    IDiscoveryPtr CreateDiscoveryV2()
+    IDiscoveryPtr TryCreateDiscovery()
     {
-        auto config = New<TDiscoveryV2Config>();
+        if (!Bootstrap_->GetNativeConnection()->GetConfig()->DiscoveryConnection) {
+            YT_LOG_DEBUG("Skipping discovery v2 because of missing discovery connection config (ClusterConnection: %v)",
+                ConvertToYsonString(Bootstrap_->GetNativeConnection()->GetConfig(), EYsonFormat::Text).ToString());
+            THROW_ERROR_EXCEPTION("Discovery is missed");
+        }
+
+        auto config = New<TDiscoveryConfig>();
         config->GroupId = GetDiscoveryGroupId();
         config->ReadQuorum = 1;
         config->WriteQuorum = 1;
         config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
-        return NClickHouseServer::CreateDiscoveryV2(
+        auto discovery = NClickHouseServer::CreateDiscoveryV2(
             std::move(config),
             Bootstrap_->GetNativeConnection(),
             Bootstrap_->GetNativeConnection()->GetChannelFactory(),
             ControlInvoker_,
             DiscoveryAttributes_,
             Logger);
-    }
+        auto discoveryFuture = discovery->UpdateList().Apply(BIND([discovery = std::move(discovery)] { return discovery; }));
 
-    IDiscoveryPtr TryChooseDiscovery()
-    {
-        auto discoveryV1 = CreateDiscoveryV1();
-        auto discoveryV1Future = discoveryV1->UpdateList().Apply(BIND([discovery = std::move(discoveryV1)] { return discovery; }));
-        auto futures = std::vector{discoveryV1Future};
-
-        if (Bootstrap_->GetNativeConnection()->GetConfig()->DiscoveryConnection) {
-            auto discoveryV2 = CreateDiscoveryV2();
-            auto discoveryV2Future = discoveryV2->UpdateList().Apply(BIND([discovery = std::move(discoveryV2)] { return discovery; }));
-            futures.emplace_back(std::move(discoveryV2Future));
-        } else {
-            YT_LOG_DEBUG("Skipping discovery v2 because of missing discovery connection config (ClusterConnection: %v)",
-                ConvertToYsonString(Bootstrap_->GetNativeConnection()->GetConfig(), EYsonFormat::Text).ToString());
-        }
-
-        auto valueOrError = WaitFor(AnySucceeded(futures));
+        auto valueOrError = WaitFor(discoveryFuture);
         if (!valueOrError.IsOK()) {
-            if (valueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                THROW_ERROR_EXCEPTION("Clique directory does not exist; perhaps the clique is still starting, wait for up to 5 minutes")
-                    << valueOrError;
-            } else {
-                THROW_ERROR_EXCEPTION("Clique discovery is not found")
-                    << valueOrError;
-            }
+            THROW_ERROR_EXCEPTION("Clique discovery is not found")
+                << valueOrError;
         }
 
         return valueOrError.Value();
@@ -798,9 +765,7 @@ private:
             if (cookie.IsActive()) {
                 YT_LOG_DEBUG("Clique cache missed (Clique: %v)", CliqueAlias_);
 
-                auto discovery = TryChooseDiscovery();
-
-                YT_LOG_DEBUG("Fetched discovery version (Version: %v)", discovery->Version());
+                auto discovery = TryCreateDiscovery();
 
                 cookie.EndInsert(New<TCachedDiscovery>(
                     OperationId_,
@@ -849,9 +814,8 @@ private:
             }
 
             auto instances = Discovery_->Value()->List();
-            if (Discovery_->Value()->Version() == 2) {
-                instances = FilterInstancesByIncarnation(instances);
-            }
+            instances = FilterInstancesByIncarnation(instances);
+
             YT_LOG_DEBUG("Instances discovered (Count: %v)", instances.size());
             if (instances.empty()) {
                 PushError(TError("Clique %v has no running instances", CliqueAlias_));
@@ -1318,7 +1282,6 @@ void TClickHouseHandler::HandleRequest(
             response,
             config,
             Bootstrap_,
-            Client_,
             OperationCache_,
             PermissionCache_,
             DiscoveryCache_,
