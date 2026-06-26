@@ -17,6 +17,13 @@ Y_PRAGMA_DIAGNOSTIC_POP
 #include <util/system/platform.h>
 #include <util/datetime/base.h>
 
+#if defined(_asan_enabled_)
+extern "C" void __asan_init();
+extern "C" void __asan_version_mismatch_check_v8();
+extern "C" void __asan_register_elf_globals(uintptr_t* flag, void* start, void* stop);
+extern "C" void __asan_unregister_elf_globals(uintptr_t* flag, void* start, void* stop);
+#endif
+
 #if defined(_msan_enabled_)
 
 extern __thread unsigned long long __msan_param_tls[];
@@ -227,6 +234,12 @@ bool CompareFuncOffsets(const std::pair<ui64, llvm::Function*>& lhs,
                         const std::pair<ui64, llvm::Function*>& rhs) {
     return lhs.first < rhs.first;
 }
+
+#if defined(_asan_enabled_)
+// LLVM 18 ASan emits ELF boundary symbols even for an empty globals range.
+// RuntimeDyld treats address 0 as "not found", so use a real empty range.
+uintptr_t AsanGlobalsAnchor;
+#endif
 } // namespace
 
 bool ICodegen::IsCodegenAvailable() {
@@ -395,6 +408,14 @@ public:
         AddGlobalMapping("__emutls_v.__msan_va_arg_overflow_size_tls", reinterpret_cast<void*>(static_cast<uintptr_t>(TMSanTLS::VaArgOverflowSize)));
         AddGlobalMapping("__emutls_v.__msan_origin_tls", reinterpret_cast<void*>(static_cast<uintptr_t>(TMSanTLS::Origin)));
 #endif
+#if defined(_asan_enabled_)
+        AddGlobalMapping("__asan_init", (const void*)&__asan_init);
+        AddGlobalMapping("__asan_version_mismatch_check_v8", (const void*)&__asan_version_mismatch_check_v8);
+        AddGlobalMapping("__start_asan_globals", (const void*)&AsanGlobalsAnchor);
+        AddGlobalMapping("__stop_asan_globals", (const void*)&AsanGlobalsAnchor);
+        AddGlobalMapping("__asan_register_elf_globals", (const void*)&__asan_register_elf_globals);
+        AddGlobalMapping("__asan_unregister_elf_globals", (const void*)&__asan_unregister_elf_globals);
+#endif
 #if defined(_win_)
         AddGlobalMapping("__security_check_cookie", (const void*)&__security_check_cookie);
         AddGlobalMapping("__security_cookie", (const void*)&__security_cookie);
@@ -484,7 +505,11 @@ public:
         }
 
         auto finalizeStart = Now();
+        Engine_->clearErrorMessage();
         Engine_->finalizeObject();
+        if (Engine_->hasError()) {
+            ythrow yexception() << "LLVM JIT finalization error: " << Engine_->getErrorMessage();
+        }
         if (compileStats) {
             compileStats->FinalizeTime = (Now() - finalizeStart).MilliSeconds();
         }
