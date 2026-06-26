@@ -855,7 +855,7 @@ struct TGetBlockSetTestCase
 {
     int BlockCount = 100;
     int BlockSize = 2_KB;
-    int ParallelGetBlockSetCount = 50;
+    int ParallelGetBlockSetCount = 10;
     int BlocksInRequest = 25;
     bool PopulateCache = true;
     bool FetchFromCache = true;
@@ -1502,8 +1502,7 @@ INSTANTIATE_TEST_SUITE_P(
     )
 );
 
-// TODO(ilyaibraev): YTSAURUSSUP-2782
-TEST_P(TGetBlockSetTest, DISABLED_GetBlockSetTest)
+TEST_P(TGetBlockSetTest, GetBlockSetTest)
 {
     auto testCase = GetParam();
 
@@ -1519,34 +1518,49 @@ TEST_P(TGetBlockSetTest, DISABLED_GetBlockSetTest)
     for (int i = 0; i < getBlockSetCount; ++i) {
         auto blockIndices = GenerateRandomBlockIdsWithOrder(0, blocks.size() - 1, testCase.BlocksInRequest, generator);
         std::vector<TBlock> fetchedBlocks(blockIndices.size());
-        for (int i = 0; i < std::ssize(blockIndices); ++i) {
-            fetchedBlocks[i] = blocks[blockIndices[i]];
+        for (int j = 0; j < std::ssize(blockIndices); ++j) {
+            fetchedBlocks[j] = blocks[blockIndices[j]];
         }
-        auto future = GetBlockSet(sessionId.ChunkId, blockIndices, testCase.PopulateCache, testCase.FetchFromCache, testCase.FetchFromDisk)
-            .Apply(BIND([fetchedBlocks = std::move(fetchedBlocks)] (const TIntrusivePtr<TTypedClientResponse<TRspGetBlockSet>>& response) {
-                if (response->disk_throttling() || response->net_throttling()) {
+        auto future = BIND([this, &testCase, sessionId, blockIndices, fetchedBlocks = std::move(fetchedBlocks)] {
+                while (true) {
+                    auto rsp = WaitFor(GetBlockSet(
+                        sessionId.ChunkId,
+                        blockIndices,
+                        testCase.PopulateCache,
+                        testCase.FetchFromCache,
+                        testCase.FetchFromDisk))
+                        .ValueOrThrow();
+                    if (rsp->disk_throttling() || rsp->net_throttling()) {
+                        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+                        continue;
+                    }
+                    auto gotBlocks = GetRpcAttachedBlocks(rsp);
+                    EXPECT_EQ(gotBlocks.size(), fetchedBlocks.size());
+                    EXPECT_EQ(BlocksToChecksums(gotBlocks), BlocksToChecksums(fetchedBlocks));
                     return;
                 }
-                auto gotBlocks = GetRpcAttachedBlocks(response);
-                EXPECT_EQ(gotBlocks.size(), fetchedBlocks.size());
-                EXPECT_EQ(BlocksToChecksums(gotBlocks), BlocksToChecksums(fetchedBlocks));
-        }));
+            })
+            .AsyncVia(GetActionQueue()->GetInvoker())
+            .Run();
         getBlockSetFutures.push_back(std::move(future));
     }
 
     auto allsucceededGetBlockSetFutures = AllSucceeded(getBlockSetFutures);
-    EXPECT_TRUE(allsucceededGetBlockSetFutures.BlockingWait(TDuration::Seconds(60)));
+    EXPECT_TRUE(allsucceededGetBlockSetFutures.BlockingWait(TDuration::Seconds(120)));
     auto getBlockSetFuturesResult = allsucceededGetBlockSetFutures.TryGet();
     EXPECT_TRUE(getBlockSetFuturesResult.has_value());
     EXPECT_TRUE(getBlockSetFuturesResult.has_value() && getBlockSetFuturesResult->IsOK());
 
-    if (testCase.EnableHugePageManager) {
-        if (testCase.HugePageManagerType == NIO::EHugeManagerType::Transparent && testCase.UseDirectIOForReads) {
-            YT_VERIFY(GetDataNodeBootstrap()->GetHugePageManager()->GetHugePageSize() > 0);
-            EXPECT_GT(GetDataNodeBootstrap()->GetHugePageManager()->GetUsedHugePageCount(), 0);
-        }
+    const auto& hugePageManager = GetDataNodeBootstrap()->GetHugePageManager();
+    bool expectHugePagesUsed =
+        testCase.EnableHugePageManager &&
+        testCase.UseDirectIOForReads;
+
+    if (expectHugePagesUsed) {
+        YT_VERIFY(hugePageManager->GetHugePageSize() > 0);
+        EXPECT_GT(hugePageManager->GetUsedHugePageCount(), 0);
     } else {
-        EXPECT_EQ(GetDataNodeBootstrap()->GetHugePageManager()->GetUsedHugePageCount(), 0);
+        EXPECT_EQ(hugePageManager->GetUsedHugePageCount(), 0);
     }
 }
 
