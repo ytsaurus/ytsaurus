@@ -169,8 +169,13 @@ class ChaosTestBase(DynamicTablesBase):
                 attributes[key] = kwargs[key]
         return create_chaos_table_replica(replica["cluster_name"], replica["replica_path"], attributes=attributes)
 
-    def _create_chaos_table_replicas(self, replicas, replication_card_id=None, table_path=None):
-        return [self._create_chaos_table_replica(replica, replication_card_id=replication_card_id, table_path=table_path) for replica in replicas]
+    def _create_chaos_table_replicas(self, replicas, replication_card_id=None, table_path=None, catchup=None):
+        return [self._create_chaos_table_replica(
+            replica,
+            replication_card_id=replication_card_id,
+            table_path=table_path,
+            catchup=catchup
+        ) for replica in replicas]
 
     def _prepare_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
         created_cells = []

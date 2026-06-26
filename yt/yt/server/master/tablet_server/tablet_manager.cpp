@@ -99,6 +99,7 @@
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
+#include <yt/yt/client/chaos_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -849,6 +850,14 @@ public:
                 if (!schema->FindColumn(TimestampColumnName)) {
                     THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv column",
                         TimestampColumnName);
+                }
+
+                for (const auto& tablet : table->Tablets()) {
+                    if (const auto& replicationProgress = tablet->As<TTablet>()->ReplicationProgress();
+                        !replicationProgress.Segments.empty())
+                    {
+                        ValidateOrderedTabletReplicationProgress(replicationProgress);
+                    }
                 }
             }
 

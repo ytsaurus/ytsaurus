@@ -6864,6 +6864,73 @@ class TestChaosSingleCluster(ChaosTestBase):
         insert_rows("//tmp/t", values)
         wait(lambda: lookup_rows("//tmp/t", [{"key": 1}], replica_consistency="sync") == values)
 
+    @authors("osidorkin")
+    def test_alter_ordered_table_replica_progress(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/t2"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": False, "replica_path": "//tmp/t3"},
+        ]
+
+        tablet_count = 2
+        values = [{"$tablet_index": j, "key": i, "value": str(i + j)} for i in range(2) for j in range(tablet_count)]
+        data_values = [[{"key": i, "value": str(i + j)} for i in range(2)] for j in range(tablet_count)]
+
+        card_id, replica_ids = self._create_chaos_tables(
+            cell_id,
+            replicas[:2],
+            ordered=True,
+            mount_tables=False,
+            sync_replication_era=False
+        )
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "replication_card_id": card_id,
+            "chaos_cell_bundle": "c",
+        })
+
+        reshard_table("//tmp/t1", tablet_count)
+        reshard_table("//tmp/t2", tablet_count)
+        sync_mount_table("//tmp/t1")
+        sync_mount_table("//tmp/t2")
+        self._sync_replication_era(card_id, replicas[:2])
+
+        replica_ids += self._create_chaos_table_replicas(replicas[2:], replication_card_id=card_id)
+        self._create_replica_tables(
+            replicas[2:],
+            replica_ids[2:],
+            mount_tables=False,
+            ordered=True,
+            tablet_count=tablet_count,
+            trimmed_row_counts=[len(data_values[j]) for j in range(tablet_count)]
+        )
+
+        insert_rows("//tmp/t1", values)
+        for j in range(tablet_count):
+            wait(lambda: select_rows(f"key, value from [//tmp/t2] where [$tablet_index] = {j}") == data_values[j])
+
+        sync_unmount_table("//tmp/t2")
+
+        alter_table("//tmp/t3", replication_progress=get("//tmp/t2/@replication_progress"))
+
+        sync_mount_table("//tmp/t3")
+        sync_mount_table("//tmp/t2")
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=True)
+        self._sync_replication_era(card_id, replicas)
+
+        new_values = [{"$tablet_index": j, "key": 100 + i, "value": str(100 + i + j)} for i in range(2) for j in range(tablet_count)]
+        new_data_values = [[{"key": 100 + i, "value": str(100 + i + j)} for i in range(2)] for j in range(tablet_count)]
+        insert_rows("//tmp/t1", new_values)
+
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[1]}/replication_lag_timestamp") > timestamp)
+        for j in range(tablet_count):
+            assert select_rows(f"key, value from [//tmp/t2] where [$tablet_index] = {j}") == data_values[j] + new_data_values[j]
+
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[2]}/replication_lag_timestamp") > timestamp)
+        for j in range(tablet_count):
+            assert select_rows(f"key, value from [//tmp/t3] where [$tablet_index] = {j}") == new_data_values[j]
+
 
 ##################################################################
 

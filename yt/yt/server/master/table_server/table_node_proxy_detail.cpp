@@ -2494,7 +2494,17 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                     ValidatePivotKey(segment.LowerKey, *heavySchema, "replication progress");
                 }
             } else {
-                ValidateOrderedTabletReplicationProgress(*options.ReplicationProgress);
+                if (table->IsExternal()) {
+                    // We can't get actual tablet count from the secondary cell,
+                    // so accept any valid progress and check it again on mount.
+                    ValidateOrderedTableReplicationProgress(
+                        *options.ReplicationProgress,
+                        /*tabletCount*/ std::numeric_limits<int>::max());
+                } else {
+                    ValidateOrderedTableReplicationProgress(
+                        *options.ReplicationProgress,
+                        std::ssize(table->Tablets()));
+                }
             }
 
             table->ValidateAllTabletsUnmounted("Cannot change replication progress");
