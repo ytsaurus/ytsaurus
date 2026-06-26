@@ -1386,15 +1386,22 @@ class YTInstance(object):
             return p
 
     def _dump_backtraces(self, pid):
-        gdb_output = subprocess.check_output(
-            [
-                "gdb",
-                "-p",
-                str(pid),
-                "--batch",
-                "-ex",
-                "thr apply all bt",
-            ])
+        from .arcadia_interop import get_gdb_path
+
+        try:
+            gdb_output = subprocess.check_output(
+                [
+                    get_gdb_path(),
+                    "-p",
+                    str(pid),
+                    "--batch",
+                    "-ex",
+                    "thr apply all bt",
+                ])
+        except Exception as error:
+            # Best-effort diagnostics; a failure here must not mask the original error.
+            logger.warning("Failed to dump backtraces of process %s: %s", pid, error)
+            return
         logger.info(f"Process {pid} backtraces:")
         for line in gdb_output.splitlines():
             logger.info(line)
