@@ -342,7 +342,7 @@ static const auto LargeSchema2 = New<TTableSchema>(std::vector{
     TColumnSchema("v15", EValueType::String).SetGroup("group2")
 });
 
-static THashMap<TString, TTableSchemaPtr> Schemas = {
+static THashMap<std::string, TTableSchemaPtr> Schemas = {
     {"SmallSchema1", SmallSchema1},
     {"SmallSchema2", SmallSchema2},
     {"LargeSchema1", LargeSchema1},
