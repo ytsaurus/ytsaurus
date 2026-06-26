@@ -26,7 +26,7 @@ void TDistributedFileApiTest::SetUp()
 {
     TApiTestBase::SetUp();
 
-    static const TString Path = "//tmp/distributed_file_api_test";
+    static const NYPath::TYPath Path = "//tmp/distributed_file_api_test";
 
     TCreateNodeOptions options;
     options.Force = true;

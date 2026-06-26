@@ -22,13 +22,13 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDistributedTableApiTest::CreateStaticTable(
-    const TString& tablePath,
-    const TString& schema)
+    const NYPath::TYPath& tablePath,
+    const NYson::TYsonString& schema)
 {
     Table_ = tablePath;
     EXPECT_TRUE(tablePath.StartsWith("//tmp"));
 
-    auto attributes = TYsonString("{dynamic=%false;schema=" + schema + "}");
+    auto attributes = TYsonString(Format("{dynamic=%%false;schema=%v}", schema.AsStringBuf()));
     TCreateNodeOptions options;
     options.Attributes = ConvertToAttributes(attributes);
     options.Force = true;
@@ -219,10 +219,10 @@ TEST_F(TDistributedTableApiTest, StartFinishNoTx)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "{name=v2;type=string}"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+            {name=v2;type=string}
+        ])"_sb));
 
     {
         auto sessionWithCookies = StartDistributedWriteSession(/*append*/ false, /*cookieCount*/0);
@@ -261,10 +261,10 @@ TEST_F(TDistributedTableApiTest, StartFinishWithTx)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "{name=v2;type=string}"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+            {name=v2;type=string}
+        ])"_sb));
 
     for (int append : {true, false}) {
         Cerr << Format("StartFinishWithTx (Append: %v)", append) << '\n';
@@ -295,9 +295,9 @@ TEST_F(TDistributedTableApiTest, StartWriteFinish)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "Foo",
@@ -339,9 +339,9 @@ TEST_F(TDistributedTableApiTest, StartWriteFinishNoTimeout)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "Foo",
@@ -376,9 +376,9 @@ TEST_F(TDistributedTableApiTest, StartPingWriteFinishNoTimeout)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "Foo",
@@ -419,9 +419,9 @@ TEST_F(TDistributedTableApiTest, StartWriteFinishTimeout)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "Foo",
@@ -451,9 +451,9 @@ TEST_F(TDistributedTableApiTest, StartWriteFinishAbort)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "Foo",
@@ -506,9 +506,9 @@ TEST_F(TDistributedTableApiTest, StartWriteAbortFinish)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "Foo",
@@ -561,9 +561,9 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishSameCookie)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "Foo",
@@ -623,9 +623,9 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishDifferentCookies)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "Foo",
@@ -686,9 +686,9 @@ TEST_F(TDistributedTableApiTest, StartWriteFailWriteSuccessFinish)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "Foo",
@@ -750,9 +750,9 @@ TEST_F(TDistributedTableApiTest, ManyChunksToAttach)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "Foo",
@@ -804,9 +804,9 @@ TEST_F(TDistributedTableApiTest, SortedTableSimpleDistributedWrite)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string;sort_order=ascending};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string;sort_order=ascending};
+        ])"_sb));
 
     std::vector<std::string> rowStrings{
         "aa",
@@ -851,9 +851,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookie)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string;sort_order=ascending};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string;sort_order=ascending};
+        ])"_sb));
 
     std::vector<std::string> rowStrings{
         "aa",
@@ -910,9 +910,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookieInverte
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string;sort_order=ascending};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string;sort_order=ascending};
+        ])"_sb));
 
     std::vector<std::string> rowStrings{
         "aa",
@@ -969,9 +969,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookies)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string;sort_order=ascending};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string;sort_order=ascending};
+        ])"_sb));
 
     std::vector<std::string> rowStrings{
         "aa",
@@ -1030,9 +1030,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookiesInvert
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string;sort_order=ascending};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string;sort_order=ascending};
+        ])"_sb));
 
     std::vector<std::string> rowStrings{
         "aa",
@@ -1092,9 +1092,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesViolateUniquenes
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "<unique_keys=%true>["
-        "{name=v1;type=string;sort_order=ascending};"
-        "]");
+        /*schema*/ TYsonString(R"(<unique_keys=%true>[
+            {name=v1;type=string;sort_order=ascending};
+        ])"_sb));
 
     std::vector<std::string> rowStrings{
         "aa",
@@ -1155,9 +1155,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOverlapKeyRanges
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "<unique_keys=%true>["
-        "{name=v1;type=string;sort_order=ascending};"
-        "]");
+        /*schema*/ TYsonString(R"(<unique_keys=%true>[
+            {name=v1;type=string;sort_order=ascending};
+        ])"_sb));
 
     std::vector<std::string> rowStrings{
         "aa",
@@ -1219,9 +1219,9 @@ TEST_F(TDistributedTableApiTest, StartWriteCookieDuplicateResult)
 {
     CreateStaticTable(
         /*tablePath*/ "//tmp/distributed_table_api_test",
-        /*schema*/ "["
-        "{name=v1;type=string};"
-        "]");
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string};
+        ])"_sb));
 
     std::vector<std::string> rowStrings = {
         "Foo",

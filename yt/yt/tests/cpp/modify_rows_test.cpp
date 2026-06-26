@@ -48,10 +48,11 @@ void TModifyRowsTest::SetUpTestCase()
     TDynamicTablesTestBase::SetUpTestCase();
 
     CreateTable(
-        "//tmp/modify_rows_test", // tablePath
-        "[" // schema
-        "{name=key;type=int64;sort_order=ascending};"
-        "{name=value;type=int64}]");
+        /*tablePath*/ "//tmp/modify_rows_test",
+        /*schema*/ TYsonString(R"([
+            {name=key;type=int64;sort_order=ascending};
+            {name=value;type=int64}
+        ])"_sb));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

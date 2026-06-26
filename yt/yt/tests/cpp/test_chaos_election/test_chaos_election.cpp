@@ -10,6 +10,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -26,6 +28,7 @@ using namespace NChaosElection;
 using namespace NConcurrency;
 using namespace NCppTests;
 using namespace NLockElection;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
@@ -110,7 +113,7 @@ protected:
     }
 
     ILockElectionManagerPtr CreateElectionManager(
-        const TString& memberName,
+        const std::string& memberName,
         TActionQueuePtr actionQueue = nullptr)
     {
         auto config = New<TChaosElectionManagerConfig>();
@@ -169,7 +172,7 @@ protected:
 
     static TYPath GetCellOrchidPath(TCellId cellId)
     {
-        auto address = ConvertTo<TString>(WaitFor(Client_->GetNode(Format("#%v/@peers/0/address", cellId)))
+        auto address = ConvertTo<std::string>(WaitFor(Client_->GetNode(Format("#%v/@peers/0/address", cellId)))
             .ValueOrThrow());
         return Format("//sys/cluster_nodes/%v/orchid/chaos_cells/%v", address, cellId);
     }
@@ -253,8 +256,8 @@ protected:
             "//sys/cluster_nodes", listOptions))
             .ValueOrThrow();
         for (const auto& node : ConvertTo<IListNodePtr>(nodesNode)->GetChildren()) {
-            auto flavors = node->Attributes().Get<std::vector<TString>>("flavors");
-            if (std::find(flavors.begin(), flavors.end(), "chaos") != flavors.end()) {
+            auto flavors = node->Attributes().Get<std::vector<ENodeFlavor>>("flavors");
+            if (std::find(flavors.begin(), flavors.end(), ENodeFlavor::Chaos) != flavors.end()) {
                 auto address = node->AsString()->GetValue();
                 WaitFor(Client_->SetNode(
                     Format("//sys/cluster_nodes/%v/@user_tags/end", address),

@@ -92,7 +92,7 @@ class TS3DataTest
     : public TApiTestBase
 {
 protected:
-    const TString RootBucket_ = "ytsaurus";
+    const std::string RootBucket_ = "ytsaurus";
     TRandomGenerator Generator_ = TRandomGenerator(42);
     std::vector<TBlock> GeneratedBlocks_;
 
