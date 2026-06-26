@@ -13,6 +13,7 @@
 #include <yt/yt/core/bus/bus.h>
 #include <yt/yt/core/bus/client.h>
 #include <yt/yt/core/bus/server.h>
+#include <yt/yt/core/bus/message_handler.h>
 
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/config.h>
@@ -110,7 +111,8 @@ class TEchoServer
 public:
     void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
+        IBusPtr replyBus,
+        IDirectPlacementTransferPtr /*transfer*/) noexcept override
     {
         YT_UNUSED_FUTURE(replyBus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full})
             .ToUncancelable());
@@ -134,7 +136,8 @@ public:
 
     void HandleMessage(
         TSharedRefArray /*message*/,
-        IBusPtr /*replyBus*/) noexcept override
+        IBusPtr /*replyBus*/,
+        IDirectPlacementTransferPtr /*transfer*/) noexcept override
     {
         ReplyPromise_.Set();
     }
@@ -180,7 +183,8 @@ struct TCountingHandler
 
     void HandleMessage(
         TSharedRefArray message,
-        IBusPtr /*replyBus*/) noexcept override
+        IBusPtr /*replyBus*/,
+        IDirectPlacementTransferPtr /*transfer*/) noexcept override
     {
         Bytes.fetch_add(message.ByteSize(), std::memory_order::relaxed);
         Messages.fetch_add(1, std::memory_order::relaxed);

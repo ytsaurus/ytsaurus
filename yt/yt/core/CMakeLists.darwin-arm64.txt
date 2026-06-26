@@ -105,6 +105,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/actions/invoker_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/actions/invoker_util.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/connection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/dispatcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/dispatcher_impl.cpp

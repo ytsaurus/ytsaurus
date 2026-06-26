@@ -1,6 +1,7 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/bus/bus.h>
+#include <yt/yt/core/bus/message_handler.h>
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/private.h>
 #include <yt/yt/core/bus/server.h>
@@ -167,7 +168,8 @@ class TBusHandler
 public:
     void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
+        IBusPtr replyBus,
+        NYT::NBus::IDirectPlacementTransferPtr /*transfer*/) noexcept override
     {
         std::string str = Deserialize(message);
         Cout << "received \"" << str << "\"" << Endl;
@@ -221,12 +223,10 @@ class TRpsSendTestHandler
 {
 public:
     void HandleMessage(
-        TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
-    {
-        Y_UNUSED(message);
-        Y_UNUSED(replyBus);
-    }
+        TSharedRefArray /*message*/,
+        IBusPtr /*replyBus*/,
+        NYT::NBus::IDirectPlacementTransferPtr /*transfer*/) noexcept override
+    { }
 };
 
 TSharedRefArray CreateMessage(i32 size)
@@ -338,11 +338,10 @@ public:
     { }
 
     void HandleMessage(
-        TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
+        TSharedRefArray /*message*/,
+        IBusPtr /*replyBus*/,
+        NYT::NBus::IDirectPlacementTransferPtr /*transfer*/) noexcept override
     {
-        Y_UNUSED(message);
-        Y_UNUSED(replyBus);
         if (NumIterationsLeft == NumIterations) {
             Cout << "Test started" << Endl;
             NHPTimer::GetTime(&Timer);
@@ -376,7 +375,8 @@ class TRpsReplyServer
 public:
     void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
+        IBusPtr replyBus,
+        NYT::NBus::IDirectPlacementTransferPtr /*transfer*/) noexcept override
     {
         std::string str = Deserialize(message);
         Cout << "received " << str << " => Test started " << Endl;
