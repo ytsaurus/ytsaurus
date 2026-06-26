@@ -8,17 +8,25 @@
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
+#include <util/generic/queue.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class TPayload>
+std::weak_ordering TChunkScanQueueWithPayload<TPayload>::TDelayedQueueEntry::operator<=>(const TDelayedQueueEntry& other) const
+{
+    return Deadline <=> other.Deadline;
+}
 
 template <class TPayload>
 void TChunkScanQueueWithPayload<TPayload>::Clear()
 {
     // Since queue may be huge, destruction is offloaded into separate thread.
     // Otherwise, queue is not changed.
-    auto doClear = [] <class T> (std::queue<T>& queue_) {
-        std::queue<T> queue;
+    auto doClear = [] <class T> (T& queue_) {
+        T queue;
         std::swap(queue_, queue);
         NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
             BIND([queue = std::move(queue)] { Y_UNUSED(queue); }));
@@ -108,17 +116,16 @@ void TChunkScanQueueWithPayload<TPayload>::RequeueDelayedChunks(NProfiling::TCpu
 {
     static const auto Logger = ChunkServerLogger;
 
-    while (!DelayedQueue_.empty() && DelayedQueue_.front().Deadline < deadline) {
-        auto queueEntry = std::move(DelayedQueue_.front().QueueEntry);
-        DelayedQueue_.pop();
+    while (!DelayedQueue_.empty() && DelayedQueue_.top().Deadline < deadline) {
+        auto queueEntry = DelayedQueue_.PopValue().QueueEntry;
         Queue_.push(std::move(queueEntry));
     }
     if (!DelayedQueue_.empty()) {
         YT_LOG_TRACE(
             "First chunk in delayed queue "
             "(ChunkId: %v, Deadline: %v)",
-            DelayedQueue_.front().QueueEntry.Chunk->GetId(),
-            CpuInstantToInstant(DelayedQueue_.front().Deadline));
+            DelayedQueue_.top().QueueEntry.Chunk->GetId(),
+            CpuInstantToInstant(DelayedQueue_.top().Deadline));
     }
 }
 
@@ -140,7 +147,7 @@ bool TChunkScanQueueWithPayload<TPayload>::HasUnscannedChunk(NProfiling::TCpuIns
     }
 
     if (!DelayedQueue_.empty()) {
-        return DelayedQueue_.front().Deadline < deadline;
+        return DelayedQueue_.top().Deadline < deadline;
     }
 
     return false;

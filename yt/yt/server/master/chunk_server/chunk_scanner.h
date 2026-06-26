@@ -210,8 +210,11 @@ private:
     {
         TQueueEntry QueueEntry;
         NProfiling::TCpuInstant Deadline;
+
+        std::weak_ordering operator<=>(const TDelayedQueueEntry& other) const;
     };
-    std::queue<TDelayedQueueEntry> DelayedQueue_;
+
+    TPriorityQueue<TDelayedQueueEntry, std::vector<TDelayedQueueEntry>, std::greater<TDelayedQueueEntry>> DelayedQueue_;
 
     TCpuDuration MaxEnqueueChunkDelay_ = DurationToCpuDuration(TDuration::Minutes(60));
 
