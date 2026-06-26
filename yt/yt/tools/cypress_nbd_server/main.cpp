@@ -81,7 +81,7 @@ struct TConfig
     std::string ClusterUser;
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     TNbdServerConfigPtr NbdServer;
-    THashMap<TString, TCypressFileBlockDeviceConfigPtr> FileSystemBlockDevices;
+    THashMap<std::string, TCypressFileBlockDeviceConfigPtr> FileSystemBlockDevices;
     int ThreadCount;
 
     REGISTER_YSON_STRUCT(TConfig);
@@ -139,7 +139,7 @@ protected:
     }
 
     //! Fetch object's filesystem attribute from Cypress.
-    TString GetFilesystem(
+    std::string GetFilesystem(
         const TUserObject& userObject,
         const NNative::IClientPtr& client,
         const TLogger& Logger)
@@ -171,7 +171,7 @@ protected:
 
         const auto& rsp = rspOrError.Value();
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-        auto filesystem = attributes->Get<TString>(
+        auto filesystem = attributes->Get<std::string>(
             /*key*/ "filesystem",
             /*defaultValue*/ "");
 
