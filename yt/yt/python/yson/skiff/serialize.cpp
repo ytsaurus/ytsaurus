@@ -29,7 +29,7 @@ void SerializeField(
     NSkiff::EWireType wireType,
     const Py::Object& object,
     bool required,
-    const std::optional<TString>& encoding,
+    const std::optional<std::string>& encoding,
     NSkiff::TCheckedInDebugSkiffWriter* skiffWriter)
 {
     if (!required) {
@@ -89,7 +89,7 @@ void SerializeSkiff(
     const TIntrusivePtr<TSkiffRecord>& record,
     NSkiff::TCheckedInDebugSkiffWriter* skiffWriter,
     const TIntrusivePtr<TSkiffSchema>& schema,
-    const std::optional<TString>& encoding)
+    const std::optional<std::string>& encoding)
 {
     for (ui16 idx = 0; idx < schema->GetDenseFieldsCount(); ++idx) {
         const auto& fieldInfo = schema->GetDenseField(idx);
@@ -124,7 +124,7 @@ void SerializeSkiff(
             /* enableRaw */ false);
 
         NYTree::BuildYsonFluently(writer.get())
-            .DoMapFor(*record->GetOtherFields(), [=] (NYTree::TFluentMap fluent, const std::pair<TString, Py::Object>& column) {
+            .DoMapFor(*record->GetOtherFields(), [=] (NYTree::TFluentMap fluent, const std::pair<std::string, Py::Object>& column) {
                 fluent
                     .Item(column.first)
                     .Value(column.second);
@@ -158,7 +158,7 @@ Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs)
     }
     auto schemas = Py::List(schemasArg);
 
-    std::optional<TString> encoding("utf-8");
+    std::optional<std::string> encoding("utf-8");
     if (HasArgument(args, kwargs, "encoding")) {
         auto arg = ExtractArgument(args, kwargs, "encoding");
         if (arg.isNone()) {

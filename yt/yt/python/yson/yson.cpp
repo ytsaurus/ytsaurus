@@ -63,7 +63,7 @@ public:
         IZeroCopyInput* inputStream,
         std::unique_ptr<IZeroCopyInput> inputStreamHolder,
         bool alwaysCreateAttributes,
-        const std::optional<TString>& encoding)
+        const std::optional<std::string>& encoding)
     {
         YT_VERIFY(!inputStreamHolder || inputStreamHolder.get() == inputStream);
 
@@ -74,8 +74,8 @@ public:
 
     static void InitType()
     {
-        Name_ = TString(FormatName) + "Iterator";
-        Doc_ = "Iterates over stream with " + TString(FormatName) + " rows";
+        Name_ = std::string(FormatName) + "Iterator";
+        Doc_ = "Iterates over stream with " + std::string(FormatName) + " rows";
         TypeName_ = "yt_yson_bindings.yson_lib." + Name_;
         TBase::behaviors().name(TypeName_.c_str());
         TBase::behaviors().doc(Doc_.c_str());
@@ -106,11 +106,11 @@ public:
     using TBase = Py::PythonClass<TYsonIterator>;
 
 protected:
-    static void InitType(const TString& formatName);
+    static void InitType(const std::string& formatName);
 
-    static TString Name_;
-    static TString Doc_;
-    static TString TypeName_;
+    static std::string Name_;
+    static std::string Doc_;
+    static std::string TypeName_;
 
 private:
     static constexpr const char FormatName[] = "Yson";
@@ -122,9 +122,9 @@ private:
 
 constexpr const char TYsonIterator::FormatName[];
 
-TString TYsonIterator::Name_ = TString();
-TString TYsonIterator::Doc_ = TString();
-TString TYsonIterator::TypeName_ = TString();
+std::string TYsonIterator::Name_;
+std::string TYsonIterator::Doc_;
+std::string TYsonIterator::TypeName_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,7 +198,7 @@ public:
     void Init(
         IZeroCopyInput* inputStream,
         std::unique_ptr<IZeroCopyInput> inputStreamHolder,
-        const std::optional<TString>& encoding,
+        const std::optional<std::string>& encoding,
         bool alwaysCreateAttributes)
     {
         YT_VERIFY(!inputStreamHolder || inputStreamHolder.get() == inputStream);
@@ -673,7 +673,7 @@ private:
             ignoreInnerAttributes = Py::Boolean(arg);
         }
 
-        std::optional<TString> encoding("utf-8");
+        std::optional<std::string> encoding("utf-8");
         if (HasArgument(args, kwargs, "encoding")) {
             auto arg = ExtractArgument(args, kwargs, "encoding");
             if (arg.isNone()) {

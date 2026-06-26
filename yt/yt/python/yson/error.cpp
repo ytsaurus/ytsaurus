@@ -8,12 +8,12 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYsonError(const TString& message, const TError& error)
+Py::Exception CreateYsonError(const std::string& message, const TError& error)
 {
     return CreateYsonError(message, NYTree::ConvertTo<Py::Object>(std::vector<TError>({error})));
 }
 
-YT_PREVENT_TLS_CACHING Py::Exception CreateYsonError(const TString& message, TContext* context)
+YT_PREVENT_TLS_CACHING Py::Exception CreateYsonError(const std::string& message, TContext* context)
 {
     thread_local PyObject* ysonErrorClass = nullptr;
     if (!ysonErrorClass) {
@@ -48,14 +48,14 @@ YT_PREVENT_TLS_CACHING Py::Exception CreateYsonError(const TString& message, TCo
             }
         }
 
-        TString contextRowKeyPath = builder.Flush();
+        std::string contextRowKeyPath = builder.Flush();
         if (!contextRowKeyPath.empty()) {
             attributes.setItem("row_key_path", Py::ConvertToPythonString(contextRowKeyPath));
         }
     }
 
     Py::Dict options;
-    options.setItem("message", Py::ConvertToPythonString(TString(message)));
+    options.setItem("message", Py::ConvertToPythonString(message));
     options.setItem("code", Py::Long(1));
     options.setItem("attributes", attributes);
 
