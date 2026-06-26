@@ -29,8 +29,8 @@ struct TSurgeonParams
 {
     std::optional<i64> FirstSequenceNumber;
     std::optional<i64> LastSequenceNumber;
-    TString ChangelogList;
-    TString ResultingChangelogName;
+    std::string ChangelogList;
+    std::string ResultingChangelogName;
     int MaxRecordsPerRead = DefaultMaxRecordsPerRead;
 };
 
