@@ -3291,11 +3291,20 @@ private:
                 SetBackingStore(tablet, store, backingStore);
             }
 
-            YT_LOG_DEBUG("Chunk store added (%v, StoreId: %v, MaxTimestamp: %v, BackingStoreId: %v)",
-                tablet->GetLoggingTag(),
-                storeId,
-                store->GetMaxTimestamp(),
-                backingStoreId);
+            if (store->IsOrdered()) {
+                YT_LOG_DEBUG("Ordered chunk store added (%v, StoreId: %v, MaxTimestamp: %v, StartingRowIndex: %v, BackingStoreId: %v)",
+                    tablet->GetLoggingTag(),
+                    storeId,
+                    store->GetMaxTimestamp(),
+                    store->AsOrdered()->GetStartingRowIndex(),
+                    backingStoreId);
+            } else {
+                YT_LOG_DEBUG("Sorted chunk store added (%v, StoreId: %v, MaxTimestamp: %v, BackingStoreId: %v)",
+                    tablet->GetLoggingTag(),
+                    storeId,
+                    store->GetMaxTimestamp(),
+                    backingStoreId);
+            }
 
             if (store->IsChunk()) {
                 auto chunkStore = store->AsChunk();
