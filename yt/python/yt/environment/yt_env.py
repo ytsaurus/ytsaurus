@@ -1919,7 +1919,7 @@ class YTInstance(object):
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
                     raise YtError("Master cache config {0} not found. It is possible that you requested "
-                                  "more timestamp providers than configs exist".format(config_path))
+                                  "more master caches than configs exist".format(config_path))
                 config = read_config(config_path)
             else:
                 config = master_cache_configs[master_cache_index]
