@@ -899,8 +899,8 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinCompositeJoinKeyFilteredByOnClausePre
         {"fks1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"fks2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"fks3", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        {"fks4_fk1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        {"fks4_fk2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"fks4_fk1", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
+        {"fks4_fk2", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
     });
     auto lRows = std::vector<std::string>{
         "pk=1;fks1=[10;11];fks2=[];fks3=[10;30;50];fks4_fk1=[10;10];fks4_fk2=[10;30];",
@@ -955,8 +955,8 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinMultipleSubqueriesWithVariousJoinConf
         {"fks1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"fks2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"fks3", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        {"fks4_fk1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}, // TODO(dtorilov): Add list of structs after YT-28212.
-        {"fks4_fk2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"fks4_fk1", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))}, // TODO(dtorilov): Add list of structs after YT-28212.
+        {"fks4_fk2", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
     });
     auto lRows = std::vector<std::string>{
         "pk=1;fks1=[10;11];fks2=[];fks3=[10;30;50];fks4_fk1=[10;10];fks4_fk2=[10;30];",
@@ -1311,7 +1311,7 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinInnerJoinFiltersUnmatchedKeysWithNoFo
     auto resultSplit = MakeSplit({
         {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         {"joined_data", ListLogicalType(StructLogicalType({
-            {"fk", "fk", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"fk", "fk", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         }, /*removedFieldStableNames*/ {}))},
     });
 

@@ -793,6 +793,7 @@ size_t TExpressionProfiler::Profile(
         MakeCodegenReferenceExpr(
             indexInSchema,
             referenceExpr->GetWireType(),
+            referenceExpr->LogicalType->IsNullable(),
             referenceExpr->ColumnName),
         referenceExpr->GetWireType(),
         referenceExpr->LogicalType->IsNullable(),
@@ -1410,7 +1411,20 @@ size_t TExpressionProfiler::Profile(
         id.AddInteger(fromExprId);
         fromExprIds.push_back(fromExprId);
 
-        nestedColumns.emplace_back(name, expr->LogicalType->GetElement());
+
+        auto type = expr->LogicalType;
+        if (type->GetMetatype() == ELogicalMetatype::Optional) {
+            type = type->GetElement();
+        }
+
+        if (type->GetMetatype() != ELogicalMetatype::List) {
+            THROW_ERROR_EXCEPTION("Unexpected type instead of list")
+                << TErrorAttribute("column_name", name)
+                << TErrorAttribute("actual_type", type->GetMetatype());
+        }
+
+        nestedColumns.emplace_back(name, type->GetElement());
+
         fromTypes.push_back(nestedColumns.back().GetWireType());
     }
 

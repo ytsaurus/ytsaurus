@@ -1334,6 +1334,7 @@ TCodegenExpression MakeCodegenLiteralExpr(
 TCodegenExpression MakeCodegenReferenceExpr(
     int index,
     EValueType type,
+    bool nullable,
     const std::string& name)
 {
     return [
@@ -1344,6 +1345,8 @@ TCodegenExpression MakeCodegenReferenceExpr(
                     builder,
                     builder.RowValues,
                     index,
+                    nullable,
+                    /*aggregate*/ false,
                     type,
                     "reference." + Twine(name.c_str()));
             } else {
@@ -1351,6 +1354,8 @@ TCodegenExpression MakeCodegenReferenceExpr(
                     builder,
                     builder.GetBoundValues(),
                     -index - 1,
+                    nullable,
+                    /*aggregate*/ false,
                     type,
                     "boundRef." + Twine(name.c_str()));
             }
