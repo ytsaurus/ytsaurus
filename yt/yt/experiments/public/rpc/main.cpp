@@ -114,7 +114,7 @@ void RunRpcServer(int port)
     Cin.ReadLine();
 }
 
-void RunRpcClient(const TString& address, i32 numIter)
+void RunRpcClient(const std::string& address, i32 numIter)
 {
     Cout << "Running " << numIter << " iterations of test" << Endl;
 
@@ -149,16 +149,16 @@ void Usage()
     // TODO
 }
 
-TSharedRefArray Serialize(const TString& str)
+TSharedRefArray Serialize(const std::string& str)
 {
     return TSharedRefArray(TSharedRef::FromString(str));
 }
 
-TString Deserialize(TSharedRefArray message)
+std::string Deserialize(TSharedRefArray message)
 {
     YT_ASSERT(message.Size() == 1);
     const auto& part = message[0];
-    return TString(part.Begin(), part.Size());
+    return std::string(part.Begin(), part.Size());
 }
 
 class TBusHandler
@@ -169,7 +169,7 @@ public:
         TSharedRefArray message,
         IBusPtr replyBus) noexcept override
     {
-        TString str = Deserialize(message);
+        std::string str = Deserialize(message);
         Cout << "received \"" << str << "\"" << Endl;
 
         if (!str.empty() && str[str.length() - 1] == '?') {
@@ -179,12 +179,12 @@ public:
     }
 };
 
-void OnSent(TString str, const TError& error)
+void OnSent(std::string str, const TError& error)
 {
     Cout << "\"" << str << "\" was sent with result " << ToString(error) << Endl;
 }
 
-void RunBusClient(const TString& address)
+void RunBusClient(const std::string& address)
 {
     auto client = CreateBusClient(TBusClientConfig::CreateTcp(address));
     auto bus = client->CreateBus(New<TBusHandler>());
@@ -279,7 +279,7 @@ public:
 
 
 
-void RunRpsSendTestMultiThreadClient(const TString& address, i32 numIter, i32 messageSize, i32 numThreads)
+void RunRpsSendTestMultiThreadClient(const std::string& address, i32 numIter, i32 messageSize, i32 numThreads)
 {
     auto client = CreateBusClient(TBusClientConfig::CreateTcp(address));
 
@@ -378,7 +378,7 @@ public:
         TSharedRefArray message,
         IBusPtr replyBus) noexcept override
     {
-        TString str = Deserialize(message);
+        std::string str = Deserialize(message);
         Cout << "received " << str << " => Test started " << Endl;
 
         for (i32 i = 0; i < NumIterations; ++i) {
@@ -407,7 +407,7 @@ private:
     i32 MessageSize;
 };
 
-void RunRpsReplyTestClient(const TString& address, i32 numIter)
+void RunRpsReplyTestClient(const std::string& address, i32 numIter)
 {
     auto client = CreateBusClient(TBusClientConfig::CreateTcp(address));
 
@@ -415,7 +415,7 @@ void RunRpsReplyTestClient(const TString& address, i32 numIter)
     auto bus = client->CreateBus(handler);
 
     Cout << "Running " << numIter << " replies" << Endl;
-    TString str = "Go!";
+    std::string str = "Go!";
     auto message = Serialize(str);
     bus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full})
         .Subscribe(BIND(&OnSent, str));

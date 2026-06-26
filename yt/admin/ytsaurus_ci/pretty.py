@@ -48,19 +48,24 @@ def print_job_info(data, job_id):
             click.secho(f"    • {url}", fg="blue")
 
     components = data.get("components", [])
-    if components:
-        click.echo()
-        click.secho("  Components:", bold=True)
-        for c in components:
-            _print_component(c)
-
     operator = data.get("operator", {})
-    if operator:
-        click.echo()
-        click.secho("  Operator:", bold=True)
-        _print_component(operator.get("operator", {}))
-        click.secho(f"    {'Helm:':<15}", nl=False)
-        click.secho(operator.get("helm_url", "—"), fg="bright_black")
+    upgrade = data.get("upgrade", {})
+
+    if upgrade:
+        _print_upgrade(components, operator, upgrade)
+    else:
+        if components:
+            click.echo()
+            click.secho("  Components:", bold=True)
+            for c in components:
+                _print_component(c)
+
+        if operator:
+            click.echo()
+            click.secho("  Operator:", bold=True)
+            _print_component(operator.get("operator", {}))
+            click.secho(f"    {'Helm:':<15}", nl=False)
+            click.secho(operator.get("helm_url", "—"), fg="bright_black")
 
     failed = data.get("failed_checks", [])
     click.echo()
@@ -93,6 +98,39 @@ def _print_component(c):
     click.secho(f"{c.get('branch', '—'):<8}", nl=False)
     click.secho(f"v{c.get('version', '—'):<10}", nl=False, fg="cyan")
     click.secho(f"({c.get('revision', '—')[:7]}, {c.get('commit_date', '—')})", fg="bright_black")
+
+
+def _print_upgrade(components, operator, upgrade):
+    click.echo()
+    scenario = upgrade.get("scenario_name", "")
+    click.secho("  Upgrade", nl=False, bold=True)
+    if scenario:
+        click.secho(f" ({scenario}):", bold=True)
+    else:
+        click.secho(":", bold=True)
+
+    from_versions = {c.get("name"): c.get("version") for c in components}
+    operator_from = operator.get("operator", {}) if operator else {}
+    from_versions[operator_from.get("name")] = operator_from.get("version")
+
+    targets = list(upgrade.get("upgrade_components", []))
+    target_operator = upgrade.get("upgrade_operator", {})
+    if target_operator:
+        targets.append(target_operator.get("operator", {}))
+
+    for c in targets:
+        _print_upgrade_transition(c, from_versions.get(c.get("name")))
+
+
+def _print_upgrade_transition(c, from_version):
+    to_version = c.get("version", "—")
+    click.secho(f"    {c.get('name', '—'):<15}", nl=False, bold=True)
+    if from_version is None or from_version == to_version:
+        click.secho(f"v{to_version}", fg="cyan")
+    else:
+        click.secho(f"v{from_version}", nl=False, fg="bright_black")
+        click.secho(" → ", nl=False)
+        click.secho(f"v{to_version}", fg="cyan")
 
 
 def _format_job_status(status):

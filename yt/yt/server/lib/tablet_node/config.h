@@ -189,7 +189,7 @@ public:
     std::optional<NHydra::TRevision> ForcedChunkViewCompactionRevision;
 
     EDynamicTableProfilingMode ProfilingMode;
-    TString ProfilingTag;
+    std::string ProfilingTag;
 
     bool EnableDynamicStoreRead;
 

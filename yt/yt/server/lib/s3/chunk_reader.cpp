@@ -137,7 +137,7 @@ private:
     const IClientPtr Client_;
     const TS3ReaderConfigPtr Config_;
     const TChunkId ChunkId_;
-    const TString ChunkFileName_;
+    const std::string ChunkFileName_;
     const TS3MediumDescriptor::TS3ObjectPlacement ChunkPlacement_;
     const TS3MediumDescriptor::TS3ObjectPlacement ChunkMetaPlacement_;
     const NLogging::TLogger Logger;

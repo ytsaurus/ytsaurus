@@ -105,19 +105,19 @@ struct TOpts
 
     NLastGetopt::TOpts Opts;
 
-    TString DataNodeRequest;
+    std::string DataNodeRequest;
 
-    TString HostAddress;
-    TString ChunkId;
+    std::string HostAddress;
+    std::string ChunkId;
 
     // LookupRows stuff.
-    TString Key;
-    TString TableId;
+    std::string Key;
+    std::string TableId;
     ui64 TableRevision;
-    TString TableSchema;
+    std::string TableSchema;
 
     // GetChunkFragmentSet stuff.
-    TString ReadSessionId;
+    std::string ReadSessionId;
     bool UseDirectIO = false;
     i32 FragmentLength = -1;
     i32 BlockIndex = -1;

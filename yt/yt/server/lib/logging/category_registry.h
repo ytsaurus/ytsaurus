@@ -15,18 +15,18 @@ class TStructuredCategoryRegistry
 public:
     static TStructuredCategoryRegistry* Get();
 
-    void RegisterStructuredCategory(TString category, NTableClient::TTableSchemaPtr schema);
+    void RegisterStructuredCategory(std::string category, NTableClient::TTableSchemaPtr schema);
 
     void DumpCategories(NYson::IYsonConsumer* consumer);
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashMap<TString, NTableClient::TTableSchemaPtr> Categories_;
+    THashMap<std::string, NTableClient::TTableSchemaPtr> Categories_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger CreateSchemafulLogger(TString category, NTableClient::TTableSchemaPtr schema);
+TLogger CreateSchemafulLogger(std::string category, NTableClient::TTableSchemaPtr schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

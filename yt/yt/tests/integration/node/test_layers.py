@@ -1061,7 +1061,7 @@ class TestLayerCacheEviction(TestLayerCacheBase):
         cache_missed_counter = profiler.counter("exec_node/layer_cache/missed_count")
         cache_hit_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/layer_cache/hit_count")
 
-        finished_job_counter = profiler.counter("job_controller/job_final_state")
+        finished_job_counter = profiler.with_tags({"origin": "scheduler"}).counter("job_controller/job_final_state")
 
         map(
             in_="//tmp/t_in",
@@ -1167,7 +1167,7 @@ class TestLayerCacheResurrection(TestLayerCacheBase):
         cache_missed_counter = profiler.counter("exec_node/layer_cache/missed_count")
         cache_hit_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/layer_cache/hit_count")
 
-        finished_job_counter = profiler.counter("job_controller/job_final_state")
+        finished_job_counter = profiler.with_tags({"origin": "scheduler"}).counter("job_controller/job_final_state")
 
         op1 = map(
             track=False,

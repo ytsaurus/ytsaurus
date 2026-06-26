@@ -55,12 +55,12 @@ void Deserialize(TJobDescription& value, NYTree::INodePtr node)
     value.ResourceLimits.SetNetwork(listNode->GetChildOrThrow(4)->AsInt64()->GetValue());
     value.ResourceLimits.SetGpu(0);
     value.Id = TJobId(ConvertTo<TGuid>(listNode->GetChildOrThrow(5)));
-    auto jobType = ConvertTo<TString>(listNode->GetChildOrThrow(6));
+    auto jobType = ConvertTo<std::string>(listNode->GetChildOrThrow(6));
     if (jobType == "partition_sort") {
         jobType = "intermediate_sort";
     }
     value.Type = ConvertTo<NJobTrackerClient::EJobType>(jobType);
-    value.State = ConvertTo<TString>(listNode->GetChildOrThrow(7));
+    value.State = ConvertTo<std::string>(listNode->GetChildOrThrow(7));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +88,7 @@ void Deserialize(TOperationDescription& value, NYTree::INodePtr node)
     value.Duration = ConvertTo<TInstant>(mapNode->GetChildOrThrow("finish_time")) - value.StartTime;
     value.AuthenticatedUser = ConvertTo<std::string>(mapNode->GetChildOrThrow("authenticated_user"));
     value.Type = ConvertTo<NScheduler::EOperationType>(mapNode->GetChildOrThrow("operation_type"));
-    value.State = ConvertTo<TString>(mapNode->GetChildOrThrow("state"));
+    value.State = ConvertTo<std::string>(mapNode->GetChildOrThrow("state"));
     value.InTimeframe = ConvertTo<bool>(mapNode->GetChildOrThrow("in_timeframe"));
     value.Spec = ConvertToYsonString(mapNode->GetChildOrThrow("spec"));
 }

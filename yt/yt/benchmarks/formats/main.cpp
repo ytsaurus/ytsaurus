@@ -38,11 +38,11 @@ static int ColumnCount = 40;
 static int ValueLength = 1000;
 static int RowCount = 10000;
 
-TString GenerateString(int len)
+std::string GenerateString(int len)
 {
-    TString result;
+    std::string result;
     for (int j = 0; j < len; j++) {
-        result.append('a' + std::rand() % 26);
+        result.push_back('a' + std::rand() % 26);
     }
     return result;
 }
@@ -127,7 +127,7 @@ void BenchmarkSchemalessWrite(ISchemalessFormatWriterPtr writer)
 
     for (int i = 0; i < RowCount; ++i) {
         for (int j = 0; j < ColumnCount; ++j) {
-            TString value = GenerateString(ValueLength);
+            std::string value = GenerateString(ValueLength);
             builder.AddValue(MakeUnversionedStringValue(value, j));
         }
         owningRows[i] = builder.FinishRow();

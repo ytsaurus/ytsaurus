@@ -103,10 +103,10 @@ protected:
     }
 
 private:
-    TString Cluster_;
-    TString ProxyAddress_;
-    TString Path_;
-    TString FallbackFormat_ = "<format=text>yson";
+    std::string Cluster_;
+    std::string ProxyAddress_;
+    std::string Path_;
+    std::string FallbackFormat_ = "<format=text>yson";
     bool HexifyFormat_ = false;
 };
 

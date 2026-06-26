@@ -20,7 +20,7 @@ void PrintUsage(const char* argv0, IOutputStream& out)
 
 int main(int argc, const char** argv)
 {
-    static const std::set<TString> helpFlags = {"-h", "--help"};
+    static const std::set<std::string> helpFlags = {"-h", "--help"};
 
     for (int i = 1; i < argc; ++i) {
         if (helpFlags.count(argv[i])) {

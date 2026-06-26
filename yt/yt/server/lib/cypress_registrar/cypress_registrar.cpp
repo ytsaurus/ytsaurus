@@ -188,7 +188,7 @@ private:
             getOptions.Attributes = {"type", "user_attributes"};
             auto result = ConvertToNode(WaitFor(Client_->GetNode(RootPath_ + "/@", getOptions))
                 .ValueOrThrow())->AsMap();
-            auto type = result->FindChildValue<TString>("type");
+            auto type = result->FindChildValue<std::string>("type");
             YT_LOG_DEBUG("Existing entry type: %Qv",
                 type);
             if (type == "map_node") {
@@ -260,7 +260,7 @@ private:
             return false;
         }
 
-        return ConvertTo<TString>(rsp.Value()) == "map_node";
+        return ConvertTo<EObjectType>(rsp.Value()) == EObjectType::MapNode;
     }
 
     void DoUpdateNodes(IAttributeDictionaryPtr attributes)

@@ -217,6 +217,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/core/https
     yt/yt/core/service_discovery/yp
 
     yt/yt/library/containers

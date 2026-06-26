@@ -571,7 +571,7 @@ public:
 
         #define MAYBE_SET_ATTRIBUTE(attribute_name) \
             if (auto attributeValue = \
-                    attributes->FindChildValue<TString>(#attribute_name)) \
+                    attributes->FindChildValue<std::string>(#attribute_name)) \
             { \
                 subrequest->set_##attribute_name(*attributeValue); \
             }

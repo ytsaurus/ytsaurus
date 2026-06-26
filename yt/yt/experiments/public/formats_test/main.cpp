@@ -47,7 +47,7 @@ int main(int argc, char** argv)
         auto format = ConvertTo<TFormat>(TYsonString(TString(argv[2])));
         auto schema = ConvertTo<TTableSchemaPtr>(TYsonString(TString(argv[3])));
 
-        if (argv[1] == TString{"fromwire"}) {
+        if (argv[1] == std::string{"fromwire"}) {
             NApi::NRpcProxy::NProto::TRowsetDescriptor rowsetDescriptor;
             Y_PROTOBUF_SUPPRESS_NODISCARD rowsetDescriptor.ParseFromString(TFileInput{argv[5]}.ReadAll());
 
@@ -55,7 +55,7 @@ int main(int argc, char** argv)
 
             auto output = CreateAsyncAdapter(&Cout);
 
-            if (argv[4] == TString{"versioned"}) {
+            if (argv[4] == std::string{"versioned"}) {
                 auto rowset = NApi::NRpcProxy::DeserializeRowset<TVersionedRow>(
                     rowsetDescriptor,
                     MergeRefsToRef<TDefaultBlobTag>(attachments));
@@ -74,7 +74,7 @@ int main(int argc, char** argv)
                 WaitFor(writer->Close())
                     .ThrowOnError();
             }
-        } else if (argv[1] == TString{"towire"}) {
+        } else if (argv[1] == std::string{"towire"}) {
             TBuildingValueConsumer valueConsumer(
                 schema,
                 NLogging::TLogger("Wtf"),

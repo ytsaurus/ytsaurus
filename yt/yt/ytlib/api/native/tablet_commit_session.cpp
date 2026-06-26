@@ -342,7 +342,8 @@ private:
                 /*profilingInfo*/ nullptr,
                 Logger,
                 firstBatchError,
-                &commitContext->LocalRetryIndex);
+                &commitContext->LocalRetryIndex,
+                /*tabletIdHint*/ TabletInfo_->TabletId);
 
             if (delay) {
                 return TDelayedExecutor::MakeDelayed(delay);
@@ -376,9 +377,9 @@ private:
         }
 
         auto updateMountInfo = [&] (auto&& tabletInfo, auto&& tableInfo, bool cellChanged) {
-            YT_LOG_DEBUG("Retrying sending transaction rows after %v "
+            YT_LOG_DEBUG("Retrying sending transaction rows%v "
                 "(LogicalMountRevision: %x, OldMountRevision: %x, NewMountRevision: %x%v)",
-                cellChanged ? "tablet moved to a different cell" : "mount revision changed",
+                cellChanged ? " after tablet moved to a different cell" : "",
                 TabletInfo_->LogicalMountRevision,
                 TabletInfo_->MountRevision,
                 newTabletInfo->MountRevision,
@@ -530,7 +531,10 @@ private:
                 << TErrorAttribute("cell_id", TabletInfo_->CellId)
                 << TErrorAttribute("batch_index", commitContext->BatchIndex)
                 << error;
-            Client_->GetTableMountCache()->InvalidateOnError(wrappedError, /*forceRetry*/ true);
+            Client_->GetTableMountCache()->InvalidateOnError(
+                wrappedError,
+                /*forceRetry*/ true,
+                /*tabletIdHint*/ TabletInfo_->TabletId);
             commitContext->CommitPromise.Set(wrappedError);
             return;
         } else if (commitContext->LocalRetryIndex > 0 && commitContext->BatchIndex == 0) {

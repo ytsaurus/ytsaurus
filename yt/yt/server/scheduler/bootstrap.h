@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/http/public.h>
 
+#include <yt/yt/core/https/public.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -60,6 +62,7 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::IClientPtr Client_;
     TSchedulerPtr Scheduler_;

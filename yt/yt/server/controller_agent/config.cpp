@@ -326,10 +326,8 @@ void TDataBalancerOptions::Register(TRegistrar registrar)
 
 void TUserJobOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("thread_limit_multiplier", &TThis::ThreadLimitMultiplier)
-        .Default(10'000);
-    registrar.Parameter("initial_thread_limit", &TThis::InitialThreadLimit)
-        .Default(10'000);
+    registrar.Parameter("thread_limit_formula", &TThis::ThreadLimitFormula)
+        .DefaultCtor([] { return MakeArithmeticFormula("250000"); });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -580,7 +578,7 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("default_partition_data_weight_for_merging", &TThis::DefaultPartitionDataWeightForMerging)
-        .Default(50_MBs)
+        .Default(128_MBs)
         .GreaterThanOrEqual(1);
 }
 

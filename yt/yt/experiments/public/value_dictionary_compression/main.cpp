@@ -424,10 +424,10 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
 
     // Experiment with small random strings on frame header, frame parameters.
     {
-        TString sample1 = "vrjlj";
-        TString sample2 = "gfqbxfmysd";
-        TString sample3 = "fmslsaiqnacjjfw";
-        TString sample4 = "zpsqwuohhqugwruqpfln";
+        std::string sample1 = "vrjlj";
+        std::string sample2 = "gfqbxfmysd";
+        std::string sample3 = "fmslsaiqnacjjfw";
+        std::string sample4 = "zpsqwuohhqugwruqpfln";
 
         TBlob dict(
             GetRefCountedTypeCookie<TDefaultBlobTag>(),
@@ -487,7 +487,7 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
             }
         };
 
-        auto dumpStatistics = [&] (TString header) {
+        auto dumpStatistics = [&] (std::string header) {
             Cerr << header << Endl
                 << compressedSizes[0] << "/" << frameCompressedSizes[0] << "/" << sample1.size() << "(" << frameHeaderSizes[0] << ")" << ", "
                 << compressedSizes[1] << "/" << frameCompressedSizes[1] << "/" << sample2.size() << "(" << frameHeaderSizes[1] << ")" << ", "
@@ -513,7 +513,7 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
 
     // Compress/decompress random string with advanced API from experiment above.
     {
-        TString sample = "vrjlj";
+        std::string sample = "vrjlj";
 
         TBlob dict(
             GetRefCountedTypeCookie<TDefaultBlobTag>(),

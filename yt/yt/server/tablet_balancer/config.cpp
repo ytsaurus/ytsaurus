@@ -279,6 +279,8 @@ void TDryRunConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("mode", &TThis::Mode)
         .Default(NTabletBalancerClient::EBalancingRequestMode::Reshard);
+    registrar.Parameter("max_action_count", &TThis::MaxActionCount)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/http/public.h>
 
+#include <yt/yt/core/https/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NServer {
@@ -28,11 +30,14 @@ struct TServerBootstrapConfig
     int RpcPort;
     int TvmOnlyRpcPort;
     int MonitoringPort;
+    std::optional<int> MonitoringHttpsPort;
+    NHttps::TServerCredentialsConfigPtr MonitoringHttpsCredentials;
     //! This option may be used to prevent config-containing nodes to be exposed in Orchid as a mean of security
     //! (disclosing less information about YT servers to a potential attacker).
     bool ExposeConfigInOrchid;
 
     NHttp::TServerConfigPtr CreateMonitoringHttpServerConfig();
+    NHttps::TServerConfigPtr CreateMonitoringHttpsServerConfig();
 
     REGISTER_YSON_STRUCT(TServerBootstrapConfig);
 

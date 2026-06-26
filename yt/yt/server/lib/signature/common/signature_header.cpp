@@ -42,9 +42,9 @@ struct TSerializeVisitor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetVersion(NYTree::INodePtr node)
+std::string GetVersion(NYTree::INodePtr node)
 {
-    return node->AsMap()->GetChildValueOrThrow<TString>("version");
+    return node->AsMap()->GetChildValueOrThrow<std::string>("version");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +56,7 @@ struct TDeserializeVisitor
     template <TSignatureVersion version>
     void operator()(TSignatureHeaderImpl<version>& header)
     {
-        header.Issuer = MapNode->GetChildValueOrThrow<TString>("issuer");
+        header.Issuer = MapNode->GetChildValueOrThrow<std::string>("issuer");
         header.KeypairId = MapNode->GetChildValueOrThrow<TGuid>("keypair_id");
         header.SignatureId = MapNode->GetChildValueOrThrow<TGuid>("signature_id");
         header.IssuedAt = MapNode->GetChildValueOrThrow<TInstant>("issued_at");
@@ -79,7 +79,7 @@ void Serialize(const TSignatureHeader& header, IYsonConsumer* consumer)
 
 void Deserialize(TSignatureHeader& header, INodePtr node)
 {
-    TString version = GetVersion(node);
+    auto version = GetVersion(node);
     if (version == "0.1") {
         header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>();
     } else {

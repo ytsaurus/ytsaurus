@@ -10,7 +10,7 @@ YT_DEFINE_GLOBAL(const NYT::NLogging::TLogger, HydraStressTestLogger, "HydraStre
 
 using TValue = i64;
 
-inline TString GetPeerAddress(int peerId)
+inline std::string GetPeerAddress(int peerId)
 {
     return NYT::Format("peer-%v:22", peerId);
 }

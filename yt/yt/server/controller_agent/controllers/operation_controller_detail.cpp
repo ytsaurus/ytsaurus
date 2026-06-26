@@ -467,6 +467,7 @@ TError TOperationControllerBase::BuildHighJobThreadCountAlert() const
         errors.push_back(
             TError("Jobs exceed thread count limit")
                 << TErrorAttribute("thread_count", info.ThreadCount)
+                << TErrorAttribute("threshold", info.Threshold)
                 << TErrorAttribute("job_id", info.JobId)
                 << TErrorAttribute("task", taskName));
     }
@@ -10372,7 +10373,11 @@ void TOperationControllerBase::UpdateHighThreadCountJob(
     }
 
     if (*threadCount > threadLimit) {
-        HighThreadCountJobPerTask_[taskName] = THighThreadCountJobInfo{.JobId = jobSummary.Id, .ThreadCount = *threadCount};
+        HighThreadCountJobPerTask_[taskName] = THighThreadCountJobInfo{
+            .JobId = jobSummary.Id,
+            .ThreadCount = *threadCount,
+            .Threshold = threadLimit,
+        };
     }
 }
 
@@ -10572,8 +10577,12 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_container_cpu_limit(cpuLimit);
     }
 
-    // This is common policy for all operations of given type.
-    i64 threadLimit = ceil(userJobOptions->InitialThreadLimit + userJobOptions->ThreadLimitMultiplier * specifiedCpuLimit);
+    i64 threadLimit = 0;
+    try {
+        threadLimit = userJobOptions->ThreadLimitFormula.Eval({{"cpu", static_cast<i64>(std::ceil(specifiedCpuLimit))}});
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to evaluate %Qv", "thread_limit_formula") << ex;
+    }
     jobSpec->set_thread_limit(threadLimit);
 
     // Option in task spec overrides value in operation options.

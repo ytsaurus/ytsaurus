@@ -138,6 +138,7 @@ private:
             for (size_t userIndex = 0; userIndex < users.size(); ++userIndex) {
                 for (const auto& storageId : FullAccessStorageIds_) {
                     userGrantedRights[userIndex].grant(DB::AccessType::dictGet, storageId.database_name, storageId.table_name);
+                    userGrantedRights[userIndex].grant(DB::AccessType::SELECT, storageId.database_name, storageId.table_name);
                 }
             }
 
@@ -149,6 +150,7 @@ private:
                         rights = &userRevokedRights[rightsIndex];
                     }
                     rights->grant(DB::AccessType::dictGet, storageId.database_name, storageId.table_name);
+                    rights->grant(DB::AccessType::SELECT, storageId.database_name, storageId.table_name);
                 }
             }
         }

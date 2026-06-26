@@ -6738,7 +6738,7 @@ private:
         auto request = std::make_unique<NProto::TReqRemoveDeadSequoiaChunkReplicas>();
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        request->set_removal_start_hydra_reign(hydraManager->GetCurrentReign());
+        request->set_removal_start_hydra_term(hydraManager->GetAutomatonTerm());
 
         for (const auto& [chunkId, recordCount] : SequoiaChunkPurgatory_) {
             auto* chunkRecord = request->add_chunk_records();
@@ -6849,8 +6849,8 @@ private:
             request->replicas_size());
 
         const auto* mutationContext = GetCurrentMutationContext();
-        if (request->removal_start_hydra_reign() != mutationContext->Request().Reign) {
-            THROW_ERROR_EXCEPTION("Removal start Hydra reign %v is not equal to current hydra reign %v", request->removal_start_hydra_reign(), mutationContext->Request().Reign);
+        if (request->removal_start_hydra_term() != mutationContext->GetTerm()) {
+            THROW_ERROR_EXCEPTION("Removal start Hydra term %v is not equal to current hydra term %v", request->removal_start_hydra_term(), mutationContext->GetTerm());
         }
 
         // We can ignore any chunks in compat request->chunk_ids() because

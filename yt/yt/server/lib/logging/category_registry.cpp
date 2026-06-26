@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NLogging {
@@ -22,10 +24,10 @@ TStructuredCategoryRegistry* TStructuredCategoryRegistry::Get()
     return topicRegistry;
 }
 
-void TStructuredCategoryRegistry::RegisterStructuredCategory(TString name, TTableSchemaPtr schema)
+void TStructuredCategoryRegistry::RegisterStructuredCategory(std::string name, TTableSchemaPtr schema)
 {
     auto guard = Guard(SpinLock_);
-    YT_VERIFY(Categories_.insert({name, schema}).second);
+    EmplaceOrCrash(Categories_, std::move(name), std::move(schema));
 }
 
 void TStructuredCategoryRegistry::DumpCategories(IYsonConsumer* consumer)
@@ -44,7 +46,7 @@ void TStructuredCategoryRegistry::DumpCategories(IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger CreateSchemafulLogger(TString category, TTableSchemaPtr schema)
+TLogger CreateSchemafulLogger(std::string category, TTableSchemaPtr schema)
 {
     TStructuredCategoryRegistry::Get()->RegisterStructuredCategory(category, schema);
 

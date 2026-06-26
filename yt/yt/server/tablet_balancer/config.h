@@ -232,6 +232,7 @@ struct TDryRunConfig
     std::string Bundle;
     THashSet<TGroupName> Groups;
     NTabletBalancerClient::EBalancingRequestMode Mode;
+    std::optional<int> MaxActionCount;
 
     REGISTER_YSON_STRUCT(TDryRunConfig);
 

@@ -85,7 +85,7 @@ const std::string OutputTableIndexColumnName = "output_table_index";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TString> GetEnvOrNull(const TString& key)
+std::optional<std::string> GetEnvOrNull(const TString& key)
 {
     auto res = GetEnv(key, "");
     if (res == "") {
@@ -98,7 +98,7 @@ std::optional<TString> GetEnvOrNull(const TString& key)
 
 struct THuggingfaceConfig
 {
-    std::optional<TString> UrlOverride;
+    std::optional<std::string> UrlOverride;
 
     Y_SAVELOAD_DEFINE(UrlOverride);
 };
@@ -106,8 +106,8 @@ struct THuggingfaceConfig
 struct TS3Config
 {
     std::string Url;
-    TString Region;
-    TString Bucket;
+    std::string Region;
+    std::string Bucket;
 
     Y_SAVELOAD_DEFINE(
         Url,
@@ -138,8 +138,8 @@ void ExtractKeys(std::vector<std::string>& keys, const std::vector<NS3::TObject>
 
 NS3::IClientPtr CreateS3Client(
     TS3Config s3Config,
-    TString accessKeyId,
-    TString secretAccessKey)
+    std::string accessKeyId,
+    std::string secretAccessKey)
 {
     auto credentialProvider = NS3::CreateStaticCredentialProvider(std::move(accessKeyId), std::move(secretAccessKey));
     auto clientConfig = New<NS3::TS3ClientConfig>();
@@ -165,9 +165,9 @@ NS3::IClientPtr CreateS3Client(
 
 std::vector<std::string> GetListFilesKeysFromS3(
     const TS3Config& s3Config,
-    TString accessKeyId,
-    TString secretAccessKey,
-    TString prefix)
+    std::string accessKeyId,
+    std::string secretAccessKey,
+    std::string prefix)
 {
     auto s3Client = CreateS3Client(
         s3Config,
@@ -230,7 +230,7 @@ DECLARE_REFCOUNTED_STRUCT(IDownloader)
 struct IDownloader
     : public TRefCounted
 {
-   virtual IAsyncZeroCopyInputStreamPtr GetFile(const TString& fileId) = 0;
+   virtual IAsyncZeroCopyInputStreamPtr GetFile(const std::string& fileId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDownloader)
@@ -241,8 +241,8 @@ class TS3Downloader
 public:
     TS3Downloader(
         const TS3Config& s3Config,
-        TString accessKeyId,
-        TString secretAccessKey)
+        std::string accessKeyId,
+        std::string secretAccessKey)
         : Client_(CreateS3Client(
             s3Config,
             std::move(accessKeyId),
@@ -250,7 +250,7 @@ public:
         , Bucket_(s3Config.Bucket)
     { }
 
-    IAsyncZeroCopyInputStreamPtr GetFile(const TString& fileId) override
+    IAsyncZeroCopyInputStreamPtr GetFile(const std::string& fileId) override
     {
         return WaitFor(Client_->GetObjectStream({
             .Bucket = Bucket_,
@@ -260,21 +260,21 @@ public:
 
 private:
     NS3::IClientPtr Client_;
-    TString Bucket_;
+    std::string Bucket_;
 };
 
 class THuggingfaceDownloader
     : public IDownloader
 {
 public:
-    THuggingfaceDownloader(const TString& token, const std::optional<TString>& url)
+    THuggingfaceDownloader(const std::string& token, const std::optional<std::string>& url)
         : Client_(
             token,
             CreateThreadPoolPoller(1, "HuggingfacePoller"),
             url)
     { }
 
-    IAsyncZeroCopyInputStreamPtr GetFile(const TString& fileId) override
+    IAsyncZeroCopyInputStreamPtr GetFile(const std::string& fileId) override
     {
         return Client_.DownloadFile(fileId);
     }
@@ -286,14 +286,14 @@ private:
 IDownloaderPtr CreateDownloader(const TSourceConfig& sourceConfig)
 {
     if (sourceConfig.S3Config) {
-        TString accessKeyId = GetEnv("YT_SECURE_VAULT_ACCESS_KEY_ID");
-        TString secretAccessKey = GetEnv("YT_SECURE_VAULT_SECRET_ACCESS_KEY");
+        std::string accessKeyId = GetEnv("YT_SECURE_VAULT_ACCESS_KEY_ID");
+        std::string secretAccessKey = GetEnv("YT_SECURE_VAULT_SECRET_ACCESS_KEY");
         return New<TS3Downloader>(
             *sourceConfig.S3Config,
             accessKeyId,
             secretAccessKey);
     } else if (sourceConfig.HuggingfaceConfig) {
-        TString huggingfaceToken = GetEnv("YT_SECURE_VAULT_HUGGINGFACE_TOKEN");
+        std::string huggingfaceToken = GetEnv("YT_SECURE_VAULT_HUGGINGFACE_TOKEN");
         return New<THuggingfaceDownloader>(huggingfaceToken, sourceConfig.HuggingfaceConfig->UrlOverride);
     } else {
         THROW_ERROR_EXCEPTION("The importer source is not defined");
@@ -374,7 +374,7 @@ private:
 
     int BufferPosition_;
 
-    i64 GetMetadataWeight(const TString& fileId)
+    i64 GetMetadataWeight(const std::string& fileId)
     {
         auto stream = Downloader_->GetFile(fileId);
         i64 fileSize = 0;
@@ -957,7 +957,7 @@ void ImportFilesFromSource(
                 "job_io", NYT::TNode()("table_writer", NYT::TNode()("max_row_weight", config->MaxRowWeight))
         );
         if (config->Pool) {
-            specNode = specNode("pool", *config->Pool);
+            specNode = specNode("pool", TStringBuf(*config->Pool));
         }
         operationOptions.Spec(specNode);
 
@@ -1034,16 +1034,16 @@ void ImportFilesFromSource(
 void ImportFilesFromS3(
     const TString& proxy,
     const std::string& url,
-    const TString& region,
-    const TString& bucket,
-    const TString& prefix,
+    const std::string& region,
+    const std::string& bucket,
+    const std::string& prefix,
     const TString& resultTable,
     EFileFormat format,
     const std::optional<TString>& networkProject,
     TImportConfigPtr config)
 {
-    TString accessKeyId = GetEnv("ACCESS_KEY_ID");
-    TString secretAccessKey = GetEnv("SECRET_ACCESS_KEY");
+    std::string accessKeyId = GetEnv("ACCESS_KEY_ID");
+    std::string secretAccessKey = GetEnv("SECRET_ACCESS_KEY");
 
     TS3Config s3Config({
         .Url = url,
@@ -1075,13 +1075,13 @@ void ImportFilesFromS3(
 
 void ImportFilesFromHuggingface(
     const TString& proxy,
-    const TString& dataset,
-    const TString& subset,
-    const TString& split,
+    const std::string& dataset,
+    const std::string& subset,
+    const std::string& split,
     const TString& resultTable,
     EFileFormat format,
     const std::optional<TString>& networkProject,
-    const std::optional<TString>& urlOverride,
+    const std::optional<std::string>& urlOverride,
     TImportConfigPtr config)
 {
     YT_LOG_INFO("Receiving file name from Huggingface (Dataset: %v, Subset: %v, Split: %v)",

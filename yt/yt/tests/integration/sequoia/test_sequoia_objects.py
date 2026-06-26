@@ -943,7 +943,7 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("grphil")
     def test_fill_replicas_using_validation_heartbeat_fixes(self):
-        if get("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_sequoia_replicas_on_master"):
+        if not get("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_sequoia_replicas_on_master"):
             pytest.skip("store_sequoia_replicas_on_master is enabled")
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", False)
@@ -961,6 +961,9 @@ class TestSequoiaReplicas(YTEnvSetup):
         for chunk_id in chunk_ids:
             wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
 
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_validation_full_heartbeats", False)
+        time.sleep(1)
+
         set("//sys/@config/cell_master/logging/message_level_overrides",
             {
                 "Sequoia replicas validation failed": "debug",
@@ -968,6 +971,8 @@ class TestSequoiaReplicas(YTEnvSetup):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/fix_sequoia_replicas_if_replica_validation_failed", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
+
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_validation_full_heartbeats", True)
 
         time.sleep(2)
 

@@ -310,8 +310,11 @@ private:
             headers,
             request.Payload,
         });
+
+        connection->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
         WaitFor(connection->WriteV(TSharedRefArray(std::move(writeRefs), TSharedRefArray::TMoveParts{})))
             .ThrowOnError();
+        connection->SetWriteDeadline(std::nullopt);
 
         return input;
     }

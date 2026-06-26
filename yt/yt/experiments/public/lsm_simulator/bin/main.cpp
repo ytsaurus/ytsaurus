@@ -24,7 +24,7 @@ using namespace NYT::NLsm::NTesting;
 using namespace NYT;
 using namespace NYT::NTabletNode;
 
-TString FormatDataSize(i64 value) {
+std::string FormatDataSize(i64 value) {
     for (auto suffix : {"B", "KB", "MB", "GB", "TB"}) {
         if (value < 1000) {
             return ToString(value) + " " + suffix;
@@ -188,9 +188,9 @@ int main(int argc, char* argv[])
         auto timePassed = actionQueue->GetNow() - now;
         i64 secondsPassed = timePassed.Seconds();
 
-        std::vector<TString> logLine;
+        std::vector<std::string> logLine;
         for (const auto& field : simulatorConfig->LoggingFields) {
-            TString str;
+            std::string str;
             auto on = [&] (TStringBuf title, i64 value, bool rate = false) {
                 str += title;
                 str += " " + FormatDataSize(value) + (rate ? "/s" : "");
@@ -289,9 +289,9 @@ int main(int argc, char* argv[])
     }
 
     TTabularFormatter formatterFinal(ssize(simulatorConfig->LoggingFieldsFinal));
-    std::vector<TString> logLine;
+    std::vector<std::string> logLine;
     for (const auto& field : simulatorConfig->LoggingFieldsFinal) {
-        TString str;
+        std::string str;
         auto statistics = simulator->GetStoreManager()->GetStatistics();
 
         if (field == "write_amplification_compaction_avg") {

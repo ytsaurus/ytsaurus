@@ -37,7 +37,7 @@
 
 #include <yt/yt/ytlib/object_client/object_attribute_cache.h>
 
-#include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
+#include <yt/yt/library/clickhouse_discovery/discovery.h>
 #include <yt/yt/library/clickhouse_discovery/discovery_v2.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -53,6 +53,9 @@
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
+
+#include <Access/AccessControl.h>
+#include <Access/User.h>
 
 #include <Common/DateLUT.h>
 #include <Common/Exception.h>
@@ -156,34 +159,20 @@ public:
         InitializeReaderMemoryManager();
         RegisterFactories();
 
-        // Configure clique's directory.
-        Config_->Discovery->Directory += "/" + ToString(Config_->CliqueId);
-        switch (Config_->Discovery->Version) {
-            case 1: {
-                Discovery_ = CreateDiscoveryV1(
-                    Config_->Discovery,
-                    RootClient_,
-                    ControlInvoker_,
-                    DiscoveryAttributes,
-                    Logger());
-                break;
-            }
-            case 2: {
-                auto groupId = (Config_->CliqueAlias.empty()) ? ToString(Config_->CliqueId) : Config_->CliqueAlias;
-                Config_->Discovery->GroupId = "/chyt/" + groupId;
-                Discovery_ = CreateDiscoveryV2(
-                    Config_->Discovery,
-                    Connection_,
-                    ChannelFactory_,
-                    ControlInvoker_,
-                    DiscoveryAttributes,
-                    Logger(),
-                    ClickHouseYtProfiler().WithPrefix("/discovery"));
-                break;
-            }
-            default:
-                YT_ABORT();
-        }
+        // COMPAT(buyval01): Strawberry validates that the clique uses the version 2.
+        // Remove this verify after the 2.20 release.
+        YT_VERIFY(Config_->Discovery->Version == 2);
+        auto groupId = (Config_->CliqueAlias.empty()) ? ToString(Config_->CliqueId) : Config_->CliqueAlias;
+        Config_->Discovery->GroupId = "/chyt/" + groupId;
+        Discovery_ = CreateDiscoveryV2(
+            Config_->Discovery,
+            Connection_,
+            ChannelFactory_,
+            ControlInvoker_,
+            DiscoveryAttributes,
+            Logger(),
+            ClickHouseYtProfiler().WithPrefix("/discovery"));
+
         if (Config_->DictionaryRepository) {
             CypressDictionaryConfigRepository_ = New<TCypressDictionaryConfigRepository>(
                 DictionariesClient_,
@@ -887,6 +876,30 @@ public:
         }
     }
 
+    void ValidateDictionaryGrants(const std::string& userName, const DB::StorageID& storageId)
+    {
+        if (!DictionaryAccessControl_) {
+            return;
+        }
+
+        auto& accessControl = getContext()->getAccessControl();
+        auto userId = accessControl.find(DB::AccessEntityType::USER, userName);
+        auto entity = accessControl.read(*userId);
+        auto user = std::static_pointer_cast<DB::User>(entity->clone());
+
+        bool hasDictGet = user->access.isGranted(DB::AccessType::dictGet, storageId.database_name, storageId.table_name);
+        bool hasSelect = user->access.isGranted(DB::AccessType::SELECT, storageId.database_name, storageId.table_name);
+
+        if (hasDictGet == hasSelect || hasDictGet) {
+            return;
+        }
+
+        user->access.revoke(DB::AccessType::SELECT, storageId.database_name, storageId.table_name);
+        accessControl.tryUpdate(*userId, [&] (const DB::AccessEntityPtr&, const DB::UUID&) {
+            return user;
+        });
+    }
+
 private:
     THost* const Owner_;
     const IInvokerPtr ControlInvoker_;
@@ -1008,18 +1021,6 @@ private:
 
     void StartDiscovery()
     {
-        if (Discovery_->Version() == 1) {
-            NApi::TCreateNodeOptions createCliqueNodeOptions;
-            createCliqueNodeOptions.IgnoreExisting = true;
-            createCliqueNodeOptions.Recursive = true;
-            createCliqueNodeOptions.Attributes = ConvertToAttributes(THashMap<TString, i64>{{"discovery_version", Discovery_->Version()}});
-            WaitFor(RootClient_->CreateNode(
-                Config_->Discovery->Directory,
-                NObjectClient::EObjectType::MapNode,
-                createCliqueNodeOptions))
-                .ThrowOnError();
-        }
-
         YT_UNUSED_FUTURE(Discovery_->StartPolling());
 
         auto attributes = ConvertToAttributes(THashMap<TString, INodePtr>{
@@ -1463,6 +1464,11 @@ TCypressDictionaryConfigRepositoryPtr THost::GetCypressDictionaryConfigRepositor
 void THost::PrepareClickHouseUser(const std::string& userName)
 {
     Impl_->PrepareClickHouseUser(userName);
+}
+
+void THost::ValidateDictionaryGrants(const std::string& userName, const DB::StorageID& storageId)
+{
+    Impl_->ValidateDictionaryGrants(userName, storageId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

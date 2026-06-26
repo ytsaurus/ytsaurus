@@ -66,7 +66,7 @@ struct TTestConfig
     EIOPattern IOPattern;
     EIOBits IOBits;
 
-    TString WorkingDirectory;
+    std::string WorkingDirectory;
 
     i64 BlockSize;
     i64 FileSize;

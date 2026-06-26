@@ -52,6 +52,11 @@ public:
             "If not set, `reshard` is used")
             .RequiredArgument("MODE")
             .StoreResult(&Mode_);
+
+        Opts_.AddLongOption(
+            "max-action-count", "Maximum number of actions to create in dry-run mode")
+            .RequiredArgument("COUNT")
+            .StoreResult(&DryRunConfig_->MaxActionCount);
     }
 
 private:
