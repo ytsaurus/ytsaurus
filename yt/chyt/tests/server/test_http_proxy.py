@@ -117,9 +117,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 clique.make_query_via_proxy("select * from system.clique", alias="*test_alias@aaa")
 
     @authors("dakovalkov", "gudqeit")
-    @pytest.mark.parametrize("discovery_version", [1, 2])
     @pytest.mark.parametrize("has_alias", [True, False])
-    def test_http_proxy_simple(self, discovery_version, has_alias):
+    def test_http_proxy_simple(self, has_alias):
+        discovery_version = 2
         patch = {
             "yt": {
                 "discovery": {

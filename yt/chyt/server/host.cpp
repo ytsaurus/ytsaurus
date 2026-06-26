@@ -37,7 +37,7 @@
 
 #include <yt/yt/ytlib/object_client/object_attribute_cache.h>
 
-#include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
+#include <yt/yt/library/clickhouse_discovery/discovery.h>
 #include <yt/yt/library/clickhouse_discovery/discovery_v2.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -159,34 +159,20 @@ public:
         InitializeReaderMemoryManager();
         RegisterFactories();
 
-        // Configure clique's directory.
-        Config_->Discovery->Directory += "/" + ToString(Config_->CliqueId);
-        switch (Config_->Discovery->Version) {
-            case 1: {
-                Discovery_ = CreateDiscoveryV1(
-                    Config_->Discovery,
-                    RootClient_,
-                    ControlInvoker_,
-                    DiscoveryAttributes,
-                    Logger());
-                break;
-            }
-            case 2: {
-                auto groupId = (Config_->CliqueAlias.empty()) ? ToString(Config_->CliqueId) : Config_->CliqueAlias;
-                Config_->Discovery->GroupId = "/chyt/" + groupId;
-                Discovery_ = CreateDiscoveryV2(
-                    Config_->Discovery,
-                    Connection_,
-                    ChannelFactory_,
-                    ControlInvoker_,
-                    DiscoveryAttributes,
-                    Logger(),
-                    ClickHouseYtProfiler().WithPrefix("/discovery"));
-                break;
-            }
-            default:
-                YT_ABORT();
-        }
+        // COMPAT(buyval01): Strawberry validates that the clique uses the version 2.
+        // Remove this verify after the 2.20 release.
+        YT_VERIFY(Config_->Discovery->Version == 2);
+        auto groupId = (Config_->CliqueAlias.empty()) ? ToString(Config_->CliqueId) : Config_->CliqueAlias;
+        Config_->Discovery->GroupId = "/chyt/" + groupId;
+        Discovery_ = CreateDiscoveryV2(
+            Config_->Discovery,
+            Connection_,
+            ChannelFactory_,
+            ControlInvoker_,
+            DiscoveryAttributes,
+            Logger(),
+            ClickHouseYtProfiler().WithPrefix("/discovery"));
+
         if (Config_->DictionaryRepository) {
             CypressDictionaryConfigRepository_ = New<TCypressDictionaryConfigRepository>(
                 DictionariesClient_,
@@ -1035,18 +1021,6 @@ private:
 
     void StartDiscovery()
     {
-        if (Discovery_->Version() == 1) {
-            NApi::TCreateNodeOptions createCliqueNodeOptions;
-            createCliqueNodeOptions.IgnoreExisting = true;
-            createCliqueNodeOptions.Recursive = true;
-            createCliqueNodeOptions.Attributes = ConvertToAttributes(THashMap<TString, i64>{{"discovery_version", Discovery_->Version()}});
-            WaitFor(RootClient_->CreateNode(
-                Config_->Discovery->Directory,
-                NObjectClient::EObjectType::MapNode,
-                createCliqueNodeOptions))
-                .ThrowOnError();
-        }
-
         YT_UNUSED_FUTURE(Discovery_->StartPolling());
 
         auto attributes = ConvertToAttributes(THashMap<TString, INodePtr>{
