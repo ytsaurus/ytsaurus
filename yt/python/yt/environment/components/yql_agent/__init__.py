@@ -273,6 +273,12 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             return self._get_artifact_path("libyqlplugin.so")
         return self.config["yql_plugin_shared_library"]
 
+    def override_common_settings(self, config, instance_index: int):
+        # TODO(mpereskokova): YQLOVERYT-333: Remove after rpc timeout set in dq
+        if self.enable_dq:
+            config["rpc_dispatcher"]["alert_on_unset_request_timeout"] = False
+        return config
+
     def get_default_config(self, instance_index: int):
         self.token_path = os.path.join(self.env.configs_path, "yql_agent_token")
 
