@@ -43,7 +43,7 @@ def main():
 
         install_requires=[
             "simplejson >=3.20.2, ~=3.18",
-            "decorator >=5.1.1, ~=4.4",
+            "decorator >=5.1.1, ~=5.1",
             "tqdm >=4.67.3, ~=4.66",
             "argcomplete >=3.6.3, ~=3.1",
             "charset-normalizer >=3.3.0, ~=3.3",
