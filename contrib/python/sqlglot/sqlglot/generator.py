@@ -676,6 +676,7 @@ class Generator:
         exp.CopyGrantsProperty: exp.Properties.Location.POST_SCHEMA,
         exp.Cluster: exp.Properties.Location.POST_SCHEMA,
         exp.ClusteredByProperty: exp.Properties.Location.POST_SCHEMA,
+        exp.ClusterProperty: exp.Properties.Location.POST_SCHEMA,
         exp.DistributedByProperty: exp.Properties.Location.POST_SCHEMA,
         exp.DuplicateKeyProperty: exp.Properties.Location.POST_SCHEMA,
         exp.DataBlocksizeProperty: exp.Properties.Location.POST_NAME,
@@ -3042,6 +3043,13 @@ class Generator:
     def cluster_sql(self, expression: exp.Cluster) -> str:
         return self.op_expressions("CLUSTER BY", expression)
 
+    def clusterproperty_sql(self, expression: exp.ClusterProperty) -> str:
+        if expression.this:
+            self.unsupported(f"Unsupported CLUSTER BY {self.sql(expression, 'this')}")
+            return ""
+        expressions = self.expressions(expression, flat=True)
+        return f"CLUSTER BY ({expressions})"
+
     def distribute_sql(self, expression: exp.Distribute) -> str:
         return self.op_expressions("DISTRIBUTE BY", expression)
 
@@ -4546,7 +4554,7 @@ class Generator:
                 args.append(arg_value)
 
         if self.dialect.PRESERVE_ORIGINAL_NAMES:
-            name = (expression._meta and expression.meta.get("name")) or expression.sql_name()
+            name = expression.meta_get("name") or expression.sql_name()
         else:
             name = expression.sql_name()
 
@@ -5250,7 +5258,7 @@ class Generator:
             )
             return self.sql(this)
 
-        if self.IGNORE_NULLS_IN_FUNC and not expression.meta.get("inline"):
+        if self.IGNORE_NULLS_IN_FUNC and not expression.meta_get("inline"):
             if self.IGNORE_NULLS_BEFORE_ORDER:
                 # The first modifier here will be the one closest to the AggFunc's arg
                 mods = sorted(
