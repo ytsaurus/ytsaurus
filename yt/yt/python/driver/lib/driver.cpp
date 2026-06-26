@@ -292,7 +292,7 @@ Py::Object TDriverBase::DeepCopy(const Py::Tuple& /*args*/)
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDriverModuleBase::Initialize(
-    const TString& moduleName,
+    const std::string& moduleName,
     std::function<void()> initType,
     std::function<void()> initModule,
     std::function<Py::Dict()> getModuleDictionary,

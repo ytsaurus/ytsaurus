@@ -147,7 +147,7 @@ void TDriverResponseHolder::HoldOutputStream(std::unique_ptr<IOutputStream>& out
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TDriverResponse::TypeName_;
+std::string TDriverResponse::TypeName_;
 
 TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TDriverResponse>::PythonClass(self, args, kwargs)
@@ -239,7 +239,7 @@ TDriverResponse::~TDriverResponse()
     GetFinalizerInvoker()->Invoke(BIND([holder = Holder_.Release()] { Unref(holder); }));
 }
 
-void TDriverResponse::InitType(const TString& moduleName)
+void TDriverResponse::InitType(const std::string& moduleName)
 {
     static std::once_flag flag;
     std::call_once(flag, [&] {
