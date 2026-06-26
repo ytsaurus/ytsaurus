@@ -26,7 +26,6 @@ ELSE()
 
         contrib/python/Brotli
         contrib/python/argcomplete
-        contrib/python/cryptography
         contrib/python/decorator
         contrib/python/distro
         contrib/python/typing-extensions
@@ -35,6 +34,8 @@ ELSE()
     IF (OPENSOURCE)
         PEERDIR(
             contrib/python/charset-normalizer
+            # COMPAT(epsilond1): https://ytsaurus.tech/internal/JLM4um8v7gahbo
+            contrib/python/cryptography/py3
         )
     ELSE()
         PEERDIR(
@@ -42,6 +43,8 @@ ELSE()
             yt/python/contrib/python-chardet
             library/python/svn_version
             library/python/oauth
+            # COMPAT(epsilond1): https://ytsaurus.tech/internal/JLM4um8v7gahbo
+            contrib/python/cryptography
         )
     ENDIF()
 
