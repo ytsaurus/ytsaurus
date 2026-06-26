@@ -219,7 +219,7 @@ private:
             }
         }
 
-        void LogOverallStatistics(const TString& message = "Reporting overall statistics") const
+        void LogOverallStatistics(const std::string& message = "Reporting overall statistics") const
         {
             if (SampleCount_ == 0) {
                 return;
@@ -394,7 +394,7 @@ private:
         YT_LOG_DEBUG("Created consumer (Path: %v)", ConsumerPath_);
     }
 
-    void WaitUntil(const TYPath& path, const TString& expected)
+    void WaitUntil(const TYPath& path, const std::string& expected)
     {
         TWallTimer timer;
         bool reached = false;
