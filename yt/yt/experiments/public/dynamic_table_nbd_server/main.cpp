@@ -35,10 +35,10 @@ DECLARE_REFCOUNTED_STRUCT(TConfig)
 struct TConfig
     : public NYTree::TYsonStruct
 {
-    TString ClusterUser;
+    std::string ClusterUser;
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     TNbdServerConfigPtr NbdServer;
-    THashMap<TString, TDynamicTableBlockDeviceConfigPtr> DynamicTableBlockDevices;
+    THashMap<std::string, TDynamicTableBlockDeviceConfigPtr> DynamicTableBlockDevices;
     int ThreadCount;
 
     REGISTER_YSON_STRUCT(TConfig);

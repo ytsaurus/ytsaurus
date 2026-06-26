@@ -85,8 +85,8 @@ public:
     }
 
     void WriteUnversionedRow(
-        std::vector<TString> names,
-        const TString& rowString)
+        std::vector<std::string> names,
+        const std::string& rowString)
     {
         auto preparedRow = PrepareUnversionedRow(names, rowString);
         WriteRows(
@@ -111,8 +111,8 @@ public:
     }
 
     std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> PrepareUnversionedRow(
-        const std::vector<TString>& names,
-        const TString& rowString)
+        const std::vector<std::string>& names,
+        const std::string& rowString)
     {
         auto nameTable = New<TNameTable>();
         for (const auto& name : names) {
@@ -125,7 +125,7 @@ public:
         return std::tuple(MakeSharedRange(rows, std::move(rowBuffer)), std::move(nameTable));
     }
 
-    void WaitUntil(const TYPath& path, const TString& expected)
+    void WaitUntil(const TYPath& path, const std::string& expected)
     {
         auto start = Now();
         bool reached = false;
@@ -168,7 +168,7 @@ int main()
     YT_LOG_INFO("Trulala");
 
     auto nameTable = New<TNameTable>();
-    auto names = std::vector<TString>{"k", "v", "a"};
+    auto names = std::vector<std::string>{"k", "v", "a"};
     for (const auto& name : names) {
         nameTable->GetIdOrRegisterName(name);
     }

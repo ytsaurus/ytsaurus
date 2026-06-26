@@ -15,7 +15,7 @@ class TTabularFormatter
 public:
     explicit TTabularFormatter(int columnCount);
 
-    TString Format(const std::vector<TString>& row);
+    std::string Format(const std::vector<std::string>& row);
 
 private:
     std::vector<int> MaxColumnWidth_;
