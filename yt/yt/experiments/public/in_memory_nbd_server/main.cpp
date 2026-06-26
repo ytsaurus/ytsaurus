@@ -21,7 +21,7 @@ struct TConfig
     : public NYTree::TYsonStruct
 {
     TNbdServerConfigPtr NbdServer;
-    THashMap<TString, TMemoryBlockDeviceConfigPtr> MemoryDevices;
+    THashMap<std::string, TMemoryBlockDeviceConfigPtr> MemoryDevices;
 
     REGISTER_YSON_STRUCT(TConfig);
 

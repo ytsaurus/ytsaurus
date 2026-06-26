@@ -86,7 +86,7 @@ protected:
 
         auto resolver = CreateAresDnsResolver(config);
 
-        std::vector<TString> hostnames;
+        std::vector<std::string> hostnames;
         std::vector<TFuture<TNetworkAddress>> futures;
 
         auto t0 = TInstant::Now();

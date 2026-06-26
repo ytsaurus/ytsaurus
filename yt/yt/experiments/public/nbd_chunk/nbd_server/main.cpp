@@ -30,7 +30,7 @@ struct TConfig
     : public NYTree::TYsonStruct
 {
     TNbdServerConfigPtr NbdServer;
-    THashMap<TString, TChunkBlockDeviceConfigPtr> NbdChunkBlockDevices;
+    THashMap<std::string, TChunkBlockDeviceConfigPtr> NbdChunkBlockDevices;
     std::string DataNodeNbdServiceAddress;
     int ThreadCount;
 

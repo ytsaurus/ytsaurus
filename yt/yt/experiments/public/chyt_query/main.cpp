@@ -187,7 +187,7 @@ private:
     bool PollProgressFlag_ = false;
     bool HideResultsFlag_ = false;
     i64 PollPeriodMs_ = 100;
-    THashMap<TString, TString> Settings_;
+    THashMap<std::string, std::string> Settings_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

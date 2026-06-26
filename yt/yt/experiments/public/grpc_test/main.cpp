@@ -71,7 +71,7 @@ DEFINE_RPC_SERVICE_METHOD(TTestService, TestFailedCall)
     context->Reply(TError("Error"));
 }
 
-void RunServer(const TString& address)
+void RunServer(const std::string& address)
 {
     auto serverAddressConfig = New<NGrpc::TServerAddressConfig>();
     serverAddressConfig->Address = address;
@@ -90,7 +90,7 @@ void RunServer(const TString& address)
     WaitFor(rpcServer->Stop()).ThrowOnError();
 }
 
-void RunClient(const TString& address, int numIter)
+void RunClient(const std::string& address, int numIter)
 {
     Cout << "Running " << numIter << " iterations of test" << Endl;
 

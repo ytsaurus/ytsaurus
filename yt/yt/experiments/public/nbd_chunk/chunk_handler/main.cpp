@@ -35,7 +35,7 @@ struct TConfig
     i64 Size;
     int MediumIndex;
     EFilesystemType FsType;
-    TString Address;
+    std::string Address;
     TDuration DataNodeNbdServiceRpcTimeout;
     TDuration DataNodeNbdServiceMakeTimeout;
     i64 NumIters;
