@@ -243,7 +243,17 @@ private:
             /*Cypress path*/ "n/a");
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
-        auto path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, mountPath.Path().string()));
+        // mountPath is the path inside the user job container (e.g. "/sandbox/tmpfs"), rooted at
+        // the container sandbox. Re-root it onto the host slot sandbox so the tmpfs is created
+        // inside the slot.
+        std::filesystem::path relativeMountPath;
+        for (const char* sandboxRoot : {"/slot/sandbox", "/sandbox"}) {
+            if (mountPath.Path().native().starts_with(sandboxRoot)) {
+                relativeMountPath = mountPath.Path().lexically_relative(sandboxRoot);
+                break;
+            }
+        }
+        auto path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, relativeMountPath.string()));
 
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
