@@ -79,6 +79,7 @@ def yql_agent(request):
     config["default_yql_ui_version"] = getattr(cls, "DEFAULT_YQL_UI_VERSION", None)
     config["allow_not_released_yql_versions"] = getattr(cls, "ALLOW_NOT_RELEASED_YQL_VERSIONS", True)
     config["subprocess_count"] = getattr(cls, "YQL_SUBPROCESS_COUNT", None)
+    config["dynamic_config_update_period"] = getattr(cls, "DYNAMIC_CONFIG_UPDATE_PERIOD", "1s")
 
     use_qtworker = getattr(cls, "YQL_QTWORKER", False)
     if use_qtworker:

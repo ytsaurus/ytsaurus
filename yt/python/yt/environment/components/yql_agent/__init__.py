@@ -61,6 +61,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self.default_yql_ui_version = config.get("default_yql_ui_version")
         self.allow_not_released_yql_versions = config.get("allow_not_released_yql_versions")
 
+        self.dynamic_config_update_period = config.get("dynamic_config_update_period")
+
         super(YqlAgent, self).prepare(env, config)
 
         if config.get("native_client_supported", False):
@@ -336,6 +338,11 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "libraries": self.libraries,
             },
         }
+
+        if self.dynamic_config_update_period is not None:
+            config["dynamic_config_manager"] = {
+                "update_period": self.dynamic_config_update_period
+            }
 
         # Add DQ configuration if enabled
         if self.enable_dq:
