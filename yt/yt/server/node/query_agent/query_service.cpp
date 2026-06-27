@@ -1786,8 +1786,6 @@ private:
             // NB: FinishRowIndex, MinTimestamp and MaxTimestamp might be inconsistent with each other.
         }
 
-        const auto& lastStore = storeSnapshots.back();
-
         // We want to find the first store containing timestamps >= T.
         //
         // For this we look for the first store S, such that T <= S->GetMaxTimestamp().
@@ -1813,17 +1811,32 @@ private:
         // The list of ordered stores is produced from a mapping of the form [startingRowIndex -> store],
         // so only the last store can potentially be empty. This is perfectly fine for us.
 
-        auto rowCount = desiredStoreIt != storeSnapshots.end()
-            ? desiredStoreIt->StartRowIndex
-            : lastStore.FinishRowIndex;
+        if (desiredStoreIt == storeSnapshots.end()) {
+            const auto& lastStore = storeSnapshots.back();
+            i64 rowCount = lastStore.FinishRowIndex;
 
-        YT_LOG_DEBUG("No stores (TabletId: %v, Timestamp: %v, RequestedTimestamp: %v, SafeToTrimRowCount: %v)",
-            tabletId,
-            timestamp,
-            requestedTimestamp,
-            rowCount);
+            YT_LOG_DEBUG(
+                "Using the last store (TabletId: %v, Timestamp: %v, RequestedTimestamp: %v, SafeToTrimRowCount: %v)",
+                tabletId,
+                timestamp,
+                requestedTimestamp,
+                rowCount);
 
-        return rowCount;
+            return rowCount;
+        } else {
+            i64 rowCount = desiredStoreIt->StartRowIndex;
+
+            YT_LOG_DEBUG(
+                "Store found "
+                "(TabletId: %v, StoreId: %v, Timestamp: %v, RequestedTimestamp: %v, SafeToTrimRowCount: %v)",
+                tabletId,
+                desiredStoreIt->Id,
+                timestamp,
+                requestedTimestamp,
+                rowCount);
+
+            return rowCount;
+        }
     }
 
     void OnDynamicConfigChanged(
