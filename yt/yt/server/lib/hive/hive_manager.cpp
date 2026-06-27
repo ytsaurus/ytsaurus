@@ -1830,7 +1830,7 @@ private:
             // confirmed by the receipient (see |next_persistent_incoming_message_id|),
             // we must still send empty ("idle") PostMessage periodically.
             cellRuntimeData->IdlePostCookie = TDelayedExecutor::Submit(
-                BIND_NO_PROPAGATE(&THiveManager::PostOutcomingMessagesThunk, MakeStrong(this), MakeWeak(cellRuntimeData), /*allowidle*/ true)
+                BIND_NO_PROPAGATE(&THiveManager::PostOutcomingMessagesThunk, MakeWeak(this), MakeWeak(cellRuntimeData), /*allowidle*/ true)
                     .Via(BackgroundInvoker_),
                 Config_->IdlePostPeriod);
             return;
