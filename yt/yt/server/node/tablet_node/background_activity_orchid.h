@@ -121,14 +121,14 @@ struct TBackgroundActivityTaskInfoBase
     const TGuid TaskId;
     const TTabletId TabletId;
     const NHydra::TRevision MountRevision;
-    const TString TablePath;
+    const NYPath::TYPath TablePath;
     const std::string TabletCellBundle;
 
     TBackgroundActivityTaskInfoBase(
         TGuid taskId,
         TTabletId tabletId,
         NHydra::TRevision mountRevision,
-        TString tablePath,
+        NYPath::TYPath tablePath,
         std::string tabletCellBundle);
 };
 

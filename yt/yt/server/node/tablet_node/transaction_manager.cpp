@@ -1010,7 +1010,7 @@ private:
     TEntityMap<TTransaction> TransientTransactionMap_;
     TEntityMap<TExternalizedTransaction> PersistentExternalizedTransactionMap_;
     THashMap<TTransactionExternalizationToken, THashSet<TTransaction*>> TokenToExternalizedTransactions_;
-    THashMap<TString, TCallback<bool(TTransaction*, TStringBuf, TTabletId)>>
+    THashMap<std::string, TCallback<bool(TTransaction*, TStringBuf, TTabletId)>>
         NeedActionExternalizationHandlers_;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;

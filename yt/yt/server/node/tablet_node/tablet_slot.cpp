@@ -105,7 +105,7 @@ using namespace NYson;
 
 using NHydra::EPeerState;
 
-static const TString TabletCellHydraTracker = "TabletCellHydra";
+static const std::string TabletCellHydraTracker = "TabletCellHydra";
 
 ////////////////////////////////////////////////////////////////////////////////
 
