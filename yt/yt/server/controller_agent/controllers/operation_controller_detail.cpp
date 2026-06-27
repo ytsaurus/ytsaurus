@@ -989,8 +989,7 @@ void TOperationControllerBase::InitializeStructures()
     }
 
     if (TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs())) {
-        // TODO(babenko): migrate to std::string
-        auto path = TRichYPath(TString(*Spec_->JobExperiment->BaseLayerPath));
+        auto path = TRichYPath(*Spec_->JobExperiment->BaseLayerPath);
         if (path.GetTransactionId()) {
             THROW_ERROR_EXCEPTION("Transaction id is not supported for \"probing_base_layer_path\"");
         }
@@ -1072,7 +1071,7 @@ void TOperationControllerBase::InitializeOrchid()
     using TLivePreviewMapService = NYTree::TCollectionBoundMapService<TLivePreviewMap>;
     LivePreviewService_ = New<TLivePreviewMapService>(std::weak_ptr<TLivePreviewMap>(LivePreviews_));
 
-    auto createService = [&] (auto fluentMethod, const TString& key) {
+    auto createService = [&] (auto fluentMethod, const std::string& key) {
         return IYPathService::FromProducer(BIND(
             [
                 =,
@@ -1107,12 +1106,12 @@ void TOperationControllerBase::InitializeOrchid()
         };
     };
 
-    auto createServiceWithInvoker = [&] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
+    auto createServiceWithInvoker = [&] (auto fluentMethod, const std::string& key) -> IYPathServicePtr {
         return createService(std::move(fluentMethod), key)
             ->Via(InvokerPool_->GetInvoker(EOperationControllerQueue::Default));
     };
 
-    auto createMapServiceWithInvoker = [&] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
+    auto createMapServiceWithInvoker = [&] (auto fluentMethod, const std::string& key) -> IYPathServicePtr {
         return createServiceWithInvoker(wrapWithMap(std::move(fluentMethod)), key);
     };
 
@@ -3198,8 +3197,7 @@ void TOperationControllerBase::OnJobStarted(const TJobletPtr& joblet)
     YT_LOG_DEBUG("Job started (JobId: %v)", joblet->JobId);
 
     joblet->LastActivityTime = TInstant::Now();
-    // TODO(babenko): migrate to std::string
-    joblet->TaskName = TString(joblet->Task->GetVertexDescriptor());
+    joblet->TaskName = joblet->Task->GetVertexDescriptor();
 
     GetJobProfiler()->ProfileStartedJob(*joblet);
 
@@ -5179,7 +5177,7 @@ void TOperationControllerBase::TryScheduleFirstJob(
                 /*allowIdleCpuPolicy*/ IsIdleCpuPolicyAllowedInTree(allocation.TreeId),
                 *context.GetScheduleAllocationSpec());
             startDescriptor.AllocationAttributes.EnableMultipleJobs = Spec_->EnableMultipleJobsInAllocation.value_or(false);
-            startDescriptor.AllocationGroupName = std::string(task->GetVertexDescriptor());
+            startDescriptor.AllocationGroupName = task->GetVertexDescriptor();
             scheduleAllocationResult->StartDescriptor.emplace(std::move(startDescriptor));
 
             RegisterTestingSpeculativeJobIfNeeded(*task, scheduleAllocationResult->StartDescriptor->Id);
@@ -6133,8 +6131,7 @@ void TOperationControllerBase::InitializeJobExperiment()
         if (TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs())) {
             YT_VERIFY(BaseLayer_.has_value());
             JobExperiment_ = New<TLayerJobExperiment>(
-                // TODO(babenko): migrate to std::string
-                TString(*Spec_->DefaultBaseLayerPath),
+                *Spec_->DefaultBaseLayerPath,
                 *BaseLayer_,
                 Config_->EnableBypassArtifactCache,
                 Logger);
@@ -6459,7 +6456,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         int replicationFactor,
         NCompression::ECodec compressionCodec,
         const std::optional<std::string>& account,
-        const TString& key,
+        const std::string& key,
         const TYsonString& acl,
         const TTableSchemaPtr& schema)
     {
@@ -6925,7 +6922,7 @@ void TOperationControllerBase::PatchTableWriteBuffer(
         !schema->Columns().empty() &&
         schemaMode == NTableClient::ETableSchemaMode::Strong)
     {
-        THashSet<TString> groups;
+        THashSet<std::string> groups;
         int singleColumnGroupCount = 0;
 
         for (const auto& column : schema->Columns()) {
@@ -7760,7 +7757,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             {
                 auto req = TYPathProxy::Get(file.GetObjectIdPath() + "/@");
                 SetTransactionId(req, *file.TransactionId);
-                std::vector<TString> attributeKeys;
+                std::vector<std::string> attributeKeys;
                 attributeKeys.emplace_back("file_name");
                 attributeKeys.emplace_back("account");
                 switch (file.Type) {
@@ -7810,7 +7807,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
     int index = 0;
     for (auto& [userJobSpec, files] : UserJobFiles_) {
-        THashSet<TString> userFileNames;
+        THashSet<std::string> userFileNames;
         try {
             for (auto& file : files) {
                 const auto& path = file.Path.GetPath();
@@ -7835,9 +7832,9 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                 linkAttributes = ConvertToAttributes(TYsonString(linkRsp.Value()->value()));
                                 actualAttributes = linkAttributes.Get();
                             }
-                            if (const auto& fileNameAttribute = actualAttributes->Find<TString>("file_name")) {
+                            if (const auto& fileNameAttribute = actualAttributes->Find<std::string>("file_name")) {
                                 file.FileName = *fileNameAttribute;
-                            } else if (const auto& keyAttribute = actualAttributes->Find<TString>("key")) {
+                            } else if (const auto& keyAttribute = actualAttributes->Find<std::string>("key")) {
                                 file.FileName = *keyAttribute;
                             } else {
                                 THROW_ERROR_EXCEPTION("Couldn't infer file name for user file");
@@ -7861,14 +7858,14 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                                 auto accessMethod = file.Path.GetAccessMethod();
                                 if (!accessMethod) {
-                                    accessMethod = attributes.Find<TString>("access_method");
+                                    accessMethod = attributes.Find<std::string>("access_method");
                                 }
 
                                 // We deliberately do not support filesystem in file.Path
                                 // since filesystem is the property of the actual file not its path.
                                 std::tie(file.AccessMethod, file.Filesystem) = GetAccessMethodAndFilesystemFromStrings(
                                     accessMethod.value_or(ToString(ELayerAccessMethod::Local)),
-                                    attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
+                                    attributes.Find<std::string>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
                             }
                             break;
 
@@ -8681,7 +8678,7 @@ bool TOperationControllerBase::IsLocalityEnabled() const
         && Options_->AllowLocality;
 }
 
-TString TOperationControllerBase::GetLoggingProgress() const
+std::string TOperationControllerBase::GetLoggingProgress() const
 {
     return Format(
         "{JobCounter: %v, ControllerPendingJobCount: %v, UnavailableInputChunks: %v}",
@@ -8881,7 +8878,7 @@ bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const
     return false;
 }
 
-void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOutputTablePtr& table)
+void TOperationControllerBase::RegisterLivePreviewTable(std::string name, const TOutputTablePtr& table)
 {
     // COMPAT(galtsev)
     if (name.empty()) {
@@ -8894,8 +8891,9 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
 
     auto schema = table->TableUploadOptions.TableSchema.Get();
     LivePreviews_->emplace(
-        name,
-        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, Logger, OperationId_, name, table->Path.GetPath()));
+        // TODO(babenko): drop casts once TLivePreviewMap key and TLivePreview accept std::string
+        TString(name),
+        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, Logger, OperationId_, TString(name), table->Path.GetPath()));
     table->LivePreviewTableName = std::move(name);
 }
 
@@ -10931,7 +10929,7 @@ void TOperationControllerBase::InitUserJobSpec(
             ConvertToYsonString(SecureVault_, EYsonFormat::Text)));
 
         for (const auto& [key, node] : SecureVault_->GetChildren()) {
-            std::optional<TString> value;
+            std::optional<std::string> value;
             switch (node->GetType()) {
                 #define XX(type, cppType) \
                 case ENodeType::type: \
@@ -11095,7 +11093,7 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
     return result;
 }
 
-void TOperationControllerBase::ValidateUserFileCount(const TUserJobSpecPtr& spec, const TString& operation)
+void TOperationControllerBase::ValidateUserFileCount(const TUserJobSpecPtr& spec, const std::string& operation)
 {
     if (std::ssize(spec->FilePaths) > Config_->MaxUserFileCount) {
         THROW_ERROR_EXCEPTION("Too many user files in %v: maximum allowed %v, actual %v",

@@ -41,7 +41,7 @@ TVirtualStaticTable::TVirtualStaticTable(
     TTableSchemaPtr schema,
     TNodeDirectoryPtr nodeDirectory,
     TOperationId operationId,
-    TString name,
+    std::string name,
     TYPath path)
     : Chunks_(chunks)
     , Schema_(std::move(schema))
@@ -190,7 +190,7 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
             "```\n"
             "yt concatenate --src %v/controller_orchid/live_previews/%v --dst //path/to/table\n"
             "```\n",
-            Path_.empty() ? Name_ : Path_,
+            Path_.empty() ? TStringBuf(Name_) : TStringBuf(Path_),
             OperationId_,
             GetOperationPath(OperationId_),
             Name_);

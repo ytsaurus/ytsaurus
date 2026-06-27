@@ -57,7 +57,7 @@ public:
     TVanillaTask(
         ITaskHostPtr taskHost,
         TVanillaTaskSpecPtr spec,
-        TString name,
+        std::string name,
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
         std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
         int jobCount);
@@ -66,7 +66,7 @@ public:
     TVanillaTask() = default;
 
     std::string GetTitle() const override;
-    TString GetName() const;
+    std::string GetName() const;
 
     TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
 
@@ -102,7 +102,7 @@ protected:
     TVanillaController* VanillaController_ = nullptr;
 
     TVanillaTaskSpecPtr Spec_;
-    TString Name_;
+    std::string Name_;
 
     TSerializableLogger Logger;
 
@@ -143,7 +143,7 @@ public:
 
     void CustomMaterialize() override;
 
-    TString GetLoggingProgress() const override;
+    std::string GetLoggingProgress() const override;
 
     std::vector<TRichYPath> GetInputTablePaths() const override;
 
@@ -211,7 +211,7 @@ private:
     virtual TVanillaTaskPtr CreateTask(
         ITaskHostPtr taskHost,
         TVanillaTaskSpecPtr spec,
-        TString name,
+        std::string name,
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
         std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
         int jobCount);
@@ -226,7 +226,7 @@ PHOENIX_DEFINE_TYPE(TVanillaController);
 TVanillaTask::TVanillaTask(
     ITaskHostPtr taskHost,
     TVanillaTaskSpecPtr spec,
-    TString name,
+    std::string name,
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
     std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
     int jobCount)
@@ -266,7 +266,7 @@ std::string TVanillaTask::GetTitle() const
     return Format("Vanilla(%v)", Name_);
 }
 
-TString TVanillaTask::GetName() const
+std::string TVanillaTask::GetName() const
 {
     return Name_;
 }
@@ -514,8 +514,7 @@ void TVanillaController::CustomMaterialize()
         auto task = CreateTask(
             this,
             taskSpec,
-            // TODO(babenko): migrate to std::string
-            TString(taskName),
+            taskName,
             std::move(streamDescriptors),
             std::vector<TInputStreamDescriptorPtr>{},
             GetOrCrash(dynamicSpec->Tasks, taskName)->JobCount);
@@ -529,12 +528,11 @@ void TVanillaController::CustomMaterialize()
         TotalTargetJobCount_ += task->GetTargetJobCount();
 
         Tasks_.emplace_back(std::move(task));
-        // TODO(babenko): migrate to std::string
-        ValidateUserFileCount(taskSpec, TString(taskName));
+        ValidateUserFileCount(taskSpec, taskName);
     }
 }
 
-TString TVanillaController::GetLoggingProgress() const
+std::string TVanillaController::GetLoggingProgress() const
 {
     return Format(
         "{Jobs: %v, ControllerPendingJobCount: %v}",
@@ -708,7 +706,7 @@ void TVanillaController::ValidateOperationLimits()
 TVanillaTaskPtr TVanillaController::CreateTask(
     ITaskHostPtr taskHost,
     TVanillaTaskSpecPtr spec,
-    TString name,
+    std::string name,
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
     std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
     int jobCount)
@@ -882,7 +880,7 @@ public:
     TGangTask(
         ITaskHostPtr taskHost,
         TVanillaTaskSpecPtr spec,
-        TString name,
+        std::string name,
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
         std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
         int jobCount);
@@ -991,7 +989,7 @@ private:
     TVanillaTaskPtr CreateTask(
         ITaskHostPtr taskHost,
         TVanillaTaskSpecPtr spec,
-        TString name,
+        std::string name,
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
         std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
         int jobCount) final;
@@ -1140,7 +1138,7 @@ void TGangRankPool::RegisterMetadata(auto&& registrar)
 TGangTask::TGangTask(
     ITaskHostPtr taskHost,
     TVanillaTaskSpecPtr spec,
-    TString name,
+    std::string name,
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
     std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
     int jobCount)
@@ -1696,7 +1694,7 @@ TOperationIncarnation TGangOperationController::GenerateNewIncarnation()
 TVanillaTaskPtr TGangOperationController::CreateTask(
     ITaskHostPtr taskHost,
     TVanillaTaskSpecPtr spec,
-    TString name,
+    std::string name,
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
     std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
     int jobCount)

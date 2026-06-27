@@ -640,13 +640,13 @@ private:
         return EPermission::FullRead;
     }
 
-    std::vector<TString> BuildSystemAttributeKeys() const
+    std::vector<std::string> BuildSystemAttributeKeys() const
     {
         if (!Spec_->ForceCopySystemAttributes) {
             return {};
         }
 
-        std::vector<TString> keys{
+        std::vector<std::string> keys{
             "compression_codec",
             "erasure_codec",
         };
@@ -935,7 +935,7 @@ private:
         return HunkTask_ != nullptr;
     }
 
-    std::vector<TString> BuildOutputTableAttributeKeys() const
+    std::vector<std::string> BuildOutputTableAttributeKeys() const
     {
         YT_VERIFY(Spec_->CopyAttributes || Spec_->ForceCopySystemAttributes);
 
@@ -958,8 +958,7 @@ private:
                     // Do not duplicate system attributes' keys.
                     continue;
                 }
-                // TODO(babenko): migrate to std::string
-                attributeKeys.push_back(TString(key));
+                attributeKeys.push_back(key);
             }
         }
 

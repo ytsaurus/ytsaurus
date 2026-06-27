@@ -2763,7 +2763,7 @@ protected:
         return streamDescriptor;
     }
 
-    IPersistentChunkPoolPtr CreateSortedMergeChunkPool(TString name)
+    IPersistentChunkPoolPtr CreateSortedMergeChunkPool(std::string name)
     {
         TSortedChunkPoolOptions chunkPoolOptions;
         TSortedJobOptions jobOptions;
@@ -3910,7 +3910,7 @@ private:
 
     // Progress reporting.
 
-    TString GetLoggingProgress() const override
+    std::string GetLoggingProgress() const override
     {
         return Format(
             "{"
@@ -4878,7 +4878,7 @@ private:
 
     // Progress reporting.
 
-    TString GetLoggingProgress() const override
+    std::string GetLoggingProgress() const override
     {
         return Format(
             "{"
