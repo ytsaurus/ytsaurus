@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -68,8 +70,8 @@ public:
 
 private:
     /// NB(achains): Non-const members come first because async stream and format writer depends on them.
-    TString Data_;
-    TStringOutput OutputStream_;
+    std::string Data_;
+    TStdStringOutput OutputStream_;
 
     const IFlushableAsyncOutputStreamPtr AsyncOutputStream_;
     const ISchemalessFormatWriterPtr FormatWriter_;

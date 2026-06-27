@@ -65,6 +65,8 @@
 
 #include <library/cpp/yt/misc/static_initializer.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <library/cpp/yt/farmhash/farm_hash.h>
 
 #include <library/cpp/xdelta3/state/merge.h>
@@ -3236,8 +3238,8 @@ extern "C" void Split(
     result->Type = EValueType::Any;
     result->Flags = {};
 
-    auto resultYson = TString();
-    auto output = TStringOutput(resultYson);
+    auto resultYson = std::string();
+    auto output = TStdStringOutput(resultYson);
     auto writer = TYsonWriter(&output, EYsonFormat::Binary);
 
     writer.OnBeginList();
