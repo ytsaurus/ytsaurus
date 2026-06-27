@@ -680,7 +680,7 @@ void TBootstrap::LoadSnapshot(
         .ThrowOnError();
 }
 
-void TBootstrap::ReplayChangelogs(std::vector<TString> changelogFileNames)
+void TBootstrap::ReplayChangelogs(std::vector<std::string> changelogFileNames)
 {
     BIND(&TBootstrap::DoReplayChangelogs, MakeStrong(this), Passed(std::move(changelogFileNames)))
         .AsyncVia(GetControlInvoker())
@@ -1291,7 +1291,7 @@ void TBootstrap::DoLoadSnapshot(
     }
 }
 
-void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNames)
+void TBootstrap::DoReplayChangelogs(const std::vector<std::string>& changelogFileNames)
 {
     const auto& hydraManager = HydraFacade_->GetHydraManager();
     auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);

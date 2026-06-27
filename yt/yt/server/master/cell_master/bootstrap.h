@@ -182,7 +182,7 @@ public:
         ESerializationDumpMode dumpMode,
         TSerializationDumpScopeFilter dumpScopeFilter,
         bool checkInvariants);
-    void ReplayChangelogs(std::vector<TString> changelogFileNames);
+    void ReplayChangelogs(std::vector<std::string> changelogFileNames);
     void FinishRecoveryDryRun();
     void BuildSnapshot();
     void FinishDryRun();
@@ -292,7 +292,7 @@ protected:
         ESerializationDumpMode dumpMode,
         TSerializationDumpScopeFilter dumpScopeFilter,
         bool checkInvariants);
-    void DoReplayChangelogs(const std::vector<TString>& changelogFileNames);
+    void DoReplayChangelogs(const std::vector<std::string>& changelogFileNames);
     void DoFinishRecoveryDryRun();
     void DoBuildSnapshot();
     void DoFinishDryRun();

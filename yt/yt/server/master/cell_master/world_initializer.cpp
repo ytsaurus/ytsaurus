@@ -1088,8 +1088,7 @@ private:
 
             for (auto cellConfig : Config_->SecondaryMasters) {
                 auto cellTag = CellTagFromId(cellConfig->CellId);
-                // TODO(dgolear): Switch to std::string.
-                TString cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
+                TYPath cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
                 createMasters(cellPath, cellConfig);
             }
 
@@ -1100,7 +1099,7 @@ private:
                     auto cellTag = TCellTag(FromString<TCellTag::TUnderlying>(stringCellTag));
                     if (!knownSecondaryMasterCellTags.contains(cellTag)) {
                         YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
-                        TString cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
+                        TYPath cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
                         ScheduleRemoveNode(cellPath, transactionId, /*force*/ true);
                     }
                 }
@@ -1113,14 +1112,14 @@ private:
             // TODO(babenko): handle service discovery.
             if (Config_->TimestampProvider->Addresses) {
                 for (const auto& timestampProviderAddress : *Config_->TimestampProvider->Addresses) {
-                    TString addressPath = "//sys/timestamp_providers/" + ToYPathLiteral(timestampProviderAddress);
+                    TYPath addressPath = "//sys/timestamp_providers/" + ToYPathLiteral(timestampProviderAddress);
                     createOrchidNode(addressPath, timestampProviderAddress);
                 }
             }
 
             if (Config_->DiscoveryServer && Config_->DiscoveryServer->Addresses) {
                 for (const auto& discoveryServerAddress : *Config_->DiscoveryServer->Addresses) {
-                    TString addressPath = "//sys/discovery_servers/" + ToYPathLiteral(discoveryServerAddress);
+                    TYPath addressPath = "//sys/discovery_servers/" + ToYPathLiteral(discoveryServerAddress);
                     createOrchidNode(addressPath, discoveryServerAddress);
                 }
             }
