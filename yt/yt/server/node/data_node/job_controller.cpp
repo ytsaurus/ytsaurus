@@ -225,7 +225,7 @@ private:
 
     TMasterJobSensors MasterJobSensors_;
 
-    THashMap<TString, THashMap<NChunkServer::TJobId, TMasterJobBasePtr>> JobMaps_;
+    THashMap<std::string, THashMap<NChunkServer::TJobId, TMasterJobBasePtr>> JobMaps_;
 
     bool StartJobsScheduled_ = false;
 

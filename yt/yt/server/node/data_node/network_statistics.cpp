@@ -14,7 +14,7 @@ TNetworkStatistics::TNetworkStatistics(TDataNodeConfigPtr config)
     : Config_(std::move(config))
 { }
 
-void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
+void TNetworkStatistics::IncrementReadThrottlingCounter(const std::string& name)
 {
     auto counters = Counters_.FindOrInsert(name, [&] {
         auto counters = New<TNetworkCounters>();

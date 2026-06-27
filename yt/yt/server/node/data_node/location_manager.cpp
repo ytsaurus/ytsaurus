@@ -54,7 +54,7 @@ TLocationManager::TLocationManager(
 }
 
 TFuture<void> TLocationManager::FailDiskByName(
-    const TString& diskName,
+    const std::string& diskName,
     const TError& error)
 {
     if (!DiskInfoProvider_) {
