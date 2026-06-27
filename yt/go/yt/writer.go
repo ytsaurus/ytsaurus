@@ -483,22 +483,22 @@ type (
 	}
 )
 
-// WithFileBatchSize sets batch size (in bytes) for WriteFile.
-func WithFileBatchSize(batchSize int) WriteFileOption {
+// WithWriteFileBatchSize sets batch size (in bytes) for WriteFile.
+func WithWriteFileBatchSize(batchSize int) WriteFileOption {
 	return func(w *fileWriter) {
 		w.batchSize = batchSize
 	}
 }
 
-// WithFileRetries allows to retry flushing several times in case of an error.
-func WithFileRetries(count uint64) WriteFileOption {
+// WithWriteFileRetries allows to retry flushing several times in case of an error.
+func WithWriteFileRetries(count uint64) WriteFileOption {
 	return func(w *fileWriter) {
 		w.retryCount = count
 	}
 }
 
-// WithFileCreateOptions sets options used to create the file.
-func WithFileCreateOptions(options *CreateNodeOptions) WriteFileOption {
+// WithWriteFileCreateOptions sets options used to create the file.
+func WithWriteFileCreateOptions(options *CreateNodeOptions) WriteFileOption {
 	return func(w *fileWriter) {
 		w.createOptions = options
 	}
@@ -566,7 +566,7 @@ func (w *fileWriter) Close() (closeErr error) {
 // WriteFile creates high level file writer.
 //
 // By default, WriteFile creates a new file, writing it in retriable batches.
-// Use WithFileCreateOptions to control file creation.
+// Use WithWriteFileCreateOptions to control file creation.
 func WriteFile(ctx context.Context, yc CypressClient, path ypath.Path, opts ...WriteFileOption) (io.WriteCloser, error) {
 	w := &fileWriter{
 		ctx:        ctx,

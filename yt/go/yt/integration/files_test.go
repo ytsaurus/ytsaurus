@@ -84,7 +84,7 @@ func TestHighLevelFileWriter(t *testing.T) {
 	t.Run("BigWrite", func(t *testing.T) {
 		name := tmpPath()
 
-		w, err := yt.WriteFile(env.Ctx, env.YT, name, yt.WithFileBatchSize(100))
+		w, err := yt.WriteFile(env.Ctx, env.YT, name, yt.WithWriteFileBatchSize(100))
 		require.NoError(t, err)
 
 		const testSize = 1024
