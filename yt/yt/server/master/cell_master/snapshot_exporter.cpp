@@ -390,7 +390,7 @@ void DoExportSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExportSnapshot(TBootstrap* bootstrap, const TString& configPath)
+void ExportSnapshot(TBootstrap* bootstrap, const std::string& configPath)
 {
     auto config = ConvertTo<TExportArgumentsConfigPtr>(TYsonString(configPath));
 
