@@ -187,7 +187,7 @@ struct TCompactionTaskInfo
         TGuid taskId,
         TTabletId tabletId,
         NHydra::TRevision mountRevision,
-        TString tablePath,
+        NYPath::TYPath tablePath,
         std::string tabletCellBundle,
         TPartitionId partitionId,
         EStoreCompactionReason reason,
@@ -1453,7 +1453,7 @@ private:
             &TStoreCompactor::CompactPartition);
     }
 
-    NNative::ITransactionPtr StartMasterTransaction(const TTabletSnapshotPtr& tabletSnapshot, const TString& title)
+    NNative::ITransactionPtr StartMasterTransaction(const TTabletSnapshotPtr& tabletSnapshot, const std::string& title)
     {
         auto transactionAttributes = CreateEphemeralAttributes();
         transactionAttributes->Set("title", title);

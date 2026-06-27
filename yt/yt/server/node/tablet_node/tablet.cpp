@@ -2477,7 +2477,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
 
     const auto& throttlerManager = slot->GetDistributedThrottlerManager();
 
-    auto getThrottlerConfig = [&] (const TString& key) {
+    auto getThrottlerConfig = [&] (const std::string& key) {
         auto it = Settings_.MountConfig->Throttlers.find(key);
         return it != Settings_.MountConfig->Throttlers.end()
             ? it->second

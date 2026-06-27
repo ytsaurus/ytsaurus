@@ -75,7 +75,7 @@ DEFINE_ENUM(EPullerErrorKind,
 ////////////////////////////////////////////////////////////////////////////////
 
 inline static constexpr int TabletRowsPerRead = 1000;
-static const TString PullerErrorKindAttribute = "puller_error_kind";
+static const std::string PullerErrorKindAttribute = "puller_error_kind";
 
 inline static constexpr int PreviousIterationDurationSmoothingWeight = 4;
 inline static constexpr int CurrentIterationDurationSmoothingWeight = 1;
