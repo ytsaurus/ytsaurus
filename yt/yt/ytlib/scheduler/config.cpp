@@ -211,10 +211,9 @@ TPoolName TPoolName::FromString(const std::string& value)
     }
 }
 
-TString TPoolName::ToString() const
+std::string TPoolName::ToString() const
 {
-    // TODO(babenko): migrate to std::string
-    return TString(Pool_);
+    return Pool_;
 }
 
 void Deserialize(TPoolName& value, INodePtr node)

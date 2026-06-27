@@ -62,7 +62,7 @@ public:
 
     static const char Delimiter;
 
-    TString ToString() const;
+    std::string ToString() const;
     static TPoolName FromString(const std::string& value);
 
     const std::string& GetPool() const;
