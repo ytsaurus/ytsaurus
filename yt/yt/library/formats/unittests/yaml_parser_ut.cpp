@@ -8,6 +8,10 @@
 
 #include <yt/yt/core/yson/writer.h>
 
+#include <library/cpp/yt/string/stream.h>
+
+#include <util/stream/mem.h>
+
 namespace NYT::NFormats {
 namespace {
 
@@ -15,10 +19,10 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////
 
-std::string ParseYaml(const TString& yaml, EYsonType ysonType)
+std::string ParseYaml(const std::string& yaml, EYsonType ysonType)
 {
-    TStringStream inputStream(yaml);
-    TStringStream outputStream;
+    TMemoryInput inputStream(yaml);
+    TStdStringStream outputStream;
     TYsonWriter writer(&outputStream, EYsonFormat::Pretty, ysonType);
     auto config = New<TYamlFormatConfig>();
     ParseYaml(&inputStream, &writer, config, ysonType);
@@ -29,7 +33,7 @@ std::string ParseYaml(const TString& yaml, EYsonType ysonType)
 
 TEST(TYamlParserTest, Simple)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 hello)";
     // Here and in the rest of the tests we introduce an extra leading \n for the better readabilty, which we later
     // strip off in the comparison.
@@ -40,7 +44,7 @@ hello)";
 
 TEST(TYamlParserTest, Integers)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 a: 1
 b: -1
 # Hex and oct
@@ -81,7 +85,7 @@ o: !!int -15)";
 })";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::Node), expectedYson.substr(1));
 
-    std::vector<TString> invalidYamls = {
+    std::vector<std::string> invalidYamls = {
         "!!int -0x42",
         "!!int -0o23",
         "!!int deadbeef",
@@ -104,7 +108,7 @@ o: !!int -15)";
 
 TEST(TYamlParserTest, Floats)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 a: 1.
 b: .2
 c: +3.14
@@ -139,7 +143,7 @@ n: 1e-2
 })";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::Node), expectedYson.substr(1));
 
-    std::vector<TString> invalidYamls = {
+    std::vector<std::string> invalidYamls = {
         "!!float 0o23",
         "!!float 1e",
         "!!float 1e+",
@@ -165,7 +169,7 @@ n: 1e-2
 
 TEST(TYamlParserTest, Booleans)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 a: true
 b: false
 c: True
@@ -186,7 +190,7 @@ g: !!bool true
 })";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::Node), expectedYson.substr(1));
 
-    std::vector<TString> invalidYamls = {
+    std::vector<std::string> invalidYamls = {
         "!!bool 1",
         "!!bool 0",
         // Examples below were booleans in YAML 1.1, but not in YAML 1.2.
@@ -206,7 +210,7 @@ g: !!bool true
 
 TEST(TYamlParserTest, Nulls)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 a: null
 b: Null
 c: NULL
@@ -231,7 +235,7 @@ g: !!null foo
 
 TEST(TYamlParserTest, Strings)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 a: "hello"
 b: 'world'
 c: of
@@ -255,7 +259,7 @@ g: ! hello
 
 TEST(TYamlParserTest, Mappings)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 a:
   x: 1
   y:
@@ -284,7 +288,7 @@ c: {}
 
 TEST(TYamlParserTest, Sequences)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 - foo
 - - 1
   - 2
@@ -316,7 +320,7 @@ TEST(TYamlParserTest, Sequences)
 
 TEST(TYamlParserTest, Attributes)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 !yt/attrnode
 - x: 1
   y: 2
@@ -352,7 +356,7 @@ TEST(TYamlParserTest, Attributes)
 })";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::Node), expectedYson.substr(1));
 
-    std::vector<std::pair<TString, std::string>> invalidYamlsAndErrors = {
+    std::vector<std::pair<std::string, std::string>> invalidYamlsAndErrors = {
         {R"(
 !yt/attrnode
 - x: 1
@@ -377,7 +381,7 @@ TEST(TYamlParserTest, Attributes)
 
 TEST(TYamlParserTest, MultiDocument)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 a: 1
 ---
 foo
@@ -398,7 +402,7 @@ foo
 
 TEST(TYamlParserTest, Anchors)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 a: &foo 1
 b: *foo
 c: &bar
@@ -453,7 +457,7 @@ g: *qux
 })";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::Node), expectedYson.substr(1));
 
-    std::vector<std::pair<TString, std::string>> invalidYamlsAndErrors = {
+    std::vector<std::pair<std::string, std::string>> invalidYamlsAndErrors = {
         {R"(
 a: *foo
 )", "undefined or unfinished anchor"},
@@ -486,7 +490,7 @@ a: &foo bar
 
 TEST(TYamlParserTest, Empty)
 {
-    TString yaml = "";
+    std::string yaml = "";
     TStringBuf expectedYson = "";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::ListFragment), expectedYson);
 }
@@ -494,7 +498,7 @@ TEST(TYamlParserTest, Empty)
 //! There is a reverse test in yaml_writer_ut.cpp.
 TEST(TYamlParserTest, RealExample)
 {
-    TString yaml = R"(
+    std::string yaml = R"(
 mount_config: {}
 schema: !yt/attrnode
 - strict: true
