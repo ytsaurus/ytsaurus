@@ -2,13 +2,14 @@
 # each module emitting its own ad-hoc line. Underscore-prefixed, so the package
 # auto-loader skips it; command modules import it explicitly.
 
-_commands = []   # command names, in load order
+_commands = []   # list of (group_label, [command_name, ...]), in load order
 _notes = []      # free-form one-line notes (e.g. the pretty-printer summary)
 
 
-def command(*names):
-    """Register command name(s) for the load banner."""
-    _commands.extend(names)
+def command(group, *names):
+    """Register command name(s) under a human-readable group label for the banner.
+    Repeated calls with the same label merge into one group."""
+    _commands.append((group, list(names)))
 
 
 def note(text):
@@ -17,17 +18,17 @@ def note(text):
 
 
 def print_banner():
-    """Print the collected commands (grouped by yt-<family>- prefix) and notes."""
+    """Print the registered commands, grouped by label, followed by the notes."""
     if _commands:
         order, groups = [], {}
-        for name in _commands:
-            parts = name.split("-")
-            family = "-".join(parts[:2]) if len(parts) > 2 else name
-            if family not in groups:
-                groups[family] = []
-                order.append(family)
-            groups[family].append(name)
-        families = [", ".join(groups[family]) for family in order]
-        print("[yt-gdb] commands: " + "  |  ".join(families))
+        for group, names in _commands:
+            if group not in groups:
+                groups[group] = []
+                order.append(group)
+            groups[group].extend(names)
+        width = max(len(group) for group in order) + 1  # room for the ':'
+        print("Supported commands:")
+        for group in order:
+            print("  %-*s  %s" % (width, group + ":", "  ".join(groups[group])))
     for text in _notes:
-        print("[yt-gdb] " + text)
+        print(text)

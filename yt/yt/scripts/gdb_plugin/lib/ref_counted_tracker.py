@@ -178,7 +178,7 @@ class YtRcDump(gdb.Command):
 
 def register():
     YtRcDump()
-    _announce.command("yt-rc-dump")
+    _announce.command("ref-counted", "yt-rc-dump")
 
 
 register()

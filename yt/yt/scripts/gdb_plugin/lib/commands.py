@@ -196,7 +196,7 @@ def register():
     YtHolders()
     YtTrace()
     YtFind()
-    _announce.command("yt-rc-obj", "yt-rc-backref", "yt-rc-cycle", "yt-rc-find")
+    _announce.command("ref-counted", "yt-rc-obj", "yt-rc-backref", "yt-rc-cycle", "yt-rc-find")
 
 
 register()

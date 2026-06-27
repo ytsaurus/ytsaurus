@@ -1,6 +1,7 @@
 # Interactive fiber commands.
 #
-#     yt-fiber-list           concise roster of parked fibers (one line each)
+#     yt-fiber-list [-a]      roster of parked fibers (idle pooled ones hidden
+#                             unless -a)
 #     yt-fiber-bt <n>         full backtrace of parked fiber n (read-only)
 #     yt-fiber-select [<n>]   switch gdb into fiber n's register context
 #                             (no argument restores the original context)
@@ -60,20 +61,52 @@ def _interesting_frame(lines):
     return fallback or "?"
 
 
+# An idle pooled fiber has been returned to TIdleFiberPool awaiting reuse -- its
+# stack is just the switch plumbing plus the pool, with no user work above it.
+_IDLE_MARKERS = ("IdleFiberPool", "MakeItIdle")
+
+
+def _is_idle_fiber(lines):
+    """True if the fiber is parked idle in the pool (no real work on its stack):
+    every frame is scheduler plumbing or the idle-pool machinery."""
+    for line in lines:
+        sym = _frame_symbol(line)
+        if sym is None:
+            continue
+        if any(p in sym for p in _PLUMBING) or any(m in sym for m in _IDLE_MARKERS):
+            continue
+        return False  # a real (user/work) frame -> not idle
+    return True
+
+
 class YtFiberList(gdb.Command):
-    """yt-fiber-list: concise roster of parked fibers (index, rsp, leaf frame)."""
+    """yt-fiber-list [-a]: concise roster of parked fibers (index, rsp, leaf frame).
+    Idle pooled fibers (recycled, awaiting reuse) are hidden unless -a is given."""
 
     def __init__(self):
         super().__init__("yt-fiber-list", gdb.COMMAND_STACK)
 
     def invoke(self, arg, from_tty):
+        show_all = arg.strip() in ("-a", "--all")
         stacks = fiber_stacks()
         if not stacks:
             print("no parked fibers found")
             return
-        print("%d parked fiber(s); backtrace one with: yt-fiber-bt <n>" % len(stacks))
+        rows, idle = [], 0
         for _lo, _hi, rsp, idx, fib in stacks:
-            frame = _interesting_frame(format_fiber_backtrace(fib))
+            bt = format_fiber_backtrace(fib)
+            if not show_all and _is_idle_fiber(bt):
+                idle += 1
+                continue
+            rows.append((idx, rsp, _interesting_frame(bt)))
+        if not rows:
+            print("%d parked fiber(s), all idle/pooled (yt-fiber-list -a to show them)"
+                  % len(stacks))
+            return
+        hidden = "" if show_all or not idle else " (%d idle/pooled hidden; -a to show all)" % idle
+        print("%d parked fiber(s)%s; backtrace one with: yt-fiber-bt <n>"
+              % (len(stacks), hidden))
+        for idx, rsp, frame in rows:
             print("  #%-4d rsp=0x%012x  %s" % (idx, rsp, frame))
 
 
@@ -171,7 +204,7 @@ def register():
     YtFiberList()
     YtFiberBacktrace()
     YtFiberSelect()
-    _announce.command("yt-fiber-list", "yt-fiber-bt", "yt-fiber-select")
+    _announce.command("fibers", "yt-fiber-list", "yt-fiber-bt", "yt-fiber-select")
 
 
 register()
