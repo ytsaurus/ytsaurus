@@ -87,7 +87,7 @@ void FormatValue(TStringBuilderBase* builder, const TChunkOwnerDataStatistics& s
         statistics.UncompressedDataSize);
 }
 
-TString ToString(const TChunkOwnerDataStatistics& statistics)
+std::string ToString(const TChunkOwnerDataStatistics& statistics)
 {
     return ToStringViaBuilder(statistics);
 }

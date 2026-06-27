@@ -619,7 +619,7 @@ namespace DB {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const NameSet& nameSet)
+std::string ToString(const NameSet& nameSet)
 {
     return NYT::Format("%v", std::vector<TString>(nameSet.begin(), nameSet.end()));
 }
@@ -650,12 +650,12 @@ void Serialize(const ProcessListForUserInfo& processListForUserInfo, NYT::NYson:
         .EndMap();
 }
 
-TString ToString(const Field& field)
+std::string ToString(const Field& field)
 {
     return EscapeC(TString(field.dump()));
 }
 
-TString ToString(const Block& block)
+std::string ToString(const Block& block)
 {
     NYT::TStringBuilder content;
     const auto& columns = block.getColumns();
