@@ -27,6 +27,7 @@
   ".github/workflows/monitoring-nightly.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/monitoring-nightly.yaml",
   ".github/workflows/monitoring-release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/monitoring-release.yaml",
   ".github/workflows/nightly-tests.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/nightly-tests.yaml",
+  ".github/workflows/nightly-upgrade-tests.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/nightly-upgrade-tests.yaml",
   ".github/workflows/odin_nightly.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/odin_nightly.yaml",
   ".github/workflows/odin_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/odin_release.yaml",
   ".github/workflows/pr-check-is-allowed.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/pr-check-is-allowed.yaml",
