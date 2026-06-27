@@ -25,7 +25,7 @@ if _HERE not in sys.path:
 
 
 def _load_all():
-    loaded, failed = [], []
+    failed = []
     for fname in sorted(os.listdir(_HERE)):
         if not fname.endswith(".py"):
             continue
@@ -34,11 +34,11 @@ def _load_all():
         mod = fname[:-3]
         try:
             importlib.import_module(mod)
-            loaded.append(mod)
         except Exception as e:  # one broken module must not sink the rest
             failed.append((mod, e))
-    if loaded:
-        print("[yt-gdb] loaded: %s" % ", ".join(loaded))
+    # Each module has registered its commands/notes; print one coherent banner.
+    import _announce
+    _announce.print_banner()
     for mod, e in failed:
         print("[yt-gdb] FAILED to load %s: %s" % (mod, e))
 

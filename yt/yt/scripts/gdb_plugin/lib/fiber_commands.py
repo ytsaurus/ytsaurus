@@ -14,6 +14,7 @@ import re
 
 import gdb
 
+import _announce
 import fiber
 from fiber_attribution import fiber_stacks, format_fiber_backtrace
 
@@ -34,7 +35,12 @@ def _parked_fiber(index):
 
 
 def _frame_symbol(line):
-    """The symbol part of a backtrace line, or None for a non-frame line."""
+    """The symbol part of a backtrace line, or None for a non-frame line.
+    Handles both address-bearing frames and inlined frames (which have no
+    address) so the leaf-frame pick can land on an inlined user lambda."""
+    m = re.match(r"\s*#\d+\s+(.*\S)\s+\(inlined\)\s*$", line)
+    if m:
+        return m.group(1)
     m = re.search(r"0x[0-9a-f]+\s+(.+)$", line)
     return m.group(1).strip() if m else None
 
@@ -165,7 +171,7 @@ def register():
     YtFiberList()
     YtFiberBacktrace()
     YtFiberSelect()
-    print("Commands: yt-fiber-list, yt-fiber-bt, yt-fiber-select")
+    _announce.command("yt-fiber-list", "yt-fiber-bt", "yt-fiber-select")
 
 
 register()

@@ -15,6 +15,8 @@ import re
 import gdb
 import gdb.printing
 
+import _announce
+
 
 def _lookup_type(name):
     try:
@@ -621,9 +623,9 @@ class YtPrint(gdb.Command):
 def register():
     gdb.printing.register_pretty_printer(None, _build_printer(), replace=True)
     YtPrint()
-    print("[yt-gdb] pretty-printers: table-client rows/values, TGuid, TError, "
-          "TYsonString, TOrderedHashMap")
-    print("[yt-gdb] command: yt-print <expr> -- print any YT value in full")
+    _announce.command("yt-print")
+    _announce.note("pretty-printers: table-client rows/values, TGuid, TError, "
+                   "TYsonString, TOrderedHashMap")
 
 
 register()

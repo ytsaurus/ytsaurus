@@ -14,6 +14,7 @@ import struct
 
 import gdb
 
+import _announce
 from memory import info_symbol, read_block
 
 # size_t fields shared by TLocalSlot (plain) and TGlobalSlot (atomic); read raw so
@@ -177,7 +178,7 @@ class YtRcDump(gdb.Command):
 
 def register():
     YtRcDump()
-    print("Commands: yt-rc-dump")
+    _announce.command("yt-rc-dump")
 
 
 register()
