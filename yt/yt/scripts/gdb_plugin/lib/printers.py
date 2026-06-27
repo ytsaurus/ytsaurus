@@ -623,8 +623,8 @@ class YtPrint(gdb.Command):
 def register():
     gdb.printing.register_pretty_printer(None, _build_printer(), replace=True)
     YtPrint()
-    _announce.command("yt-print")
-    _announce.note("pretty-printers: table-client rows/values, TGuid, TError, "
+    _announce.command("printing", "yt-print")
+    _announce.note("Pretty-printers: table-client rows/values, TGuid, TError, "
                    "TYsonString, TOrderedHashMap")
 
 
