@@ -49,7 +49,7 @@ constinit const auto Logger = ClusterNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatMemoryUsage(i64 memoryUsage)
+std::string FormatMemoryUsage(i64 memoryUsage)
 {
     TStringBuf prefix = "";
     if (memoryUsage < 0) {
@@ -138,7 +138,7 @@ void FormatResources(
         limits.ReincarnationSlots);
 }
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits)
 {

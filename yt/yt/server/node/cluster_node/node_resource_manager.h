@@ -94,7 +94,7 @@ struct TJobResources
     i64 MergeDataSize = 0;
 };
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits);
 void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /*format*/);
