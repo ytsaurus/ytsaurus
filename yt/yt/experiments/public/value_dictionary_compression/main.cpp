@@ -104,8 +104,8 @@ struct TCompressorOptions
     int SamplesSize = 400_KB;
     int DictionarySize = 4_KB;
 
-    TString ChunkPath;
-    TString ColumnName = "Main";
+    std::string ChunkPath;
+    std::string ColumnName = "Main";
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -575,8 +575,8 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
         output.Resize(decompressedSize);
         YT_VERIFY(!ZSTD_isError(decompressedSize));
         YT_VERIFY(decompressedSize == sample.size());
-        YT_VERIFY(TString(output.Begin(), output.Size()) == sample);
-        Cerr << sample << " == " << TString(output.Begin(), output.Size()) << Endl;
+        YT_VERIFY(std::string(output.Begin(), output.Size()) == sample);
+        Cerr << sample << " == " << std::string(output.Begin(), output.Size()) << Endl;
     }
 }
 

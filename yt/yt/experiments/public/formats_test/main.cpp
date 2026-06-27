@@ -44,8 +44,8 @@ int main(int argc, char** argv)
     }
 
     try {
-        auto format = ConvertTo<TFormat>(TYsonString(TString(argv[2])));
-        auto schema = ConvertTo<TTableSchemaPtr>(TYsonString(TString(argv[3])));
+        auto format = ConvertTo<TFormat>(TYsonString(std::string(argv[2])));
+        auto schema = ConvertTo<TTableSchemaPtr>(TYsonString(std::string(argv[3])));
 
         if (argv[1] == std::string{"fromwire"}) {
             NApi::NRpcProxy::NProto::TRowsetDescriptor rowsetDescriptor;

@@ -104,7 +104,7 @@ void RunRpcServer(const IServerPtr& rpcServer)
     Cin.ReadLine();
 }
 
-void RunRpcClient(const IChannelFactoryPtr& channelFactory, const TString& address, int numIter)
+void RunRpcClient(const IChannelFactoryPtr& channelFactory, const std::string& address, int numIter)
 {
     Cout << "Running " << numIter << " iterations of test" << Endl;
 
@@ -149,7 +149,7 @@ int main(int argc, const char* argv[])
 
         opts.AddHelpOption();
 
-        TString mode;
+        std::string mode;
         opts.AddLongOption("mode", "")
             .RequiredArgument("MODE")
             .StoreResult(&mode);
@@ -164,12 +164,12 @@ int main(int argc, const char* argv[])
             .RequiredArgument("NUM")
             .StoreResult(&numIter);
 
-        TString address = "localhost:8888";
+        std::string address = "localhost:8888";
         opts.AddLongOption("address", "")
             .RequiredArgument("ADDRESS")
             .StoreResult(&address);
 
-        TString configFileName;
+        std::string configFileName;
         opts.AddLongOption("config", "configuration file")
             .RequiredArgument("FILE")
             .StoreResult(&configFileName);
@@ -181,7 +181,8 @@ int main(int argc, const char* argv[])
             config = New<TProgramConfig>();
             config->Postprocess();
         } else {
-            auto configYson = TUnbufferedFileInput(configFileName).ReadAll();
+            // TODO(babenko): drop TString cast once TUnbufferedFileInput accepts std::string.
+            auto configYson = TUnbufferedFileInput(TString(configFileName)).ReadAll();
             config = ConvertTo<TProgramConfigPtr>(NYson::TYsonString(configYson));
         }
 

@@ -99,6 +99,7 @@ protected:
 
         server->Start(handler);
 
+        // TODO(babenko): drop TString once TInputStream::ReadLine accepts std::string.
         TString line;
         for (;;) {
             if (!Cin.ReadLine(line)) {
@@ -111,10 +112,10 @@ protected:
 
 private:
     int Port_;
-    TString EncryptionMode_;
-    TString CertChainFile_;
-    TString PrivateKeyFile_;
-    TString CipherList_;
+    std::string EncryptionMode_;
+    std::string CertChainFile_;
+    std::string PrivateKeyFile_;
+    std::string CipherList_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

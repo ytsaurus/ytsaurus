@@ -14,7 +14,7 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Stress");
 int main(int argc, const char *argv[])
 {
     NLastGetopt::TOpts opts;
-    TString configPath;
+    std::string configPath;
     int threadCount;
     int eventCount;
     opts.AddLongOption("config")
