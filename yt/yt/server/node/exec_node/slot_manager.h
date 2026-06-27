@@ -217,7 +217,7 @@ private:
     TAtomicIntrusivePtr<TSlotManagerDynamicConfig> DynamicConfig_;
 
     const int SlotCount_;
-    const TString NodeTag_;
+    const std::string NodeTag_;
     const NContainers::TPortoHealthCheckerPtr PortoHealthChecker_;
 
     TBackoffStrategy DisableJobsBackoffStrategy_;

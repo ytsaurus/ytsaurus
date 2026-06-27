@@ -12,6 +12,8 @@
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/guid.h>
 
+#include <yt/yt/core/ypath/public.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NExecNode {
@@ -94,7 +96,7 @@ public:
 
     ~TLayer();
 
-    const TString& GetCypressPath() const;
+    const NYPath::TYPath& GetCypressPath() const;
 
     const std::string& GetPath() const;
 

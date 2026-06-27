@@ -114,7 +114,7 @@ public:
 
     std::vector<TShellCommandConfigPtr> GetSetupCommands();
     std::vector<TArtifactKey> GetToppingLayers();
-    void VerifyCudaToolkitDriverVersion(const TString& toolkitVersion);
+    void VerifyCudaToolkitDriverVersion(const std::string& toolkitVersion);
 
     std::vector<std::string> GetRequiredHostPaths() const;
 
@@ -174,7 +174,7 @@ private:
     NYPath::TYPath DriverLayerPath_;
     NHydra::TRevision DriverLayerRevision_ = NHydra::NullRevision;
     std::optional<TArtifactKey> DriverLayerKey_;
-    TString DriverVersionString_;
+    std::string DriverVersionString_;
     TAtomicIntrusivePtr<NGpu::IGpuInfoProvider> GpuInfoProvider_;
     NGpu::TNetworkPriority CurrentNetworkPriority_ = DefaultNetworkPriority;
 

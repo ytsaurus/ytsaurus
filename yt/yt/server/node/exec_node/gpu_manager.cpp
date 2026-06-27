@@ -752,7 +752,7 @@ std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
     }
 }
 
-void TGpuManager::VerifyCudaToolkitDriverVersion(const TString& toolkitVersion)
+void TGpuManager::VerifyCudaToolkitDriverVersion(const std::string& toolkitVersion)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
