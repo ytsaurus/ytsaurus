@@ -79,7 +79,8 @@ protected:
     {
         //NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateStderrLogger(NLogging::ELogLevel::Debug));
 
-        auto config = NYTree::ConvertTo<TConfigPtr>(NYson::TYsonString(TFileInput(ConfigPath_).ReadAll()));
+        // TODO(babenko): drop TString cast once TFileInput accepts std::string.
+        auto config = NYTree::ConvertTo<TConfigPtr>(NYson::TYsonString(TFileInput(TString(ConfigPath_)).ReadAll()));
 
         auto client = NYT::NBus::NTcp::CreateBusClient(NYT::NBus::NTcp::TBusClientConfig::CreateTcp(config->Address));
         auto channel = NRpc::NBus::CreateBusChannel(client);
@@ -122,7 +123,7 @@ protected:
     }
 
 private:
-    TString ConfigPath_;
+    std::string ConfigPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

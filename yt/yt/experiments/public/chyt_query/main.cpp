@@ -53,15 +53,16 @@ protected:
 
         auto pool = CreateThreadPool(2, "ChytQuery");
 
-        if (!Query_ && !QueryPath_) {
+        if (Query_.empty() && QueryPath_.empty()) {
             THROW_ERROR_EXCEPTION("Either \"query\" or \"query_path\" must be specified");
         }
-        if (Query_ && QueryPath_) {
+        if (!Query_.empty() && !QueryPath_.empty()) {
             THROW_ERROR_EXCEPTION("\"query\" or \"query_path\" cannot be specified simultaneously");
         }
 
-        if (QueryPath_) {
-            Query_ = TFileInput(QueryPath_).ReadAll();
+        if (!QueryPath_.empty()) {
+            // TODO(babenko): drop TString cast once TFileInput accepts std::string.
+            Query_ = TFileInput(TString(QueryPath_)).ReadAll();
         }
 
         auto channelFactory = CreateTcpBusChannelFactory(New<TBusConfig>());
@@ -180,9 +181,9 @@ private:
     }
 
 private:
-    TString Address_;
-    TString Query_;
-    TString QueryPath_;
+    std::string Address_;
+    std::string Query_;
+    std::string QueryPath_;
     i64 RowCountLimit_ = -1;
     bool PollProgressFlag_ = false;
     bool HideResultsFlag_ = false;

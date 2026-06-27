@@ -100,6 +100,7 @@ protected:
         }
 
         if (args.empty()) {
+            // TODO(babenko): drop TString once TInputStream::ReadLine accepts std::string.
             TString hostname;
             while (Cin.ReadLine(hostname)) {
                 hostnames.push_back(hostname);

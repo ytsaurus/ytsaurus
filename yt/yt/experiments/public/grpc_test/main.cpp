@@ -135,12 +135,12 @@ int main(int argc, const char *argv[])
         TOpts opts;
         opts.AddHelpOption();
 
-        TString mode;
+        std::string mode;
         opts.AddLongOption("mode", "")
             .RequiredArgument("MODE")
             .StoreResult(&mode);
 
-        TString address = "localhost:8888";
+        std::string address = "localhost:8888";
         opts.AddLongOption("address", "")
             .RequiredArgument("ADDRESS")
             .StoreResult(&address);

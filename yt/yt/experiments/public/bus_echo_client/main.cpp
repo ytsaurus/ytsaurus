@@ -169,10 +169,10 @@ protected:
     }
 
 private:
-    TString Address_;
-    TString CAFile_;
-    TString EncryptionMode_;
-    TString VerificationMode_;
+    std::string Address_;
+    std::string CAFile_;
+    std::string EncryptionMode_;
+    std::string VerificationMode_;
     bool Flood_ = false;
 };
 
