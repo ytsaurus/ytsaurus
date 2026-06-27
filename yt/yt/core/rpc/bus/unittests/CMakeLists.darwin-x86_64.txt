@@ -12,10 +12,10 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(unittester-core-rpc)
+add_executable(unittester-core-rpc-bus)
 
 
-target_compile_options(unittester-core-rpc PRIVATE
+target_compile_options(unittester-core-rpc-bus PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -25,7 +25,7 @@ target_compile_options(unittester-core-rpc PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(unittester-core-rpc PUBLIC
+target_link_libraries(unittester-core-rpc-bus PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
@@ -33,17 +33,16 @@ target_link_libraries(unittester-core-rpc PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-core
-  core-rpc-grpc
   rpc-unittests-lib
   yt-core-test_framework
   cpp-testing-common
 )
 
-target_allocator(unittester-core-rpc
+target_allocator(unittester-core-rpc-bus
   system_allocator
 )
 
-target_link_options(unittester-core-rpc PRIVATE
+target_link_options(unittester-core-rpc-bus PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -51,44 +50,38 @@ target_link_options(unittester-core-rpc PRIVATE
   CoreFoundation
 )
 
-target_sources(unittester-core-rpc PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/authentificated_identity_guard_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/endpoint_address_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/overload_controller_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/handle_channel_failure_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/roaming_channel_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/viable_peer_registry_ut.cpp
+target_sources(unittester-core-rpc-bus PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/bus/unittests/multi_protocol_rpc_ut.cpp
 )
 
 
 add_test(
   NAME
-  unittester-core-rpc
+  unittester-core-rpc-bus
   COMMAND
-  unittester-core-rpc
+  unittester-core-rpc-bus
 )
 
 set_property(
   TEST
-  unittester-core-rpc
+  unittester-core-rpc-bus
   PROPERTY
   LABELS
-  LARGE
+  MEDIUM
 )
 
 set_property(
   TEST
-  unittester-core-rpc
+  unittester-core-rpc-bus
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(unittester-core-rpc)
+vcs_info(unittester-core-rpc-bus)
 
 set_property(
   TEST
-  unittester-core-rpc
+  unittester-core-rpc-bus
   PROPERTY
   PROCESSORS
   1
