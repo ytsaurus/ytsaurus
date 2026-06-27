@@ -46,7 +46,7 @@ public:
 
 public:
     THunkTablet(
-        IHunkTabletHostPtr host,
+        IHunkTabletHost* host,
         TTabletId tabletId,
         NYPath::TYPath hunkStoragePath);
 
@@ -102,7 +102,7 @@ public:
     const NLogging::TLogger& GetLogger() const;
 
 private:
-    const IHunkTabletHostPtr Host_;
+    IHunkTabletHost* const Host_;
 
     const NLogging::TLogger Logger;
 
