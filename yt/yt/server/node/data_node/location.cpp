@@ -284,7 +284,7 @@ TLocationMemoryGuard::operator bool() const
 
 TChunkLocation::TChunkLocation(
     ELocationType type,
-    TString id,
+    std::string id,
     TChunkLocationConfigPtr config,
     TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     TChunkStorePtr chunkStore,
@@ -1332,7 +1332,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreLocation::TStoreLocation(
-    TString id,
+    std::string id,
     TStoreLocationConfigPtr config,
     TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     TChunkStorePtr chunkStore,
