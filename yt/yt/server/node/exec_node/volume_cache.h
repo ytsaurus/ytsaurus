@@ -129,16 +129,16 @@ DECLARE_REFCOUNTED_CLASS(TNbdVolumeFactory)
 
 //! This class creates NBD volumes.
 class TNbdVolumeFactory
-    : public TVolumeCacheBase<TString>
+    : public TVolumeCacheBase<std::string>
 {
 public:
-    using TVolume = TCachedVolume<TString>;
+    using TVolume = TCachedVolume<std::string>;
     using TVolumePtr = TIntrusivePtr<TVolume>;
     using TVolumeFactory = TExtendedCallback<IVolumePtr(
         NProfiling::TTagSet tagSet,
         TVolumeMeta volumeMeta,
         TLayerLocationPtr layerLocation,
-        TString nbdDeviceId,
+        std::string nbdDeviceId,
         NNbd::INbdServerPtr nbdServer)>;
 
     TNbdVolumeFactory(
@@ -163,12 +163,12 @@ private:
     static void ValidatePrepareRONbdVolumeOptions(const TPrepareRONbdVolumeOptions& options);
     static void ValidatePrepareRWNbdVolumeOptions(const TPrepareRWNbdVolumeOptions& options);
 
-    TInsertCookie GetInsertCookie(const TString& deviceId, const NNbd::INbdServerPtr& nbdServer);
+    TInsertCookie GetInsertCookie(const std::string& deviceId, const NNbd::INbdServerPtr& nbdServer);
 
     //! Make callback that subscribes job for NBD device errors.
     TExtendedCallback<TVolumePtr(const TErrorOr<TVolumePtr>&)> MakeJobSubscriberForDeviceErrors(
         TJobId jobId,
-        const TString& deviceId,
+        const std::string& deviceId,
         const NNbd::INbdServerPtr& nbdServer,
         const NLogging::TLogger& Logger);
 

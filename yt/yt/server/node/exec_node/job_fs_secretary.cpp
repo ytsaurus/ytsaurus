@@ -26,7 +26,7 @@ using namespace NControllerAgent::NProto;
 
 namespace {
 
-TString MakeNbdDeviceId(TJobId jobId, int nbdDeviceIndex)
+std::string MakeNbdDeviceId(TJobId jobId, int nbdDeviceIndex)
 {
     auto nbdDeviceId = jobId.Underlying();
     nbdDeviceId.Parts32[0] = nbdDeviceIndex;
@@ -96,8 +96,8 @@ TError CheckLayerArtifactKeys(
 }
 
 TError CheckDockerImage(
-    const std::optional<TString>& baseline,
-    const std::optional<TString>& current)
+    const std::optional<std::string>& baseline,
+    const std::optional<std::string>& current)
 {
     if (baseline != current) {
         return TError("Job spec docker image differs from the first job in this allocation")
@@ -178,8 +178,8 @@ TError CheckJobVolumeMounts(
 }
 
 TError CheckSidecarsVolumeMounts(
-    const THashMap<TString, std::vector<TVolumeMountPtr>>& baseline,
-    const THashMap<TString, std::vector<TVolumeMountPtr>>& current)
+    const THashMap<std::string, std::vector<TVolumeMountPtr>>& baseline,
+    const THashMap<std::string, std::vector<TVolumeMountPtr>>& current)
 {
     if (baseline.size() != current.size()) {
         return TError("Job spec sidecar volume mounts count differs from the first job in this allocation")
@@ -670,7 +670,7 @@ bool TJobFSSecretary::CanBeAccessedViaVirtualSandbox(
     }
 
     for (const auto& tmpfsVolume : userJobSpec->tmpfs_volumes()) {
-        if (tmpfsVolume.path() == "." || artifact.Name.StartsWith(tmpfsVolume.path())) {
+        if (tmpfsVolume.path() == "." || artifact.Name.starts_with(tmpfsVolume.path())) {
             return false;
         }
     }
@@ -696,23 +696,23 @@ const std::vector<TArtifactKey>& TJobFSSecretary::GetGpuCheckVolumeLayerArtifact
     return GpuCheckVolumeLayerArtifactKeys_;
 }
 
-const std::optional<TString>& TJobFSSecretary::GetDockerImage() const
+const std::optional<std::string>& TJobFSSecretary::GetDockerImage() const
 {
     return DockerImage_;
 }
 
 // Note that DockerImage_ can be set multiple times during job preparation.
-void TJobFSSecretary::SetDockerImage(std::optional<TString> image)
+void TJobFSSecretary::SetDockerImage(std::optional<std::string> image)
 {
     DockerImage_ = std::move(image);
 }
 
-const std::optional<TString>& TJobFSSecretary::GetDockerImageId() const
+const std::optional<std::string>& TJobFSSecretary::GetDockerImageId() const
 {
     return DockerImageId_;
 }
 
-void TJobFSSecretary::SetDockerImageId(std::optional<TString> imageId)
+void TJobFSSecretary::SetDockerImageId(std::optional<std::string> imageId)
 {
     YT_VERIFY(!std::exchange(DockerImageId_, std::move(imageId)));
 }
@@ -760,12 +760,12 @@ bool TJobFSSecretary::IsRootVolumeDiskQuotaEnabled() const
     return RootVolumeDiskQuotaEnabled_;
 }
 
-const THashSet<TString>& TJobFSSecretary::GetNbdDeviceIds() const
+const THashSet<std::string>& TJobFSSecretary::GetNbdDeviceIds() const
 {
     return NbdDeviceIds_;
 }
 
-THashSet<TString> TJobFSSecretary::ReleaseNbdDeviceIds()
+THashSet<std::string> TJobFSSecretary::ReleaseNbdDeviceIds()
 {
     YT_LOG_DEBUG("Releasing NBD device ids");
     return std::move(NbdDeviceIds_);
@@ -904,12 +904,12 @@ const std::vector<TVolumeMountPtr>& TJobFSSecretary::GetJobVolumeMounts() const
     return JobVolumeMounts_;
 }
 
-const THashMap<TString, std::vector<TVolumeMountPtr>>& TJobFSSecretary::GetSidecarsVolumeMounts() const
+const THashMap<std::string, std::vector<TVolumeMountPtr>>& TJobFSSecretary::GetSidecarsVolumeMounts() const
 {
     return SidecarsVolumeMounts_;
 }
 
-const TArtifactDescription& TJobFSSecretary::GetUserArtifact(const TString& name) const
+const TArtifactDescription& TJobFSSecretary::GetUserArtifact(const std::string& name) const
 {
     int index = GetOrCrash(UserArtifactNameToIndex_, name);
     return Artifacts_[index];

@@ -22,8 +22,8 @@ namespace NYT::NExecNode {
 struct TCreateNbdVolumeOptions
 {
     TJobId JobId;
-    TString DeviceId;
-    TString Filesystem;
+    std::string DeviceId;
+    std::string Filesystem;
     bool IsReadOnly = true;
 };
 
@@ -45,7 +45,7 @@ struct TPrepareRWNbdVolumeOptions
     i64 Size = 0;
     int MediumIndex = 0;
     NNbd::EFilesystemType Filesystem = NNbd::EFilesystemType::Unknown;
-    TString DeviceId;
+    std::string DeviceId;
     NRpc::IChannelPtr DataNodeChannel;
     NChunkClient::TSessionId SessionId;
 

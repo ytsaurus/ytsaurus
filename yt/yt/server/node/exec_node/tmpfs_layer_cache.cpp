@@ -51,7 +51,7 @@ TTmpfsLayerCache::TTmpfsLayerCache(
     TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     IInvokerPtr controlInvoker,
     IMemoryUsageTrackerPtr memoryUsageTracker,
-    const TString& cacheName,
+    const std::string& cacheName,
     IPortoExecutorPtr portoExecutor,
     TAbsorbLayerCallback absorbLayer)
     : Config_(std::move(config))

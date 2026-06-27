@@ -269,14 +269,14 @@ bool TArtifactKey::operator==(const TArtifactKey& other) const
     return true;
 }
 
-TString TArtifactKey::GetRuntimeGuid() const
+std::string TArtifactKey::GetRuntimeGuid() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     // It is a global cache with unique artifact ids of a bounded size CacheMaxSize. It is
     // hoped for that the number of unique TArtifactKey keys will rarely exceed CacheMaxSize.
     static constexpr size_t CacheMaxSize = 100'000;
-    static TSimpleLruCache<TArtifactKey, TString> Cache(CacheMaxSize);
+    static TSimpleLruCache<TArtifactKey, std::string> Cache(CacheMaxSize);
     static YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CacheLock);
 
     // NB. It is all right that guids can be evicted.
