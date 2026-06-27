@@ -6,6 +6,7 @@ EXPLICIT_DATA()
 
 DATA_FILES(
     yt/yt/scripts/gdb_plugin/lib/__init__.py
+    yt/yt/scripts/gdb_plugin/lib/_announce.py
     yt/yt/scripts/gdb_plugin/lib/sections.py
     yt/yt/scripts/gdb_plugin/lib/memory.py
     yt/yt/scripts/gdb_plugin/lib/type_info.py

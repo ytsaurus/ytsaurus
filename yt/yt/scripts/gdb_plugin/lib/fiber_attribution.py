@@ -221,15 +221,160 @@ def _seed_regs_for(fib):
     return {name: int(buf[idx]) & _MASK64 for name, idx in fiber._FIBER_SEED_REGS}
 
 
+# A parked fiber's saved registers describe a stack gdb knows nothing about. We
+# teach gdb's *native* unwinder about it with a one-shot Python unwinder: when
+# armed, it rewrites the innermost frame's caller to be the fiber's leaf frame
+# (seeded from TContMachineContext), and gdb's DWARF-CFI engine unwinds the rest.
+# This is exact even on frame-pointer-omitting builds and recovers inlined frames
+# -- far better than the stack scan, and it sidesteps the context-switch asm's
+# missing CFI (the switch frame is the seed, not something gdb must unwind into).
+try:
+    import gdb.unwinder as _gdb_unwinder
+    _Unwinder = _gdb_unwinder.Unwinder
+except Exception:  # very old gdb without the Python unwinder API
+    _gdb_unwinder = None
+    _Unwinder = None
+
+# gdb register names of the saved context, in the order TContMachineContext holds
+# them; all are needed because CFI rules may restore any callee-saved register.
+_CFI_SEED_REGS = ("rip", "rsp", "rbp", "rbx", "r12", "r13", "r14", "r15")
+
+
+class _FiberFrameId(object):
+    def __init__(self, sp, pc):
+        self.sp = sp
+        self.pc = pc
+
+
+if _Unwinder is not None:
+    class _FiberSeedUnwinder(_Unwinder):
+        def __init__(self):
+            super().__init__("yt-fiber-seed")
+            self.regs = None  # a name->value dict while armed; else a no-op
+
+        def __call__(self, pending_frame):
+            regs = self.regs
+            if regs is None:
+                return None
+            self.regs = None  # fire once; gdb's CFI handles the deeper frames
+            try:
+                # The frame id MUST use the fiber's own sp (not the hijacked host
+                # frame's): gdb requires stack addresses to grow monotonically
+                # outward, and the fiber stack may sit below the host's.
+                info = pending_frame.create_unwind_info(
+                    _FiberFrameId(regs["rsp"], regs["rip"]))
+                ulong = gdb.lookup_type("unsigned long")
+                for name, value in regs.items():
+                    info.add_saved_register(name, gdb.Value(value).cast(ulong))
+                return info
+            except Exception:
+                return None
+else:
+    _FiberSeedUnwinder = None
+
+
+_fiber_seed_unwinder = None
+
+
+def _ensure_seed_unwinder():
+    """Lazily register the one-shot seed unwinder (a no-op until armed). Returns
+    it, or None if the gdb build lacks the unwinder API."""
+    global _fiber_seed_unwinder
+    if _fiber_seed_unwinder is None and _FiberSeedUnwinder is not None:
+        try:
+            _fiber_seed_unwinder = _FiberSeedUnwinder()
+            _gdb_unwinder.register_unwinder(None, _fiber_seed_unwinder, replace=True)
+        except Exception:
+            _fiber_seed_unwinder = None
+    return _fiber_seed_unwinder
+
+
+def _format_cfi_frames(leaf, limit):
+    """Format the fiber's frames starting from its leaf frame (compact, with
+    inlined frames marked)."""
+    lines = []
+    frame = leaf
+    i = 0
+    while frame is not None and i < limit:
+        pc = int(frame.pc())
+        if pc == 0:
+            break
+        if frame.type() == gdb.INLINE_FRAME:
+            lines.append("#%-2d %14s  %s  (inlined)" % (i, "", frame.name() or "?"))
+        else:
+            sym = (info_symbol(pc) or "?").split(" in section ")[0]
+            lines.append("#%-2d 0x%012x  %s" % (i, pc, sym))
+        frame = frame.older()
+        i += 1
+    return lines
+
+
+def _cfi_unwind(seed, limit):
+    """Backtrace a parked fiber via gdb's native CFI unwinder, seeded from its
+    saved registers. Returns formatted lines, or None when unavailable / it
+    didn't take (so the caller falls back to the fp-walk / stack scan).
+
+    The seed replaces a host frame's caller. gdb only consults Python unwinders
+    while unwinding a frame that has a caller, so an outermost host frame (e.g. a
+    thread sitting in main) is no good -- we try each thread (the selected one
+    first) and keep the first where the seed actually took (its caller becomes the
+    fiber's leaf)."""
+    unwinder = _ensure_seed_unwinder()
+    if unwinder is None or any(seed.get(n) is None for n in _CFI_SEED_REGS):
+        return None
+    regs = {n: seed[n] for n in _CFI_SEED_REGS}
+    try:
+        inferior = gdb.selected_inferior()
+        saved_thread = gdb.selected_thread()
+    except gdb.error:
+        return None
+    try:
+        saved_frame = gdb.selected_frame()
+    except gdb.error:
+        saved_frame = None
+    threads = list(inferior.threads())
+    if saved_thread in threads:  # prefer the selected thread (usually deep enough)
+        threads = [saved_thread] + [t for t in threads if t is not saved_thread]
+    lines = []
+    try:
+        for host in threads[:64]:  # the right host is almost always the first
+            try:
+                host.switch()
+                unwinder.regs = dict(regs)
+                gdb.invalidate_cached_frames()
+                leaf = gdb.newest_frame().older()
+            except gdb.error:
+                unwinder.regs = None
+                continue
+            unwinder.regs = None
+            if leaf is not None and int(leaf.pc()) == regs["rip"]:  # seed took
+                lines = _format_cfi_frames(leaf, limit)
+                break
+    except Exception:
+        lines = []
+    finally:
+        unwinder.regs = None
+        try:
+            gdb.invalidate_cached_frames()
+            saved_thread.switch()
+            if saved_frame is not None:
+                saved_frame.select()
+        except Exception:
+            pass
+    return lines if len(lines) >= 2 else None
+
+
 def format_fiber_backtrace(fib, limit=48):
     """Return #fib's backtrace as a list of lines, from the fiber's saved
-    registers (TContMachineContext). Read-only. Two strategies:
-      1. rbp frame-pointer walk -- exact; used whenever frame pointers are kept
-         (no-omit-fp production and debug builds).
-      2. approximate stack scan -- for frame-pointer-omitting builds, where a
-         precise unwind isn't recoverable from a coredump; carries some stale
-         frames but surfaces the real chain."""
+    registers (TContMachineContext). Read-only. In order of preference:
+      1. gdb's native CFI unwinder, seeded from the saved registers -- exact,
+         works on frame-pointer-omitting builds, recovers inlined frames.
+      2. rbp frame-pointer walk -- exact when frame pointers are kept.
+      3. approximate stack scan -- last resort; carries stale frames."""
     seed = _seed_regs_for(fib)
+    lines = _cfi_unwind(seed, limit)
+    if lines:
+        return lines
     lines = _fp_walk(seed.get("rip"), seed.get("rbp"), limit)
     if lines is not None:
         return lines

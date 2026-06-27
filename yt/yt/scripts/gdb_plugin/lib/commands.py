@@ -9,6 +9,7 @@
 
 import gdb
 
+import _announce
 from memory import gdb_type
 from sections import sections
 from ref_counted import resolve_refcount
@@ -195,7 +196,7 @@ def register():
     YtHolders()
     YtTrace()
     YtFind()
-    print("Commands: yt-rc-obj, yt-rc-backref, yt-rc-cycle, yt-rc-find")
+    _announce.command("yt-rc-obj", "yt-rc-backref", "yt-rc-cycle", "yt-rc-find")
 
 
 register()
