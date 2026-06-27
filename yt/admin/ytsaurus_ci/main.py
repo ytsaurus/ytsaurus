@@ -142,6 +142,12 @@ def docs(output_dir):
 @click.option(
     "--upgrade-config", type=str, required=False, default=None, help="Upgrade config name, e.g. '25.1-to-25.2'"
 )
+@click.option(
+    "--priority",
+    type=click.Choice([p.name for p in enums.TaskPriority]),
+    default=enums.TaskPriority.NORMAL.name,
+    help="Priority of the created tasks",
+)
 @click.option("--apply", is_flag=True, help="Make new task with generated spec")
 @click.option("--force", is_flag=True, help="Overwrite job")
 @click.option("--verbose", is_flag=True, help="Detailed output of request")
@@ -152,6 +158,7 @@ def run_scenario(
     cloud_function_token,
     version_filter,
     upgrade_config,
+    priority,
     apply,
     force,
     verbose,
@@ -168,6 +175,7 @@ def run_scenario(
         json_payload = scenario.to_dict()
         if force:
             json_payload["force"] = True
+        json_payload["priority"] = enums.TaskPriority[priority].value
         content = client.submit_task(json_payload, apply)
 
         if not apply:

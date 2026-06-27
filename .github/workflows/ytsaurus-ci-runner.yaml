@@ -13,6 +13,11 @@ on:
       image_tag:
         required: false
         type: string
+      priority:
+        description: "Priority of the created tasks (NORMAL, HIGH, CRITICAL)"
+        required: false
+        type: string
+        default: NORMAL
     secrets:
       GH_PERSONAL_ACCESS_TOKEN:
         required: true
@@ -68,6 +73,7 @@ jobs:
             --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}"
             --cloud-function-token "${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}"
             --version-filter "$version_filter_json"
+            --priority "${{ inputs.priority }}"
             --apply
           )
 
