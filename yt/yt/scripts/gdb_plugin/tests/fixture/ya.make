@@ -13,10 +13,13 @@ CFLAGS(
 
 SRCS(
     main.cpp
+    refcount_fixtures.cpp
+    printer_fixtures.cpp
 )
 
 PEERDIR(
     yt/yt/core
+    yt/yt/client
 )
 
 END()
