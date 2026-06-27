@@ -822,7 +822,7 @@ protected:
 
     bool IsLocalityEnabled() const;
 
-    virtual TString GetLoggingProgress() const;
+    virtual std::string GetLoggingProgress() const;
 
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
@@ -973,7 +973,7 @@ protected:
 
     NApi::ITransactionPtr GetTransactionForOutputTable(const TOutputTablePtr& table) const;
 
-    void RegisterLivePreviewTable(TString name, const TOutputTablePtr& table);
+    void RegisterLivePreviewTable(std::string name, const TOutputTablePtr& table);
 
     void AttachToIntermediateLivePreview(NChunkClient::TInputChunkPtr chunk) override;
 
@@ -1026,7 +1026,7 @@ protected:
         bool useEstimatedBufferSize,
         const NTableClient::TChunkStripeStatisticsVector& stripeStatistics) const;
 
-    void ValidateUserFileCount(const NScheduler::TUserJobSpecPtr& spec, const TString& operation);
+    void ValidateUserFileCount(const NScheduler::TUserJobSpecPtr& spec, const std::string& operation);
 
     const TExecNodeDescriptorMap& GetOnlineSuitableExecNodeDescriptors() const;
     const TExecNodeDescriptorMap& GetSuitableExecNodeDescriptors() const;

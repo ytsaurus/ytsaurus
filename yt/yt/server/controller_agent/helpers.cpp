@@ -43,15 +43,13 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TrimCommandForBriefSpec(const std::string& command)
+std::string TrimCommandForBriefSpec(const std::string& command)
 {
     const int MaxBriefSpecCommandLength = 256;
-    // TODO(babenko): migrate to std::string
-    TString commandT(command);
     return
-        commandT.length() <= MaxBriefSpecCommandLength
-        ? commandT
-        : commandT.substr(0, MaxBriefSpecCommandLength) + "...";
+        std::ssize(command) <= MaxBriefSpecCommandLength
+        ? command
+        : command.substr(0, MaxBriefSpecCommandLength) + "...";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -536,8 +534,7 @@ void EnrichLayers(
         }
         if (rootVolume->Layers.empty() && operationSpec->DefaultBaseLayerPath) {
             auto newLayer = New<TLayer>();
-            // TODO(babenko): migrate to std::string
-            newLayer->Path = TString(*operationSpec->DefaultBaseLayerPath);
+            newLayer->Path = *operationSpec->DefaultBaseLayerPath;
             rootVolume->Layers.push_back(std::move(newLayer));
         }
 
@@ -567,8 +564,7 @@ void EnrichLayers(
 
                 if (cudaProfilerLayerPath && profilerSpec->Type == EProfilerType::Cuda) {
                     auto newLayer = New<TLayer>();
-                    // TODO(babenko): migrate to std::string
-                    newLayer->Path = TString(*cudaProfilerLayerPath);
+                    newLayer->Path = *cudaProfilerLayerPath;
                     rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
                     break;
                 }
@@ -582,8 +578,7 @@ void EnrichLayers(
             if (systemLayerPath) {
                 // This must be the top layer, so insert in the beginning.
                 auto newLayer = New<TLayer>();
-                // TODO(babenko): migrate to std::string
-                newLayer->Path = TString(*systemLayerPath);
+                newLayer->Path = *systemLayerPath;
                 rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
             }
         }

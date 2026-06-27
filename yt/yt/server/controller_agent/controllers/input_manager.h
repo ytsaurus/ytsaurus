@@ -223,7 +223,7 @@ public:
 
     // NB: Asserts that there is only one input table.
     TFuture<NYTree::IAttributeDictionaryPtr> FetchSingleInputTableAttributes(
-        const std::optional<std::vector<TString>>& attributeKeys) const;
+        const std::optional<std::vector<std::string>>& attributeKeys) const;
 
 private:
     PHOENIX_DECLARE_FRIEND();

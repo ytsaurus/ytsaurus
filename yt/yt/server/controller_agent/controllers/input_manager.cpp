@@ -1532,7 +1532,7 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NYTree::IAttributeDictionaryPtr> TInputManager::FetchSingleInputTableAttributes(
-    const std::optional<std::vector<TString>>& attributeKeys) const
+    const std::optional<std::vector<std::string>>& attributeKeys) const
 {
     YT_VERIFY(InputTables_.size() == 1 && Clusters_.size() == 1);
     const auto& table = InputTables_[0];
