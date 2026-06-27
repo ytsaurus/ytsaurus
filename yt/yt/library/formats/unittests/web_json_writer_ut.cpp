@@ -16,6 +16,8 @@
 
 #include <yt/yt/library/named_value/named_value.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <limits>
 
 namespace NYT::NFormats {
@@ -51,7 +53,7 @@ class TWriterForWebJson
 protected:
     TNameTablePtr NameTable_ = New<TNameTable>();
     TWebJsonFormatConfigPtr Config_ = New<TWebJsonFormatConfig>();
-    TStringStream OutputStream_;
+    TStdStringStream OutputStream_;
     ISchemalessFormatWriterPtr Writer_;
 
     const std::string ValueColumnName_ = "value";

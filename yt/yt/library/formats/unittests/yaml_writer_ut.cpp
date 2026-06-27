@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NFormats {
 namespace {
 
@@ -18,7 +20,7 @@ using namespace NYTree;
 
 std::string YsonToYaml(const TYsonString& yson, const TYsonString& formatAttributes = TYsonString(TStringBuf("{}")))
 {
-    TStringStream outputStream;
+    TStdStringStream outputStream;
     auto config = ConvertTo<TYamlFormatConfigPtr>(formatAttributes);
     auto writer = CreateYamlWriter(&outputStream, yson.GetType(), config);
     Serialize(yson, writer.get());
