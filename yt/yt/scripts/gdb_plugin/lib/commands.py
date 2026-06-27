@@ -1,8 +1,9 @@
 # gdb command bindings and output formatting.
 #
 #     yt-rc-obj     <addr>     resolve type + StrongCount/WeakCount + liveness
-#     yt-rc-backref <addr>     find and classify every live pointer to an object;
-#                              also attributes off-heap (parked-fiber) holders
+#     yt-rc-backref [-a] <addr>  find and classify every live pointer to an object
+#                              (dead-container holders hidden unless -a); also
+#                              attributes off-heap (parked-fiber) holders
 #     yt-rc-cycle   <addr>     follow strong holders; report a retention CYCLE or ROOT
 #     yt-rc-find    <type-substr>  signature-based heap sweep for live objects by type
 #     yt-rc-dump    [<type-substr>]  aggregate per-type live-object table (tracker)
@@ -98,13 +99,16 @@ class YtRefcount(gdb.Command):
 
 
 class YtHolders(gdb.Command):
-    """yt-rc-backref <addr>: find live pointers to obj and classify them."""
+    """yt-rc-backref [-a] <addr>: find live pointers to obj and classify them.
+    Holders whose container is itself dead/freed are hidden unless -a is given."""
 
     def __init__(self):
         super().__init__("yt-rc-backref", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        addr = _parse_addr(arg)
+        tokens = arg.split()
+        show_all = any(t in ("-a", "--all") for t in tokens)
+        addr = _parse_addr(" ".join(t for t in tokens if t not in ("-a", "--all")))
         target_rc, holders = analyze_holders(addr)
         print("target   0x%x  %s" % (addr, _fmt_rc(target_rc)))
         zones = sections().heap_zones()
@@ -113,11 +117,17 @@ class YtHolders(gdb.Command):
         print("hits     %d pointer slots" % len(holders))
         print("")
         strong = sum(1 for h in holders if h.kind == "strong")
+        # Holders in a dead/freed container are stale byte-matches, not real
+        # references -- hidden by default to keep the table readable.
+        shown = holders if show_all else [h for h in holders if h.kind != "dead"]
+        hidden = len(holders) - len(shown)
         print("%-18s %-7s %-18s %s" % ("slot", "kind", "container", "type / note"))
-        for h in holders:
+        for h in shown:
             cont = "0x%x" % h.container if h.container else "-"
             ct = _display_type(h.container_type) if h.container_type else h.note
             print("0x%-16x %-7s %-18s %s" % (h.slot, h.kind, cont, ct))
+        if hidden:
+            print("... (%d dead-container holder(s) hidden; -a to show)" % hidden)
         print("")
         print("strong holders found: %d  (target StrongCount=%s)" % (strong, target_rc.strong))
         if target_rc.strong is not None and strong != target_rc.strong:
