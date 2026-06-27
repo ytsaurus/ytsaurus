@@ -150,8 +150,8 @@ public:
             .ThrowOnError();
 
         if (timestamp != AsyncLastCommittedTimestamp) {
-            const auto& hydraManager = tabletSnapshot->HydraManager;
-            if (!hydraManager->IsActiveLeader()) {
+            auto hydraManager = tabletSnapshot->HydraManager.Lock();
+            if (!hydraManager || !hydraManager->IsActiveLeader()) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Not an active leader");
@@ -423,7 +423,8 @@ private:
         // Outdated snapshots are useful for AsyncLastCommitted reads and ReadDynamicStore requests.
 
         auto getComparisonSurrogate = [] (const TTabletSnapshotPtr& snapshot) {
-            return std::pair(snapshot->HydraManager->IsActive(), snapshot->MountRevision);
+            auto hydraManager = snapshot->HydraManager.Lock();
+            return std::pair(hydraManager && hydraManager->IsActive(), snapshot->MountRevision);
         };
 
         for (auto it = range.first; it != range.second; ++it) {
