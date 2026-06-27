@@ -32,6 +32,7 @@ target_link_libraries(fixture PUBLIC
   build-cow-on
   library-cpp-cpuid_check
   yt-yt-core
+  yt-yt-client
 )
 
 target_allocator(fixture
@@ -48,6 +49,8 @@ target_link_options(fixture PRIVATE
 
 target_sources(fixture PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/scripts/gdb_plugin/tests/fixture/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/scripts/gdb_plugin/tests/fixture/refcount_fixtures.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/scripts/gdb_plugin/tests/fixture/printer_fixtures.cpp
 )
 
 

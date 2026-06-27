@@ -4,7 +4,8 @@
 #     yt-rc-backref <addr>     find and classify every live pointer to an object;
 #                              also attributes off-heap (parked-fiber) holders
 #     yt-rc-cycle   <addr>     follow strong holders; report a retention CYCLE or ROOT
-#     yt-rc-find    <type>     signature-based heap sweep for live objects by type
+#     yt-rc-find    <type-substr>  signature-based heap sweep for live objects by type
+#     yt-rc-dump    [<type-substr>]  aggregate per-type live-object table (tracker)
 
 import gdb
 
@@ -13,6 +14,7 @@ from sections import sections
 from ref_counted import resolve_refcount
 from holders import analyze_holders, trace_retention
 from signature import find_live_objects_by_type
+from type_info import wrapper_inner_type
 from fiber_attribution import (
     find_fibers_referencing, format_fiber_backtrace,
     find_threads_referencing, format_thread_backtrace,
@@ -26,18 +28,20 @@ def _parse_addr(arg):
     return int(gdb.parse_and_eval(arg).cast(gdb_type("unsigned long")))
 
 
+def _display_type(typename):
+    """Strip the TRefCountedWrapper<...> noise and show the inner type the user
+    cares about; non-wrapper types pass through unchanged."""
+    if typename is None:
+        return typename
+    return wrapper_inner_type(typename) or typename
+
+
 def _fmt_rc(rc):
     if rc.error and not rc.ok:
-        return "type=%s ERROR: %s" % (rc.typename, rc.error)
+        return "type=%s ERROR: %s" % (_display_type(rc.typename), rc.error)
     sig = "" if rc.signature == "none" else " sig=%s" % rc.signature
     return "type=%s strong=%s weak=%s base=0x%x%s" % (
-        rc.typename, rc.strong, rc.weak, rc.base_addr or 0, sig)
-
-
-def _short(typename, width=80):
-    if typename and len(typename) > width:
-        return typename[:width - 1] + "…"
-    return typename
+        _display_type(rc.typename), rc.strong, rc.weak, rc.base_addr or 0, sig)
 
 
 def _print_off_heap_holders(addr):
@@ -80,15 +84,13 @@ class YtRefcount(gdb.Command):
         addr = _parse_addr(arg)
         rc = resolve_refcount(addr)
         print("object   0x%x" % addr)
-        print("type     %s" % rc.typename)
-        if rc.inner:
-            print("inner    %s" % rc.inner)
+        print("type     %s" % _display_type(rc.typename))
         if rc.ok:
             print("counter  0x%x" % rc.base_addr)
             print("strong   %d" % rc.strong)
             print("weak     %d" % rc.weak)
             if rc.signature in ("alive", "dead"):
-                print("signature %s" % rc.signature)
+                print("sig      %s" % rc.signature)
             print("alive    %s" % ("yes" if rc.alive else "NO (freed?)"))
         else:
             print("ERROR    %s" % rc.error)
@@ -113,7 +115,7 @@ class YtHolders(gdb.Command):
         print("%-18s %-7s %-18s %s" % ("slot", "kind", "container", "type / note"))
         for h in holders:
             cont = "0x%x" % h.container if h.container else "-"
-            ct = _short(h.container_type, 70) if h.container_type else h.note
+            ct = _display_type(h.container_type) if h.container_type else h.note
             print("0x%-16x %-7s %-18s %s" % (h.slot, h.kind, cont, ct))
         print("")
         print("strong holders found: %d  (target StrongCount=%s)" % (strong, target_rc.strong))
@@ -149,7 +151,7 @@ class YtTrace(gdb.Command):
                 print("  ROOT obj 0x%x : %s" % (obj, r.get("reason")))
                 for h in r.get("candidates", []) or []:
                     print("    candidate holder: 0x%x %s [%s] %s" % (
-                        h.container or 0, _short(h.container_type, 60), h.kind, h.note))
+                        h.container or 0, _display_type(h.container_type), h.kind, h.note))
                 # No heap holder accounts for it -> attribute to a live stack
                 # (running thread / active or parked fiber).
                 if obj:
@@ -163,7 +165,7 @@ class YtTrace(gdb.Command):
         for container, obj, h in path:
             crc = h.container_refcount
             cinfo = " (strong=%s)" % crc.strong if crc is not None and crc.ok else ""
-            print("  0x%x  %s%s" % (container, _short(h.container_type, 60), cinfo))
+            print("  0x%x  %s%s" % (container, _display_type(h.container_type), cinfo))
             print("        --%s-->  0x%x" % (h.kind, obj))
 
 
@@ -184,8 +186,8 @@ class YtFind(gdb.Command):
             return
         print("%-18s %-8s %s" % ("object", "strong", "type"))
         for obj, tn, strong in hits:
-            print("0x%-16x %-8s %s" % (obj, strong, _short(tn, 80)))
-        print("\n%d live instance(s). Trace one with: yt-rc-cycle <object>" % len(hits))
+            print("0x%-16x %-8s %s" % (obj, strong, _display_type(tn)))
+        print("\n%d live instance(s). Trace one with: yt-rc-cycle <addr>" % len(hits))
 
 
 def register():
