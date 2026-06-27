@@ -422,7 +422,7 @@ static TNbdVolumeFactory::TVolumeFactory MakeVolumeFactory()
             NProfiling::TTagSet tagSet,
             TVolumeMeta volumeMeta,
             TLayerLocationPtr layerLocation,
-            TString nbdDeviceId,
+            std::string nbdDeviceId,
             INbdServerPtr nbdServer) -> IVolumePtr {
 
         return New<TNbdVolume>(
@@ -434,7 +434,7 @@ static TNbdVolumeFactory::TVolumeFactory MakeVolumeFactory()
     });
 }
 
-TNbdVolumeFactory::TInsertCookie TNbdVolumeFactory::GetInsertCookie(const TString& deviceId, const INbdServerPtr& nbdServer)
+TNbdVolumeFactory::TInsertCookie TNbdVolumeFactory::GetInsertCookie(const std::string& deviceId, const INbdServerPtr& nbdServer)
 {
     auto guard = TGuard(InsertLock_);
 
@@ -460,7 +460,7 @@ TNbdVolumeFactory::TInsertCookie TNbdVolumeFactory::GetInsertCookie(const TStrin
 
 TExtendedCallback<TNbdVolumeFactory::TVolumePtr(const TErrorOr<TNbdVolumeFactory::TVolumePtr>&)> TNbdVolumeFactory::MakeJobSubscriberForDeviceErrors(
     TJobId jobId,
-    const TString& deviceId,
+    const std::string& deviceId,
     const INbdServerPtr& nbdServer,
     const TLogger& Logger)
 {
@@ -1352,7 +1352,7 @@ void TLayerCache::ProfileLocation(const TLayerLocationPtr& location)
 
 TLayerPtr TLayerCache::FindLayerInTmpfs(const TArtifactKey& artifactKey, const TGuid& tag)
 {
-    auto findLayer = [&] (TTmpfsLayerCachePtr& tmpfsCache, const TString& cacheName) -> TLayerPtr {
+    auto findLayer = [&] (TTmpfsLayerCachePtr& tmpfsCache, const std::string& cacheName) -> TLayerPtr {
         auto tmpfsLayer = tmpfsCache->FindLayer(artifactKey);
         if (tmpfsLayer) {
             YT_LOG_DEBUG_IF(

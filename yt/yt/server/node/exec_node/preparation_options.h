@@ -21,7 +21,7 @@ namespace NYT::NExecNode {
 
 struct TVirtualSandboxData
 {
-    TString NbdDeviceId;
+    std::string NbdDeviceId;
     TArtifactKey ArtifactKey;
     NNbd::IImageReaderPtr Reader;
 };

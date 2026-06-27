@@ -93,7 +93,7 @@ const NChunkClient::TRefCountedChunkMetaPtr& TArtifact::GetMeta() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TCacheLocation::TCacheLocation(
-    TString id,
+    std::string id,
     NDataNode::TCacheLocationConfigPtr config,
     const NClusterNode::IBootstrap* bootstrap,
     TArtifactCachePtr artifactCache)

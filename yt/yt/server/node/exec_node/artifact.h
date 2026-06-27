@@ -38,7 +38,7 @@ struct TArtifactKey
 
     //! Get unique id of the artifact. Different TArtifactKey instances with
     //! the same NProto::TArtifactKey values will normally have the same unique id.
-    TString GetRuntimeGuid() const;
+    std::string GetRuntimeGuid() const;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TArtifactKey& key, TStringBuf spec);

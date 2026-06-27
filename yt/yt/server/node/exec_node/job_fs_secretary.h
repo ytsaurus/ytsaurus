@@ -29,16 +29,16 @@ struct TPreparedLayers
 struct TJobFSDescription
 {
     std::vector<TArtifactDescription> Artifacts;
-    THashMap<TString, int> UserArtifactNameToIndex;
+    THashMap<std::string, int> UserArtifactNameToIndex;
     std::vector<TArtifactKey> RootVolumeLayerArtifactKeys;
     std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys;
-    std::optional<TString> DockerImage;
+    std::optional<std::string> DockerImage;
     std::optional<i64> RootVolumeDiskSpace;
     std::optional<i64> RootVolumeInodeLimit;
     bool RootVolumeAllowReusing = false;
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams;
     std::vector<TVolumeMountPtr> JobVolumeMounts;
-    THashMap<TString, std::vector<TVolumeMountPtr>> SidecarsVolumeMounts;
+    THashMap<std::string, std::vector<TVolumeMountPtr>> SidecarsVolumeMounts;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
 };
 
@@ -69,11 +69,11 @@ public:
     const std::vector<TArtifactKey>& GetRootVolumeLayerArtifactKeys() const;
     const std::vector<TArtifactKey>& GetGpuCheckVolumeLayerArtifactKeys() const;
 
-    const std::optional<TString>& GetDockerImage() const;
-    void SetDockerImage(std::optional<TString> image);
+    const std::optional<std::string>& GetDockerImage() const;
+    void SetDockerImage(std::optional<std::string> image);
 
-    const std::optional<TString>& GetDockerImageId() const;
-    void SetDockerImageId(std::optional<TString> imageId);
+    const std::optional<std::string>& GetDockerImageId() const;
+    void SetDockerImageId(std::optional<std::string> imageId);
 
     const IVolumePtr& GetRootVolume() const;
     void SetRootVolume(IVolumePtr volume);
@@ -85,8 +85,8 @@ public:
 
     bool IsRootVolumeDiskQuotaEnabled() const;
 
-    const THashSet<TString>& GetNbdDeviceIds() const;
-    THashSet<TString> ReleaseNbdDeviceIds();
+    const THashSet<std::string>& GetNbdDeviceIds() const;
+    THashSet<std::string> ReleaseNbdDeviceIds();
 
     const std::optional<TSandboxNbdRootVolumeData>& GetSandboxNbdRootVolumeData() const;
 
@@ -112,9 +112,9 @@ public:
 
     const std::vector<TVolumeMountPtr>& GetJobVolumeMounts() const;
 
-    const THashMap<TString, std::vector<TVolumeMountPtr>>& GetSidecarsVolumeMounts() const;
+    const THashMap<std::string, std::vector<TVolumeMountPtr>>& GetSidecarsVolumeMounts() const;
 
-    const TArtifactDescription& GetUserArtifact(const TString& name) const;
+    const TArtifactDescription& GetUserArtifact(const std::string& name) const;
 
     //! Adds prepared overlay layers to the allocation-scoped cache.
     //! Crashes if any of the keys is already present.
@@ -148,13 +148,13 @@ private:
     std::vector<TArtifactDescription> Artifacts_;
     std::vector<TArtifactKey> RootVolumeLayerArtifactKeys_;
     std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys_;
-    std::optional<TString> DockerImage_;
-    std::optional<TString> DockerImageId_;
+    std::optional<std::string> DockerImage_;
+    std::optional<std::string> DockerImageId_;
     IVolumePtr RootVolume_;
     IVolumePtr GpuCheckVolume_;
-    THashSet<TString> NbdDeviceIds_;
+    THashSet<std::string> NbdDeviceIds_;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
-    THashMap<TString, int> UserArtifactNameToIndex_;
+    THashMap<std::string, int> UserArtifactNameToIndex_;
     THashMap<std::string, TVolumeResultPtr> NonRootVolumes_;
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
     // COMPAT(krasovav)
@@ -164,7 +164,7 @@ private:
     bool RootVolumeReusingAllowed_ = false;
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams_;
     std::vector<TVolumeMountPtr> JobVolumeMounts_;
-    THashMap<TString, std::vector<TVolumeMountPtr>> SidecarsVolumeMounts_;
+    THashMap<std::string, std::vector<TVolumeMountPtr>> SidecarsVolumeMounts_;
     bool HasVirtualSandboxArtifacts_ = false;
     bool ArtifactsCached_ = false;
 

@@ -50,7 +50,7 @@ public:
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         IInvokerPtr controlInvoker,
         IMemoryUsageTrackerPtr memoryUsageTracker,
-        const TString& cacheName,
+        const std::string& cacheName,
         NContainers::IPortoExecutorPtr portoExecutor,
         TAbsorbLayerCallback absorbLayer);
 
@@ -69,7 +69,7 @@ private:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IInvokerPtr ControlInvoker_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
-    const TString CacheName_;
+    const std::string CacheName_;
     IBootstrap* const Bootstrap_;
     const NContainers::IPortoExecutorPtr PortoExecutor_;
     const TAbsorbLayerCallback AbsorbLayer_;

@@ -267,7 +267,7 @@ TRWNbdVolume::TRWNbdVolume(
     TTagSet tagSet,
     TVolumeMeta volumeMeta,
     TLayerLocationPtr layerLocation,
-    TString nbdDeviceId,
+    std::string nbdDeviceId,
     INbdServerPtr nbdServer)
     : TPortoVolumeBase(
         std::move(tagSet),
@@ -294,7 +294,7 @@ TFuture<void> TRWNbdVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
     TVolumeMeta volumeMeta,
-    TString nbdDeviceId,
+    std::string nbdDeviceId,
     INbdServerPtr nbdServer)
 {
     // First, unregister device. At this point device is removed from NBD
@@ -339,7 +339,7 @@ TRONbdVolume::TRONbdVolume(
     TTagSet tagSet,
     TVolumeMeta volumeMeta,
     TLayerLocationPtr layerLocation,
-    TString nbdDeviceId,
+    std::string nbdDeviceId,
     INbdServerPtr nbdServer)
     : TCachedVolume(
         std::move(tagSet),
@@ -367,7 +367,7 @@ TFuture<void> TRONbdVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
     TVolumeMeta volumeMeta,
-    TString nbdDeviceId,
+    std::string nbdDeviceId,
     INbdServerPtr nbdServer)
 {
     // First, unregister device. At this point device is removed from NBD

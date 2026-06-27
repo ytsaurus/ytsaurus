@@ -141,20 +141,20 @@ public:
         NProfiling::TTagSet tagSet,
         TVolumeMeta volumeMeta,
         TLayerLocationPtr layerLocation,
-        TString nbdDeviceId,
+        std::string nbdDeviceId,
         NNbd::INbdServerPtr nbdServer);
 
     ~TRWNbdVolume() override;
 
 private:
-    const TString NbdDeviceId_;
+    const std::string NbdDeviceId_;
     const NNbd::INbdServerPtr NbdServer_;
 
     static TFuture<void> DoRemove(
         NProfiling::TTagSet tagSet,
         TLayerLocationPtr location,
         TVolumeMeta volumeMeta,
-        TString nbdDeviceId,
+        std::string nbdDeviceId,
         NNbd::INbdServerPtr nbdServer);
 };
 
@@ -163,27 +163,27 @@ DECLARE_REFCOUNTED_CLASS(TRWNbdVolume)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRONbdVolume
-    : public TCachedVolume<TString>
+    : public TCachedVolume<std::string>
 {
 public:
     TRONbdVolume(
         NProfiling::TTagSet tagSet,
         TVolumeMeta volumeMeta,
         TLayerLocationPtr layerLocation,
-        TString nbdDeviceId,
+        std::string nbdDeviceId,
         NNbd::INbdServerPtr nbdServer);
 
     ~TRONbdVolume() override;
 
 private:
-    const TString NbdDeviceId_;
+    const std::string NbdDeviceId_;
     const NNbd::INbdServerPtr NbdServer_;
 
     static TFuture<void> DoRemove(
         NProfiling::TTagSet tagSet,
         TLayerLocationPtr location,
         TVolumeMeta volumeMeta,
-        TString nbdDeviceId,
+        std::string nbdDeviceId,
         NNbd::INbdServerPtr nbdServer);
 };
 

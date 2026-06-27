@@ -618,7 +618,7 @@ void TJob::OnJobProxySpawned()
 }
 
 void TJob::PrepareArtifact(
-    const TString& artifactName,
+    const std::string& artifactName,
     const TString& pipePath)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -705,7 +705,7 @@ void TJob::PrepareArtifact(
 }
 
 void TJob::OnArtifactPreparationFailed(
-    const TString& artifactName,
+    const std::string& artifactName,
     const TString& artifactPath,
     const TError& error)
 {
@@ -1346,14 +1346,14 @@ void TJob::SetStderrSize(i64 value)
     }
 }
 
-void TJob::SetStderr(const TString& value)
+void TJob::SetStderr(const std::string& value)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     Stderr_ = value;
 }
 
-void TJob::SetFailContext(const TString& value)
+void TJob::SetFailContext(const std::string& value)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1694,7 +1694,7 @@ std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions&
     return std::nullopt;
 }
 
-std::optional<TString> TJob::GetFailContext()
+std::optional<std::string> TJob::GetFailContext()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1825,7 +1825,7 @@ void TJob::AbortJobAfterInterruptionCallFailed(TError internalError)
 void TJob::DoInterrupt(
     TDuration timeout,
     EInterruptionReason interruptionReason,
-    std::optional<TString> preemptionReason,
+    std::optional<std::string> preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -2090,7 +2090,7 @@ bool TJob::IsInterruptible() const noexcept
 void TJob::OnJobInterruptionTimeout(
     EInterruptionReason interruptionReason,
     TDuration interruptionTimeout,
-    const std::optional<TString>& preemptionReason)
+    const std::optional<std::string>& preemptionReason)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -2119,7 +2119,7 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPtr TJob::GetControllerA
 void TJob::Interrupt(
     TDuration timeout,
     EInterruptionReason interruptionReason,
-    std::optional<TString> preemptionReason,
+    std::optional<std::string> preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
     YT_LOG_INFO(
@@ -2223,7 +2223,7 @@ void TJob::StartUserJobMonitoring()
         return;
     }
 
-    RequestedMonitoringSensors_ = FromProto<THashSet<TString>>(monitoringConfig.sensor_names());
+    RequestedMonitoringSensors_ = FromProto<THashSet<std::string>>(monitoringConfig.sensor_names());
 
     const auto& supportedStatisticSensors = CommonConfig_->UserJobMonitoring->StatisticSensors;
     const auto& supportedGpuSensors = GetSupportedGpuMonitoringSensors();
@@ -2254,7 +2254,7 @@ void TJob::ReportJobInterruptionInfo(
     TInstant time,
     TDuration timeout,
     NScheduler::EInterruptionReason interruptionReason,
-    const std::optional<TString>& preemptionReason,
+    const std::optional<std::string>& preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
