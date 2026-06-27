@@ -3,6 +3,7 @@ RECURSE(
     fetch_cluster_info
     fetch_cluster_logs
     fetch_cluster_metrics
+    gdb_plugin
     generate_documentation_release_notes
     generate_github_release_notes
     remove_master_unrecognized_options

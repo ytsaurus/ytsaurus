@@ -12,19 +12,42 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(library)
-add_subdirectory(core)
-add_subdirectory(build)
-add_subdirectory(client)
-add_subdirectory(ytlib)
-add_subdirectory(flow)
-add_subdirectory(server)
-add_subdirectory(orm)
-add_subdirectory(benchmarks)
-add_subdirectory(contrib)
-add_subdirectory(gpuagent)
-add_subdirectory(python)
-add_subdirectory(tools)
-add_subdirectory(tests)
-add_subdirectory(experiments)
-add_subdirectory(scripts)
+add_executable(fixture)
+
+
+target_compile_options(fixture PRIVATE
+  -g
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
+)
+
+target_link_libraries(fixture PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  build-cow-on
+  yt-yt-core
+)
+
+target_allocator(fixture
+  system_allocator
+)
+
+target_link_options(fixture PRIVATE
+  -Wl,-platform_version,macos,11.0,11.0
+  -fPIC
+  -fPIC
+  -framework
+  CoreFoundation
+)
+
+target_sources(fixture PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/scripts/gdb_plugin/tests/fixture/main.cpp
+)
+
+
+vcs_info(fixture)
