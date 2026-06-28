@@ -12,6 +12,32 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(chaos_force_remove_coordinator)
-add_subdirectory(chaos_remove_mailbox)
-add_subdirectory(force_remove_coordinator_shortcut)
+add_executable(chaos_remove_mailbox)
+
+
+target_link_libraries(chaos_remove_mailbox PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  build-cow-on
+  library-cpp-cpuid_check
+  yt-yt-ytlib
+)
+
+target_allocator(chaos_remove_mailbox
+  system_allocator
+)
+
+target_link_options(chaos_remove_mailbox PRIVATE
+  -Wl,-platform_version,macos,11.0,11.0
+  -fPIC
+  -fPIC
+  -framework
+  CoreFoundation
+)
+
+target_sources(chaos_remove_mailbox PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/chaos_tools/chaos_remove_mailbox/main.cpp
+)
+
+
+vcs_info(chaos_remove_mailbox)
