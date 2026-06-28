@@ -143,7 +143,7 @@ protected:
 
         auto items = ConvertTo<IListNodePtr>(result);
         for (const auto& item : items->GetChildren()) {
-            auto key = item->GetValue<TString>();
+            auto key = item->GetValue<std::string>();
             int id;
             if (!TryFromString(key, id)) {
                 THROW_ERROR_EXCEPTION("Unrecognized item %Qv in changelog store %v",

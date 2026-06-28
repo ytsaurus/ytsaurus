@@ -1320,7 +1320,7 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
     if (Options_.EnableLocalHostSanitizing) {
         THashSet<std::string> hosts;
         for (const auto& peer : GetEpochContext()->CellManager->GetClusterPeersAddresses()) {
-            hosts.insert(TString(GetServiceHostName(peer)));
+            hosts.insert(std::string(GetServiceHostName(peer)));
         }
 
         if (auto sanitizedLocalHost = NHydra::SanitizeLocalHostName(hosts, localHost)) {
