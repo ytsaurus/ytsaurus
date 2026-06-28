@@ -387,4 +387,5 @@ message TFeatureFlagsConfig {
     optional bool ClustersWithIdm = 21 [default = false];
     optional bool SpytEnabled = 22 [default = true];
     optional bool ChytExecuteInQt = 23 [default = false];
+    optional bool TablesIssuesErrors = 24 [default = false];
 }
