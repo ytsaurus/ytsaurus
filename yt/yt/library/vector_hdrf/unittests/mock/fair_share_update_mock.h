@@ -86,7 +86,7 @@ public:
     void SetResourceLimits(const TJobResources& resourceLimits);
 
 protected:
-    const TString Id_;
+    const std::string Id_;
     TCompositeElement* Parent_ = nullptr;
 
     const NLogging::TLogger Logger;

@@ -104,7 +104,7 @@ private:
     bool Started_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashMap<TString, NYson::TYsonProducer> PathToProducer_;
+    THashMap<TYPath, NYson::TYsonProducer> PathToProducer_;
     IMapNodePtr Root_;
 
     void Update()
@@ -114,7 +114,7 @@ private:
         YT_PROFILE_TIMING("/monitoring/update_time") {
             auto newRoot = GetEphemeralNodeFactory()->CreateMap();
 
-            THashMap<TString, NYson::TYsonProducer> pathToProducer;
+            THashMap<TYPath, NYson::TYsonProducer> pathToProducer;
             {
                 auto guard = Guard(SpinLock_);
                 pathToProducer = PathToProducer_;

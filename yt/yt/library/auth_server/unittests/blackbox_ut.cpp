@@ -269,7 +269,7 @@ protected:
         , Authenticator_(CreateBlackboxTokenAuthenticator(Config_, Blackbox_))
     { }
 
-    void MockCall(const TString& yson)
+    void MockCall(const std::string& yson)
     {
         EXPECT_CALL(*Blackbox_, Call("oauth", _))
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));
@@ -520,7 +520,7 @@ protected:
         , Authenticator_(CreateBlackboxCookieAuthenticator(Config_, Blackbox_))
     { }
 
-    void MockCall(const TString& yson)
+    void MockCall(const std::string& yson)
     {
         EXPECT_CALL(*Blackbox_, Call("sessionid", _))
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));
@@ -640,7 +640,7 @@ protected:
         return THashMap<std::string, std::string>{{"user_ticket", ticket}};
     }
 
-    TFuture<INodePtr> Response(const TString& yson)
+    TFuture<INodePtr> Response(const std::string& yson)
     {
         return MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)));
     }

@@ -24,8 +24,8 @@ class TS3ClientTest
     : public ::testing::Test
 {
 protected:
-    const TString Bucket1_ = "test-bucket1";
-    const TString Bucket2_ = "test-bucket2";
+    const std::string Bucket1_ = "test-bucket1";
+    const std::string Bucket2_ = "test-bucket2";
 
     ICredentialsProviderPtr S3CredentialProvider_;
     IThreadPoolPollerPtr Poller_;
@@ -128,10 +128,10 @@ TEST_F(TS3ClientTest, PutAndListBuckets)
 
 TEST_F(TS3ClientTest, PutAndGetObjects)
 {
-    const TString object1Key = "foo1";
-    const TString object1Data = "bar1";
-    const TString object2Key = "foo2";
-    const TString object2Data = "bar2";
+    const std::string object1Key = "foo1";
+    const std::string object1Data = "bar1";
+    const std::string object2Key = "foo2";
+    const std::string object2Data = "bar2";
     WaitFor(S3Client_->PutObject({
         .Bucket = Bucket1_,
         .Key = object1Key,

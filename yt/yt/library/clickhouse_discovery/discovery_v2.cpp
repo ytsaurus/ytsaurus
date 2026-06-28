@@ -49,7 +49,7 @@ public:
                 ChannelFactory_,
                 Invoker_,
                 name,
-                TString(Config_->GroupId));
+                Config_->GroupId);
 
             auto* memberAttributes = MemberClient_->GetAttributes();
             for (const auto& [key, value] : attributes->ListPairs()) {
@@ -90,7 +90,7 @@ private:
         WaitForFast(DiscoveryClient_->GetReadyEvent()
             .WithTimeout(Config_->DiscoveryReadinessTimeout))
             .ThrowOnError();
-        auto list = WaitFor(DiscoveryClient_->ListMembers(TString(Config_->GroupId), ListOptions_))
+        auto list = WaitFor(DiscoveryClient_->ListMembers(Config_->GroupId, ListOptions_))
             .ValueOrThrow();
 
         THashMap<std::string, IAttributeDictionaryPtr> newList;

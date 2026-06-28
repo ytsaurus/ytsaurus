@@ -49,7 +49,8 @@ void RunUnderProfiler(const std::string& name, std::function<void()> work, bool 
         .TmpDir = GetOutputPath().GetPath(),
         .KeepTmpDir = true,
         .RunTool = [] (const std::vector<std::string>& args) {
-            TShellCommand command{args[0], TList<TString>{args.begin()+1, args.end()}};
+            // TODO(babenko): TShellCommand has no std::string-based API.
+            TShellCommand command{TString(args[0]), TList<TString>{args.begin() + 1, args.end()}};
             command.Run();
 
             EXPECT_TRUE(command.GetExitCode() == 0)

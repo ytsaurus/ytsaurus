@@ -15,7 +15,7 @@ namespace NYT::NClickHouseServer {
 struct TDiscoveryBaseConfig
     : public virtual NYTree::TYsonStruct
 {
-    std::string GroupId;
+    NDiscoveryClient::TGroupId GroupId;
     TDuration UpdatePeriod;
     TDuration BanTimeout;
 

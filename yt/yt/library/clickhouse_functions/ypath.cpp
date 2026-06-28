@@ -457,7 +457,7 @@ public:
             INodePtr subNode;
             if constexpr (Strict) {
                 try {
-                    subNode = GetNodeByYPath(node, TString(path.data, path.size));
+                    subNode = GetNodeByYPath(node, TYPath(path.data, path.size));
                 } catch (const std::exception& ex) {
                     // Rethrow the error with additional context.
                     THROW_ERROR_EXCEPTION("Failed to extract value from yson")
@@ -470,7 +470,7 @@ public:
                 options.NodeCannotHaveChildrenHandler = [] (const INodePtr& /*node*/) {
                     return nullptr;
                 };
-                subNode = WalkNodeByYPath(node, TString(path.data, path.size), options);
+                subNode = WalkNodeByYPath(node, TYPath(path.data, path.size), options);
             }
 
             if (subNode) {
@@ -588,7 +588,7 @@ public:
             INodePtr subNode;
             if constexpr (Strict) {
                 try {
-                    subNode = GetNodeByYPath(node, TString(path.data, path.size));
+                    subNode = GetNodeByYPath(node, TYPath(path.data, path.size));
                 } catch (const std::exception& ex) {
                     // Rethrow the error with additional context.
                     THROW_ERROR_EXCEPTION("Failed to extract value from yson")
@@ -601,7 +601,7 @@ public:
                 options.NodeCannotHaveChildrenHandler = [] (const INodePtr& /*node*/) {
                     return nullptr;
                 };
-                subNode = WalkNodeByYPath(node, TString(path.data, path.size), options);
+                subNode = WalkNodeByYPath(node, TYPath(path.data, path.size), options);
             }
 
             std::string errorStub;

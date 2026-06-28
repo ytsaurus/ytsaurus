@@ -2160,7 +2160,7 @@ protected:
     { }
 };
 
-TString UnversionedValueToString(TUnversionedValue value)
+std::string UnversionedValueToString(TUnversionedValue value)
 {
     std::string result;
     TFixedGrowthStringOutput outStream(&result, 300);

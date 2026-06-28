@@ -13,7 +13,7 @@ namespace {
 struct TTestConfig
     : public NYTree::TYsonStruct
 {
-    TString Name;
+    std::string Name;
     int Value;
 
     REGISTER_YSON_STRUCT(TTestConfig);
@@ -33,14 +33,14 @@ DEFINE_REFCOUNTED_TYPE(TTestConfig)
 
 TEST(TYamlHelpersTest, StringList)
 {
-    auto result = ConvertFromYaml<std::vector<TString>>("- foo\n- bar\n");
-    EXPECT_EQ(result, (std::vector<TString>{"foo", "bar"}));
+    auto result = ConvertFromYaml<std::vector<std::string>>("- foo\n- bar\n");
+    EXPECT_EQ(result, (std::vector<std::string>{"foo", "bar"}));
 }
 
 TEST(TYamlHelpersTest, Mapping)
 {
     auto result = ConvertFromYaml<NYTree::INodePtr>("key: value\n");
-    EXPECT_EQ(result->AsMap()->GetChildValueOrThrow<TString>("key"), "value");
+    EXPECT_EQ(result->AsMap()->GetChildValueOrThrow<std::string>("key"), "value");
 }
 
 TEST(TYamlHelpersTest, YsonStruct)
