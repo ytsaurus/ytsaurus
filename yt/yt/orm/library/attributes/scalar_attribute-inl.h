@@ -33,6 +33,7 @@ template <class T>
 concept CScalarAttributeTriviallyComparable =
     std::equality_comparable<T> && (
         std::same_as<T, TString> ||
+        std::same_as<T, std::string> ||
         std::same_as<T, TStringBuf> ||
         std::same_as<T, TGuid> ||
         std::same_as<T, TInstant> ||
