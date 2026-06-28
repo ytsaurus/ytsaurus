@@ -14,6 +14,7 @@
 #include <library/cpp/skiff/skiff_schema.h>
 
 #include <library/cpp/yt/string/stream.h>
+#include <library/cpp/yt/string/string.h>
 
 #include <util/string/hex.h>
 
@@ -67,9 +68,7 @@ std::string ConvertYsonHex(
         writer.Finish();
     }
 
-    auto result = HexEncode(out.Str());
-    result.to_lower();
-    return result;
+    return AsciiStringToLower(HexEncode(out.Str()));
 }
 
 std::string ConvertHexToTextYson(

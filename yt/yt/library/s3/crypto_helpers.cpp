@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/crypto/crypto.h>
 
+#include <library/cpp/yt/string/string.h>
+
 #include <util/string/hex.h>
 
 namespace NYT::NS3::NCrypto {
@@ -12,12 +14,12 @@ using namespace NYT::NCrypto;
 
 std::string Lowercase(const std::string& string)
 {
-    return to_lower(TString(string));
+    return AsciiStringToLower(string);
 }
 
 std::string Hex(const std::string& string)
 {
-    return to_lower(HexEncode(string));
+    return AsciiStringToLower(HexEncode(string));
 }
 
 std::string Sha256HashHex(TSharedRef data)

@@ -52,6 +52,8 @@
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
+#include <library/cpp/yt/string/string.h>
+
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
@@ -288,9 +290,7 @@ std::string GetFilterFactors(const TArchiveOperationRequest& request)
     auto pools = GetPools(filteredRuntimeParameters.SchedulingOptionsPerPoolTree);
     parts.insert(parts.end(), pools.begin(), pools.end());
 
-    // TODO(babenko): drop TString once to_lower accepts std::string.
-    TString result = JoinToString(parts.begin(), parts.end(), TStringBuf(" "));
-    return to_lower(result);
+    return AsciiStringToLower(JoinToString(parts.begin(), parts.end(), TStringBuf(" ")));
 }
 
 bool HasFailedJobs(const TYsonString& briefProgress)

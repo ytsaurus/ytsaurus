@@ -23,6 +23,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <library/cpp/yt/string/string.h>
+
 #include <Common/Exception.h>
 
 #include <Interpreters/Context.h>
@@ -120,7 +122,7 @@ void TYtDatabaseBase::dropTable(DB::ContextPtr context, const String& name, bool
     auto* host = queryContext->Host;
     auto timerGuard = queryContext->CreateStatisticsTimerGuard(
         SlashedStatisticPath(
-            Format("/%v_database/drop_table", to_lower(TString(getDatabaseName())))).ValueOrThrow());
+            Format("/%v_database/drop_table", AsciiStringToLower(getDatabaseName()))).ValueOrThrow());
 
     #ifndef NDEBUG
     if (auto breakpointFilename = queryContext->SessionSettings->Testing->DropTableBreakpoint) {
@@ -172,7 +174,7 @@ void TYtDatabaseBase::renameTable(
     auto* queryContext = GetQueryContext(context);
     auto timerGuard = queryContext->CreateStatisticsTimerGuard(
         SlashedStatisticPath(
-            Format("/%v_database/rename_table", to_lower(TString(getDatabaseName())))).ValueOrThrow());
+            Format("/%v_database/rename_table", AsciiStringToLower(getDatabaseName()))).ValueOrThrow());
 
     auto client = queryContext->Client();
     TYPath srcPath = getTableDataPath(name);
@@ -325,7 +327,7 @@ DB::StoragePtr TYtDatabaseBase::DoGetYTTable(DB::ContextPtr context, TQueryConte
 {
     auto timerGuard = queryContext->CreateStatisticsTimerGuard(
         SlashedStatisticPath(
-            Format("/%v_database/do_get_yt_table", to_lower(TString(storageId.database_name)))).ValueOrThrow());
+            Format("/%v_database/do_get_yt_table", AsciiStringToLower(storageId.database_name))).ValueOrThrow());
 
     TRichYPath path;
     try {
