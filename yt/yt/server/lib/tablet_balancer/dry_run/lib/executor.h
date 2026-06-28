@@ -31,13 +31,13 @@ TTabletActionBatch Balance(
     EBalancingMode mode,
     const TTabletCellBundlePtr& bundle,
     const TGroupName& group,
-    const TString& parameterizedConfig);
+    const std::string& parameterizedConfig);
 
 TTabletActionBatch BalanceAndPrintDescriptors(
     EBalancingMode mode,
     const TTabletCellBundlePtr& bundle,
     const TGroupName& group,
-    const TString& parameterizedConfig);
+    const std::string& parameterizedConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
