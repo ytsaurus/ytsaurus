@@ -267,22 +267,22 @@ public:
             if (snapshot->CellId == slot->GetCellId()) {
                 guard.Release();
 
-                snapshot->Unregistered.store(true);
+                if (!snapshot->Unregistered.exchange(true)) {
+                    auto evictionTimeout = tablet->GetSnapshotEvictionTimeout().value_or(
+                        Config_->TabletSnapshotEvictionTimeout);
 
-                auto evictionTimeout = tablet->GetSnapshotEvictionTimeout().value_or(
-                    Config_->TabletSnapshotEvictionTimeout);
+                    YT_LOG_DEBUG("Tablet snapshot unregistered; eviction scheduled "
+                        "(%v, MountRevision: %x, CellId: %v, EvictionTimeout: %v)",
+                        snapshot->LoggingTag,
+                        snapshot->MountRevision,
+                        slot->GetCellId(),
+                        evictionTimeout);
 
-                YT_LOG_DEBUG("Tablet snapshot unregistered; eviction scheduled "
-                    "(%v, MountRevision: %x, CellId: %v, EvictionTimeout: %v)",
-                    snapshot->LoggingTag,
-                    snapshot->MountRevision,
-                    slot->GetCellId(),
-                    evictionTimeout);
-
-                TDelayedExecutor::Submit(
-                    BIND(&TTabletSnapshotStore::EvictTabletSnapshot, MakeStrong(this), tablet->GetId(), snapshot)
-                        .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()),
-                    evictionTimeout);
+                    TDelayedExecutor::Submit(
+                        BIND(&TTabletSnapshotStore::EvictTabletSnapshot, MakeStrong(this), tablet->GetId(), snapshot)
+                            .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()),
+                        evictionTimeout);
+                }
 
                 break;
             }
