@@ -15,6 +15,7 @@ SRCS(
     main.cpp
     refcount_fixtures.cpp
     printer_fixtures.cpp
+    tcmalloc_fixtures.cpp
 )
 
 PEERDIR(
