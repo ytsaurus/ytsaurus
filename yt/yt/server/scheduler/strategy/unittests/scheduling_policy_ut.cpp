@@ -112,7 +112,7 @@ public:
         const TJobResources& allocationLimits,
         const TDiskResources& diskResourceLimits,
         const std::string& treeId,
-        const TString& poolPath,
+        const NYPath::TYPath& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout,
         std::optional<std::string> allocationGroupName), (override));
 
@@ -375,7 +375,7 @@ protected:
             SchedulerLogger());
     }
 
-    TPoolTreePoolElementPtr CreateTestPool(IStrategyHost* strategyHost, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
+    TPoolTreePoolElementPtr CreateTestPool(IStrategyHost* strategyHost, const std::string& name, TPoolConfigPtr config = New<TPoolConfig>())
     {
         return New<TPoolTreePoolElement>(
             strategyHost,

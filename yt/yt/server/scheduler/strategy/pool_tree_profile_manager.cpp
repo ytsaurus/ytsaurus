@@ -186,7 +186,7 @@ void TPoolTreeProfileManager::CleanupPoolProfilingEntries()
 
     auto guard = WriterGuard(PoolNameToStateLock_);
 
-    std::vector<TString> poolNamesToRemove;
+    std::vector<std::string> poolNamesToRemove;
     for (const auto& [poolName, poolState] : PoolNameToState_) {
         if (poolState.RemoveTime && *poolState.RemoveTime + PoolKeepAlivePeriod < now) {
             poolNamesToRemove.push_back(poolName);
@@ -199,7 +199,7 @@ void TPoolTreeProfileManager::CleanupPoolProfilingEntries()
     }
 }
 
-void TPoolTreeProfileManager::RegisterPoolProfiler(const TString& poolName)
+void TPoolTreeProfileManager::RegisterPoolProfiler(const std::string& poolName)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -258,7 +258,7 @@ void TPoolTreeProfileManager::ProfileElement(
 
     const auto& attributes = element->Attributes();
 
-    auto profileDominantFairShare = [&] (const TString& prefix, const NVectorHdrf::TDetailedFairShare& fairShare) {
+    auto profileDominantFairShare = [&] (const std::string& prefix, const NVectorHdrf::TDetailedFairShare& fairShare) {
         writer->AddGauge(prefix + "/strong_guarantee", MaxComponent(fairShare.StrongGuarantee));
         writer->AddGauge(prefix + "/integral_guarantee", MaxComponent(fairShare.IntegralGuarantee));
         writer->AddGauge(prefix + "/weight_proportional", MaxComponent(fairShare.WeightProportional));
@@ -292,8 +292,7 @@ void TPoolTreeProfileManager::ProfileElement(
             TWithTagGuard guard(
                 writer,
                 "scheduling_stage",
-                // TODO(babenko): migrate to std::string
-                schedulingStage ? TString(FormatEnum(*schedulingStage)) : ToString(schedulingStage));
+                schedulingStage ? std::string(FormatEnum(*schedulingStage)) : std::string(ToString(schedulingStage)));
             ProfileResources(writer, scheduledResourcesIt->second, "/scheduled_job_resources", EMetricType::Counter);
         }
     }
@@ -327,7 +326,7 @@ void TPoolTreeProfileManager::ProfileElement(
             ? treeConfig->ProfiledOperationResources
             : treeConfig->ProfiledPoolResources;
 
-        auto profileVectorFairShare = [&] (const TString& prefix, const NVectorHdrf::TDetailedFairShare& fairShare) {
+        auto profileVectorFairShare = [&] (const std::string& prefix, const NVectorHdrf::TDetailedFairShare& fairShare) {
             ProfileResourceVector(
                 writer,
                 profiledResources,
@@ -522,7 +521,7 @@ void TPoolTreeProfileManager::ProfilePools(const TPoolTreeSnapshotPtr& treeSnaps
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
 
-    THashMap<TString, TPoolState> poolNameToState;
+    THashMap<std::string, TPoolState> poolNameToState;
     {
         auto readerGuard = ReaderGuard(PoolNameToStateLock_);
         poolNameToState = PoolNameToState_;
@@ -551,8 +550,7 @@ void TPoolTreeProfileManager::ProfilePools(const TPoolTreeSnapshotPtr& treeSnaps
     ProfilePool(
         treeSnapshot->RootElement().Get(),
         treeSnapshot->TreeConfig(),
-        // TODO(babenko): migrate to std::string
-        findPoolBufferedProducer(TString(RootPoolName)));
+        findPoolBufferedProducer(RootPoolName));
 }
 
 void TPoolTreeProfileManager::ProfileDistributedResources(const TPoolTreeSnapshotPtr& treeSnapshot)
@@ -635,7 +633,7 @@ void TPoolTreeProfileManager::ProfileStarvationIntervals(const TPoolTreeSnapshot
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
 
-    THashMap<TString, TPoolState> poolNameToState;
+    THashMap<std::string, TPoolState> poolNameToState;
     {
         auto readerGuard = ReaderGuard(PoolNameToStateLock_);
         poolNameToState = PoolNameToState_;

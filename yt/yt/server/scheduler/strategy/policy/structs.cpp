@@ -54,7 +54,7 @@ void Serialize(const TScheduleAllocationsStatisticsImplPtr& statistics, NYson::I
         .EndMap();
 }
 
-TString TScheduleAllocationsStatisticsImpl::FormatScheduleAllocationAttemptsCompact() const
+std::string TScheduleAllocationsStatisticsImpl::FormatScheduleAllocationAttemptsCompact() const
 {
     return Format("{RH: %v, RM: %v, PSA: %v, PSN: %v, PA: %v, PN: %v, C: %v, TO: %v, MNPSI: %v}",
         ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::RegularHighPriority],
@@ -68,7 +68,7 @@ TString TScheduleAllocationsStatisticsImpl::FormatScheduleAllocationAttemptsComp
         MaxNonPreemptiveSchedulingIndex);
 }
 
-TString TScheduleAllocationsStatisticsImpl::FormatOperationCountByPreemptionPriorityCompact() const
+std::string TScheduleAllocationsStatisticsImpl::FormatOperationCountByPreemptionPriorityCompact() const
 {
     return Format("{N: %v, R: %v, A: %v, SR: %v, SA: %v, GFH: %v}",
         OperationCountByPreemptionPriority[EOperationPreemptionPriority::None],

@@ -47,8 +47,8 @@ struct TScheduleAllocationsStatisticsImpl
     bool SsdPriorityPreemptionEnabled = false;
     THashSet<int> SsdPriorityPreemptionMedia;
 
-    TString FormatOperationCountByPreemptionPriorityCompact() const;
-    TString FormatScheduleAllocationAttemptsCompact() const;
+    std::string FormatOperationCountByPreemptionPriorityCompact() const;
+    std::string FormatScheduleAllocationAttemptsCompact() const;
 };
 using TScheduleAllocationsStatisticsImplPtr = TIntrusivePtr<TScheduleAllocationsStatisticsImpl>;
 

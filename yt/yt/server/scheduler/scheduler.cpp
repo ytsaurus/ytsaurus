@@ -532,7 +532,7 @@ public:
     void ValidatePoolPermission(
         const std::string& treeId,
         NObjectClient::TObjectId poolObjectId,
-        const TString& poolName,
+        const std::string& poolName,
         const std::string& user,
         EPermission permission) const override
     {
@@ -1040,10 +1040,9 @@ public:
 
         {
             const auto& shells = operation->Spec()->JobShells;
-            THashSet<TString> jobShellNames;
+            THashSet<std::string> jobShellNames;
             for (const auto& shell : shells) {
-                // TODO(babenko): migrate to std::string
-                jobShellNames.insert(TString(shell->Name));
+                jobShellNames.insert(shell->Name);
             }
             for (const auto& [jobShellName, options] : update->OptionsPerJobShell) {
                 if (!jobShellNames.contains(jobShellName)) {
@@ -1496,7 +1495,7 @@ public:
             return;
         }
 
-        auto buildCommonLogEventPart = [&] (const TString& schema, i64 usageQuantity, TInstant startTime, TInstant finishTime) {
+        auto buildCommonLogEventPart = [&] (const std::string& schema, i64 usageQuantity, TInstant startTime, TInstant finishTime) {
             return NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger(), NLogging::ELogLevel::Info)
                 .Item("schema").Value(schema)
                 .Item("id").Value(TGuid::Create())
@@ -2494,7 +2493,7 @@ private:
             return;
         }
 
-        ClusterName_ = ConvertTo<TString>(TYsonString(rspOrError.Value()->value()));
+        ClusterName_ = ConvertTo<std::string>(TYsonString(rspOrError.Value()->value()));
     }
 
     void RequestUserToDefaultPoolMap(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
