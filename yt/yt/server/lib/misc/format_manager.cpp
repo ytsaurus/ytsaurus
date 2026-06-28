@@ -123,7 +123,7 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, std:
     }
 
     if (AuthenticatedUser_ != NSecurityClient::RootUserName && !formatConfig->Enable) {
-        TString errorMessage;
+        std::string errorMessage;
         if (userOverride) {
             errorMessage = Format("Format %Qlv is disabled for user %Qv", formatType, AuthenticatedUser_);
         } else {
