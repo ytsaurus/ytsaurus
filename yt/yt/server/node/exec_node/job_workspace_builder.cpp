@@ -523,7 +523,7 @@ private:
         YT_LOG_DEBUG("GPU check is not supported in simple workspace");
 
         ValidateJobPhase(EJobPhase::RunningCustomPreparations);
-        // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
+        // NB: we intentionally do not set running_gpu_check_command phase, since this phase is empty.
 
         return OKFuture;
     }
@@ -1112,7 +1112,7 @@ private:
                     YT_LOG_INFO("Preliminary GPU check command finished");
                 }).AsyncVia(Invoker_));
         } else {
-            // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
+            // NB: we intentionally do not set running_gpu_check_command phase, since this phase is empty.
             YT_LOG_INFO("No preliminary GPU check is needed");
 
             return OKFuture;
@@ -1399,7 +1399,7 @@ private:
         YT_LOG_DEBUG_IF(Context_.GpuCheckOptions, "GPU check is not supported in CRI workspace");
 
         ValidateJobPhase(EJobPhase::RunningCustomPreparations);
-        // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
+        // NB: we intentionally do not set running_gpu_check_command phase, since this phase is empty.
 
         return OKFuture;
     }
