@@ -1,3 +1,5 @@
+import re
+
 from yt_commands import authors
 
 from gdb_test_lib import get_core, analyze
@@ -21,6 +23,27 @@ def test_fiber_bt():
     out = analyze(ctx, path, "yt-fiber-bt 0")
     assert "WaitUntilSet" in out
     assert "FiberTrampoline" in out
+
+
+@authors("babenko")
+def test_fiber_locals_on_core():
+    ctx, path = get_core()
+    # The parked fiber's lambda keeps a local `held` (TIntrusivePtr) alive on its
+    # stack. Inspecting locals must work on a coredump -- the CFI seed reads them
+    # without modifying registers. Find the lambda's frame in the backtrace, then
+    # dump its locals and confirm `held` shows up.
+    bt = analyze(ctx, path, "yt-fiber-bt 0")
+    frame = None
+    for line in bt.splitlines():
+        if "SetupGdbRefCountFixtures" in line:
+            m = re.search(r"#(\d+)", line)
+            if m:
+                frame = int(m.group(1))
+                break
+    assert frame is not None, bt
+    out = analyze(ctx, path, "yt-fiber-locals 0 %d" % frame)
+    assert "locals:" in out
+    assert "held" in out
 
 
 @authors("babenko")

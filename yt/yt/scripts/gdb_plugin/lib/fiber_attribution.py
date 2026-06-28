@@ -309,25 +309,28 @@ def _format_cfi_frames(leaf, limit):
     return lines
 
 
-def _cfi_unwind(seed, limit):
-    """Backtrace a parked fiber via gdb's native CFI unwinder, seeded from its
-    saved registers. Returns formatted lines, or None when unavailable / it
-    didn't take (so the caller falls back to the fp-walk / stack scan).
+def _arm_seed(seed):
+    """Switch to a viable host thread and arm the one-shot seed unwinder so the
+    fiber's leaf frame becomes the synthesized caller of the host's newest frame.
+    Core-safe -- no register writes. Returns (leaf, saved_thread, saved_frame):
+    `leaf` is the fiber's innermost gdb.Frame (None if no host took), and gdb is
+    left ON the chosen host thread. The caller MUST call _restore_seed(saved_thread,
+    saved_frame) when done; after that the returned frames are invalid.
 
-    The seed replaces a host frame's caller. gdb only consults Python unwinders
-    while unwinding a frame that has a caller, so an outermost host frame (e.g. a
-    thread sitting in main) is no good -- we try each thread (the selected one
-    first) and keep the first where the seed actually took (its caller becomes the
-    fiber's leaf)."""
+    The seed replaces a host frame's caller, and gdb only consults Python
+    unwinders while unwinding a frame that has a caller -- so an outermost host
+    frame (a thread sitting in main) is no good. We try each thread (selected
+    first) and keep the first where the seed actually took (its caller becomes
+    the fiber's leaf)."""
     unwinder = _ensure_seed_unwinder()
     if unwinder is None or any(seed.get(n) is None for n in _CFI_SEED_REGS):
-        return None
+        return None, None, None
     regs = {n: seed[n] for n in _CFI_SEED_REGS}
     try:
         inferior = gdb.selected_inferior()
         saved_thread = gdb.selected_thread()
     except gdb.error:
-        return None
+        return None, None, None
     try:
         saved_frame = gdb.selected_frame()
     except gdb.error:
@@ -335,33 +338,49 @@ def _cfi_unwind(seed, limit):
     threads = list(inferior.threads())
     if saved_thread in threads:  # prefer the selected thread (usually deep enough)
         threads = [saved_thread] + [t for t in threads if t is not saved_thread]
-    lines = []
-    try:
-        for host in threads[:64]:  # the right host is almost always the first
-            try:
-                host.switch()
-                unwinder.regs = dict(regs)
-                gdb.invalidate_cached_frames()
-                leaf = gdb.newest_frame().older()
-            except gdb.error:
-                unwinder.regs = None
-                continue
-            unwinder.regs = None
-            if leaf is not None and int(leaf.pc()) == regs["rip"]:  # seed took
-                lines = _format_cfi_frames(leaf, limit)
-                break
-    except Exception:
-        lines = []
-    finally:
-        unwinder.regs = None
+    for host in threads[:64]:  # the right host is almost always the first
         try:
+            host.switch()
+            unwinder.regs = dict(regs)
             gdb.invalidate_cached_frames()
-            saved_thread.switch()
-            if saved_frame is not None:
-                saved_frame.select()
-        except Exception:
-            pass
-    return lines if len(lines) >= 2 else None
+            leaf = gdb.newest_frame().older()
+        except gdb.error:
+            unwinder.regs = None
+            continue
+        unwinder.regs = None
+        if leaf is not None and int(leaf.pc()) == regs["rip"]:  # seed took
+            return leaf, saved_thread, saved_frame
+    return None, saved_thread, saved_frame
+
+
+def _restore_seed(saved_thread, saved_frame):
+    """Undo _arm_seed: drop the synthesized frames and return to the original
+    thread/frame."""
+    if saved_thread is None:
+        return
+    try:
+        gdb.invalidate_cached_frames()
+        saved_thread.switch()
+        if saved_frame is not None:
+            saved_frame.select()
+    except Exception:
+        pass
+
+
+def _cfi_unwind(seed, limit):
+    """Backtrace a parked fiber via gdb's native CFI unwinder, seeded from its
+    saved registers. Returns formatted lines, or None when unavailable / it
+    didn't take (so the caller falls back to the fp-walk / stack scan)."""
+    leaf, saved_thread, saved_frame = _arm_seed(seed)
+    try:
+        if leaf is None:
+            return None
+        lines = _format_cfi_frames(leaf, limit)
+    except Exception:
+        lines = None
+    finally:
+        _restore_seed(saved_thread, saved_frame)
+    return lines if lines and len(lines) >= 2 else None
 
 
 def format_fiber_backtrace(fib, limit=48):
@@ -379,6 +398,47 @@ def format_fiber_backtrace(fib, limit=48):
     if lines is not None:
         return lines
     return _stack_scan(seed.get("rip"), seed.get("rsp"), limit)
+
+
+def format_fiber_frame_locals(fib, frame_index):
+    """Select frame #frame_index of parked fiber #fib via the CFI seed and return
+    a header plus its `info args` / `info locals`, as lines. Core-safe -- it reads
+    locals out of the synthesized frame's memory, with no register writes (unlike
+    yt-fiber-select's live-only register switch). Returns None if the CFI seed did
+    not take; typed locals need the precise unwind the seed provides, so there is
+    no scan fallback."""
+    leaf, saved_thread, saved_frame = _arm_seed(_seed_regs_for(fib))
+    try:
+        if leaf is None:
+            return None
+        frame, i = leaf, 0
+        while i < frame_index and frame is not None:
+            frame = frame.older()
+            i += 1
+        if frame is None or int(frame.pc()) == 0:
+            return ["no frame #%d (fiber has fewer frames)" % frame_index]
+        frame.select()
+        pc = int(frame.pc())
+        if frame.type() == gdb.INLINE_FRAME:
+            out = ["#%-2d %14s  %s  (inlined)" % (frame_index, "", frame.name() or "?")]
+        else:
+            sym = (info_symbol(pc) or "?").split(" in section ")[0]
+            out = ["#%-2d 0x%012x  %s" % (frame_index, pc, sym)]
+        sal = frame.find_sal()
+        if sal is not None and sal.symtab is not None and sal.line:
+            out.append("    at %s:%d" % (sal.symtab.filename, sal.line))
+        for title, cmd in (("args", "info args"), ("locals", "info locals")):
+            try:
+                body = gdb.execute(cmd, to_string=True).strip()
+            except gdb.error as e:
+                body = "(%s)" % e
+            if not body or body.startswith("No "):  # "No arguments." / "No locals."
+                continue
+            out.append("  %s:" % title)
+            out.extend("    " + line for line in body.splitlines())
+    finally:
+        _restore_seed(saved_thread, saved_frame)
+    return out
 
 
 def _fp_walk(rip, rbp, limit):
