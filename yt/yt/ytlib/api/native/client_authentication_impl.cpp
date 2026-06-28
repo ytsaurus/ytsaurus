@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/crypto/crypto.h>
 
+#include <library/cpp/yt/string/string.h>
+
 #include <util/string/hex.h>
 
 namespace NYT::NApi::NNative {
@@ -39,9 +41,9 @@ static std::string GenerateToken()
     constexpr int TokenBodyBytesLength = 16;
     constexpr int TokenPrefixBytesLength = 2;
     auto tokenBodyBytes = GenerateCryptoStrongRandomString(TokenBodyBytesLength);
-    auto tokenBody = to_lower(HexEncode(tokenBodyBytes.data(), tokenBodyBytes.size()));
+    auto tokenBody = AsciiStringToLower(HexEncode(tokenBodyBytes.data(), tokenBodyBytes.size()));
     auto tokenPrefixBytes = GenerateCryptoStrongRandomString(TokenPrefixBytesLength);
-    auto tokenPrefix = Format("ytct-%v-", to_lower(HexEncode(tokenPrefixBytes.data(), tokenPrefixBytes.size())));
+    auto tokenPrefix = Format("ytct-%v-", AsciiStringToLower(HexEncode(tokenPrefixBytes.data(), tokenPrefixBytes.size())));
     return tokenPrefix + tokenBody;
 }
 

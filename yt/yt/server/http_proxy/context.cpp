@@ -41,6 +41,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/yt/string/stream.h>
+#include <library/cpp/yt/string/string.h>
 
 #include <util/random/random.h>
 
@@ -136,8 +137,7 @@ bool TContext::TryParseRequest()
 
 bool TContext::TryParseCommandName()
 {
-    auto versionedName = TString(Request_->GetUrl().Path);
-    versionedName.to_lower();
+    auto versionedName = AsciiStringToLower(Request_->GetUrl().Path);
 
     if (versionedName == "/api" || versionedName == "/api/") {
         Response_->SetStatus(EStatusCode::OK);
@@ -151,9 +151,9 @@ bool TContext::TryParseCommandName()
         return false;
     }
 
-    if (versionedName.StartsWith("/api/v3")) {
+    if (versionedName.starts_with("/api/v3")) {
         ApiVersion_ = 3;
-    } else if (versionedName.StartsWith("/api/v4")) {
+    } else if (versionedName.starts_with("/api/v4")) {
         ApiVersion_ = 4;
     } else {
         THROW_ERROR_EXCEPTION("Unsupported API version %Qv", versionedName);
