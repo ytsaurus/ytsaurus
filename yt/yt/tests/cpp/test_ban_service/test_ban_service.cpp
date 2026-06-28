@@ -68,10 +68,6 @@ using namespace std::literals;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// const auto Logger = CppTestsLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBanServiceTest
     : public TApiTestBase
 {
@@ -121,7 +117,6 @@ public:
         Sleep(TDuration::Seconds(2));
     }
 };
-
 
 TEST_F(TBanServiceTest, BanService)
 {
