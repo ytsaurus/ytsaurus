@@ -34,6 +34,7 @@ TEST_SRCS(
     test_refcount.py
     test_printers.py
     test_fibers.py
+    test_tcmalloc.py
 )
 
 TIMEOUT(180)

@@ -16,7 +16,6 @@
 #include <util/system/compiler.h>
 
 #include <utility>
-#include <vector>
 
 using namespace NYT;
 using namespace NYT::NConcurrency;
@@ -156,7 +155,6 @@ NYT::TIntrusivePtr<TGdbWeakParent> RootedWeakParent;
 NYT::TIntrusivePtr<TGdbMultiIface> RootedMulti;
 NYT::TIntrusivePtr<TGdbBetaHolder> RootedBetaHolder;
 NYT::TCallback<void()> RootedClosure;
-std::vector<char> RootedLargeAlloc;  // a multi-MB single-span (large) tcmalloc block
 IThreadPoolPtr RootedPool;
 TFuture<void> RootedFuture;
 
@@ -178,7 +176,6 @@ void* GdbWeakParentAddress = nullptr;  // held strongly by a global, weakly by i
 void* GdbWeakChildAddress = nullptr;   // holds the parent only weakly
 void* GdbMultiAddress = nullptr;       // most-derived; held strongly via its secondary IGdbBeta base
 void* GdbClosureHeldAddress = nullptr; // bound-captured (strong) inside a BIND closure
-void* GdbLargeAllocAddress = nullptr;  // start of a large (single-span) tcmalloc allocation
 } // extern "C"
 
 NYT::TRefCountedPtr SetupGdbRefCountFixtures()
@@ -257,12 +254,6 @@ NYT::TRefCountedPtr SetupGdbRefCountFixtures()
     auto closureObj = New<TGdbLiveSolo>();
     GdbClosureHeldAddress = closureObj.Get();
     RootedClosure = BIND(&GdbClosureSink, closureObj);
-
-    // (10) A large allocation: bigger than the largest tcmalloc size class, so it
-    // is served as a single (size-class 0) span rather than carved into objects.
-    // The tcmalloc page-map walk must snap an interior pointer to the span start.
-    RootedLargeAlloc.resize(4 << 20); // 4 MiB
-    GdbLargeAllocAddress = RootedLargeAlloc.data();
 
     // (7) An object pinned only by a running thread's stack. Created last and
     // returned by value: main() keeps the sole strong ref as a local, so nothing

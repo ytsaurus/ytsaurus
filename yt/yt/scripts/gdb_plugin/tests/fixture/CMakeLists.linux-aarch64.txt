@@ -56,6 +56,7 @@ target_sources(fixture PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/scripts/gdb_plugin/tests/fixture/main.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/scripts/gdb_plugin/tests/fixture/refcount_fixtures.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/scripts/gdb_plugin/tests/fixture/printer_fixtures.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/scripts/gdb_plugin/tests/fixture/tcmalloc_fixtures.cpp
 )
 
 
