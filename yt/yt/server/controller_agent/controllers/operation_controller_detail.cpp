@@ -5400,9 +5400,10 @@ TFuture<void> TOperationControllerBase::Suspend()
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (Spec_->TestingOperationOptions->DelayInsideSuspend) {
-        return AllSucceeded(std::vector<TFuture<void>> {
+        return AllSucceeded(std::vector<TFuture<void>>{
             SuspendInvokerPool(SuspendableInvokerPool_),
-            TDelayedExecutor::MakeDelayed(*Spec_->TestingOperationOptions->DelayInsideSuspend)});
+            TDelayedExecutor::MakeDelayed(*Spec_->TestingOperationOptions->DelayInsideSuspend),
+        });
     }
 
     return SuspendInvokerPool(SuspendableInvokerPool_);
