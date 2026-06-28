@@ -181,3 +181,51 @@ def find_pointers_to(target):
             pos = blk.find(needle, pos + 1)
     _find_cache[target] = hits
     return hits
+
+
+_M48 = (1 << 48) - 1
+_range_find_cache = {}
+
+
+def find_pointers_into(target, size):
+    """All 8-aligned heap slots whose value (low 48 bits) points anywhere into
+    [target, target+size). Returns [(slot, sub_offset)] where sub_offset is the
+    pointed-to byte offset within the object (0 == the object base).
+
+    This catches a holder of a *secondary base subobject* (multiple inheritance):
+    a TIntrusivePtr<ISomeInterface> stores a pointer to the interface subobject at
+    a non-zero offset, which a plain base-address search misses.
+
+    One heap pass, keyed on the 4 address bytes that are stable across the object
+    (bits 16..47): since a single object spans well under 64 KiB, every sub-object
+    address shares those bytes (modulo a rare 64 KiB-boundary carry, handled by
+    searching both endpoints' keys). Candidates are then verified against the full
+    range, so tagged pointers (tag in the top 16 bits) match too."""
+    if size <= 8:
+        return [(s, 0) for s in find_pointers_to(target)]
+    ckey = (target, size)
+    if ckey in _range_find_cache:
+        return _range_find_cache[ckey]
+    lo = target & ((1 << 64) - 1)
+    hi = lo + size
+    # The stable middle bytes (address bits 16..47) at word offset 2; usually one
+    # value, two if [lo, hi) crosses a 64 KiB boundary.
+    keys = {struct.pack("<Q", a)[2:_PACKED_PTR_ADDRESS_BYTES] for a in (lo, hi - 8)}
+    out = []
+    seen = set()
+    for base, blk in heap_blocks():
+        blen = len(blk)
+        for key in keys:
+            pos = blk.find(key)
+            while pos != -1:
+                slot = base + pos - 2  # the word whose bytes[2:6] == key
+                soff = slot - base
+                if slot & 7 == 0 and soff >= 0 and soff + 8 <= blen and slot not in seen:
+                    v = struct.unpack_from("<Q", blk, soff)[0] & _M48
+                    if lo <= v < hi:
+                        seen.add(slot)
+                        out.append((slot, v - lo))
+                pos = blk.find(key, pos + 1)
+    out.sort()
+    _range_find_cache[ckey] = out
+    return out

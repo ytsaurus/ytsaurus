@@ -94,7 +94,7 @@ class YtFiberList(gdb.Command):
         show_all = arg.strip() in ("-a", "--all")
         stacks = fiber_stacks()
         if not stacks:
-            print("no parked fibers found")
+            print("No parked fibers found")
             return
         rows, idle = [], 0
         for _lo, _hi, rsp, idx, fib in stacks:
@@ -123,15 +123,15 @@ class YtFiberBacktrace(gdb.Command):
     def invoke(self, arg, from_tty):
         arg = arg.strip()
         if not arg:
-            raise gdb.GdbError("expected a fiber index (see yt-fiber-list)")
+            raise gdb.GdbError("Expected a fiber index (see yt-fiber-list)")
         try:
             index = int(arg)
         except ValueError:
-            raise gdb.GdbError("expected a fiber index")
+            raise gdb.GdbError("Expected a fiber index")
         fib = _parked_fiber(index)
         if fib is None:
-            raise gdb.GdbError("no parked fiber #%d (run yt-fiber-list)" % index)
-        print("fiber #%d:" % index)
+            raise gdb.GdbError("No parked fiber #%d (run yt-fiber-list)" % index)
+        print("Fiber #%d:" % index)
         for line in format_fiber_backtrace(fib):
             print("  " + line)
 
@@ -148,21 +148,21 @@ class YtFiberLocals(gdb.Command):
     def invoke(self, arg, from_tty):
         parts = arg.split()
         if not parts:
-            raise gdb.GdbError("expected a fiber index (see yt-fiber-list)")
+            raise gdb.GdbError("Expected a fiber index (see yt-fiber-list)")
         try:
             index = int(parts[0])
             frame_index = int(parts[1]) if len(parts) > 1 else 0
         except ValueError:
-            raise gdb.GdbError("usage: yt-fiber-locals <n> [<frame>]")
+            raise gdb.GdbError("Usage: yt-fiber-locals <n> [<frame>]")
         fib = _parked_fiber(index)
         if fib is None:
-            raise gdb.GdbError("no parked fiber #%d (run yt-fiber-list)" % index)
+            raise gdb.GdbError("No parked fiber #%d (run yt-fiber-list)" % index)
         lines = format_fiber_frame_locals(fib, frame_index)
         if lines is None:
             raise gdb.GdbError(
-                "could not CFI-unwind fiber #%d, so locals are unavailable; "
+                "Could not CFI-unwind fiber #%d, so locals are unavailable; "
                 "yt-fiber-bt %d still gives the frame list" % (index, index))
-        print("fiber #%d frame #%d:" % (index, frame_index))
+        print("Fiber #%d frame #%d:" % (index, frame_index))
         for line in lines:
             print("  " + line)
 
@@ -207,32 +207,32 @@ class YtFiberSelect(gdb.Command):
         arg = arg.strip()
         if not arg:
             if self._active is None:
-                print("no fiber context selected")
+                print("No fiber context selected")
                 return
             self._active.restore()
             self._active = None
-            print("restored original context")
+            print("Restored original context")
             return
         if self._active is not None:
-            print("already in a fiber context; run 'yt-fiber-select' with no argument to restore first")
+            print("Already in a fiber context; run 'yt-fiber-select' with no argument to restore first")
             return
         try:
             index = int(arg)
         except ValueError:
-            raise gdb.GdbError("expected a fiber index")
+            raise gdb.GdbError("Expected a fiber index")
         fib = _parked_fiber(index)
         if fib is None:
-            raise gdb.GdbError("no parked fiber #%d (run yt-fiber-list)" % index)
+            raise gdb.GdbError("No parked fiber #%d (run yt-fiber-list)" % index)
         switcher = _FiberRegisterSwitcher(fib)
         try:
             switcher.switch()
-        except gdb.error as e:
+        except gdb.error:
             # Setting registers needs a live inferior; gdb forbids it on a core.
             raise gdb.GdbError(
-                "cannot switch register context on a coredump (%s); use "
-                "yt-fiber-bt %d for a read-only backtrace instead" % (e, index))
+                "Cannot switch register context on a coredump; use "
+                "yt-fiber-bt %d for a read-only backtrace instead" % index)
         self._active = switcher
-        print("switched to fiber #%d; use bt / info locals, then 'yt-fiber-select' to restore" % index)
+        print("Switched to fiber #%d; use bt / info locals, then 'yt-fiber-select' to restore" % index)
 
 
 def register():

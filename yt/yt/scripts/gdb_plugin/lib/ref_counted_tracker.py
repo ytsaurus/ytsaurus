@@ -160,7 +160,7 @@ class YtRcDump(gdb.Command):
                 continue
             rows.append((ba - bf, alive, name))
         if not rows:
-            print("no live ref-counted objects%s" % (" matching %r" % substr if substr else ""))
+            print("No live ref-counted objects%s" % (" matching %r" % substr if substr else ""))
             return
         rows.sort(reverse=True)
 
@@ -172,7 +172,7 @@ class YtRcDump(gdb.Command):
             print("%-14d %12d   %s" % (bytes_alive, alive, name))
         if limit < len(rows):
             print("... (%d more; pass a substring to filter)" % (len(rows) - limit))
-        print("total: %d objects, %.1f MB across %d type(s)" % (
+        print("Total: %d objects, %.1f MB across %d type(s)" % (
             total_objs, total_bytes / 1e6, len(rows)))
 
 

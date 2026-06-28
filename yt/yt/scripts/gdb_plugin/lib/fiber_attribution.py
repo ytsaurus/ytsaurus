@@ -416,7 +416,7 @@ def format_fiber_frame_locals(fib, frame_index):
             frame = frame.older()
             i += 1
         if frame is None or int(frame.pc()) == 0:
-            return ["no frame #%d (fiber has fewer frames)" % frame_index]
+            return ["No frame #%d (fiber has fewer frames)" % frame_index]
         frame.select()
         pc = int(frame.pc())
         if frame.type() == gdb.INLINE_FRAME:

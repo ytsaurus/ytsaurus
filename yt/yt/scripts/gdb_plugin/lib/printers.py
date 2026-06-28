@@ -614,7 +614,7 @@ class YtPrint(gdb.Command):
 
     def invoke(self, arg, from_tty):
         if not arg.strip():
-            raise gdb.GdbError("expected an expression")
+            raise gdb.GdbError("Expected an expression")
         val = gdb.parse_and_eval(arg)
         print(val.format_string(
             raw=False, pretty_structs=True, pretty_arrays=True, max_elements=0))

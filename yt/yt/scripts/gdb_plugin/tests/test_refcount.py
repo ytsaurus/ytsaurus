@@ -17,7 +17,7 @@ def test_obj():
 @authors("babenko")
 def test_cycle():
     ctx, path = get_core()
-    out = analyze(ctx, path, "yt-rc-cycle GdbCycleHeadAddress")
+    out = analyze(ctx, path, "yt-rc-alive GdbCycleHeadAddress")
     # head -> tail -> head must close as a cycle.
     assert "CYCLE" in out
     assert "holds back into the start object" in out
@@ -87,7 +87,7 @@ def test_cycle_root():
     ctx, path = get_core()
     # Tracing an object with no live heap holder bottoms out at a ROOT and is
     # attributed off-heap (here: a running thread's stack).
-    out = analyze(ctx, path, "yt-rc-cycle GdbThreadHeldAddress")
+    out = analyze(ctx, path, "yt-rc-alive GdbThreadHeldAddress")
     assert "ROOT" in out
     assert "running thread" in out
 
@@ -96,7 +96,7 @@ def test_cycle_root():
 def test_find_none():
     ctx, path = get_core()
     out = analyze(ctx, path, "yt-rc-find ThisTypeDoesNotExistAnywhere")
-    assert "none found" in out
+    assert "None found" in out
 
 
 @authors("babenko")
@@ -114,9 +114,42 @@ def test_weak_edge_not_a_cycle():
     ctx, path = get_core()
     # Parent --strong--> Child --weak--> Parent. The weak edge must NOT close a
     # cycle: tracing the child bottoms out at a ROOT, never a CYCLE.
-    out = analyze(ctx, path, "yt-rc-cycle GdbWeakChildAddress")
+    out = analyze(ctx, path, "yt-rc-alive GdbWeakChildAddress")
     assert "ROOT" in out
     assert "CYCLE" not in out
+
+
+@authors("babenko")
+def test_backref_secondary_base_subobject():
+    ctx, path = get_core()
+    # The object is reachable only through its secondary IGdbBeta base, at a
+    # non-zero sub-object offset -- a base-address-only scan misses the holder.
+    # The full-extent scan must find it, classify it strong (from the holder's
+    # real TIntrusivePtr<IGdbBeta> field), and tag the sub-object offset.
+    out = analyze(ctx, path, "yt-rc-backref GdbMultiAddress")
+    assert "TGdbBetaHolder" in out
+    assert "via subobject" in out
+    assert re.search(r"strong\b.*TGdbBetaHolder", out)
+
+
+@authors("babenko")
+def test_backref_bind_closure_capture():
+    ctx, path = get_core()
+    # A BIND closure bound-captures a strong ref to its target. The holder is a
+    # TBindState; the walker must name it and classify the captured strong ref
+    # (rather than dropping it as noise/unknown).
+    out = analyze(ctx, path, "yt-rc-backref GdbClosureHeldAddress")
+    assert "TBindState" in out
+
+
+@authors("babenko")
+def test_tcmalloc_block():
+    ctx, path = get_core()
+    # The tcmalloc page-map walk must snap an interior pointer back to the start
+    # of its allocation and report the byte offset within it.
+    out = analyze(ctx, path, "yt-tcmalloc-block (char*)GdbCycleHeadAddress + 16")
+    assert "start" in out
+    assert re.search(r"offset\s+\+0x10", out)
 
 
 @authors("babenko")

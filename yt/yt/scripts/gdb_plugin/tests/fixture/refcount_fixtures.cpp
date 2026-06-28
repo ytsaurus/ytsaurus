@@ -108,6 +108,42 @@ struct TGdbWeakChild
     TWeakPtr<TGdbWeakParent> Parent;
 };
 
+// Multiple inheritance: two polymorphic interfaces sharing one (virtual) counter.
+// IGdbBeta is a *secondary* base, so it sits at a non-zero offset and a
+// TIntrusivePtr<IGdbBeta> stores a pointer to that sub-object -- not the
+// most-derived address. A base-address-only holder scan misses it; the
+// full-extent scan must find it and tag it "via subobject".
+struct IGdbAlpha
+    : public virtual NYT::TRefCounted
+{
+    virtual void Alpha()
+    { }
+};
+
+struct IGdbBeta
+    : public virtual NYT::TRefCounted
+{
+    virtual void Beta()
+    { }
+};
+
+struct TGdbMultiIface
+    : public IGdbAlpha
+    , public IGdbBeta
+{
+    int Payload = 0;
+};
+
+// Holds the multi-interface object strongly through its IGdbBeta sub-object.
+struct TGdbBetaHolder
+    : public NYT::TRefCounted
+{
+    NYT::TIntrusivePtr<IGdbBeta> Beta;
+};
+
+void GdbClosureSink(const NYT::TIntrusivePtr<TGdbLiveSolo>&)
+{ }
+
 // Root long-lived objects so they survive to the breakpoint.
 NYT::TIntrusivePtr<TGdbCycleHead> RootedCycle;
 NYT::TIntrusivePtr<TGdbLiveSolo> RootedSolo;
@@ -116,6 +152,9 @@ NYT::TIntrusivePtr<TGdbAtomicHolder> RootedAtomicHolder;
 NYT::TIntrusivePtr<TGdbDiamond> RootedDiamond;
 NYT::TRefCountedPtr RootedDiamondAsBase;
 NYT::TIntrusivePtr<TGdbWeakParent> RootedWeakParent;
+NYT::TIntrusivePtr<TGdbMultiIface> RootedMulti;
+NYT::TIntrusivePtr<TGdbBetaHolder> RootedBetaHolder;
+NYT::TCallback<void()> RootedClosure;
 IThreadPoolPtr RootedPool;
 TFuture<void> RootedFuture;
 
@@ -135,6 +174,8 @@ void* GdbDiamondAddress = nullptr;     // most-derived addr of a virtual-diamond
 void* GdbDiamondBaseAddress = nullptr; // its shared virtual NYT::TRefCounted sub-object (interior)
 void* GdbWeakParentAddress = nullptr;  // held strongly by a global, weakly by its child
 void* GdbWeakChildAddress = nullptr;   // holds the parent only weakly
+void* GdbMultiAddress = nullptr;       // most-derived; held strongly via its secondary IGdbBeta base
+void* GdbClosureHeldAddress = nullptr; // bound-captured (strong) inside a BIND closure
 } // extern "C"
 
 NYT::TRefCountedPtr SetupGdbRefCountFixtures()
@@ -199,6 +240,20 @@ NYT::TRefCountedPtr SetupGdbRefCountFixtures()
     weakChild->Parent = RootedWeakParent; // weak:   child -> parent
     GdbWeakParentAddress = RootedWeakParent.Get();
     GdbWeakChildAddress = weakChild.Get();
+
+    // (8) Multiple-inheritance secondary-base holder: TGdbMultiIface is reachable
+    // through its IGdbBeta sub-object (a non-zero offset), so the holder's pointer
+    // is not the most-derived address.
+    RootedMulti = New<TGdbMultiIface>();
+    GdbMultiAddress = RootedMulti.Get();
+    RootedBetaHolder = New<TGdbBetaHolder>();
+    RootedBetaHolder->Beta = RootedMulti; // strong, via the secondary IGdbBeta base
+
+    // (9) A BIND closure that bound-captures a strong reference to its target. The
+    // holder is a TBindState; the walker must name it and classify the capture.
+    auto closureObj = New<TGdbLiveSolo>();
+    GdbClosureHeldAddress = closureObj.Get();
+    RootedClosure = BIND(&GdbClosureSink, closureObj);
 
     // (7) An object pinned only by a running thread's stack. Created last and
     // returned by value: main() keeps the sole strong ref as a local, so nothing
