@@ -34,11 +34,11 @@ static const TString DevInfinibandPath("/dev/infiniband");
 static const TString DevPath("/dev");
 static const TString NvidiaDevicePrefix("nvidia");
 static const TString NvidiaModuleVersionPath("/sys/module/nvidia/version");
-static const THashSet<TString> MetaGpuDevices = {
+static const THashSet<std::string> MetaGpuDevices = {
     "/dev/nvidiactl",
     "/dev/nvidia-uvm",
 };
-static const TString DummyGpuDriverVersion = "dummy";
+static const std::string DummyGpuDriverVersion = "dummy";
 
 ////////////////////////////////////////////////////////////////////////////////
 
