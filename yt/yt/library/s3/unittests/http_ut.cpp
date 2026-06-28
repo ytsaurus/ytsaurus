@@ -13,8 +13,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const static TString S3TutorialAccessKeyId = "AKIAIOSFODNN7EXAMPLE";
-const static TString S3TutorialSecretAccessKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+const static std::string S3TutorialAccessKeyId = "AKIAIOSFODNN7EXAMPLE";
+const static std::string S3TutorialSecretAccessKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
 const static ICredentialsProviderPtr S3CredentialProvider = CreateStaticCredentialProvider(S3TutorialAccessKeyId, S3TutorialSecretAccessKey);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,16 +15,16 @@ using namespace NYTree;
 TEST(TTestClickHouseHelpersTest, FindMaxIncarnation)
 {
     THashMap<std::string, IAttributeDictionaryPtr> instances;
-    instances["instance_1"] = ConvertToAttributes(THashMap<TString, int>{
+    instances["instance_1"] = ConvertToAttributes(THashMap<std::string, int>{
         {"clique_incarnation", 1},
     });
-    instances["instance_2"] = ConvertToAttributes(THashMap<TString, int>{
+    instances["instance_2"] = ConvertToAttributes(THashMap<std::string, int>{
         {"clique_incarnation", 2},
     });
-    instances["instance_3"] = ConvertToAttributes(THashMap<TString, int>{
+    instances["instance_3"] = ConvertToAttributes(THashMap<std::string, int>{
         {"clique_incarnation", 2},
     });
-    instances["instance_4"] = ConvertToAttributes(THashMap<TString, int>{});
+    instances["instance_4"] = ConvertToAttributes(THashMap<std::string, int>{});
 
     auto filteredInstances = FilterInstancesByIncarnation(instances);
     EXPECT_EQ(filteredInstances.size(), 2u);

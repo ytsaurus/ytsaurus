@@ -25,7 +25,7 @@ protected:
     explicit TProgramConfigMixin(
         NLastGetopt::TOpts& opts,
         bool required = true,
-        const TString& argumentName = "config")
+        const std::string& argumentName = "config")
         : ArgumentName_(argumentName)
     {
         auto opt = opts
@@ -130,17 +130,17 @@ protected:
     }
 
 private:
-    const TString ArgumentName_;
+    const std::string ArgumentName_;
 
     bool ConfigFlag_;
     std::string ConfigPath_;
     bool ConfigSchemaFlag_ = false;
-    TString ConfigSchema_;
+    std::string ConfigSchema_;
     bool ConfigTemplateFlag_;
     bool ConfigActualFlag_;
     bool ConfigUnrecognizedFlag_;
     bool DynamicConfigSchemaFlag_ = false;
-    TString DynamicConfigSchema_;
+    std::string DynamicConfigSchema_;
     bool DynamicConfigTemplateFlag_ = false;
     NYTree::EUnrecognizedStrategy UnrecognizedStrategy_ = NYTree::EUnrecognizedStrategy::KeepRecursive;
 
@@ -203,7 +203,7 @@ private:
             Cout << Endl;
         };
 
-        auto printSchema = [] (const auto& config, TString format) {
+        auto printSchema = [] (const auto& config, const std::string& format) {
             if (format == YsonSchemaFormat_) {
                 using namespace NYson;
                 TYsonWriter writer(&Cout, EYsonFormat::Pretty);
