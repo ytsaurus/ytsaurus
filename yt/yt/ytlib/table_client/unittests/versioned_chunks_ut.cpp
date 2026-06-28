@@ -349,7 +349,12 @@ protected:
         for (int i = 0; i < 3; ++i) {
             std::vector<TVersionedRow> rows;
             startIndex = CreateManyRows(&memoryPool, &rows, startIndex);
-            EXPECT_TRUE(chunkWriter->Write(rows));
+
+            if (!chunkWriter->Write(rows)) {
+                WaitForFast(chunkWriter->GetReadyEvent())
+                    .ThrowOnError();
+            }
+
             // NB: Check that chunk writers does not refer to rows after Write.
             memoryPool.Clear();
         }
