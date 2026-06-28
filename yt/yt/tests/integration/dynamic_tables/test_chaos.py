@@ -6931,6 +6931,48 @@ class TestChaosSingleCluster(ChaosTestBase):
         for j in range(tablet_count):
             assert select_rows(f"key, value from [//tmp/t3] where [$tablet_index] = {j}") == new_data_values[j]
 
+    @authors("osidorkin")
+    def test_trim_chaos_queue_with_holes(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q1"},
+        ]
+
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, ordered=True)
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "replication_card_id": card_id,
+            "chaos_cell_bundle": "c"
+        })
+
+        data_values = [{"key": i, "value": str(i)} for i in range(3)]
+        values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(1)]
+        insert_rows("//tmp/q0", values)
+        wait(lambda: select_rows("key, value from [//tmp/q1]") == data_values[:1])
+        sync_flush_table("//tmp/q0")
+        chunk_ids = get("//tmp/q0/@chunk_ids")
+        assert len(chunk_ids) == 1
+
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[1]}/replication_lag_timestamp") > timestamp)
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=False)
+        self._sync_replication_era(card_id, replicas)
+
+        values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(1, 2)]
+        insert_rows("//tmp/q0", values)
+
+        sync_flush_table("//tmp/q0")
+        chunk_ids = get("//tmp/q0/@chunk_ids")
+        assert len(chunk_ids) == 2
+        trim_rows("//tmp/q0", 0, 1)
+
+        wait(lambda: len(get("//tmp/q0/@chunk_ids")) == 1)
+        trim_rows("//tmp/q0", 0, 1)
+
 
 ##################################################################
 
