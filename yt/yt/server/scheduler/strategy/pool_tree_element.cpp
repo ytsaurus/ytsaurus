@@ -39,7 +39,7 @@ using NVectorHdrf::ToJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString InvalidCustomProfilingTag("invalid");
+static const std::string InvalidCustomProfilingTag("invalid");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1189,7 +1189,7 @@ void TPoolTreeCompositeElement::UpdateStarvationStatuses(TInstant now, bool enab
 
 TYPath TPoolTreeCompositeElement::GetFullPath(bool explicitOnly, bool withTreeId) const
 {
-    std::vector<TString> tokens;
+    std::vector<std::string> tokens;
     const auto* current = this;
     while (!current->IsRoot()) {
         if (!explicitOnly || current->IsExplicit()) {
@@ -1504,12 +1504,11 @@ bool TPoolTreePoolElement::IsEphemeralHub() const
     return Config_->CreateEphemeralSubpools;
 }
 
-THashSet<TString> TPoolTreePoolElement::GetAllowedProfilingTags() const
+THashSet<std::string> TPoolTreePoolElement::GetAllowedProfilingTags() const
 {
-    // TODO(babenko): migrate to std::string
-    THashSet<TString> result;
+    THashSet<std::string> result;
     for (const auto& tag : Config_->AllowedProfilingTags) {
-        result.insert(TString(tag));
+        result.insert(tag);
     }
     return result;
 }
@@ -2563,7 +2562,7 @@ void TPoolTreeOperationElement::MarkPendingBy(TPoolTreeCompositeElement* violate
         violatedPool->GetMaxRunningOperationCount());
 }
 
-std::optional<TString> TPoolTreeOperationElement::GetCustomProfilingTag() const
+std::optional<std::string> TPoolTreeOperationElement::GetCustomProfilingTag() const
 {
     auto tagName = Spec_->CustomProfilingTag;
     if (!tagName) {
@@ -2574,7 +2573,7 @@ std::optional<TString> TPoolTreeOperationElement::GetCustomProfilingTag() const
         return {};
     }
 
-    THashSet<TString> allowedProfilingTags;
+    THashSet<std::string> allowedProfilingTags;
     const auto* parent = GetParent();
     while (parent) {
         for (const auto& tag : parent->GetAllowedProfilingTags()) {
@@ -2833,7 +2832,7 @@ bool TPoolTreeRootElement::IsEphemeralHub() const
     return false;
 }
 
-THashSet<TString> TPoolTreeRootElement::GetAllowedProfilingTags() const
+THashSet<std::string> TPoolTreeRootElement::GetAllowedProfilingTags() const
 {
     return {};
 }

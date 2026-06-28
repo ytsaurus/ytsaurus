@@ -189,9 +189,9 @@ namespace {
 
 struct TStatisticsDescription
 {
-    TString Name;
-    TString Description;
-    TString Unit;
+    std::string Name;
+    std::string Description;
+    std::string Unit;
 };
 
 const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()

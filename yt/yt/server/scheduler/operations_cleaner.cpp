@@ -139,22 +139,22 @@ namespace NDetail {
 
 using TAlertEventsMap = THashMap<EOperationAlertType, std::deque<TOperationAlertEvent>>;
 
-THashMap<std::string, TString> GetPoolTreeToPool(const INodePtr& schedulingOptionsNode)
+THashMap<std::string, std::string> GetPoolTreeToPool(const INodePtr& schedulingOptionsNode)
 {
     if (!schedulingOptionsNode) {
         return {};
     }
 
-    THashMap<std::string, TString> poolTreeToPool;
+    THashMap<std::string, std::string> poolTreeToPool;
     for (const auto& [key, value] : schedulingOptionsNode->AsMap()->GetChildren()) {
-        poolTreeToPool.emplace(key, value->AsMap()->GetChildValueOrThrow<TString>("pool"));
+        poolTreeToPool.emplace(key, value->AsMap()->GetChildValueOrThrow<std::string>("pool"));
     }
     return poolTreeToPool;
 }
 
-std::vector<TString> GetPools(const INodePtr& schedulingOptionsNode)
+std::vector<std::string> GetPools(const INodePtr& schedulingOptionsNode)
 {
-    std::vector<TString> pools;
+    std::vector<std::string> pools;
     for (const auto& [_, pool] : GetPoolTreeToPool(schedulingOptionsNode)) {
         pools.push_back(pool);
     }
@@ -165,14 +165,14 @@ template <class T>
 static T FilterYsonAndLoadStruct(const TYsonString& source)
 {
     auto getPaths = [] {
-        std::vector<TString> result;
+        std::vector<NYPath::TYPath> result;
         for (const auto& [name, _] : T::Fields) {
             result.push_back("/" + name);
         }
         return result;
     };
 
-    static const std::vector<TString> paths = getPaths();
+    static const std::vector<NYPath::TYPath> paths = getPaths();
 
     auto node = ConvertToNode(FilterYsonString(
         paths,
@@ -191,7 +191,7 @@ struct TAnnotationsAndSchedulingOptions
     INodePtr Annotations;
     INodePtr SchedulingOptionsPerPoolTree;
 
-    static const inline std::vector<std::pair<TString, INodePtr TAnnotationsAndSchedulingOptions::*>> Fields = {
+    static const inline std::vector<std::pair<std::string, INodePtr TAnnotationsAndSchedulingOptions::*>> Fields = {
         {"annotations", &TAnnotationsAndSchedulingOptions::Annotations},
         {"scheduling_options_per_pool_tree", &TAnnotationsAndSchedulingOptions::SchedulingOptionsPerPoolTree},
     };
@@ -203,7 +203,7 @@ struct TAclAndSchedulingOptions
     INodePtr AcoName;
     INodePtr SchedulingOptionsPerPoolTree;
 
-    static const inline std::vector<std::pair<TString, INodePtr TAclAndSchedulingOptions::*>> Fields = {
+    static const inline std::vector<std::pair<std::string, INodePtr TAclAndSchedulingOptions::*>> Fields = {
         {"acl", &TAclAndSchedulingOptions::Acl},
         {"aco_name", &TAclAndSchedulingOptions::AcoName},
         {"scheduling_options_per_pool_tree", &TAclAndSchedulingOptions::SchedulingOptionsPerPoolTree},
@@ -219,7 +219,7 @@ struct TFilteredSpecAttributes
     INodePtr OutputTablePath;
     INodePtr TablePath;
 
-    static const inline std::vector<std::pair<TString, INodePtr TFilteredSpecAttributes::*>> Fields = {
+    static const inline std::vector<std::pair<std::string, INodePtr TFilteredSpecAttributes::*>> Fields = {
         {"pool", &TFilteredSpecAttributes::Pool},
         {"title", &TFilteredSpecAttributes::Title},
         {"input_table_paths", &TFilteredSpecAttributes::InputTablePaths},
@@ -245,14 +245,14 @@ std::string GetFilterFactors(const TArchiveOperationRequest& request)
     auto filteredRuntimeParameters = FilterYsonAndLoadStruct<TAnnotationsAndSchedulingOptions>(request.RuntimeParameters);
     auto filteredSpec = FilterYsonAndLoadStruct<TFilteredSpecAttributes>(request.Spec);
 
-    std::vector<TString> parts;
+    std::vector<std::string> parts;
     parts.push_back(ToString(request.Id));
     parts.push_back(ToString(request.AuthenticatedUser));
     parts.push_back(FormatEnum(request.State));
     parts.push_back(FormatEnum(request.OperationType));
 
     if (request.ExperimentAssignmentNames) {
-        auto experimentAssignmentNames = ConvertTo<std::vector<TString>>(request.ExperimentAssignmentNames);
+        auto experimentAssignmentNames = ConvertTo<std::vector<std::string>>(request.ExperimentAssignmentNames);
         parts.insert(parts.end(), experimentAssignmentNames.begin(), experimentAssignmentNames.end());
     }
 
@@ -262,8 +262,7 @@ std::string GetFilterFactors(const TArchiveOperationRequest& request)
 
     for (const auto& node : {filteredSpec.Pool, filteredSpec.Title}) {
         if (node && node->GetType() == ENodeType::String) {
-            // TODO(babenko): migrate to std::string
-            parts.push_back(TString(node->AsString()->GetValue()));
+            parts.push_back(node->AsString()->GetValue());
         }
     }
 
@@ -289,8 +288,9 @@ std::string GetFilterFactors(const TArchiveOperationRequest& request)
     auto pools = GetPools(filteredRuntimeParameters.SchedulingOptionsPerPoolTree);
     parts.insert(parts.end(), pools.begin(), pools.end());
 
-    auto result = JoinToString(parts.begin(), parts.end(), TStringBuf(" "));
-    return to_lower(TString(result));
+    // TODO(babenko): drop TString once to_lower accepts std::string.
+    TString result = JoinToString(parts.begin(), parts.end(), TStringBuf(" "));
+    return to_lower(result);
 }
 
 bool HasFailedJobs(const TYsonString& briefProgress)

@@ -540,7 +540,7 @@ public:
     virtual TGuid GetObjectId() const = 0;
 
     //! Other methods.
-    virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
+    virtual THashSet<std::string> GetAllowedProfilingTags() const = 0;
 
     virtual const TOffloadingSettings& GetOffloadingSettings() const = 0;
 
@@ -719,7 +719,7 @@ public:
         const THashMap<std::string, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const override;
 
-    THashSet<TString> GetAllowedProfilingTags() const override;
+    THashSet<std::string> GetAllowedProfilingTags() const override;
 
     TGuid GetObjectId() const override;
 
@@ -762,7 +762,7 @@ class TPoolTreeOperationElementFixedState
 {
 public:
     // Used by trunk node.
-    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<std::string>, PendingByPool);
 
     DEFINE_BYREF_RO_PROPERTY(TAllocationGroupResourcesMap, GroupedNeededResources);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedMinNeededAllocationResources);
@@ -953,7 +953,7 @@ public:
     bool CommitHierarchicalPreemptedResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
 
     //! Other methods.
-    std::optional<TString> GetCustomProfilingTag() const;
+    std::optional<std::string> GetCustomProfilingTag() const;
 
     bool IsLimitingAncestorCheckEnabled() const;
 
@@ -1084,7 +1084,7 @@ public:
     void BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext);
 
     //! Other methods.
-    THashSet<TString> GetAllowedProfilingTags() const override;
+    THashSet<std::string> GetAllowedProfilingTags() const override;
 
     void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
