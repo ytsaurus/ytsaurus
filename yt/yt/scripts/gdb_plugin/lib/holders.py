@@ -9,17 +9,27 @@ from collections import deque
 
 import gdb
 
-from memory import find_pointers_to
+from memory import find_pointers_into
 from type_info import find_enclosing_object, wrapper_inner_type, split_template_args
 from ref_counted import resolve_refcount
+
+# Cap how far past the object base we scan for sub-object holders. All base
+# subobjects of a multiply-inherited type sit at the very start of the object, so
+# a modest window covers them without exploding the search on a huge object.
+_MAX_SUBOBJECT_SPAN = 0x1000
 
 _BINDSTATE_RE = re.compile(r"NYT::NDetail::TBindState<(.+)>$")
 
 
-def classify_reference(container_type, target_inner, slot_offset=None):
+def classify_reference(container_type, target_inner, slot_offset=None, sub_offset=0):
     """Classify a reference to a target held by a container of container_type.
     Returns (kind, note) with kind in 'strong' | 'weak' | 'raw' | 'noise' |
     'ref?' | 'unknown'.
+
+    #sub_offset is the byte offset *within the target* that the slot points at: 0
+    is the object base, non-zero is a secondary base subobject (multiple
+    inheritance), where the holder's member type is legitimately a base of the
+    target -- so a member/target type mismatch there is expected, not suspicious.
 
     Preferred path: introspect the container's *actual* field at slot_offset via
     debug info -- this names the holding member exactly (TIntrusivePtr -> strong,
@@ -39,14 +49,19 @@ def classify_reference(container_type, target_inner, slot_offset=None):
             return "noise", "byte-match at a non-pointer offset (coincidental)"
         if kind is not None:
             note = "%s member%s" % (kind, (" " + name) if name else "")
-            if target_inner and inner and not _type_matches(inner, target_inner):
+            # At a secondary base subobject the member type is a base of the
+            # target, so only flag a mismatch for a base-pointer (sub_offset 0).
+            if sub_offset == 0 and target_inner and inner and not _type_matches(inner, target_inner):
                 note += " (member <%s> != target)" % inner
             return kind, note
 
     m = _BINDSTATE_RE.match(container_type)
     if m:
         # Prefer the captured arg whose T matches the target; else first concrete.
-        best = ("unknown", "no matching capture in TBindState")
+        # A live closure that points at the target but whose capture isn't visible
+        # in the type (e.g. a C++ lambda capture) is still a candidate ref, so we
+        # default to "ref?" rather than "unknown".
+        best = ("ref?", "live TBindState closure; capture not visible in type (lambda?)")
         for arg in split_template_args(m.group(1)):
             kind, t = _ptr_wrapper_kind(arg)
             if kind is None:
@@ -54,7 +69,7 @@ def classify_reference(container_type, target_inner, slot_offset=None):
             note = "TBindState capture %s" % arg
             if target_inner and t and _type_matches(t, target_inner):
                 return kind, note
-            if best[0] == "unknown":
+            if best[0] == "ref?":
                 best = (kind, note + " (type-match unverified)")
         return best
 
@@ -151,26 +166,57 @@ def _type_matches(a, b):
 
 
 class Holder:
-    __slots__ = ("slot", "container", "container_type", "kind", "note", "container_refcount")
+    __slots__ = ("slot", "sub_offset", "container", "container_type", "kind",
+                 "note", "container_refcount")
+
+
+def _object_size(target_rc):
+    """sizeof the target's dynamic type (so the holder scan covers every base
+    subobject), or 8 (base only) when the type can't be sized."""
+    for name in (target_rc.typename, target_rc.inner):
+        if not name:
+            continue
+        try:
+            return max(8, int(gdb.lookup_type(name).sizeof))
+        except (gdb.error, RuntimeError, ValueError):
+            continue
+    return 8
 
 
 def analyze_holders(target):
     """Find every live pointer to target and resolve each holder's container,
-    kind, and liveness. Returns (target_refcount, [Holder])."""
+    kind, and liveness. Returns (target_refcount, [Holder]).
+
+    Scans the whole object extent, not just its base address, so a holder of a
+    secondary base subobject (multiple inheritance) is found -- each holder
+    records the sub-object offset it points at."""
     target_rc = resolve_refcount(target)
     target_inner = target_rc.inner or (
         wrapper_inner_type(target_rc.typename) if target_rc.typename else None
     )
+    size = _object_size(target_rc)
     holders = []
-    for slot in find_pointers_to(target):
-        primary, ctype, _vslot = find_enclosing_object(slot)
+    for slot, sub in find_pointers_into(target, min(size, _MAX_SUBOBJECT_SPAN)):
+        if target <= slot < target + size:
+            continue  # the object's own internal pointer into itself, not a holder
+        primary, ctype, _vslot, ckind = find_enclosing_object(slot)
         h = Holder()
         h.slot = slot
+        h.sub_offset = sub
         h.container = primary
         h.container_type = ctype
         h.container_refcount = None
+        if ckind == "closure":
+            # A vtable-less closure: named from its Run thunk, but its object base
+            # (hence refcount/liveness) isn't recoverable, so don't resolve it as
+            # one -- just classify the captured reference and drop the bogus base.
+            h.container = None
+            h.kind, h.note = classify_reference(ctype, target_inner, None, sub)
+            holders.append(h)
+            continue
         if primary is None:
-            h.kind, h.note = "unknown", "no enclosing vtable found (raw stack/global?)"
+            h.kind = "unknown"
+            h.note = "no enclosing vtable found (raw stack/global?)"
             holders.append(h)
             continue
         crc = resolve_refcount(primary)
@@ -182,7 +228,7 @@ def analyze_holders(target):
             holders.append(h)
             continue
         offset = (slot - primary) & ((1 << 64) - 1)
-        h.kind, h.note = classify_reference(ctype, target_inner, offset)
+        h.kind, h.note = classify_reference(ctype, target_inner, offset, sub)
         holders.append(h)
     return target_rc, holders
 

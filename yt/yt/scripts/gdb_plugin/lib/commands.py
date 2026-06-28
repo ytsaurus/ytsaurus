@@ -4,7 +4,7 @@
 #     yt-rc-backref [-a] <addr>  find and classify every live pointer to an object
 #                              (dead-container holders hidden unless -a); also
 #                              attributes off-heap (parked-fiber) holders
-#     yt-rc-cycle   <addr>     follow strong holders; report a retention CYCLE or ROOT
+#     yt-rc-alive   <addr>     follow strong holders; report a retention CYCLE or ROOT
 #     yt-rc-find    <type-substr>  signature-based heap sweep for live objects by type
 #     yt-rc-dump    [<type-substr>]  aggregate per-type live-object table (tracker)
 
@@ -26,7 +26,7 @@ from fiber_attribution import (
 def _parse_addr(arg):
     arg = arg.strip()
     if not arg:
-        raise gdb.GdbError("expected an address argument")
+        raise gdb.GdbError("Expected an address argument")
     return int(gdb.parse_and_eval(arg).cast(gdb_type("unsigned long")))
 
 
@@ -36,6 +36,15 @@ def _display_type(typename):
     if typename is None:
         return typename
     return wrapper_inner_type(typename) or typename
+
+
+def _subobj(h):
+    """Marker noting a holder points at a secondary base subobject (multiple
+    inheritance) rather than the object base -- an edge a base-address scan would
+    miss, e.g. a TIntrusivePtr<ISomeInterface> to an interface at a non-zero
+    offset."""
+    sub = getattr(h, "sub_offset", 0)
+    return "  [via subobject +0x%x]" % sub if sub else ""
 
 
 def _fmt_rc(rc):
@@ -55,7 +64,7 @@ def _print_off_heap_holders(addr):
     if not threads and not fibers:
         return False
     print("")
-    print("off-heap holders: %d live stack(s) pin this object:" % (len(threads) + len(fibers)))
+    print("Off-heap holders: %d live stack(s) pin this object:" % (len(threads) + len(fibers)))
     for thread, slot in threads:
         ident = "#%s" % thread.num
         try:
@@ -100,7 +109,9 @@ class YtRefcount(gdb.Command):
 
 class YtHolders(gdb.Command):
     """yt-rc-backref [-a] <addr>: find live pointers to obj and classify them.
-    Holders whose container is itself dead/freed are hidden unless -a is given."""
+    Scans the whole object, so a holder of a secondary base subobject (multiple
+    inheritance) is found and tagged "[via subobject +0xN]". Holders whose
+    container is itself dead/freed are hidden unless -a is given."""
 
     def __init__(self):
         super().__init__("yt-rc-backref", gdb.COMMAND_USER)
@@ -125,11 +136,11 @@ class YtHolders(gdb.Command):
         for h in shown:
             cont = "0x%x" % h.container if h.container else "-"
             ct = _display_type(h.container_type) if h.container_type else h.note
-            print("0x%-16x %-7s %-18s %s" % (h.slot, h.kind, cont, ct))
+            print("0x%-16x %-7s %-18s %s%s" % (h.slot, h.kind, cont, ct, _subobj(h)))
         if hidden:
             print("... (%d dead-container holder(s) hidden; -a to show)" % hidden)
         print("")
-        print("strong holders found: %d  (target StrongCount=%s)" % (strong, target_rc.strong))
+        print("Strong holders found: %d  (target StrongCount=%s)" % (strong, target_rc.strong))
         if target_rc.strong is not None and strong != target_rc.strong:
             print("NOTE: strong-holder count != StrongCount "
                   "(some holders unclassified, on stack, or self-refs)")
@@ -141,14 +152,14 @@ class YtHolders(gdb.Command):
 
 
 class YtTrace(gdb.Command):
-    """yt-rc-cycle <addr>: follow strong holders; report a retention CYCLE or root."""
+    """yt-rc-alive <addr>: follow strong holders; report a retention CYCLE or root."""
 
     def __init__(self):
-        super().__init__("yt-rc-cycle", gdb.COMMAND_USER)
+        super().__init__("yt-rc-alive", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
         addr = _parse_addr(arg)
-        print("tracing retention of 0x%x" % addr)
+        print("Tracing retention of 0x%x" % addr)
         print("  %s" % _fmt_rc(resolve_refcount(addr)))
         print("")
         for i, r in enumerate(trace_retention(addr)):
@@ -161,8 +172,8 @@ class YtTrace(gdb.Command):
                 obj = r.get("obj", 0)
                 print("  ROOT obj 0x%x : %s" % (obj, r.get("reason")))
                 for h in r.get("candidates", []) or []:
-                    print("    candidate holder: 0x%x %s [%s] %s" % (
-                        h.container or 0, _display_type(h.container_type), h.kind, h.note))
+                    print("    candidate holder: 0x%x %s [%s] %s%s" % (
+                        h.container or 0, _display_type(h.container_type), h.kind, h.note, _subobj(h)))
                 # No heap holder accounts for it -> attribute to a live stack
                 # (running thread / active or parked fiber).
                 if obj:
@@ -176,7 +187,7 @@ class YtTrace(gdb.Command):
         for container, obj, h in path:
             crc = h.container_refcount
             cinfo = " (strong=%s)" % crc.strong if crc is not None and crc.ok else ""
-            print("  0x%x  %s%s" % (container, _display_type(h.container_type), cinfo))
+            print("  0x%x  %s%s%s" % (container, _display_type(h.container_type), cinfo, _subobj(h)))
             print("        --%s-->  0x%x" % (h.kind, obj))
 
 
@@ -189,16 +200,16 @@ class YtFind(gdb.Command):
     def invoke(self, arg, from_tty):
         substr = arg.strip()
         if not substr:
-            raise gdb.GdbError("expected a type-name substring")
-        print("scanning heap for live ref-counted objects matching %r ..." % substr)
+            raise gdb.GdbError("Expected a type-name substring")
+        print("Scanning heap for live ref-counted objects matching %r ..." % substr)
         hits = find_live_objects_by_type(substr)
         if not hits:
-            print("none found")
+            print("None found")
             return
         print("%-18s %-8s %s" % ("object", "strong", "type"))
         for obj, tn, strong in hits:
             print("0x%-16x %-8s %s" % (obj, strong, _display_type(tn)))
-        print("\n%d live instance(s). Trace one with: yt-rc-cycle <addr>" % len(hits))
+        print("\n%d live instance(s). Trace one with: yt-rc-alive <addr>" % len(hits))
 
 
 def register():
@@ -206,7 +217,7 @@ def register():
     YtHolders()
     YtTrace()
     YtFind()
-    _announce.command("ref-counted", "yt-rc-obj", "yt-rc-backref", "yt-rc-cycle", "yt-rc-find")
+    _announce.command("ref-counted", "yt-rc-obj", "yt-rc-backref", "yt-rc-alive", "yt-rc-find")
 
 
 register()
