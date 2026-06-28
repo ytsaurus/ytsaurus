@@ -26,8 +26,11 @@ DEPENDS(
     yt/yt/scripts/gdb_plugin/tests/fixture
 )
 
+PEERDIR(
+    yt/yt/scripts/gdb_plugin/tests/testlib
+)
+
 TEST_SRCS(
-    gdb_test_lib.py
     test_refcount.py
     test_printers.py
     test_fibers.py
@@ -39,4 +42,5 @@ END()
 
 RECURSE(
     fixture
+    testlib
 )
