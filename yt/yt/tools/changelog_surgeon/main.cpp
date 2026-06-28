@@ -36,7 +36,7 @@ struct TSurgeonParams
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<i64, i64> GetSequenceNumberRange(const TVector<TString>& changelogFileNames)
+std::pair<i64, i64> GetSequenceNumberRange(const TVector<std::string>& changelogFileNames)
 {
     bool changelogsEmpty = true;
     auto minSequenceNumber = std::numeric_limits<i64>::max();
@@ -90,7 +90,7 @@ std::pair<i64, i64> GetSequenceNumberRange(const TVector<TString>& changelogFile
 
 void ValidateSurgeonParams(TSurgeonParams* params)
 {
-    auto changelogFileNames = StringSplitter(params->ChangelogList).Split(' ').ToList<TString>();
+    auto changelogFileNames = StringSplitter(params->ChangelogList).Split(' ').ToList<std::string>();
     auto [minSequenceNumber, maxSequenceNumber] = GetSequenceNumberRange(changelogFileNames);
 
     if (!params->FirstSequenceNumber.has_value()) {
@@ -165,7 +165,7 @@ void ValidateRecordIdentity(const TSharedRef& lhs, const TSharedRef& rhs)
 
 void PerformSurgery(const TSurgeonParams& params)
 {
-    auto changelogFileNames = StringSplitter(params.ChangelogList).Split(' ').ToList<TString>();
+    auto changelogFileNames = StringSplitter(params.ChangelogList).Split(' ').ToList<std::string>();
 
     auto firstSequenceNumber = *params.FirstSequenceNumber;
     auto lastSequenceNumber = *params.LastSequenceNumber;

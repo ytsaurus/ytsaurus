@@ -345,7 +345,7 @@ public:
     }
 
 private:
-    TString Destination_;
+    std::string Destination_;
 
     TLogger Logger = TLogger("Converter");
 
@@ -365,7 +365,8 @@ private:
             extractor.Finish();
 
             int extractedCount = extractor.GetExtractedCount();
-            TUnbufferedFileOutput output(Destination_);
+            // TODO(babenko): drop cast once TUnbufferedFileOutput accepts std::string
+            TUnbufferedFileOutput output{TString(Destination_)};
             output.Write(&extractedCount, sizeof(extractedCount));
 
             context.Finish();
@@ -382,7 +383,7 @@ private:
 
 int main(int argc, const char** argv)
 {
-    if (TString(argv[1]) == "convert-operations-to-binary-format") {
+    if (std::string(argv[1]) == "convert-operations-to-binary-format") {
         return NYT::TConvertOperationsToBinaryFormatProgram().Run(argc - 1, argv + 1);
     }
     return NYT::TSchedulerSimulatorProgram().Run(argc, argv);

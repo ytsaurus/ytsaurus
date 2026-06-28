@@ -46,7 +46,7 @@ public:
     }
 
 private:
-    TString InputFile_;
+    std::string InputFile_;
     bool TruncateStrings_ = true;
     int TruncateLimit_ = 30;
 
@@ -55,7 +55,8 @@ private:
         TCustomPrinter::SetTruncateStrings(TruncateStrings_);
         TCustomPrinter::SetTruncateLimit(TruncateLimit_);
 
-        TFileInput input(InputFile_);
+        // TODO(babenko): drop cast once TFileInput accepts std::string
+        TFileInput input{TString(InputFile_)};
         TYsonPullParser parser(&input, EYsonType::ListFragment);
         TYsonPullParserCursor cursor(&parser);
         YT_VERIFY(cursor.TryConsumeFragmentStart());

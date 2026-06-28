@@ -799,14 +799,15 @@ std::vector<TTempTable> CreateOutputParserTables(
 }
 
 void ImportFilesFromSource(
-    const TString& proxy,
+    const std::string& proxy,
     const std::vector<std::string>& fileIds,
-    const TString& resultTable,
-    const std::optional<TString>& networkProject,
+    const std::string& resultTable,
+    const std::optional<std::string>& networkProject,
     const TSourceConfig& sourceConfig,
     TImportConfigPtr config)
 {
-    auto ytClient = NYT::CreateClient(proxy);
+    // TODO(babenko): drop cast once CreateClient accepts std::string.
+    auto ytClient = NYT::CreateClient(TString(proxy));
 
     YT_LOG_INFO("Create table with meta information");
     TTempTable metaInformationTable(
@@ -927,7 +928,8 @@ void ImportFilesFromSource(
         auto jobSpec = TUserJobSpec()
             .MemoryLimit(config->MemoryLimit);
         if (networkProject) {
-            jobSpec.NetworkProject(*networkProject);
+            // TODO(babenko): drop cast once TUserJobSpec::NetworkProject accepts std::string.
+            jobSpec.NetworkProject(TString(*networkProject));
         }
         if (attachLibIconv) {
            jobSpec.AddLocalFile("./libiconv.so");
@@ -1019,7 +1021,8 @@ void ImportFilesFromSource(
         }
 
         mergeOperationSpec = mergeOperationSpec
-            .Output(resultTable)
+            // TODO(babenko): drop cast once TRichYPath accepts std::string.
+            .Output(TString(resultTable))
             .SchemaInferenceMode(ESchemaInferenceMode::FromInput);
 
         YT_LOG_INFO("Start merge operation: filling rows in the result table (MaxRowWeight: %v)", config->MaxRowWeight);
@@ -1032,14 +1035,14 @@ void ImportFilesFromSource(
 ////////////////////////////////////////////////////////////////////////////////
 
 void ImportFilesFromS3(
-    const TString& proxy,
+    const std::string& proxy,
     const std::string& url,
     const std::string& region,
     const std::string& bucket,
     const std::string& prefix,
-    const TString& resultTable,
+    const std::string& resultTable,
     EFileFormat format,
-    const std::optional<TString>& networkProject,
+    const std::optional<std::string>& networkProject,
     TImportConfigPtr config)
 {
     std::string accessKeyId = GetEnv("ACCESS_KEY_ID");
@@ -1074,13 +1077,13 @@ void ImportFilesFromS3(
 }
 
 void ImportFilesFromHuggingface(
-    const TString& proxy,
+    const std::string& proxy,
     const std::string& dataset,
     const std::string& subset,
     const std::string& split,
-    const TString& resultTable,
+    const std::string& resultTable,
     EFileFormat format,
-    const std::optional<TString>& networkProject,
+    const std::optional<std::string>& networkProject,
     const std::optional<std::string>& urlOverride,
     TImportConfigPtr config)
 {

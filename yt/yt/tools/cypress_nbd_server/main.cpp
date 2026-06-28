@@ -243,7 +243,8 @@ protected:
         auto singletonsConfig = New<TSingletonsConfig>();
         ConfigureSingletons(singletonsConfig);
 
-        auto config = NYT::NYTree::ConvertTo<NYT::NNbd::TConfigPtr>(NYT::NYson::TYsonString(TFileInput(ConfigPath_).ReadAll()));
+        // TODO(babenko): drop cast once TFileInput accepts std::string
+        auto config = NYT::NYTree::ConvertTo<NYT::NNbd::TConfigPtr>(NYT::NYson::TYsonString(TFileInput(TString(ConfigPath_)).ReadAll()));
 
         auto poller = NConcurrency::CreateThreadPoolPoller(config->ThreadCount, "Poller");
         auto threadPool = NConcurrency::CreateThreadPool(config->ThreadCount, "Nbd");
@@ -328,7 +329,7 @@ protected:
     }
 
 private:
-    TString ConfigPath_;
+    std::string ConfigPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
