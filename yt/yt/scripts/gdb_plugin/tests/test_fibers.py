@@ -50,6 +50,7 @@ def test_fiber_locals_on_core():
 def test_fiber_select_on_core():
     ctx, path = get_core()
     # Switching the register context needs a live inferior; on a coredump the
-    # command must fail with a clear message rather than a raw gdb error.
-    out = analyze(ctx, path, "yt-fiber-select 0")
+    # command must fail with a clear message rather than a raw gdb error. The
+    # raised GdbError makes gdb exit non-zero, so capture it with check=False.
+    out = analyze(ctx, path, "yt-fiber-select 0", check=False)
     assert "coredump" in out

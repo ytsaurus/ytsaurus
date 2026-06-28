@@ -1,11 +1,5 @@
-"""Shared scaffolding for the gdb_plugin tests.
-
-Every test module (ref-counted analysis, pretty-printers, fibers) drives the same
-fixture binary + coredump, so the context, the one-time core generation, and the
-`analyze` helper live here. `get_core()` caches the (slow) core at module level,
-so it is generated once and reused across every test module -- without a pytest
-fixture imported into each file (which trips flake8's F811).
-"""
+"""Shared scaffolding for the gdb_plugin tests: fixture context, one-time
+(cached) core generation, and the `analyze` helper."""
 
 from yt.environment import arcadia_interop
 
@@ -32,14 +26,19 @@ def get_context():
     )
 
 
-def run(cmd):
+def run(cmd, check=True):
     env = os.environ.copy()
     # NB: Strings are not printed correctly in gdb otherwise.
     env["LC_ALL"] = "en_US.UTF-8"
     try:
         return subprocess.check_output(cmd, stderr=subprocess.STDOUT, env=env).decode("UTF-8")
     except subprocess.CalledProcessError as exc:
-        root_logger.exception("gdb exited with code {}\n{}".format(exc.returncode, exc.output.decode("UTF-8")))
+        out = exc.output.decode("UTF-8")
+        root_logger.exception("gdb exited with code {}\n{}".format(exc.returncode, out))
+        # A command that raises GdbError makes gdb exit non-zero (e.g. yt-fiber-select
+        # on a coredump); the caller passes check=False to inspect the message.
+        if not check:
+            return out
         raise
 
 
@@ -58,14 +57,14 @@ def generate_core(ctx):
     return core
 
 
-def analyze(ctx, core, command):
+def analyze(ctx, core, command, check=True):
     out = run([
         ctx["gdbpath"], "-nx", "-batch",
         "-ix", ctx["plugin"],
         "-ex", "set charset UTF-8",
         "-ex", command,
         ctx["fixture"], core,
-    ])
+    ], check=check)
     root_logger.info("Command %r output\n%s\n", command, out)
     assert len(out) > 0
     return out

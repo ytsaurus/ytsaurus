@@ -146,7 +146,13 @@ class YtRcDump(gdb.Command):
         if tracker_addr is None:
             print("RefCountedTracker not found (binary built without ref-counted tracking?)")
             return
-        tracker = gdb.parse_and_eval("*(NYT::TRefCountedTracker*)0x%x" % tracker_addr)
+        try:
+            tracker = gdb.parse_and_eval("*(NYT::TRefCountedTracker*)0x%x" % tracker_addr)
+        except gdb.error as e:
+            # The TRefCountedTracker type needs debug info; a stripped binary has
+            # the symbol (so tracker_addr resolves) but not the type.
+            print("RefCountedTracker type info unavailable (%s)" % e)
+            return
 
         rows = []
         for cookie, (oa, of, ba, bf) in _aggregate(tracker).items():

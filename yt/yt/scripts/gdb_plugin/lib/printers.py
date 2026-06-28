@@ -355,26 +355,22 @@ class TOrderedHashMapPrinter:
 # ---------------------------------------------------------------------------
 # NYT::TError / TErrorOr<void>.
 #
-# TError holds a unique_ptr<TImpl>, but TImpl is defined out-of-line (error.cpp)
-# and the binary's debug info carries it as an *incomplete* type -- so its fields
-# can't be named directly. Each field's offset within TImpl is recovered by
-# disassembling its const accessor (a one-liner computing `this + offset`), and
-# the field is read through the accessor's *return type*, which IS complete.
-# Read-only and core-safe; the offset patterns cover both -O0 and optimized code.
-# We render code, message, origin (host/pid/tid/thread), user attributes, and
-# recurse into inner errors.
+# TImpl is incomplete in debug info, so its fields are reached by offset. Each
+# offset is recovered by disassembling an accessor: the public TErrorOr<void> one
+# (`mov (%rdi),%rax` then a read at DISP(%rax)) in optimized builds, where the
+# inlined TImpl accessors are gone, else the TImpl member accessor. Fields are read
+# at impl+offset with their complete types. Read-only and core-safe.
 # ---------------------------------------------------------------------------
 
+_PUBLIC = "NYT::TErrorOr<void>"
 _TIMPL = "NYT::TErrorOr<void>::TImpl"
-_GET_CODE = "%s::GetCode() const" % _TIMPL
-_GET_MESSAGE = "%s::GetMessage() const" % _TIMPL
 _ORIGIN_ATTRS = "%s::OriginAttributes() const" % _TIMPL
-_ATTRIBUTES = "%s::Attributes() const" % _TIMPL
-_INNER_ERRORS = "%s::InnerErrors() const" % _TIMPL
 
 _MAX_ERROR_DEPTH = 5
 
 _accessor_cache = {}
+_offset_cache = {}
+_type_cache = {}
 
 
 def _strip_ref_cv(ty):
@@ -437,25 +433,88 @@ def _impl_addr(error_val):
         return 0
 
 
-def _err_code(impl):
-    off, ftype = _resolve_accessor(_GET_CODE)
-    if off is None:
-        return "?"
+def _disasm(method):
     try:
-        if ftype is not None and ftype.code == gdb.TYPE_CODE_STRUCT:
-            return int(_field_at(impl + off, ftype)["Value_"])  # TErrorCode wraps an int
-        raw = bytes(gdb.selected_inferior().read_memory(impl + off, 4))
-        return int.from_bytes(raw, "little", signed=True)
+        return gdb.execute("disassemble '%s'" % method, to_string=True)
+    except gdb.error:
+        return None
+
+
+def _public_offset(accessor):
+    """Field offset within TImpl from a public TErrorOr<void> accessor's
+    disassembly: `mov (%rdi),%R` loads Impl_, then the field is read at DISP(%R)
+    (a bare `(%R)` dereference is offset 0)."""
+    asm = _disasm("%s::%s" % (_PUBLIC, accessor))
+    if asm is None:
+        return None
+    base = None
+    for line in asm.splitlines():
+        if base is None:
+            m = re.search(r"mov\s+\(%rdi\),%(\w+)", line)
+            if m:
+                base = m.group(1)
+            continue
+        m = (re.search(r"add\s+\$0x([0-9a-f]+),%" + base + r"\b", line)
+             or re.search(r"0x([0-9a-f]+)\(%" + base + r"[,)]", line))
+        if m:
+            return int(m.group(1), 16)
+        if re.search(r"\(%" + base + r"\)", line):
+            return 0
+    return None
+
+
+def _impl_offset(accessor, impl_accessor=None):
+    """Offset of a TImpl field: from the public accessor (optimized builds) or, as a
+    fallback, the TImpl member accessor's `this + offset` (unoptimized builds)."""
+    if accessor not in _offset_cache:
+        off = _public_offset(accessor)
+        if off is None and impl_accessor is not None:
+            off = _accessor_offset("%s::%s" % (_TIMPL, impl_accessor))
+        _offset_cache[accessor] = off
+    return _offset_cache[accessor]
+
+
+def _public_type(accessor):
+    """The field's type, taken from the public accessor's (complete) return type."""
+    if accessor not in _type_cache:
+        try:
+            t = gdb.parse_and_eval("'%s::%s'" % (_PUBLIC, accessor)).type.target()
+            _type_cache[accessor] = _strip_ref_cv(t)
+        except (gdb.error, AttributeError):
+            _type_cache[accessor] = None
+    return _type_cache[accessor]
+
+
+def _read_field(impl, accessor, ftype=None, impl_accessor=None):
+    """The TImpl field behind #accessor as a gdb.Value, read at impl+offset with
+    #ftype (default: the accessor's return type). None if it can't be resolved."""
+    off = _impl_offset(accessor, impl_accessor)
+    if off is None:
+        return None
+    if ftype is None:
+        ftype = _public_type(accessor)
+    if ftype is None:
+        return None
+    try:
+        return _field_at(impl + off, ftype)
+    except gdb.error:
+        return None
+
+
+def _err_code(impl):
+    val = _read_field(impl, "GetCode() const", impl_accessor="GetCode() const")
+    try:
+        return int(val["Value_"]) if val is not None else "?"  # TErrorCode wraps an int
     except (gdb.error, KeyError):
         return "?"
 
 
 def _err_message(impl):
-    off, ftype = _resolve_accessor(_GET_MESSAGE)
-    if off is None or ftype is None:
+    val = _read_field(impl, "GetMessage() const", impl_accessor="GetMessage() const")
+    if val is None:
         return ""
     try:
-        return _unquote(str(_field_at(impl + off, ftype)))
+        return _unquote(str(val))
     except gdb.error:
         return ""
 
@@ -468,6 +527,52 @@ def _format_instant(microseconds):
 
 
 def _err_origin(impl):
+    """Origin attributes (pid/tid/thread/datetime). Optimized builds read them one
+    accessor at a time (the combined TImpl::OriginAttributes() is inlined away);
+    unoptimized builds fall back to that struct."""
+    if _impl_offset("GetPid() const") is not None:
+        return _origin_via_accessors(impl)
+    return _origin_via_struct(impl)
+
+
+def _origin_via_accessors(impl):
+    pid = _read_field(impl, "GetPid() const")
+    if pid is None:
+        return None
+    try:
+        pid = int(pid)
+    except gdb.error:
+        return None
+    if pid == 0:
+        return None  # origin attributes not captured (e.g. an OK-derived error)
+    parts = ["pid=%d" % pid]
+    tid = _read_field(impl, "GetTid() const")
+    if tid is not None:
+        try:
+            parts.append("tid=0x%08x" % int(tid))
+        except gdb.error:
+            pass
+    tn_type = _lookup_type("NYT::TThreadName")
+    tn = _read_field(impl, "GetThreadName() const", ftype=tn_type) if tn_type else None
+    if tn is not None:
+        try:
+            tlen = int(tn["Length"])
+            if tlen > 0:
+                parts.append('thread="%s"' % _array_chars(tn["Buffer"], tlen))
+        except gdb.error:
+            pass
+    dt = _read_field(impl, "GetDatetime() const")
+    if dt is not None:
+        try:
+            usec = int(dt["Value_"])
+            if usec:
+                parts.append("at %s" % _format_instant(usec))
+        except (gdb.error, KeyError, ValueError, OverflowError):
+            pass
+    return " ".join(parts)
+
+
+def _origin_via_struct(impl):
     off, ftype = _resolve_accessor(_ORIGIN_ATTRS)
     if off is None or ftype is None:
         return None
@@ -475,7 +580,7 @@ def _err_origin(impl):
         o = _field_at(impl + off, ftype)
         pid = int(o["Pid"])
         if pid == 0:
-            return None  # origin attributes not captured (e.g. an OK-derived error)
+            return None
         parts = []
         host = _string_view_text(o["Host"])
         if host:
@@ -498,23 +603,22 @@ def _err_origin(impl):
 
 
 def _err_attributes(impl):
-    off, ftype = _resolve_accessor(_ATTRIBUTES)
-    if off is None or ftype is None:
+    val = _read_field(impl, "Attributes() const", impl_accessor="Attributes() const")
+    if val is None:
         return []
     try:
-        attrs = _field_at(impl + off, ftype)
         return [(_unquote(str(k)), _unquote(str(v)))
-                for k, v in _ordered_hash_map_items(attrs["Map_"])]
+                for k, v in _ordered_hash_map_items(val["Map_"])]
     except gdb.error:
         return []
 
 
 def _err_inner(impl):
-    off, ftype = _resolve_accessor(_INNER_ERRORS)
-    if off is None or ftype is None:
+    val = _read_field(impl, "InnerErrors() const", impl_accessor="InnerErrors() const")
+    if val is None:
         return []
     try:
-        return _vector_items(_field_at(impl + off, ftype))
+        return _vector_items(val)
     except gdb.error:
         return []
 
