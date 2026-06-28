@@ -15,10 +15,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString UncompressedDataSizeField = "uncompressed_data_size";
-static const TString CompressedDataSizeField = "compressed_data_size";
-static const TString MemorySizeField = "memory_size";
-static const TString PartitionCountField = "partition_count";
+static const std::string UncompressedDataSizeField = "uncompressed_data_size";
+static const std::string CompressedDataSizeField = "compressed_data_size";
+static const std::string MemorySizeField = "memory_size";
+static const std::string PartitionCountField = "partition_count";
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -78,7 +78,7 @@ void ApplyMoveDescriptors(
 
 std::vector<TReshardDescriptor> ReshardBundleParameterized(
     const TTabletCellBundlePtr& bundle,
-    const TString& parameterizedConfig,
+    const std::string& parameterizedConfig,
     const TGroupName& group)
 {
     auto commonParameterizedConfig = ConvertTo<TParameterizedBalancingConfigPtr>(TYsonString(parameterizedConfig));
@@ -187,7 +187,7 @@ TTabletActionBatch Balance(
     EBalancingMode mode,
     const TTabletCellBundlePtr& bundle,
     const TGroupName& group,
-    const TString& parameterizedConfig)
+    const std::string& parameterizedConfig)
 {
     switch (mode) {
         case EBalancingMode::InMemoryMove: {
@@ -244,7 +244,7 @@ TTabletActionBatch BalanceAndPrintDescriptors(
     EBalancingMode mode,
     const TTabletCellBundlePtr& bundle,
     const TGroupName& group,
-    const TString& parameterizedConfig)
+    const std::string& parameterizedConfig)
 {
     ValidateBundle(bundle);
     YT_LOG_INFO("Balancing iteration started");
