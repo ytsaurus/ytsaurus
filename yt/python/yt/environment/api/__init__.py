@@ -208,7 +208,7 @@ class LocalYtConfig(object):
     """Logging options"""
     default_abort_on_alert = attr.ib(None)
 
-    # COMPAT
+    # COMPAT(ignat)
     enable_legacy_logging_scheme = attr.ib(False)
 
     @enable_auth.validator
