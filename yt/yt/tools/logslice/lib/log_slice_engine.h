@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -63,7 +64,7 @@ ILogSliceEnginePtr CreateLogSliceEngine(ECompressionCodec codec, TStringBuf file
 //! Splits a single command-line string into argv-style tokens, honoring single
 //! and double quotes (so a multi-word grep pattern can be passed as one -g value)
 //! and backslash escapes. Throws on an unbalanced quote.
-std::vector<TString> SplitCommandLine(TStringBuf line);
+std::vector<std::string> SplitCommandLine(TStringBuf line);
 
 //! Runs the system `grep` with [grepArgs], streaming the producer's output through
 //! grep's stdin and grep's stdout into [output]. The slice is never materialized in
@@ -72,7 +73,7 @@ std::vector<TString> SplitCommandLine(TStringBuf line);
 //! match") is fine; a genuine grep failure (exit code >= 2, or a launch failure)
 //! throws.
 void FilterWithGrep(
-    const std::vector<TString>& grepArgs,
+    const std::vector<std::string>& grepArgs,
     const std::function<void(IOutputStream&)>& produce,
     IOutputStream& output);
 

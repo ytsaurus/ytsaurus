@@ -1143,12 +1143,12 @@ void SliceChunk(
 
 void GuardedMain(int argc, char** argv)
 {
-    auto mode = TString("native");
+    std::string mode = "native";
     EIOEngineType engineType = EIOEngineType::ThreadPool;
-    TString schemaString;
-    TString lowerString;
-    TString upperString;
-    TString ioConfigString;
+    std::string schemaString;
+    std::string lowerString;
+    std::string upperString;
+    std::string ioConfigString;
     bool actionMeta = false;
     bool actionDump = false;
     bool actionBenchmark = false;

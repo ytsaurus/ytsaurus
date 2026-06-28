@@ -15,10 +15,10 @@ using namespace NYT::NLogSlice;
 int main(int argc, char** argv)
 {
     try {
-        TString startString;
-        TString endString;
-        TString codecString;
-        TString grepLine;
+        std::string startString;
+        std::string endString;
+        std::string codecString;
+        std::string grepLine;
         i64 extendSeconds = 0;
         bool infoMode = false;
 
@@ -52,7 +52,7 @@ int main(int argc, char** argv)
         NLastGetopt::TOptsParseResult parsed(&opts, argc, argv);
         const auto& freeArgs = parsed.GetFreeArgs();
         TString logFileName = TString(freeArgs[0]);
-        std::vector<TString> grepArgs(freeArgs.begin() + 1, freeArgs.end());
+        std::vector<std::string> grepArgs(freeArgs.begin() + 1, freeArgs.end());
         if (parsed.Has('g')) {
             auto extra = SplitCommandLine(grepLine);
             grepArgs.insert(grepArgs.end(), extra.begin(), extra.end());
