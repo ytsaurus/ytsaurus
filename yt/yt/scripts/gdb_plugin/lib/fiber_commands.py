@@ -3,13 +3,15 @@
 #     yt-fiber-list [-a]      roster of parked fibers (idle pooled ones hidden
 #                             unless -a)
 #     yt-fiber-bt <n>         full backtrace of parked fiber n (read-only)
+#     yt-fiber-locals <n> [<frame>]  args + locals of fiber n's frame (read-only)
 #     yt-fiber-select [<n>]   switch gdb into fiber n's register context
 #                             (no argument restores the original context)
 #
 # All build on the core-friendly enumeration in fiber_attribution.py (the
-# TFiberRegistry is read straight from memory, no inferior calls), so the list
-# and backtrace work on a coredump. yt-fiber-select needs a live inferior (gdb
-# forbids modifying registers on a core) and degrades with a clear message.
+# TFiberRegistry is read straight from memory, no inferior calls), so the list,
+# backtrace, and locals work on a coredump. yt-fiber-select alone needs a live
+# inferior (gdb forbids modifying registers on a core) and degrades with a clear
+# message -- use yt-fiber-locals for read-only local inspection on a core.
 
 import re
 
@@ -17,7 +19,9 @@ import gdb
 
 import _announce
 import fiber
-from fiber_attribution import fiber_stacks, format_fiber_backtrace
+from fiber_attribution import (
+    fiber_stacks, format_fiber_backtrace, format_fiber_frame_locals,
+)
 
 # Scheduler / context-switch plumbing that wraps every parked fiber; skipped when
 # picking the "interesting" leaf frame for the concise roster.
@@ -132,6 +136,37 @@ class YtFiberBacktrace(gdb.Command):
             print("  " + line)
 
 
+class YtFiberLocals(gdb.Command):
+    """yt-fiber-locals <n> [<frame>]: args + locals of parked fiber n's frame
+    (default the innermost, #0). Read-only and core-safe -- reads the locals out
+    of a CFI-unwound frame without modifying registers, so unlike yt-fiber-select
+    it works on a coredump. Frame numbers match yt-fiber-bt."""
+
+    def __init__(self):
+        super().__init__("yt-fiber-locals", gdb.COMMAND_STACK)
+
+    def invoke(self, arg, from_tty):
+        parts = arg.split()
+        if not parts:
+            raise gdb.GdbError("expected a fiber index (see yt-fiber-list)")
+        try:
+            index = int(parts[0])
+            frame_index = int(parts[1]) if len(parts) > 1 else 0
+        except ValueError:
+            raise gdb.GdbError("usage: yt-fiber-locals <n> [<frame>]")
+        fib = _parked_fiber(index)
+        if fib is None:
+            raise gdb.GdbError("no parked fiber #%d (run yt-fiber-list)" % index)
+        lines = format_fiber_frame_locals(fib, frame_index)
+        if lines is None:
+            raise gdb.GdbError(
+                "could not CFI-unwind fiber #%d, so locals are unavailable; "
+                "yt-fiber-bt %d still gives the frame list" % (index, index))
+        print("fiber #%d frame #%d:" % (index, frame_index))
+        for line in lines:
+            print("  " + line)
+
+
 class _FiberRegisterSwitcher:
     """Save the live registers, set them to a fiber's saved TContMachineContext,
     and restore on demand. The switch lets gdb's native unwinder walk the fiber."""
@@ -203,8 +238,10 @@ class YtFiberSelect(gdb.Command):
 def register():
     YtFiberList()
     YtFiberBacktrace()
+    YtFiberLocals()
     YtFiberSelect()
-    _announce.command("fibers", "yt-fiber-list", "yt-fiber-bt", "yt-fiber-select")
+    _announce.command("fibers", "yt-fiber-list", "yt-fiber-bt",
+                      "yt-fiber-locals", "yt-fiber-select")
 
 
 register()
