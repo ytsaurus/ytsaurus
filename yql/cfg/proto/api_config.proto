@@ -80,8 +80,9 @@ message TAbcSyncConfig {
    optional TTime SyncDelay = 2;
    optional TTime SyncPeriod = 3;
    optional TTime HttpReadTimeout = 4;
-   optional EAbcStorageType StorageType = 5;
-   optional EAbcReaderType ReaderType = 6;
+   optional uint32 HttpRetryCount = 5;
+   optional EAbcStorageType StorageType = 6;
+   optional EAbcReaderType ReaderType = 7;
 }
 
 message TZooKeeperConfig {
