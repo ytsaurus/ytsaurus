@@ -194,7 +194,7 @@ void BuildFileSpecs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetIntermediatePath(int streamIndex)
+NYPath::TYPath GetIntermediatePath(int streamIndex)
 {
     return Format("<intermediate-%v>", streamIndex);
 }

@@ -182,7 +182,7 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
         compressedDataSize += chunk->GetCompressedDataSize();
     }
 
-    TString annotation;
+    std::string annotation;
     if (OperationId_ && !Name_.empty()) {
         annotation = Format(
             "### Live preview for `%v` table of operation `%v`\n\n"
@@ -222,7 +222,7 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
             return true;
         case EInternedAttributeKey::UserAttributeKeys:
             BuildYsonFluently(consumer)
-                .Value(std::vector<TString>{});
+                .Value(std::vector<std::string>{});
             return true;
         case EInternedAttributeKey::ChunkCount:
             BuildYsonFluently(consumer)

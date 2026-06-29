@@ -54,7 +54,7 @@ public:
 
     void UpdateJobShellOptions(const NScheduler::TJobShellOptionsUpdateMap& update);
 
-    std::optional<NScheduler::TJobShellInfo> GetJobShellInfo(const TString& jobShellName);
+    std::optional<NScheduler::TJobShellInfo> GetJobShellInfo(const std::string& jobShellName);
 
     NScheduler::TAccessControlRule GetAccessControlRule() const;
 };

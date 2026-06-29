@@ -108,7 +108,7 @@ using TOperationIdToWeakControllerMap = THashMap<TOperationId, IOperationControl
 //! Returns TraceContextGuard with the trace context.
 
 NTracing::TTraceContextGuard CreateOperationTraceContextGuard(
-    TString spanName,
+    std::string spanName,
     TOperationId operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
