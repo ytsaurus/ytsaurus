@@ -2353,6 +2353,12 @@ class TestSchedulingLimits(AllocatingGpuSchedulingPolicyBaseConfig):
 
     @authors("severovv")
     def test_controller_returns_more_than_pool_limit(self):
+        # we need to separate plan updates and node heartbeats, because they are taking one lock
+        # if plan update starts between node heartbeats they get separated and test fails
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/plan_update_period", 1000000)
+        # wait for last plan update
+        time.sleep(0.2)
+
         create_pool("strict_pool", pool_tree="gpu", attributes={"resource_limits": {"cpu": 3.0}}, wait_for_orchid=True)
 
         # Two full-host jobs are assigned to different nodes
@@ -2371,10 +2377,20 @@ class TestSchedulingLimits(AllocatingGpuSchedulingPolicyBaseConfig):
                 },
             },
         )
+        wait_for_operations_in_gpu_policy_orchid(operation_count=1)
+
+        # Kickstart a single planning iteration with a period large enough (2000ms)
+        # that no subsequent plan update can fire during the test window:
+        # SA delay (1000ms) + heartbeat period (500ms) ≈ 1500ms < 2000ms.
+        # A heartbeat arriving before this kickstart is harmless — node->Assignments()
+        # is still empty and ScheduleAllocations is a no-op.
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/plan_update_period", 2000)
 
         wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=2, exactly=True)
         wait(lambda: len(op.get_running_jobs()) == 1)
         wait(lambda: get(op.get_path() + "/controller_orchid/progress/jobs/aborted/non_scheduled/scheduling_resource_overcommit", 0) == 1)
+
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/plan_update_period", 100)
 
 
 ##################################################################
