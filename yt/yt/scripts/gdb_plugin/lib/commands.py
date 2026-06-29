@@ -162,11 +162,14 @@ class YtTrace(gdb.Command):
         print("Tracing retention of 0x%x" % addr)
         print("  %s" % _fmt_rc(resolve_refcount(addr)))
         print("")
+        off_heap_done = set()
         for i, r in enumerate(trace_retention(addr)):
             print("--- result %d: %s ---" % (i + 1, r["kind"].upper()))
             if r["kind"] == "cycle":
                 self._print_path(r["path"])
-                print("  >>> CYCLE: 0x%x holds back into the start object" % r["edge"][0])
+                c, o, h = r["edge"]
+                print("  >>> CYCLE: 0x%x %s holds 0x%x, which is already on the path" % (
+                    c, _display_type(h.container_type), o))
             elif r["kind"] == "root":
                 self._print_path(r.get("path", []))
                 obj = r.get("obj", 0)
@@ -178,9 +181,15 @@ class YtTrace(gdb.Command):
                 # (running thread / active or parked fiber).
                 if obj:
                     _print_off_heap_holders(obj)
+                    off_heap_done.add(obj)
             else:
                 self._print_path(r.get("path", []))
                 print("  %s" % r.get("kind"))
+            print("")
+        # Always attribute the queried object's own off-heap holders -- a running
+        # thread or parked fiber can pin it directly, off the heap -- even when the
+        # trace followed a heap path past it rather than reporting it as a root.
+        if addr not in off_heap_done and _print_off_heap_holders(addr):
             print("")
 
     def _print_path(self, path):

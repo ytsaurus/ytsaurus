@@ -141,6 +141,28 @@ struct TGdbBetaHolder
     NYT::TIntrusivePtr<IGdbBeta> Beta;
 };
 
+// A retention DIAMOND (a DAG, NOT a cycle): one sink held strongly by two mids,
+// both mids held strongly by one top. Walking holders of the sink converges on
+// `top` via two paths; a colored DFS must treat the second arrival as a
+// cross-edge and report a ROOT -- the old global-visited check wrongly called it
+// a CYCLE.
+struct TGdbDagSink
+    : public NYT::TRefCounted
+{ };
+
+struct TGdbDagMid
+    : public NYT::TRefCounted
+{
+    NYT::TIntrusivePtr<TGdbDagSink> Sink;
+};
+
+struct TGdbDagTop
+    : public NYT::TRefCounted
+{
+    NYT::TIntrusivePtr<TGdbDagMid> Left;
+    NYT::TIntrusivePtr<TGdbDagMid> Right;
+};
+
 void GdbClosureSink(const NYT::TIntrusivePtr<TGdbLiveSolo>&)
 { }
 
@@ -154,6 +176,7 @@ NYT::TRefCountedPtr RootedDiamondAsBase;
 NYT::TIntrusivePtr<TGdbWeakParent> RootedWeakParent;
 NYT::TIntrusivePtr<TGdbMultiIface> RootedMulti;
 NYT::TIntrusivePtr<TGdbBetaHolder> RootedBetaHolder;
+NYT::TIntrusivePtr<TGdbDagTop> RootedDag;
 NYT::TCallback<void()> RootedClosure;
 IThreadPoolPtr RootedPool;
 TFuture<void> RootedFuture;
@@ -176,6 +199,7 @@ void* GdbWeakParentAddress = nullptr;  // held strongly by a global, weakly by i
 void* GdbWeakChildAddress = nullptr;   // holds the parent only weakly
 void* GdbMultiAddress = nullptr;       // most-derived; held strongly via its secondary IGdbBeta base
 void* GdbClosureHeldAddress = nullptr; // bound-captured (strong) inside a BIND closure
+void* GdbDagSinkAddress = nullptr;     // a DAG diamond: two mids under one top hold it (no cycle)
 } // extern "C"
 
 NYT::TRefCountedPtr SetupGdbRefCountFixtures()
@@ -254,6 +278,20 @@ NYT::TRefCountedPtr SetupGdbRefCountFixtures()
     auto closureObj = New<TGdbLiveSolo>();
     GdbClosureHeldAddress = closureObj.Get();
     RootedClosure = BIND(&GdbClosureSink, closureObj);
+
+    // (10) A retention DIAMOND / DAG (no cycle): a sink held by two mids that
+    // share one top. The holder graph converges on `top`; a colored DFS reports a
+    // ROOT, never a bogus CYCLE.
+    auto dagTop = New<TGdbDagTop>();
+    auto dagLeft = New<TGdbDagMid>();
+    auto dagRight = New<TGdbDagMid>();
+    auto dagSink = New<TGdbDagSink>();
+    dagLeft->Sink = dagSink;
+    dagRight->Sink = dagSink;
+    dagTop->Left = dagLeft;
+    dagTop->Right = dagRight;
+    RootedDag = dagTop;
+    GdbDagSinkAddress = dagSink.Get();
 
     // (7) An object pinned only by a running thread's stack. Created last and
     // returned by value: main() keeps the sole strong ref as a local, so nothing

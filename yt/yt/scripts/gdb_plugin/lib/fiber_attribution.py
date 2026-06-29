@@ -18,7 +18,7 @@ import struct
 import gdb
 
 from sections import sections
-from memory import find_pointers_to, read_block, read_ptr, info_symbol
+from memory import find_pointers_into, read_block, read_ptr, info_symbol
 from sections import in_ranges
 
 import fiber
@@ -126,13 +126,14 @@ def _active_segments():
 
 
 def find_threads_referencing(target):
-    """Live threads whose stack holds a pointer to #target. Returns
-    [(thread, slot)] (deduped by thread, lowest slot kept)."""
+    """Live threads whose stack holds a pointer to #target (or any of its
+    sub-objects). Returns [(thread, slot)] (deduped by thread, lowest slot kept)."""
+    from holders import object_extent
     stacks = thread_stacks()
     if not stacks:
         return []
     best = {}
-    for slot in find_pointers_to(target):
+    for slot, _sub in find_pointers_into(target, object_extent(target)):
         for t, rsp, lo, hi in stacks:
             if rsp <= slot < hi:
                 if t.num not in best or slot < best[t.num][1]:
@@ -172,13 +173,15 @@ def fiber_stacks():
 
 
 def find_fibers_referencing(target):
-    """Parked fibers whose live stack region holds a pointer to #target.
-    Returns [(index, fiber, slot)] (deduped by fiber, lowest slot kept)."""
+    """Parked fibers whose live stack region holds a pointer to #target (or any
+    of its sub-objects). Returns [(index, fiber, slot)] (deduped by fiber, lowest
+    slot kept)."""
+    from holders import object_extent
     stacks = fiber_stacks()
     if not stacks:
         return []
     best = {}
-    for slot in find_pointers_to(target):
+    for slot, _sub in find_pointers_into(target, object_extent(target)):
         for lo, hi, rsp, i, fib in stacks:
             # Live stack data is [rsp, segEnd) -- the slot must be at or above the
             # saved stack pointer to be a real local, not stale red-zone garbage.
