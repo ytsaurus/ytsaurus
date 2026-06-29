@@ -248,16 +248,17 @@ bool CanOmitOrderBy(int keyPrefix, TRange<TOrderItem> orderItems, TRange<std::st
     return true;
 }
 
-bool CanReverseScanForOrderBy(TRange<TOrderItem> orderItems, TRange<std::string> keyColumns)
+bool CanReverseScanForOrderBy(int fixedKeyPrefix, TRange<TOrderItem> orderItems, TRange<std::string> keyColumns, const TConstGroupClausePtr& groupClause)
 {
-    if (orderItems.Empty()) {
+    if (groupClause) {
         return false;
     }
 
-    int expectedKeyIndex = 0;
+    int currentKeyIndex = fixedKeyPrefix;
+
     for (const auto& item : orderItems) {
-        if (!item.Descending) {
-            return false;
+        if (currentKeyIndex >= std::ssize(keyColumns)) {
+            break;
         }
 
         const auto* referenceExpr = item.Expression->As<TReferenceExpression>();
@@ -266,14 +267,23 @@ bool CanReverseScanForOrderBy(TRange<TOrderItem> orderItems, TRange<std::string>
         }
 
         auto columnIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
-        if (columnIndex != expectedKeyIndex) {
+
+        if (columnIndex >= 0 && columnIndex < fixedKeyPrefix) {
+            continue;
+        }
+
+        if (columnIndex != currentKeyIndex) {
             return false;
         }
 
-        ++expectedKeyIndex;
+        if (!item.Descending) {
+            return false;
+        }
+
+        ++currentKeyIndex;
     }
 
-    return true;
+    return currentKeyIndex > fixedKeyPrefix;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

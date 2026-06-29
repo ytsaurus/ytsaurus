@@ -33,11 +33,55 @@ using namespace NConcurrency;
 struct TExplainQueryRangeInferrerTag
 { };
 
+struct TInferredQuery
+{
+    TDataSource InferredDataSource;
+    TConstQueryPtr CoordinatedQuery;
+    TRowBufferPtr RowBuffer;
+};
+
+TInferredQuery InferQueryRanges(
+    const NApi::NNative::IConnectionPtr& connection,
+    const TConstQueryPtr& query,
+    const TDataSource& dataSource,
+    const NApi::TExplainQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider,
+    bool allowReverseScanForOrderBy)
+{
+    auto rowBuffer = New<TRowBuffer>(TExplainQueryRangeInferrerTag(), memoryChunkProvider);
+
+    TQueryOptions queryOptions;
+    queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
+    queryOptions.VerboseLogging = options.VerboseLogging;
+    queryOptions.NewRangeInference = options.NewRangeInference;
+    queryOptions.MaxSubqueries = options.MaxSubqueries;
+    queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;
+    queryOptions.AllowReverseScanForOrderBy = allowReverseScanForOrderBy;
+
+    auto Logger = MakeQueryLogger(query);
+
+    auto [inferredDataSource, coordinatedQuery] = InferRanges(
+        connection->GetColumnEvaluatorCache(),
+        query,
+        dataSource,
+        queryOptions,
+        rowBuffer,
+        memoryChunkProvider,
+        Logger);
+
+    return TInferredQuery{
+        .InferredDataSource = std::move(inferredDataSource),
+        .CoordinatedQuery = std::move(coordinatedQuery),
+        .RowBuffer = std::move(rowBuffer),
+    };
+}
+
 void GetReadRangesInfo(
     TFluentMap fluent,
     NApi::NNative::IConnectionPtr connection,
     const TConstQueryPtr query,
-    const TDataSource& dataSource,
+    const TDataSource& originalDataSource,
+    const TInferredQuery& inferred,
     const NApi::TExplainQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
@@ -58,25 +102,8 @@ void GetReadRangesInfo(
         GetBuiltinConstraintExtractors());
     fluent.Item("constraints").Value(ToString(constraints, constraintRef));
 
-    TQueryOptions queryOptions;
-    queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
-    queryOptions.VerboseLogging = options.VerboseLogging;
-    queryOptions.NewRangeInference = options.NewRangeInference;
-    queryOptions.MaxSubqueries = options.MaxSubqueries;
-    queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;
-
-    auto Logger = MakeQueryLogger(query);
-
-    auto [inferredDataSource, coordinatedQuery] = InferRanges(
-        connection->GetColumnEvaluatorCache(),
-        query,
-        dataSource,
-        queryOptions,
-        rowBuffer,
-        memoryChunkProvider,
-        Logger);
-
-    auto tableId = dataSource.ObjectId;
+    const auto& inferredDataSource = inferred.InferredDataSource;
+    auto tableId = originalDataSource.ObjectId;
 
     auto tableInfo = WaitFor(connection->GetTableMountCache()->GetTableInfo(NObjectClient::FromObjectId(tableId)))
         .ValueOrThrow();
@@ -101,7 +128,7 @@ void GetReadRangesInfo(
             connection->GetNetworks(),
             tableInfo,
             inferredDataSource,
-            rowBuffer,
+            inferred.RowBuffer,
             options.ReadFrom);
 
         THashMap<std::string, std::vector<TDataSource>> groupsByAddress;
@@ -197,14 +224,15 @@ void BuildQueryDescriptor(
     const NApi::TExplainQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider,
     bool allowUnorderedGroupByWithLimit,
+    bool allowReverseScanForOrderBy,
     bool subquery = false)
 {
     const auto& query = fragment->Query;
 
     fluent
         .Item(subquery ? "subquery" : "query").DoMap([&] (auto fluent) {
-            GetQueryInfo(fluent, query, allowUnorderedGroupByWithLimit);
             if (fragment->SubqueryFragment) {
+                GetQueryInfo(fluent, query, allowUnorderedGroupByWithLimit);
                 BuildQueryDescriptor(
                     fluent,
                     connection,
@@ -212,11 +240,23 @@ void BuildQueryDescriptor(
                     options,
                     memoryChunkProvider,
                     allowUnorderedGroupByWithLimit,
+                    allowReverseScanForOrderBy,
                     /*subquery*/ true);
             } else {
-                GetReadRangesInfo(fluent, connection, query, fragment->DataSource, options, memoryChunkProvider);
+                auto inferred = InferQueryRanges(
+                    connection,
+                    query,
+                    fragment->DataSource,
+                    options,
+                    memoryChunkProvider,
+                    allowReverseScanForOrderBy);
 
-                auto [frontQuery, bottomQuery] = GetDistributedQueryPattern(query);
+                const auto& coordinatedQuery = inferred.CoordinatedQuery;
+
+                GetQueryInfo(fluent, coordinatedQuery, allowUnorderedGroupByWithLimit);
+                GetReadRangesInfo(fluent, connection, query, fragment->DataSource, inferred, options, memoryChunkProvider);
+
+                auto [frontQuery, bottomQuery] = GetDistributedQueryPattern(coordinatedQuery);
                 fluent
                     .Item("bottom_query")
                     .DoMap([&, bottomQuery = bottomQuery] (auto fluent) {
@@ -236,7 +276,8 @@ NYson::TYsonString BuildExplainQueryYson(
     TStringBuf udfRegistryPath,
     const NApi::TExplainQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider,
-    bool allowUnorderedGroupByWithLimit)
+    bool allowUnorderedGroupByWithLimit,
+    bool allowReverseScanForOrderBy)
 {
     return BuildYsonStringFluently()
         .DoMap([&] (auto fluent) {
@@ -249,7 +290,8 @@ NYson::TYsonString BuildExplainQueryYson(
                 fragment,
                 options,
                 memoryChunkProvider,
-                allowUnorderedGroupByWithLimit);
+                allowUnorderedGroupByWithLimit,
+                allowReverseScanForOrderBy);
         });
 }
 

@@ -5,6 +5,7 @@
 
 #include <yt/yt/library/query/engine/cg_cache.h>
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
 #include <yt/yt/library/query/engine_api/query_engine_config.h>
@@ -963,11 +964,28 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNode(
 TRunOnCoordinatorResult TQueryEvaluateTest::RunOnCoordinator(
     TQueryPtr primary,
     const std::vector<std::vector<TSource>>& tabletsData,
-    EExecutionBackend executionBackend)
+    EExecutionBackend executionBackend,
+    TQueryOptions options)
 {
     int tabletCount = std::ssize(tabletsData);
 
-    auto [frontQuery, nodeQuery] = GetDistributedQueryPattern(primary);
+    auto [inferredDataSource, coordinatedQuery] = InferRanges(
+        ColumnEvaluatorCache_,
+        primary,
+        TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+        options,
+        New<TRowBuffer>(),
+        GetDefaultMemoryChunkProvider(),
+        NLogging::TLogger("Test"));
+
+    TConstQueryPtr effectiveQuery = primary;
+    if (coordinatedQuery->IsReverseScan && !primary->IsReverseScan) {
+        auto upgraded = New<TQuery>(*primary);
+        upgraded->IsReverseScan = true;
+        effectiveQuery = upgraded;
+    }
+
+    auto [frontQuery, nodeQuery] = GetDistributedQueryPattern(effectiveQuery);
 
     std::vector<int> tabletOrder(tabletCount);
     std::iota(tabletOrder.begin(), tabletOrder.end(), 0);

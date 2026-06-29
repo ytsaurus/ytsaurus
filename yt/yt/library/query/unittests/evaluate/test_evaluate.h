@@ -2,6 +2,7 @@
 
 #include "ql_helpers.h"
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/config.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
 
@@ -66,6 +67,7 @@ protected:
     const TTypeInferrerMapPtr TypeInferrers_ = New<TTypeInferrerMap>();
     const TFunctionProfilerMapPtr FunctionProfilers_ = New<TFunctionProfilerMap>();
     const TAggregateProfilerMapPtr AggregateProfilers_ = New<TAggregateProfilerMap>();
+    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>());
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_{TypeInferrers_};
     NConcurrency::TActionQueuePtr ActionQueue_;
@@ -170,7 +172,8 @@ protected:
     TRunOnCoordinatorResult RunOnCoordinator(
         TQueryPtr primary,
         const std::vector<std::vector<TSource>>& tabletsData,
-        NCodegen::EExecutionBackend executionBackend);
+        NCodegen::EExecutionBackend executionBackend,
+        TQueryOptions options = {});
 
     void EvaluateFullCoordinatedGroupByImpl(
         TStringBuf queryString,
