@@ -1738,7 +1738,7 @@ void TJob::HandleJobReport(TNodeJobReport&& jobReport)
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     Bootstrap_->GetJobReporter()->HandleJobReport(
-        jobReport
+        std::move(jobReport)
             .OperationId(GetOperationId())
             .JobId(GetId())
             .Address(Bootstrap_->GetLocalDescriptor().GetDefaultAddress())
@@ -4241,21 +4241,21 @@ TNodeJobReport TJob::MakeDefaultJobReport()
         .CoreInfos(CoreInfos_)
         .ExecAttributes(ConvertToYsonString(ExecAttributes_));
     if (FinishTime_) {
-        report.SetFinishTime(*FinishTime_);
+        report.FinishTime(*FinishTime_);
     }
     if (JobSpecExt_.has_job_competition_id()) {
-        report.SetJobCompetitionId(FromProto<TJobId>(JobSpecExt_.job_competition_id()));
+        report.JobCompetitionId(FromProto<TJobId>(JobSpecExt_.job_competition_id()));
     }
     if (JobSpecExt_.has_probing_job_competition_id()) {
-        report.SetProbingJobCompetitionId(FromProto<TJobId>(JobSpecExt_.probing_job_competition_id()));
+        report.ProbingJobCompetitionId(FromProto<TJobId>(JobSpecExt_.probing_job_competition_id()));
     }
     if (JobSpecExt_.has_task_name()) {
-        report.SetTaskName(JobSpecExt_.task_name());
+        report.TaskName(JobSpecExt_.task_name());
     }
     if (UserJobSpec_ &&
         UserJobSpec_->has_archive_ttl())
     {
-        report.SetTtl(FromProto<TDuration>(UserJobSpec_->archive_ttl()));
+        report.Ttl(FromProto<TDuration>(UserJobSpec_->archive_ttl()));
     }
 
     return report;
