@@ -326,7 +326,7 @@ void TLayerLocation::Disable(const TError& error, bool persistentDisable)
     }
 
     // TODO(don-dron): Research and fix unconditional Disabled.
-    if (auto oldState = ChangeState(ELocationState::Disabled); *oldState != ELocationState::Enabled) {
+    if (auto oldState = ChangeState(ELocationState::Disabled); oldState != ELocationState::Enabled) {
         return;
     }
 
