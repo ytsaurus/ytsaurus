@@ -1,5 +1,7 @@
+#include "discovery.h"
+
 #include "discovery_base.h"
-#include "discovery_v2.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -17,12 +19,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryV2
+class TDiscovery
     : public TDiscoveryBase
 {
 public:
-    TDiscoveryV2(
-        TDiscoveryV2ConfigPtr config,
+    TDiscovery(
+        TDiscoveryConfigPtr config,
         IConnectionPtr connection,
         IChannelFactoryPtr channelFactory,
         IInvokerPtr invoker,
@@ -69,13 +71,8 @@ public:
         return MemberClient_->Stop();
     }
 
-    int Version() const override
-    {
-        return 2;
-    }
-
 private:
-    TDiscoveryV2ConfigPtr Config_;
+    TDiscoveryConfigPtr Config_;
     IConnectionPtr Connection_;
     IChannelFactoryPtr ChannelFactory_;
     TListMembersOptions ListOptions_;
@@ -109,8 +106,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDiscoveryPtr CreateDiscoveryV2(
-    TDiscoveryV2ConfigPtr config,
+IDiscoveryPtr CreateDiscovery(
+    TDiscoveryConfigPtr config,
     IConnectionPtr connection,
     NRpc::IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
@@ -118,7 +115,7 @@ IDiscoveryPtr CreateDiscoveryV2(
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler)
 {
-    return New<TDiscoveryV2>(
+    return New<TDiscovery>(
         std::move(config),
         std::move(connection),
         std::move(channelFactory),

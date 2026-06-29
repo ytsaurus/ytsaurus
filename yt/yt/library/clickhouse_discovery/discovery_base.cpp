@@ -1,5 +1,7 @@
 #include "discovery_base.h"
 
+#include "config.h"
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NClickHouseServer {
