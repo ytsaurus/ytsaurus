@@ -15,7 +15,6 @@ TObjectBase::TObjectBase(TObjectId id)
     : Id_(id)
 { }
 
-// Out-of-line so this TU is the single vtable emission point (key function).
 TObjectBase::~TObjectBase() = default;
 
 ////////////////////////////////////////////////////////////////////////////////
