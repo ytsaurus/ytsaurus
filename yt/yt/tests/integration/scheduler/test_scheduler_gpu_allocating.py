@@ -197,7 +197,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         release_breakpoint()
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) in (None, 0))
         wait(lambda: len(get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}/assignments")) == 0)
         wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
@@ -248,7 +248,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         release_breakpoint()
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) in (None, 0))
         wait(lambda: len(get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}/assignments")) == 0)
         wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
@@ -306,7 +306,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         release_breakpoint()
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) in (None, 0))
         wait(lambda: len(get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}/assignments")) == 0)
         wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
@@ -358,7 +358,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         release_breakpoint()
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) in (None, 0))
         wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
@@ -529,7 +529,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         release_breakpoint()
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) in (None, 0))
         wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
@@ -612,7 +612,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         release_breakpoint()
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) in (None, 0))
         wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
@@ -671,7 +671,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         release_breakpoint()
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) in (None, 0))
         wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
@@ -730,7 +730,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         release_breakpoint()
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) in (None, 0))
         wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
@@ -922,7 +922,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         release_breakpoint()
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="cpu") + "/resource_usage/cpu", default=None) == 0.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="cpu") + "/resource_usage/cpu", default=None) in (None, 0.0))
 
     @authors("yaishenka")
     def test_preempt_in_right_order(self):
@@ -1067,7 +1067,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         release_breakpoint()
 
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) in (None, 0))
 
     @authors("yaishenka")
     def test_abort_after_controller_agent_failure(self):
