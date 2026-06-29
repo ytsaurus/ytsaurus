@@ -101,7 +101,7 @@ NYTree::INodePtr ConvertProtobufToNode(
 NYTree::INodePtr ConvertProtobufToNode(
     const TProtobufMessageType* rootType,
     NYPath::TYPathBuf path,
-    const TString& payload,
+    TStringBuf payload,
     const NYson::TProtobufParserOptions& options)
 {
     return ConvertProtobufToNode(rootType, path, TWireString::FromSerialized(payload), options);
@@ -176,9 +176,9 @@ NYTree::INodePtr ConvertProtobufElementToNode(
                             EErrorCode::InvalidData,
                             "No string literal for enum value %v",
                             intValue);
-                        return ConvertToNode(TString{literal});
+                        return ConvertToNode(literal);
                     }
-                    return ConvertToNode(TString{wireStringPart.AsStringView()});
+                    return ConvertToNode(wireStringPart.AsStringView());
                 }
                 default:
                     THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
@@ -267,9 +267,9 @@ TErrorOr<std::pair<int, TYsonString>> LookupUnknownYsonFieldsItem(
     return TError(NAttributes::EErrorCode::MissingKey, "Unknown yson field not found");
 }
 
-TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value)
+TProtoStringType SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value)
 {
-    TString output;
+    TProtoStringType output;
     StringOutputStream outputStream(&output);
     CodedOutputStream codedOutputStream(&outputStream);
     codedOutputStream.WriteTag(
@@ -562,8 +562,8 @@ std::partial_ordering CompareScalarFields(
                 <=> rhsReflection->GetEnumValue(*rhsMessage, rhsFieldDescriptor);
         }
         case FieldDescriptor::CppType::CPPTYPE_STRING: {
-            TString lhsScratch;
-            TString rhsScratch;
+            TProtoStringType lhsScratch;
+            TProtoStringType rhsScratch;
             return lhsReflection
                 ->GetStringReference(*lhsMessage, lhsFieldDescriptor, &lhsScratch).ConstRef()
                 <=> rhsReflection
@@ -619,8 +619,8 @@ std::partial_ordering CompareScalarRepeatedFieldEntries(
                 <=> rhsReflection->GetRepeatedEnumValue(*rhsMessage, rhsFieldDescriptor, rhsIndex);
         }
     case FieldDescriptor::CppType::CPPTYPE_STRING: {
-        TString lhsScratch;
-        TString rhsScratch;
+        TProtoStringType lhsScratch;
+        TProtoStringType rhsScratch;
         return lhsReflection-> GetRepeatedStringReference(
             *lhsMessage,
             lhsFieldDescriptor,
@@ -692,14 +692,15 @@ TErrorOr<TString> MapKeyFieldToString(
 
 TErrorOr<std::unique_ptr<Message>> MakeMapKeyMessage(
     const FieldDescriptor* fieldDescriptor,
-    TString key)
+    TStringBuf key)
 {
     auto* descriptor = fieldDescriptor->message_type();
     std::unique_ptr<Message> result{
         NProtoBuf::MessageFactory::generated_factory()->GetPrototype(descriptor)->New()};
 
     auto* keyFieldDescriptor = descriptor->map_key();
-    auto error = SetScalarFieldFromString(result.get(), keyFieldDescriptor, std::move(key));
+    // TODO(dgolear): switch to TStringBuf?
+    auto error = SetScalarFieldFromString(result.get(), keyFieldDescriptor, TString(key));
 
     if (!error.IsOK()) {
         return error;

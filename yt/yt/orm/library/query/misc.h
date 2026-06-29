@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/orm/library/mpl/public.h>
+
 #include <yt/yt/library/query/base/ast.h>
 
 namespace NYT::NOrm::NQuery {
@@ -25,20 +27,17 @@ struct TRangeFilterOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-concept CString = std::same_as<TString, T> || std::same_as<std::string, T> || std::same_as<TStringBuf, T>;
-
-template <class T>
-concept CStringOrLiteralValue = CString<T> || std::same_as<NQueryClient::NAst::TLiteralValue, T>;
+concept CStringOrLiteralValue = NMpl::CString<T> || std::same_as<NQueryClient::NAst::TLiteralValue, T>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <CString TReference, CStringOrLiteralValue TValue>
+template <NMpl::CString TReference, CStringOrLiteralValue TValue>
 std::string GenerateLexicographicalFilter(
     const std::vector<TReference>& references,
     const std::vector<TValue>& values,
     EOrderRelation orderRelation);
 
-template <CString TReference, CStringOrLiteralValue TValue>
+template <NMpl::CString TReference, CStringOrLiteralValue TValue>
 std::string GenerateLexicographicalRangeFilter(
     const std::vector<TReference>& references,
     const std::vector<TValue>& leftBound,
@@ -48,7 +47,7 @@ std::string GenerateLexicographicalRangeFilter(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <CStringOrLiteralValue TValue>
-TString FormatList(const std::vector<TValue>& values);
+std::string FormatList(const std::vector<TValue>& values);
 
 std::string JoinFilters(const std::vector<std::string>& filters);
 

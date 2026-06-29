@@ -6,6 +6,8 @@
 
 #include "helpers.h"
 
+#include <yt/yt/orm/library/mpl/public.h>
+
 namespace NYT::NOrm::NAttributes {
 
 namespace NDetail {
@@ -310,12 +312,11 @@ void TPathVisitor<TSelf>::VisitMap(
     } else {
         Self()->Expect(NYPath::ETokenType::Literal);
 
-        // TODO(babenko): migrate to std::string
-        TString key(Self()->GetLiteralValue());
+        auto key = Self()->GetLiteralValue();
         Self()->AdvanceOver(key);
 
         typename std::remove_reference_t<TVisitParam>::key_type mapKey;
-        if constexpr (std::is_same_v<TString, decltype(mapKey)>) {
+        if constexpr (NMpl::CString<decltype(mapKey)>) {
             mapKey = key;
         } else {
             if (!TryFromString(key, mapKey)) {
@@ -330,7 +331,7 @@ void TPathVisitor<TSelf>::VisitMap(
             Self()->OnMapKeyError(
                 std::forward<TVisitParam>(target),
                 std::move(mapKey),
-                std::move(key),
+                key,
                 reason);
             return;
         }
@@ -361,7 +362,7 @@ template <typename TVisitParam, typename TMapIterator>
 void TPathVisitor<TSelf>::VisitMapEntry(
     TVisitParam&& target,
     TMapIterator mapIterator,
-    TString key,
+    TStringBuf key,
     EVisitReason reason)
 {
     Y_UNUSED(target);
@@ -375,7 +376,7 @@ template <typename TVisitParam, typename TMapKey>
 void TPathVisitor<TSelf>::OnMapKeyError(
     TVisitParam&& target,
     TMapKey mapKey,
-    TString key,
+    TStringBuf key,
     EVisitReason reason)
 {
     switch (Self()->MissingFieldPolicy_) {
