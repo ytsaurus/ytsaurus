@@ -1391,7 +1391,7 @@ private:
         const NTableClient::TTableSchemaPtr& schema,
         const NTableClient::TColumnRenameDescriptors& renameDescriptors)
     {
-        THashMap<TString, TString> nameToStableName;
+        THashMap<std::string, std::string> nameToStableName;
         for (const auto& renameDescriptor : renameDescriptors) {
             nameToStableName.emplace(renameDescriptor.NewName, renameDescriptor.OriginalName);
         }

@@ -375,8 +375,7 @@ void TLocationHealthChecker::OnDiskHealthCheckFailed(
     auto config = DynamicConfig_.Acquire();
 
     if (config->Enabled && config->EnableManualDiskFailures) {
-        // TODO(babenko): migrate to std::string
-        YT_UNUSED_FUTURE(LocationManager_->FailDiskByName(TString(location->GetStaticConfig()->DeviceName), error));
+        YT_UNUSED_FUTURE(LocationManager_->FailDiskByName(location->GetStaticConfig()->DeviceName, error));
     }
 }
 

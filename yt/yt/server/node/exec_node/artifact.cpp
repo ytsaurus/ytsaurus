@@ -178,8 +178,8 @@ bool TArtifactKey::operator==(const TArtifactKey& other) const
         return false;
 
     if (data_source().has_column_filter()) {
-        auto lhsColumns = FromProto<std::vector<TString>>(data_source().column_filter().admitted_names());
-        auto rhsColumns = FromProto<std::vector<TString>>(other.data_source().column_filter().admitted_names());
+        auto lhsColumns = FromProto<std::vector<std::string>>(data_source().column_filter().admitted_names());
+        auto rhsColumns = FromProto<std::vector<std::string>>(other.data_source().column_filter().admitted_names());
         if (lhsColumns != rhsColumns) {
             return false;
         }

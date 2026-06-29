@@ -183,28 +183,28 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString GpuUtilizationGpuSensorName = "gpu/utilization_gpu";
-static const TString GpuUtilizationMemorySensorName = "gpu/utilization_memory";
-static const TString GpuUtilizationPowerSensorName = "gpu/utilization_power";
-static const TString GpuSMClocksSensorName = "gpu/sm_clocks";
-static const TString GpuSMUtilizationSensorName = "gpu/sm_utilization";
-static const TString GpuSMOccupancySensorName = "gpu/sm_occupancy";
-static const TString GpuMemorySensorName = "gpu/memory";
-static const TString GpuPowerSensorName = "gpu/power";
-static const TString GpuNvlinkRxBytesSensorName = "gpu/nvlink/rx_bytes";
-static const TString GpuNvlinkTxBytesSensorName = "gpu/nvlink/tx_bytes";
-static const TString GpuPcieRxBytesSensorName = "gpu/pcie/rx_bytes";
-static const TString GpuPcieTxBytesSensorName = "gpu/pcie/tx_bytes";
-static const TString GpuStuckSensorName = "gpu/stuck";
-static const TString GpuRdmaRxBytesSensorName = "gpu/rdma/rx_bytes";
-static const TString GpuRdmaTxBytesSensorName = "gpu/rdma/tx_bytes";
-static const TString GpuTensorActivitySensorName = "gpu/tensor_activity";
-static const TString GpuDramActivitySensorName = "gpu/dram_activity";
-static const TString GpuSlowdownSensorName = "gpu/slowdown";
+static const std::string GpuUtilizationGpuSensorName = "gpu/utilization_gpu";
+static const std::string GpuUtilizationMemorySensorName = "gpu/utilization_memory";
+static const std::string GpuUtilizationPowerSensorName = "gpu/utilization_power";
+static const std::string GpuSMClocksSensorName = "gpu/sm_clocks";
+static const std::string GpuSMUtilizationSensorName = "gpu/sm_utilization";
+static const std::string GpuSMOccupancySensorName = "gpu/sm_occupancy";
+static const std::string GpuMemorySensorName = "gpu/memory";
+static const std::string GpuPowerSensorName = "gpu/power";
+static const std::string GpuNvlinkRxBytesSensorName = "gpu/nvlink/rx_bytes";
+static const std::string GpuNvlinkTxBytesSensorName = "gpu/nvlink/tx_bytes";
+static const std::string GpuPcieRxBytesSensorName = "gpu/pcie/rx_bytes";
+static const std::string GpuPcieTxBytesSensorName = "gpu/pcie/tx_bytes";
+static const std::string GpuStuckSensorName = "gpu/stuck";
+static const std::string GpuRdmaRxBytesSensorName = "gpu/rdma/rx_bytes";
+static const std::string GpuRdmaTxBytesSensorName = "gpu/rdma/tx_bytes";
+static const std::string GpuTensorActivitySensorName = "gpu/tensor_activity";
+static const std::string GpuDramActivitySensorName = "gpu/dram_activity";
+static const std::string GpuSlowdownSensorName = "gpu/slowdown";
 
-const THashMap<TString, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
+const THashMap<std::string, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
 {
-    static const auto SupportedGpuMonitoringSensors = ConvertTo<THashMap<TString, TUserJobSensorPtr>>(BuildYsonStringFluently()
+    static const auto SupportedGpuMonitoringSensors = ConvertTo<THashMap<std::string, TUserJobSensorPtr>>(BuildYsonStringFluently()
         .BeginMap()
             .Item(GpuUtilizationGpuSensorName).BeginMap()
                 .Item("type").Value("gauge")
@@ -706,7 +706,7 @@ void TJob::PrepareArtifact(
 
 void TJob::OnArtifactPreparationFailed(
     const std::string& artifactName,
-    const TString& artifactPath,
+    const std::string& artifactPath,
     const TError& error)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -3567,7 +3567,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 NCri::TCriAuthConfigPtr TJob::BuildDockerAuthConfig()
 {
     if (UserJobSpec_ && UserJobSpec_->environment_size()) {
-        TString prefix = Format("%s_%s=", SecureVaultEnvPrefix, DockerAuthEnv);
+        std::string prefix = Format("%s_%s=", SecureVaultEnvPrefix, DockerAuthEnv);
         for (const auto& var : UserJobSpec_->environment()) {
             if (var.StartsWith(prefix)) {
                 auto ysonConfig = TYsonString(var.substr(prefix.length()));
@@ -3657,7 +3657,7 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    std::vector<TString> workloadDescriptorAnnotations = {
+    std::vector<std::string> workloadDescriptorAnnotations = {
         Format("OperationId: %v", OperationId_),
         Format("JobId: %v", Id_),
         Format("AuthenticatedUser: %v", JobSpecExt_.authenticated_user()),
@@ -4415,7 +4415,7 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
         return;
     }
 
-    auto profileSensorIfNeeded = [&] (const TString& name, auto value) {
+    auto profileSensorIfNeeded = [&] (const std::string& name, auto value) {
         if (RequestedMonitoringSensors_.contains(name)) {
             const auto& sensor = GetOrCrash(GetSupportedGpuMonitoringSensors(), name);
             ProfileSensor(writer, sensor, value);

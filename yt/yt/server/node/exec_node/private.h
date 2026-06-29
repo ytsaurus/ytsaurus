@@ -75,7 +75,7 @@ constexpr int TmpfsRemoveAttemptCount = 5;
 struct TShellCommandResult
 {
     std::string Stdout;
-    TString Stderr;
+    std::string Stderr;
     TError Error;
 };
 

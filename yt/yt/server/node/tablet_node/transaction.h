@@ -142,7 +142,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatTransactionId(
+std::string FormatTransactionId(
     TTransactionId transactionId,
     TTransactionExternalizationToken externalizationToken);
 

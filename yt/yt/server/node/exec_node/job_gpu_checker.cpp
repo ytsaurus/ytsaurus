@@ -182,7 +182,7 @@ void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std:
                 gpuCheckResult.Stderr);
         }
 
-        if (gpuCheckResult.Stderr) {
+        if (!gpuCheckResult.Stderr.empty()) {
             auto job = checker->Context_.Job;
             job->HandleJobReport(
                 TNodeJobReport()
