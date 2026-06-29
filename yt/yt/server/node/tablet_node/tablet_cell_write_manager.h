@@ -92,8 +92,6 @@ struct ITabletCellWriteManager
     // Tablet locking stuff.
     virtual void AddTransientAffectedTablet(TTransaction* transaction, TTablet* tablet) = 0;
     virtual void AddPersistentAffectedTablet(TTransaction* transaction, TTablet* tablet) = 0;
-
-    DECLARE_INTERFACE_SIGNAL(void(TTablet*), ReplicatorWriteTransactionFinished);
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletCellWriteManager)

@@ -55,8 +55,6 @@ class TTabletCellWriteManager
     : public ITabletCellWriteManager
     , public TTabletAutomatonPart
 {
-    DEFINE_SIGNAL_OVERRIDE(void(TTablet*), ReplicatorWriteTransactionFinished);
-
 public:
     TTabletCellWriteManager(
         ITabletCellWriteManagerHostPtr host,

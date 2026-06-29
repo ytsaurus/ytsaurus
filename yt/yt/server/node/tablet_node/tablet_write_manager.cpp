@@ -1726,45 +1726,6 @@ private:
         }
     }
 
-    void ValidateWriteBarrier(bool replicatorWrite)
-    {
-        if (replicatorWrite) {
-            if (Tablet_->GetInFlightUserMutationCount() > 0) {
-                THROW_ERROR_EXCEPTION(
-                    NTabletClient::EErrorCode::ReplicatorWriteBlockedByUser,
-                    "Tablet cannot accept replicator writes since some user mutations are still in flight")
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("table_path", Tablet_->GetTablePath())
-                    << TErrorAttribute("in_flight_mutation_count", Tablet_->GetInFlightUserMutationCount());
-            }
-            if (Tablet_->GetPendingUserWriteRecordCount() > 0) {
-                THROW_ERROR_EXCEPTION(
-                    NTabletClient::EErrorCode::ReplicatorWriteBlockedByUser,
-                    "Tablet cannot accept replicator writes since some user writes are still pending")
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("table_path", Tablet_->GetTablePath())
-                    << TErrorAttribute("pending_write_record_count", Tablet_->GetPendingUserWriteRecordCount());
-            }
-        } else {
-            if (Tablet_->GetInFlightReplicatorMutationCount() > 0) {
-                THROW_ERROR_EXCEPTION(
-                    NTabletClient::EErrorCode::UserWriteBlockedByReplicator,
-                    "Tablet cannot accept user writes since some replicator mutations are still in flight")
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("table_path", Tablet_->GetTablePath())
-                    << TErrorAttribute("in_flight_mutation_count", Tablet_->GetInFlightReplicatorMutationCount());
-            }
-            if (Tablet_->GetPendingReplicatorWriteRecordCount() > 0) {
-                THROW_ERROR_EXCEPTION(
-                    NTabletClient::EErrorCode::UserWriteBlockedByReplicator,
-                    "Tablet cannot accept user writes since some replicator writes are still pending")
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("table_path", Tablet_->GetTablePath())
-                    << TErrorAttribute("pending_write_record_count", Tablet_->GetPendingReplicatorWriteRecordCount());
-            }
-        }
-    }
-
     void ValidateTransactionActive(TTransaction* transaction)
     {
         if (transaction->GetTransientState() != ETransactionState::Active) {
