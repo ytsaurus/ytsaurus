@@ -56,7 +56,7 @@ class TJob
 {
     struct TNameWithAddress
     {
-        TString Name;
+        std::string Name;
         NNet::TIP6Address Address;
     };
 
@@ -92,7 +92,7 @@ public:
 
     void OnArtifactPreparationFailed(
         const std::string& artifactName,
-        const TString& artifactPath,
+        const std::string& artifactPath,
         const TError& error);
 
     void OnArtifactsPrepared();

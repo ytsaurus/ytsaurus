@@ -68,7 +68,7 @@ public:
             AliveLocationIndices_[idx] = true;
             LocationHealthCheckers_.push_back(New<TDiskHealthChecker>(
                 New<TDiskHealthCheckerConfig>(),
-                TString(Config_->Locations[idx]->Path),
+                Config_->Locations[idx]->Path,
                 Bootstrap_->GetStorageHeavyInvoker(),
                 Logger()));
         }
@@ -122,7 +122,7 @@ public:
 
     void ScheduleJobDirectoryRemoval(TJobId jobId, TDuration logsStoragePeriod)
     {
-        TString jobLogsPath;
+        std::string jobLogsPath;
         try {
             jobLogsPath = FindExistingJobLogsPath(jobId);
         } catch (const std::exception& ex) {
@@ -180,7 +180,7 @@ public:
         DynamicConfig_.Store(std::move(newConfig));
     }
 
-    TString AdjustLogPath(TJobId jobId, const TString& logFilePath) final
+    std::string AdjustLogPath(TJobId jobId, const std::string& logFilePath) final
     {
         try {
             return NFS::CombinePaths(GetJobLogDirectoryPath(jobId), NFS::GetFileName(logFilePath));
@@ -225,7 +225,7 @@ private:
 
     int ShardingKeyLength_;
 
-    NThreading::TAtomicObject<TString> LogFileName_;
+    NThreading::TAtomicObject<std::string> LogFileName_;
 
     TAsyncSemaphorePtr AsyncSemaphore_;
 
@@ -294,6 +294,7 @@ private:
                 TString targetPath;
 
                 try {
+                    // TODO(babenko): drop cast once NFs::ReadLink accepts std::string.
                     targetPath = NFs::ReadLink(TString(symlinkPath));
                     isBroken = !NFs::Exists(targetPath);
                 } catch (const std::exception& ex) {
@@ -370,12 +371,13 @@ private:
 
         for (const auto& jobDirName : NFS::EnumerateDirectories(shardingDirPath)) {
             auto jobDirPath = NFS::CombinePaths(shardingDirPath, jobDirName);
+            // TODO(babenko): drop cast once TFileStat accepts std::string.
             auto jobLogsDirModificationTime = TInstant::Seconds(TFileStat(TString(jobDirPath)).MTime);
             auto removeJobDirectory = BIND(
                 &TJobProxyLogManager::RemoveJobDirectory,
                 MakeStrong(this),
                 Passed(std::move(jobDirPath)),
-                TString(jobDirName));
+                jobDirName);
             if (jobLogsDirModificationTime + logsStoragePeriod <= currentTime) {
                 Bootstrap_->GetStorageHeavyInvoker()->Invoke(std::move(removeJobDirectory));
             } else {
@@ -394,7 +396,7 @@ private:
         YT_LOG_INFO("Finish traversing job directory");
     }
 
-    void RemoveJobDirectory(const TString& targetDirectory, const TString& jobDirectoryName) noexcept
+    void RemoveJobDirectory(const std::string& targetDirectory, const std::string& jobDirectoryName) noexcept
     {
         TGuid guid;
         if (!TGuid::FromString(jobDirectoryName, &guid)) {
@@ -466,7 +468,7 @@ private:
         return bestIndex;
     }
 
-    TString GetJobLogDirectoryPath(TJobId jobId)
+    std::string GetJobLogDirectoryPath(TJobId jobId)
     {
         auto shardingKey = GetShardingKey(jobId);
 
@@ -478,7 +480,7 @@ private:
 
         int index = PickLogStorageIndexFromLocationList(jobId, alive);
 
-        const TString jobLogPath = NFS::CombinePaths({Config_->Locations[index]->Path, shardingKey, ToString(jobId)});
+        const std::string jobLogPath = NFS::CombinePaths({Config_->Locations[index]->Path, shardingKey, ToString(jobId)});
 
         NFS::MakeDirRecursive(jobLogPath);
 
@@ -509,7 +511,7 @@ private:
         }
     }
 
-    TString FindExistingJobLogsPath(TJobId jobId) const
+    std::string FindExistingJobLogsPath(TJobId jobId) const
     {
         auto shardingKey = GetShardingKey(jobId);
 
@@ -606,7 +608,7 @@ private:
             .ThrowOnError();
     }
 
-    TString GetNewLogFileNameToDump(TStringBuf newLogWriterName)
+    std::string GetNewLogFileNameToDump(TStringBuf newLogWriterName)
     {
         auto jobProxyConfigTemplate = Bootstrap_->GetJobProxyConfigTemplate();
         auto jobProxyLoggingConfig = jobProxyConfigTemplate->GetSingletonConfig<NLogging::TLogManagerConfig>();
@@ -626,11 +628,10 @@ private:
         }
 
         auto fileLogWriterConfig = ConvertTo<TFileLogWriterConfigPtr>(logWriterConfigNode);
-        // TODO(babenko): migrate to std::string
-        return TString(fileLogWriterConfig->FileName);
+        return fileLogWriterConfig->FileName;
     }
 
-    TString GetShardingKey(TJobId jobId) const
+    std::string GetShardingKey(TJobId jobId) const
     {
         auto entropy = NScheduler::EntropyFromAllocationId(
             NScheduler::AllocationIdFromJobId(jobId));
@@ -716,7 +717,7 @@ public:
     void Start() override
     { }
 
-    TString AdjustLogPath(TJobId /*jobId*/, const TString& /*logFilePath*/) override
+    std::string AdjustLogPath(TJobId /*jobId*/, const std::string& /*logFilePath*/) override
     {
         THROW_ERROR_EXCEPTION("Method is not implemented in simple logging mode");
     }

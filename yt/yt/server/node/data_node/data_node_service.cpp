@@ -2246,7 +2246,7 @@ private:
                         columnStableNames->reserve(chunkRequest.column_filter().indexes_size());
 
                         for (auto columnIndex : chunkRequest.column_filter().indexes()) {
-                            columnStableNames->push_back(TColumnStableName(TString{nameTable->GetName(columnIndex)}));
+                            columnStableNames->push_back(TColumnStableName(std::string(nameTable->GetName(columnIndex))));
                         }
                     }
 
@@ -2690,7 +2690,7 @@ private:
             std::vector<TColumnStableName> columnStableNames;
             columnStableNames.reserve(columnIds.size());
             for (auto id : columnIds) {
-                columnStableNames.emplace_back(TString(nameTable->GetNameOrThrow(id)));
+                columnStableNames.emplace_back(std::string(nameTable->GetNameOrThrow(id)));
             }
 
             auto options = BuildReadMetaOption(context);

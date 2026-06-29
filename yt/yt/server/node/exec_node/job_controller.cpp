@@ -796,9 +796,9 @@ private:
 
         TForbidContextSwitchGuard guard;
 
-        static const TString tmpfsSizeSensorName = "/user_job/tmpfs_size/sum";
-        static const TString jobProxyMaxMemorySensorName = "/job_proxy/max_memory/sum";
-        static const TString userJobMaxMemorySensorName = "/user_job/max_memory/sum";
+        static const std::string tmpfsSizeSensorName = "/user_job/tmpfs_size/sum";
+        static const std::string jobProxyMaxMemorySensorName = "/job_proxy/max_memory/sum";
+        static const std::string userJobMaxMemorySensorName = "/user_job/max_memory/sum";
 
         JobCountBuffer_->Update([this] (ISensorWriter* writer) {
             TWithTagGuard tagGuard(writer, "origin", FormatEnum(EJobOrigin::Scheduler));

@@ -257,7 +257,7 @@ public:
             .ThrowOnError();
     }
 
-    void ReplayChangelogs(std::vector<TString> changelogFileNames) override
+    void ReplayChangelogs(std::vector<std::string> changelogFileNames) override
     {
         BIND(&TBootstrap::DoReplayChangelogs, MakeStrong(this), Passed(std::move(changelogFileNames)))
             .AsyncVia(GetControlInvoker())
@@ -366,7 +366,7 @@ private:
         }
     }
 
-    void DoReplayChangelogs(const std::vector<TString>& changelogFileNames)
+    void DoReplayChangelogs(const std::vector<std::string>& changelogFileNames)
     {
         EnsureDryRunOccupantCreated();
         const auto& hydraManager = DryRunOccupant_->GetHydraManager();
