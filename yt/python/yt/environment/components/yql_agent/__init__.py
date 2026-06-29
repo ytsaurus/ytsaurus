@@ -371,6 +371,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                         ],
                         "token_file": self.token_path,
                         "user": self.USER_NAME,
+                        "use_tmp_fs": False,
                         "max_jobs": 1,
                         "jobs_per_operation": 1,
                     },
