@@ -13,7 +13,8 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// See authentication.md for the request signing scheme and threat model.
+// See yt/docs/ru/yandex-specific/flow/contributor/internal-authentication.md
+// for the request signing scheme and threat model.
 
 //! Method tag embedded in the controller request metadata; guards against replay
 //! of a Flow Controller signature against any other YT service.
