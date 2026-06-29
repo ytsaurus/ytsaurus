@@ -1155,8 +1155,14 @@ public:
         // All sinks are created in InterpreterInsertQuery::buildInsertSelectPipeline before using pipe.
         ++queryContext->WriteSinkCount;
 
+        auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
+        bool throwExceptionOnFinish = storageContext->Settings->Testing->ThrowExceptionInWriterFinish;
+
         // Callback to commit write transaction and invalidate cached object attributes after the query is completed.
-        auto finalCallback = [queryContext, path = path.GetPath()] () {
+        auto finalCallback = [queryContext, path = path.GetPath(), throwExceptionOnFinish] () {
+            if (throwExceptionOnFinish) {
+                THROW_ERROR_EXCEPTION("Testing exception in writer finish");
+            }
             if (queryContext->WriteSinkCount.fetch_sub(1) == 1) {
                 queryContext->CommitWriteTransaction();
 

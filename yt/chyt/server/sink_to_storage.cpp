@@ -184,6 +184,7 @@ public:
 
 private:
     IUnversionedWriterPtr Writer_;
+    bool WriterClosed_ = false;
 
     void DoWriteRows(TSharedRange<TUnversionedRow> rows) override
     {
@@ -195,7 +196,13 @@ private:
 
     void CloseWriter()
     {
+        if (WriterClosed_) {
+            YT_LOG_DEBUG("Writer already closed, skipping");
+            return;
+        }
+
         YT_LOG_INFO("Closing writer");
+        WriterClosed_ = true;
         WaitFor(Writer_->Close())
             .ThrowOnError();
         YT_LOG_INFO("Writer closed");
@@ -333,7 +340,7 @@ DB::SinkToStoragePtr CreateSinkToStaticTable(
     NTransactionClient::TTransactionId writeTransactionId,
     std::function<void()> onFinished,
     const TLogger& logger,
-    TCallback<void(const TStatistics&)> statisticsCallback = {})
+    TCallback<void(const TStatistics&)> statisticsCallback)
 {
     return std::make_shared<TSinkToStaticTable>(
         std::move(path),
@@ -359,7 +366,7 @@ DB::SinkToStoragePtr CreateSinkToDynamicTable(
     NNative::IClientPtr client,
     std::function<void()> onFinished,
     const TLogger& logger,
-    TCallback<void(const TStatistics&)> statisticsCallback = {})
+    TCallback<void(const TStatistics&)> statisticsCallback)
 {
     return std::make_shared<TSinkToDynamicTable>(
         std::move(path),
