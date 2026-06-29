@@ -3511,6 +3511,64 @@ class TestQueryRpcProxy(TestQuery):
                           {"a": 2, "b": 1, "val": 9}, {"a": 2, "b": 0, "val": 8}]
         assert rows_read == 3 * rows_per_tablet
 
+    @authors("dtorilov")
+    def test_reverse_scan_for_order_by_3(self):
+        num_tablets = 5
+        rows_per_tablet = 4
+
+        sync_create_cells(1)
+
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", True)
+
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("k0", "int64"),
+            make_sorted_column("k1", "int64"),
+            make_column("payload", "int64"),
+        ]
+        create("table", path, attributes={"dynamic": True, "schema": schema})
+        reshard_table(path, [[]] + [[i] for i in range(1, num_tablets)])
+        sync_mount_table(path)
+        insert_rows(
+            path,
+            [
+                {"k0": k0, "k1": k1, "payload": 0}
+                for k0 in range(num_tablets)
+                for k1 in range(rows_per_tablet)
+            ],
+        )
+
+        def select_rows_returning_statistics(query):
+            response_parameters = {}
+            result = select_rows(query, response_parameters=response_parameters, enable_statistics=True)
+            return result, response_parameters['inner_statistics'][0]['rows_read']
+
+        for k0_value in (4, 0):
+            result, rows_read = select_rows_returning_statistics(
+                f"* from [{path}] where k0 = {k0_value} order by k1 desc limit 3")
+            assert result == [
+                {"k0": k0_value, "k1": 3, "payload": 0},
+                {"k0": k0_value, "k1": 2, "payload": 0},
+                {"k0": k0_value, "k1": 1, "payload": 0},
+            ]
+            assert rows_read <= rows_per_tablet
+
+        response = explain_query(f"* from [{path}] where k0 = 4 order by k1 desc limit 3")
+        assert response["query"]["scan_order"] == "reversed"
+
+        response = explain_query(f"* from [{path}] where k0 = 1 and k1 = 2 order by k1 desc limit 10")
+        assert response["query"]["scan_order"] == "unordered"
+
+        response = explain_query(f"* from [{path}] where k0 > 1 order by k1 desc limit 10")
+        assert response["query"]["scan_order"] == "unordered"
+
+        response = explain_query(f"* from [{path}] order by k0 desc, k1 desc limit 10")
+        assert response["query"]["scan_order"] == "reversed"
+
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", False)
+
     @authors("sabdenovch")
     def test_prefetch_join_table(self):
         set("//sys/rpc_proxies/@config", {

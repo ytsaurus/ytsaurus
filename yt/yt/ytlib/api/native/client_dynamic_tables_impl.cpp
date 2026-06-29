@@ -1800,6 +1800,9 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.ReadFrom = options.ReadFrom;
     queryOptions.EnableParallelizeUnorderedGroupBy = options.EnableParallelizeUnorderedGroupBy.value_or(
         enableParallelizeUnorderedGroupByDefault);
+    queryOptions.AllowReverseScanForOrderBy = queryConfig
+        ? queryConfig->AllowReverseScanForOrderBy.value_or(false)
+        : false;
 
     THROW_ERROR_EXCEPTION_UNLESS(queryOptions.RowsetProcessingBatchSize > 0,
         "Expected \"rowset_processing_batch_size\" > 0, found %v",
@@ -2199,7 +2202,10 @@ NYson::TYsonString TClient::DoExplainQuery(
         udfRegistryPath,
         options,
         memoryChunkProvider,
-        allowUnorderedGroupByWithLimit);
+        allowUnorderedGroupByWithLimit,
+        /*allowReverseScanForOrderBy*/ queryEngineConfig
+            ? queryEngineConfig->AllowReverseScanForOrderBy.value_or(false)
+            : false);
 }
 
 template <class TReq>

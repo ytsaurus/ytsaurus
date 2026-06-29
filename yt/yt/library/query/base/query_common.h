@@ -218,6 +218,8 @@ struct TQueryOptions
     bool UseOrderByInJoinSubqueries = false;
     bool AllowUdfObjectCodeCache = false;
 
+    bool AllowReverseScanForOrderBy = false;
+
     std::optional<i64> JoinCacheSize;
 
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
