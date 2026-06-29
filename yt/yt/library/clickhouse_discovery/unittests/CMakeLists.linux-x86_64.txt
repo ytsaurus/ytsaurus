@@ -59,7 +59,6 @@ target_link_options(unittester-library-clickhouse-discovery PRIVATE
 )
 
 target_sources(unittester-library-clickhouse-discovery PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/discovery_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/helpers_ut.cpp
 )
 

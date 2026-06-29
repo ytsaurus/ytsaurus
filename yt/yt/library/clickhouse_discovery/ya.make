@@ -12,8 +12,7 @@ PEERDIR(
 SRCS(
     config.cpp
     discovery_base.cpp
-    discovery_v1.cpp
-    discovery_v2.cpp
+    discovery.cpp
     helpers.cpp
 )
 
