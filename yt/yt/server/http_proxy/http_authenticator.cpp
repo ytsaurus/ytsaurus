@@ -107,7 +107,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
             .Realm = "YT",
             .UserTicket = UserTicket,
         };
-        return TAuthenticationResultAndToken{result, TString()};
+        return TAuthenticationResultAndToken{result, {}};
     }
 
     auto userIP = request->GetRemoteAddress();
@@ -192,8 +192,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
             }
 
             auto tokenHash = GetCryptoHash(*credentials.Token);
-            // TOOD(babenko): migrate to std::string
-            return TAuthenticationResultAndToken{authenticationResult, TString(tokenHash)};
+            return TAuthenticationResultAndToken{authenticationResult, tokenHash};
         }
     }
 
@@ -232,7 +231,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                 }
             }
 
-            return TAuthenticationResultAndToken{authResult.Value(), TString()};
+            return TAuthenticationResultAndToken{authResult.Value(), {}};
         }
     }
 
