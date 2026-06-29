@@ -19,6 +19,7 @@ PY_SRCS(
     tools/admin.py
     tools/account.py
     tools/common_client.py
+    tools/query_tracker.py
     tools/table.py
 )
 

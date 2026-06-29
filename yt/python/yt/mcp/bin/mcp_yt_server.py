@@ -2,8 +2,10 @@ from yt.mcp.lib.tool_runner_mcp import YTToolRunnerMCP
 from yt.mcp.lib.server import get_tools_groups
 
 import argparse
-import itertools
 import logging
+
+
+_DEFAULT_GROUPS = ["common", "account", "admin"]
 
 
 def get_app_args():
@@ -19,6 +21,7 @@ def get_app_args():
     parser.add_argument("--tools-common", action="store_const", const="common", default=None, help="Enable common tools")
     parser.add_argument("--tools-account", action="store_const", const="account", default=None, help="Enable account tools")
     parser.add_argument("--tools-admin", action="store_const", const="admin", default=None, help="Enable admin tools")
+    parser.add_argument("--tools-query-tracker", action="store_const", const="query_tracker", default=None, help="Enable query tracker tools (not included by default)")
 
     args = parser.parse_args()
 
@@ -43,11 +46,12 @@ def main():
     tools_groups = get_tools_groups()
 
     tools = []
-    for group in [app_args.tools_common, app_args.tools_account, app_args.tools_admin]:
+    for group in [app_args.tools_common, app_args.tools_account, app_args.tools_admin, app_args.tools_query_tracker]:
         if group:
             tools.extend(tools_groups[group])
     if not tools:
-        tools.extend(list(itertools.chain(*tools_groups.values())))
+        for group in _DEFAULT_GROUPS:
+            tools.extend(tools_groups[group])
 
     mcp_runner.attach_tools(tools)
 
