@@ -54,7 +54,7 @@ void TOperation::UpdateJobShellOptions(const TJobShellOptionsUpdateMap& update)
     ApplyJobShellOptionsUpdate(&OptionsPerJobShell_, update);
 }
 
-std::optional<NScheduler::TJobShellInfo> TOperation::GetJobShellInfo(const TString& jobShellName)
+std::optional<NScheduler::TJobShellInfo> TOperation::GetJobShellInfo(const std::string& jobShellName)
 {
     const auto& controller = GetControllerOrThrow();
 

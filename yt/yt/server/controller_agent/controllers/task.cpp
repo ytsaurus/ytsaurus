@@ -1029,7 +1029,7 @@ bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
 
 void TTask::BuildTaskYson(TFluentMap fluent) const
 {
-    static const std::vector<TString> JobManagerNames = {"speculative", "probing", "experiment", "distributed"};
+    static const std::vector<std::string> JobManagerNames = {"speculative", "probing", "experiment", "distributed"};
     YT_VERIFY(JobManagerNames.size() == JobManagers_.size());
 
     fluent

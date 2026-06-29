@@ -6452,7 +6452,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     auto batchReq = proxy.ExecuteBatch();
 
     auto addRequest = [&] (
-        const TString& path,
+        const NYPath::TYPath& path,
         TCellTag cellTag,
         int replicationFactor,
         NCompression::ECodec compressionCodec,
@@ -8892,9 +8892,9 @@ void TOperationControllerBase::RegisterLivePreviewTable(std::string name, const 
 
     auto schema = table->TableUploadOptions.TableSchema.Get();
     LivePreviews_->emplace(
-        // TODO(babenko): drop casts once TLivePreviewMap key and TLivePreview accept std::string
+        // TODO(babenko): drop cast once TLivePreviewMap key accepts std::string
         TString(name),
-        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, Logger, OperationId_, TString(name), table->Path.GetPath()));
+        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, Logger, OperationId_, name, table->Path.GetPath()));
     table->LivePreviewTableName = std::move(name);
 }
 
@@ -11737,7 +11737,7 @@ bool TOperationControllerBase::IsCompleted() const
     return !AutoMergeTask_ || AutoMergeTask_->IsCompleted();
 }
 
-TString TOperationControllerBase::WriteCoreDump() const
+std::string TOperationControllerBase::WriteCoreDump() const
 {
     // Save `this` explicitly to simplify debugging a core dump in GDB.
     const auto* this_ = this;

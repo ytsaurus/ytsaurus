@@ -431,7 +431,7 @@ public:
     // Job shell options should never be changed in operation spec.
     const std::vector<NScheduler::TJobShellPtr>& GetJobShells() const override;
 
-    TString WriteCoreDump() const override;
+    std::string WriteCoreDump() const override;
 
     //! Needed for row_count_limit.
     void RegisterOutputRows(i64 count, int tableIndex) override;

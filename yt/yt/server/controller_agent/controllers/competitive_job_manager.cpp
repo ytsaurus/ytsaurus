@@ -44,7 +44,7 @@ bool TCompetitiveJobManagerBase::TryAddCompetitiveJob(const TJobletPtr& joblet)
     }
 
     auto competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
-    std::optional<TString> rejectReason;
+    std::optional<std::string> rejectReason;
 
     if (JobCounter_->GetTotal() >= MaxCompetitiveJobCount_) {
         YT_LOG_DEBUG("Ignoring competitive job request; competitive job limit reached (Limit: %v)", MaxCompetitiveJobCount_);

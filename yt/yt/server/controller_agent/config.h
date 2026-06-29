@@ -325,7 +325,7 @@ struct TGpuCheckOptions
     std::vector<std::string> BinaryArgs;
 
     //! Network project for GPU check container.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     REGISTER_YSON_STRUCT(TGpuCheckOptions);
 
@@ -1040,7 +1040,7 @@ struct TControllerAgentConfig
     int MaxRangesOnTable;
 
     TUserFileLimitsConfigPtr UserFileLimits;
-    THashMap<TString, TUserFileLimitsPatchConfigPtr> UserFileLimitsPerTree;
+    THashMap<std::string, TUserFileLimitsPatchConfigPtr> UserFileLimitsPerTree;
 
     //! Maximum number of files per user job.
     int MaxUserFileCount;

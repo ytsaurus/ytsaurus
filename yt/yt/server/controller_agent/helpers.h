@@ -84,7 +84,7 @@ void BuildFileSpecs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetIntermediatePath(int streamIndex);
+NYPath::TYPath GetIntermediatePath(int streamIndex);
 
 NChunkClient::TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     const std::string& intermediateAccount,

@@ -77,7 +77,7 @@ private:
         PHOENIX_DECLARE_TYPE(TGpuPowerUsageRecord, 0x67ef02c2);
     };
 
-    THashMap<TString, std::deque<TGpuPowerUsageRecord>> AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
+    THashMap<std::string, std::deque<TGpuPowerUsageRecord>> AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
 
     //! Last fingerprint from host; refresh alert only when violating task set or formula changes.
     int LastHighJobThreadCountAlertFingerprint_ = 0;
