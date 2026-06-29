@@ -3496,10 +3496,13 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
             .Item("provided_extra_config").Value(RawSettings().Provided.ExtraMountConfig)
         .EndMap()
         .OptionalItem("custom_runtime_data", CustomRuntimeData())
-        .DoIf(IsPhysicallySorted(), [&] (auto fluent) {
+        .DoIf(TableSchema_->IsSorted(), [&] (auto fluent) {
             fluent
                 .Item("pivot_key").Value(GetPivotKey())
-                .Item("next_pivot_key").Value(GetNextPivotKey())
+                .Item("next_pivot_key").Value(GetNextPivotKey());
+        })
+        .DoIf(IsPhysicallySorted(), [&] (auto fluent) {
+            fluent
                 .Item("eden").DoMap(BIND(&TPartition::BuildOrchidYson, GetEden()))
                 .Item("partitions").DoListFor(
                     PartitionList(), [&] (auto fluent, const std::unique_ptr<TPartition>& partition) {
