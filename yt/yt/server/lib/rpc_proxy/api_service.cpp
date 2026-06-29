@@ -5479,6 +5479,20 @@ void TApiService::DoModifyRows(
             << TErrorAttribute("row_modification_types_size", request.row_modification_types_size());
     }
 
+    auto totalLockCount = request.row_legacy_read_locks_size() + request.row_legacy_locks_size() + request.row_locks_size();
+    if ((request.row_legacy_read_locks_size() != 0 && request.row_legacy_read_locks_size() != rowsetSize) ||
+        (request.row_legacy_locks_size() != 0 && request.row_legacy_locks_size() != rowsetSize) ||
+        (request.row_locks_size() != 0 && request.row_locks_size() != rowsetSize) ||
+        (totalLockCount != 0 && totalLockCount != rowsetSize))
+    {
+        THROW_ERROR_EXCEPTION("Lock count mismatch")
+            << TErrorAttribute("rowset_size", rowsetSize)
+            << TErrorAttribute("row_legacy_read_locks_size", request.row_legacy_read_locks_size())
+            << TErrorAttribute("row_legacy_locks_size", request.row_legacy_locks_size())
+            << TErrorAttribute("row_locks_size", request.row_locks_size())
+            << TErrorAttribute("total_lock_count", totalLockCount);
+    }
+
     std::vector<TRowModification> modifications;
     modifications.reserve(rowsetSize);
     for (ssize_t index = 0; index < rowsetSize; ++index) {
