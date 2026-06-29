@@ -1799,12 +1799,10 @@ class TestGangOperations(YTEnvSetup):
         incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_lack_after_revival"}).counter(
             "controller_agent/gang_operations/incarnation_switch_count")
 
-        # if with_gang_policy:
-        #     release_breakpoint(job_id=job_id_a, breakpoint_name="task_a")
-        # else:
-        #     release_breakpoint(job_id=job_id_b, breakpoint_name="task_b")
-
         if with_gang_policy:
+            # The pre-restart task_a job is aborted by the incarnation switch, but its
+            # breakpoint file persists; release it so the wait below sees only the new job.
+            release_breakpoint(job_id=job_id_a, breakpoint_name="task_a")
             job_id_a, = wait_breakpoint(job_count=1, breakpoint_name="task_a")
         job_id_b, = wait_breakpoint(job_count=1, breakpoint_name="task_b")
 
