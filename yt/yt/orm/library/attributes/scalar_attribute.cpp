@@ -140,7 +140,7 @@ protected:
     void VisitUnrecognizedField(
         Message* message,
         const Descriptor* descriptor,
-        TString name,
+        TStringBuf name,
         EVisitReason reason)
     {
         switch (Options_.UnknownYsonFieldModeResolver(GetCurrentPath())) {
@@ -162,7 +162,7 @@ protected:
         TProtoVisitor::VisitUnrecognizedField(message, descriptor, std::move(name), reason);
     }
 
-    void KeepUnrecognizedField(Message* message, const Descriptor* descriptor, TString name)
+    void KeepUnrecognizedField(Message* message, const Descriptor* descriptor, TStringBuf name)
     {
         Y_UNUSED(descriptor);
 
@@ -677,7 +677,7 @@ protected:
         const std::pair<const Message*, const Message*>& message,
         const FieldDescriptor* fieldDescriptor,
         std::unique_ptr<NProtoBuf::Message> keyMessage,
-        TString key,
+        TStringBuf key,
         EVisitReason reason,
         TError error)
     {
@@ -695,7 +695,7 @@ protected:
             message,
             fieldDescriptor,
             std::move(keyMessage),
-            std::move(key),
+            key,
             reason,
             std::move(error));
     }

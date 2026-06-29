@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/yson/protobuf_interop.h>
 
+#include <google/protobuf/port.h>
+
 namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +32,7 @@ NYTree::INodePtr ConvertProtobufToNode(
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
     NYPath::TYPathBuf path,
-    const TString& payload,
+    TStringBuf payload,
     const NYson::TProtobufParserOptions& options = {});
 
 // Like ConvertProtobufToNode but works with any TProtobufElement, not just message/attribute dictionary elements.
@@ -47,7 +49,7 @@ TErrorOr<std::pair<int, NYson::TYsonString>> LookupUnknownYsonFieldsItem(
     TStringBuf key,
     int unknownFieldNumber);
 
-TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value);
+TProtoStringType SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +110,7 @@ TErrorOr<TString> MapKeyFieldToString(
 
 TErrorOr<std::unique_ptr<NProtoBuf::Message>> MakeMapKeyMessage(
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    TString key);
+    TStringBuf key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

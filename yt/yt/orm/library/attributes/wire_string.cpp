@@ -845,9 +845,9 @@ std::string SerializeMessage(
 std::string AddWireTag(
     const NYson::TProtobufMessageType* messageType,
     std::string_view fieldName,
-    const TString& serializedMessage)
+    const TProtoStringType& serializedMessage)
 {
-    TString result;
+    TProtoStringType result;
     {
         google::protobuf::io::StringOutputStream stringStream(&result);
         google::protobuf::io::CodedOutputStream outputStream(&stringStream);

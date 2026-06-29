@@ -201,12 +201,12 @@ protected:
     void VisitMapEntry(
         TVisitParam&& target,
         TMapIterator mapIterator,
-        TString key,
+        TStringBuf key,
         EVisitReason reason);
 
     // The key was not found in the map.
     template <typename TVisitParam, typename TMapKey>
-    void OnMapKeyError(TVisitParam&& target, TMapKey mapKey, TString key, EVisitReason reason);
+    void OnMapKeyError(TVisitParam&& target, TMapKey mapKey, TStringBuf key, EVisitReason reason);
 
     // Other section.
     // The parameter is an INodePtr.
