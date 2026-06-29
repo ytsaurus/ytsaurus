@@ -7419,8 +7419,8 @@ private:
             buffer.AddCounter("/chunks_created", ChunksCreated_);
             buffer.AddCounter("/chunks_destroyed", ChunksDestroyed_);
 
-            buffer.AddGauge("/erasure_chunk_count", ErasureChunkCount_);
-            buffer.AddGauge("/regular_chunk_count", RegularChunkCount_);
+            buffer.AddCounter("/erasure_chunk_count", ErasureChunkCount_);
+            buffer.AddCounter("/regular_chunk_count", RegularChunkCount_);
 
             buffer.AddGauge("/chunk_replica_count", TotalReplicaCount_);
             buffer.AddCounter("/chunk_replicas_added", ChunkReplicasAdded_);
