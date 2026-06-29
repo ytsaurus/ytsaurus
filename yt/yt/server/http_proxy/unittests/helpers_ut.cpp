@@ -82,21 +82,21 @@ TEST(THideSecretParametersTest, CreateCommandMasksValueAndDoesNotMutateOriginal)
     // Verify original still has the secret value (not mutated)
     auto originalValue = FindNodeByYPath(original->AsMap(), "/attributes/value");
     ASSERT_TRUE(originalValue);
-    EXPECT_EQ(ConvertTo<TString>(originalValue), "secret_content_here");
+    EXPECT_EQ(ConvertTo<std::string>(originalValue), "secret_content_here");
 
     // Verify the result has the value masked
     auto maskedValue = FindNodeByYPath(result, "/attributes/value");
     ASSERT_TRUE(maskedValue);
-    EXPECT_EQ(ConvertTo<TString>(maskedValue), "***");
+    EXPECT_EQ(ConvertTo<std::string>(maskedValue), "***");
 
     // Verify other fields remain unchanged in result
     auto publicField = FindNodeByYPath(result, "/attributes/public_field");
     ASSERT_TRUE(publicField);
-    EXPECT_EQ(ConvertTo<TString>(publicField), "public_data");
+    EXPECT_EQ(ConvertTo<std::string>(publicField), "public_data");
 
     auto typeField = FindNodeByYPath(result, "/type");
     ASSERT_TRUE(typeField);
-    EXPECT_EQ(ConvertTo<TString>(typeField), "document");
+    EXPECT_EQ(ConvertTo<std::string>(typeField), "document");
 
     // Verify result is a different object
     EXPECT_NE(result.Get(), originalPtr);
