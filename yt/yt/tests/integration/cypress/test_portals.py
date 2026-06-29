@@ -2029,9 +2029,7 @@ class TestCrossCellCopy(YTEnvSetup):
                 administer_permission,
             ])
 
-            # ACLs are not supported in Sequoia yet.
-            if not self.USE_SEQUOIA:
-                wait(lambda: administer_permission in get(f"{self.DST}/@acl"))
+            wait(lambda: administer_permission in get(f"{self.DST}/@acl"))
 
             # In order to preserve account user has to have "use" permission for the account.
             for account in self.AVAILABLE_ACCOUNTS:
