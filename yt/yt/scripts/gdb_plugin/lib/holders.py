@@ -5,18 +5,16 @@
 # retention CYCLE or a ROOT.
 
 import re
-from collections import deque
 
 import gdb
 
+import tcmalloc
 from memory import find_pointers_into
 from type_info import find_enclosing_object, wrapper_inner_type, split_template_args
 from ref_counted import resolve_refcount
 
-# Cap how far past the object base we scan for sub-object holders. All base
-# subobjects of a multiply-inherited type sit at the very start of the object, so
-# a modest window covers them without exploding the search on a huge object.
-_MAX_SUBOBJECT_SPAN = 0x1000
+# Cap how far past the object base we scan for sub-object holders.
+_MAX_SUBOBJECT_SPAN = 0x10000
 
 _BINDSTATE_RE = re.compile(r"NYT::NDetail::TBindState<(.+)>$")
 
@@ -183,6 +181,19 @@ def _object_size(target_rc):
     return 8
 
 
+def object_extent(target, rc=None):
+    """Byte span to scan for holders of any sub-object of the allocation at
+    #target: the exact tcmalloc block size, else the dynamic type's sizeof,
+    capped at _MAX_SUBOBJECT_SPAN. Shared by the heap scan (analyze_holders) and
+    the off-heap stack scans so both see interface/secondary-base holders."""
+    blk = tcmalloc.allocation_of(target)
+    if blk is not None:
+        size = blk[1]
+    else:
+        size = _object_size(rc if rc is not None else resolve_refcount(target))
+    return min(size, _MAX_SUBOBJECT_SPAN)
+
+
 def analyze_holders(target):
     """Find every live pointer to target and resolve each holder's container,
     kind, and liveness. Returns (target_refcount, [Holder]).
@@ -194,10 +205,12 @@ def analyze_holders(target):
     target_inner = target_rc.inner or (
         wrapper_inner_type(target_rc.typename) if target_rc.typename else None
     )
-    size = _object_size(target_rc)
+    # Span the whole allocation so a holder of any sub-object (a secondary base
+    # at a non-zero offset-to-top) is found, not just the most-derived base word.
+    extent = object_extent(target, target_rc)
     holders = []
-    for slot, sub in find_pointers_into(target, min(size, _MAX_SUBOBJECT_SPAN)):
-        if target <= slot < target + size:
+    for slot, sub in find_pointers_into(target, extent):
+        if target <= slot < target + extent:
             continue  # the object's own internal pointer into itself, not a holder
         primary, ctype, _vslot, ckind = find_enclosing_object(slot)
         h = Holder()
@@ -233,70 +246,77 @@ def analyze_holders(target):
     return target_rc, holders
 
 
+def _strong_holders_of(obj):
+    """The deduped strong/ref? holders of obj (each a Holder), and the full holder
+    list (for ROOT candidate reporting)."""
+    _trc, holders = analyze_holders(obj)
+    strong, seen = [], set()
+    for h in holders:
+        if h.container is None or h.kind not in ("strong", "ref?"):
+            continue
+        if h.container == obj or h.container in seen:
+            continue
+        seen.add(h.container)
+        strong.append(h)
+    return strong, holders
+
+
 def trace_retention(start, max_depth=40, max_nodes=200, stop_on_cycle=True):
-    """Follow strong holders backward, breadth-first. Each node is an object
-    address; an edge (container -> held_object) means "container holds object".
-    Report a CYCLE when a holder is already in the graph, or a ROOT when a node
-    has no live strong holder.
+    """Follow strong holders backward with a colored DFS to find a true retention
+    CYCLE. An edge (container -> obj) means "container holds obj".
 
-    BFS (not DFS) so the *shortest* cycle is found first with minimal expansion
-    -- crucial because the retention graph of a leaked object fans out into
-    globally-shared infrastructure (delayed executor, invoker queues). With
-    stop_on_cycle (default) the walk returns as soon as the first cycle closes,
-    so it doesn't drown in that fan-out.
+    Each node is WHITE (unseen), GRAY (on the current DFS path), or BLACK (fully
+    explored). A holder edge to a GRAY node is a back-edge -- a real cycle. An
+    edge to a BLACK node is a DAG cross/forward edge (e.g. a diamond, where two
+    holders of a node share a common ancestor) and is NOT a cycle -- the previous
+    global-visited check mis-reported those. A node with no live strong holder is
+    a ROOT (its real retainer is off-heap, or it's a leak anchor).
     """
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = {}
     results = []
-    visited = {start}
-    came_from = {}  # node -> (held_obj, holder): the edge by which node entered
-    queue = deque([(start, 0)])
-    nodes = 0
+    path = []          # edges (container, held, holder): start -> ... -> current node
+    ctl = {"nodes": 0, "stop": False}
 
-    def path_to(obj):
-        chain = []
-        cur = obj
-        while cur in came_from:
-            held, h = came_from[cur]
-            chain.append((cur, held, h))  # cur holds held
-            cur = held
-        chain.reverse()
-        return chain
+    def dfs(obj, depth):
+        if ctl["stop"]:
+            return
+        color[obj] = GRAY
+        try:
+            rc = resolve_refcount(obj)
+            if not rc.ok:
+                results.append({"kind": "root", "reason": rc.error or "not ref-counted",
+                                "obj": obj, "candidates": [], "path": list(path)})
+                return
+            ctl["nodes"] += 1
+            strong, holders = _strong_holders_of(obj)
+            if not strong:
+                other = [h for h in holders if h.kind != "dead" and h.container is not None]
+                results.append({"kind": "root", "reason": "no live strong holder found",
+                                "obj": obj, "candidates": other, "path": list(path)})
+                return
+            if depth >= max_depth or ctl["nodes"] >= max_nodes:
+                results.append({"kind": "root", "reason": "search bound reached",
+                                "obj": obj, "candidates": [], "path": list(path)})
+                return
+            for h in strong:
+                container = h.container
+                edge = (container, obj, h)
+                c = color.get(container, WHITE)
+                if c == GRAY:
+                    results.append({"kind": "cycle", "edge": edge, "path": list(path) + [edge]})
+                    if stop_on_cycle:
+                        ctl["stop"] = True
+                        return
+                elif c == WHITE:
+                    path.append(edge)
+                    dfs(container, depth + 1)
+                    path.pop()
+                    if ctl["stop"]:
+                        return
+                # c == BLACK: DAG cross/forward edge -- already fully explored, not a cycle.
+        finally:
+            color[obj] = BLACK
 
-    while queue:
-        obj, depth = queue.popleft()
-        if nodes >= max_nodes:
-            break
-        if depth > max_depth:
-            continue
-        nodes += 1
-        rc = resolve_refcount(obj)
-        if not rc.ok:
-            results.append({"kind": "root", "reason": rc.error or "not ref-counted",
-                            "obj": obj, "path": path_to(obj)})
-            continue
-        _trc, holders = analyze_holders(obj)
-        strong_holders = []
-        seen = set()
-        for h in holders:
-            if h.container is None or h.kind not in ("strong", "ref?"):
-                continue
-            if h.container == obj or h.container in seen:
-                continue
-            seen.add(h.container)
-            strong_holders.append(h)
-        if not strong_holders:
-            other = [h for h in holders if h.kind != "dead" and h.container is not None]
-            results.append({"kind": "root", "reason": "no live strong holder found",
-                            "obj": obj, "candidates": other, "path": path_to(obj)})
-            continue
-        for h in strong_holders:
-            container = h.container
-            edge = (container, obj, h)
-            if container in visited:
-                results.append({"kind": "cycle", "edge": edge, "path": path_to(obj) + [edge]})
-                if stop_on_cycle:
-                    return results
-                continue
-            visited.add(container)
-            came_from[container] = (obj, h)
-            queue.append((container, depth + 1))
+    dfs(start, 0)
     return results

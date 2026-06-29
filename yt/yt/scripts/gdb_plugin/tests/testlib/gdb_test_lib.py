@@ -66,8 +66,29 @@ def analyze(ctx, core, command, check=True):
         ctx["fixture"], core,
     ], check=check)
     root_logger.info("Command %r output\n%s\n", command, out)
-    assert len(out) > 0
+    assert len(out) > 0, "gdb produced no output for %r" % (command,)
     return out
+
+
+def assert_contains(out, *needles):
+    """Assert each needle appears in the gdb output, and on failure attach the
+    whole transcript to the message. Without this pytest truncates `out`, so a
+    failing gdb assertion is opaque (you can't see what the command printed)."""
+    for needle in needles:
+        assert needle in out, "expected %r in gdb output:\n%s" % (needle, out)
+
+
+def assert_absent(out, *needles):
+    """Assert none of the needles appears in the gdb output, attaching the whole
+    transcript on failure."""
+    for needle in needles:
+        assert needle not in out, "did not expect %r in gdb output:\n%s" % (needle, out)
+
+
+def assert_search(pattern, out):
+    """Assert a regex matches the gdb output, attaching the transcript on failure."""
+    import re
+    assert re.search(pattern, out), "expected /%s/ in gdb output:\n%s" % (pattern, out)
 
 
 _core_cache = None
