@@ -15,6 +15,8 @@
 #include <library/cpp/testing/unittest/registar.h>
 #include <library/cpp/testing/unittest/tests_data.h>
 
+#include <yt/yql/providers/yt/fmr/test_utils/yql_yt_file_test_utils.h>
+
 #include <util/stream/file.h>
 #include <util/system/user.h>
 #include <util/system/tempfile.h>
@@ -51,8 +53,9 @@ TString WithTables(const F&& f) {
     tables["yt.plato.Output"] = outputFile.Name();
     f(tables);
 
-    TFileInput outputFileStream(outputFile);
-    NYT::TNode ysonSqlResult = NYT::NodeFromYsonStream(&outputFileStream, NYT::NYson::EYsonType::ListFragment);
+    const TString content = NYql::NFmr::ReadFileWithSplittedSupport(outputFile.Name());
+    TStringInput contentStream(content);
+    NYT::TNode ysonSqlResult = NYT::NodeFromYsonStream(&contentStream, NYT::NYson::EYsonType::ListFragment);
     return NYT::NodeToCanonicalYsonString(ysonSqlResult);
 }
 
