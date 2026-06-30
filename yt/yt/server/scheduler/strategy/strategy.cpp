@@ -1113,7 +1113,7 @@ public:
 
         for (const auto& [treeId, future] : treeIdToUpdateFuture) {
             const auto& treeAllocationUpdates = GetOrCrash(allocationUpdatesPerTree, treeId);
-            auto updateResults = WaitFor(future)
+            auto updateResults = WaitForFast(future)
                 .ValueOrThrow();
             YT_VERIFY(updateResults.size() == treeAllocationUpdates.size());
 

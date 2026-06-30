@@ -97,38 +97,46 @@ bool TOperationSharedState::CheckPacking(
         packingConfig);
 }
 
-bool TOperationSharedState::ProcessAllocationUpdate(
+EAllocationUpdateStatus TOperationSharedState::ProcessAllocationUpdate(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId,
     const std::optional<TJobResources>& resources,
     bool resetPreemptibleProgress)
 {
-    if (!IsEnabled()) {
-        return false;
+    {
+        auto guard = ReaderGuard(AllocationPropertiesMapLock_);
+        if (auto status = CheckAllocationValidForUpdateUnsafe(operationElement, allocationId)) {
+            return *status;
+        }
     }
 
     TJobResources delta;
-    if (resources) {
+    if (resources || resetPreemptibleProgress) {
         auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
-        delta = SetAllocationResourceUsage(
-            GetAllocationProperties(allocationId),
-            *resources);
+        if (auto status = CheckAllocationValidForUpdateUnsafe(operationElement, allocationId)) {
+            return *status;
+        }
+
+        if (resources) {
+            auto* allocationProperties = GetAllocationProperties(allocationId);
+            delta = SetAllocationResourceUsage(allocationProperties, *resources);
+        }
+
+        if (resetPreemptibleProgress) {
+            ResetAllocationPreemptibleProgressUnsafe(operationElement, allocationId);
+        }
     }
 
     if (delta != TJobResources()) {
         operationElement->IncreaseHierarchicalResourceUsage(delta);
     }
 
-    if (resetPreemptibleProgress) {
-        ResetAllocationPreemptibleProgress(operationElement, allocationId);
-    }
-
     if (delta != TJobResources() || resetPreemptibleProgress) {
         UpdatePreemptibleAllocationsList(operationElement);
     }
 
-    return true;
+    return EAllocationUpdateStatus::Updated;
 }
 
 bool TOperationSharedState::ProcessAllocationPreemption(
@@ -197,28 +205,45 @@ bool TOperationSharedState::OnAllocationStarted(
     return true;
 }
 
-bool TOperationSharedState::OnAllocationFinished(
+EAllocationUpdateStatus TOperationSharedState::OnAllocationFinished(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId)
 {
     YT_ELEMENT_LOG_DETAILED(operationElement, "Removing allocation from strategy (AllocationId: %v)", allocationId);
 
-    if (auto delta = RemoveAllocation(allocationId)) {
-        operationElement->IncreaseHierarchicalResourceUsage(-(*delta));
-        UpdatePreemptibleAllocationsList(operationElement);
-        return true;
+    {
+        auto guard = ReaderGuard(AllocationPropertiesMapLock_);
+        if (auto status = CheckAllocationValidForUpdateUnsafe(operationElement, allocationId)) {
+            return *status;
+        }
     }
 
-    return false;
+    std::optional<TJobResources> resourceUsage;
+    {
+        auto guard = WriterGuard(AllocationPropertiesMapLock_);
+
+        if (auto status = CheckAllocationValidForUpdateUnsafe(operationElement, allocationId)) {
+            return *status;
+        }
+
+        resourceUsage = RemoveAllocationUnsafe(allocationId);
+    }
+
+    if (resourceUsage) {
+        operationElement->IncreaseHierarchicalResourceUsage(-*resourceUsage);
+        UpdatePreemptibleAllocationsList(operationElement);
+    }
+
+    return EAllocationUpdateStatus::Updated;
 }
 
-void TOperationSharedState::ResetAllocationPreemptibleProgress(
+void TOperationSharedState::ResetAllocationPreemptibleProgressUnsafe(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId)
 {
-    YT_ELEMENT_LOG_DETAILED(operationElement, "Resetting preemptible allocation progress (AllocationId: %v)", allocationId);
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(AllocationPropertiesMapLock_);
 
-    auto guard = WriterGuard(AllocationPropertiesMapLock_);
+    YT_ELEMENT_LOG_DETAILED(operationElement, "Resetting preemptible allocation progress (AllocationId: %v)", allocationId);
 
     auto* properties = GetAllocationProperties(allocationId);
     auto& listToInsert = AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible];
@@ -536,13 +561,9 @@ void TOperationSharedState::AddAllocation(
     TotalDiskQuota_ += resourceUsage.DiskQuota();
 }
 
-std::optional<TJobResources> TOperationSharedState::RemoveAllocation(TAllocationId allocationId)
+std::optional<TJobResources> TOperationSharedState::RemoveAllocationUnsafe(TAllocationId allocationId)
 {
-    auto guard = WriterGuard(AllocationPropertiesMapLock_);
-
-    if (!Enabled_) {
-        return std::nullopt;
-    }
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(AllocationPropertiesMapLock_);
 
     auto it = GetIteratorOrCrash(AllocationPropertiesMap_, allocationId);
 
@@ -557,6 +578,10 @@ std::optional<TJobResources> TOperationSharedState::RemoveAllocation(TAllocation
     TotalDiskQuota_ -= properties->DiskQuota;
 
     AllocationPropertiesMap_.erase(it);
+
+    if (resourceUsage == TJobResources()) {
+        return std::nullopt;
+    }
 
     return resourceUsage;
 }
@@ -737,6 +762,30 @@ const TOperationSharedState::TAllocationProperties*
 TOperationSharedState::GetAllocationProperties(TAllocationId allocationId) const
 {
     return &GetIteratorOrCrash(AllocationPropertiesMap_, allocationId)->second;
+}
+
+std::optional<EAllocationUpdateStatus> TOperationSharedState::CheckAllocationValidForUpdateUnsafe(
+    const TPoolTreeOperationElement* operationElement,
+    TAllocationId allocationId) const
+{
+    YT_ASSERT_SPINLOCK_AFFINITY(AllocationPropertiesMapLock_);
+
+    if (!Enabled_) {
+        return EAllocationUpdateStatus::Disabled;
+    }
+
+    // The allocation may be unknown: a stale update or finish can outlive the allocation it
+    // targets when the operation is revived. The caller drops it rather than resubmitting forever.
+    if (!AllocationPropertiesMap_.contains(allocationId)) {
+        YT_LOG_WARNING(
+            "Skipping allocation update for an allocation unknown to the operation shared state "
+            "(OperationId: %v, AllocationId: %v)",
+            operationElement->GetOperationId(),
+            allocationId);
+        return EAllocationUpdateStatus::Unexpected;
+    }
+
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
