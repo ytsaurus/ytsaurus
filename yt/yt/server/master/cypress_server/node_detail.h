@@ -174,7 +174,11 @@ public:
 
     void SetReachable(TCypressNode* node) override
     {
-        YT_VERIFY(!node->GetReachable());
+        const auto& Logger = CypressServerLogger;
+        YT_LOG_ALERT_IF(node->GetReachable(),
+            "Node is already reachable (NodeId: %v)",
+            node->GetVersionedId());
+
         node->SetReachable(true);
 
         if (node->IsTrunk() && node->IsSequoia() && node->IsNative()) {
@@ -187,7 +191,11 @@ public:
 
     void SetUnreachable(TCypressNode* node) override
     {
-        YT_VERIFY(node->GetReachable());
+        const auto& Logger = CypressServerLogger;
+        YT_LOG_ALERT_IF(!node->GetReachable(),
+            "Node is already unreachable (NodeId: %v)",
+            node->GetVersionedId());
+
         node->SetReachable(false);
 
         if (node->IsTrunk() && node->IsSequoia() && node->IsNative()) {
