@@ -13,12 +13,6 @@ Is released as a docker image.
 **Release date:** 2026-01-27
 
 
-**Release page:** [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.1.2)
-
-
-**Docker image:** [ghcr.io/ytsaurus/query-tracker:stable-0.1.2](https://github.com/orgs/ytsaurus/packages/container/query-tracker/659176566?tag=stable-0.1.2)
-
-
 **Features**
 - [experimental] Allow handling YQL queries in separate processes
 
@@ -35,12 +29,6 @@ Is released as a docker image.
 {% cut "**0.1.1**" %}
 
 **Release date:** 2025-12-18
-
-
-**Release page:** [0.1.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.1.1)
-
-
-**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.1.1](https://github.com/orgs/ytsaurus/packages/container/query-tracker/617510568?tag=0.1.1)
 
 
 This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fquery-tracker%2F0.1.2) or later
@@ -65,12 +53,6 @@ This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/y
 {% cut "**0.0.11**" %}
 
 **Release date:** 2025-09-08
-
-
-**Release page:** [0.0.11](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.0.11)
-
-
-**Docker image:** [ghcr.io/ytsaurus/query-tracker:0.0.11](https://github.com/orgs/ytsaurus/packages/container/query-tracker/509269551?tag=0.0.11)
 
 
 **Features**
