@@ -43,6 +43,7 @@ type ProtoMultiLookupSubresp interface {
 	ProtoRowset
 
 	GetAttachmentCount() int32
+	GetUnavailableKeyIndexes() []int32
 }
 
 type ProtoRowset interface {
