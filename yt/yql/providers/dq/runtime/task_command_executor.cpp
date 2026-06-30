@@ -1,5 +1,6 @@
 #include "task_command_executor.h"
 
+#include <yql/essentials/minikql/runtime_settings/runtime_settings_serialization.h>
 #include <contrib/ydb/library/yql/providers/dq/task_runner/tasks_runner_pipe.h>
 #include <contrib/ydb/library/yql/providers/dq/counters/task_counters.h>
 #include <contrib/ydb/library/yql/providers/dq/common/yql_dq_settings.h>
@@ -377,8 +378,9 @@ public:
                 if (batch.IsOOB()) {
                     LoadRopeFromPipe(input, batch.Payload);
                 }
+                Y_ENSURE(RuntimeSettings, "RuntimeSettings must be set on Prepare stage.");
                 NDq::TDqDataSerializer dataDeserializer(Runner->GetTypeEnv(), Runner->GetHolderFactory(),
-                                                        (NDqProto::EDataTransportVersion)batch.Proto.GetTransportVersion(), NDq::FromProto(batch.Proto.GetValuePackerVersion()));
+                                                        (NDqProto::EDataTransportVersion)batch.Proto.GetTransportVersion(), NDq::FromProto(batch.Proto.GetValuePackerVersion()), RuntimeSettings->DatumValidation.Get());
                 dataDeserializer.Deserialize(std::move(batch), source->GetInputType(), buffer);
 
                 source->Push(std::move(buffer), request.GetSpace());
@@ -621,11 +623,13 @@ public:
                 auto bytes = sink->Pop(batch, request.GetBytes());
 
                 NDqProto::TSinkPopResponse response;
+                YQL_ENSURE(RuntimeSettings, "RuntimeSettings must be set on Prepare stage.");
                 NDq::TDqDataSerializer dataSerializer(
                     Runner->GetTypeEnv(),
                     Runner->GetHolderFactory(),
                     DataTransportVersion,
-                    PackerVersion);
+                    PackerVersion,
+                    RuntimeSettings->DatumValidation.Get());
                 NDq::TDqSerializedBatch serialized = dataSerializer.Serialize(batch, outputType);
                 bool isOOB = serialized.IsOOB();
                 *response.MutableData() = std::move(serialized.Proto);
@@ -678,6 +682,7 @@ public:
         }
         DataTransportVersion = DqConfiguration->GetDataTransportVersion();
         PackerVersion = NDq::FromProto(DqConfiguration->GetValuePackerVersion());
+        RuntimeSettings = DeserializeRuntimeSettingsFromProto(task.GetProgram().GetRuntimeSettings());
         // TODO: Maybe use taskParams from task.GetTask().GetParameters()
         THashMap<TString, TString> taskParams;
         for (const auto& x: taskMeta.GetTaskParams()) {
@@ -808,6 +813,7 @@ private:
     TDqConfiguration::TPtr DqConfiguration = MakeIntrusive<TDqConfiguration>();
     NDqProto::EDataTransportVersion DataTransportVersion = NDqProto::EDataTransportVersion::DATA_TRANSPORT_VERSION_UNSPECIFIED;
     NKikimr::NMiniKQL::EValuePackerVersion PackerVersion = NKikimr::NMiniKQL::EValuePackerVersion::V0;
+    NYql::TRuntimeSettings::TConstPtr RuntimeSettings;
     TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FunctionRegistry;
     NDq::TDqTaskRunnerContext Ctx;
     const NKikimr::NMiniKQL::TUdfModuleRemappings EmptyRemappings;
