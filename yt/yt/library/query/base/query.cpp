@@ -509,10 +509,15 @@ TBaseQuery::TBaseQuery(const TBaseQuery& other)
     , Limit(other.Limit)
     , UseDisjointGroupBy(other.UseDisjointGroupBy)
     , InferRanges(other.InferRanges)
+    , IsReverseScan(other.IsReverseScan)
 { }
 
 EScanOrder TBaseQuery::GetScanOrder(bool allowUnorderedGroupByWithLimit) const
 {
+    if (IsReverseScan) {
+        return EScanOrder::Reversed;
+    }
+
     if (Limit < std::numeric_limits<i64>::max()) {
         if (allowUnorderedGroupByWithLimit) {
             bool ordered = !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);

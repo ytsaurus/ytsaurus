@@ -345,7 +345,20 @@ void PrepareQuery(
             query->OrderClause = std::move(orderClause);
         }
 
-        // Use ordered scan otherwise
+        bool canReverseScanForOrderBy = false;
+        if (!canOmitOrderBy &&
+            builder->GetContext().Options.AllowReverseScanForOrderBy)
+        {
+            canReverseScanForOrderBy = CanReverseScanForOrderBy(
+                /*fixedKeyPrefix*/ 0,
+                query->OrderClause->OrderItems,
+                query->GetKeyColumns(),
+                query->GroupClause);
+        }
+
+        if (canReverseScanForOrderBy) {
+            query->IsReverseScan = true;
+        }
     }
 
     if (ast.SelectExprs) {

@@ -3468,7 +3468,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
+        EXPECT_EQ(std::ssize(cardinality), statistics.Statistics.GroupedRowCount.GetTotal());
     }
 
     {
@@ -3478,7 +3478,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
+        EXPECT_EQ(std::ssize(cardinality), statistics.Statistics.GroupedRowCount.GetTotal());
     }
 
     {
@@ -3488,7 +3488,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
+        EXPECT_EQ(std::ssize(cardinality), statistics.Statistics.GroupedRowCount.GetTotal());
     }
 }
 
@@ -11758,6 +11758,537 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(
             "avg(a % 2) from `//t` group by 1",
             "Misuse of aggregate function \"avg\"")));
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TQueryEvaluateTest, ReverseScanOrderByDescTablets)
+{
+    auto split = MakeSplit({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+    });
+
+    constexpr int TabletCount = 5;
+    constexpr int RowsPerTablet = 4;
+
+    std::vector<std::vector<TSource>> tabletsData;
+    for (int t = 0; t < TabletCount; ++t) {
+        TSource tablet;
+        for (int i = 0; i < RowsPerTablet; ++i) {
+            int k = t * RowsPerTablet + i;
+            tablet.push_back(Format("k=%v;v=%v", k, k));
+        }
+        tabletsData.push_back({std::move(tablet)});
+    }
+
+    auto query = Prepare(
+        "* from [//t] order by k desc limit 3",
+        TSplitMap{{"//t", split}},
+        {},
+        TPreparePlanFragmentOptions{
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+            .AllowReverseScanForOrderBy = true,
+        });
+
+    EXPECT_TRUE(query->IsReverseScan);
+    EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Reversed);
+
+    auto result = RunOnCoordinator(query, tabletsData, EExecutionBackend::Native);
+
+    auto expectedRows = YsonToRows(
+        {"k=19;v=19", "k=18;v=18", "k=17;v=17"},
+        split);
+    ResultMatcher(expectedRows)(result.Rows, *query->GetTableSchema());
+
+    EXPECT_EQ(result.TabletsScanned, 1);
+}
+
+TEST_F(TQueryEvaluateTest, ReverseScanOrderByDescTwoKeyTablets)
+{
+    auto split = MakeSplit({
+        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+    });
+
+    constexpr int TabletCount = 5;
+    constexpr int RowsPerTablet = 4;
+
+    std::vector<std::vector<TSource>> tabletsData;
+    for (int t = 0; t < TabletCount; ++t) {
+        TSource tablet;
+        for (int i = 0; i < RowsPerTablet; ++i) {
+            tablet.push_back(Format("a=%v;b=%v;v=%v", t, i, t * RowsPerTablet + i));
+        }
+        tabletsData.push_back({std::move(tablet)});
+    }
+
+    auto query = Prepare(
+        "* from [//t] order by a desc, b desc limit 3",
+        TSplitMap{{"//t", split}},
+        {},
+        TPreparePlanFragmentOptions{
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+            .AllowReverseScanForOrderBy = true,
+        });
+
+    EXPECT_TRUE(query->IsReverseScan);
+    EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Reversed);
+
+    auto result = RunOnCoordinator(query, tabletsData, EExecutionBackend::Native);
+
+    auto expectedRows = YsonToRows(
+        {"a=4;b=3;v=19", "a=4;b=2;v=18", "a=4;b=1;v=17"},
+        split);
+    ResultMatcher(expectedRows)(result.Rows, *query->GetTableSchema());
+
+    EXPECT_EQ(result.TabletsScanned, 1);
+}
+
+TEST_F(TQueryEvaluateTest, ReverseScanOrderByDescSpansTwoTablets)
+{
+    auto split = MakeSplit({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+    });
+
+    constexpr int TabletCount = 5;
+    constexpr int RowsPerTablet = 4;
+
+    std::vector<std::vector<TSource>> tabletsData;
+    for (int t = 0; t < TabletCount; ++t) {
+        TSource tablet;
+        for (int i = 0; i < RowsPerTablet; ++i) {
+            int k = t * RowsPerTablet + i;
+            tablet.push_back(Format("k=%v;v=%v", k, k));
+        }
+        tabletsData.push_back({std::move(tablet)});
+    }
+
+    auto query = Prepare(
+        "* from [//t] order by k desc limit 5",
+        TSplitMap{{"//t", split}},
+        {},
+        TPreparePlanFragmentOptions{
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+            .AllowReverseScanForOrderBy = true,
+        });
+
+    EXPECT_TRUE(query->IsReverseScan);
+
+    auto result = RunOnCoordinator(query, tabletsData, EExecutionBackend::Native);
+
+    auto expectedRows = YsonToRows(
+        {"k=19;v=19", "k=18;v=18", "k=17;v=17", "k=16;v=16", "k=15;v=15"},
+        split);
+    ResultMatcher(expectedRows)(result.Rows, *query->GetTableSchema());
+
+    EXPECT_EQ(result.TabletsScanned, 2);
+}
+
+TEST_F(TQueryEvaluateTest, ReverseScanDisabledWhenFlagOff)
+{
+    auto split = MakeSplit({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+    });
+
+    constexpr int TabletCount = 5;
+    constexpr int RowsPerTablet = 4;
+
+    std::vector<std::vector<TSource>> tabletsData;
+    for (int t = 0; t < TabletCount; ++t) {
+        TSource tablet;
+        for (int i = 0; i < RowsPerTablet; ++i) {
+            int k = t * RowsPerTablet + i;
+            tablet.push_back(Format("k=%v;v=%v", k, k));
+        }
+        tabletsData.push_back({std::move(tablet)});
+    }
+
+    auto query = Prepare(
+        "* from [//t] order by k desc limit 3",
+        TSplitMap{{"//t", split}},
+        {},
+        TPreparePlanFragmentOptions{.BuilderVersion = DefaultExpressionBuilderVersion});
+
+    EXPECT_FALSE(query->IsReverseScan);
+    EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Unordered);
+
+    auto result = RunOnCoordinator(query, tabletsData, EExecutionBackend::Native);
+
+    EXPECT_EQ(result.TabletsScanned, TabletCount);
+}
+
+TEST_F(TQueryEvaluateTest, ReverseScanOrderByDescOnFixedKeyPrefix)
+{
+    auto split = MakeSplit({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64, ESortOrder::Ascending),
+    });
+
+    constexpr int TabletCount = 5;
+    constexpr int RowsPerTablet = 4;
+
+    std::vector<std::vector<TSource>> tabletsData;
+    for (int t = 0; t < TabletCount; ++t) {
+        TSource tablet;
+        for (int i = 0; i < RowsPerTablet; ++i) {
+            tablet.push_back(Format("k=%v;v=%v", t, i));
+        }
+        tabletsData.push_back({std::move(tablet)});
+    }
+
+    auto query = Prepare(
+        "* from [//t] where k = 4 order by v desc limit 3",
+        TSplitMap{{"//t", split}},
+        {});
+
+    EXPECT_FALSE(query->IsReverseScan);
+
+    auto coordinatorOptions = TQueryOptions{
+        .AllowReverseScanForOrderBy = true,
+    };
+    auto result = RunOnCoordinator(query, tabletsData, EExecutionBackend::Native, coordinatorOptions);
+
+    auto expectedRows = YsonToRows(
+        {"k=4;v=3", "k=4;v=2", "k=4;v=1"},
+        split);
+    ResultMatcher(expectedRows)(result.Rows, *query->GetTableSchema());
+
+    EXPECT_EQ(result.TabletsScanned, 1);
+}
+
+TEST_F(TQueryPrepareTest, ReverseScanNotAppliedWhenNonFixedSuffixIsAsc)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            TColumnSchema("col_a", EValueType::Uint64, ESortOrder::Ascending)
+                .SetExpression("farm_hash(col_b)"),
+            TColumnSchema("col_b", EValueType::Uint64, ESortOrder::Ascending),
+            TColumnSchema("col_c", EValueType::Uint64, ESortOrder::Ascending),
+            TColumnSchema("col_k", EValueType::Uint64, ESortOrder::Ascending),
+            TColumnSchema("col_t", EValueType::Uint64, ESortOrder::Ascending),
+            TColumnSchema("col_g", EValueType::Uint64),
+            TColumnSchema("col_h", EValueType::Uint64),
+        }))));
+
+    auto config = New<TColumnEvaluatorCacheConfig>();
+    auto columnEvaluatorCache = CreateColumnEvaluatorCache(config);
+
+    auto options = TQueryOptions{
+        .RangeExpansionLimit = 1000,
+        .AllowReverseScanForOrderBy = true,
+    };
+
+    auto fragment = ParseAndPreparePlanFragment(&PrepareMock_, R"(
+        * from [//t]
+        where col_h = 97373975 and col_b in (5699986054u) and col_g in (706347627u)
+        order by col_b desc, col_a, col_b, col_c
+        limit 1000
+    )");
+
+    auto [dataSource, query] = InferRanges(
+        columnEvaluatorCache,
+        fragment->Query,
+        TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+        options,
+        New<TRowBuffer>(),
+        GetDefaultMemoryChunkProvider(),
+        Logger());
+
+    EXPECT_FALSE(query->IsReverseScan);
+    EXPECT_NE(query->OrderClause, nullptr);
+}
+
+TEST_F(TQueryPrepareTest, ReverseScanNotAppliedWhenNonFixedSuffixIsMixed)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            TColumnSchema("col_a", EValueType::Uint64, ESortOrder::Ascending)
+                .SetExpression("farm_hash(col_b, col_c)"),
+            TColumnSchema("col_b", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("col_c", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("col_d", EValueType::Uint64, ESortOrder::Ascending),
+            TColumnSchema("col_e", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("col_f", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("col_g", EValueType::String),
+            TColumnSchema("col_h", EValueType::String),
+        }))));
+
+    auto config = New<TColumnEvaluatorCacheConfig>();
+    auto columnEvaluatorCache = CreateColumnEvaluatorCache(config);
+
+    auto options = TQueryOptions{
+        .RangeExpansionLimit = 1000,
+        .AllowReverseScanForOrderBy = true,
+    };
+
+    auto fragment = ParseAndPreparePlanFragment(&PrepareMock_, R"(
+        * from [//t]
+        where col_b = 1 and col_c = "value_1" and col_f in (1, 2, 3, 6)
+        order by col_a, col_b, col_c, col_d desc, col_e, col_f desc
+        limit 2000
+    )");
+
+    auto [dataSource, query] = InferRanges(
+        columnEvaluatorCache,
+        fragment->Query,
+        TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+        options,
+        New<TRowBuffer>(),
+        GetDefaultMemoryChunkProvider(),
+        Logger());
+
+    EXPECT_FALSE(query->IsReverseScan);
+}
+
+TEST_F(TQueryPrepareTest, ReverseScanForOrderBy)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("l", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("m", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("v", EValueType::Int64),
+        }))));
+
+    const TPreparePlanFragmentOptions optionsOn{
+        .BuilderVersion = DefaultExpressionBuilderVersion,
+        .AllowReverseScanForOrderBy = true,
+    };
+    const TPreparePlanFragmentOptions optionsOff{
+        .BuilderVersion = DefaultExpressionBuilderVersion,
+        .AllowReverseScanForOrderBy = false,
+    };
+
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by k desc, l desc, m desc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_TRUE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+    }
+
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by k desc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_TRUE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+    }
+
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by k desc, l desc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_TRUE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+    }
+
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by k desc, l asc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_FALSE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+    }
+
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by l desc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_FALSE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+    }
+
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by k desc limit 10", {}, optionsOff)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_FALSE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+    }
+
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "sum(v) from [//t] group by k order by k desc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_FALSE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+    }
+}
+
+TEST_F(TQueryPrepareTest, ReverseScanForOrderByOnFixedKeyPrefix)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSimpleSplit())));
+
+    auto config = New<TColumnEvaluatorCacheConfig>();
+    auto columnEvaluatorCache = CreateColumnEvaluatorCache(config);
+
+    TRangeExtractorMapPtr rangeExtractorMap = New<TRangeExtractorMap>();
+    MergeFrom(rangeExtractorMap.Get(), *GetBuiltinRangeExtractors());
+
+    auto options = TQueryOptions{
+        .RangeExpansionLimit = 1000,
+        .AllowReverseScanForOrderBy = true,
+    };
+
+    {
+        auto fragment = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] where k = 1 order by l desc limit 10");
+
+        EXPECT_FALSE(fragment->Query->IsReverseScan);
+
+        auto [dataSource, query] = InferRanges(
+            columnEvaluatorCache,
+            fragment->Query,
+            TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+            options,
+            New<TRowBuffer>(),
+            GetDefaultMemoryChunkProvider(),
+            Logger());
+
+        EXPECT_TRUE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+    }
+
+    {
+        auto fragment = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] where k = 1 and l = 1 order by m desc limit 10");
+
+        EXPECT_FALSE(fragment->Query->IsReverseScan);
+
+        auto [dataSource, query] = InferRanges(
+            columnEvaluatorCache,
+            fragment->Query,
+            TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+            options,
+            New<TRowBuffer>(),
+            GetDefaultMemoryChunkProvider(),
+            Logger());
+
+        EXPECT_TRUE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+    }
+
+    {
+        auto fragment = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by l desc limit 10");
+
+        auto [dataSource, query] = InferRanges(
+            columnEvaluatorCache,
+            fragment->Query,
+            TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+            options,
+            New<TRowBuffer>(),
+            GetDefaultMemoryChunkProvider(),
+            Logger());
+
+        EXPECT_FALSE(query->IsReverseScan);
+    }
+
+    {
+        auto fragment = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] where k = 1 order by l desc limit 10");
+
+        auto disabledOptions = TQueryOptions{.RangeExpansionLimit = 1000};
+
+        auto [dataSource, query] = InferRanges(
+            columnEvaluatorCache,
+            fragment->Query,
+            TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+            disabledOptions,
+            New<TRowBuffer>(),
+            GetDefaultMemoryChunkProvider(),
+            Logger());
+
+        EXPECT_FALSE(query->IsReverseScan);
+    }
+
+    {
+        auto fragment = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by k desc limit 10");
+
+        auto [dataSource, query] = InferRanges(
+            columnEvaluatorCache,
+            fragment->Query,
+            TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+            options,
+            New<TRowBuffer>(),
+            GetDefaultMemoryChunkProvider(),
+            Logger());
+
+        EXPECT_FALSE(query->IsReverseScan);
+    }
+
+    {
+        auto fragment = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] where k = 1 and l = 2 order by l desc, m desc limit 10");
+
+        auto [dataSource, query] = InferRanges(
+            columnEvaluatorCache,
+            fragment->Query,
+            TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+            options,
+            New<TRowBuffer>(),
+            GetDefaultMemoryChunkProvider(),
+            Logger());
+
+        EXPECT_TRUE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+    }
+
+    {
+        auto fragment = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] where k = 1 and l = 2 order by l desc limit 10");
+
+        auto [dataSource, query] = InferRanges(
+            columnEvaluatorCache,
+            fragment->Query,
+            TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+            options,
+            New<TRowBuffer>(),
+            GetDefaultMemoryChunkProvider(),
+            Logger());
+
+        EXPECT_FALSE(query->IsReverseScan);
+    }
+
+    {
+        auto fragment = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] where k = 1 order by k desc, l desc, m desc, a limit 10");
+
+        auto [dataSource, query] = InferRanges(
+            columnEvaluatorCache,
+            fragment->Query,
+            TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+            options,
+            New<TRowBuffer>(),
+            GetDefaultMemoryChunkProvider(),
+            Logger());
+
+        EXPECT_TRUE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+    }
+
+    {
+        auto fragment = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] where k = 1 order by l desc, a limit 10");
+
+        auto [dataSource, query] = InferRanges(
+            columnEvaluatorCache,
+            fragment->Query,
+            TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+            options,
+            New<TRowBuffer>(),
+            GetDefaultMemoryChunkProvider(),
+            Logger());
+
+        EXPECT_FALSE(query->IsReverseScan);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

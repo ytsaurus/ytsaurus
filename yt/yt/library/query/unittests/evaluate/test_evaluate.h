@@ -2,8 +2,11 @@
 
 #include "ql_helpers.h"
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/config.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
+
+#include <yt/yt/client/query_client/query_statistics.h>
 
 namespace NYT::NQueryClient {
 
@@ -40,6 +43,20 @@ TResultMatcher OrderedResultMatcher(std::vector<TOwningRow> expectedResult, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TEvaluateCoordinatedGroupByResult
+{
+    TQueryStatistics Statistics;
+    int TabletsScanned = 0;
+};
+
+struct TRunOnCoordinatorResult
+{
+    TSharedRange<TUnversionedRow> Rows;
+    int TabletsScanned = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryEvaluateTest
     : public ::testing::Test
 {
@@ -49,6 +66,7 @@ protected:
     const TTypeInferrerMapPtr TypeInferrers_ = New<TTypeInferrerMap>();
     const TFunctionProfilerMapPtr FunctionProfilers_ = New<TFunctionProfilerMap>();
     const TAggregateProfilerMapPtr AggregateProfilers_ = New<TAggregateProfilerMap>();
+    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>());
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_{TypeInferrers_};
     NConcurrency::TActionQueuePtr ActionQueue_;
@@ -127,14 +145,14 @@ protected:
         TEvaluateOptions evaluateOptions,
         std::optional<std::string> expectedError);
 
-    TQueryStatistics EvaluateCoordinatedGroupByImpl(
+    TEvaluateCoordinatedGroupByResult EvaluateCoordinatedGroupByImpl(
         TStringBuf query,
         const TDataSplit& dataSplit,
         const std::vector<TSource>& owningSources,
         const TResultMatcher& resultMatcher,
         NCodegen::EExecutionBackend executionBackend);
 
-    TQueryStatistics EvaluateCoordinatedGroupBy(
+    TEvaluateCoordinatedGroupByResult EvaluateCoordinatedGroupBy(
         TStringBuf query,
         const TDataSplit& dataSplit,
         const std::vector<TSource>& owningSources,
@@ -150,10 +168,11 @@ protected:
         const std::vector<TSource>& tabletData,
         NCodegen::EExecutionBackend executionBackend);
 
-    TSharedRange<TUnversionedRow> RunOnCoordinator(
+    TRunOnCoordinatorResult RunOnCoordinator(
         TQueryPtr primary,
         const std::vector<std::vector<TSource>>& tabletsData,
-        NCodegen::EExecutionBackend executionBackend);
+        NCodegen::EExecutionBackend executionBackend,
+        TQueryOptions options = {});
 
     void EvaluateFullCoordinatedGroupByImpl(
         TStringBuf queryString,

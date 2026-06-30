@@ -5,6 +5,7 @@
 
 #include <yt/yt/library/query/engine/query_engine_config.h>
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
 
@@ -119,7 +120,7 @@ TQueryStatistics DoExecuteQuery(
 
     ssize_t batchSize = maxBatchSize;
 
-    if ((query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered) && query->Offset + query->Limit < batchSize) {
+    if ((query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) != EScanOrder::Unordered) && query->Offset + query->Limit < batchSize) {
         batchSize = query->Offset + query->Limit;
     }
 
@@ -132,7 +133,7 @@ TQueryStatistics DoExecuteQuery(
             owningSourceRows[index] = TOwningRow();
         }
 
-        if (isFirstRead && query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered) {
+        if (isFirstRead && query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) != EScanOrder::Unordered) {
             EXPECT_EQ(options.MaxRowsPerRead, std::min(DefaultRowsetProcessingBatchSize, query->Offset + query->Limit));
             isFirstRead = false;
         }
@@ -649,7 +650,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
                 primaryQuery,
                 *joinClause,
                 evaluateOptions.MinKeyWidth,
-                primaryQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered))
+                primaryQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) != EScanOrder::Unordered))
             {
                 auto buffer = New<TRowBuffer>();
                 TRowRanges universalRange{{
@@ -715,7 +716,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
     }
 }
 
-TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
+TEvaluateCoordinatedGroupByResult TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
     TStringBuf query,
     const TDataSplit& dataSplit,
     const std::vector<TSource>& owningSources,
@@ -744,6 +745,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
     }
 
     int tabletIndex = 0;
+    int tabletsScanned = 0;
     std::vector<int> tabletReadProgress(tabletCount, 0);
     std::vector<TQueryStatistics> resultStatistics(tabletCount);
     auto getNextReader = [&, bottomQuery = bottomQuery] () -> ISchemafulUnversionedReaderPtr {
@@ -751,6 +753,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         if (index == tabletCount) {
             return nullptr;
         }
+        ++tabletsScanned;
 
         auto readRows = [&] (const TRowBatchReadOptions& options) {
             // Reset memory to test correct capturing of data.
@@ -794,7 +797,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         return pipe->GetReader();
     };
 
-    auto frontReader = (frontQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered)
+    auto frontReader = (frontQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) != EScanOrder::Unordered)
         ? CreateFullPrefetchingOrderedSchemafulReader(getNextReader)
         : CreateFullPrefetchingShufflingSchemafulReader(getNextReader);
 
@@ -825,10 +828,10 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         frontStatistics.AddInnerStatistics(std::move(stat));
     }
 
-    return frontStatistics;
+    return {.Statistics = std::move(frontStatistics), .TabletsScanned = tabletsScanned};
 }
 
-TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupBy(
+TEvaluateCoordinatedGroupByResult TQueryEvaluateTest::EvaluateCoordinatedGroupBy(
     TStringBuf query,
     const TDataSplit& dataSplit,
     const std::vector<TSource>& owningSources,
@@ -915,7 +918,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNode(
         return pipe->GetReader();
     };
 
-    auto reader = (query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered)
+    auto reader = (query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) != EScanOrder::Unordered)
         ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
         : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
@@ -937,32 +940,69 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNode(
     return pipe;
 }
 
-TSharedRange<TUnversionedRow> TQueryEvaluateTest::RunOnCoordinator(
+TRunOnCoordinatorResult TQueryEvaluateTest::RunOnCoordinator(
     TQueryPtr primary,
     const std::vector<std::vector<TSource>>& tabletsData,
-    EExecutionBackend executionBackend)
+    EExecutionBackend executionBackend,
+    TQueryOptions options)
 {
     int tabletCount = std::ssize(tabletsData);
 
-    auto [frontQuery, nodeQuery] = GetDistributedQueryPattern(primary);
+    auto [inferredDataSource, coordinatedQuery] = InferRanges(
+        ColumnEvaluatorCache_,
+        primary,
+        TDataSource{.Ranges = MakeSharedRange(TRowRanges())},
+        options,
+        New<TRowBuffer>(),
+        GetDefaultMemoryChunkProvider(),
+        NLogging::TLogger("Test"));
+
+    TConstQueryPtr effectiveQuery = primary;
+    if (coordinatedQuery->IsReverseScan && !primary->IsReverseScan) {
+        auto upgraded = New<TQuery>(*primary);
+        upgraded->IsReverseScan = true;
+        effectiveQuery = upgraded;
+    }
+
+    auto [frontQuery, nodeQuery] = GetDistributedQueryPattern(effectiveQuery);
+
+    std::vector<int> tabletOrder(tabletCount);
+    std::iota(tabletOrder.begin(), tabletOrder.end(), 0);
+    if (frontQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Reversed) {
+        std::reverse(tabletOrder.begin(), tabletOrder.end());
+    }
 
     int tabletIndex = 0;
+    int tabletsScanned = 0;
 
     auto nextReader = [&, nodeQuery = nodeQuery] () -> ISchemafulUnversionedReaderPtr {
         if (tabletIndex == tabletCount) {
             return nullptr;
         }
 
-        auto pipe = RunOnNode(nodeQuery, tabletsData[tabletIndex], executionBackend);
+        auto pipe = RunOnNode(nodeQuery, tabletsData[tabletOrder[tabletIndex]], executionBackend);
 
         ++tabletIndex;
+        ++tabletsScanned;
 
         return pipe->GetReader();
     };
 
-    auto reader = (frontQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered)
-        ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
-        : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
+    // Use a lazy ordered reader for reversed scans so the front query can stop
+    // early once LIMIT rows are collected, without opening all tablet readers.
+    auto scanOrder = frontQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true);
+    ISchemafulUnversionedReaderPtr reader;
+    switch (scanOrder) {
+        case EScanOrder::Reversed:
+            reader = CreateOrderedSchemafulReader(nextReader);
+            break;
+        case EScanOrder::Ordered:
+            reader = CreateFullPrefetchingOrderedSchemafulReader(nextReader);
+            break;
+        case EScanOrder::Unordered:
+            reader = CreateFullPrefetchingShufflingSchemafulReader(nextReader);
+            break;
+    }
 
     auto [writer, asyncResultRowset] = CreateSchemafulRowsetWriter(frontQuery->GetTableSchema());
 
@@ -981,7 +1021,7 @@ TSharedRange<TUnversionedRow> TQueryEvaluateTest::RunOnCoordinator(
 
     auto rows = WaitFor(asyncResultRowset).ValueOrThrow()->GetRows();
 
-    return rows;
+    return {.Rows = rows, .TabletsScanned = tabletsScanned};
 }
 
 void TQueryEvaluateTest::EvaluateFullCoordinatedGroupByImpl(
@@ -992,9 +1032,9 @@ void TQueryEvaluateTest::EvaluateFullCoordinatedGroupByImpl(
     EExecutionBackend executionBackend)
 {
     auto query = Prepare(queryString, TSplitMap{{"//t", dataSplit}}, {});
-    auto rows = RunOnCoordinator(query, data, executionBackend);
+    auto result = RunOnCoordinator(query, data, executionBackend);
 
-    resultMatcher(rows, *query->GetTableSchema());
+    resultMatcher(result.Rows, *query->GetTableSchema());
 }
 
 std::vector<std::vector<TSource>> TQueryEvaluateTest::RandomSplitData(const TSource& data)

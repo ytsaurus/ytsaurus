@@ -202,7 +202,7 @@ private:
         auto Logger = MakeQueryLogger(query);
 
         // See condition in folding_profiler.cpp.
-        bool considerLimit = (query->GetScanOrder(allowUnorderedGroupByWithLimit) == EScanOrder::Ordered) && !query->GroupClause;
+        bool considerLimit = (query->GetScanOrder(allowUnorderedGroupByWithLimit) != EScanOrder::Unordered) && !query->GroupClause;
 
         auto queryFingerprint = InferName(query, TInferNameOptions{
             .OmitValues = true,
