@@ -1268,32 +1268,8 @@ public:
         dynamicOrchidService->AddChild("child_pools_by_pool", New<TChildPoolsByPoolOrchidService>(MakeStrong(this))
             ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
-        dynamicOrchidService->AddChild("operations", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
-            auto treeSnapshot = GetTreeSnapshotForOrchid();
-
-            const auto buildOperationInfo = [&] (TFluentMap fluent, const TPoolTreeOperationElement* const operation) {
-                fluent
-                    .Item(operation->GetId()).BeginMap()
-                        .Do(BIND(
-                            &TPoolTree::DoBuildOperationProgress,
-                            ConstRef(treeSnapshot),
-                            Unretained(operation),
-                            StrategyHost_))
-                    .EndMap();
-            };
-
-            BuildYsonFluently(consumer).BeginMap()
-                    .Do([&] (TFluentMap fluent) {
-                        for (const auto& [operationId, operation] : treeSnapshot->EnabledOperationMap()) {
-                            buildOperationInfo(fluent, operation);
-                        }
-
-                        for (const auto& [operationId, operation] : treeSnapshot->DisabledOperationMap()) {
-                            buildOperationInfo(fluent, operation);
-                        }
-                    })
-                .EndMap();
-        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
+        dynamicOrchidService->AddChild("operations", New<TOperationsOrchidService>(MakeStrong(this))
+            ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("config", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
@@ -1747,7 +1723,102 @@ private:
         TIntrusivePtr<const TPoolTree> PoolTree_;
     };
 
+    class TOperationsOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TOperationsOrchidService(TIntrusivePtr<const TPoolTree> tree)
+            : PoolTree_(std::move(tree))
+        { }
+
+        i64 GetSize() const final
+        {
+            YT_ASSERT_INVOKER_AFFINITY(PoolTree_->StrategyHost_->GetOrchidWorkerInvoker());
+
+            const auto treeSnapshot = PoolTree_->GetTreeSnapshotForOrchid();
+
+            return std::ssize(treeSnapshot->EnabledOperationMap()) + std::ssize(treeSnapshot->DisabledOperationMap());
+        }
+
+        std::vector<std::string> GetKeys(const i64 limit) const final
+        {
+            YT_ASSERT_INVOKER_AFFINITY(PoolTree_->StrategyHost_->GetOrchidWorkerInvoker());
+
+            if (!limit) {
+                return {};
+            }
+
+            const auto treeSnapshot = PoolTree_->GetTreeSnapshotForOrchid();
+
+            std::vector<std::string> result;
+            result.reserve(std::min(
+                limit,
+                std::ssize(treeSnapshot->EnabledOperationMap()) + std::ssize(treeSnapshot->DisabledOperationMap())));
+
+            const auto appendOperationIds = [&] (const TNonOwningOperationElementMap& operationMap) {
+                for (const auto& [operationId, _] : operationMap) {
+                    if (std::ssize(result) >= limit) {
+                        break;
+                    }
+                    result.push_back(ToString(operationId));
+                }
+            };
+            appendOperationIds(treeSnapshot->EnabledOperationMap());
+            appendOperationIds(treeSnapshot->DisabledOperationMap());
+
+            return result;
+        }
+
+        IYPathServicePtr FindItemService(const std::string& key) const final
+        {
+            YT_ASSERT_INVOKER_AFFINITY(PoolTree_->StrategyHost_->GetOrchidWorkerInvoker());
+
+            auto treeSnapshot = PoolTree_->GetTreeSnapshotForOrchid();
+
+            TGuid operationGuid;
+            if (!TGuid::FromString(key, &operationGuid)) {
+                return nullptr;
+            }
+            const auto operationId = TOperationId(operationGuid);
+
+            const auto findOperationElement = [&] () -> const TPoolTreeOperationElement* {
+                if (const auto it = treeSnapshot->EnabledOperationMap().find(operationId); it != std::cend(treeSnapshot->EnabledOperationMap())) {
+                    return it->second;
+                }
+                if (const auto it = treeSnapshot->DisabledOperationMap().find(operationId); it != std::cend(treeSnapshot->DisabledOperationMap())) {
+                    return it->second;
+                }
+                return nullptr;
+            };
+
+            const auto* operation = findOperationElement();
+            if (!operation) {
+                return nullptr;
+            }
+
+            return IYPathService::FromProducer(BIND([
+                treeSnapshot = std::move(treeSnapshot),
+                operation,
+                strategyHost = PoolTree_->StrategyHost_
+            ] (IYsonConsumer* consumer) {
+                BuildYsonFluently(consumer)
+                    .BeginMap()
+                        .Do(std::bind(
+                            &TPoolTree::DoBuildOperationProgress,
+                            std::cref(treeSnapshot),
+                            operation,
+                            strategyHost,
+                            std::placeholders::_1))
+                    .EndMap();
+            }));
+        }
+
+    private:
+        TIntrusivePtr<const TPoolTree> PoolTree_;
+    };
+
     friend class TOperationsByPoolOrchidService;
+    friend class TOperationsOrchidService;
 
     // Thread affinity: Control.
     TPoolTreeSnapshotPtr TreeSnapshot_;
