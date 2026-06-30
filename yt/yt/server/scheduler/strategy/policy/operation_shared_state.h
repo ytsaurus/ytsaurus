@@ -19,8 +19,7 @@ public:
         int updatePreemptibleAllocationsListLoggingPeriod,
         const NLogging::TLogger& logger);
 
-    // Returns true if operation is enabled and false otherwise.
-    bool ProcessAllocationUpdate(
+    EAllocationUpdateStatus ProcessAllocationUpdate(
         TPoolTreeOperationElement* operationElement,
         TAllocationId allocationId,
         const std::optional<TJobResources>& resources,
@@ -41,7 +40,8 @@ public:
         const TJobResources& precommittedResources,
         TControllerEpoch scheduleAllocationEpoch,
         bool force = false);
-    bool OnAllocationFinished(TPoolTreeOperationElement* operationElement, TAllocationId allocationId);
+
+    EAllocationUpdateStatus OnAllocationFinished(TPoolTreeOperationElement* operationElement, TAllocationId allocationId);
     void UpdatePreemptibleAllocationsList(
         const TPoolTreeOperationElement* element);
 
@@ -165,7 +165,10 @@ private:
     void DoUpdatePreemptibleAllocationsList(const TPoolTreeOperationElement* element, int* moveCount);
 
     void AddAllocation(TAllocationId allocationId, const TJobResourcesWithQuota& resourceUsage);
-    std::optional<TJobResources> RemoveAllocation(TAllocationId allocationId);
+
+    //! Removes the allocation and returns its resource usage, or std::nullopt if it was zero.
+    //! Must be called with AllocationPropertiesMapLock_ held for writing.
+    std::optional<TJobResources> RemoveAllocationUnsafe(TAllocationId allocationId);
 
     TJobResources SetAllocationResourceUsage(
         TAllocationProperties* properties,
@@ -174,10 +177,17 @@ private:
     TAllocationProperties* GetAllocationProperties(TAllocationId allocationId);
     const TAllocationProperties* GetAllocationProperties(TAllocationId allocationId) const;
 
+    //! Returns std::nullopt when the allocation may be safely mutated, or the status to report
+    //! otherwise. Must be called with AllocationPropertiesMapLock_ held (reader or writer).
+    std::optional<EAllocationUpdateStatus> CheckAllocationValidForUpdateUnsafe(
+        const TPoolTreeOperationElement* operationElement,
+        TAllocationId allocationId) const;
+
     // Collect up-to-date values from node shards local counters.
     void UpdateDiagnosticCounters();
 
-    void ResetAllocationPreemptibleProgress(TPoolTreeOperationElement* operationElement, TAllocationId allocationId);
+    //! Must be called with AllocationPropertiesMapLock_ held for writing.
+    void ResetAllocationPreemptibleProgressUnsafe(TPoolTreeOperationElement* operationElement, TAllocationId allocationId);
 };
 
 using TOperationSharedStatePtr = TIntrusivePtr<TOperationSharedState>;
