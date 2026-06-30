@@ -11,7 +11,7 @@ TEST_F(TQueryEvaluateTest, NestedSubquery)
     std::vector<std::vector<std::string>> sources;
 
     auto schema = MakeSplit({
-        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
         {"b", SimpleLogicalType(ESimpleLogicalValueType::String)},
         {"k", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
         {"s", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
@@ -121,7 +121,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
     std::vector<std::vector<std::string>> sources;
 
     auto schema = MakeSplit({
-        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
         {"b", SimpleLogicalType(ESimpleLogicalValueType::String)},
         {"k", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
         {"s", SimpleLogicalType(ESimpleLogicalValueType::Int32)}

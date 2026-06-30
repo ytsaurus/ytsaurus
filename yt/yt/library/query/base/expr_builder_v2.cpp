@@ -314,10 +314,16 @@ TExpressionBuilderV2::ResolveNestedTypesResult TExpressionBuilderV2::ResolveNest
     nestedStructOrTupleItemAccessor.Reserve(std::ssize(reference.CompositeTypeAccessor.NestedStructOrTupleItemAccessor));
 
     TLogicalTypePtr current = type;
+    bool optional = false;
 
     for (const auto& item : reference.CompositeTypeAccessor.NestedStructOrTupleItemAccessor) {
         Visit(item,
             [&] (const TStructMemberAccessor& structMember) {
+                if (current->GetMetatype() == ELogicalMetatype::Optional) {
+                    current = current->GetElement();
+                    optional = true;
+                }
+
                 if (current->GetMetatype() != ELogicalMetatype::Struct) {
                     THROW_ERROR_EXCEPTION("Member %Qv is not found", structMember)
                         << TErrorAttribute("source", NAst::FormatReference(reference));
@@ -336,6 +342,11 @@ TExpressionBuilderV2::ResolveNestedTypesResult TExpressionBuilderV2::ResolveNest
                     << TErrorAttribute("source", NAst::FormatReference(reference));
             },
             [&] (const TTupleItemIndexAccessor& itemIndex) {
+                if (current->GetMetatype() == ELogicalMetatype::Optional) {
+                    current = current->GetElement();
+                    optional = true;
+                }
+
                 if (current->GetMetatype() != ELogicalMetatype::Tuple) {
                     THROW_ERROR_EXCEPTION("Member %Qv is not found", itemIndex)
                         << TErrorAttribute("source", NAst::FormatReference(reference));
@@ -357,6 +368,11 @@ TExpressionBuilderV2::ResolveNestedTypesResult TExpressionBuilderV2::ResolveNest
     auto resultType = current;
 
     if (reference.CompositeTypeAccessor.DictOrListItemAccessor) {
+        if (current->GetMetatype() == ELogicalMetatype::Optional) {
+            current = current->GetElement();
+            optional = true;
+        }
+
         if (current->GetMetatype() == ELogicalMetatype::List) {
             resultType = current->GetElement();
         } else if (current->GetMetatype() == ELogicalMetatype::Dict) {
@@ -371,6 +387,10 @@ TExpressionBuilderV2::ResolveNestedTypesResult TExpressionBuilderV2::ResolveNest
             THROW_ERROR_EXCEPTION("Incorrect nested item accessor")
                 << TErrorAttribute("source", NAst::FormatReference(reference));
         }
+    }
+
+    if (optional) {
+        resultType = MakeOptionalIfNot(std::move(resultType));
     }
 
     return {std::move(nestedStructOrTupleItemAccessor), std::move(intermediateType), std::move(resultType)};
@@ -486,6 +506,10 @@ TConstExpressionPtr TExpressionBuilderV2::OnReference(const NAst::TReference& re
 
     auto resolved = ResolveNestedTypes(referenceExpr->LogicalType, reference);
     auto listOrDictItemAccessor = UnwrapListOrDictItemAccessor(reference, resolved.IntermediateType->GetMetatype());
+
+    if (listOrDictItemAccessor && listOrDictItemAccessor->LogicalType->IsNullable()) {
+        resolved.ResultType = MakeOptionalIfNot(resolved.ResultType);
+    }
 
     auto memberAccessor = New<TCompositeMemberAccessorExpression>(
         resolved.ResultType,
@@ -1249,14 +1273,17 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
 
         auto type = typedExpr->LogicalType;
 
-        // TODO(lukyan): Support optional list.
+        if (type->GetMetatype() == ELogicalMetatype::Optional) {
+            type = type->GetElement();
+        }
+
         if (type->GetMetatype() != ELogicalMetatype::List) {
             THROW_ERROR_EXCEPTION("Unexpected type instead of list")
                 << TErrorAttribute("column_name", columnName)
                 << TErrorAttribute("actual_type", type->GetMetatype());
         }
 
-        columns.emplace_back(columnName, type->GetElement());
+        columns.emplace_back(columnName, MakeOptionalIfNot(type->GetElement()));
     }
 
     auto schema = New<TTableSchema>(columns);
@@ -1324,16 +1351,10 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
     std::vector<NTableClient::TStructField> resultFields;
 
     for (const auto& [expression, name] : projectClause->Projections) {
-        auto logicalType = expression->LogicalType;
-        if (!logicalType->IsNullable() && projectClause->Projections.size() > 1) {
-            // While uniting several arrays into table if said arrays have different lengths
-            // shortest arrays are prolonged with nulls.
-            logicalType = NTableClient::OptionalLogicalType(std::move(logicalType));
-        }
         resultFields.push_back(NTableClient::TStructField{
             .Name = name,
             .StableName = name,
-            .Type = std::move(logicalType),
+            .Type = expression->LogicalType,
         });
     }
 

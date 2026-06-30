@@ -184,7 +184,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinCastFromString)
     auto split = MakeSplit({
         {"a", EValueType::Int64},
         {"nestedA", EValueType::String},
-        {"nestedB", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"nestedB", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
     });
 
     auto resultSplit = MakeSplit({
