@@ -84,6 +84,7 @@ ELSE()
         constants.py
         cypress_commands.py
         cypress_fuse.py
+        devtools.py
         default_config.py
         dirtable_commands.py
         distributed_commands.py

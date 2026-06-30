@@ -14,7 +14,7 @@ from .auth_commands import DictCurrentUser
 from .distributed_commands import DistributedReadTablePartitionType, DistributedWriteCookePacketType, DistributedWriteFragmentPacketType, DistributedWriteSessionPacketType
 from .format import Format
 from .job_commands import GetJobJobType, JobSpecType, ListJobTracesType, ListJobsType
-from .operation_commands import CheckOperationPermissionResultType, GetOperationOperationType, ListOperationsType, OperationState
+from .operation_commands import CheckOperationPermissionResultType, GetOperationOperationType, ListOperationsType, Operation, OperationState
 from .query_commands import Query
 from .schema.table_schema import TableSchema
 from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
@@ -3158,7 +3158,7 @@ class YtClient(ClientState):
         self,
         spec_builder,
         sync=True, run_operation_mutation_id=None, enable_optimizations=False
-    ):
+    ) -> Optional[Operation]:
         """
         Runs operation.
 

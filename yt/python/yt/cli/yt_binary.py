@@ -15,6 +15,7 @@ from yt.wrapper.cli_helpers import (
     YT_STRUCTURED_DATA_FORMAT, YT_ARGUMENTS_FORMAT, OUTPUT_FORMATS)
 from yt.wrapper.constants import DOC_ROOT_URL, TUTORIAL_DOC_URL
 from yt.wrapper.default_config import get_config_from_env, get_default_config, RemotePatchableValueBase
+from yt.wrapper.devtools import add_devtools_parser
 from yt.wrapper.driver import get_commands_description
 from yt.wrapper.admin_commands import add_switch_leader_parser
 from yt.wrapper.dirtable_commands import add_dirtable_parsers
@@ -3344,6 +3345,8 @@ def _prepare_parser():
     add_maintenance_request_parsers(add_parser)
 
     add_admin_parser(subparsers)
+
+    add_devtools_parser(subparsers)
 
     add_dirtable_parser(subparsers)
 
