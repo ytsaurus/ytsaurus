@@ -1,17 +1,7 @@
 from .helpers import YTToolBase
+from .security import check_system_paths, check_truncate, check_write_keywords
 
 from typing import Dict, List, Optional
-
-
-_FORBIDDEN_KEYWORDS = frozenset({"create", "drop", "replace", "update", "insert", "delete", "truncate"})
-
-
-def _sanitize_query(query: str) -> str:
-    query_lower = query.lower()
-    for keyword in _FORBIDDEN_KEYWORDS:
-        if keyword in query_lower:
-            raise ValueError(f"Query contains forbidden keyword '{keyword}'. Write queries are not allowed.")
-    return query
 
 
 class StartQuery(YTToolBase):
@@ -113,7 +103,9 @@ NOTE: Query runs asynchronously. Must check status before retrieving results.
         request_context,
         **kwargs,
     ):
-        query = _sanitize_query(query)
+        check_system_paths(query)
+        check_truncate(query)
+        check_write_keywords(query, self.runner._rw_mode)
         yt_client = self.runner.helper_get_yt_client(cluster, request_context)
         try:
             query_id = yt_client.start_query(

@@ -11,6 +11,7 @@ PY_SRCS(
     tool_runner_mcp.py
     server.py
     tools/helpers.py
+    tools/security.py
     # tools
     tools/__init__.py
     tools/list_dir.py

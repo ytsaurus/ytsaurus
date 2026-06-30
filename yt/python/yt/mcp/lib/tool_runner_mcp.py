@@ -41,6 +41,10 @@ class YTToolRunnerMCP:
         self._tools: List["yt_mcp.lib.tools.helpers.YTToolBase"] = []
         self._logger = logging.getLogger(__name__)
         self._yt_token = None
+        self._rw_mode = False
+
+    def configure_server(self, rw_mode=False):
+        self._rw_mode = rw_mode
 
     def attach_tools(self, tools: List["yt_mcp.lib.tools.helpers.YTToolBase"], variants: List[Dict[str, Any]] = None):
         for tool in tools:
