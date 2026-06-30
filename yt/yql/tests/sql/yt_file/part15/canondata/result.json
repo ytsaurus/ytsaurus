@@ -1175,6 +1175,39 @@
             "uri": "https://{canondata_backend}/1931696/a373d9ad4820e6d749db963d1d16f3d6e9efda33/resource.tar.gz#test.test_lineage-flatten_list_nested_lambda--Results_/Output.yqlrun.txt.attr"
         }
     ],
+    "test.test[lineage-flatten_list_over_udf--Debug]": [
+        {
+            "checksum": "57ec454462d73494c863a2cd5fd8448d",
+            "size": 2804,
+            "uri": "https://{canondata_backend}/1773845/7d71c70af12ba64b0871e925120892e1ff830469/resource.tar.gz#test.test_lineage-flatten_list_over_udf--Debug_/opt.yql"
+        }
+    ],
+    "test.test[lineage-flatten_list_over_udf--Lineage]": [
+        {
+            "checksum": "4dbe94ac9b5046bf73692bb201077638",
+            "size": 1529,
+            "uri": "https://{canondata_backend}/1773845/7d71c70af12ba64b0871e925120892e1ff830469/resource.tar.gz#test.test_lineage-flatten_list_over_udf--Lineage_/results.txt"
+        }
+    ],
+    "test.test[lineage-flatten_list_over_udf--Plan]": [
+        {
+            "checksum": "b3d176bf2f031a50014c3134b4ca0478",
+            "size": 5294,
+            "uri": "https://{canondata_backend}/1773845/7d71c70af12ba64b0871e925120892e1ff830469/resource.tar.gz#test.test_lineage-flatten_list_over_udf--Plan_/plan.txt"
+        }
+    ],
+    "test.test[lineage-flatten_list_over_udf--Results]": [
+        {
+            "checksum": "d41d8cd98f00b204e9800998ecf8427e",
+            "size": 0,
+            "uri": "https://{canondata_backend}/1773845/7d71c70af12ba64b0871e925120892e1ff830469/resource.tar.gz#test.test_lineage-flatten_list_over_udf--Results_/Output.txt"
+        },
+        {
+            "checksum": "31e5503d1e481d1de17c05269eae17b3",
+            "size": 482,
+            "uri": "https://{canondata_backend}/1773845/7d71c70af12ba64b0871e925120892e1ff830469/resource.tar.gz#test.test_lineage-flatten_list_over_udf--Results_/Output.yqlrun.txt.attr"
+        }
+    ],
     "test.test[lineage-flatten_where--Debug]": [
         {
             "checksum": "de45e01349a16ab00d379afed641041d",
