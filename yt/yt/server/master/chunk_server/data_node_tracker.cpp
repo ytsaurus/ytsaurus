@@ -1112,6 +1112,10 @@ private:
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             sequoiaRequest->set_node_id(originalRequest.node_id());
 
+            if constexpr (std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>) {
+                sequoiaRequest->set_is_incremental_heartbeat(true);
+            }
+
             auto splitChunks = [&] (const auto& chunkInfos) {
                 for (auto chunkInfo : chunkInfos) {
                     using TChunkInfo = std::decay_t<decltype(chunkInfo)>;
