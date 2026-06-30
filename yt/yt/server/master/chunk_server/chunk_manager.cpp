@@ -2718,6 +2718,9 @@ private:
     // COMPAT(akozhikhov)
     bool RecomputeHunkRelatedChunkStatisticsAgain_ = false;
 
+    // COMPAT(akozhikhov)
+    bool FixHunkChunkWeightStatisticsHistogram_ = false;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -3038,10 +3041,64 @@ private:
             return;
         }
 
-        auto rowCount = chunk->GetRowCount();
-        auto compressedDataSize = chunk->GetCompressedDataSize();
-        auto uncompressedDataSize = chunk->GetUncompressedDataSize();
-        auto dataWeight = chunk->GetDataWeight();
+        i64 rowCount = 0;
+        i64 compressedDataSize;
+        i64 uncompressedDataSize;
+        i64 dataWeight;
+        if (IsHunkChunkFormat(chunk->GetChunkFormat())) {
+            // NB: We just set compressed data size to all the three fields because it does not change
+            // depending on referenced part and it is good enough for the purposes of the histograms.
+            compressedDataSize = chunk->GetCompressedDataSize();
+            uncompressedDataSize = compressedDataSize;
+            dataWeight = compressedDataSize;
+
+            auto isCompressionDictionary = chunk->ChunkMeta()->GetExtension<TMiscExt>().has_dictionary_compression_policy();
+            auto transaction = chunk->GetStagingTransaction();
+            auto isRemoteCopyResult = transaction && transaction->FindAttribute("operation_id");
+
+            auto doAlert = [&] {
+                YT_LOG_ALERT("Encountered hunk chunk in unexpected state upon updating chunk weight statistics histogram "
+                    "(Add: %v, ChunkId: %v, IsDictionary: %v, TransactionId: %v, IsRemoteCopyResult: %v, "
+                    "DataWeight: %v, UncompressedDataSize: %v, CompressedDataSize: %v, RefCount: %v)",
+                    add,
+                    chunk->GetId(),
+                    isCompressionDictionary,
+                    (transaction ? transaction->GetId() : NullTransactionId),
+                    isRemoteCopyResult,
+                    chunk->GetDataWeight(),
+                    chunk->GetUncompressedDataSize(),
+                    chunk->GetCompressedDataSize(),
+                    chunk->GetObjectRefCounter());
+            };
+
+            // Drop after resolving YT-28522.
+            if (add) {
+                if (isCompressionDictionary || isRemoteCopyResult) {
+                    if (chunk->GetUncompressedDataSize() != 0 || chunk->GetDataWeight() != 0) {
+                        doAlert();
+                    }
+                } else{
+                    if (chunk->GetUncompressedDataSize() != chunk->GetCompressedDataSize()) {
+                        doAlert();
+                    }
+                }
+
+                if (chunk->GetObjectRefCounter() < 1) {
+                    doAlert();
+                }
+            } else {
+                if (chunk->GetUncompressedDataSize() != 0 ||
+                    chunk->GetObjectRefCounter() > 0)
+                {
+                    doAlert();
+                }
+            }
+        } else {
+            rowCount = chunk->GetRowCount();
+            compressedDataSize = chunk->GetCompressedDataSize();
+            uncompressedDataSize = chunk->GetUncompressedDataSize();
+            dataWeight = chunk->GetDataWeight();
+        }
 
         if (add) {
             ChunkRowCountHistogram_.Add(rowCount, 1);
@@ -5857,6 +5914,14 @@ private:
 
         RecomputeHunkRelatedChunkStatistics_ = context.GetVersion() < EMasterReign::HunkChunkTreeStatisticsOverhaul;
         RecomputeHunkRelatedChunkStatisticsAgain_ = context.GetVersion() < EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain;
+        FixHunkChunkWeightStatisticsHistogram_ = context.GetVersion() < EMasterReign::FixHunkChunkWeightStatisticsHistogram;
+
+        if (FixHunkChunkWeightStatisticsHistogram_) {
+            ChunkRowCountHistogram_.Reset();
+            ChunkCompressedDataSizeHistogram_.Reset();
+            ChunkUncompressedDataSizeHistogram_.Reset();
+            ChunkDataWeightHistogram_.Reset();
+        }
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -5897,7 +5962,9 @@ private:
                     crpChunks.push_back(chunk);
                 }
 
-                if (NeedRecomputeChunkWeightStatisticsHistogram_) {
+                if (NeedRecomputeChunkWeightStatisticsHistogram_ ||
+                    FixHunkChunkWeightStatisticsHistogram_)
+                {
                     UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
                 }
 
@@ -6282,6 +6349,7 @@ private:
 
         RecomputeHunkRelatedChunkStatistics_ = false;
         RecomputeHunkRelatedChunkStatisticsAgain_ = false;
+        FixHunkChunkWeightStatisticsHistogram_ = false;
     }
 
     void SetZeroState() override
