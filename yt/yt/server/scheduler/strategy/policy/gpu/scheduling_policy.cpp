@@ -35,7 +35,7 @@ ISchedulingPolicyPtr CreateGpuSchedulingPolicy(
         strategyHost,
         treeId,
         config->GpuSchedulingPolicy,
-        profiler.WithPrefix("/gpu_policy"));
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
