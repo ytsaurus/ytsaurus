@@ -2411,6 +2411,39 @@ class TestAccounts(AccountsTestSuiteBase):
         remove_account("a2")
         remove_account("b")
 
+    @authors("theevilbird")
+    def test_change_root_request_limits(self):
+        root_request_limits_before = get("//sys/users/root/@request_limits")
+
+        limits = ["read_request_rate_limit", "write_request_rate_limit", "request_queue_size_limit"]
+
+        for limit in limits:
+            with raises_yt_error(f"Cannot set \"{limit}\" for \"root\""):
+                set(f"//sys/users/root/@{limit}", 42)
+
+        root_request_limits = get("//sys/users/root/@request_limits")
+        root_request_limits["read_request_rate"]["default"] = 63
+
+        with raises_yt_error("Cannot set \"request_limits\" for \"root\""):
+            set("//sys/users/root/@request_limits", root_request_limits)
+
+        try:
+            set("//sys/@config/security_manager/allow_change_request_limits_for_root", True)
+
+            for limit in limits:
+                set(f"//sys/users/root/@{limit}", 42)
+                assert get(f"//sys/users/root/@{limit}") == 42
+
+            set("//sys/users/root/@request_limits", root_request_limits)
+            assert get("//sys/users/root/@request_limits") == root_request_limits
+
+            set("//sys/users/root/@request_limits/write_request_rate/clusterwide", 63)
+            root_request_limits["write_request_rate"]["clusterwide"] = 63
+            assert get("//sys/users/root/@request_limits") == root_request_limits
+        finally:
+            set("//sys/users/root/@request_limits", root_request_limits_before)
+            set("//sys/@config/security_manager/allow_change_request_limits_for_root", False)
+
 
 class TestAccountTree(AccountsTestSuiteBase):
     ENABLE_MULTIDAEMON = True
