@@ -117,8 +117,9 @@ void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkl
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* rootUser = securityManager->GetRootUser();
+    auto allowChangeLimitsForRoot = Bootstrap_->GetDynamicConfig()->SecurityManager->AllowChangeRequestLimitsForRoot;
 
-    YT_LOG_ALERT_AND_THROW_IF(user == rootUser,
+    THROW_ERROR_EXCEPTION_IF(user == rootUser && !allowChangeLimitsForRoot,
         "Cannot set user request rate limit for root");
 
     user->SetRequestRateLimit(limit, type);
@@ -131,8 +132,9 @@ void TRequestTracker::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfig
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* rootUser = securityManager->GetRootUser();
+    auto allowChangeLimitsForRoot = Bootstrap_->GetDynamicConfig()->SecurityManager->AllowChangeRequestLimitsForRoot;
 
-    YT_LOG_ALERT_AND_THROW_IF(user == rootUser,
+    THROW_ERROR_EXCEPTION_IF(user == rootUser && !allowChangeLimitsForRoot,
         "Cannot set request rate limits for root");
 
     user->SetObjectServiceRequestLimits(std::move(config));
