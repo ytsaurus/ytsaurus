@@ -112,6 +112,12 @@ const (
 	ObjectTypeCypressShard      ObjectType = 11004
 	ObjectTypeCypressShardMap   ObjectType = 11005
 
+	// Grafting
+	ObjectTypeRootstock    ObjectType = 12000
+	ObjectTypeScion        ObjectType = 12001
+	ObjectTypeRootstockMap ObjectType = 12002
+	ObjectTypeScionMap     ObjectType = 12003
+
 	// Security Manager stuff
 	ObjectTypeAccount           ObjectType = 500
 	ObjectTypeAccountMap        ObjectType = 414
@@ -214,6 +220,10 @@ func convertObjectType(typ yt.NodeType) (ObjectType, error) {
 		ret = ObjectTypePortalEntrance
 	case yt.NodePortalExit:
 		ret = ObjectTypePortalExit
+	case yt.NodeScion:
+		ret = ObjectTypeScion
+	case yt.NodeRootstock:
+		ret = ObjectTypeRootstock
 	case yt.NodeSchedulerPool:
 		ret = ObjectTypeSchedulerPool
 	case yt.NodeSchedulerPoolTree:
