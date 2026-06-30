@@ -73,8 +73,8 @@ bool TSlotLocation::TSandboxTmpfsData::IsInsideTmpfs(const std::string& path, co
     std::optional<std::string_view> longestVolumePath;
     for (const auto& [volumePath, type] : VolumePathToType_) {
         if (volumePath.IsAncestorOf(path, /*treatEqualPathAsAncestor*/ true)) {
-            if (!longestVolumePath || volumePath.Path().string().size() > longestVolumePath->size()) {
-                longestVolumePath = volumePath.Path().string();
+            if (!longestVolumePath || volumePath.Path().native().size() > longestVolumePath->size()) {
+                longestVolumePath = volumePath.Path().native();
                 isTmpfs = type == EVolumeType::Tmpfs;
             }
         }
