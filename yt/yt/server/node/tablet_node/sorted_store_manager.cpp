@@ -1803,6 +1803,13 @@ TSortedDynamicStore::TRowBlockedWaitingResult TSortedStoreManager::WaitOnBlocked
         conflictInfo.ReadTimestamp,
         timeout);
 
+    // When waiting for a per-row serializing transaction row can become ready to read
+    // even if transaction is not totally finished.
+    if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
+        const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+        timeout = std::min(timeout, mountConfig->PerRowSerializationBlockedRowWaitQuantum);
+    }
+
     auto waitResult = WaitFor(transaction->GetFinished().WithTimeout(timeout));
     if (!waitResult.IsOK() && waitResult.GetCode() != NYT::EErrorCode::Timeout) {
         THROW_ERROR(std::move(waitResult));
