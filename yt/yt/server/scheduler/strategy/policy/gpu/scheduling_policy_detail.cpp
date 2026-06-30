@@ -18,6 +18,10 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr TStringBuf GpuSchedulingStageName = "gpu";
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::optional<std::string> GetNodeModule(
     const std::optional<std::string>& nodeDataCenter,
     const std::optional<std::string>& nodeInfinibandCluster,
@@ -78,17 +82,22 @@ TModuleProfilingCounters::TModuleProfilingCounters(const NProfiling::TProfiler& 
 ////////////////////////////////////////////////////////////////////////////////
 
 TGpuSchedulingProfilingCounters::TGpuSchedulingProfilingCounters(const NProfiling::TProfiler& profiler)
-    : PlannedAssignments(profiler.Counter("/planned_assignments_count"))
-    , PreemptedAssignments(profiler.Counter("/preempted_assignments_count"))
-    , Assignments(profiler.Gauge("/assignments_count"))
-    , TotalPlanningTime(profiler.Timer("/total_planning_time"))
-    , OperationResourcesUpdateTime(profiler.Timer("/operation_resources_update_time"))
-    , FullHostPlanningTime(profiler.Timer("/full_host_planning_time"))
-    , RegularPlanningTime(profiler.Timer("/regular_planning_time"))
-    , ExtraPlanningTime(profiler.Timer("/extra_planning_time"))
-    , EnabledOperations(profiler.Gauge("/enabled_operations_count"))
-    , FullHostModuleBoundOperations(profiler.Gauge("/full_host_module_bound_operations_count"))
-    , AssignedGpu(profiler.Gauge("/assigned_gpu_count"))
+    : NPolicy::TCommonSchedulingProfilingCounters(profiler.WithTag("scheduling_stage", GpuSchedulingStageName))
+    , PlanUpdateProfiler(profiler.WithPrefix("/gpu_policy"))
+    , SchedulingHeartbeatProfiler(profiler.WithTag("scheduling_stage", GpuSchedulingStageName))
+    , PlannedAssignments(PlanUpdateProfiler.Counter("/planned_assignments_count"))
+    , PreemptedAssignments(PlanUpdateProfiler.Counter("/preempted_assignments_count"))
+    , Assignments(PlanUpdateProfiler.Gauge("/assignments_count"))
+    , TotalPlanningTime(PlanUpdateProfiler.Timer("/total_planning_time"))
+    , OperationResourcesUpdateTime(PlanUpdateProfiler.Timer("/operation_resources_update_time"))
+    , FullHostPlanningTime(PlanUpdateProfiler.Timer("/full_host_planning_time"))
+    , RegularPlanningTime(PlanUpdateProfiler.Timer("/regular_planning_time"))
+    , ExtraPlanningTime(PlanUpdateProfiler.Timer("/extra_planning_time"))
+    , EnabledOperations(PlanUpdateProfiler.Gauge("/enabled_operations_count"))
+    , FullHostModuleBoundOperations(PlanUpdateProfiler.Gauge("/full_host_module_bound_operations_count"))
+    , AssignedGpu(PlanUpdateProfiler.Gauge("/assigned_gpu_count"))
+    , ScheduledAllocationCount(SchedulingHeartbeatProfiler.Counter("/scheduled_allocation_count"))
+    , PreemptedAllocationCount(SchedulingHeartbeatProfiler.Counter("/preempted_allocation_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1121,7 +1130,7 @@ void TSchedulingPolicy::ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatis
     for (const auto& [module, moduleStatistic] : statistics->ModuleStatistics) {
         auto it = ProfilingCounters_.ModuleCounters.find(module);
         if (it == ProfilingCounters_.ModuleCounters.end()) {
-            it = ProfilingCounters_.ModuleCounters.emplace(module, Profiler_.WithPrefix("/module").WithTag("module", module)).first;
+            it = ProfilingCounters_.ModuleCounters.emplace(module, Profiler_.WithPrefix("/gpu_policy/module").WithTag("module", module)).first;
         }
 
         const auto& moduleCounters = it->second;
@@ -1146,6 +1155,32 @@ void TSchedulingPolicy::ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatis
     ProfilingCounters_.Assignments.Update(assignments);
     ProfilingCounters_.AssignedGpu.Update(assignedGpu);
     ProfilingCounters_.FullHostModuleBoundOperations.Update(fullHostModuleBoundOperations);
+}
+
+void TSchedulingPolicy::ProfileSchedulingHeartbeat(const TGpuScheduleAllocationsStatisticsPtr& statistics)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    ProfilingCounters_.TotalControllerScheduleAllocationTime.Record(statistics->AttemptStatistics.TotalDuration);
+    ProfilingCounters_.CumulativeTotalControllerScheduleAllocationTime.Add(statistics->AttemptStatistics.TotalDuration);
+    ProfilingCounters_.ExecControllerScheduleAllocationTime.Record(statistics->AttemptStatistics.ExecDuration);
+    ProfilingCounters_.CumulativeExecControllerScheduleAllocationTime.Add(statistics->AttemptStatistics.ExecDuration);
+
+    ProfilingCounters_.ScheduleAllocationAttemptCount.Increment(statistics->AttemptStatistics.AttemptCount);
+    ProfilingCounters_.ScheduleAllocationFailureCount.Increment(statistics->AttemptStatistics.FailureCount);
+    ProfilingCounters_.ScheduledAllocationCount.Increment(statistics->ScheduledAllocationCount);
+    ProfilingCounters_.PreemptedAllocationCount.Increment(statistics->PreemptedAllocationCount);
+
+    ProfilingCounters_.ControllerScheduleAllocationCount.Increment(statistics->ControllerScheduleAllocationCount);
+    ProfilingCounters_.ControllerScheduleAllocationTimedOutCount.Increment(statistics->ControllerScheduleAllocationTimedOutCount);
+
+    for (auto scheduleAllocationDuration : statistics->AttemptStatistics.TotalDurations) {
+        ProfilingCounters_.ControllerScheduleAllocationTime.Record(scheduleAllocationDuration);
+    }
+
+    for (auto reason : TEnumTraits<NControllerAgent::EScheduleFailReason>::GetDomainValues()) {
+        ProfilingCounters_.ControllerScheduleAllocationFail[reason].Increment(statistics->AttemptStatistics.FailedReasons[reason]);
+    }
 }
 
 TLogger TSchedulingPolicy::MakeNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor)
@@ -1201,6 +1236,7 @@ void TSchedulingPolicy::DoProcessSchedulingHeartbeat(
     statistics->ResourceLimits = schedulingHeartbeatContext->ResourceLimits();
     statistics->ResourceUsage = schedulingHeartbeatContext->ResourceUsage();
     node->LastSchedulingHeartbeatStatistics() = statistics;
+    ProfileSchedulingHeartbeat(statistics);
 }
 
 void TSchedulingPolicy::PreemptAllocations(
@@ -1283,6 +1319,8 @@ void TSchedulingPolicy::ScheduleAllocations(
     auto nodeShardId = StrategyHost_->GetNodeShardId(node->GetId());
     const auto& nodeShardInvoker = StrategyHost_->GetNodeShardInvokers()[nodeShardId];
 
+    const auto statistics = GetScheduleAllocationsStatistics(schedulingHeartbeatContext);
+
     // NB(yaishenka): Copy assignments with |GetItems|, because the set will be modified.
     for (const auto& assignment : GetItems(node->Assignments())) {
         // NB(yaishenka): Node can be unregistered after wait in DoScheduleAllocation.
@@ -1298,6 +1336,7 @@ void TSchedulingPolicy::ScheduleAllocations(
 
         auto operationId = assignment->OperationId;
         const auto Logger = NodeLogger.WithTag("OperationId: %v", operationId);
+        ++statistics->AttemptStatistics.AttemptCount;
 
         auto operationElement = treeSnapshot->FindEnabledOperationElement(operationId);
         auto operation = GetOrDefault(EnabledOperations_, operationId);
@@ -1352,14 +1391,24 @@ void TSchedulingPolicy::ScheduleAllocations(
             MakeWeak(operationElement),
             schedulingHeartbeatContext));
 
-        auto scheduleAllocationResult = DoScheduleAllocation(
-            node,
-            operation,
-            operationElement,
-            assignment,
-            schedulingHeartbeatContext,
-            treeSnapshot,
-            availableResources);
+        TControllerScheduleAllocationResultPtr scheduleAllocationResult;
+        {
+            NProfiling::TWallTimer timer;
+
+            scheduleAllocationResult = DoScheduleAllocation(
+                node,
+                operation,
+                operationElement,
+                assignment,
+                schedulingHeartbeatContext,
+                treeSnapshot,
+                availableResources);
+
+            auto scheduleAllocationDuration = timer.GetElapsedTime();
+            statistics->AttemptStatistics.TotalDuration += scheduleAllocationDuration;
+            statistics->AttemptStatistics.ExecDuration += scheduleAllocationResult->Duration;
+            statistics->AttemptStatistics.TotalDurations.push_back(scheduleAllocationDuration);
+        }
 
         // TODO(yaishenka): Set operation alert if timeout.
         if (!scheduleAllocationResult->StartDescriptor) {
@@ -1370,6 +1419,11 @@ void TSchedulingPolicy::ScheduleAllocations(
                 assignment->AllocationGroupName,
                 assignment->ResourceUsage,
                 scheduleAllocationResult->Failed);
+
+            ++statistics->AttemptStatistics.FailureCount;
+            for (auto reason : TEnumTraits<NControllerAgent::EScheduleFailReason>::GetDomainValues()) {
+                statistics->AttemptStatistics.FailedReasons[reason] += scheduleAllocationResult->Failed[reason];
+            }
 
             RemoveAssignment(assignment, /*strict*/ false);
 
@@ -1509,7 +1563,6 @@ bool TSchedulingPolicy::PreemptAllocation(
     return true;
 }
 
-// TODO(YT-27867): Add diagnostics like in regular policy.
 TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
     const TNodePtr& node,
     const TOperationPtr& operation,

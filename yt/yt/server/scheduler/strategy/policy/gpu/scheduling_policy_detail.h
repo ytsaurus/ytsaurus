@@ -60,8 +60,12 @@ struct TModuleProfilingCounters
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGpuSchedulingProfilingCounters
+    : public TCommonSchedulingProfilingCounters
 {
     explicit TGpuSchedulingProfilingCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TProfiler PlanUpdateProfiler;
+    NProfiling::TProfiler SchedulingHeartbeatProfiler;
 
     NProfiling::TCounter PlannedAssignments;
     NProfiling::TCounter PreemptedAssignments;
@@ -77,6 +81,9 @@ struct TGpuSchedulingProfilingCounters
     NProfiling::TGauge FullHostModuleBoundOperations;
 
     NProfiling::TGauge AssignedGpu;
+
+    NProfiling::TCounter ScheduledAllocationCount;
+    NProfiling::TCounter PreemptedAllocationCount;
 
     THashMap<std::string, TModuleProfilingCounters> ModuleCounters;
 };
@@ -242,6 +249,8 @@ private:
     void LogSnapshotEvent(const TGpuPlanUpdateStatisticsPtr& statistics) const;
 
     void ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatisticsPtr& statistics);
+
+    void ProfileSchedulingHeartbeat(const TGpuScheduleAllocationsStatisticsPtr& statistics);
 
     TLogger MakeNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor);
 
