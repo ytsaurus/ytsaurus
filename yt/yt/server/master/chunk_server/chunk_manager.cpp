@@ -7061,7 +7061,8 @@ private:
         YT_LOG_EVENT(
             Logger(),
             reason == ERemoveReplicaReason::NodeDisposed ||
-            reason == ERemoveReplicaReason::ChunkDestroyed
+            reason == ERemoveReplicaReason::ChunkDestroyed ||
+            reason == ERemoveReplicaReason::SequoiaNodeDisposed
             ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
             "Chunk replica removed "
             "(ChunkId: %v, Reason: %v, NodeId: %v, Address: %v, Approved: %v, TemporarilyUnavailable: %v)",
