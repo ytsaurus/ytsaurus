@@ -80,7 +80,7 @@ TEST_F(TOrderedTabletTest, TestValidateTrimmedRowCountPrecedeTimestamp)
     ASSERT_EQ(Store_->GetStartingRowIndex(), 3);
     ASSERT_ANY_THROW(doValidate(3, ts01));
     ASSERT_NO_THROW(doValidate(3, ts02));
-    ASSERT_ANY_THROW(doValidate(4, ts02)); //Overtrim of empty store.
+    ASSERT_ANY_THROW(doValidate(4, ts02)); // Overtrim of empty store.
 
     auto ts10 = WriteRow(BuildRow(row));
     auto ts11 = WriteRow(BuildRow(row));
@@ -90,7 +90,6 @@ TEST_F(TOrderedTabletTest, TestValidateTrimmedRowCountPrecedeTimestamp)
     ASSERT_NO_THROW(doValidate(0, ts01));
     ASSERT_NO_THROW(doValidate(0, ts02));
 
-    ASSERT_ANY_THROW(doValidate(0, ts00 - 1));
     ASSERT_ANY_THROW(doValidate(1, ts00));
     ASSERT_ANY_THROW(doValidate(2, ts01));
     ASSERT_NO_THROW(doValidate(2, ts02));
@@ -106,7 +105,8 @@ TEST_F(TOrderedTabletTest, TestValidateTrimmedRowCountPrecedeTimestamp)
     ASSERT_NO_THROW(doValidate(5, ts12));
     ASSERT_NO_THROW(doValidate(6, ts12));
 
-    ASSERT_ANY_THROW(doValidate(3, ts10 - 1));
+    ASSERT_ANY_THROW(doValidate(3, ts02 - 1));
+    ASSERT_NO_THROW(doValidate(3, ts02));
     ASSERT_ANY_THROW(doValidate(4, ts10));
     ASSERT_ANY_THROW(doValidate(5, ts11));
     ASSERT_ANY_THROW(doValidate(7, ts12)); // Overtrim.

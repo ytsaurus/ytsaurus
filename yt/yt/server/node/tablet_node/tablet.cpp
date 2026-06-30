@@ -1,7 +1,5 @@
 #include "tablet.h"
 
-#include "automaton.h"
-#include "bootstrap.h"
 #include "config.h"
 #include "compaction_hint_controllers.h"
 #include "compression_dictionary_manager.h"
@@ -12,8 +10,6 @@
 #include "partition.h"
 #include "row_cache_controller.h"
 #include "serialize.h"
-#include "sorted_chunk_store.h"
-#include "sorted_dynamic_store.h"
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "table_puller.h"
@@ -34,6 +30,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
@@ -63,6 +61,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/random.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
@@ -151,6 +150,11 @@ void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmed
         tablet->GetCommitOrdering() == ECommitOrdering::Strong,
         "Table MUST have strong commit ordering to check stores boundaries by timestamp");
 
+    if (trimmedRowCount == tablet->GetTrimmedRowCount()) {
+        // Trim is no-op.
+        return;
+    }
+
     const auto& storeRowIndexMap = tablet->StoreRowIndexMap();
     if (storeRowIndexMap.empty()) {
         // No stores.
@@ -200,8 +204,15 @@ void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmed
         --storeIt;
     }
 
-    if (const auto& store = storeIt->second;
-        timestamp < store->GetMinTimestamp() ||
+    const auto& store = storeIt->second;
+    auto minTimestampBound = store->GetMinTimestamp();
+    if (storeIt != storeRowIndexMap.begin()) {
+        auto previousStoreIt = storeIt;
+        --previousStoreIt;
+        minTimestampBound = previousStoreIt->second->GetMaxTimestamp();
+    }
+
+    if (timestamp < minTimestampBound ||
         (trimmedRowCount > store->GetStartingRowIndex() && timestamp < store->GetMaxTimestamp()))
     {
         THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
