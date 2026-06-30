@@ -14,6 +14,7 @@ RECURSE(
     table_data_service
     tests
     test_tools
+    test_utils
     tvm
     utils
     vanilla
