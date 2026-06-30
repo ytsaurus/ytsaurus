@@ -2199,7 +2199,7 @@ struct TSortOperationSpecBase
     // This option is used for partition/partition_map and sorted_reduce/sorted_merge jobs.
     bool ForceJobSizeAdjuster;
 
-    bool EnableFinalPartitionsMerging;
+    std::optional<bool> EnableFinalPartitionsMerging;
 
     REGISTER_YSON_STRUCT(TSortOperationSpecBase);
 

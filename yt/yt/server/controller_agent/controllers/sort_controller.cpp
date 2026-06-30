@@ -1882,7 +1882,13 @@ protected:
     {
         YT_VERIFY(!SimpleSortTask_);
 
-        if (Spec_->PartitionCount.has_value()) {
+        if (!Spec_->EnableFinalPartitionsMerging.value_or(Options_->EnableFinalPartitionsMergingByDefault)) {
+            return std::nullopt;
+        }
+
+        // Explicit pivot keys define exact partition boundaries that must be
+        // preserved, so final partitions merging must not collapse them.
+        if (Spec_->PartitionCount.has_value() || !Spec_->PivotKeys.empty()) {
             return std::nullopt;
         } else if (Spec_->PartitionDataWeightForMerging.has_value()) {
             return *Spec_->PartitionDataWeightForMerging;
@@ -2051,7 +2057,7 @@ protected:
             i64 dataSliceCount = chunkPoolOutput->GetDataSliceCounter()->GetTotal();
             i64 rowCount = chunkPoolOutput->GetRowCounter()->GetTotal();
 
-            if (!Spec_->EnableFinalPartitionsMerging ||
+            if (!partitionDataWeightForMerging.has_value() ||
                 !isAllDataCollected ||
                 IsPartitionOversized(
                     accumulatedDataWeight + dataWeight,
