@@ -308,7 +308,7 @@ def raise_for_token(response, request_info):
     error_exc = create_http_response_error(
         response.error(),
         url=request_info["url"],
-        request_headers=request_info["headers"],
+        request_headers=hide_auth_headers(request_info["headers"]),
         response_headers=dict(**response.headers),
         params=request_info["params"])
     raise YtTokenError(
@@ -330,7 +330,7 @@ def _raise_for_status(response, request_info):
         error_exc = create_http_response_error(
             response.error(),
             url=request_info["url"],
-            request_headers=request_info["headers"],
+            request_headers=hide_auth_headers(request_info["headers"]),
             response_headers=dict(**response.headers),
             params=request_info["params"])
         raise error_exc
