@@ -17,6 +17,10 @@ def get_app_args():
     parser.add_argument("--log-level", type=str, default="ERROR", choices=["INFO", "ERROR", "DEBUG"])
     parser.add_argument("--yt-token-file", type=str, default=None, help="Path to yt auth token")
 
+    parser.add_argument(
+        "--rw-mode", action="store_true", default=False,
+        help="Enable write query operations. WARNING: allows data mutations.",
+    )
     parser.add_argument("--show-tools", action="store_true", default=False, help="Show tools and exit")
     parser.add_argument("--tools-common", action="store_const", const="common", default=None, help="Enable common tools")
     parser.add_argument("--tools-account", action="store_const", const="account", default=None, help="Enable account tools")
@@ -42,6 +46,8 @@ def main():
     mcp_runner.configure_yt(
         token_file=app_args.yt_token_file,
     )
+
+    mcp_runner.configure_server(rw_mode=app_args.rw_mode)
 
     tools_groups = get_tools_groups()
 

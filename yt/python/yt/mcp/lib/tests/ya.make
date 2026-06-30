@@ -9,6 +9,7 @@ INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe.inc)
 TEST_SRCS(
     test_variations.py
     test_mcp_tools_registered.py
+    test_security.py
 )
 
 END()
