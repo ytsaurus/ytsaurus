@@ -81,6 +81,10 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("check_all_ace_columns_full_read", &TThis::CheckAllAceColumnsFullRead)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("allow_change_request_limits_for_root", &TThis::AllowChangeRequestLimitsForRoot)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

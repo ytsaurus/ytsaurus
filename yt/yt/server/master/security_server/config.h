@@ -87,6 +87,8 @@ struct TDynamicSecurityManagerConfig
     // COMPAT(danilalexeev): YT-28249.
     bool CheckAllAceColumnsFullRead;
 
+    bool AllowChangeRequestLimitsForRoot;
+
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 
     static void Register(TRegistrar registrar);
