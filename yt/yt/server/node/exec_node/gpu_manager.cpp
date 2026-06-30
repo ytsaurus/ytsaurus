@@ -427,7 +427,7 @@ void TGpuManager::OnHealthCheck()
             }
 
             if (size(newFreeSlotIndices) > size(FreeSlots_)) {
-                Bootstrap_->GetJobResourceManager()->OnNewSlotsAvailable();
+                Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
             }
 
             FreeSlots_ = std::move(newFreeSlotIndices);
