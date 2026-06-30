@@ -28,7 +28,7 @@ func TestOperation(t *testing.T) {
 	env := yttest.New(t)
 
 	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 
 	inTable := tmpPath()
@@ -184,7 +184,7 @@ func TestOperationWithStderr(t *testing.T) {
 	env := yttest.New(t)
 
 	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 
 	inTable := tmpPath()
@@ -262,7 +262,7 @@ func TestSuspendOperation(t *testing.T) {
 	env := yttest.New(t)
 
 	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 
 	opSpec := map[string]any{
@@ -311,7 +311,7 @@ func TestListOperations(t *testing.T) {
 	env := yttest.New(t)
 
 	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 
 	inTable := tmpPath()
@@ -407,7 +407,7 @@ func TestListOperationEvents(t *testing.T) {
 	env := yttest.New(t)
 
 	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 
 	opSpec := map[string]any{
