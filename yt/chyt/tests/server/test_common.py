@@ -7,7 +7,7 @@ from yt_commands import (authors, raises_yt_error, create, create_user, make_ace
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
-from base import (ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia, enable_sequoia_acls,
+from base import (ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia,
                   grant_system_permissions_to_clickhouse_user)
 
 from yt.common import YtError, wait, parts_to_uuid, update_inplace, update as config_update
@@ -3051,24 +3051,20 @@ class TestClickHouseWithMasterCache(ClickHouseTestBase):
 
 
 @enable_sequoia
-@enable_sequoia_acls
 class TestClickHouseCommonSequoia(TestClickHouseCommon):
     pass
 
 
 @enable_sequoia
-@enable_sequoia_acls
 class TestClickHouseNoCacheSequoia(TestClickHouseNoCache):
     pass
 
 
 @enable_sequoia
-@enable_sequoia_acls
 class TestCustomSettingsSequoia(TestCustomSettings):
     pass
 
 
 @enable_sequoia
-@enable_sequoia_acls
 class TestClickHouseWithMasterCacheSequoia(TestClickHouseWithMasterCache):
     pass
