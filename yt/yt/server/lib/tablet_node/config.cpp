@@ -552,6 +552,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("check_conflict_horizon", &TThis::CheckConflictHorizon)
         .Default(true);
 
+    registrar.Parameter("per_row_serialization_blocked_row_wait_quantum", &TThis::PerRowSerializationBlockedRowWaitQuantum)
+        .Default(TDuration::MilliSeconds(100));
+
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
 
