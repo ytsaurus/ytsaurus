@@ -113,6 +113,8 @@ struct TJobResourceManagerDynamicConfig
 
     TDuration ProfilingPeriod;
 
+    TDuration ResourceAvailabilityCheckPeriod;
+
     i64 FreeMemoryWatermark;
 
     TMappedMemoryControllerConfigPtr MappedMemoryController;

@@ -125,6 +125,9 @@ void TJobResourceManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(TDuration::Seconds(5));
 
+    registrar.Parameter("resource_availability_check_period", &TThis::ResourceAvailabilityCheckPeriod)
+        .Default(TDuration::Seconds(1));
+
     registrar.Parameter("memory_pressure_detector", &TThis::MemoryPressureDetector)
         .DefaultNew();
 

@@ -56,7 +56,8 @@ public:
     //! Set resource limits overrides.
     virtual void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits) = 0;
 
-    virtual void OnNewSlotsAvailable() = 0;
+    //! Notifies resource consumers that pending resource holders may have become acquirable.
+    virtual void OnResourceAvailabilityChanged() = 0;
 
     virtual double GetCpuToVCpuFactor() const = 0;
 
