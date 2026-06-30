@@ -1658,7 +1658,7 @@ TDuration TClient::CheckPermissionsForQuery(
     };
 
     grabTablesFromQueryForPermissionCheck(fragment);
-    int numTables = permissionKeys.size();
+    int numTables = std::ssize(permissionKeys);
 
     if (options.ExecutionPool) {
         permissionKeys.push_back(NSecurityClient::TPermissionKey{
@@ -1674,14 +1674,14 @@ TDuration TClient::CheckPermissionsForQuery(
         .ValueOrThrow();
     YT_VERIFY(permissionKeys.size() == permissionCheckErrors.size());
 
-    for (int i = 0; i < std::ssize(permissionKeys); ++i) {
-        auto& error = permissionCheckErrors[i];
+    for (int index = 0; index < std::ssize(permissionKeys); ++index) {
+        auto& error = permissionCheckErrors[index];
         if (error.IsOK() || error.FindMatching(NYTree::EErrorCode::ResolveError)) {
             continue;
         }
 
-        if (i < numTables) {
-            const auto& key = permissionKeys[i];
+        if (index < numTables) {
+            const auto& key = permissionKeys[index];
             auto tableInfoOrError = WaitForFast(tableMountCache->GetTableInfo(key.Path));
             if (tableInfoOrError.IsOK()) {
                 const auto& tableInfo = tableInfoOrError.Value();
