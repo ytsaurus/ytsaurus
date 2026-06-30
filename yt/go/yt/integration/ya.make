@@ -14,6 +14,8 @@ IF (NOT OPENSOURCE)
     # signature_components are required by distributed_write_test.go (signed write cookies).
     SET(YT_PROXY_CONFIG {signature_components={validation={cypress_key_reader={}};generation={cypress_key_writer={};generator={};key_rotator={}}}})
     INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_operations_archive.inc)
+
+    REQUIREMENTS(cpu:4 ram:16 ram_disk:16)
 ENDIF()
 
 GO_TEST_SRCS(
