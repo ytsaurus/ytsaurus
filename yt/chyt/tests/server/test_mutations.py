@@ -1,4 +1,4 @@
-from yt_commands import authors, raises_yt_error, create, get, remove, write_table, read_table, exists
+from yt_commands import (authors, raises_yt_error, create, get, remove, write_table, read_table, exists)
 
 from yt_type_helpers import make_schema, normalize_schema
 
@@ -653,6 +653,23 @@ class TestMutations(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query(query)
             assert not exists("//tmp/t1")
+
+    @authors("a-dyu")
+    def test_create_table_as_select_writer_finish_exception(self):
+        create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        rows = [{"a": i} for i in range(100)]
+        write_table("//tmp/s1", rows, verbose=False)
+
+        settings = {"chyt.testing.throw_exception_in_writer_finish": 1}
+
+        with Clique(1) as clique:
+            with raises_yt_error():
+                clique.make_query(
+                    'create table "//tmp/t1" engine YtTable() as select * from "//tmp/s1"',
+                    settings=settings,
+                )
+
+            assert clique.get_active_instance_count() == 1
 
     @authors("max42")
     def test_create_table_as_table(self):

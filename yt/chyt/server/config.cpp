@@ -100,6 +100,8 @@ void TTestingSettings::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("throw_exception_in_subquery", &TThis::ThrowExceptionInSubquery)
         .Default(false);
+    registrar.Parameter("throw_exception_in_writer_finish", &TThis::ThrowExceptionInWriterFinish)
+        .Default(false);
     registrar.Parameter("subquery_allocation_size", &TThis::SubqueryAllocationSize)
         .Default(0);
 
