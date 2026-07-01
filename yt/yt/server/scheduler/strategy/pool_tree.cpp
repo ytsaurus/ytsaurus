@@ -1294,37 +1294,37 @@ public:
                         }
                     })
                 .EndMap();
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("config", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(treeSnapshot->TreeConfig());
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("resource_usage", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(treeSnapshot->ResourceUsage());
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("resource_limits", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(treeSnapshot->ResourceLimits());
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("node_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(std::ssize(treeSnapshot->NodeAddresses()));
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("node_addresses", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(GetValues(treeSnapshot->NodeAddresses()));
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         // TODO(eshcherbin): Why not use tree snapshot here as well?
         dynamicOrchidService->AddChild("pool_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
