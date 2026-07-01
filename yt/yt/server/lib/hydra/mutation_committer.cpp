@@ -375,7 +375,7 @@ void TLeaderCommitter::SerializeMutations(TMutationDraftQueue* mutationDraftQueu
             mutationDraft.Promise.Set(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Mutation has invalid epoch: expected %v, actual %v",
-                epochId != EpochContext_->EpochId,
+                EpochContext_->EpochId,
                 epochId));
             continue;
         }
