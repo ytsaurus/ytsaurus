@@ -11,7 +11,6 @@
 #include "mutation_context.h"
 #include "serialize.h"
 #include "snapshot.h"
-#include "epoch.h"
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
@@ -255,7 +254,6 @@ TLeaderCommitter::TLeaderCommitter(
     const TDistributedHydraManagerOptions& options,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TLeaderLeasePtr leaderLease,
-    TMutationDraftQueuePtr mutationDraftQueue,
     IChangelogPtr changelog,
     TReachableState reachableState,
     TEpochContext* epochContext,
@@ -269,16 +267,11 @@ TLeaderCommitter::TLeaderCommitter(
         std::move(logger),
         std::move(profiler),
         std::move(changelog))
-    , MutationDraftQueue_(std::move(mutationDraftQueue))
     , LeaderLease_(std::move(leaderLease))
     , FlushMutationsExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaderCommitter::FlushMutations, MakeWeak(this)),
         Config_->Get()->MutationFlushPeriod))
-    , SerializeMutationsExecutor_(New<TPeriodicExecutor>(
-        EpochContext_->EpochControlInvoker,
-        BIND(&TLeaderCommitter::SerializeMutations, MakeWeak(this)),
-        Config_->Get()->MutationSerializationPeriod))
     , CheckpointCheckExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaderCommitter::MaybeCheckpoint, MakeWeak(this)),
@@ -317,7 +310,7 @@ TFuture<void> TLeaderCommitter::GetLastMutationFuture()
         .AsVoid();
 }
 
-void TLeaderCommitter::SerializeMutations()
+void TLeaderCommitter::SerializeMutations(TMutationDraftQueue* mutationDraftQueue)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -352,7 +345,7 @@ void TLeaderCommitter::SerializeMutations()
     std::vector<TMutationDraft> mutationDrafts;
     while (std::ssize(mutationDrafts) < config->MaxCommitBatchRecordCount) {
         TMutationDraft mutationDraft;
-        if (!MutationDraftQueue_->TryDequeue(&mutationDraft)) {
+        if (!mutationDraftQueue->TryDequeue(&mutationDraft)) {
             break;
         }
 
@@ -378,12 +371,11 @@ void TLeaderCommitter::SerializeMutations()
         }
 
         auto epochId = mutationDraft.Request.EpochId;
-        auto currentEpochId = GetCurrentEpochId();
-        if (epochId && epochId != currentEpochId) {
+        if (epochId && epochId != EpochContext_->EpochId) {
             mutationDraft.Promise.Set(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Mutation has invalid epoch: expected %v, actual %v",
-                currentEpochId,
+                epochId != EpochContext_->EpochId,
                 epochId));
             continue;
         }
@@ -424,10 +416,18 @@ void TLeaderCommitter::BuildMonitoring(TFluentMap fluent)
 
 void TLeaderCommitter::Reconfigure()
 {
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
     auto config = Config_->Get();
     FlushMutationsExecutor_->SetPeriod(config->MutationFlushPeriod);
-    SerializeMutationsExecutor_->SetPeriod(config->MutationSerializationPeriod);
     CheckpointCheckExecutor_->SetPeriod(config->CheckpointCheckPeriod);
+}
+
+bool TLeaderCommitter::IsActive() const
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    return Active_;
 }
 
 void TLeaderCommitter::Start()
@@ -446,15 +446,17 @@ void TLeaderCommitter::Start()
 
     UpdateSnapshotBuildDeadline();
 
-    SerializeMutationsExecutor_->Start();
     CheckpointCheckExecutor_->Start();
+
+    Active_ = true;
 }
 
 void TLeaderCommitter::Stop()
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    YT_UNUSED_FUTURE(SerializeMutationsExecutor_->Stop());
+    Active_ = false;
+
     YT_UNUSED_FUTURE(FlushMutationsExecutor_->Stop());
 
     // YT-16687: We do not want to apply mutation after its promise is set.
@@ -463,11 +465,6 @@ void TLeaderCommitter::Stop()
     auto error = MakeStoppedError();
     for (const auto& mutation : MutationQueue_) {
         mutation->LocalCommitPromise.TrySet(error);
-    }
-
-    TMutationDraft mutationDraft;
-    while (MutationDraftQueue_->TryDequeue(&mutationDraft)) {
-        mutationDraft.Promise.TrySet(error);
     }
 
     for (const auto& [id, changelogFuture] : NextChangelogs_) {
