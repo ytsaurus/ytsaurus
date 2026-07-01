@@ -49,7 +49,7 @@ public:
         : Slot_(slot)
         , Bootstrap_(bootstrap)
         , SynchronizeExecutor_(New<TPeriodicExecutor>(
-            slot->GetAutomatonInvoker(),
+            slot->GetGuardedAutomatonInvoker(),
             BIND(&TChaosCellSynchronizer::SafeSynchronize, MakeWeak(this)),
             config->SyncPeriod))
     { }
@@ -127,6 +127,9 @@ private:
         ToProto(request.mutable_remove_coordinator_cell_ids(), oldCoordinators);
 
         auto hydraManager = Slot_->GetHydraManager();
+        if (!hydraManager->IsActiveLeader()) {
+            return;
+        }
         auto mutation = CreateMutation(hydraManager, request);
         YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
     }
