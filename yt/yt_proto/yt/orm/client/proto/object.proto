@@ -594,6 +594,13 @@ extend google.protobuf.FileOptions
     // When enabled, ORM generates the |multi_consumer| table and allows
     // registering/advancing/reading queue progress via a single shared consumer table.
     optional bool support_multi_consumer = 30061;
+
+    // Defaults applied by codegen to counter fields of counting references. Each is overridable per
+    // field (|field_lock_group| / |field_data_group| / |is_multiple_referenceable|). If unset, codegen
+    // uses the auto-registered "reference_counter" lock/data group and false, respectively.
+    optional string counter_field_lock_group = 30063;
+    optional string counter_field_data_group = 30064;
+    optional bool counter_is_multiple_referenceable = 30065;
 }
 
 enum EGenerationPolicy
@@ -679,7 +686,11 @@ message TReferenceOption
 
     message TCountingKeyStorageOption
     {
+        // Path to the counter field within this object. If the field does not exist it is generated
+        // with the proper options (sum-aggregated opaque int64 column); if it does, |field_number|
+        // (when set) must match its number.
         optional string counter_path = 1;
+        optional int32 field_number = 2;
     }
 
     message TReferenceViewOption
@@ -1071,7 +1082,7 @@ extend google.protobuf.FieldOptions
     optional bool referenced = 31056;
 
     // Allow to use the same counter in difference counting references.
-    optional bool is_multiple_referencable = 31058;
+    optional bool is_multiple_referenceable = 31058;
 
     // Saves the attribute value only within the transaction.
     // Triggers history and watch logs, if they are enabled for field's path.
