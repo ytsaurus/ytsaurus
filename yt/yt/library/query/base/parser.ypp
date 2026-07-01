@@ -380,7 +380,7 @@ from-clause-tail
             // COMPAT
             if ($expr.size() == 1) {
                 if (auto queryExpr = $expr[0]->As<TQueryExpression>()) {
-                    auto subqueryHead = New<TQueryAstHead>();
+                    auto subqueryHead = head->New<TQueryAstHead>();
                     subqueryHead->Ast = std::move(queryExpr->Query);
                     subqueryHead->AliasMap = std::move(queryExpr->AliasMap);
                     subqueryHead->Alias = std::move($alias);
