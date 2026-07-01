@@ -21,10 +21,10 @@ static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TCpuStatistics = TCpuAccounting::TStatistics;
-using TBlockIOStatistics = TBlockIO::TStatistics;
-using TMemoryStatistics = TMemory::TStatistics;
-using TNetworkStatistics = TNetwork::TStatistics;
+using TCpuStatistics = NCGroups::TCpuAccounting::TStatistics;
+using TBlockIOStatistics = NCGroups::TBlockIO::TStatistics;
+using TMemoryStatistics = NCGroups::TMemory::TStatistics;
+using TNetworkStatistics = NCGroups::TNetwork::TStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 

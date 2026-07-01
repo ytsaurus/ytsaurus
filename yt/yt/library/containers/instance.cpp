@@ -6,6 +6,8 @@
 #include "private.h"
 #include "porto_helpers.h"
 
+#include <yt/yt/library/cgroup/statistics.h>
+
 #include <yt/yt/library/containers/config.h>
 
 #include <yt/yt/library/re2/re2.h>
@@ -33,6 +35,7 @@
 
 namespace NYT::NContainers {
 
+using namespace NCGroups;
 using namespace NConcurrency;
 using namespace NNet;
 
@@ -152,6 +155,19 @@ static const std::function<i64(const std::string&)> GetStatByKeyExtractor(const 
     };
 }
 
+static const std::function<i64(const std::string&)> GetStatByCGroupVersionedKeyExtractor(
+    ECGroupController controller,
+    const std::string& statKeyV1,
+    const std::string& statKeyV2)
+{
+    return [controller, statKeyV1, statKeyV2] (const std::string& in) {
+        // NB(pavook): the version is queried for every statistics extraction to guard against a potential SIOF.
+        // It's quite cheap though (a cached ptr load and a virtual call).
+        const auto& key = TSelfCGroupsStatisticsFetcher::Get()->IsControllerV2(controller) ? statKeyV2 : statKeyV1;
+        return Extract(in, key);
+    };
+}
+
 const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::CpuBurstUsage, {"cpu_burst_usage", LongExtractor}},
     {EStatField::CpuUsage, {"cpu_usage", LongExtractor}},
@@ -162,9 +178,9 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::ThreadCount, {"thread_count", LongExtractor}},
     {EStatField::CpuLimit, {"cpu_limit_bound", CoreNsPerSecondExtractor}},
     {EStatField::CpuGuarantee, {"cpu_guarantee_bound", CoreNsPerSecondExtractor}},
-    {EStatField::ResidentAnon, {"memory.stat", GetStatByKeyExtractor("total_rss")}},
-    {EStatField::TmpfsUsage, {"memory.stat", GetStatByKeyExtractor("total_shmem")}},
-    {EStatField::MappedFile, {"memory.stat", GetStatByKeyExtractor("total_mapped_file")}},
+    {EStatField::ResidentAnon, {"memory.stat", GetStatByCGroupVersionedKeyExtractor(ECGroupController::Memory, "total_rss", "anon")}},
+    {EStatField::TmpfsUsage, {"memory.stat", GetStatByCGroupVersionedKeyExtractor(ECGroupController::Memory, "total_shmem", "shmem")}},
+    {EStatField::MappedFile, {"memory.stat", GetStatByCGroupVersionedKeyExtractor(ECGroupController::Memory, "total_mapped_file", "file_mapped")}},
     {EStatField::MinorPageFaults, {"minor_faults", LongExtractor}},
     {EStatField::MajorPageFaults, {"major_faults", LongExtractor}},
     {EStatField::FileCacheUsage, {"cache_usage", LongExtractor}},
@@ -241,6 +257,33 @@ std::optional<std::string> GetRootName(const std::string& name)
     }
 
     return name.substr(0, slashPosition);
+}
+
+TStringBuf ParsePortoPidsCGroup(TStringBuf portoCGroups, bool isV2)
+{
+    TStringBuf entry;
+    for (TStringBuf cgroup : StringSplitter(portoCGroups).SplitByString("; ")) {
+        // On v1 the entry is "pids:/sys/fs/cgroup/pids/<rest>"; on v2 it is "unified:/sys/fs/cgroup/<rest>".
+        if (cgroup.StartsWith(isV2 ? "unified:" : "pids:")) {
+            auto slash = cgroup.find('/');
+            YT_VERIFY(slash != TStringBuf::npos);
+            entry = cgroup.SubStr(slash);
+            break;
+        }
+    }
+    if (!entry) {
+        return {};
+    }
+
+    constexpr TStringBuf cgroupMountPrefix = "/sys/fs/cgroup";
+    YT_VERIFY(entry.StartsWith(cgroupMountPrefix));
+    entry = entry.SubStr(cgroupMountPrefix.size());
+    if (!isV2) {
+        // Strip the `/<controller>` prefix.
+        auto slash = entry.find('/', 1);
+        entry = (slash == TStringBuf::npos) ? TStringBuf() : entry.SubStr(slash);
+    }
+    return entry.empty() ? TStringBuf("/") : entry;
 }
 
 } // namespace NDetail
@@ -827,36 +870,37 @@ public:
 
     std::vector<pid_t> GetPids() const override
     {
-        auto getPidCgroup = [&] (const std::string& cgroups) {
-            for (TStringBuf cgroup : StringSplitter(cgroups).SplitByString("; ")) {
-                if (cgroup.StartsWith("pids:")) {
-                    auto startPosition = cgroup.find('/');
-                    YT_VERIFY(startPosition != std::string::npos);
-                    return cgroup.substr(startPosition);
-                }
-            }
-            THROW_ERROR_EXCEPTION("Pids cgroup not found for container %Qv", GetName())
-                << TErrorAttribute("cgroups", cgroups);
-        };
+        // On v1 the pids controller has its own hierarchy; on v2 every process
+        // lives in the unified hierarchy, which GetProcessCGroups keys by "".
+        const bool isV2 = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->IsControllerV2(ECGroupController::Pids);
+        const std::string processCGroupKey = isV2 ? "" : "pids";
 
-        auto cgroups = *WaitFor(Executor_->GetContainerProperty(Name_, "cgroups"))
+        auto portoCGroups = *WaitFor(Executor_->GetContainerProperty(Name_, "cgroups"))
             .ValueOrThrow();
-        // Porto returns full cgroup name, with mount prefix, such as "/sys/fs/cgroup/pids".
-        auto instanceCgroup = getPidCgroup(cgroups);
+        auto instanceCGroup = NDetail::ParsePortoPidsCGroup(portoCGroups, isV2);
+        if (!instanceCGroup) {
+            THROW_ERROR_EXCEPTION("CGroup not found for container %Qv", GetName())
+                << TErrorAttribute("cgroups", portoCGroups)
+                << TErrorAttribute("is_v2", isV2);
+        }
 
         std::vector<pid_t> pids;
         for (auto pid : ListPids()) {
-            THashMap<std::string, std::string> cgroups;
+            THashMap<std::string, std::string> processCGroups;
             try {
-                cgroups = GetProcessCGroups(pid);
+                processCGroups = GetProcessCGroups(pid);
             } catch (const std::exception& ex) {
                 YT_LOG_DEBUG(ex, "Failed to get CGroups for process (Pid: %v)", pid);
                 continue;
             }
 
-            // Pid cgroups are returned in short form.
-            auto processPidCgroup = cgroups["pids"];
-            if (!processPidCgroup.empty() && instanceCgroup.EndsWith(processPidCgroup)) {
+            // NB: Porto reports the instance cgroup as an absolute, daemon-side path,
+            // while processCGroup (from /proc/<pid>/cgroup) is relative to the reading
+            // process's cgroup namespace -- i.e. with a leading prefix stripped. Hence
+            // the suffix match: instanceCGroup ends with the namespace-relative process
+            // path of every process that belongs to the instance.
+            const auto& processCGroup = processCGroups[processCGroupKey];
+            if (!processCGroup.empty() && instanceCGroup.EndsWith(processCGroup)) {
                 pids.push_back(pid);
             }
         }

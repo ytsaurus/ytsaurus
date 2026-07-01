@@ -8,6 +8,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/core
     yt/yt/library/cgroup
 )
 

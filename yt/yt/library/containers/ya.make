@@ -17,7 +17,6 @@ SRCS(
 PEERDIR(
     library/cpp/porto/proto
 
-    yt/yt/library/cgroup
     yt/yt/library/pipe_io
     yt/yt/library/process
 
@@ -27,6 +26,7 @@ PEERDIR(
 IF(OS_LINUX)
     PEERDIR(
         library/cpp/porto
+        yt/yt/library/cgroup
     )
 ENDIF()
 

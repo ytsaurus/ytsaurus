@@ -8,7 +8,8 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/core
+    library/cpp/yt/logging
+    library/cpp/yt/error
 )
 
 END()

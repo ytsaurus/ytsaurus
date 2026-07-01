@@ -4,7 +4,6 @@ RECURSE(
     auth
     auth_server
     backtrace_introspector
-    cgroup
     clickhouse_discovery
     codegen
     codegen_api
@@ -55,6 +54,10 @@ RECURSE(
     xor_filter
     yaml_helpers
 )
+
+IF (OS_LINUX)
+    RECURSE(cgroup)
+ENDIF()
 
 IF (NOT OPENSOURCE)
     RECURSE(

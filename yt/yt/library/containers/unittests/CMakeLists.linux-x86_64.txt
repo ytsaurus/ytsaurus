@@ -59,6 +59,7 @@ target_sources(unittester-containers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/unittests/containers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/unittests/process_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/unittests/porto_resource_tracker_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/unittests/instance_ut.cpp
 )
 
 
