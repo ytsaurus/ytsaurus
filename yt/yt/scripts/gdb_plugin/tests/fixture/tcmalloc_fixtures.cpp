@@ -1,5 +1,7 @@
 #include "tcmalloc_fixtures.h"
 
+#include <util/generic/size_literals.h>
+
 #include <vector>
 
 namespace {
@@ -18,6 +20,6 @@ void SetupGdbTcmallocFixtures()
     // A large allocation: bigger than the largest tcmalloc size class, so it is
     // served as a single (size-class 0) span rather than carved into objects. The
     // tcmalloc page-map walk must snap an interior pointer to the span start.
-    RootedLargeAlloc.resize(4 << 20); // 4 MiB
+    RootedLargeAlloc.resize(4_MB);
     GdbLargeAllocAddress = RootedLargeAlloc.data();
 }
