@@ -18,6 +18,7 @@ public:
     using NYql::TNodeProgress::TNodeProgress;
 
     void Serialize(::NYson::TYsonWriter& yson) const;
+    bool HasStages() const;
 };
 
 //////////////////////////////////////////////////////////////////////////////

@@ -1,8 +1,15 @@
 #include "progress_merger.h"
 
+#include <library/cpp/yt/string/format.h>
+
 namespace NYT::NYqlPlugin {
 
 //////////////////////////////////////////////////////////////////////////////
+
+bool TNodeProgress::HasStages() const
+{
+    return !Stages_.empty();
+}
 
 void TNodeProgress::Serialize(::NYson::TYsonWriter& writer) const
 {
@@ -89,6 +96,14 @@ void TProgressMerger::MergeWith(const NYql::NProto::TTaskProgress& taskProgress)
         auto in = NodesMap_.emplace(node.GetId(), TNodeProgress(node));
         bool changed = in.second;
         if (!changed) {
+            if (in.first->second.HasStages()) {
+                YT_VERIFY(
+                    node.StagesSize() > 0,
+                    Format("Node %v has empty stages. Full TaskProgress dump:\n%v",
+                        node.GetId(),
+                        taskProgress.DebugString()));
+            }
+
             changed |= in.first->second.MergeWith(node);
         }
         HasChanges_ |= changed;
