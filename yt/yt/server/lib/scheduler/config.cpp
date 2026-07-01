@@ -375,6 +375,9 @@ void TTreeTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("delay_inside_pool_permissions_validation", &TThis::DelayInsidePoolPermissionsValidation)
         .Default();
 
+    registrar.Parameter("sync_delay_inside_process_allocation_updates", &TThis::SyncDelayInsideProcessAllocationUpdates)
+        .Default();
+
     registrar.Parameter("resource_tree_initialize_resource_usage_delay", &TThis::ResourceTreeInitializeResourceUsageDelay)
         .Default();
     registrar.Parameter("resource_tree_release_resource_random_delay", &TThis::ResourceTreeReleaseResourcesRandomDelay)

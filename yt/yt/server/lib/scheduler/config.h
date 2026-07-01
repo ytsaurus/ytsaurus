@@ -339,6 +339,8 @@ struct TTreeTestingOptions
 
     TDelayConfigPtr DelayInsidePoolPermissionsValidation;
 
+    std::optional<TDuration> SyncDelayInsideProcessAllocationUpdates;
+
     std::optional<TDuration> ResourceTreeInitializeResourceUsageDelay;
     std::optional<TDuration> ResourceTreeReleaseResourcesRandomDelay;
     std::optional<TDuration> ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay;

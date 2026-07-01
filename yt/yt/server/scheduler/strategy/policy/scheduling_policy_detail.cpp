@@ -2785,6 +2785,13 @@ std::vector<TProcessAllocationUpdateResult> TSchedulingPolicy::DoProcessAllocati
     // context are permitted inside the classic policy.
     TForbidContextSwitchGuard contextSwitchGuard;
 
+    // Testing-only sync sleep under the guard (a blocking sleep performs no context switch). It blocks
+    // the node-shard thread for the configured duration so a concurrent CA disconnect can enqueue
+    // StartOperationRevival on the node-shard invoker while the submit map is swapped out empty.
+    MaybeDelay(
+        treeSnapshot->TreeConfig()->TestingOptions->SyncDelayInsideProcessAllocationUpdates,
+        EDelayType::Sync);
+
     std::vector<TProcessAllocationUpdateResult> updateResults;
     updateResults.reserve(allocationUpdates.size());
     for (const auto& allocationUpdate : allocationUpdates) {
@@ -2827,30 +2834,27 @@ TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
             allocationUpdate.OperationId,
             allocationUpdate.AllocationId);
 
-        if (operationSharedState->OnAllocationFinished(element, allocationUpdate.AllocationId)) {
-            return TProcessAllocationUpdateResult{
-                .Status = EAllocationUpdateStatus::Updated,
-            };
-        }
-
+        auto status = operationSharedState->OnAllocationFinished(element, allocationUpdate.AllocationId);
         return TProcessAllocationUpdateResult{
-            .Status = EAllocationUpdateStatus::Disabled,
-            .NeedToPostpone = true,
+            .Status = status,
+            // Disabled -> postpone until the operation re-enables; Unexpected -> drop the stale update.
+            .NeedToPostpone = status == EAllocationUpdateStatus::Disabled,
         };
     }
 
     YT_VERIFY(allocationUpdate.AllocationResources || allocationUpdate.PreemptibleProgressStartTime);
 
-    if (!operationSharedState->ProcessAllocationUpdate(
-        element,
-        allocationUpdate.AllocationId,
-        allocationUpdate.AllocationResources,
-        /*resetPreemptibleProgress*/ allocationUpdate.PreemptibleProgressStartTime.has_value()))
+    if (auto status = operationSharedState->ProcessAllocationUpdate(
+            element,
+            allocationUpdate.AllocationId,
+            allocationUpdate.AllocationResources,
+            /*resetPreemptibleProgress*/ allocationUpdate.PreemptibleProgressStartTime.has_value());
+        status != EAllocationUpdateStatus::Updated)
     {
-        // Operation is disabled.
+        // Disabled -> postpone until the operation re-enables; Unexpected -> drop the stale update.
         return TProcessAllocationUpdateResult{
-            .Status = EAllocationUpdateStatus::Disabled,
-            .NeedToPostpone = true,
+            .Status = status,
+            .NeedToPostpone = status == EAllocationUpdateStatus::Disabled,
         };
     }
 
@@ -3187,7 +3191,7 @@ void TSchedulingPolicy::ProcessAllocationUpdateInTest(
         element,
         allocationId,
         allocationResources,
-        /*resetPreemptibleProgress*/ false));
+        /*resetPreemptibleProgress*/ false) == EAllocationUpdateStatus::Updated);
 }
 
 EAllocationPreemptionStatus TSchedulingPolicy::GetAllocationPreemptionStatusInTest(

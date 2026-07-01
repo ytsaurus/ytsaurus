@@ -4,6 +4,7 @@ from yt_env_setup import (
     Restarter,
     SCHEDULERS_SERVICE,
     NODES_SERVICE,
+    CONTROLLER_AGENTS_SERVICE,
 )
 
 from yt_commands import (
@@ -13,7 +14,7 @@ from yt_commands import (
     read_table, write_table,
     map, map_reduce, merge,
     vanilla, sort, run_test_vanilla,
-    run_sleeping_vanilla, abort_op,
+    run_sleeping_vanilla, abort_op, abort_job,
     get_operation, get_first_chunk_id, get_singular_chunk_id, update_op_parameters,
     update_pool_tree_config, update_user_to_default_pool_map,
     enable_op_detailed_logs, set_node_banned, set_all_nodes_banned,
@@ -5189,3 +5190,254 @@ class TestPreemptionPrecommitRace(YTEnvSetup):
 
         wait(lambda: get(scheduler_orchid_operation_path(op_starving.id) + "/resource_usage/cpu", default=None) == 2.0)
         wait(lambda: len(ls(f"//sys/cluster_nodes/{nodes[0]}/orchid/exec_node/job_controller/allocations")) == 1)
+
+
+##################################################################
+
+
+class TestRemoveAllocationAfterReviveRace(YTEnvSetup):
+    """Reproduces the orphaned-allocation-update-across-revival scheduler crash (the sibling of the
+    finish-path crash): an allocation update replayed after the operation was disabled (CA disconnect)
+    and then re-enabled with a fresh shared state that never knew the allocation. Here the orphaned
+    update is a running / preemptible-progress update, so the fault is in
+    TOperationSharedState::GetAllocationProperties (GetIteratorOrCrash), NOT the Finished-update /
+    RemoveAllocation path -- that crash is reproduced by TestRemoveAllocationAfterReviveRaceOnFinish
+    below, which biases the orphan toward a Finished update. The underlying orphan mechanism is
+    identical; only which update replays first differs.
+
+    Single classic tree, no GPU. These ops run sleeping vanilla jobs that never finish on their own, so
+    the postponed updates that pile up while an op is disabled are running / preemptible-progress
+    updates rather than finishes. TNodeShard::SubmitAllocationsToStrategy swaps the submit map out empty
+    for the whole ProcessAllocationUpdates call. Pre-fix the strategy awaited each per-tree future with
+    WaitFor: even for a classic tree, whose future is already set, WaitFor still reschedules the
+    node-shard fiber (WaitUntilSet has no set-future fast path), and that yield -- the only suspension
+    point in the swapped-out window -- re-enqueues the submit's resume behind any pending
+    StartOperationRevival on the same node-shard invoker. A sync delay inside the classic
+    ProcessAllocationUpdates (legal under its TForbidContextSwitchGuard) only thread-blocks, so it holds
+    the window open long enough for the disconnect to enqueue that revival. Revival walks the per-op
+    index and clears it without finding the swapped-out update; the submit then re-adds the postponed
+    update to the global map without restoring the per-op index, so the update is orphaned -- immune to
+    every later purge. On re-enable it replays into the fresh shared state and GetAllocationProperties
+    hits GetIteratorOrCrash. Pre-fix the scheduler crashes; the regression introduced by the swap-based
+    SubmitAllocationsToStrategy rewrite.
+
+    The fix closes the window from both ends: the strategy now awaits with WaitForFast, which takes the
+    set-future fast path and does not yield for an already-set classic future, so revival can no longer
+    interleave between the swap-out and the re-add; and SubmitAllocationsToStrategy drops any postponed
+    update its operation no longer tracks instead of resurrecting the orphan. The defensive layer in
+    TOperationSharedState (return Unexpected instead of crashing in GetAllocationProperties /
+    GetIteratorOrCrash) still backstops the orphan path for the multi-tree / GPU cases, where not every
+    per-tree future is already set and the awaiting fiber can still yield inside the window.
+
+    The race is not deterministic: revival must be enqueued during the sync-delay window. The restart
+    loop and per-restart allocation volume make it fire within a few iterations.
+    """
+
+    ENABLE_MULTIDAEMON = False  # Scheduler crash must not take down other components.
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            # Single shard: one node-shard invoker, so the submit and StartOperationRevival serialize
+            # on it and the swap window is the only place revival can interleave.
+            "node_shard_count": 1,
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+            "running_allocations_update_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                # Heartbeat-driven submits: every node heartbeat sweeps the submit map.
+                "scheduler_connector": {
+                    "heartbeat_executor": {
+                        "period": 200,
+                    },
+                },
+                "controller_agent_connector": {
+                    "heartbeat_executor": {
+                        "period": 100,
+                    },
+                },
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestRemoveAllocationAfterReviveRace, self).setup_method(method)
+
+        # Disable the periodic submit executor: heartbeat-driven submits only, so a postponed update
+        # sits in the submit map (while the op is disabled) until a heartbeat batch sweeps it.
+        update_scheduler_config("node_shard_submit_allocations_to_strategy_period", 600000000)
+
+        # SYNC sleep inside the classic ProcessAllocationUpdates (under the TForbidContextSwitchGuard):
+        # blocks the node-shard thread so the concurrent CA disconnect can enqueue StartOperationRevival
+        # while the submit map is swapped out empty.
+        update_pool_tree_config_option(
+            "default",
+            "testing_options",
+            {"sync_delay_inside_process_allocation_updates": 300})
+
+    @authors("yaishenka")
+    def test_remove_allocation_after_revive_race(self):
+        ops = []
+        for _ in range(5):
+            op = run_sleeping_vanilla(job_count=self.NUM_NODES)
+            ops.append(op)
+        for op in ops:
+            wait(lambda: len(op.get_running_jobs()) == self.NUM_NODES)
+
+        # Each restart disconnects every controller agent (the ops' allocations keep generating
+        # running / preemptible-progress updates that get postponed while the ops are disabled) and
+        # then reconnects (revive -> re-enable). If the scheduler crashes, the wait below errors out
+        # and the test fails -- that is the regression being reproduced. 15 restarts give the race
+        # ample chances while keeping a non-crashing (fixed) run within the pytest timeout.
+        for _ in range(15):
+            with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+                pass
+
+            for op in ops:
+                wait(lambda: len(op.get_running_jobs()) == self.NUM_NODES)
+
+        # The scheduler survived every revive cycle. Wait for the last revival to settle (an operation
+        # can still be transiently "revive_initializing" right after the final restart).
+        for op in ops:
+            wait(lambda op=op: get_operation(op.id, attributes=["state"])["state"] == "running")
+
+
+##################################################################
+
+
+class TestRemoveAllocationAfterReviveRaceOnFinish(YTEnvSetup):
+    """Same orphan-across-revival mechanism as TestRemoveAllocationAfterReviveRace, but aimed at the
+    *finish* branch (the production crash this task targets): TOperationSharedState::RemoveAllocation ->
+    GetIteratorOrCrash (operation_shared_state.cpp), reached from the Finished branch of
+    TSchedulingPolicy::ProcessAllocationUpdate.
+
+    The sibling class reliably crashes via the *running/preemptible-progress* update branch
+    (GetAllocationProperties) because those updates vastly outnumber finishes and one of them wins the
+    replay race. Here we suppress them so a Finished update is the one left orphaned and replayed:
+      * running_allocations_update_period huge -> no periodic resource-usage updates;
+      * running_allocation_time_statistics_updates_send_period huge -> no preemptible-progress resets.
+    With those gone, the only allocation updates that survive an operation's disabled window are
+    finishes (from allocations the CA disconnect leaves dangling and the scheduler later aborts). When
+    such a finish is orphaned across revival (per-op index cleared in the swap window) and replays into
+    the re-enabled fresh shared state, it hits RemoveAllocation instead of GetAllocationProperties.
+
+    Like the sibling, the race is not deterministic.
+    """
+
+    ENABLE_MULTIDAEMON = False  # Scheduler crash must not take down other components.
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "node_shard_count": 1,
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+            # Suppress periodic resource-usage updates: keep finishes the dominant submit-map entry.
+            "running_allocations_update_period": 600000000,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            # Suppress preemptible-progress resets (the GetAllocationProperties-branch updates).
+            # NB: use the alias the test env already sets, else the aliased values conflict at load.
+            "running_job_time_statistics_updates_send_period": 600000000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "scheduler_connector": {
+                    "heartbeat_executor": {
+                        "period": 200,
+                    },
+                },
+                "controller_agent_connector": {
+                    "heartbeat_executor": {
+                        "period": 100,
+                    },
+                },
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestRemoveAllocationAfterReviveRaceOnFinish, self).setup_method(method)
+
+        update_scheduler_config("node_shard_submit_allocations_to_strategy_period", 600000000)
+
+        update_pool_tree_config_option(
+            "default",
+            "testing_options",
+            {"sync_delay_inside_process_allocation_updates": 300})
+
+    @authors("yaishenka")
+    def test_remove_allocation_after_revive_race_on_finish(self):
+        ops = []
+        for _ in range(5):
+            op = run_sleeping_vanilla(job_count=self.NUM_NODES)
+            ops.append(op)
+        for op in ops:
+            wait(lambda: len(op.get_running_jobs()) == self.NUM_NODES)
+
+        # Let the operations run stably so the one-shot per-allocation resource update fired at
+        # registration is consumed while enabled -- after this the submit map quiesces.
+        time.sleep(3)
+
+        # 15 restarts give the race ample chances while keeping a non-crashing (fixed) run within the
+        # pytest timeout.
+        for _ in range(15):
+            # Abort a running job in every operation just before the disconnect: each abort finishes
+            # its allocation and queues a *Finished* update. The CA restart then disables the ops, so
+            # those finishes are postponed; if one is swapped out when StartOperationRevival runs it is
+            # orphaned and replays into the re-enabled fresh shared state -> RemoveAllocation.
+            for op in ops:
+                jobs = list(op.get_running_jobs().keys())
+                if jobs:
+                    try:
+                        abort_job(jobs[0])
+                    except Exception:
+                        pass
+
+            with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+                pass
+
+            for op in ops:
+                wait(lambda: len(op.get_running_jobs()) >= 1)
+
+        # The scheduler survived every revive cycle. Wait for the last revival to settle (an operation
+        # can still be transiently "revive_initializing" right after the final restart).
+        for op in ops:
+            wait(lambda op=op: get_operation(op.id, attributes=["state"])["state"] == "running")
