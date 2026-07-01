@@ -1,4 +1,5 @@
 from yt_chaos_test_base import ChaosTestBase, MAX_KEY
+from .test_sorted_dynamic_tables import TestWriteRetries as WriteRetriesBase
 
 from yt_dynamic_tables_base import map_in_parallel
 
@@ -7072,3 +7073,66 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
         values2 = [{"key": 2, "value": "2"}]
         insert_rows(new_path, values2)
         wait(lambda: lookup_rows(new_path, [{"key": 2}]) == values2)
+
+
+##################################################################
+
+
+@pytest.mark.enable_multidaemon
+class TestChaosWriteRetries(WriteRetriesBase, ChaosTestBase):
+    NUM_CHAOS_NODES = 2
+    NUM_REMOTE_CLUSTERS = 1
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
+
+    def _prepare_test(self, path, failure_probability, retry_count):
+        self._configure_retries(failure_probability, retry_count)
+
+        replica_path = f"{path}_replica"
+
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ])
+
+        create("chaos_replicated_table", path, attributes={"chaos_cell_bundle": "c", "schema": schema})
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": replica_path},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": replica_path},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path=path)
+        self._create_replica_tables(replicas, replica_ids, schema=schema, mount_tables=False)
+
+        pivot_keys = [[]] + [[i * 10] for i in range(1, 4)]
+        for driver in self._get_drivers():
+            tablet_cell_ids = sync_create_cells(len(pivot_keys), driver=driver)
+            for table in [replica_path, "//tmp/q"]:
+                reshard_table(table, pivot_keys, driver=driver)
+                sync_mount_table(table, target_cell_ids=tablet_cell_ids, driver=driver)
+
+        card_id = get(f"{path}/@replication_card_id")
+        self._sync_replication_era(card_id, replicas)
+
+        return tablet_cell_ids, replica_path
+
+    def _get_data_driver(self):
+        _, replica_driver = self._get_drivers()
+        return replica_driver
+
+    def _verify_rows(self, path, rows):
+        replica_path = f"{path}_replica"
+        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(4)]) == rows
+        assert lookup_rows(replica_path, [{"key": 10 * i + 1} for i in range(4)], replica_consistency="sync") == rows
+        assert lookup_rows(replica_path, [{"key": 10 * i + 1} for i in range(4)], replica_consistency="sync", driver=self._get_data_driver()) == rows
