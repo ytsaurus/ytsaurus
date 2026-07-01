@@ -319,9 +319,8 @@ TFuture<void> TFetcherBase::Fetch()
             // TODO(pogorelov): Implement TFuture<void>::AsUnique and use it here.
             .Apply(BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
                 .AsyncVia(Invoker_)));
-    auto future = Promise_.ToFuture();
+    auto future = Promise_.ToFuture().ToImmediatelyCancelable();
     if (CancelableContext_) {
-        future = future.ToImmediatelyCancelable();
         CancelableContext_->PropagateTo(future);
     }
     Promise_.OnCanceled(BIND(&TFetcherBase::OnCanceled, MakeWeak(this)));
