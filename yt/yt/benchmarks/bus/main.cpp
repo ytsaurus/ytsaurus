@@ -112,7 +112,8 @@ public:
     void HandleMessage(
         TSharedRefArray message,
         IBusPtr replyBus,
-        IDirectPlacementTransferPtr /*transfer*/) noexcept override
+        IDirectPlacementTransferPtr /*transfer*/,
+        TPacketId /*packetId*/) noexcept override
     {
         YT_UNUSED_FUTURE(replyBus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full})
             .ToUncancelable());
@@ -137,7 +138,8 @@ public:
     void HandleMessage(
         TSharedRefArray /*message*/,
         IBusPtr /*replyBus*/,
-        IDirectPlacementTransferPtr /*transfer*/) noexcept override
+        IDirectPlacementTransferPtr /*transfer*/,
+        TPacketId /*packetId*/) noexcept override
     {
         ReplyPromise_.Set();
     }
@@ -184,7 +186,8 @@ struct TCountingHandler
     void HandleMessage(
         TSharedRefArray message,
         IBusPtr /*replyBus*/,
-        IDirectPlacementTransferPtr /*transfer*/) noexcept override
+        IDirectPlacementTransferPtr /*transfer*/,
+        TPacketId /*packetId*/) noexcept override
     {
         Bytes.fetch_add(message.ByteSize(), std::memory_order::relaxed);
         Messages.fetch_add(1, std::memory_order::relaxed);
