@@ -1441,6 +1441,39 @@
             "uri": "https://{canondata_backend}/1942100/830ee71976e3a65557e4ab430314cf6478b6ae50/resource.tar.gz#test.test_lineage-window_session-default.txt-Results_/Output.yqlrun.txt.attr"
         }
     ],
+    "test.test[lineage-window_session_pushdown-default.txt-Debug]": [
+        {
+            "checksum": "77cab025577fec080bff26acc7e24621",
+            "size": 3302,
+            "uri": "https://{canondata_backend}/1937492/39fe61b8bb5b521df02a0817ab014d99d6110dc9/resource.tar.gz#test.test_lineage-window_session_pushdown-default.txt-Debug_/opt.yql"
+        }
+    ],
+    "test.test[lineage-window_session_pushdown-default.txt-Lineage]": [
+        {
+            "checksum": "b7544e23e3bd19231b4b1692a61ed286",
+            "size": 1257,
+            "uri": "https://{canondata_backend}/1937492/39fe61b8bb5b521df02a0817ab014d99d6110dc9/resource.tar.gz#test.test_lineage-window_session_pushdown-default.txt-Lineage_/results.txt"
+        }
+    ],
+    "test.test[lineage-window_session_pushdown-default.txt-Plan]": [
+        {
+            "checksum": "189823df852f75e73cfb9477d80b463c",
+            "size": 5708,
+            "uri": "https://{canondata_backend}/1937492/39fe61b8bb5b521df02a0817ab014d99d6110dc9/resource.tar.gz#test.test_lineage-window_session_pushdown-default.txt-Plan_/plan.txt"
+        }
+    ],
+    "test.test[lineage-window_session_pushdown-default.txt-Results]": [
+        {
+            "checksum": "ed8c973d4e78fa58812b66f36d592b55",
+            "size": 92,
+            "uri": "https://{canondata_backend}/1937492/39fe61b8bb5b521df02a0817ab014d99d6110dc9/resource.tar.gz#test.test_lineage-window_session_pushdown-default.txt-Results_/Output.txt"
+        },
+        {
+            "checksum": "a07234cc7f882090985e9e73d4e483ea",
+            "size": 778,
+            "uri": "https://{canondata_backend}/1937492/39fe61b8bb5b521df02a0817ab014d99d6110dc9/resource.tar.gz#test.test_lineage-window_session_pushdown-default.txt-Results_/Output.yqlrun.txt.attr"
+        }
+    ],
     "test.test[optimizers-fuse_map_mapreduce_multi_input--Debug]": [
         {
             "checksum": "b21f07dd6fed5128f9aaba84a52840fb",
