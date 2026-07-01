@@ -174,6 +174,10 @@ public:
         , Profiler_(HydraProfiler().WithTag("cell_id", ToString(cellId)).WithSparse())
         , Logger(HydraLogger().WithTag("CellId: %v", cellId))
         , LeaderSyncTimer_(Profiler_.Timer("/leader_sync_time"))
+        , SerializeMutationsExecutor_(New<NConcurrency::TPeriodicExecutor>(
+            ControlInvoker_,
+            BIND(&TDistributedHydraManager::SerializeMutations, MakeWeak(this)),
+            Config_->Get()->MutationSerializationPeriod))
         , DecoratedAutomaton_(New<TDecoratedAutomaton>(
             Config_,
             Options_,
@@ -222,6 +226,8 @@ public:
         YT_LOG_INFO("Hydra instance initialized");
 
         ControlState_ = EPeerState::Elections;
+
+        SerializeMutationsExecutor_->Start();
 
         Participate();
     }
@@ -739,7 +745,9 @@ private:
     NProfiling::TEventTimer LeaderSyncTimer_;
 
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
-    const TMutationDraftQueuePtr MutationDraftQueue_ = New<TMutationDraftQueue>();
+    const NConcurrency::TPeriodicExecutorPtr SerializeMutationsExecutor_;
+
+    TMutationDraftQueue MutationDraftQueue_;
 
     int SnapshotId_ = InvalidSegmentId;
     TFuture<TRemoteSnapshotParams> SnapshotFuture_;
@@ -1534,24 +1542,40 @@ private:
             request.Data.Size(),
             request.EpochId);
 
-        MutationDraftQueue_->Enqueue({
+        MutationDraftQueue_.Enqueue({
             .Request = request,
             .Promise = std::move(promise),
             .RandomSeed = randomSeed,
         });
 
         if (Config_->Get()->MinimizeCommitLatency) {
-            if (auto epochContext = AtomicEpochContext_.Acquire()) {
-                epochContext->EpochControlInvoker->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
-                    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-                    if (ControlState_ == EPeerState::Leading) {
-                        epochContext->LeaderCommitter->SerializeMutations();
-                    }
-                }));
-            }
+            SerializeMutationsExecutor_->ScheduleOutOfBand();
         }
 
         return future;
+    }
+
+    void SerializeMutations()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        const auto& epochContext = ControlEpochContext_;
+        if (epochContext && epochContext->LeaderCommitter && epochContext->LeaderCommitter->IsActive()) {
+            epochContext->LeaderCommitter->SerializeMutations(&MutationDraftQueue_);
+        } else {
+            DrainMutationDraftQueue();
+        }
+    }
+
+    void DrainMutationDraftQueue()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer is not an active leader");
+        TMutationDraft draft;
+        while (MutationDraftQueue_.TryDequeue(&draft)) {
+            draft.Promise.TrySet(error);
+        }
     }
 
     // TODO(aleksandra-zh): epochId seems redundant.
@@ -2094,6 +2118,8 @@ private:
 
         StateHashChecker_->ReconfigureLimit(newConfig->MaxStateHashCheckerEntryCount);
 
+        SerializeMutationsExecutor_->SetPeriod(newConfig->MutationSerializationPeriod);
+
         if (!ControlEpochContext_) {
             return;
         }
@@ -2251,7 +2277,6 @@ private:
                 Options_,
                 DecoratedAutomaton_,
                 LeaderLease_,
-                MutationDraftQueue_,
                 newChangelog,
                 epochContext->ReachableState,
                 epochContext.Get(),
