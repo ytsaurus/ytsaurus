@@ -109,11 +109,11 @@ namespace NPyBind {
     PyObject* BuildPyObject(const TSet<T>& val) {
         TPyObjectPtr res(PySet_New(nullptr), true);
         for (const auto& v : val) {
-            auto pythonVal = BuildPyObject(std::move(v));
+            TPyObjectPtr pythonVal(BuildPyObject(std::move(v)), true);
             if (!pythonVal) {
                 return nullptr;
             }
-            PySet_Add(res.Get(), pythonVal);
+            PySet_Add(res.Get(), pythonVal.Get());
         }
         return res.RefGet();
     }
@@ -122,11 +122,11 @@ namespace NPyBind {
     PyObject* BuildPyObject(const THashSet<T>& val) {
         TPyObjectPtr res(PySet_New(nullptr), true);
         for (const auto& v : val) {
-            auto pythonVal = BuildPyObject(std::move(v));
+            TPyObjectPtr pythonVal(BuildPyObject(std::move(v)), true);
             if (!pythonVal) {
                 return nullptr;
             }
-            PySet_Add(res.Get(), pythonVal);
+            PySet_Add(res.Get(), pythonVal.Get());
         }
         return res.RefGet();
     }
