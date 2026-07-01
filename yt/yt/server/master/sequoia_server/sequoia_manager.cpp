@@ -187,7 +187,9 @@ private:
 
         if (!resultOrError.IsOK()) {
             if (IsRetriableError(resultOrError)) {
-                THROW_ERROR_EXCEPTION("Failed to issue leases for prerequisite transactions")
+                THROW_ERROR_EXCEPTION(
+                    NSequoiaClient::EErrorCode::SequoiaRetriableError,
+                    "Failed to issue leases for prerequisite transactions")
                     << TErrorAttribute("prerequisite_transaction_ids", prerequisiteTransactionIds)
                     << resultOrError;
             } else {

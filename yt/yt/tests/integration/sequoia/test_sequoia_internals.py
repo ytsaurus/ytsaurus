@@ -17,6 +17,8 @@ from yt_sequoia_helpers import (
     mangle_sequoia_path, demangle_sequoia_path, insert_rows_to_ground,
 )
 
+from yt_driver_bindings import Driver
+
 import yt_error_codes
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -1271,6 +1273,7 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
                 assert records == []
 
     @authors("shakurov")
+    @pytest.mark.skip(reason="Enable after Cypress proxy stop retrying SequoiaTransactionService.StartTransaction")
     def test_prerequisite_transactions_when_tx_coordinator_is_down(self):
         ptx = start_transaction(timeout=180000)
 
@@ -1279,11 +1282,17 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
 
         set("//tmp/scion/d/@foo", "foo", prerequisite_transaction_ids=[ptx])
 
+        no_retry_driver_config = deepcopy(self.Env.configs["driver"])
+        no_retry_driver_config["cypress_proxy"]["retry_backoff"]["invocation_count"] = 1
+        no_retry_driver_config["api_version"] = 4
+        no_retry_driver = Driver(no_retry_driver_config)
+
         with Restarter(self.Env, MASTERS_SERVICE, cell_indexes=[2]):
             with raises_yt_error("Failed to issue leases for prerequisite transactions") as err:
                 set("//tmp/scion/d/@bar", "bar", prerequisite_transaction_ids=[ptx],
                     suppress_transaction_coordinator_sync=True,
-                    suppress_strongly_ordered_transaction_barrier=True)
+                    suppress_strongly_ordered_transaction_barrier=True,
+                    driver=no_retry_driver)
         assert len(err) == 1
         assert not err[0].contains_code(yt_error_codes.PrerequisiteCheckFailed)
 
