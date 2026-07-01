@@ -87,6 +87,8 @@ struct TEpochContext
     IInvokerPtr EpochUserAutomatonInvoker;
     IInvokerPtr EpochControlInvoker;
     TRecoveryPtr Recovery;
+    // Completion future of the RecoverLeader/RecoverFollower fiber launched on EpochControlInvoker.
+    TFuture<void> RecoveryFuture;
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
     TLeaseTrackerPtr LeaseTracker;
