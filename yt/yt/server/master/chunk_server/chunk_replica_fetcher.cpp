@@ -132,7 +132,6 @@ public:
     {
         VerifyPersistentStateRead();
 
-        // COMPAT(grphil)
         auto includeNonOnlineReplicas = GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->AlwaysFetchNonOnlineReplicas;
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
@@ -155,7 +154,8 @@ public:
                 continue;
             }
 
-            if (!includeNonOnlineReplicas && node->GetLocalState() != ENodeState::Online) {
+            if (!includeNonOnlineReplicas && !location->IsRegisteredOrOnline())
+            {
                 YT_LOG_TRACE("Found Sequoia chunk replica on non-online node, ignoring replica (ChunkId: %v, NodeAddress: %v, NodeState: %v)",
                     chunkId,
                     node->GetDefaultAddress(),

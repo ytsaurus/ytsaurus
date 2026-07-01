@@ -524,7 +524,6 @@ class TestChunkServer(YTEnvSetup):
 
     @authors("grphil")
     def test_fetch_only_online_replicas(self):
-        set("//sys/@config/chunk_manager/refresh_node_on_online", True)
         set("//sys/@config/chunk_manager/always_fetch_non_online_replicas", False)
 
         create("table", "//tmp/t")

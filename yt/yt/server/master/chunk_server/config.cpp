@@ -1004,10 +1004,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
                 jobThrottler->second->Limit = 10'000;
             }
         }
-
-        if (!config->AlwaysFetchNonOnlineReplicas && !config->RefreshNodeOnOnline) {
-            THROW_ERROR_EXCEPTION("Can not disable always_fetch_non_online_replicas without online node refresh");
-        }
     });
 }
 
