@@ -138,8 +138,6 @@ public:
     //! active committer (otherwise it drops them).
     bool IsActive() const;
 
-    //! Consumes a batch from the draft queue and logs it. The queue is owned by the
-    //! manager and passed in per call; driven by the manager's SerializeMutations.
     void SerializeMutations(TMutationDraftQueue* mutationDraftQueue);
 
     void BuildMonitoring(NYTree::TFluentMap fluent);
