@@ -897,7 +897,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31062.
+// Next field 31063.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -1012,6 +1012,12 @@ extend google.protobuf.FieldOptions
     repeated string add_tags = 31027;
     // Parent message tags to remove from the field.
     repeated string remove_tags = 31028;
+    // Tags to eliminate from all descendant fields recursively.
+    // Unlike |remove_tags|, which is applied before |add_tags| (and thus can be re-added
+    // by it) and only affects the field itself, these tags are eliminated from every nested
+    // field in the subtree after |add_tags|, overriding any tags they add back via
+    // |message_tags| or |add_tags|. The field itself keeps the tags.
+    repeated string eliminate_tags_from_descendants = 31062;
 
     optional EUpdatePolicy update_policy = 31032;
     optional bool not_updatable = 31004;
