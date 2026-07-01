@@ -227,7 +227,9 @@ TAccount::TAccount(TAccountId id, bool isRoot)
     , ShardIndex_(GetAccountShardIndex(id))
     , ProfilingBucketIndex_(GetAccountProfilingBucketIndex(id))
     , ChunkMergerNodeTraversals_(id)
-{ }
+{
+    MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
+}
 
 std::string TAccount::GetLowercaseObjectName() const
 {
