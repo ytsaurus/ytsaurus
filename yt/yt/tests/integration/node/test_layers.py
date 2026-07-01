@@ -2590,8 +2590,6 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
                 },
                 "slot_manager": {
                     "volume_manager": {
-                        "abort_on_operation_with_volume_failed": True,
-                        "abort_on_operation_with_layer_failed": True,
                         "throw_on_prepare_volume": True,
                     },
                 }
