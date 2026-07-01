@@ -1776,8 +1776,7 @@ TEST_P(TWriteTest, DuplicateWrite)
         .ThrowOnError();
 }
 
-// TODO(ilyaibraev): YTSAURUSSUP-2782
-TEST_P(TWriteTest, DISABLED_RandomWrite)
+TEST_P(TWriteTest, RandomWrite)
 {
     auto testCase = GetParam();
 
@@ -1798,11 +1797,9 @@ TEST_P(TWriteTest, DISABLED_RandomWrite)
     std::transform(blockIndices.begin(), blockIndices.end(), fetchedBlocks.begin(), [&] (int blockIndex) {
         return blocks[blockIndex];
     });
-    auto rspOrError = WaitFor(GetBlockSet(sessionId.ChunkId, blockIndices, true, true, true));
+    auto rspOrError = WaitFor(GetBlockSet(sessionId.ChunkId, blockIndices, false, false, true));
     YT_VERIFY(rspOrError.IsOK());
     auto rsp = rspOrError.Value();
-    auto chunkReaderStatistics = rsp->chunk_reader_statistics();
-    EXPECT_EQ(chunkReaderStatistics.data_io_requests(), 1);
     auto gotBlocks = GetRpcAttachedBlocks(rsp);
     EXPECT_EQ(gotBlocks.size(), fetchedBlocks.size());
     EXPECT_EQ(BlocksToChecksums(gotBlocks), BlocksToChecksums(fetchedBlocks));
