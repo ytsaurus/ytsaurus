@@ -487,6 +487,7 @@ TQueueAgent::TQueueAgent(
     TQueueAgentConfigPtr config,
     NApi::NNative::IConnectionPtr nativeConnection,
     TClientDirectoryPtr clientDirectory,
+    std::string queueAgentUser,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState,
     ICypressElectionManagerPtr electionManager,
@@ -509,6 +510,9 @@ TQueueAgent::TQueueAgent(
     , AgentId_(std::move(agentId))
     , QueueAgentChannelFactory_(nativeConnection->GetChannelFactory())
     , QueueExportManager_(CreateQueueExportManager(
+        nativeConnection,
+        std::move(queueAgentUser),
+        Config_->QueueExportManager,
         DynamicConfig_->QueueExportManager))
 {
     for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
