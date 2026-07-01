@@ -293,6 +293,7 @@ message TQuery
     repeated TColumnDescriptor schema_mapping = 6;
 
     repeated TJoinClause join_clauses = 7;
+    repeated THierarchicalJoinClause hierarchical_joins_in_where_clause = 19;
     repeated THierarchicalJoinClause hierarchical_joins_before_group_by = 17;
     repeated THierarchicalJoinClause hierarchical_joins_after_group_by = 18;
     optional TExpression where_clause = 8;

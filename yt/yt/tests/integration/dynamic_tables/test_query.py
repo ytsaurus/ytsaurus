@@ -2977,6 +2977,56 @@ class TestQuery(DynamicTablesBase):
         )
         assert expected == actual
 
+    @authors("dtorilov")
+    def test_hierarchical_join_in_where_clause(self):
+        sync_create_cells(1)
+
+        right_table_rows = [
+            {"x": 10, "c": 100},
+            {"x": 20, "c": 200},
+            {"x": 30, "c": 300},
+        ]
+
+        left_table_rows = [
+            {"pk": 1, "fks": [10, 20]},
+            {"pk": 2, "fks": [99]},
+            {"pk": 3, "fks": [30]},
+            {"pk": 4, "fks": []},
+        ]
+
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "fks", "type_v3": {"type_name": "list", "item": "int64"}},
+            ],
+            left_table_rows,
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "x", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"},
+            ],
+            right_table_rows,
+        )
+
+        actual = select_rows(
+            """
+            l.pk as pk
+            from `//tmp/l` as l
+            where yson_length(
+                (select r.c
+                    from (l.fks as fk)
+                    join `//tmp/r` as r on fk = r.x
+                )
+            ) > 0
+            """,
+            expression_builder_version=2,
+            syntax_version=2,
+        )
+        assert actual == [{"pk": 1}, {"pk": 3}]
+
 
 class TestQueryRpcProxy(TestQuery):
     ENABLE_MULTIDAEMON = True
