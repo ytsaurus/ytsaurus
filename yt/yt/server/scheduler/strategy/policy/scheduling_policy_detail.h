@@ -207,31 +207,21 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSchedulingStageProfilingCounters
+    : public TCommonSchedulingProfilingCounters
 {
-    TSchedulingStageProfilingCounters() = default;
     explicit TSchedulingStageProfilingCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter PrescheduleAllocationCount;
     NProfiling::TCounter UselessPrescheduleAllocationCount;
     NProfiling::TEventTimer PrescheduleAllocationTime;
-    NProfiling::TEventTimer TotalControllerScheduleAllocationTime;
-    NProfiling::TEventTimer ControllerScheduleAllocationTime;
-    NProfiling::TEventTimer ExecControllerScheduleAllocationTime;
     NProfiling::TEventTimer StrategyScheduleAllocationTime;
     NProfiling::TEventTimer PackingRecordHeartbeatTime;
     NProfiling::TEventTimer PackingCheckTime;
     NProfiling::TEventTimer AnalyzeAllocationsTime;
     NProfiling::TTimeCounter CumulativePrescheduleAllocationTime;
-    NProfiling::TTimeCounter CumulativeTotalControllerScheduleAllocationTime;
-    NProfiling::TTimeCounter CumulativeExecControllerScheduleAllocationTime;
     NProfiling::TTimeCounter CumulativeStrategyScheduleAllocationTime;
     NProfiling::TTimeCounter CumulativeAnalyzeAllocationsTime;
-    NProfiling::TCounter ScheduleAllocationAttemptCount;
-    NProfiling::TCounter ScheduleAllocationFailureCount;
-    NProfiling::TCounter ControllerScheduleAllocationCount;
-    NProfiling::TCounter ControllerScheduleAllocationTimedOutCount;
 
-    TEnumIndexedArray<NControllerAgent::EScheduleFailReason, NProfiling::TCounter> ControllerScheduleAllocationFail;
     TEnumIndexedArray<EDeactivationReason, NProfiling::TCounter> DeactivationCount;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> SchedulingIndexCounters;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> MaxSchedulingIndexCounters;
@@ -381,22 +371,17 @@ private:
 
         bool PrescheduleExecuted = false;
 
-        std::vector<TDuration> ScheduleAllocationDurations;
+        TScheduleAllocationAttemptStatistics AttemptStatistics;
 
         TDuration TotalDuration;
         TDuration PrescheduleDuration;
-        TDuration TotalScheduleAllocationDuration;
-        TDuration ExecScheduleAllocationDuration;
         TDuration PackingRecordHeartbeatDuration;
         TDuration PackingCheckDuration;
         TDuration AnalyzeAllocationsDuration;
-        TEnumIndexedArray<NControllerAgent::EScheduleFailReason, int> FailedScheduleAllocation;
 
         int ActiveOperationCount = 0;
         int ActiveTreeSize = 0;
         int TotalHeapElementCount = 0;
-        int ScheduleAllocationAttemptCount = 0;
-        int ScheduleAllocationFailureCount = 0;
         TEnumIndexedArray<EDeactivationReason, int> DeactivationReasons;
         THashMap<int, int> SchedulingIndexToScheduleAllocationAttemptCount;
         int MaxSchedulingIndex = UndefinedSchedulingIndex;

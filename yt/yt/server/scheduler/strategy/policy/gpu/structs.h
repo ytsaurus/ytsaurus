@@ -236,6 +236,9 @@ struct TGpuScheduleAllocationsStatistics
 {
     int ScheduledAllocationCount = 0;
     int PreemptedAllocationCount = 0;
+
+    // NB(severovv): not serialized or logged, only used in metrics
+    TScheduleAllocationAttemptStatistics AttemptStatistics;
 };
 using TGpuScheduleAllocationsStatisticsPtr = TIntrusivePtr<TGpuScheduleAllocationsStatistics>;
 

@@ -24,7 +24,7 @@ from yt_scheduler_helpers import (
     scheduler_orchid_operation_path
 )
 
-from yt_helpers import read_structured_log, write_log_barrier
+from yt_helpers import read_structured_log, write_log_barrier, profiler_factory
 
 from yt.test_helpers import are_almost_equal
 
@@ -1792,8 +1792,8 @@ class AllocatingGpuSchedulingPolicyMultiModuleBaseConfig(YTEnvSetup):
         for node in ls("//sys/cluster_nodes"):
             set("//sys/cluster_nodes/{}/@user_tags".format(node), ["gpu"])
 
-        module_count = self.NUM_NODES // 2
-        self._setup_data_centers([module_count, module_count])
+        module_count = self.NUM_NODES // len(self.DATA_CENTERS)
+        self._setup_data_centers([module_count] * len(self.DATA_CENTERS))
 
         wait(lambda: get(scheduler_new_orchid_pool_tree_path("gpu") + "/node_count") == self.NUM_NODES)
 
@@ -2057,6 +2057,66 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
         update_pool_tree_config_option("gpu", "gpu_scheduling_policy/module_reconsideration_timeout", 5000)
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/grouped_needed_resources", default=None) == {})
         wait_for_assignments_in_gpu_policy_orchid(op, 2)
+
+##################################################################
+
+
+class TestAllocatingGpuSchedulingPolicyMetrics(AllocatingGpuSchedulingPolicyMultiModuleBaseConfig):
+    NUM_NODES = 1
+    DATA_CENTERS = ["SAS"]
+    RACKS = ["SAS1"]
+
+    @authors("severovv")
+    def test_scheduling_metrics(self):
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "gpu", "scheduling_stage": "gpu"})
+        prefix = "scheduler/"
+
+        controller_schedule_count = profiler.counter(prefix + "controller_schedule_job_count")
+        attempt_count = profiler.counter(prefix + "schedule_job_attempt_count")
+        failure_count = profiler.counter(prefix + "schedule_job_failure_count")
+        no_pending_jobs_fail_count = profiler.counter(prefix + "controller_schedule_job_fail", tags={"reason": "no_pending_jobs"})
+
+        scheduled_allocation_count = profiler.counter(prefix + "scheduled_allocation_count")
+        preempted_allocation_count = profiler.counter(prefix + "preempted_allocation_count")
+
+        controller_schedule_time = profiler.summary(prefix + "controller_schedule_job_time")
+        total_controller_schedule_time = profiler.summary(prefix + "controller_schedule_job_time/total")
+        exec_controller_schedule_time = profiler.summary(prefix + "controller_schedule_job_time/exec")
+
+        cumulative_total_controller_time = profiler.counter(prefix + "cumulative_controller_schedule_job_time/total")
+        cumulative_exec_controller_time = profiler.counter(prefix + "cumulative_controller_schedule_job_time/exec")
+
+        module_profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "gpu", "module": "SAS"})
+        module_prefix = prefix + "gpu_policy/module/"
+        module_total_nodes = module_profiler.gauge(module_prefix + "total_nodes_count")
+        module_unreserved_nodes = module_profiler.gauge(module_prefix + "unreserved_nodes_count")
+        module_full_host_bound_operations = module_profiler.gauge(module_prefix + "full_host_module_bound_operations_count")
+
+        _ = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=1,
+        )
+
+        wait(lambda: controller_schedule_count.get_delta() >= 1)
+        wait(lambda: scheduled_allocation_count.get_delta() >= 1)
+
+        wait(lambda: attempt_count.get() >= 1)
+        wait(lambda: controller_schedule_count.get() >= 1)
+        wait(lambda: failure_count.get(default=None) is not None)
+        wait(lambda: no_pending_jobs_fail_count.get(default=None) is not None)
+        wait(lambda: preempted_allocation_count.get(default=None) is not None)
+
+        wait(lambda: controller_schedule_time.get_max(default=None) is not None)
+        wait(lambda: total_controller_schedule_time.get_max(default=None) is not None)
+        wait(lambda: exec_controller_schedule_time.get_max(default=None) is not None)
+
+        wait(lambda: cumulative_total_controller_time.get() > 0)
+        wait(lambda: cumulative_exec_controller_time.get() > 0)
+
+        # The single full-host operation reserves one of the module's nodes.
+        wait(lambda: module_total_nodes.get() == self.NUM_NODES)
+        wait(lambda: module_unreserved_nodes.get() == 0)
+        wait(lambda: module_full_host_bound_operations.get() == 1)
 
 
 ##################################################################
