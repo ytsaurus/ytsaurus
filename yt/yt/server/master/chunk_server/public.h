@@ -250,7 +250,7 @@ DEFINE_ENUM(EChunkListKind,
 DEFINE_ENUM(EChunkLocationState,
     // Belongs to a node that is not online.
     ((Offline)   (0))
-    // Belongs to a node that is online and reports presence of this location.
+    // Belongs to a node that has alive local state and reports presence of this location.
     ((Online)    (1))
     // Belongs to a node that is online but does not report presence of this location.
     ((Dangling)  (2))

@@ -1048,8 +1048,8 @@ TStoredChunkReplicaList TChunk::GetStoredReplicaList(bool includeNonOnlineReplic
                 return false;
             }
             auto locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
-            auto node = locationReplica->AsChunkLocationPtr()->GetNode();
-            return node->GetLocalState() != NNodeTrackerClient::ENodeState::Online;
+            const auto* location = locationReplica->AsChunkLocationPtr();
+            return !location->IsRegisteredOrOnline();
         });
         replicas.erase(endIt, replicas.end());
     }
