@@ -131,7 +131,6 @@ IQueueExporterPtr CreateQueueExporter(
     NQueueClient::TTablePath queue,
     NQueueClient::TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,
-    NHiveClient::TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
     IQueueExportManagerPtr queueExportManager,
     NAlertManager::IAlertCollectorPtr alertCollector,

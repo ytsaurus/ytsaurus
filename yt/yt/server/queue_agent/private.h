@@ -59,6 +59,7 @@ YT_DEFINE_ERROR_ENUM(
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TQueueAgent)
+DECLARE_REFCOUNTED_STRUCT(TQueueExportManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueControllerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueExportManagerDynamicConfig)

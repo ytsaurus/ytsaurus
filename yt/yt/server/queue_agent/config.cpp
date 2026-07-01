@@ -46,10 +46,20 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueueExportManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("user", &TThis::User)
+        .Optional(/*init*/ false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueueAgentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("stage", &TThis::Stage)
         .NonEmpty();
+    registrar.Parameter("queue_export_manager", &TThis::QueueExportManager)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
