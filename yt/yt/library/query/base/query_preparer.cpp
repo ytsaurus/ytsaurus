@@ -1097,9 +1097,9 @@ void RewriteCardinalityIntoHyperLogLogWithPrecision(
 
     if (auto* subquery = std::get_if<NAst::TQueryAstHeadPtr>(&ast->FromClause); subquery) {
         RewriteCardinalityIntoHyperLogLogWithPrecision(
-            &subquery->Get()->Ast,
-            &subquery->Get()->AliasMap,
-            subquery->Get(),
+            &(*subquery)->Ast,
+            &(*subquery)->AliasMap,
+            holder,
             hyperLogLogPrecision);
     }
 

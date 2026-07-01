@@ -36,22 +36,6 @@ double TDoubleOrDotIntToken::AsDouble() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryAstHead::~TQueryAstHead()
-{
-    auto current = std::move(Ast.FromClause);
-    Ast.FromClause = TTableDescriptor();
-    while (auto* nextPtr = std::get_if<TQueryAstHeadPtr>(&current)) {
-        if (!*nextPtr) {
-            break;
-        }
-        auto next = std::move(*nextPtr);
-        current = std::move(next->Ast.FromClause);
-        next->Ast.FromClause = TTableDescriptor();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 size_t TColumnReferenceHasher::operator()(const TColumnReference& reference) const
 {
     size_t result = 0;

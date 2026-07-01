@@ -144,7 +144,7 @@ void TransformWithIndexStatement(
         THROW_ERROR_EXCEPTION_IF(query->WithIndex,
             "WITH INDEX clause is not supported with subqueries at the moment");
 
-        TransformWithIndexStatement(&fromSubquery->Get()->Ast, cache, holder);
+        TransformWithIndexStatement(&(*fromSubquery)->Ast, cache, holder);
         return;
     }
 
