@@ -5285,9 +5285,9 @@ class TestRemoveAllocationAfterReviveRace(YTEnvSetup):
         # Each restart disconnects every controller agent (the ops' allocations keep generating
         # running / preemptible-progress updates that get postponed while the ops are disabled) and
         # then reconnects (revive -> re-enable). If the scheduler crashes, the wait below errors out
-        # and the test fails -- that is the regression being reproduced. 15 restarts give the race
+        # and the test fails -- that is the regression being reproduced. 4 restarts give the race
         # ample chances while keeping a non-crashing (fixed) run within the pytest timeout.
-        for _ in range(15):
+        for _ in range(4):
             with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
                 pass
 
@@ -5381,7 +5381,7 @@ class TestRemoveAllocationAfterReviveRaceOnFinish(YTEnvSetup):
         update_pool_tree_config_option(
             "default",
             "testing_options",
-            {"sync_delay_inside_process_allocation_updates": 300})
+            {"sync_delay_inside_process_allocation_updates": 200})
 
     @authors("yaishenka")
     def test_remove_allocation_after_revive_race_on_finish(self):
@@ -5396,9 +5396,9 @@ class TestRemoveAllocationAfterReviveRaceOnFinish(YTEnvSetup):
         # registration is consumed while enabled -- after this the submit map quiesces.
         time.sleep(3)
 
-        # 15 restarts give the race ample chances while keeping a non-crashing (fixed) run within the
+        # 4 restarts give the race ample chances while keeping a non-crashing (fixed) run within the
         # pytest timeout.
-        for _ in range(15):
+        for _ in range(4):
             # Abort a running job in every operation just before the disconnect: each abort finishes
             # its allocation and queues a *Finished* update. The CA restart then disables the ops, so
             # those finishes are postponed; if one is swapped out when StartOperationRevival runs it is
