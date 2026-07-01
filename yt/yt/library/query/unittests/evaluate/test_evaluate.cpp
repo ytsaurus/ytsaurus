@@ -630,14 +630,23 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
             sourceIndex++;
         }
 
-        // If not found among regular joins, search hierarchical joins.
-        if (!found) {
-            for (const auto& hierarchicalJoin : primaryQuery->HierarchicalJoinsBeforeGroupBy) {
-                if (hierarchicalJoin->ForeignObjectId == fragment.DataSource.ObjectId) {
-                    found = true;
-                    break;
+        {
+            auto findHierarchicalJoin = [&] (const std::vector<TConstHierarchicalJoinClausePtr>& joins) {
+                for (const auto& hierarchicalJoin : joins) {
+                    if (hierarchicalJoin->ForeignObjectId == fragment.DataSource.ObjectId) {
+                        return true;
+                    }
+                    sourceIndex++;
                 }
-                sourceIndex++;
+                return false;
+            };
+
+            if (!found) {
+                found = findHierarchicalJoin(primaryQuery->HierarchicalJoinsInWhereClause);
+            }
+
+            if (!found) {
+                found = findHierarchicalJoin(primaryQuery->HierarchicalJoinsBeforeGroupBy);
             }
         }
 

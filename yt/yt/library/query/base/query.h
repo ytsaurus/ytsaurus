@@ -536,6 +536,7 @@ struct TQuery
 
     // Bottom
     std::vector<TConstJoinClausePtr> JoinClauses;
+    std::vector<TConstHierarchicalJoinClausePtr> HierarchicalJoinsInWhereClause;
     std::vector<TConstHierarchicalJoinClausePtr> HierarchicalJoinsBeforeGroupBy;
     std::vector<TConstHierarchicalJoinClausePtr> HierarchicalJoinsAfterGroupBy;
     TConstExpressionPtr WhereClause;

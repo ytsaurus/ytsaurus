@@ -47,6 +47,7 @@ std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const 
     bottomQuery->IsFinal = false;
     bottomQuery->WhereClause = query->WhereClause;
     bottomQuery->IsReverseScan = false;
+    bottomQuery->HierarchicalJoinsInWhereClause = query->HierarchicalJoinsInWhereClause;
     bottomQuery->HierarchicalJoinsBeforeGroupBy = query->HierarchicalJoinsBeforeGroupBy;
 
     auto frontQuery = New<TFrontQuery>();

@@ -24,10 +24,6 @@ struct TSubqueryDiscoveryResult
 void ThrowOnUnimplementedSubqueryType(const TSubqueryDiscoveryResult& subqueries)
 {
     THROW_ERROR_EXCEPTION_IF(
-        !subqueries.InWhereClause.empty(),
-        "Subquery with JOIN in WHERE clause is not supported");
-
-    THROW_ERROR_EXCEPTION_IF(
         !subqueries.InHavingClause.empty(),
         "Subquery with JOIN in HAVING clause is not supported");
 
@@ -333,6 +329,15 @@ TQueryPtr InsertHierarchicalJoins(
         }
 
         query->ProjectClause = newProjectClause;
+    }
+
+    for (const auto& subquery : subqueriesToRewrite.InWhereClause) {
+        auto columnName = Format("hierarchical_join_result_%v", hierarchicalJoinIndex++);
+        auto hierarchicalJoin = BuildHierarchicalJoinFromSubquery(subquery, columnName, Logger);
+
+        query->HierarchicalJoinsInWhereClause.push_back(hierarchicalJoin);
+
+        query->WhereClause = ReplaceSubqueryWithReference(query->WhereClause, subquery, columnName);
     }
 
     return query;
