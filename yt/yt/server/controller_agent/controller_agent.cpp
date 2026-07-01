@@ -1955,8 +1955,7 @@ private:
                 auto scheduleAllocationInvoker = controller->GetCancelableInvoker(Config_->ScheduleAllocationControllerQueue);
                 auto requestDequeueInstant = TInstant::Now();
 
-                GuardedInvoke(
-                    scheduleAllocationInvoker,
+                scheduleAllocationInvoker->Invoke(MakeGuardedCallback(
                     BIND([=, rsp = rsp, this, this_ = MakeStrong(this)] {
                         TTraceContextFinishGuard guard(TryGetCurrentTraceContext());
 
@@ -2043,7 +2042,7 @@ private:
                             operationId,
                             allocationId,
                             EScheduleFailReason::UnknownOperation);
-                    }));
+                    })));
             });
     }
 

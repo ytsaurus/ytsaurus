@@ -565,7 +565,7 @@ private:
 
             void Invoke(const IYPathServiceContextPtr& context) override
             {
-                GuardedInvoke(Invoker_,
+                Invoker_->Invoke(MakeGuardedCallback(
                     BIND([=, this, this_ = MakeStrong(this)] {
                         try {
                             if (!Map_->CheckChunkFilter(EphemeralChunk_)) {
@@ -585,7 +585,7 @@ private:
                     }),
                     BIND([=] {
                         THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Hydra peer is not active");
-                    }));
+                    })));
             }
 
             TResolveResult Resolve(
