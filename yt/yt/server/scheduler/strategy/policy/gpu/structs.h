@@ -135,10 +135,6 @@ public:
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Gang);
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Starving);
 
-    // Priority module binding may evict some current operations from a module if necessary.
-    // TODO(eshcherbin): (!) Set this property.
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(PriorityModuleBindingEnabled);
-
     //! These properties can be changed during assignment plan update.
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::string>, SchedulingModule);
 
@@ -150,6 +146,10 @@ public:
     // Used only for full-host module-bound operations.
     DEFINE_BYREF_RW_PROPERTY(std::optional<TInstant>, WaitingForModuleBindingSince);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TInstant>, WaitingForAssignmentsSince);
+
+    //! Diagnostic-only: whether priority module binding is enabled for this operation
+    //! (derived from pool configuration). Stamped during assignment plan update.
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(PriorityModuleBindingEnabled);
 
     // Full-host module-bound operation is either fully preemptible or none of its assignments are preemptible.
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Preemptible);
