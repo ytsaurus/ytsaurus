@@ -26,12 +26,12 @@ int main(int /*argc*/, char* argv[])
             NRpc::NBus::CreateTcpBusChannelFactory(New<NBus::NTcp::TBusConfig>())->CreateChannel(addr),
             cellId);
 
-
         auto proxy = TChaosNodeServiceProxy(channel);
         auto req = proxy.RemoveCellMailbox();
         ToProto(req->mutable_destination_cell_id(), dstId);
 
-        WaitFor(req->Invoke()).ValueOrThrow();
+        WaitFor(req->Invoke())
+            .ValueOrThrow();
     } catch (std::exception& e) {
         Cerr << ToString(TError(e)) << Endl;
     }
