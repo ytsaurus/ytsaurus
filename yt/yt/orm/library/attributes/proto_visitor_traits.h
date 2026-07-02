@@ -80,7 +80,7 @@ struct TProtoVisitorTraits
     // For each message, loads all entries into a vector and sorts them by key. If all maps are
     // consistent (have the same keys), returns the map entries organized by the string
     // representation of the key.
-    using TMapReturn = THashMap<TString, TMessageReturn>;
+    using TMapReturn = THashMap<TProtoStringType, TMessageReturn>;
     static TErrorOr<TMapReturn> GetMessagesFromWholeMapField(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor);

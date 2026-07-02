@@ -201,7 +201,7 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
         }
     }
 
-    using TMapReturn = THashMap<TString, TMessageReturn>;
+    using TMapReturn = THashMap<TProtoStringType, TMessageReturn>;
     static TErrorOr<TMapReturn> GetMessagesFromWholeMapField(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor)
@@ -397,7 +397,7 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
             NAttributes::EErrorCode::InvalidData);
     }
 
-    using TMapReturn = THashMap<TString, TMessageReturn>;
+    using TMapReturn = THashMap<TProtoStringType, TMessageReturn>;
     static TErrorOr<TMapReturn> GetMessagesFromWholeMapField(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor)
@@ -636,7 +636,7 @@ struct TProtoVisitorTraitsForVector
         return result;
     }
 
-    using TMapReturn = THashMap<TString, TMessageReturn>;
+    using TMapReturn = THashMap<TProtoStringType, TMessageReturn>;
     static TErrorOr<TMapReturn> GetMessagesFromWholeMapField(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor)

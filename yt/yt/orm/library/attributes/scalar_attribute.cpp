@@ -174,7 +174,7 @@ protected:
         auto errorOrItem = LookupUnknownYsonFieldsItem(unknownFields, name, unknownFieldNumber);
 
         TYsonString value;
-        TString* item = nullptr;
+        TProtoStringType* item = nullptr;
         if (errorOrItem.IsOK()) {
             int index;
             std::tie(index, value) = std::move(errorOrItem).Value();
@@ -223,8 +223,7 @@ protected:
 
         SkipSlash();
 
-        // TODO(babenko): migrate to std::string
-        TString key(GetLiteralValue());
+        std::string key(GetLiteralValue());
         AdvanceOver(key);
 
         auto [index, error] = FindAttributeDictionaryEntry(message, fieldDescriptor, key);
@@ -349,7 +348,7 @@ protected:
         }
     }
 
-    std::vector<std::pair<TString, INodePtr>> SortedMapChildren() const
+    std::vector<std::pair<std::string, INodePtr>> SortedMapChildren() const
     {
         auto children = CurrentValue_->AsMap()->GetChildren();
         std::ranges::sort(children, std::less{}, &std::pair<std::string, INodePtr>::first);
