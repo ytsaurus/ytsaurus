@@ -1,7 +1,9 @@
+#pragma once
+
 #ifndef SERIALIZER_INL_H_
-#error "Direct inclusion of this file is not allowed, include serializer.h"
-// For the sake of sane code completion.
-#include "serializer.h"
+    #error "Direct inclusion of this file is not allowed, include serializer.h"
+    // For the sake of sane code completion.
+    #include "serializer.h"
 #endif
 
 #include <yt/yt/core/ytree/convert.h>

@@ -39,9 +39,9 @@ DEFINE_REFCOUNTED_TYPE(TStateSchema);
 struct TFormat
     : public virtual NYTree::TYsonStruct
 {
-    NCompression::ECodec Compression;
-    NCompression::ECodec PatchCompression;
-    NDeltaCodecs::ECodec Delta;
+    NCompression::ECodec Compression{};
+    NCompression::ECodec PatchCompression{};
+    NDeltaCodecs::ECodec Delta{};
 
     REGISTER_YSON_STRUCT(TFormat);
 
@@ -102,6 +102,7 @@ public:
     TStateMutation FlushMutation();
     std::optional<NTableClient::TUnversionedOwningRow> GetTableRow() const;
     NTableClient::TTableSchemaPtr GetTableSchema() const;
+
 private:
     const TStateSchemaPtr Schema_;
     std::optional<std::vector<NTableClient::TUnversionedOwningValue>> TableRow_;

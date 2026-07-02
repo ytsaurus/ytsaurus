@@ -2,9 +2,9 @@
 
 #include <yt/yt/flow/lib/serializer/unittests/proto/test.pb.h>
 
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -13,7 +13,6 @@
 #include <google/protobuf/util/message_differencer.h>
 
 namespace NYT::NFlow::NYsonSerializer {
-
 namespace {
 
 using namespace NYT::NTableClient;
@@ -26,7 +25,7 @@ using google::protobuf::util::MessageDifferencer;
 struct TTestSubStruct
     : public virtual TYsonStruct
 {
-    ui32 Uint;
+    ui32 Uint{};
 
     REGISTER_YSON_STRUCT(TTestSubStruct);
 
@@ -42,7 +41,7 @@ using TTestSubStructPtr = TIntrusivePtr<TTestSubStruct>;
 struct TTestSubStructLite
     : public virtual TYsonStructLite
 {
-    i32 Int;
+    i32 Int{};
 
     REGISTER_YSON_STRUCT_LITE(TTestSubStructLite);
 
@@ -66,13 +65,13 @@ struct TTestSchemaYsonStruct
     std::unordered_map<std::string, int> IntMap;
     std::optional<std::unordered_map<std::string, int>> OptionalIntMap;
     std::optional<i64> NullableInt;
-    unsigned int Uint;
-    bool Bool;
-    char Char;
-    i8 Byte;
-    ui8 Ubyte;
-    i16 Short;
-    ui16 Ushort;
+    unsigned int Uint{};
+    bool Bool{};
+    char Char{};
+    i8 Byte{};
+    ui8 Ubyte{};
+    i16 Short{};
+    ui16 Ushort{};
     TProtoSerializedAsString<NProto::TTestMessage> Proto;
     NProto::TTestMessage YsonProto;
     std::tuple<double, std::string> Tuple;
@@ -152,7 +151,7 @@ TEST(TYsonSerializeTest, YsonTableSchema)
             TColumnSchema("ushort", ESimpleLogicalValueType::Uint16),
             TColumnSchema("yson", ESimpleLogicalValueType::Any),
             TColumnSchema("yson_proto", ESimpleLogicalValueType::Any),
-    });
+        });
     EXPECT_EQ(*schema, *expectedSchema);
 }
 
@@ -177,7 +176,7 @@ using TTestSerializeYsonSubPtr = TIntrusivePtr<TTestSerializeYsonSub>;
 struct TTestSerializeYson
     : public virtual TYsonStruct
 {
-    ui64 Uint64;
+    ui64 Uint64{};
     std::optional<double> OptionalDoubleEmpty;
     std::optional<double> OptionalDouble;
     TTestSerializeYsonSubPtr Sub;
@@ -300,9 +299,7 @@ TEST(TYsonSerializeTest, PartialSerialize)
             TColumnSchema("unknown", EValueType::Uint64),
             TColumnSchema("value", EValueType::String),
             TColumnSchema("another_unknown", EValueType::String),
-            TColumnSchema("undefined", EValueType::Double)
-        }
-    );
+            TColumnSchema("undefined", EValueType::Double)});
     auto row = Serialize(ysonStruct, schema);
     ASSERT_EQ(row.GetCount(), 5);
     EXPECT_EQ(row[0].Id, 0);
@@ -366,8 +363,7 @@ TEST(TYsonSerializeTest, ProtoSerialize)
         std::vector{
             TColumnSchema("string_proto", EValueType::String),
             TColumnSchema("yson_proto", EValueType::Any),
-        }
-    );
+        });
     EXPECT_EQ(*schema, *expectedSchema);
     const auto row = Serialize(ysonStruct, schema);
     NProto::TTestMessage parsedProto;
@@ -376,8 +372,10 @@ TEST(TYsonSerializeTest, ProtoSerialize)
     const auto parsedNode = ConvertToNode(FromUnversionedValue<TYsonString>(row[1]));
     const auto expectedNode = BuildYsonNodeFluently()
         .BeginMap()
-            .Item("Int32").Value(234)
-            .Item("String").Value("abcdef")
+        .Item("Int32")
+        .Value(234)
+        .Item("String")
+        .Value("abcdef")
         .EndMap();
     EXPECT_TRUE(AreNodesEqual(parsedNode, expectedNode));
     auto otherStruct = Deserialize<TTestYsonStructWithProto>(row, schema);

@@ -43,9 +43,12 @@ IAttributeDictionaryPtr GetInputMessagesTableAttributes()
         "mount_config",
         BuildYsonStringFluently(NYson::EYsonFormat::Binary)
             .BeginMap()
-                .Item("min_data_versions").Value(0)
-                .Item("min_data_ttl").Value(0)
-                .Item("row_merger_type").Value(NTabletClient::ERowMergerType::Watermark)
+            .Item("min_data_versions")
+            .Value(0)
+            .Item("min_data_ttl")
+            .Value(0)
+            .Item("row_merger_type")
+            .Value(NTabletClient::ERowMergerType::Watermark)
             .EndMap());
 
     return attributes;
@@ -65,9 +68,12 @@ IAttributeDictionaryPtr GetCompactInputMessagesTableAttributes()
         "mount_config",
         BuildYsonStringFluently(NYson::EYsonFormat::Binary)
             .BeginMap()
-                .Item("min_data_versions").Value(0)
-                .Item("min_data_ttl").Value(0)
-                .Item("row_merger_type").Value(NTabletClient::ERowMergerType::Watermark)
+            .Item("min_data_versions")
+            .Value(0)
+            .Item("min_data_ttl")
+            .Value(0)
+            .Item("row_merger_type")
+            .Value(NTabletClient::ERowMergerType::Watermark)
             .EndMap());
 
     return attributes;
@@ -182,9 +188,12 @@ IAttributeDictionaryPtr GetControllerLogsTableAttributes()
         "mount_config",
         BuildYsonStringFluently(NYson::EYsonFormat::Binary)
             .BeginMap()
-                .Item("min_data_versions").Value(0)
-                .Item("min_data_ttl").Value(0)
-                .Item("max_data_ttl").Value(86400000)  // 1d
+            .Item("min_data_versions")
+            .Value(0)
+            .Item("min_data_ttl")
+            .Value(0)
+            .Item("max_data_ttl")
+            .Value(86400000) // 1d
             .EndMap());
 
     return attributes;
@@ -336,7 +345,7 @@ TNodeId CreatePipelineNode(
             createOptions.IgnoreExisting = options.IgnoreExisting;
             createTableFutures.push_back(
                 transaction->CreateNode(getTablePath(tableName), EObjectType::Table, createOptions)
-                .AsVoid());
+                    .AsVoid());
         }
 
         WaitFor(AllSucceeded(std::move(createTableFutures)))
@@ -350,7 +359,7 @@ TNodeId CreatePipelineNode(
         std::vector<TFuture<void>> mountTableFutures;
         for (const auto& [tableName, _] : GetTables()) {
             mountTableFutures.push_back(client->MountTable(getTablePath(tableName))
-                .AsVoid());
+                    .AsVoid());
         }
         WaitFor(AllSucceeded(std::move(mountTableFutures)))
             .ThrowOnError();

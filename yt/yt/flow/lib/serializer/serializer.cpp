@@ -233,7 +233,7 @@ public:
         for (const auto& value : Values_) {
             values.push_back(value);
         }
-        return TRange(std::move(values));
+        return TRange(values);
     }
 
 private:
