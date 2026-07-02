@@ -247,6 +247,14 @@ class TestYsonFunctions(ClickHouseTestBase):
             assert result == [{"i": object["a"]}]
             result = clique.make_query("select YPathExtract(a, '/b', 'String') as i from \"//tmp/s1\"")
             assert result == [{"i": ""}]
+            # A numeric node extracted as String must be written in text form ("42"),
+            # not as binary YSON (which would yield bytes like "\x02T").
+            result = clique.make_query(
+                "select YPathExtract('{key1={key2=42}}', '/key1/key2', 'String') as i")
+            assert result == [{"i": "42"}]
+            result = clique.make_query(
+                "select YPathExtract('{key1={key2=42}}', '/key1/key2', 'Int64') as i")
+            assert result == [{"i": 42}]
 
     # CHYT-370.
     @authors("max42")
