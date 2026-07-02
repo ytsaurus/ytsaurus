@@ -70,6 +70,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/expiration_verifier.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
@@ -572,19 +574,18 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TabletManager_->Finalize();
-        TabletManager_.Reset();
+        VerifyEventualExpiration(std::exchange(TabletManager_, nullptr), Logger);
 
-        HunkTabletManager_.Reset();
-
-        TransactionManager_.Reset();
-        DistributedThrottlerManager_.Reset();
-        TabletCellWriteManager_.Reset();
-        SmoothMovementTracker_.Reset();
+        VerifyEventualExpiration(std::exchange(HunkTabletManager_, nullptr), Logger);
+        VerifyEventualExpiration(std::exchange(TransactionManager_, nullptr), Logger);
+        VerifyEventualExpiration(std::exchange(DistributedThrottlerManager_, nullptr), Logger);
+        VerifyEventualExpiration(std::exchange(TabletCellWriteManager_, nullptr), Logger);
+        VerifyEventualExpiration(std::exchange(SmoothMovementTracker_, nullptr), Logger);
 
         if (TabletService_) {
             const auto& rpcServer = Bootstrap_->GetRpcServer();
             rpcServer->UnregisterService(TabletService_);
-            TabletService_.Reset();
+            VerifyEventualExpiration(std::exchange(TabletService_, nullptr), Logger);
         }
     }
 
