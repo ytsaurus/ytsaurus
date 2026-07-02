@@ -1297,8 +1297,19 @@ private:
         middleQuery->HavingClause = frontQuery->HavingClause;
         middleQuery->Schema = frontQuery->Schema;
         middleQuery->OrderClause = frontQuery->OrderClause;
-        middleQuery->Limit = frontQuery->Limit;
-        middleQuery->Offset = frontQuery->Offset;
+        middleQuery->Offset = 0;
+        if (frontQuery->Limit == UnorderedReadHint ||
+            frontQuery->Limit == OrderedReadWithPrefetchHint)
+        {
+            middleQuery->Limit = frontQuery->Limit;
+        } else {
+            THROW_ERROR_EXCEPTION_IF(
+                frontQuery->Offset > std::numeric_limits<i64>::max() - frontQuery->Limit,
+                "Sum of offset %v and limit %v overflows i64",
+                frontQuery->Offset,
+                frontQuery->Limit);
+            middleQuery->Limit = frontQuery->Offset + frontQuery->Limit;
+        }
         middleQuery->IsFinal = false;
         middleQuery->HasExclusiveGroupKeyView = true;
         // Why does this field even exist for front query. This code makes no gosh darn sense.

@@ -3757,6 +3757,34 @@ class TestQueryRpcProxy(TestQuery):
             with raises_yt_error("Division by zero"):
                 select_rows("sum(0) as s from [//tmp/t] group by key % 5 as gk having (1 / s) = 0")
 
+    @authors("shamteev")
+    def test_parallel_group_by_offset(self):
+        sync_create_cells(3)
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ])
+        row_count = 1000
+        reshard_table("//tmp/t", [[]] + [[i] for i in range(100, row_count, 100)])
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": i} for i in range(row_count)])
+
+        queries = [
+            "gk, sum(value) as s FROM [//tmp/t] "
+            "GROUP BY key % 1000 AS gk ORDER BY gk DESC OFFSET {} LIMIT {}".format(offset, limit)
+            for offset, limit in ((1, 1), (5, 1), (37, 1), (100, 1), (500, 1), (37, 10), (100, 50))
+        ]
+
+        def run_queries():
+            return [select_rows(query, expression_builder_version=2) for query in queries]
+
+        baselines = run_queries()
+        with self.RpcProxyDynamicConfig("/query_engine_config/enable_parallelize_unordered_group_by", True):
+            sidelines = run_queries()
+            for baseline, sideline, query in zip(baselines, sidelines, queries):
+                assert baseline == sideline, "OFFSET/LIMIT differs in parallel GROUP BY: " + query
+
 
 class TestSelectWithRowCache(TestLookupCache):
     ENABLE_MULTIDAEMON = True
