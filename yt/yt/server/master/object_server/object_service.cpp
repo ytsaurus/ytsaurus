@@ -862,7 +862,7 @@ private:
             if (ypathExt->has_read_complexity_limits()) {
                 FromProto(&subrequest.ReadRequestComplexityOverrides, ypathExt->read_complexity_limits());
             }
-            if (TraceContext_ && TraceContext_->IsRecorded()) {
+            if (TraceContext_) {
                 subrequest.TraceContext = TraceContext_->CreateChild(
                     Format("YPath%v.%v.%v",
                         ypathExt->mutating() ? "Write"_sb : "Read"_sb,
