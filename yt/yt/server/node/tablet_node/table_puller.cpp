@@ -198,15 +198,16 @@ public:
             });
         ReplicationExecutor_->Start();
 
-        YT_LOG_INFO("Puller fiber started");
+        YT_LOG_INFO("Table puller enabled");
     }
 
     void Disable() override
     {
         if (auto executor = std::exchange(ReplicationExecutor_, nullptr)) {
             YT_UNUSED_FUTURE(executor->Stop());
-            YT_LOG_INFO("Puller fiber stopped");
         }
+
+        YT_LOG_INFO("Table puller disabled");
     }
 
     void BuildOrchidYson(NYTree::TFluentMap fluent) override
