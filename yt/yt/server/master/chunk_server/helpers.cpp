@@ -297,7 +297,8 @@ bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent)
 
 void AttachToChunkList(
     TChunkList* chunkList,
-    TRange<TChunkTreeRawPtr> children)
+    TRange<TChunkTreeRawPtr> children,
+    bool updateChunkListStatistics)
 {
     // A shortcut.
     if (children.empty()) {
@@ -373,7 +374,7 @@ void AttachToChunkList(
             AppendChunkTreeChild(chunkList, child, /*statisticsDelta*/ nullptr);
             SetChunkTreeParent(chunkList, child);
 
-            AccumulateHunkStatisticsInUniqueAncestors(chunkList, child);
+            AccumulateHunkStatisticsInUniqueAncestors(chunkList, child, updateChunkListStatistics);
         }
 
         chunkList->IncrementVersion();
@@ -801,7 +802,8 @@ void AccumulateUniqueAncestorsStatistics(
 
 void AccumulateHunkStatisticsInUniqueAncestors(
     TChunkList* parent,
-    TChunkTree* child)
+    TChunkTree* child,
+    bool updateChunkListStatistics)
 {
     YT_VERIFY(parent);
     YT_VERIFY(child);
@@ -813,7 +815,17 @@ void AccumulateHunkStatisticsInUniqueAncestors(
         case EObjectType::ErasureJournalChunk: {
             YT_VERIFY(IsHunkRelatedChunkList(parent) && !IsHunkRootChunkList(parent));
 
-            parent->AccumulateHunkStatistics(child->AsChunk());
+            if (!updateChunkListStatistics) {
+                YT_LOG_ALERT("Appending hunk statistics to a tablet hunk chunk list "
+                    "shall also update its chunk list statistics"
+                    "(TabletChunkListId: %v, ChunkId: %v)",
+                    parent->GetId(),
+                    child->GetId());
+            }
+
+            if (updateChunkListStatistics) {
+                parent->AccumulateHunkStatistics(child->AsChunk());
+            }
 
             auto* grandparent = GetUniqueParent(parent);
             if (!grandparent) {
@@ -823,8 +835,11 @@ void AccumulateHunkStatisticsInUniqueAncestors(
             YT_VERIFY(IsHunkRootChunkList(grandparent));
             YT_VERIFY(grandparent->Parents().empty());
 
+            if (updateChunkListStatistics) {
+                grandparent->AccumulateHunkStatistics(child->AsChunk());
+            }
+
             // NB: Direct parent's cumulative statistics are updated via AppendChunkTreeChild.
-            grandparent->AccumulateHunkStatistics(child->AsChunk());
             if (grandparent->HasCumulativeStatistics()) {
                 grandparent->CumulativeStatistics().Update(
                     GetChildIndex(grandparent, parent),
@@ -841,9 +856,17 @@ void AccumulateHunkStatisticsInUniqueAncestors(
             auto* childChunkList = child->AsChunkList();
             YT_VERIFY(IsHunkRelatedChunkList(childChunkList) && !IsHunkRootChunkList(childChunkList));
 
-            for (auto childChunk : childChunkList->Children()) {
-                YT_VERIFY(IsPhysicalChunkType(childChunk->GetType()));
-                parent->AccumulateHunkStatistics(childChunk->AsChunk());
+            if (!childChunkList->Children().empty() && updateChunkListStatistics) {
+                YT_LOG_ALERT("Appending hunk statistics to a root hunk chunk list can be costly and shall not "
+                    "be performed in a per-chunk way (RootChunkListId: %v, ChildChunkListId: %v, ChildrenCount: %v)",
+                    parent->GetId(),
+                    childChunkList->GetId(),
+                    childChunkList->Children().size());
+
+                for (auto childChunk : childChunkList->Children()) {
+                    YT_VERIFY(IsPhysicalChunkType(childChunk->GetType()));
+                    parent->AccumulateHunkStatistics(childChunk->AsChunk());
+                }
             }
 
             break;
@@ -852,6 +875,72 @@ void AccumulateHunkStatisticsInUniqueAncestors(
         default:
             YT_ABORT();
     }
+}
+
+bool IsHunkChunkUniquelyPresentInChunkList(
+    TChunkList* chunkList,
+    TChunkTree* chunkTree)
+{
+    if (chunkTree->GetType() != EObjectType::Chunk &&
+        chunkTree->GetType() != EObjectType::ErasureChunk &&
+        chunkTree->GetType() != EObjectType::JournalChunk &&
+        chunkTree->GetType() != EObjectType::ErasureJournalChunk)
+    {
+        YT_LOG_ALERT("Chunk of unexpected kind is encountered in IsHunkChunkUniquelyPresentInChunkList "
+            "(ChunkListId: %v, ChunkListKind: %v, ChunkTreeId: %v, ChunkTreeType: %v)",
+            chunkList->GetId(),
+            chunkList->GetKind(),
+            chunkTree->GetId(),
+            chunkTree->GetType());
+        return false;
+    }
+
+    auto* chunk = chunkTree->AsChunk();
+
+    if (!IsHunkRelatedChunkList(chunkList)) {
+        YT_LOG_ALERT("Chunk list of unexpected kind is encountered in IsHunkChunkUniquelyPresentInChunkList "
+            "(ChunkListId: %v, ChunkListKind: %v, ChunkId: %v)",
+            chunkList->GetId(),
+            chunkList->GetKind(),
+            chunk->GetId());
+        return false;
+    }
+
+    if (!IsHunkRootChunkList(chunkList)) {
+        return true;
+    }
+
+    int occurrenceCount = 0;
+    for (auto [parent, cardinality] : chunk->Parents()) {
+        YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
+
+        YT_LOG_ALERT_IF(cardinality != 1, "Parent chunk list of unexpected cardinality is encountered "
+            "in IsHunkChunkUniquelyPresentInChunkList (ChunkListId: %v, ChunkListKind: %v, ChunkId: %v)",
+            chunkList->GetId(),
+            chunkList->GetKind(),
+            chunk->GetId());
+
+        for (auto grandparent : parent->AsChunkList()->Parents()) {
+            YT_VERIFY(grandparent->GetType() == EObjectType::ChunkList);
+            YT_VERIFY(IsHunkRootChunkList(grandparent));
+            YT_VERIFY(grandparent->Parents().empty());
+
+            if (grandparent->AsChunkList() == chunkList) {
+                if (++occurrenceCount > 1) {
+                    return false;
+                }
+            }
+        }
+    }
+
+    YT_LOG_ALERT_IF(occurrenceCount != 1, "Hunk chunk with zero references from a supposed parent is encountered "
+        "in IsHunkChunkUniquelyPresentInChunkList (ChunkListId: %v, ChunkListKind: %v, ChunkId: %v, OccurrenceCount: %v)",
+        chunkList->GetId(),
+        chunkList->GetKind(),
+        chunk->GetId(),
+        occurrenceCount);
+
+    return true;
 }
 
 void ResetChunkListStatistics(TChunkList* chunkList)

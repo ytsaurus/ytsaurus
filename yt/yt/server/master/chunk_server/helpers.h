@@ -60,7 +60,8 @@ bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent);
 
 void AttachToChunkList(
     TChunkList* chunkList,
-    TRange<TChunkTreeRawPtr> children);
+    TRange<TChunkTreeRawPtr> children,
+    bool updateChunkListStatistics = true);
 void DetachFromChunkList(
     TChunkList* chunkList,
     TRange<TChunkTreeRawPtr> children,
@@ -91,7 +92,11 @@ void AccumulateUniqueAncestorsStatistics(
     const TChunkTreeStatistics& statisticsDelta);
 void AccumulateHunkStatisticsInUniqueAncestors(
     TChunkList* parent,
-    TChunkTree* child);
+    TChunkTree* child,
+    bool updateChunkListStatistics);
+bool IsHunkChunkUniquelyPresentInChunkList(
+    TChunkList* chunkList,
+    TChunkTree* chunkTree);
 
 //! Iterates over all ancestors of |hunkChunk|, calling |functor(parent, firstOccurrence)| for all of them.
 //! All parents are expected to be of hunk-related chunk list kind. Maximum two generations are expected.

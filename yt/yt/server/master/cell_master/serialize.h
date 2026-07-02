@@ -165,6 +165,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixHunkStorageRemovalError_26_1)                              (3260))  // akozhikhov
     ((DeadSequoiaReplicasRemovalHydraTermCheck)                     (3261))  // grphil
     ((FixHunkChunkWeightStatisticsHistogram)                        (3262))  // akozhikhov
+    ((NewWayToStoreHunkChunkListStatistics_26_1)                    (3263))  // akozhikhov
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
@@ -196,6 +197,7 @@ DEFINE_ENUM(EMasterReign,
     ((DeadSequoiaReplicasRemovalHydraTermCheck_26_2)                (3326))  // grphil
     ((ValidateChaosReplicationProgressOnTableMount)                 (3327))  // osidorkin
     ((FixHunkChunkWeightStatisticsHistogram_26_2)                   (3328))  // akozhikhov
+    ((NewWayToStoreHunkChunkListStatistics)                         (3329))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

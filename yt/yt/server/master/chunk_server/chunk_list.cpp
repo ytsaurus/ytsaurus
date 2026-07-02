@@ -33,7 +33,15 @@ void TChunkList::THunkTreeChunkListTraits::Persist(const NCellMaster::TPersisten
 
     using NYT::Persist;
     Persist(context, Statistics);
-    Persist(context, HunkChunkIdToRefCount);
+
+    // COMPAT(akozhikhov).
+    if (context.GetVersion() < EMasterReign::NewWayToStoreHunkChunkListStatistics_26_1 ||
+        (context.GetVersion() >= EMasterReign::Start_26_2 &&
+         context.GetVersion() < EMasterReign::NewWayToStoreHunkChunkListStatistics))
+    {
+        THashMap<TChunkId, int> hunkChunkIdToRefCount;
+        Persist(context, hunkChunkIdToRefCount);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -479,7 +487,7 @@ const THunkChunkTreeStatistics& TChunkList::HunkStatistics() const
     return std::get<THunkTreeChunkListTraits>(ChunkListTraits_).Statistics;
 }
 
-void TChunkList::AccumulateHunkStatistics(TChunk* chunk)
+void TChunkList::AccumulateHunkStatistics(TChunk* chunk, bool force)
 {
     if (!IsHunkRelatedChunkList(this)) [[unlikely]] {
         YT_LOG_ALERT("Accessed chunk list method AccumulateHunkStatistics that requires it to be of a different kind "
@@ -495,23 +503,12 @@ void TChunkList::AccumulateHunkStatistics(TChunk* chunk)
         return;
     }
 
-    auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
-    auto [it, emplaced] = hunkTraits.HunkChunkIdToRefCount.try_emplace(chunk->GetId());
-    auto newRefCounter = ++(it->second);
-    if (newRefCounter <= 0) {
-        YT_LOG_ALERT("Encountered non-positive hunk chunk counter upon accumulating hunk statistics"
-            "(ChunkListId: %v, ChunkId: %v, NewRefCounter: %v)",
-            GetId(),
-            chunk->GetId(),
-            newRefCounter);
-
-        hunkTraits.HunkChunkIdToRefCount.erase(it);
+    if (!force && !IsHunkChunkUniquelyPresentInChunkList(this, chunk)) {
         return;
     }
 
-    if (emplaced) {
-        hunkTraits.Statistics.Accumulate(chunk->GetHunkStatistics());
-    }
+    auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
+    hunkTraits.Statistics.Accumulate(chunk->GetHunkStatistics());
 }
 
 void TChunkList::DeaccumulateHunkStatistics(TChunk* chunk)
@@ -528,33 +525,12 @@ void TChunkList::DeaccumulateHunkStatistics(TChunk* chunk)
         return;
     }
 
+    if (!IsHunkChunkUniquelyPresentInChunkList(this, chunk)) {
+        return;
+    }
+
     auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
-
-    auto it = hunkTraits.HunkChunkIdToRefCount.find(chunk->GetId());
-    if (it == hunkTraits.HunkChunkIdToRefCount.end()) {
-        YT_LOG_ALERT("Chunk is missing from chunk list statistics upon deaccumulating hunk statistics; skipping it "
-            "(ChunkListId: %v, ChunkId: %v)",
-            GetId(),
-            chunk->GetId());
-        return;
-    }
-
-    auto newRefCounter = --(it->second);
-    if (newRefCounter < 0) {
-        YT_LOG_ALERT("Encountered negative hunk chunk counter upon deaccumulating hunk statistics"
-            "(ChunkListId: %v, ChunkId: %v, NewRefCounter: %v)",
-            GetId(),
-            chunk->GetId(),
-            newRefCounter);
-
-        hunkTraits.HunkChunkIdToRefCount.erase(it);
-        return;
-    }
-
-    if (newRefCounter == 0) {
-        hunkTraits.Statistics.Deaccumulate(chunk->GetHunkStatistics());
-        hunkTraits.HunkChunkIdToRefCount.erase(it);
-    }
+    hunkTraits.Statistics.Deaccumulate(chunk->GetHunkStatistics());
 }
 
 void TChunkList::ResetHunkStatistics()
@@ -569,7 +545,26 @@ void TChunkList::ResetHunkStatistics()
 
     auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
     hunkTraits.Statistics = THunkChunkTreeStatistics();
-    hunkTraits.HunkChunkIdToRefCount = {};
+}
+
+void TChunkList::CopyHunkStatistics(TChunkList* other)
+{
+    if (!IsHunkRelatedChunkList(this) ||
+        other->GetKind() != GetKind()) [[unlikely]]
+    {
+        YT_LOG_ALERT("Accessed chunk list method CopyHunkStatistics that requires it to be of a different kind "
+            "(ChunkListId: %v, Kind: %v, OtherChunkListId: %v, OtherChunkListKind: %v)",
+            GetId(),
+            GetKind(),
+            other->GetId(),
+            other->GetKind());
+        return;
+    }
+
+    auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
+    const auto& otherHunkTraits = std::get<THunkTreeChunkListTraits>(other->ChunkListTraits_);
+
+    hunkTraits.Statistics = otherHunkTraits.Statistics;
 }
 
 void TChunkList::AccumulateNewlyReferencedHunkDataSize(TChunk* chunk, i64 dataSizeDelta)
@@ -583,21 +578,13 @@ void TChunkList::AccumulateNewlyReferencedHunkDataSize(TChunk* chunk, i64 dataSi
         return;
     }
 
-    auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
-
-    if (!hunkTraits.HunkChunkIdToRefCount.contains(chunk->GetId())) {
-        if (!chunk->IsSealed()) {
-            // NB: Statistics will be accumulated upon seal.
-            return;
-        }
-
-        YT_LOG_ALERT("Chunk is missing from chunk list statistics upon referencing hunk data; skipping it "
-            "(ChunkListId: %v, ChunkId: %v, DataSizeDelta: %v)",
-            GetId(),
-            chunk->GetId(),
-            dataSizeDelta);
+    if (!chunk->IsSealed()) {
+        // NB: Statistics will be accumulated upon seal.
         return;
     }
+
+    // NB: Just check chunk tree invariants and chunk presence.
+    Y_UNUSED(IsHunkChunkUniquelyPresentInChunkList(this, chunk));
 
     THunkChunkTreeStatistics deltaStatistics;
     // NB: Include size of parity parts to disk space statistics.
@@ -608,6 +595,7 @@ void TChunkList::AccumulateNewlyReferencedHunkDataSize(TChunk* chunk, i64 dataSi
         deltaStatistics.ReferencedErasureDiskSpace += diskSpaceDelta;
     }
 
+    auto& hunkTraits = std::get<THunkTreeChunkListTraits>(ChunkListTraits_);
     hunkTraits.Statistics.Accumulate(deltaStatistics);
 
     // NB: We do not check ReferencedErasureDiskSpace field because it is unreliable

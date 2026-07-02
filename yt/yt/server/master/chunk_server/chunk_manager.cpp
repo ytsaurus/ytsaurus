@@ -1713,9 +1713,10 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTreeRawPtr> children) override
+        TRange<TChunkTreeRawPtr> children,
+        bool updateChunkListStatistics = true) override
     {
-        NChunkServer::AttachToChunkList(chunkList, children);
+        NChunkServer::AttachToChunkList(chunkList, children, updateChunkListStatistics);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto child : children) {
@@ -6215,8 +6216,10 @@ private:
                 continue;
             }
 
-            VisitAllAncestorsInHunkTree(chunk, [&] (TChunkList* chunkList, bool /*firstOccurrence*/) {
-                chunkList->AccumulateHunkStatistics(chunk);
+            VisitAllAncestorsInHunkTree(chunk, [&] (TChunkList* chunkList, bool firstOccurrence) {
+                if (firstOccurrence) {
+                    chunkList->AccumulateHunkStatistics(chunk, /*force*/ true);
+                }
             });
         }
 

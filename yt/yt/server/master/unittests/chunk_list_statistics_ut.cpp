@@ -348,20 +348,25 @@ TEST_F(TChunkListCumulativeStatisticsTest, HunkTreeStatisticsJournals)
     auto* hunkRoot = CreateChunkList(EChunkListKind::HunkRoot);
     auto* hunkTablet1 = CreateChunkList(EChunkListKind::Hunk);
     auto* hunkTablet2 = CreateChunkList(EChunkListKind::Hunk);
+    auto* hunkTablet3 = CreateChunkList(EChunkListKind::Hunk);
 
     auto* hunkChunk1 = CreateJournalChunk(false, false, EChunkFormat::HunkJournal);
 
     AttachToChunkList(hunkTablet1, {hunkChunk1});
-    AttachToChunkList(hunkRoot, {hunkTablet1});
+    AttachToChunkList(hunkTablet3, {hunkChunk1});
+    AttachToChunkList(hunkRoot, {hunkTablet1, hunkTablet3});
 
     AccumulateNewlyReferencedHunkStatistics(hunkChunk1, 1, 1);
 
     CheckCumulativeStatistics(hunkRoot);
     CheckCumulativeStatistics(hunkTablet1);
+    CheckCumulativeStatistics(hunkTablet3);
 
     EXPECT_EQ(hunkRoot->CumulativeStatistics()[0],
         TCumulativeStatisticsEntry(0, 1, 0));
     EXPECT_EQ(hunkTablet1->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 1, 0));
+    EXPECT_EQ(hunkTablet3->CumulativeStatistics()[0],
         TCumulativeStatisticsEntry(0, 1, 0));
 
     {
@@ -372,8 +377,10 @@ TEST_F(TChunkListCumulativeStatisticsTest, HunkTreeStatisticsJournals)
         hunkChunk1->Seal(sealInfo);
 
         // NB: Same as in OnHunkJournalChunkSealed.
-        VisitAllAncestorsInHunkTree(hunkChunk1, [&] (TChunkList* chunkList, bool /*firstOccurrence*/) {
-            chunkList->AccumulateHunkStatistics(hunkChunk1);
+        VisitAllAncestorsInHunkTree(hunkChunk1, [&] (TChunkList* chunkList, bool firstOccurrence) {
+            if (firstOccurrence) {
+                chunkList->AccumulateHunkStatistics(hunkChunk1, /*force*/ true);
+            }
         });
     }
 
@@ -387,14 +394,19 @@ TEST_F(TChunkListCumulativeStatisticsTest, HunkTreeStatisticsJournals)
     CheckCumulativeStatistics(hunkRoot);
     CheckCumulativeStatistics(hunkTablet1);
     CheckCumulativeStatistics(hunkTablet2);
+    CheckCumulativeStatistics(hunkTablet3);
 
     EXPECT_EQ(hunkRoot->CumulativeStatistics()[0],
         TCumulativeStatisticsEntry(0, 1, 0));
     EXPECT_EQ(hunkRoot->CumulativeStatistics()[1],
         TCumulativeStatisticsEntry(0, 2, 0));
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[2],
+        TCumulativeStatisticsEntry(0, 3, 0));
     EXPECT_EQ(hunkTablet1->CumulativeStatistics()[0],
         TCumulativeStatisticsEntry(0, 1, 0));
     EXPECT_EQ(hunkTablet2->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 1, 0));
+    EXPECT_EQ(hunkTablet3->CumulativeStatistics()[0],
         TCumulativeStatisticsEntry(0, 1, 0));
 
     EXPECT_EQ(hunkRoot->HunkStatistics(),
@@ -423,8 +435,12 @@ TEST_F(TChunkListCumulativeStatisticsTest, HunkTreeStatisticsJournals)
         TCumulativeStatisticsEntry(0, 0, 0));
     EXPECT_EQ(hunkRoot->CumulativeStatistics()[1],
         TCumulativeStatisticsEntry(0, 1, 0));
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[2],
+        TCumulativeStatisticsEntry(0, 2, 0));
     EXPECT_TRUE(hunkTablet1->CumulativeStatistics().Empty());
     EXPECT_EQ(hunkTablet2->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 1, 0));
+    EXPECT_EQ(hunkTablet3->CumulativeStatistics()[0],
         TCumulativeStatisticsEntry(0, 1, 0));
 
     EXPECT_EQ(hunkRoot->HunkStatistics(),

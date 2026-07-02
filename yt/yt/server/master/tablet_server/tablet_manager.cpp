@@ -2023,6 +2023,10 @@ public:
 
             trunkClonedTable->SetChunkList(contentType, clonedRootChunkList);
             clonedRootChunkList->AddOwningNode(trunkClonedTable);
+
+            if (contentType == EChunkListContentType::Hunk) {
+                clonedRootChunkLists[contentType]->CopyHunkStatistics(trunkSourceTable->GetChunkList(contentType));
+            }
         }
 
         const auto& backupManager = Bootstrap_->GetBackupManager();
@@ -2043,7 +2047,10 @@ public:
             for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
                 auto* sourceRootChunkList = trunkSourceTable->GetChunkList(contentType);
                 auto tabletChunkList = sourceRootChunkList->Children()[index];
-                chunkManager->AttachToChunkList(clonedRootChunkLists[contentType], {tabletChunkList});
+                chunkManager->AttachToChunkList(
+                    clonedRootChunkLists[contentType],
+                    {tabletChunkList},
+                    /*updateChunkListStatistics*/ contentType != EChunkListContentType::Hunk);
             }
 
             clonedTablets.push_back(clonedTablet);
@@ -2700,10 +2707,10 @@ public:
             }
         }
 
-        // NB: We accumulate statistics to ancestors before copying shared chunk lists, because otherwise
-        // statistics are copied incorrectly as chunk manager is unaware of which chunk has just been sealed.
-        VisitAllAncestorsInHunkTree(chunk, [&] (TChunkList* chunkList, bool /*firstOccurrence*/) {
-            chunkList->AccumulateHunkStatistics(chunk);
+        VisitAllAncestorsInHunkTree(chunk, [&] (TChunkList* chunkList, bool firstOccurrence) {
+            if (firstOccurrence) {
+                chunkList->AccumulateHunkStatistics(chunk, /*force*/ true);
+            }
         });
 
         for (auto* table : tableNodes) {
