@@ -1214,6 +1214,11 @@ class TestListJobs(TestListJobsCommon):
 
         sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=3)
 
+        # Wait until sleeping_op occupies all cluster resources; otherwise op may
+        # briefly get preemptible allocations that are then preempted, producing
+        # spurious job_aborted incarnation switches.
+        wait(lambda: sleeping_op.get_job_count("running") == 3)
+
         # Will not start jobs while sleeping_op is running.
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
