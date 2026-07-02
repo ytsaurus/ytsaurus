@@ -99,9 +99,10 @@ void TProgressMerger::MergeWith(const NYql::NProto::TTaskProgress& taskProgress)
             if (in.first->second.HasStages()) {
                 YT_VERIFY(
                     node.StagesSize() > 0,
-                    Format("Node %v has empty stages. Full TaskProgress dump:\n%v",
+                    Format("Node %v has empty stages. Full TaskProgress dump: %v. Current progress: %v",
                         node.GetId(),
-                        taskProgress.DebugString()));
+                        taskProgress.DebugString(),
+                        ToYsonString()));
             }
 
             changed |= in.first->second.MergeWith(node);
