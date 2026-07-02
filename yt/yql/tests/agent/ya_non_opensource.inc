@@ -7,7 +7,7 @@ PEERDIR(
 
     yt/yql/tests/common/test_framework
 
-    yt/yt/experiments/private/flow/yandex/extensions/monium/python
+    yt/yt/flow/yandex/extensions/monium/python
 )
 
 TEST_SRCS(

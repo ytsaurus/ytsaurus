@@ -36,6 +36,7 @@ TEST(TPipelineInitTest, IgnoreExistingPropagatesToInnerTables)
         EObjectType Type;
         TCreateNodeOptions Options;
     };
+
     std::vector<TCreateNodeCall> createNodeCalls;
 
     ON_CALL(*client, StartTransaction(_, _))
@@ -45,8 +46,7 @@ TEST(TPipelineInitTest, IgnoreExistingPropagatesToInnerTables)
         .WillByDefault(Invoke([&] (
             const TYPath& path,
             EObjectType type,
-            const TCreateNodeOptions& options)
-        {
+            const TCreateNodeOptions& options) {
             createNodeCalls.push_back({path, type, options});
             return MakeFuture<TNodeId>(TNodeId(TGuid::Create()));
         }));

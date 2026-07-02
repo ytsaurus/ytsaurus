@@ -9,7 +9,6 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NFlow::NYsonSerializer {
-
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,7 +22,7 @@ using namespace NYT::NYTree;
 struct TTestYsonStateSub
     : public virtual TYsonStruct
 {
-    i64 Value;
+    i64 Value{};
 
     REGISTER_YSON_STRUCT(TTestYsonStateSub);
 
@@ -108,7 +107,7 @@ std::optional<TUnversionedOwningRow> ApplyMutation(const std::optional<TUnversio
         for (const auto& value : *update) {
             result[value.Id] = value;
         }
-        return {TRange(std::move(GetValues(result)))};
+        return {TRange(GetValues(result))};
     } else if (std::get_if<TEraseMutation>(&mutation)) {
         return std::nullopt;
     } else if (std::get_if<TEmptyMutation>(&mutation)) {
