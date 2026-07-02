@@ -149,6 +149,7 @@ DEFINE_ENUM(EMasterReign,
     ((PersistLastCellAggregatedStateReliability_25_4)               (3161))  // aleksandra-zh
     ((FixEffectiveAclForScion_25_4)                                 (3162))  // danilalexeev
     ((FixPerCellLimitsReplicationOnSecondary_25_4)                  (3163))  // cherepashka
+    ((InferrumUdfs_25_4)                                            (3164))  // babenko
 
     // 26.1 starts here.
     ((Start_26_1)                                                   (3200))  // community bot
