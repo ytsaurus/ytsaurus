@@ -37,15 +37,21 @@ def print_job_info(data, job_id):
     click.secho("  Namespace: ", nl=False, bold=True)
     click.echo(data.get("namespace", "—"))
 
+    priority, priority_color = _format_priority(data.get("priority", ""))
+    click.secho("  Priority:  ", nl=False, bold=True)
+    click.secho(priority, fg=priority_color, bold=True)
+
     click.secho("  Duration:  ", nl=False, bold=True)
     click.echo(_format_duration(data))
 
     logs = [url for url in data.get("logs_urls", []) if url]
+    click.echo()
     if logs:
-        click.echo()
         click.secho("  Logs:", bold=True)
         for url in logs:
             click.secho(f"    • {url}", fg="blue")
+    else:
+        click.secho("  No logs", fg="yellow")
 
     components = data.get("components", [])
     operator = data.get("operator", {})
@@ -152,3 +158,21 @@ def _format_job_status(status):
 
     status = status.replace("TASK_STATUS_", "")
     return status, color
+
+
+def _format_priority(priority):
+    match priority:
+        case enums.TaskPriority.CRITICAL:
+            color = "red"
+        case enums.TaskPriority.HIGH:
+            color = "yellow"
+        case enums.TaskPriority.NORMAL:
+            color = "green"
+        case _:
+            color = "white"
+
+    if not priority:
+        return "—", color
+
+    priority = priority.replace("TASK_PRIORITY_", "")
+    return priority, color

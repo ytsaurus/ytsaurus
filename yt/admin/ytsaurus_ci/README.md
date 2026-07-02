@@ -14,6 +14,19 @@ Compatibility is defined only between component pairs (no transitivity).
 ya make -r yt/admin/ytsaurus_ci
 ```
 
+## Secrets
+
+Commands that talk to the backend need a **Cloud Function token**
+(`--cloud-function-token`). Instead of passing it on every call, you can put it
+into a file and it will be picked up automatically:
+
+- `~/.yt/ytsaurus_ci_token`
+- `~/.yc/cf_token`
+
+The first of these that exists and is non-empty is used; an explicit
+`--cloud-function-token` always overrides the files. `run-scenario` additionally
+needs a **GitHub token** via `--git-token`.
+
 ## Commands
 
 ### View Compatibility Matrix
@@ -82,6 +95,32 @@ ya make -r yt/admin/ytsaurus_ci
 ./yt/admin/ytsaurus_ci/ytsaurus_ci reproduce \
   --job-id <job_id> \
   --cloud-function-token <token>
+```
+
+### Task info
+
+Get the status, priority, failed checks and artifact (logs) URLs of a task:
+
+```bash
+# human-readable
+./yt/admin/ytsaurus_ci/ytsaurus_ci job-info --job-id <job_id>
+
+# raw JSON
+./yt/admin/ytsaurus_ci/ytsaurus_ci job-info --job-id <job_id> --json
+```
+
+`list-tasks` lists task ids, optionally filtered (`--status`,
+`--components-key-filter`, `--passed`, `--json`).
+
+## Debugging a failed task (Claude Code skill)
+
+There is a Claude Code skill, **`yt-ci`**, that automates finding *why* a task
+failed from a `job-id`.
+
+Call it from Claude Code by typing the slash command with the job-id:
+
+```
+/yt-ci <job_id>
 ```
 
 ## Graph (matrix) filtering
