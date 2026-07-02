@@ -2115,27 +2115,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTableMountInfo)
             }
             response->set_physical_path(tableMountInfo->PhysicalPath);
 
-            for (const auto& indexInfo : tableMountInfo->Indices) {
-                auto* protoIndexInfo = response->add_indices();
-                ToProto(protoIndexInfo->mutable_index_table_id(), indexInfo.TableId);
-                protoIndexInfo->set_index_kind(ToProto(indexInfo.Kind));
-                if (const auto& predicate = indexInfo.Predicate) {
-                    ToProto(protoIndexInfo->mutable_predicate(), *predicate);
-                }
-                if (const auto& unfoldedColumns = indexInfo.UnfoldedColumns) {
-                    auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
-                    ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
-                    ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
-                    // COMPAT(sabdenovch): Query tracker best-effort backwards compat.
-                    if (unfoldedColumns->IndexColumn == unfoldedColumns->TableColumn) {
-                        ToProto(protoIndexInfo->mutable_unfolded_column(), unfoldedColumns->IndexColumn);
-                    }
-                }
-                protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
-                if (const auto& evaluatedColumnsSchema = indexInfo.EvaluatedColumnsSchema) {
-                    ToProto(protoIndexInfo->mutable_evaluated_columns_schema(), *evaluatedColumnsSchema);
-                }
-            }
+            ToProto(response->mutable_indices(), tableMountInfo->Indices);
 
             context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
                 tableMountInfo->Dynamic,
@@ -3186,6 +3166,23 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AlterReplicationCard)
     }
     if (request->has_collocation_options()) {
         options.CollocationOptions = ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(request->collocation_options()));
+    }
+
+    using ECase = NApi::NRpcProxy::NProto::TReqAlterReplicationCard::SecondaryIndexCase;
+    switch (request->secondary_index_case()) {
+        case ECase::kCreateSecondaryIndex:
+            options.CreateSecondaryIndex = ConvertTo<TCreateSecondaryIndexPtr>(
+                TYsonString(request->create_secondary_index()));
+            break;
+        case ECase::kDestroySecondaryIndex:
+            FromProto(&options.DestroySecondaryIndex, request->destroy_secondary_index());
+            break;
+        case ECase::kProgressSecondaryIndexCorrespondence:
+            options.ProgressSecondaryIndexCorrespondence = ConvertTo<TProgressSecondaryIndexCorrespondencePtr>(
+                TYsonString(request->progress_secondary_index_correspondence()));
+            break;
+        default:
+            break;
     }
 
     context->SetRequestInfo("ReplicationCardId: %v",

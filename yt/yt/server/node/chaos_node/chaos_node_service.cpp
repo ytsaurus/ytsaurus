@@ -178,7 +178,7 @@ private:
 
         auto awaitingCollocationId = replicationCard->GetAwaitingCollocationId();
 
-        auto isSame = [] (const auto& cachedCard, const auto& replicationCard) {
+        auto isSame = [] (const NChaosClient::TReplicationCardPtr& cachedCard, TReplicationCard* replicationCard) {
             if (cachedCard->Era != replicationCard->GetEra()) {
                 return false;
             }
@@ -219,6 +219,32 @@ private:
                 // TODO(savrus): This is computationally-intensive, remove or cache.
                 if (GetReplicationProgressMinTimestamp(cachedInfo.ReplicationProgress) < GetReplicationProgressMinTimestamp(it->second.ReplicationProgress)) {
                     return false;
+                }
+            }
+
+            if (cachedCard->SecondaryIndices.size() != replicationCard->SecondaryIndices().size()) {
+                return false;
+            }
+
+            for (const auto& secondaryIndex : replicationCard->SecondaryIndices()) {
+                auto it = cachedCard->SecondaryIndices.find(secondaryIndex.IndexObjectId);
+                if (it == cachedCard->SecondaryIndices.end()) {
+                    return false;
+                }
+
+                if (it->second.Correspondence != secondaryIndex.Correspondence ||
+                    it->second.Kind != secondaryIndex.Kind ||
+                    it->second.Predicate != secondaryIndex.Predicate ||
+                    it->second.UnfoldedColumns != secondaryIndex.UnfoldedColumns ||
+                    bool(it->second.EvaluatedColumnsSchema) != bool(secondaryIndex.EvaluatedColumnsSchema))
+                {
+                    return false;
+                }
+
+                if (it->second.EvaluatedColumnsSchema) {
+                    if (*it->second.EvaluatedColumnsSchema != *secondaryIndex.EvaluatedColumnsSchema) {
+                        return false;
+                    }
                 }
             }
 

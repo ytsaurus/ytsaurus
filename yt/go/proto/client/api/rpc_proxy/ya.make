@@ -14,6 +14,7 @@ PEERDIR(
     yt/go/proto/client/table_chunk_format
     yt/go/proto/client/table_client
     yt/go/proto/client/tablet_client
+    yt/go/proto/client/api/common
 )
 
 SRCS(

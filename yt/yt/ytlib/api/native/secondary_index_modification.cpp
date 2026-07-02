@@ -177,7 +177,7 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
         MakeFormattableView(
             TableMountInfo_->Indices,
             [] (auto* builder, const auto& indexInfo) {
-                builder->AppendFormat("(%v: %Qlv)", indexInfo.TableId, indexInfo.Kind);
+                builder->AppendFormat("(%v: %Qlv)", indexInfo.IndexObjectId, indexInfo.Kind);
             }));
 
     const auto& tableSchema = TableMountInfo_->Schemas[ETableSchemaKind::Primary];

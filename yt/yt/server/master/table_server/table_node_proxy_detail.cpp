@@ -2218,13 +2218,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         if (const auto& predicate = index->Predicate()) {
             ToProto(protoIndexInfo->mutable_predicate(), *predicate);
         }
-        if (const auto& unfoldedColumns = index->UnfoldedColumns()) {
-            auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
-            ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
-            ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
-            if (unfoldedColumns->IndexColumn == unfoldedColumns->TableColumn) {
-                ToProto(protoIndexInfo->mutable_unfolded_column(), unfoldedColumns->IndexColumn);
-            }
+        const auto& unfoldedColumns = index->UnfoldedColumns();
+        YT_OPTIONAL_TO_PROTO(protoIndexInfo, unfolded_columns, unfoldedColumns);
+        if (unfoldedColumns && unfoldedColumns->IndexColumn == unfoldedColumns->TableColumn) {
+            ToProto(protoIndexInfo->mutable_unfolded_column(), unfoldedColumns->IndexColumn);
         }
         protoIndexInfo->set_index_correspondence(ToProto(index->GetTableToIndexCorrespondence()));
         if (const auto& evaluatedColumnsSchema = index->EvaluatedColumnsSchema()) {

@@ -54,10 +54,7 @@ void TSecondaryIndex::Load(TLoadContext& context)
         Load(context, UnfoldedColumns_);
     } else {
         if (auto unfoldedColumn = Load<std::optional<std::string>>(context)) {
-            UnfoldedColumns_ = TUnfoldedColumns{
-                .TableColumn = *unfoldedColumn,
-                .IndexColumn = *unfoldedColumn,
-            };
+            UnfoldedColumns_ = TUnfoldedColumns(*unfoldedColumn, *unfoldedColumn);
         }
     }
 

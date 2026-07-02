@@ -56,10 +56,11 @@ public:
 
         auto tableId = mountInfos[0]->TableId;
         auto indexTableId = mountInfos[1]->TableId;
+        auto tableType = TypeFromId(tableId);
 
-        if (TypeFromId(tableId) != TypeFromId(indexTableId)) {
+        if (tableType != TypeFromId(indexTableId)) {
             THROW_ERROR_EXCEPTION("Table type mismatch")
-                << TErrorAttribute("table_type", TypeFromId(tableId))
+                << TErrorAttribute("table_type", tableType)
                 << TErrorAttribute("index_table_type", TypeFromId(indexTableId));
         }
 
@@ -68,7 +69,6 @@ public:
                 << TErrorAttribute("table_id", tableId);
         }
 
-        auto tableType = TypeFromId(tableId);
         if (tableType != EObjectType::ReplicatedTable && tableType != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Unsupported table type %Qlv", tableType);
         }
@@ -86,15 +86,11 @@ public:
                 // after next stable release.
                 attributes->Set("unfolded_table_column", *unfoldedColumn);
                 attributes->Set("unfolded_index_column", *unfoldedColumn);
-                return TUnfoldedColumns{
-                    .TableColumn = *unfoldedColumn,
-                    .IndexColumn = *unfoldedColumn,
-                };
+                return TUnfoldedColumns(*unfoldedColumn, *unfoldedColumn);
             } else {
-                return TUnfoldedColumns{
-                    .TableColumn = attributes->Get<std::string>("unfolded_table_column"),
-                    .IndexColumn = attributes->Get<std::string>("unfolded_index_column"),
-                };
+                return TUnfoldedColumns(
+                    attributes->Get<std::string>("unfolded_table_column"),
+                    attributes->Get<std::string>("unfolded_index_column"));
             }
         };
 
