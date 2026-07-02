@@ -1,0 +1,5 @@
+MountPoints {
+    MountPoint: "../../essentials/mount/lib"
+    RootAlias: "/lib"
+    Library: true
+}
