@@ -206,7 +206,8 @@ def run_scenario(
 @cli.command()
 @click.option("--job-id", type=str, required=True, help="Id of the job to get info for")
 @cloud_function_token_option
-def job_info(job_id, cloud_function_token):
+@click.option("--json", "with_json", is_flag=True, help="Print raw response")
+def job_info(job_id, cloud_function_token, with_json):
     client = cloudfunction_client.CloudFunctionClient(
         cloudfunction_client.YCFunctionAuth(
             cloud_function_token=cloud_function_token,
@@ -214,7 +215,10 @@ def job_info(job_id, cloud_function_token):
     )
 
     content = client.get_task_info(job_id)
-    pretty.print_job_info(content, job_id)
+    if with_json:
+        click.echo(json.dumps(content, indent=2, ensure_ascii=False))
+    else:
+        pretty.print_job_info(content, job_id)
 
 
 @cli.command()
