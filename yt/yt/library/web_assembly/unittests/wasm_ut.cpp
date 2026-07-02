@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <library/cpp/resource/resource.h>
+
 namespace NYT::NWebAssembly {
 
 bool EnableSystemLibraries();
@@ -1644,8 +1646,6 @@ static const TStringBuf InfiniteLoopModule = R"(
 
 TEST_F(TWebAssemblyTest, InfiniteLoop)
 {
-    Y_UNUSED(InfiniteLoopModule);
-
     auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(InfiniteLoopModule);
 
@@ -1726,6 +1726,28 @@ TEST_F(TWebAssemblyTest, SpinlockDeadlock)
     } catch (WAVM::Runtime::Exception* exception) {
         WAVM::Runtime::destroyException(exception);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TWebAssemblyTest, Yt28418)
+{
+    static constexpr auto File = "libdtorilov-YT-28418.so";
+
+    auto bytecode = ::NResource::Has(File)
+        ? TSharedRef::FromString(::NResource::Find(File))
+        : TSharedRef();
+
+    if (!bytecode) {
+        return;
+    }
+
+    auto compartment = CreateMinimalRuntimeImage();
+    compartment->AddModule(bytecode);
+
+    auto echo = TCompartmentFunction<i64(i64)>(compartment.get(), "echo");
+
+    EXPECT_EQ(42, echo(42));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
