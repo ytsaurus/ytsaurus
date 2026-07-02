@@ -57,7 +57,7 @@ int Run(int argc, char** argv) {
     TString inQueryText;
     TString freqFileName;
     TString schemaFileName;
-    TMaybe<ui64> pos;
+    std::optional<ui64> pos;
     opts.AddLongOption('i', "input", "input file").RequiredArgument("input").StoreResult(&inFileName);
     opts.AddLongOption('q', "query", "input query text").RequiredArgument("query").StoreResult(&inQueryText);
     opts.AddLongOption('f', "freq", "frequences file").StoreResult(&freqFileName);
@@ -120,7 +120,8 @@ int Run(int argc, char** argv) {
         MakePureLexerSupplier(),
         NSQLComplete::MakeUnionNameService(std::move(services), ranking));
 
-    if (!NYql::IsUtf8(queryString)) {
+    size_t size = 0U;
+    if (!(NYql::IsUtf8(queryString) && GetNumberOfUTF8Chars(queryString.data(), queryString.size(), size))) {
         ythrow yexception() << "provided input is not UTF encoded";
     }
 
@@ -129,6 +130,7 @@ int Run(int argc, char** argv) {
     }
 
     NSQLComplete::TCompletionInput input = NSQLComplete::SharpedInput(queryString);
+    input.CursorPosition = std::min(size, pos.value_or(size));
 
     auto output = engine->CompleteAsync(input).ExtractValueSync();
     for (const auto& c : output.Candidates) {
