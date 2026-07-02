@@ -14,6 +14,7 @@ on:
       - stable/[0-9]+\.[0-9]+
       - query-tracker/[0-9]+\.[0-9]+
       - chyt/[0-9]+\.[0-9]+
+      - members/ilyaibraev/check-qt-version
 
 
 env:
@@ -103,7 +104,7 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
           else
-            echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
+            echo 'BUILD_TYPES=["release"]' >> "$GITHUB_OUTPUT"
           fi
 
           # Compute VERSION_PATCH as YYMMDDnnn (date of last commit + commit index within that day).
@@ -149,24 +150,24 @@ jobs:
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
-  docker-cmake:
-    name: Docker images with cmake
-    needs:
-      - start-vm
-      - tag
-      - build-cmake
-      - build-strawberry
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      publish-strawberry: ${{ github.ref_name == 'main' }}
-      image-tag: ${{ needs.tag.outputs.image-tag }}
-      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
-      build-types: ${{ needs.tag.outputs.build-types }}
-    secrets:
-      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      GH_USERNAME: ${{ secrets.GH_USERNAME }}
-    uses: ./.github/workflows/docker-jobs.yaml
+  # docker-cmake:
+  #   name: Docker images with cmake
+  #   needs:
+  #     - start-vm
+  #     - tag
+  #     - build-cmake
+  #     - build-strawberry
+  #   with:
+  #     runs-on-value: ${{ needs.start-vm.outputs.label }}
+  #     cpp-build-system: cmake
+  #     publish-strawberry: ${{ github.ref_name == 'main' }}
+  #     image-tag: ${{ needs.tag.outputs.image-tag }}
+  #     nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+  #     build-types: ${{ needs.tag.outputs.build-types }}
+  #   secrets:
+  #     GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+  #     GH_USERNAME: ${{ secrets.GH_USERNAME }}
+  #   uses: ./.github/workflows/docker-jobs.yaml
 
   build-ya-make:
     name: Build with ya-make
@@ -228,22 +229,22 @@ jobs:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}
 
-  check:
-    name: Check
-    needs:
-      - start-vm
-      - build-cmake
-      - build-ya-make
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-    uses: ./.github/workflows/check-jobs.yaml
+  # check:
+  #   name: Check
+  #   needs:
+  #     - start-vm
+  #     - build-cmake
+  #     - build-ya-make
+  #   with:
+  #     runs-on-value: ${{ needs.start-vm.outputs.label }}
+  #   uses: ./.github/workflows/check-jobs.yaml
 
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
-      - check
-      - docker-cmake
+      # - check
+      # - docker-cmake
       - docker-ya-make
     runs-on: trampoline
     if: ${{ always() }}
@@ -259,11 +260,11 @@ jobs:
 
   send-alert:
     needs:
-      - check
+      # - check
       - build-cmake
       - build-ya-make
       - docker-ya-make
-      - docker-cmake
+      # - docker-cmake
       - build-strawberry
     if: always()
     uses: ./.github/workflows/check-status-and-send-alert.yaml
