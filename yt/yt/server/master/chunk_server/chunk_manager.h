@@ -219,7 +219,8 @@ struct IChunkManager
 
     virtual void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTreeRawPtr> children) = 0;
+        TRange<TChunkTreeRawPtr> children,
+        bool updateChunkListStatistics = true) = 0;
 
     virtual void DetachFromChunkList(
         TChunkList* chunkList,
