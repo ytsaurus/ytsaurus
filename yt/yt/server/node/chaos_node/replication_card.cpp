@@ -68,6 +68,8 @@ void TReplicationCard::Save(TSaveContext& context) const
     Save(context, *ReplicatedTableOptions_);
     Save(context, Collocation_);
     Save(context, AwaitingCollocationId_);
+    Save(context, SecondaryIndices_);
+    Save(context, IndexTo_);
 }
 
 void TReplicationCard::Load(TLoadContext& context)
@@ -89,6 +91,14 @@ void TReplicationCard::Load(TLoadContext& context)
         // COMPAT(savrus)
         if (context.GetVersion() >= EChaosReign::AttachDistributedCollocation) {
             Load(context, AwaitingCollocationId_);
+        }
+        // COMPAT(sabdenovch)
+        if (context.GetVersion() >= EChaosReign::SecondaryIndices ||
+            context.GetVersion() < EChaosReign::Start_26_2 &&
+            context.GetVersion() >= EChaosReign::SecondaryIndices_26_1)
+        {
+            Load(context, SecondaryIndices_);
+            Load(context, IndexTo_);
         }
     } else {
         using NYT::Load;
@@ -206,7 +216,25 @@ NChaosClient::TReplicationCardPtr TReplicationCard::ConvertToClientCard(const TR
         }
     }
 
+    for (const auto& secondaryIndex : SecondaryIndices_) {
+        EmplaceOrCrash(
+            clientCard->SecondaryIndices,
+            secondaryIndex.IndexObjectId,
+            secondaryIndex);
+    }
+
     return clientCard;
+}
+
+TReplicationCard::TSecondaryIndices::iterator TReplicationCard::FindSecondaryIndex(
+    TReplicationCardId indexCardId)
+{
+    return std::find_if(
+        SecondaryIndices().begin(),
+        SecondaryIndices().end(),
+        [&] (const TIndexInfo& secondaryIndexInfo) {
+            return secondaryIndexInfo.IndexObjectId == indexCardId;
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -76,15 +76,11 @@ public:
             if (auto unfoldedColumn = attributes->FindAndRemove<std::string>("unfolded_column")) {
                 attributes->Remove("unfolded_table_column");
                 attributes->Remove("unfolded_index_column");
-                return TUnfoldedColumns{
-                    .TableColumn = *unfoldedColumn,
-                    .IndexColumn = *unfoldedColumn,
-                };
+                return TUnfoldedColumns(*unfoldedColumn, *unfoldedColumn);
             } else {
-                return TUnfoldedColumns{
-                    .TableColumn = attributes->GetAndRemove<std::string>("unfolded_table_column"),
-                    .IndexColumn = attributes->GetAndRemove<std::string>("unfolded_index_column"),
-                };
+                return TUnfoldedColumns(
+                    attributes->GetAndRemove<std::string>("unfolded_table_column"),
+                    attributes->GetAndRemove<std::string>("unfolded_index_column"));
             }
         };
         auto unfoldedColumns = kind == ESecondaryIndexKind::Unfolding

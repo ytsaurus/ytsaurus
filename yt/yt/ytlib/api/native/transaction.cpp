@@ -2118,10 +2118,12 @@ private:
             std::vector<TFuture<TTableMountInfoPtr>> indexTableInfoFutures;
             indexTableInfoFutures.reserve(mountInfo->Indices.size());
             for (const auto& indexInfo : mountInfo->Indices) {
+                YT_ASSERT(IsTableType(TypeFromId(indexInfo.IndexObjectId)));
+
                 indexTableInfoFutures.push_back(Client_
                     ->GetNativeConnection()
                     ->GetTableMountCache()
-                    ->GetTableInfo(FromObjectId(indexInfo.TableId)));
+                    ->GetTableInfo(FromObjectId(indexInfo.IndexObjectId)));
             }
 
             auto indexTableInfos = WaitFor(AllSucceeded(indexTableInfoFutures).AsUnique())

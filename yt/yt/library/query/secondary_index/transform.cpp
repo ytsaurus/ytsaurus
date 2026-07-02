@@ -176,7 +176,7 @@ void TransformWithIndexStatement(
     const auto& indices = tableInfo->Indices;
 
     auto indexIt = std::find_if(indices.begin(), indices.end(), [&] (const TIndexInfo& index) {
-        return index.TableId == indexTableInfo->TableId;
+        return index.IndexObjectId == indexTableInfo->TableId;
     });
 
     auto correspondence = ETableToIndexCorrespondence::Unknown;
@@ -192,7 +192,7 @@ void TransformWithIndexStatement(
         correspondence = indexIt->Correspondence;
         if (correspondence == ETableToIndexCorrespondence::Invalid) {
             THROW_ERROR_EXCEPTION("Cannot use index %v with %Qlv correspondence",
-                indexIt->TableId,
+                indexIt->IndexObjectId,
                 correspondence)
                 << TErrorAttribute("index_table_path", indexTableInfo->Path);
         }
