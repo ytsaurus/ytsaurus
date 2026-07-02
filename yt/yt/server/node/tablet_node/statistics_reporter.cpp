@@ -159,7 +159,7 @@ class TStatisticsReporter
 public:
     explicit TStatisticsReporter(IBootstrap* const bootstrap)
         : Bootstrap_(bootstrap)
-        , Logger(TabletNodeLogger().WithTag(StatisticsReporterTag.data()))
+        , Logger(TabletNodeLogger().WithRawTag(StatisticsReporterTag))
         , LoadContext_("/statistics_reporter/load", "Load")
         , ReportContext_("/statistics_reporter/report", "Report")
         , Config_(bootstrap->GetTabletNodeDynamicConfig()->StatisticsReporter)
