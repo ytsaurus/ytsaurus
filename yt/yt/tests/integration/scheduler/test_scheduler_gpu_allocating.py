@@ -2058,6 +2058,88 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/grouped_needed_resources", default=None) == {})
         wait_for_assignments_in_gpu_policy_orchid(op, 2)
 
+    @authors("severovv")
+    def test_priority_module_binding(self):
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/priority_module_binding_timeout", 1000)
+
+        create_pool("pool1", pool_tree="gpu", attributes={}, wait_for_orchid=False)
+        create_pool(
+            "pool2",
+            pool_tree="gpu",
+            attributes={
+                "strong_guarantee_resources": {"gpu": 16},
+                "enable_priority_scheduling_segment_module_assignment": True,
+            })
+
+        annoying_ops = []
+        for dc in self.DATA_CENTERS:
+            annoying_ops.append(run_sleeping_vanilla(
+                job_count=1,
+                pool="pool1",
+                task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+                spec={"scheduling_modules": [dc]},
+            ))
+
+        for op in annoying_ops:
+            wait(lambda: len(op.get_running_jobs()) == 1)
+
+        good_op = run_sleeping_vanilla(
+            job_count=2,
+            pool="pool2",
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"is_gang": True},
+        )
+        wait(lambda: len(good_op.get_running_jobs()) == 2)
+
+        def get_priority_module_binding(op) -> bool | None:
+            value = get(
+                scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/operations/{op.id}/priority_module_binding_enabled",
+                default=None,
+            )
+            return None if value is None else bool(value)
+
+        wait(lambda: get_priority_module_binding(good_op) is True)
+        for op in annoying_ops:
+            assert get_priority_module_binding(op) is False
+
+    @authors("severovv")
+    def test_priority_module_binding_inheritance(self):
+        # parent enables priority module binding; one child inherits it, the other overrides it to false.
+        create_pool(
+            "parent",
+            pool_tree="gpu",
+            attributes={"enable_priority_scheduling_segment_module_assignment": True})
+        create_pool("child_inherit", pool_tree="gpu", parent_name="parent", attributes={})
+        create_pool(
+            "child_unset",
+            pool_tree="gpu",
+            parent_name="parent",
+            attributes={"enable_priority_scheduling_segment_module_assignment": False})
+        create_pool("default_pool", pool_tree="gpu", attributes={})
+
+        ops = {
+            pool: run_sleeping_vanilla(
+                job_count=1,
+                pool=pool,
+                task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            )
+            for pool in ("child_inherit", "child_unset", "default_pool")
+        }
+
+        for op in ops.values():
+            wait(lambda: len(op.get_running_jobs()) == 1)
+
+        def get_priority_module_binding(op) -> bool | None:
+            value = get(
+                scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/operations/{op.id}/priority_module_binding_enabled",
+                default=None,
+            )
+            return None if value is None else bool(value)
+
+        wait(lambda: get_priority_module_binding(ops["child_inherit"]) is True)
+        assert get_priority_module_binding(ops["child_unset"]) is False
+        assert get_priority_module_binding(ops["default_pool"]) is False
+
 ##################################################################
 
 
@@ -2118,8 +2200,8 @@ class TestAllocatingGpuSchedulingPolicyMetrics(AllocatingGpuSchedulingPolicyMult
         wait(lambda: module_unreserved_nodes.get() == 0)
         wait(lambda: module_full_host_bound_operations.get() == 1)
 
-
 ##################################################################
+
 
 class TestAllocatingGpuSchedulingPolicyMultiModulePreemption(AllocatingGpuSchedulingPolicyMultiModuleBaseConfig):
     def _scheduler_log_file(self):

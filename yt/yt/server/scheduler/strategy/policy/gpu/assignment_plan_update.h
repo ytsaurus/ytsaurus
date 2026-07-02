@@ -83,6 +83,8 @@ struct IAssignmentPlanUpdateContext
         TOperationId preemptedForOperationId = {}) = 0;
 
     virtual TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const = 0;
+
+    virtual bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,8 @@
 
 #include "helpers.h"
 
+#include <yt/yt/server/scheduler/strategy/policy/helpers.h>
+
 #include <yt/yt/server/scheduler/strategy/pool_tree_snapshot.h>
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -128,7 +130,14 @@ TAssignmentPlanUpdateContext::TAssignmentPlanUpdateContext(
     , PolicyMode_(policyMode)
     , AttributesList_(TreeSnapshot_->RootElement()->GetTreeSize())
     , SchedulableOperations_(FilterOperationsWithElement(operations))
-{ }
+{
+    InitializeRecursiveAttributes(TreeSnapshot_->RootElement().Get());
+
+    // Stamp the diagnostic priority module binding attribute on each operation.
+    for (const auto& [_, operation] : SchedulableOperations_) {
+        operation->SetPriorityModuleBindingEnabled(IsPriorityModuleBindingEnabled(operation));
+    }
+}
 
 const TOperationMap& TAssignmentPlanUpdateContext::Operations() const
 {
@@ -187,6 +196,14 @@ TJobResources TAssignmentPlanUpdateContext::GetAvailableOperationLimits(const TO
         treeElement = treeElement->GetParent();
     }
     return Max(availableLimits, TJobResources{});
+}
+
+bool TAssignmentPlanUpdateContext::IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const
+{
+    const TPoolTreeElement* treeElement = FindOperationElement(operation);
+    YT_VERIFY(treeElement);
+
+    return AttributesList_.AttributesOf(treeElement).PriorityModuleBindingEnabled;
 }
 
 std::optional<TString> TAssignmentPlanUpdateContext::FindLimitViolatingParentId(const TPoolTreeElement* element) const
@@ -487,6 +504,53 @@ void TAssignmentPlanUpdateContext::IncreaseOperationUsage(const TOperationPtr& o
         AttributesList_.AttributesOf(treeElement).AssignedResourceUsage += resourceDelta;
         treeElement = treeElement->GetParent();
     }
+}
+
+void TAssignmentPlanUpdateContext::InitializeRecursiveAttributes(const TPoolTreeElement* element)
+{
+    switch (element->GetType()) {
+        case ESchedulerElementType::Pool:
+        case ESchedulerElementType::Root:
+            InitializeRecursiveAttributesAtCompositeElement(static_cast<const TPoolTreeCompositeElement*>(element));
+            break;
+        case ESchedulerElementType::Operation:
+            InitializeRecursiveAttributesAtOperation(static_cast<const TPoolTreeOperationElement*>(element));
+            break;
+        default:
+            YT_ABORT();
+    }
+}
+
+void TAssignmentPlanUpdateContext::SetPriorityModuleBindingAttribute(const TPoolTreeCompositeElement* element)
+{
+    auto& attributes = AttributesList_.AttributesOf(element);
+
+    auto priorityModuleBindingEnabled = IsPrioritySchedulingSegmentModuleAssignmentEnabled(element);
+    if (element->IsRoot()) {
+        YT_VERIFY(priorityModuleBindingEnabled);
+        attributes.PriorityModuleBindingEnabled = *priorityModuleBindingEnabled;
+    } else {
+        const auto& parentAttributes = AttributesList_.AttributesOf(element->GetParent());
+        attributes.PriorityModuleBindingEnabled = priorityModuleBindingEnabled.value_or(
+            parentAttributes.PriorityModuleBindingEnabled);
+    }
+}
+
+void TAssignmentPlanUpdateContext::InitializeRecursiveAttributesAtCompositeElement(const TPoolTreeCompositeElement* element)
+{
+    SetPriorityModuleBindingAttribute(element);
+
+    for (const auto& child : element->EnabledChildren()) {
+        InitializeRecursiveAttributes(child.Get());
+    }
+}
+
+void TAssignmentPlanUpdateContext::InitializeRecursiveAttributesAtOperation(const TPoolTreeOperationElement* element)
+{
+    auto& attributes = AttributesList_.AttributesOf(element);
+    const auto& parentAttributes = AttributesList_.AttributesOf(element->GetParent());
+
+    attributes.PriorityModuleBindingEnabled = parentAttributes.PriorityModuleBindingEnabled;
 }
 
 void TAssignmentPlanUpdateContext::PreemptAllOperationAssignments(
