@@ -20,13 +20,7 @@ public:
     TQueryTrackerProgram()
     {
         SetMainThreadName("QTProg");
-    }
-
-    //! Override to print Query Tracker component version instead of the global YT version.
-    void PrintVersionAndExit() override
-    {
-        Cout << GetQueryTrackerVersion() << Endl;
-        Exit(0);
+        SetVersionProvider(&GetQueryTrackerVersion);
     }
 
 protected:

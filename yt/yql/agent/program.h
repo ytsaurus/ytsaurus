@@ -38,13 +38,8 @@ public:
         : TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
         , TProgramConfigMixin(Opts_)
-    { }
-
-    //! Override to print Query Tracker component version instead of the global YT version.
-    void PrintVersionAndExit() override
     {
-        Cout << GetQueryTrackerVersion() << Endl;
-        Exit(0);
+        SetVersionProvider(&GetQueryTrackerVersion);
     }
 
 protected:

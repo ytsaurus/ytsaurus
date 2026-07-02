@@ -6,7 +6,18 @@
 
 #include <util/generic/strbuf.h>
 
+#include <atomic>
+
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static std::atomic<TVersionProvider> VersionProvider{nullptr};
+
+void SetVersionProvider(TVersionProvider provider)
+{
+    VersionProvider.store(provider, std::memory_order_release);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +48,9 @@ Y_WEAK const char* GetVersionType()
 
 Y_WEAK const char* GetVersion()
 {
+    if (auto provider = VersionProvider.load(std::memory_order_acquire)) {
+        return provider();
+    }
     static auto version = CreateYTVersion(@YT_VERSION_MAJOR@, @YT_VERSION_MINOR@, @YT_VERSION_PATCH@, "@YT_VERSION_BRANCH@");
     return version.c_str();
 }

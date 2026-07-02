@@ -7,7 +7,7 @@ from yt.environment.init_query_tracker_state import get_latest_version, create_t
 from yt.common import YtError
 
 from yt_commands import (wait, authors, ls, get, set, assert_yt_error, remove, select_rows, insert_rows, exists,
-                         create_tablet_cell_bundle, sync_create_cells, create)
+                         create_tablet_cell_bundle, sync_create_cells, create, get_version)
 
 from yt_queries import get_query, get_query_tracker_info
 
@@ -68,6 +68,20 @@ class TestEnvironment(YTEnvSetup):
         wait(lambda: "query_tracker_invalid_state" in get(alerts_path))
         assert_yt_error(YtError.from_dict(get(alerts_path)["query_tracker_invalid_state"]),
                         "Min required state version is not met")
+
+    @authors("ilyaibraev")
+    def test_query_tracker_version(self, query_tracker):
+        # ytserver-query-tracker reports its own QT version, not the global YT version.
+        address = query_tracker.query_tracker.addresses[0]
+        orchid_version = get(f"//sys/query_tracker/instances/{address}/orchid/service/version")
+
+        # Version should be equal to yt/yt/build/ya.make: QT_VERSION_MAJOR:QT_VERSION_MINOR:QT_VERSION_PATCH
+        assert orchid_version.startswith("0.0.1")
+
+        yt_version = get_version()
+        assert not yt_version.startswith("0.0.1")
+
+        assert orchid_version != yt_version
 
 
 class TestMigration(YTEnvSetup):
