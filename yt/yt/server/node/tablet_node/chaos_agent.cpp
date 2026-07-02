@@ -77,10 +77,6 @@ public:
 
     void Enable() override
     {
-        YT_LOG_DEBUG("Starting chaos agent (ReplicationTickPeriod: %v, ReplicationProgressUpdateTickPeriod: %v)",
-            MountConfig_->ReplicationTickPeriod,
-            MountConfig_->ReplicationProgressUpdateTickPeriod);
-
         const auto& epochAutomatonInvoker = Tablet_->GetEpochAutomatonInvoker();
         SelfInvoker_.Store(epochAutomatonInvoker);
         UpdateReplicationCardExecutor_ = New<TPeriodicExecutor>(
@@ -101,7 +97,9 @@ public:
             });
         ReplicationProgressExecutor_->Start();
 
-        YT_LOG_INFO("Chaos agent fiber started");
+        YT_LOG_INFO("Chaos agent enabled (ReplicationTickPeriod: %v, ReplicationProgressUpdateTickPeriod: %v)",
+            MountConfig_->ReplicationTickPeriod,
+            MountConfig_->ReplicationProgressUpdateTickPeriod);
     }
 
     void Disable() override
@@ -115,6 +113,8 @@ public:
             YT_LOG_INFO("Chaos agent progress reporter fiber stopped");
         }
         SelfInvoker_.Store(nullptr);
+
+        YT_LOG_INFO("Chaos agent disabled");
     }
 
     TAsyncSemaphoreGuard TryGetConfigLockGuard() override

@@ -159,16 +159,17 @@ public:
             });
         ReplicationExecutor_->Start();
 
-        YT_LOG_INFO("Replicator fiber started");
+        YT_LOG_INFO("Table replicator enabled");
     }
 
     void Disable()
     {
         if (auto executor = std::exchange(ReplicationExecutor_, nullptr)) {
             YT_UNUSED_FUTURE(executor->Stop());
-            YT_LOG_INFO("Replicator fiber stopped");
         }
         HasActiveReplicationIteration_.store(false);
+
+        YT_LOG_INFO("Table replicator disabled");
     }
 
     bool HasActiveReplicationIteration()
