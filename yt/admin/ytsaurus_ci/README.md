@@ -68,6 +68,11 @@ needs a **GitHub token** via `--git-token`.
 
 - `--git-api-url` — GitHub API URL (default: `https://api.github.com`)
 - `--version-filter` — version filter (JSON string, default: `{}`)
+- `--upgrade-config` — for `upgrade` scenarios, name of a single upgrade to run
+  from the scenario's upgrade file (`configs/upgrades.yaml`); if omitted, every
+  upgrade in that file is run. An unknown name fails with the list of available
+  ones.
+- `--priority` — task priority (`NORMAL` by default)
 - `--apply` — apply changes (create task)
 - `--force` — overwrite existing task
 - `--verbose` — verbose output
@@ -84,6 +89,14 @@ needs a **GitHub token** via `--git-token`.
 # Run with apply
 ./yt/admin/ytsaurus_ci/ytsaurus_ci run-scenario \
   --scenario release-tests \
+  --git-token <token> \
+  --cloud-function-token <token> \
+  --apply
+
+# Run a single upgrade from configs/upgrades.yaml
+./yt/admin/ytsaurus_ci/ytsaurus_ci run-scenario \
+  --scenario upgrade \
+  --upgrade-config 25.4-to-26.1-simple \
   --git-token <token> \
   --cloud-function-token <token> \
   --apply
@@ -189,6 +202,20 @@ Compatibility files for each component (e.g., `compat-ytsaurus.yaml`, `compat-op
 - empty — all versions
 - Specific value or condition — filter by version
 - `main` — dev versions only (trunk)
+
+### `configs/upgrades.yaml`
+
+**Examples:**
+
+```yaml
+# One target: bump only ytsaurus, keep everything else pinned to the source.
+25.4-to-26.1-simple:
+  version_filter:
+    ytsaurus: "25.4"
+    operator: "0.31.0"
+  upgrade_to:
+    ytsaurus: "26.1"
+```
 
 ## Test Canonization
 

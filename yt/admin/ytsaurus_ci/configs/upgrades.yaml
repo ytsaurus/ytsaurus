@@ -33,3 +33,14 @@
     query_tracker: "0.1"
   upgrade_to:
     ytsaurus: "26.1"
+    spyt: "2.8.2"
+25.4-qt-0.1.1:
+  version_filter:
+    ytsaurus: "25.4"
+    operator: "0.30.0"
+    chyt: "2.17.4"
+    strawberry: "0.0.16"
+    spyt: "2.7.3"
+    query_tracker: "0.1"
+  upgrade_to:
+    query_tracker: "0.1.1"

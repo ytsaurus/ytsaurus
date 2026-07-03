@@ -19,3 +19,13 @@ main:
   constraints:
     operator: ">=0.25.0 && main"
     ytsaurus: ">=25.2"
+0.1.1:
+  source: stable
+  constraints:
+    operator: ">=0.30.0 && main"
+    ytsaurus: ">=24.2"
+0.1.2:
+  source: stable
+  constraints:
+    operator: ">=0.30.0 && main"
+    ytsaurus: ">=24.2"
