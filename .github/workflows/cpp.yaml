@@ -261,7 +261,7 @@ jobs:
   send-alert:
     needs:
       # - check
-      - build-cmake
+      # - build-cmake
       - build-ya-make
       - docker-ya-make
       # - docker-cmake
