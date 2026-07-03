@@ -27,7 +27,6 @@ public:
         queryPath.SkipPrefix("/");
 
         YQL_CLOG(TRACE, FastMapReduce) << "Received HTTP request: " << httpRequest.Method << " " << httpRequest.Path;
-        Cerr << "Received HTTP request: " << httpRequest.Method << " " << httpRequest.Path << "\n";
 
         if (queryPath == "ping") {
             YQL_ENSURE(httpRequest.Method == "GET");
@@ -61,7 +60,6 @@ public:
     void Start() override {
         HttpServer_->Start();
         YQL_CLOG(INFO, FastMapReduce) << "Worker server is listening on url " << "http://" + Host_ + ":" + ToString(Port_);
-        Cerr << "Worker server is listening on url " << "http://" + Host_ + ":" + ToString(Port_) << "\n";
     }
 
     void Stop() override {
