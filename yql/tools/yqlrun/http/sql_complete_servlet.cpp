@@ -23,6 +23,9 @@
 #include <util/charset/utf8.h>
 #include <util/stream/buffer.h>
 
+namespace NYql {
+namespace NHttp {
+
 namespace {
 
 using namespace NSQLComplete;
@@ -161,9 +164,6 @@ void WriteCompletion(NJson::TJsonWriter& writer, const TCompletion& completion) 
 
 } // namespace
 
-namespace NYql {
-namespace NHttp {
-
 TSqlCompleteServlet::TSqlCompleteServlet() {
     Lexers_.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
     Lexers_.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
@@ -212,29 +212,28 @@ void TSqlCompleteServlet::DoPost(const TRequest& req, TResponse& resp) const {
     Y_ENSURE_EX(parsed, THttpError(HTTP_BAD_REQUEST) << "can't parse json");
 
     const auto program = value["program"].GetStringSafe();
-    const auto cursorPosition = std::min<size_t>(value["cursorPosition"].GetUIntegerSafe(), GetNumberOfUTF8Chars(program));
-
     const auto tableAttr = value["tableAttr"].GetStringSafe();
     const auto parameters = value["parameters"].GetStringSafe();
     const auto outputTable = value["outputTable"].GetStringSafe();
+    const auto cursorPosition = std::min<size_t>(value["cursorPosition"].GetUIntegerSafe(), GetNumberOfUTF8Chars(program));
 
     TConfiguration configuration;
     configuration.Limit = 41;
 
-    ISqlCompletionEngine::TPtr engine = MakeSqlCompletionEngine(
+    const auto engine = MakeSqlCompletionEngine(
         MakeLexerSupplier(Lexers_),
         MakeRequestNameService(tableAttr, outputTable),
         configuration,
-        Ranking_);
+        Ranking_
+    );
 
-    TCompletion completion = engine
-        ->Complete(
-            {
-                .Text = program,
-                .CursorPosition = cursorPosition,
-            },
-            ParseEnvironment(parameters))
-        .GetValueSync();
+    const auto completion = engine->Complete(
+        {
+            .Text = program,
+            .CursorPosition = cursorPosition,
+        },
+        ParseEnvironment(parameters)
+    ).GetValueSync();
 
     TBufferOutput output;
     NJson::TJsonWriter writer(&output, false);
