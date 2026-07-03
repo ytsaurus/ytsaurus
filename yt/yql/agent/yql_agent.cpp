@@ -90,7 +90,11 @@ public:
     {
         if (IsTaken_) {
             ActiveQueries_->fetch_add(-1);
-            YqlPlugin_->UnregisterQuery(QueryId_);
+            try {
+                YqlPlugin_->UnregisterQuery(QueryId_);
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Failed to unregister query (QueryId: %v)", QueryId_);
+            }
         }
     }
 
