@@ -199,6 +199,7 @@ public:
 
     IDigest* GetUserJobMemoryDigest() const;
     IDigest* GetJobProxyMemoryDigest() const;
+    const TLogDigestConfigPtr& GetJobProxyMemoryDigestConfig() const;
 
     virtual void SetupCallbacks();
 
