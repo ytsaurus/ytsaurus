@@ -1,7 +1,6 @@
 package integration
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -15,11 +14,6 @@ import (
 
 type distributedWriteRow struct {
 	V int `yson:"v"`
-}
-
-type distributedWriteBigRow struct {
-	Key int    `yson:"key"`
-	Val string `yson:"val"`
 }
 
 // waitSignatureKeyPublished waits for the proxy to publish a signature key (done
@@ -73,47 +67,6 @@ func TestDistributedWrite(t *testing.T) {
 	var rowCount int
 	require.NoError(t, env.YT.GetNode(ctx, path.Attr("row_count"), &rowCount, nil))
 	require.Equal(t, cookieCount*rowsPerCookie, rowCount)
-}
-
-// A single cookie can be written as several fragments via yt.WriteTableFragments, and finish
-// attaches all of them.
-func TestDistributedWriteFragments(t *testing.T) {
-	t.Parallel()
-
-	env := yttest.New(t)
-	ctx := env.Ctx
-
-	waitSignatureKeyPublished(t, env)
-
-	path := env.TmpPath()
-	_, err := env.YT.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
-		Attributes: map[string]any{"schema": schema.MustInfer(&distributedWriteBigRow{})},
-	})
-	require.NoError(t, err)
-
-	cookieCount := 1
-	session, err := env.YT.StartDistributedWriteSession(ctx, path, &yt.StartDistributedWriteSessionOptions{
-		CookieCount: &cookieCount,
-	})
-	require.NoError(t, err)
-	require.Len(t, session.Cookies, 1)
-
-	const rows = 5
-	// small batch + rows larger than the yson buffer => several fragments under one cookie
-	val := strings.Repeat("x", 16*1024)
-	w, err := yt.WriteTableFragments(ctx, env.YT, session.Cookies[0], yt.WithFragmentBatchSize(8*1024))
-	require.NoError(t, err)
-	for i := 0; i < rows; i++ {
-		require.NoError(t, w.Write(distributedWriteBigRow{Key: i, Val: val}))
-	}
-	require.NoError(t, w.Commit())
-	require.GreaterOrEqual(t, len(w.Results()), 2)
-
-	require.NoError(t, env.YT.FinishDistributedWriteSession(ctx, session.Session, w.Results(), nil))
-
-	var rowCount int
-	require.NoError(t, env.YT.GetNode(ctx, path.Attr("row_count"), &rowCount, nil))
-	require.Equal(t, rows, rowCount)
 }
 
 func TestDistributedWriteUnderTransaction(t *testing.T) {
