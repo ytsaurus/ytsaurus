@@ -2570,7 +2570,7 @@ class YTEnvSetup(object):
             for node, response in zip(exec_nodes, responses):
                 print("Node {}: {}".format(node, response), file=sys.stderr)
 
-        def check_resources_are_zero(resource_types):
+        def get_nonzero_resources(resource_types):
             requests = [
                 yt_commands.make_batch_request(
                     "get",
@@ -2581,18 +2581,24 @@ class YTEnvSetup(object):
             ]
 
             responses = yt_commands.execute_batch(requests, driver=driver, verbose=False)
+            nonzero = []
             for node, response in zip(exec_nodes, responses):
                 response = yt_commands.get_batch_output(response)
-
-                def verify_resources_are_zero(type):
-                    if not yt_commands.are_job_resources_are_zero(response[type]):
-                        yt_commands.print_debug(responses)
-                    assert yt_commands.are_job_resources_are_zero(response[type]), f"Node {node} has non-zero {type}: {response[type]}"
-
                 for type in resource_types:
-                    verify_resources_are_zero(type)
+                    if not yt_commands.are_job_resources_are_zero(response[type]):
+                        nonzero.append((node, type, response[type]))
+            return nonzero
 
-        check_resources_are_zero(["pending_resources", "acquired_resources"])
+        # Resource holders are released asynchronously after a job vanishes, so the
+        # resource manager may still report acquired resources right after the active
+        # job count drops to zero. Poll instead of checking once.
+        resource_types = ["pending_resources", "acquired_resources"]
+        try:
+            wait(lambda: not get_nonzero_resources(resource_types), iter=300)
+        except WaitFailed:
+            nonzero = get_nonzero_resources(resource_types)
+            assert not nonzero, "\n".join(
+                f"Node {node} has non-zero {type}: {value}" for node, type, value in nonzero)
 
     def spawn_additional_thread(self, target, name=None):
         assert \
