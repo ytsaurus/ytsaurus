@@ -1472,6 +1472,27 @@
             "uri": "https://{canondata_backend}/1937429/0ff74c52adafa5b565ed99509b53d5121128d9fe/resource.tar.gz#test.test_lineage-window_yql_21344-default.txt-Results_/Output.yqlrun.txt.attr"
         }
     ],
+    "test.test[materialize-sys_columns--Debug]": [
+        {
+            "checksum": "4e15f9fb7781687b2ea71ed251a1614a",
+            "size": 2289,
+            "uri": "https://{canondata_backend}/1942278/c4dd69f48d07e2f2f9f73edf9f28b16db12c0f44/resource.tar.gz#test.test_materialize-sys_columns--Debug_/opt.yql"
+        }
+    ],
+    "test.test[materialize-sys_columns--Plan]": [
+        {
+            "checksum": "497778dd9a0d274473ec243771840bb7",
+            "size": 5264,
+            "uri": "https://{canondata_backend}/1942278/c4dd69f48d07e2f2f9f73edf9f28b16db12c0f44/resource.tar.gz#test.test_materialize-sys_columns--Plan_/plan.txt"
+        }
+    ],
+    "test.test[materialize-sys_columns--Results]": [
+        {
+            "checksum": "673b3f15dca85bf1045574b7b8a3d836",
+            "size": 1284,
+            "uri": "https://{canondata_backend}/1942278/c4dd69f48d07e2f2f9f73edf9f28b16db12c0f44/resource.tar.gz#test.test_materialize-sys_columns--Results_/results.txt"
+        }
+    ],
     "test.test[multicluster-map_force--Debug]": [
         {
             "checksum": "991301dd0df6ad2bb9b60d5b69df9557",
