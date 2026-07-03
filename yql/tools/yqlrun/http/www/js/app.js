@@ -288,7 +288,7 @@ function installSqlCompletion(editor) {
         }
 
         state.xhr = $.ajax({
-            url: "/api/sql/complete",
+            url: "/api/sql/completion",
             timeout: 10000,
             dataType: "json",
             type: "POST",

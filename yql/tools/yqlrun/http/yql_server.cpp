@@ -658,7 +658,7 @@ TAutoPtr<TYqlServer> CreateYqlServer(
 
     server->RegisterServlet("/js/yql-functions.js", new TYqlFunctoinsServlet());
     server->RegisterServlet("/js/sql-tokens.js", new TSqlTokensServlet());
-    server->RegisterServlet("/api/sql/complete", new TSqlCompleteServlet());
+    server->RegisterServlet("/api/sql/completion", new TSqlCompleteServlet());
 
     server->RegisterAction<TYqlActionFileRun>("/api/yql/lineage");
     server->RegisterAction<TYqlActionFileRun>("/api/yql/run");

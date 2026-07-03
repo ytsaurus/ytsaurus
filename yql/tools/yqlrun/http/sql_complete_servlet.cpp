@@ -20,39 +20,12 @@
 #include <library/cpp/json/json_writer.h>
 #include <library/cpp/yson/node/node_io.h>
 
+#include <util/charset/utf8.h>
 #include <util/stream/buffer.h>
 
 namespace {
 
 using namespace NSQLComplete;
-
-TString CandidateKindToString(ECandidateKind kind) {
-    switch (kind) {
-        case ECandidateKind::Keyword:
-            return "keyword";
-        case ECandidateKind::PragmaName:
-            return "pragma";
-        case ECandidateKind::TypeName:
-            return "type";
-        case ECandidateKind::FunctionName:
-            return "function";
-        case ECandidateKind::HintName:
-            return "hint";
-        case ECandidateKind::FolderName:
-            return "folder";
-        case ECandidateKind::TableName:
-            return "table";
-        case ECandidateKind::ClusterName:
-            return "cluster";
-        case ECandidateKind::ColumnName:
-            return "column";
-        case ECandidateKind::BindingName:
-            return "binding";
-        case ECandidateKind::UnknownName:
-            return "unknown";
-    }
-    return "unknown";
-}
 
 TLexerSupplier MakeLexerSupplier(NSQLTranslationV1::TLexers lexers) {
     return [lexers = std::move(lexers)](bool ansi) {
@@ -63,7 +36,7 @@ TLexerSupplier MakeLexerSupplier(NSQLTranslationV1::TLexers lexers) {
     };
 }
 
-TVector<TString> ExtractColumnsFromTableAttr(const TString& tableAttr) try {
+TVector<TString> ExtractColumnsFromTableAttr(const std::string_view tableAttr) try {
     TVector<TString> columns;
 
     if (tableAttr.empty()) {
@@ -97,11 +70,12 @@ TVector<TString> ExtractColumnsFromTableAttr(const TString& tableAttr) try {
     }
 
     return columns;
-} catch (...) {
+} catch (const std::exception& ex) {
+    Cerr << "Error on parsing columns: " << ex.what() << Endl;
     return {};
 }
 
-TEnvironment ParseEnvironment(const TString& parameters) try {
+TEnvironment ParseEnvironment(const std::string_view parameters) {
     TEnvironment env;
 
     if (parameters.empty()) {
@@ -122,16 +96,14 @@ TEnvironment ParseEnvironment(const TString& parameters) try {
     }
 
     return env;
-} catch (...) {
-    return {};
 }
 
-void AddTable(TSchemaData& data, const TString& cluster, const TString& table, const TVector<TString>& columns) {
+void AddTable(TSchemaData& data, const std::string_view cluster, const std::string_view table, const TVector<TString>& columns) {
     if (table.empty()) {
         return;
     }
 
-    auto path = table;
+    TString path(table);
     if (!path.StartsWith('/')) {
         path.prepend('/');
     }
@@ -153,15 +125,15 @@ INameService::TPtr MakeRequestNameService(
     INameService::TPtr staticNames,
     INameService::TPtr clusterNames,
     IRanking::TPtr ranking,
-    const TString& tableAttr,
-    const TString& outputTable)
+    const std::string_view tableAttr,
+    const std::string_view outputTable)
 {
     TSchemaData data;
 
     const TVector<TString> inputColumns = ExtractColumnsFromTableAttr(tableAttr);
     const TVector<TString> clusters = {"", "plato"};
 
-    for (const TString& cluster : clusters) {
+    for (const auto& cluster : clusters) {
         AddTable(data, cluster, "Input", inputColumns);
         AddTable(data, cluster, "Output", {});
         AddTable(data, cluster, outputTable, {});
@@ -169,17 +141,16 @@ INameService::TPtr MakeRequestNameService(
 
     TVector<INameService::TPtr> children = {
         std::move(staticNames),
-        MakeImpatientNameService(
-            MakeSchemaNameService(
-                MakeSimpleSchema(
-                    MakeStaticSimpleSchema(std::move(data))))),
+        MakeSchemaNameService(
+            MakeSimpleSchema(
+                MakeStaticSimpleSchema(std::move(data)))),
         std::move(clusterNames),
     };
 
     return MakeUnionNameService(std::move(children), std::move(ranking));
 }
 
-void WriteCompletedToken(NJson::TJsonWriter& writer, const TCompletedToken& token, const TString& program) {
+void WriteCompletedToken(NJson::TJsonWriter& writer, const TCompletedToken& token, const std::string_view program) {
     const auto length = token.Content.size();
 
     writer.Write("completedToken"sv);
@@ -192,7 +163,7 @@ void WriteCompletedToken(NJson::TJsonWriter& writer, const TCompletedToken& toke
 
 void WriteCandidate(NJson::TJsonWriter& writer, const TCandidate& candidate) {
     writer.OpenMap();
-    writer.Write("kind"sv, CandidateKindToString(candidate.Kind));
+    writer.Write("kind"sv, ToString(candidate.Kind));
     writer.Write("content"sv, candidate.Content);
     writer.Write("cursorShift"sv, candidate.CursorShift);
     writer.Write("filterText"sv, candidate.FilterText());
@@ -202,7 +173,7 @@ void WriteCandidate(NJson::TJsonWriter& writer, const TCandidate& candidate) {
     writer.CloseMap();
 }
 
-void WriteCompletion(NJson::TJsonWriter& writer, const TCompletion& completion, const TString& program) {
+void WriteCompletion(NJson::TJsonWriter& writer, const TCompletion& completion, const std::string_view program) {
     writer.OpenMap();
 
     WriteCompletedToken(writer, completion.CompletedToken, program);
@@ -246,8 +217,7 @@ void TSqlCompleteServlet::DoPost(const TRequest& req, TResponse& resp) const {
     Y_ENSURE_EX(parsed, THttpError(HTTP_BAD_REQUEST) << "can't parse json");
 
     const auto program = value["program"].GetStringSafe();
-    const auto cursorPosition = value["cursorPosition"].GetUIntegerSafe();
-    Y_ENSURE_EX(cursorPosition <= program.size(), THttpError(HTTP_BAD_REQUEST) << "invalid cursor position");
+    const auto cursorPosition = std::min<size_t>(value["cursorPosition"].GetUIntegerSafe(), GetNumberOfUTF8Chars(program));
 
     const auto tableAttr = value["tableAttr"].GetStringSafe();
     const auto parameters = value["parameters"].GetStringSafe();
