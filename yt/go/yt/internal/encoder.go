@@ -788,6 +788,21 @@ func (w *tableFragmentWriter) Result() yt.WriteFragmentResult {
 	return w.result
 }
 
+// WriteTableFragmentRaw writes a pre-encoded batch as a single fragment; retries are disabled
+// so the caller retries the whole batch (see yt.WriteTableFragments).
+func (e *Encoder) WriteTableFragmentRaw(
+	ctx context.Context,
+	cookie yt.WriteFragmentCookie,
+	options *yt.TableFragmentWriterOptions,
+	body *bytes.Buffer,
+) (result yt.WriteFragmentResult, err error) {
+	call := e.newCall(NewWriteTableFragmentParams(cookie, options))
+	call.YSONValue = body.Bytes()
+	call.DisableRetries = true
+	err = e.do(ctx, call, WriteTableFragmentResultDecoder(&result))
+	return
+}
+
 func (e *Encoder) ReadTable(
 	ctx context.Context,
 	path ypath.YPath,
