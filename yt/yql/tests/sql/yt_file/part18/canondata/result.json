@@ -1328,6 +1328,48 @@
             "uri": "https://{canondata_backend}/1916746/32c6f461ff556d71931136bc6999a39f67a5eebf/resource.tar.gz#test.test_lineage-select_table_row-default.txt-Results_/Output.yqlrun.txt.attr"
         }
     ],
+    "test.test[materialize-chained--Debug]": [
+        {
+            "checksum": "6ca6b52221dad7fa8dace74e0ba245c9",
+            "size": 2063,
+            "uri": "https://{canondata_backend}/1942278/425159dbdbb5404799900157512358e1f224ffce/resource.tar.gz#test.test_materialize-chained--Debug_/opt.yql"
+        }
+    ],
+    "test.test[materialize-chained--Plan]": [
+        {
+            "checksum": "cbddc1e8fbe44016caa5cc150d3a96c8",
+            "size": 6650,
+            "uri": "https://{canondata_backend}/1942278/425159dbdbb5404799900157512358e1f224ffce/resource.tar.gz#test.test_materialize-chained--Plan_/plan.txt"
+        }
+    ],
+    "test.test[materialize-chained--Results]": [
+        {
+            "checksum": "fc8f190da2c19e9e518671bbba426a3c",
+            "size": 1654,
+            "uri": "https://{canondata_backend}/1942278/425159dbdbb5404799900157512358e1f224ffce/resource.tar.gz#test.test_materialize-chained--Results_/results.txt"
+        }
+    ],
+    "test.test[materialize-preserve_sort--Debug]": [
+        {
+            "checksum": "439729b2bf9b2d63402b636c5f331c67",
+            "size": 1908,
+            "uri": "https://{canondata_backend}/1942278/425159dbdbb5404799900157512358e1f224ffce/resource.tar.gz#test.test_materialize-preserve_sort--Debug_/opt.yql"
+        }
+    ],
+    "test.test[materialize-preserve_sort--Plan]": [
+        {
+            "checksum": "9e1bcdb5fc7b8f11f598a87bdb9449a8",
+            "size": 5792,
+            "uri": "https://{canondata_backend}/1942278/425159dbdbb5404799900157512358e1f224ffce/resource.tar.gz#test.test_materialize-preserve_sort--Plan_/plan.txt"
+        }
+    ],
+    "test.test[materialize-preserve_sort--Results]": [
+        {
+            "checksum": "7742ab444a090a17f7a54f9cb81edb1b",
+            "size": 1281,
+            "uri": "https://{canondata_backend}/1942278/425159dbdbb5404799900157512358e1f224ffce/resource.tar.gz#test.test_materialize-preserve_sort--Results_/results.txt"
+        }
+    ],
     "test.test[optimizers-direct_row_after_merge--Debug]": [
         {
             "checksum": "8aedd1d0538702c8fdd514cdcbc83b08",
