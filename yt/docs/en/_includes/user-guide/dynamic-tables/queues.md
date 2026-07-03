@@ -60,7 +60,7 @@ You can create a consumer using the alias `create queue_consumer` or by explicit
 
 You can verify that the system has recognized the consumer by checking if the **Consumers** tab has appeared on the page of the dynamic table object.
 
-### Registering a consumer with a queue
+### Registering a consumer with a queue { #register_queue_consumer }
 
 To register a consumer with a queue, use the `register_queue_consumer` method. Make sure to set a value for the `vital` parameter. It's a required boolean parameter that determines some of the settings for automatic queue trimming (see the [section](#automatic_trimming) on automatic trimming).
 
