@@ -91,7 +91,7 @@ struct THunkChunkTreeStatistics
     //! Disk space occupied on data nodes by erasure chunks (including parity parts).
     i64 ErasureDiskSpace = 0;
 
-    //! Total number of chunks in the tree.
+    //! Total number of unique chunks in the tree.
     int ChunkCount = 0;
 
     void Accumulate(const THunkChunkTreeStatistics& other);

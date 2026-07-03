@@ -115,9 +115,10 @@ public:
     //! Hunk tree specifics.
 
     const THunkChunkTreeStatistics& HunkStatistics() const;
-    void AccumulateHunkStatistics(TChunk* chunk);
+    void AccumulateHunkStatistics(TChunk* chunk, bool force = false);
     void DeaccumulateHunkStatistics(TChunk* chunk);
     void ResetHunkStatistics();
+    void CopyHunkStatistics(TChunkList* other);
     void AccumulateNewlyReferencedHunkDataSize(TChunk* chunk, i64 dataSizeDelta);
 
     //! Common statistics accessors.
@@ -146,7 +147,6 @@ private:
     struct THunkTreeChunkListTraits
     {
         THunkChunkTreeStatistics Statistics;
-        THashMap<TChunkId, int> HunkChunkIdToRefCount;
 
         void Persist(const NCellMaster::TPersistenceContext& context);
     };

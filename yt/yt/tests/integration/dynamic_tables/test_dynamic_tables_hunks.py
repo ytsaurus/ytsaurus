@@ -2479,6 +2479,29 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
+
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["hunk_data_weight"] == 189
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["referenced_regular_disk_space"] == 261
+        assert statistics["chunk_count"] == 2
+
+        hunk_tablet_chunk_list_ids = get(f"#{hunk_root_chunk_list_id}/@child_ids")
+        assert len(hunk_tablet_chunk_list_ids) == 4
+
+        assert get(f"#{hunk_tablet_chunk_list_ids[0]}/@statistics/chunk_count") == 2
+        assert get(f"#{hunk_tablet_chunk_list_ids[1]}/@statistics/chunk_count") == 2
+        assert get(f"#{hunk_tablet_chunk_list_ids[2]}/@statistics/chunk_count") == 1
+        assert get(f"#{hunk_tablet_chunk_list_ids[3]}/@statistics/chunk_count") == 2
+
+        assert get(f"#{hunk_tablet_chunk_list_ids[0]}/@statistics/referenced_regular_disk_space") == 261
+        assert get(f"#{hunk_tablet_chunk_list_ids[1]}/@statistics/referenced_regular_disk_space") == 261
+        assert get(f"#{hunk_tablet_chunk_list_ids[2]}/@statistics/referenced_regular_disk_space") == 116
+        assert get(f"#{hunk_tablet_chunk_list_ids[3]}/@statistics/referenced_regular_disk_space") == 261
 
     @authors("akozhikhov", "shakurov")
     def test_hunk_storage_force_unmount(self):
