@@ -26,6 +26,8 @@ const (
 	rateLimitRetryBackoff      = 60 * time.Second
 	defaultBatchSize           = 512 * 1024 * 1024
 	writeTableAttemptTxTimeout = 60 * time.Second
+	// smaller than defaultBatchSize to keep each write_table_fragment request short
+	defaultFragmentBatchSize = 256 * 1024 * 1024
 )
 
 // WithBatchSize sets batch size (in bytes) for WriteTable.
@@ -672,6 +674,209 @@ func WriteTable(ctx context.Context, yc CypressClient, path ypath.Path, opts ...
 			w.err = err
 			return nil, w.Rollback()
 		}
+	}
+
+	return w, nil
+}
+
+type (
+	WriteTableFragmentsOption func(*fragmentWriter)
+
+	rawFragmentWriter interface {
+		WriteTableFragmentRaw(
+			ctx context.Context,
+			cookie WriteFragmentCookie,
+			options *TableFragmentWriterOptions,
+			body *bytes.Buffer,
+		) (WriteFragmentResult, error)
+	}
+
+	// TableFragmentSetWriter writes rows of a distributed write participant as one or more
+	// table fragments. Results returns their signed results after Commit.
+	TableFragmentSetWriter interface {
+		TableWriter
+
+		Results() []WriteFragmentResult
+	}
+
+	fragmentWriter struct {
+		ctx    context.Context
+		client rawFragmentWriter
+		cookie WriteFragmentCookie
+
+		batchSize         int
+		retryCount        uint64
+		tableWriterConfig map[string]any
+
+		buffer  *bytes.Buffer
+		encoder encoder
+		results []WriteFragmentResult
+		err     error
+	}
+)
+
+// WithFragmentBatchSize sets the flush threshold (in bytes) of a single fragment.
+func WithFragmentBatchSize(batchSize int) WriteTableFragmentsOption {
+	return func(w *fragmentWriter) {
+		w.batchSize = batchSize
+	}
+}
+
+// WithFragmentRetries sets how many times each fragment is retried on transient errors.
+func WithFragmentRetries(count uint64) WriteTableFragmentsOption {
+	return func(w *fragmentWriter) {
+		w.retryCount = count
+	}
+}
+
+// WithFragmentTableWriterConfig sets the table_writer config passed to write_table_fragment.
+func WithFragmentTableWriterConfig(config map[string]any) WriteTableFragmentsOption {
+	return func(w *fragmentWriter) {
+		w.tableWriterConfig = config
+	}
+}
+
+func (w *fragmentWriter) Write(value any) error {
+	if w.err != nil {
+		return w.err
+	}
+
+	if w.err = w.encoder.encode(value); w.err != nil {
+		return w.err
+	}
+
+	if w.buffer.Len() >= w.batchSize {
+		return w.flush()
+	}
+
+	return nil
+}
+
+func (w *fragmentWriter) flush() error {
+	if w.err != nil {
+		return w.err
+	}
+
+	if w.err = w.encoder.finish(); w.err != nil {
+		return w.err
+	}
+
+	if w.buffer.Len() == 0 {
+		return nil
+	}
+
+	result, err := w.sendFragmentWithRetries()
+	if err != nil {
+		w.err = err
+		return w.err
+	}
+	w.results = append(w.results, result)
+
+	w.err = w.initBuffer()
+	return w.err
+}
+
+func (w *fragmentWriter) sendFragmentWithRetries() (WriteFragmentResult, error) {
+	options := &TableFragmentWriterOptions{TableWriter: w.tableWriterConfig}
+
+	var lastErr error
+	var retries uint64
+	for {
+		result, err := w.client.WriteTableFragmentRaw(w.ctx, w.cookie, options, w.buffer)
+		if err == nil {
+			return result, nil
+		}
+
+		lastErr = err
+
+		backoff := tryGetBackoffDuration(err)
+		if backoff == nil {
+			return WriteFragmentResult{}, err
+		}
+
+		if retries >= w.retryCount {
+			break
+		}
+		retries++
+
+		select {
+		case <-time.After(*backoff):
+		case <-w.ctx.Done():
+			return WriteFragmentResult{}, w.ctx.Err()
+		}
+	}
+
+	return WriteFragmentResult{}, lastErr
+}
+
+func (w *fragmentWriter) Commit() error {
+	if w.err != nil {
+		return w.err
+	}
+
+	if err := w.flush(); err != nil {
+		return err
+	}
+
+	w.err = errYtWriterClosed
+	return nil
+}
+
+func (w *fragmentWriter) Rollback() error {
+	if w.err != nil {
+		return w.err
+	}
+
+	// No transaction to abort: uncommitted fragments are never attached on finish.
+	w.err = errYtWriterClosed
+	return nil
+}
+
+func (w *fragmentWriter) Results() []WriteFragmentResult {
+	return w.results
+}
+
+func (w *fragmentWriter) initBuffer() error {
+	if w.buffer == nil {
+		w.buffer = new(bytes.Buffer)
+	} else {
+		w.buffer.Reset()
+	}
+	w.encoder = newYSONEncoder(w.buffer)
+	return nil
+}
+
+var _ TableFragmentSetWriter = (*fragmentWriter)(nil)
+
+// WriteTableFragments creates a high-level distributed write fragment writer: it buffers rows
+// and flushes them as one or more fragments under the cookie, retrying each fragment on
+// transient errors. Peak memory is bounded by the batch size. Use Results after Commit.
+func WriteTableFragments(
+	ctx context.Context,
+	client DistributedWriteClient,
+	cookie WriteFragmentCookie,
+	opts ...WriteTableFragmentsOption,
+) (TableFragmentSetWriter, error) {
+	raw, ok := client.(rawFragmentWriter)
+	if !ok {
+		return nil, xerrors.Errorf("yt: client %T is not compatible with yt.WriteTableFragments", client)
+	}
+
+	w := &fragmentWriter{
+		ctx:        ctx,
+		client:     raw,
+		cookie:     cookie,
+		batchSize:  defaultFragmentBatchSize,
+		retryCount: 10,
+	}
+
+	for _, opt := range opts {
+		opt(w)
+	}
+
+	if err := w.initBuffer(); err != nil {
+		w.err = err
+		return nil, err
 	}
 
 	return w, nil
