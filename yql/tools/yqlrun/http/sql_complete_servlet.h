@@ -19,6 +19,8 @@ public:
     void DoPost(const TRequest& req, TResponse& resp) const override final;
 
 private:
+    NSQLComplete::INameService::TPtr MakeRequestNameService(const std::string_view tableAttr, const std::string_view outputTable) const;
+
     NSQLTranslationV1::TLexers Lexers_;
     NSQLComplete::IRanking::TPtr Ranking_;
     NSQLComplete::INameService::TPtr StaticNameService_;

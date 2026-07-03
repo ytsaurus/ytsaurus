@@ -121,41 +121,12 @@ void AddTable(TSchemaData& data, const std::string_view cluster, const std::stri
     entries.emplace_back(TFolderEntry::Table, std::move(name));
 }
 
-INameService::TPtr MakeRequestNameService(
-    INameService::TPtr staticNames,
-    INameService::TPtr clusterNames,
-    IRanking::TPtr ranking,
-    const std::string_view tableAttr,
-    const std::string_view outputTable)
-{
-    TSchemaData data;
-
-    const TVector<TString> inputColumns = ExtractColumnsFromTableAttr(tableAttr);
-    const TVector<TString> clusters = {"", "plato"};
-
-    for (const auto& cluster : clusters) {
-        AddTable(data, cluster, "Input", inputColumns);
-        AddTable(data, cluster, "Output", {});
-        AddTable(data, cluster, outputTable, {});
-    }
-
-    TVector<INameService::TPtr> children = {
-        std::move(staticNames),
-        MakeSchemaNameService(
-            MakeSimpleSchema(
-                MakeStaticSimpleSchema(std::move(data)))),
-        std::move(clusterNames),
-    };
-
-    return MakeUnionNameService(std::move(children), std::move(ranking));
-}
-
-void WriteCompletedToken(NJson::TJsonWriter& writer, const TCompletedToken& token, const std::string_view program) {
+void WriteCompletedToken(NJson::TJsonWriter& writer, const TCompletedToken& token) {
     const auto length = token.Content.size();
 
     writer.Write("completedToken"sv);
     writer.OpenMap();
-    writer.Write("content"sv, program.substr(token.SourcePosition, length));
+    writer.Write("content"sv, token.Content);
     writer.Write("sourcePosition"sv, token.SourcePosition);
     writer.Write("length"sv, length);
     writer.CloseMap();
@@ -173,10 +144,10 @@ void WriteCandidate(NJson::TJsonWriter& writer, const TCandidate& candidate) {
     writer.CloseMap();
 }
 
-void WriteCompletion(NJson::TJsonWriter& writer, const TCompletion& completion, const std::string_view program) {
+void WriteCompletion(NJson::TJsonWriter& writer, const TCompletion& completion) {
     writer.OpenMap();
 
-    WriteCompletedToken(writer, completion.CompletedToken, program);
+    WriteCompletedToken(writer, completion.CompletedToken);
 
     writer.Write("candidates"sv);
     writer.OpenArray();
@@ -200,14 +171,38 @@ TSqlCompleteServlet::TSqlCompleteServlet() {
     TFrequencyData frequency = LoadFrequencyData();
     Ranking_ = MakeDefaultRanking(frequency);
     StaticNameService_ = MakeStaticNameService(LoadDefaultNameSet(), frequency);
-    ClusterNameService_ = MakeImpatientNameService(
-        MakeClusterNameService(
-            MakeStaticClusterDiscovery({
-                "plato",
-                "plato_rtmr",
-                "pg_catalog",
-                "information_schema",
-            })));
+    ClusterNameService_ = MakeClusterNameService(
+        MakeStaticClusterDiscovery({
+            "plato",
+            "plato_rtmr",
+            "pg_catalog",
+            "information_schema",
+        })
+    );
+}
+
+INameService::TPtr TSqlCompleteServlet::MakeRequestNameService(const std::string_view tableAttr, const std::string_view outputTable) const
+{
+    TSchemaData data;
+
+    const TVector<TString> inputColumns = ExtractColumnsFromTableAttr(tableAttr);
+    const TVector<TString> clusters = {"", "plato"};
+
+    for (const auto& cluster : clusters) {
+        AddTable(data, cluster, "Input", inputColumns);
+        AddTable(data, cluster, "Output", {});
+        AddTable(data, cluster, outputTable, {});
+    }
+
+    TVector<INameService::TPtr> children = {
+        StaticNameService_,
+        MakeSchemaNameService(
+            MakeSimpleSchema(
+                MakeStaticSimpleSchema(std::move(data)))),
+                ClusterNameService_,
+    };
+
+    return MakeUnionNameService(std::move(children), Ranking_);
 }
 
 void TSqlCompleteServlet::DoPost(const TRequest& req, TResponse& resp) const {
@@ -228,7 +223,7 @@ void TSqlCompleteServlet::DoPost(const TRequest& req, TResponse& resp) const {
 
     ISqlCompletionEngine::TPtr engine = MakeSqlCompletionEngine(
         MakeLexerSupplier(Lexers_),
-        MakeRequestNameService(StaticNameService_, ClusterNameService_, Ranking_, tableAttr, outputTable),
+        MakeRequestNameService(tableAttr, outputTable),
         configuration,
         Ranking_);
 
@@ -243,7 +238,7 @@ void TSqlCompleteServlet::DoPost(const TRequest& req, TResponse& resp) const {
 
     TBufferOutput output;
     NJson::TJsonWriter writer(&output, false);
-    WriteCompletion(writer, completion, program);
+    WriteCompletion(writer, completion);
     writer.Flush();
 
     resp.Body = TBlob::FromBuffer(output.Buffer());
