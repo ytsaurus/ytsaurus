@@ -475,6 +475,101 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
         assert user_job_memory_reserves[1] <= user_job_memory_reserves[0]
         assert user_job_memory_reserves[2] <= user_job_memory_reserves[0]
 
+    @authors("apollo1321")
+    def test_tmpfs_resource_overdraft_memory_multiplier(self):
+        update_controller_agent_config("user_job_resource_overdraft_memory_multiplier", 1.5)
+
+        memory_limit = 512 * 1024 * 1024
+        tmpfs_size = 300 * 1024 * 1024
+
+        controller_agent_address = ls("//sys/controller_agents/instances")[0]
+        from_barrier = write_log_barrier(controller_agent_address)
+
+        create("table", "//tmp/in", attributes={"replication_factor": 1})
+        create("table", "//tmp/out", attributes={"replication_factor": 1})
+        write_table("//tmp/in", [{"key": string.ascii_letters + str(value)} for value in range(5 * 1000 * 1000)])
+
+        create("file", "//tmp/mapper.py", attributes={"replication_factor": 1, "executable": True})
+        write_file("//tmp/mapper.py", b"""#!/usr/bin/env python3
+import time
+
+chunk = bytes(1024 * 1024)
+with open("tmpfs/blob", "wb") as blob:
+    for _ in range(280):
+        blob.write(chunk)
+    blob.flush()
+
+# Allocate anon memory well below the reserve; anon + tmpfs exceed it.
+anon = bytearray(60 * 1024 * 1024)
+for offset in range(0, len(anon), 4096):
+    anon[offset] = 1
+
+# Stay alive briefly so the overdraft is detected when the reserve is not large enough.
+time.sleep(5)
+""")
+
+        op = map(
+            track=False,
+            command="python3 mapper.py",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={
+                "job_count": 1,
+                "mapper": {
+                    "memory_limit": memory_limit,
+                    "tmpfs_size": tmpfs_size,
+                    "tmpfs_path": "tmpfs",
+                    "user_job_memory_digest_default_value": 0.6,
+                    "job_proxy_memory_digest": {
+                        "default_value": 1.0,
+                        "lower_bound": 1.0,
+                        "upper_bound": 1.0,
+                    },
+                    "file_paths": ["//tmp/mapper.py"],
+                },
+            })
+
+        wait(lambda: op.get_state() in ("completed", "failed", "aborted"), timeout=120)
+        assert op.get_state() == "completed"
+
+        to_barrier = write_log_barrier(controller_agent_address)
+
+        structured_log = read_structured_log(
+            self.path_to_run + "/logs/controller-agent-0.json.log",
+            from_barrier=from_barrier,
+            to_barrier=to_barrier,
+            row_filter=lambda e: "event_type" in e)
+
+        user_job_memory_reserves = []
+        last_job_id = None
+        for event in structured_log:
+            if event["event_type"] in ("job_aborted", "job_completed") and event["operation_id"] == op.id:
+                assert "user_job" in event["statistics"]
+                print_debug(
+                    event["job_id"],
+                    event.get("predecessor_type"),
+                    event.get("predecessor_job_id"),
+                    event["statistics"]["user_job"]["memory_reserve"]["sum"],
+                    event["statistics"]["user_job"]["max_memory"]["sum"],
+                )
+
+                if last_job_id is not None:
+                    assert last_job_id == event["predecessor_job_id"]
+                    assert event["predecessor_type"] == "resource_overdraft"
+                last_job_id = event["job_id"]
+
+                user_job_memory_reserves.append(int(event["statistics"]["user_job"]["memory_reserve"]["sum"]))
+
+        assert len(user_job_memory_reserves) >= 2
+
+        assert 280 * 1024 * 1024 <= user_job_memory_reserves[0] <= 340 * 1024 * 1024
+
+        # The overdraft is caused by tmpfs, which is user-job memory, so the controller
+        # must attribute it to the user job and apply the resource-overdraft memory
+        # multiplier (1.5) to the user-job reserve on the retry.
+        assert user_job_memory_reserves[1] >= user_job_memory_reserves[0] * 1.4
+
+
 ###############################################################################################
 
 
