@@ -207,8 +207,23 @@ function installSqlCompletion(editor) {
         requestId: 0,
         xhr: null,
         timer: null,
+        shortcutAt: 0,
+        pollSignature: null,
         inserting: false
     };
+
+    function getEventKeyCode(e) {
+        return e.which || e.keyCode || e.charCode || 0;
+    }
+
+    function isSpaceKeyEvent(e) {
+        var keyCode = getEventKeyCode(e);
+        return keyCode === 32 || e.key === " " || e.key === "Spacebar" || e.key === "Space" || e.code === "Space";
+    }
+
+    function isCompletionShortcut(e) {
+        return (e.ctrlKey || e.metaKey) && !e.altKey && isSpaceKeyEvent(e);
+    }
 
     function isVisible() {
         return $popup.is(":visible");
@@ -257,25 +272,73 @@ function installSqlCompletion(editor) {
         }
     }
 
+    function isSqlIdentifierChar(ch) {
+        return /[A-Za-z0-9_$]/.test(ch);
+    }
+
+    function expandCompletionRange(text, startIndex, endIndex) {
+        while (startIndex > 0 && isSqlIdentifierChar(text.charAt(startIndex - 1))) {
+            --startIndex;
+        }
+        while (endIndex < text.length && isSqlIdentifierChar(text.charAt(endIndex))) {
+            ++endIndex;
+        }
+        return {
+            startIndex: startIndex,
+            endIndex: endIndex
+        };
+    }
+
     function applyCandidate(candidate) {
         if (!state.completion || !candidate) return;
 
+        clearTimeout(state.timer);
+        ++state.requestId;
+        if (state.xhr) {
+            state.xhr.abort();
+            state.xhr = null;
+        }
+
         var text = editor.getValue();
         var token = state.completion.completedToken;
-        var startIndex = utf8ByteOffsetToCharIndex(text, token.sourcePosition);
-        var endIndex = utf8ByteOffsetToCharIndex(text, token.sourcePosition + token.length);
+        var range = expandCompletionRange(
+            text,
+            utf8ByteOffsetToCharIndex(text, token.sourcePosition),
+            utf8ByteOffsetToCharIndex(text, token.sourcePosition + token.length)
+        );
+        var startIndex = range.startIndex;
+        var endIndex = range.endIndex;
+        var content = candidate.content;
+        var cursorShift = candidate.cursorShift || 0;
+
+        if (content.substr(content.length - 2) === "()" && text.charAt(endIndex) === "(") {
+            content = content.substr(0, content.length - 2);
+            cursorShift = 0;
+        }
+
         var start = charIndexToPosition(text, startIndex);
         var end = charIndexToPosition(text, endIndex);
-        var cursorIndex = startIndex + candidate.content.length - (candidate.cursorShift || 0);
+        var cursorIndex = startIndex + content.length - cursorShift;
 
         state.inserting = true;
-        editor.getSession().replace(new Range(start.row, start.column, end.row, end.column), candidate.content);
+        editor.getSession().replace(new Range(start.row, start.column, end.row, end.column), content);
         editor.moveCursorToPosition(charIndexToPosition(editor.getValue(), cursorIndex));
         editor.clearSelection();
+        state.pollSignature = getPollSignature();
         state.inserting = false;
 
         hideCompletion();
         editor.focus();
+    }
+
+    function shouldCompleteAtCursor() {
+        var text = editor.getValue();
+        var cursorCharIndex = positionToCharIndex(text, editor.getCursorPosition());
+        return cursorCharIndex > 0 && /[A-Za-z0-9_.$]/.test(text.charAt(cursorCharIndex - 1));
+    }
+
+    function getPollSignature() {
+        return editor.getValue();
     }
 
     function requestCompletion() {
@@ -346,11 +409,27 @@ function installSqlCompletion(editor) {
         return typeof data.action === "string" && data.action.indexOf("insert") === 0;
     }
 
+    function observeEditorChange() {
+        if (state.inserting) return;
+
+        var signature = getPollSignature();
+        if (signature === state.pollSignature) {
+            return;
+        }
+
+        state.pollSignature = signature;
+        if (shouldCompleteAtCursor()) {
+            clearTimeout(state.timer);
+            state.timer = setTimeout(requestCompletion, 250);
+        }
+    }
+
     editor.on("change", function(change) {
         if (state.inserting) return;
 
         var inserted = getInsertedText(change);
         clearTimeout(state.timer);
+        state.pollSignature = getPollSignature();
 
         if (isInsertChange(change) && /[A-Za-z0-9_.$]$/.test(inserted)) {
             state.timer = setTimeout(requestCompletion, 250);
@@ -365,9 +444,13 @@ function installSqlCompletion(editor) {
         }
     });
 
-    editor.container.addEventListener("keydown", function(e) {
-        if ((e.ctrlKey || e.metaKey) && e.keyCode === 32) {
-            requestCompletion();
+    function handleKeyboardEvent(e) {
+        if (isCompletionShortcut(e)) {
+            var now = Date.now ? Date.now() : new Date().getTime();
+            if (now - state.shortcutAt > 500) {
+                state.shortcutAt = now;
+                requestCompletion();
+            }
             e.preventDefault();
             e.stopPropagation();
             return;
@@ -375,13 +458,14 @@ function installSqlCompletion(editor) {
 
         if (!isVisible()) return;
 
-        if (e.keyCode === 38) {
+        var keyCode = getEventKeyCode(e);
+        if (keyCode === 38 || e.key === "ArrowUp") {
             moveSelection(-1);
-        } else if (e.keyCode === 40) {
+        } else if (keyCode === 40 || e.key === "ArrowDown") {
             moveSelection(1);
-        } else if (e.keyCode === 13 || e.keyCode === 9) {
+        } else if (keyCode === 13 || keyCode === 9 || e.key === "Enter" || e.key === "Tab") {
             applyCandidate(state.candidates[state.selected]);
-        } else if (e.keyCode === 27) {
+        } else if (keyCode === 27 || e.key === "Escape" || e.key === "Esc") {
             hideCompletion();
         } else {
             return;
@@ -389,7 +473,12 @@ function installSqlCompletion(editor) {
 
         e.preventDefault();
         e.stopPropagation();
-    }, true);
+    }
+
+    editor.container.addEventListener("keydown", handleKeyboardEvent, true);
+    editor.container.addEventListener("keypress", handleKeyboardEvent, true);
+    state.pollSignature = getPollSignature();
+    setInterval(observeEditorChange, 300);
 
     $popup.on("mousedown", "li", function(e) {
         e.preventDefault();
