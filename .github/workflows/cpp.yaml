@@ -129,26 +129,26 @@ jobs:
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
-  build-cmake:
-    name: Build with cmake
-    needs:
-      - start-vm
-      - checkout
-      - build-strawberry
-      - tag
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      build-ytsaurus: true
-      build-chyt: ${{ github.ref_name == 'main' }}
-      build-python: true
-      update-remote-cache: true
-      build-types: ${{ needs.tag.outputs.build-types }}
-      version-patch: ${{ needs.tag.outputs.version-patch }}
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
+  # build-cmake:
+  #   name: Build with cmake
+  #   needs:
+  #     - start-vm
+  #     - checkout
+  #     - build-strawberry
+  #     - tag
+  #   with:
+  #     runs-on-value: ${{ needs.start-vm.outputs.label }}
+  #     cpp-build-system: cmake
+  #     build-ytsaurus: true
+  #     build-chyt: ${{ github.ref_name == 'main' }}
+  #     build-python: true
+  #     update-remote-cache: true
+  #     build-types: ${{ needs.tag.outputs.build-types }}
+  #     version-patch: ${{ needs.tag.outputs.version-patch }}
+  #   secrets:
+  #     BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+  #     BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+  #   uses: ./.github/workflows/build-jobs.yaml
 
   # docker-cmake:
   #   name: Docker images with cmake
@@ -179,11 +179,11 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      build-ytsaurus: true
-      build-ytsaurus-tests: true
+      build-ytsaurus: false
+      build-ytsaurus-tests: false
       build-query-tracker: true
-      build-python: true
-      build-chyt: true
+      build-python: false
+      build-chyt: false
       update-remote-cache: true
       build-types: ${{ needs.tag.outputs.build-types }}
       version-patch: ${{ needs.tag.outputs.version-patch }}
@@ -201,7 +201,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') }}
+      publish-query-tracker: true
       publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
       publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
       publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') }}
