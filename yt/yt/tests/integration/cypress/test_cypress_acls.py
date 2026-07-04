@@ -1640,7 +1640,6 @@ class TestCypressAcls(CheckPermissionBase):
         remove(src_dir + "/t2")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_columnar_acl_copy_yt_12749(self):
         create_user("u1")
         create_user("u2")
