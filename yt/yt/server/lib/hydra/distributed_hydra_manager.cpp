@@ -2234,10 +2234,8 @@ private:
             return;
         }
 
-        epochContext->RecoveryFuture =
-            BIND(&TDistributedHydraManager::RecoverLeader, MakeStrong(this))
-                .AsyncVia(epochContext->EpochControlInvoker)
-                .Run();
+        epochContext->EpochControlInvoker->Invoke(
+            BIND(&TDistributedHydraManager::RecoverLeader, MakeStrong(this)));
     }
 
     void OnElectionStartLeadingAutomaton(TEpochContextPtr epochContext)
@@ -2805,10 +2803,8 @@ private:
         SnapshotId_ = committedState.SegmentId;
         SnapshotFuture_ = MakeFuture<TRemoteSnapshotParams>(TError("Not building snapshot as it could have been downloaded during recovery"));
 
-        epochContext->RecoveryFuture =
-            BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this))
-                .AsyncVia(epochContext->EpochControlInvoker)
-                .Run();
+        epochContext->EpochControlInvoker->Invoke(
+            BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this)));
 
         return true;
     }
@@ -2917,13 +2913,6 @@ private:
 
         auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
         ControlEpochContext_->CancelableContext->Cancel(error);
-
-        // Canceling the cancelable context does not unwind a recovery fiber that
-        // is already parked in WaitFor; cancel its completion future explicitly so
-        // the fiber unwinds and releases its strong ref to the hydra manager.
-        if (ControlEpochContext_->RecoveryFuture) {
-            ControlEpochContext_->RecoveryFuture.Cancel(error);
-        }
 
         ControlEpochContext_->LeaderSyncBatcher->Cancel(error);
         if (ControlEpochContext_->LeaderSyncPromise) {
