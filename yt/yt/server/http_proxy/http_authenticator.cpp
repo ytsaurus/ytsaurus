@@ -244,8 +244,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
 
         TTicketCredentials credentials{
-            // TODO(babenko): switch to std::string
-            .Ticket = TString(*userTicketHeader),
+            .Ticket = *userTicketHeader,
         };
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {
@@ -264,8 +263,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
 
         TServiceTicketCredentials credentials{
-            // TODO(babenko): switch to std::string
-            .Ticket = TString(*serviceTicketHeader),
+            .Ticket = *serviceTicketHeader,
         };
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {
