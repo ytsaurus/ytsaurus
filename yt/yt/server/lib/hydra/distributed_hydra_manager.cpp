@@ -43,6 +43,8 @@
 
 #include <yt/yt/core/actions/invoker_detail.h>
 
+#include <library/cpp/iterator/zip.h>
+
 #include <library/cpp/yt/threading/atomic_object.h>
 
 #include <util/generic/cast.h>
@@ -3199,6 +3201,7 @@ private:
                 "Must be in read-only mode to discombobulate"));
         }
 
+        std::vector<int> peerIds;
         std::vector<TFuture<TInternalHydraServiceProxy::TRspDiscombobulatePtr>> futures;
         const auto& cellManager = epochContext->CellManager;
         for (int peerId = 0; peerId < cellManager->GetTotalPeerCount(); ++peerId) {
@@ -3218,11 +3221,27 @@ private:
             auto req = proxy.Discombobulate();
             req->SetTimeout(Config_->Get()->ControlRpcTimeout);
             req->set_sequence_number(DecoratedAutomaton_->GetSequenceNumber());
+            peerIds.push_back(peerId);
             futures.push_back(req->Invoke());
         }
 
-        WaitFor(AllSucceeded(std::move(futures)))
-            .ThrowOnError();
+        auto rsps = WaitFor(AllSet(std::move(futures)))
+            .ValueOrThrow();
+
+        bool anySucceeded = false;
+        for (const auto& [peerId, rsp] : Zip(peerIds, rsps)) {
+            if (rsp.IsOK()) {
+                anySucceeded = true;
+            } else {
+                YT_LOG_WARNING(rsp,
+                    "Failed to discombobulate observer (PeerId: %v)",
+                    peerId);
+            }
+        }
+
+        if (!peerIds.empty() && !anySucceeded) {
+            rsps[0].ThrowOnError();
+        }
     }
 
     void Freeze(int term)
