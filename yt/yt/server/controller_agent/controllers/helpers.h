@@ -42,15 +42,15 @@ std::vector<TInputStreamDescriptorPtr> BuildInputStreamDescriptorsFromOutputStre
 class TControllerFeatures
 {
 public:
-    void AddTag(TString name, auto value);
+    void AddTag(const std::string& name, auto value);
     void AddSingular(TStringBuf name, double value);
-    void AddSingular(const TString& name, const NYTree::INodePtr& node);
+    void AddSingular(const std::string& name, const NYTree::INodePtr& node);
     void AddCounted(TStringBuf name, double value);
     void CalculateJobStatisticsAverage();
 
 private:
-    THashMap<TString, NYson::TYsonString> Tags_;
-    THashMap<TString, double> Features_;
+    THashMap<std::string, NYson::TYsonString> Tags_;
+    THashMap<std::string, double> Features_;
 
     friend void Serialize(const TControllerFeatures& features, NYson::IYsonConsumer* consumer);
 };
