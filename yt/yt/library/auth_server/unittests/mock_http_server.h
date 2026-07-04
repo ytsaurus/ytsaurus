@@ -30,7 +30,7 @@ public:
 
     bool IsStarted() const;
 
-    TString GetHost() const;
+    std::string GetHost() const;
     int GetPort() const;
 
 private:
