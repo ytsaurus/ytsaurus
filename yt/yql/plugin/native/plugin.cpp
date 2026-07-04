@@ -834,13 +834,24 @@ public:
         TYsonString settings,
         std::vector<TQueryFile> files) noexcept override
     {
-        try {
-            return GuardedGetUsedClusters(queryText, settings, files);
-        } catch (const std::exception& ex) {
-            return TClustersResult{
-                .YsonError = MessageToYtErrorYson(ex.what()),
-            };
-        }
+        TClustersResult result;
+
+        auto coroutine = NConcurrency::TCoroutine<void()>(
+            BIND([&](NConcurrency::TCoroutine<void()>& /*self*/){
+                try {
+                    result = GuardedGetUsedClusters(queryText, settings, files);
+                } catch (const std::exception& ex) {
+                    result = TClustersResult{
+                        .YsonError = MessageToYtErrorYson(ex.what()),
+                    };
+                }
+            }),
+            NConcurrency::EExecutionStackKind::Large);
+
+        coroutine.Run();
+        YT_VERIFY(coroutine.IsCompleted());
+
+        return result;
     }
 
     TQueryResult Run(
@@ -1210,7 +1221,7 @@ private:
         }
         for (const auto& mapping : gatewaySolomonConfig->GetClusterMapping()) {
             dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::SolomonProviderName)});
-            dynamicConfig->ClusterAddresses.insert({mapping.name(), (mapping.usessl() ? "https://" : "http://") + mapping.cluster()});
+            dynamicConfig->ClusterAddresses.insert({mapping.name(), mapping.cluster()});
         }
         YQL_LOG(DEBUG) << __FUNCTION__ << ": Clusters ready";
 

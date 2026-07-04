@@ -92,7 +92,7 @@ public:
             LookupColumnFilter = NYT::NTableClient::TColumnFilter(
                 LookupNameTable->GetSize());
 
-            InputCodec = NYtflow::NCodec::CreateInputCodec(
+            InputCodec = NYtflow::NCodec::CreateRowInputCodec(
                 ctx.LookupSourceRowType,
                 std::move(tableSchema),
                 const_cast<NUdf::IValueBuilder&>(
@@ -109,7 +109,7 @@ public:
             auto keysYtType = ConvertType(keysType);
             auto keysTableSchema = BuildTableSchema(keysYtType);
 
-            OutputCodec = NYtflow::NCodec::CreateOutputCodec(
+            OutputCodec = NYtflow::NCodec::CreateRowOutputCodec(
                 keysType, std::move(keysTableSchema), RowBuffer);
         }
     }
@@ -181,10 +181,10 @@ private:
     NYT::NTableClient::TNameTablePtr LookupNameTable;
     NYT::NTableClient::TColumnFilter LookupColumnFilter;
 
-    THolder<NYtflow::NCodec::IInputCodec> InputCodec;
+    THolder<NYtflow::NCodec::IRowInputCodec> InputCodec;
 
     NYT::NTableClient::TRowBufferPtr RowBuffer;
-    THolder<NYtflow::NCodec::IOutputCodec> OutputCodec;
+    THolder<NYtflow::NCodec::IRowOutputCodec> OutputCodec;
 };
 
 } // anonymous namespace
