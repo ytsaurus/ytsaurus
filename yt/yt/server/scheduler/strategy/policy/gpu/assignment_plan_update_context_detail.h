@@ -74,7 +74,7 @@ public:
         TOperationId preemptedForOperationId = {}) override;
 
     TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const override;
-    std::optional<TString> FindLimitViolatingParentId(const TPoolTreeElement* element) const;
+    std::optional<std::string> FindLimitViolatingParentId(const TPoolTreeElement* element) const;
 
     bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const override;
 

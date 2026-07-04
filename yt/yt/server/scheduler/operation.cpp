@@ -568,7 +568,7 @@ TFuture<void> TOperation::AbortCommonTransactions()
     const auto Logger = SchedulerLogger().WithTag("OperationId: %v", GetId());
     std::vector<TFuture<void>> asyncResults;
     THashSet<ITransactionPtr> abortedTransactions;
-    auto scheduleAbort = [&] (const ITransactionPtr& transaction, TString transactionType) {
+    auto scheduleAbort = [&] (const ITransactionPtr& transaction, std::string transactionType) {
         if (abortedTransactions.contains(transaction)) {
             return;
         }
