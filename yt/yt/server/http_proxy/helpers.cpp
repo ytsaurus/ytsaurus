@@ -33,7 +33,7 @@ std::optional<std::string> GatherHeader(const THeadersPtr& headers, const std::s
         return *singleHeader;
     }
 
-    TString buffer;
+    std::string buffer;
     for (int i = 0; ; i++) {
         if (i > 1000) {
             THROW_ERROR_EXCEPTION("Too many header parts")
