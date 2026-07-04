@@ -89,7 +89,7 @@ public:
         const TExecNodeDescriptorPtr& nodeDescriptor,
         ESchedulingSegmentModuleType moduleType);
 
-    static TString GetNodeTagFromModuleName(
+    static std::string GetNodeTagFromModuleName(
         const std::string& moduleName,
         ESchedulingSegmentModuleType moduleType);
 

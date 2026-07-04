@@ -993,7 +993,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         execNode->SetSchedulingOptions(schedulingOptionsYson ? ConvertToAttributes(schedulingOptionsYson) : nullptr);
 
-        static const TString InfinibandClusterAnnotationsPath = "/" + InfinibandClusterNameKey;
+        static const std::string InfinibandClusterAnnotationsPath = "/" + InfinibandClusterNameKey;
         auto infinibandCluster = annotationsYson
             ? TryGetString(annotationsYson.AsStringBuf(), InfinibandClusterAnnotationsPath)
             : std::nullopt;

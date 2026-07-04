@@ -206,7 +206,7 @@ bool TAssignmentPlanUpdateContext::IsPriorityModuleBindingEnabled(const TOperati
     return AttributesList_.AttributesOf(treeElement).PriorityModuleBindingEnabled;
 }
 
-std::optional<TString> TAssignmentPlanUpdateContext::FindLimitViolatingParentId(const TPoolTreeElement* element) const
+std::optional<std::string> TAssignmentPlanUpdateContext::FindLimitViolatingParentId(const TPoolTreeElement* element) const
 {
     while (element) {
         auto usage = AttributesList_.AttributesOf(element).AssignedResourceUsage;
