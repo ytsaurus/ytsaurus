@@ -34,7 +34,7 @@ target_link_libraries(tools-trigrep-lib PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
-  cpp-containers-absl_flat_hash
+  cpp-containers-absl
   cpp-yt-coding
   contrib-libs-zstd
 )

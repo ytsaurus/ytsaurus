@@ -72,7 +72,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   library-cpp-erasure
   library-cpp-iterator
   backtrace-symbolizers-dwarf
-  cpp-containers-absl_flat_hash
+  cpp-containers-absl
   library-erasure-impl
   yt-library-containers
   yt-library-disk_manager
@@ -1905,7 +1905,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   library-cpp-erasure
   library-cpp-iterator
   backtrace-symbolizers-dwarf
-  cpp-containers-absl_flat_hash
+  cpp-containers-absl
   library-erasure-impl
   yt-library-containers
   yt-library-disk_manager
