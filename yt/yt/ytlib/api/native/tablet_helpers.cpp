@@ -303,20 +303,23 @@ TTabletInfoPtr GetOrderedTabletForRow(
     YT_ASSERT(!tableInfo->IsSorted());
 
     i64 tabletIndex = -1;
-    for (const auto& value : row) {
-        if (tabletIndexColumnId && value.Id == *tabletIndexColumnId && value.Type != EValueType::Null) {
-            try {
-                FromUnversionedValue(&tabletIndex, value);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing tablet index from row")
-                    << ex;
+    TTabletInfoPtr tabletInfo = nullptr;
+    if (tabletIndexColumnId) {
+        for (const auto& value : row) {
+            if (value.Id == *tabletIndexColumnId && value.Type != EValueType::Null) {
+                try {
+                    FromUnversionedValue(&tabletIndex, value);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error parsing tablet index from row")
+                        << ex;
+                }
+
+                tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
             }
-            // Just checking.
-            tableInfo->GetTabletByIndexOrThrow(tabletIndex);
         }
     }
 
-    if (tabletIndex < 0) {
+    if (tabletInfo == nullptr) {
         if (tableInfo->ReplicationCardId) {
             THROW_ERROR_EXCEPTION("Invalid input row for chaos ordered table %v: %Qlv column is not provided",
                 tableInfo->Path,
@@ -326,7 +329,6 @@ TTabletInfoPtr GetOrderedTabletForRow(
         return randomTabletInfo;
     }
 
-    auto tabletInfo = tableInfo->Tablets[tabletIndex];
     if (validateWrite) {
         ValidateTabletMounted(tableInfo, tabletInfo);
     } else {
