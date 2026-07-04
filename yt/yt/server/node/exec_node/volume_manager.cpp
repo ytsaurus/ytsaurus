@@ -416,7 +416,7 @@ public:
                     ExecNodeProfiler().WithPrefix("/location_layers/porto").WithTag("location_id", id)),
                 CreatePortoExecutor(
                     dynamicConfig->LayerCache->LayerPortoExecutor,
-                    Format("FastLayerExecutor%v", index),
+                    Format("fast_layer%v", index),
                     ExecNodeProfiler().WithPrefix("/location_fast_layers/porto").WithTag("location_id", id)),
                 id);
             initLocationResults.push_back(location->Initialize());
