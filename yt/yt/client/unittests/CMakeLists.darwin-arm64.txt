@@ -92,6 +92,7 @@ target_sources(unittester-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/row_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/schema_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/table_consumer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/table_mount_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/unordered_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/unversioned_row_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/validate_logical_type_ut.cpp
