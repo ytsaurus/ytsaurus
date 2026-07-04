@@ -13,7 +13,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/core
-    library/cpp/containers/absl_flat_hash
+    library/cpp/containers/absl
     library/cpp/yt/coding
     contrib/libs/zstd
 )

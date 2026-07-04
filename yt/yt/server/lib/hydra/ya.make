@@ -59,7 +59,7 @@ PEERDIR(
     library/cpp/yt/logging/backends/stream
     library/cpp/streams/lz/lz4
     library/cpp/streams/lz/snappy
-    library/cpp/containers/absl_flat_hash
+    library/cpp/containers/absl
 )
 
 END()
