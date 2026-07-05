@@ -1523,8 +1523,7 @@ private:
                     "Scheduler requested to preempt allocation (AllocationId: %v)",
                     allocationId);
 
-                // TODO(babenko): migrate to std::string once Allocation::Preempt takes std::string.
-                TString preemptionReason;
+                std::string preemptionReason;
                 if (allocationToPreempt.has_preemption_reason()) {
                     preemptionReason = allocationToPreempt.preemption_reason();
                 }

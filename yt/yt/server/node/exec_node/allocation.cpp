@@ -417,7 +417,7 @@ void TAllocation::Complete(EAllocationFinishReason finishReason)
 
 void TAllocation::Preempt(
     TDuration timeout,
-    TString preemptionReason,
+    std::string preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
