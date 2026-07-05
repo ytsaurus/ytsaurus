@@ -6,7 +6,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, events_on_fs, print_debug, raises_yt_error, remove, set_nodes_banned, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    ls, get, sorted_dicts,
+    ls, get, sorted_dicts, check_permission,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, get_job,
     get_singular_chunk_id, check_all_stderrs, make_random_string,
@@ -786,6 +786,11 @@ print(row + table_index)
             live_preview_data2 = [d["b"] for d in live_preview_data2]
             assert sorted(live_preview_data1) == sorted(live_preview_data2)
             assert len(live_preview_data1) == 2
+
+        if self.Env.get_component_version("ytserver-master").abi >= (26, 2):
+            with raises_yt_error("\"CheckPermission\" method is not supported"):
+                path = f"{operation_path}/controller_orchid/{live_preview_path}0"
+                check_permission("everyone", "read", path)
 
         release_breakpoint()
         op.track()

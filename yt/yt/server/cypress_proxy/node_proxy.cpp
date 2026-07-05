@@ -676,10 +676,7 @@ protected:
 
         ValidatePermissionForThis(EPermission::Read);
 
-        // NB: For documents such request does not return attribues.
-        if (TypeFromId(Id_) == EObjectType::Document ||
-            !HasSpecialAttributes(attributeFilter))
-        {
+        if (!HasSpecialAttributes(attributeFilter)) {
             AbortSequoiaSessionForLaterForwardingToMaster();
             return;
         }
@@ -953,16 +950,6 @@ protected:
             GetThisSerializedEffectiveAcl());
 
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
-    }
-
-    void ListSelf(
-        TReqList* /*request*/,
-        TRspList* /*response*/,
-        const TCtxListPtr& context) override
-    {
-        context->SetRequestInfo();
-        ValidatePermissionForThis(EPermission::Read);
-        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
     void ListAttribute(
@@ -2039,10 +2026,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, BeginCopy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Orchid and document nodes are opaque from Sequoia point of view: resolve
-//! into them cannot be done via Sequoia tables only. For such nodes every
-//! non-mutating and recursive mutating requests have to be forwarded to master.
-class TOpaqueNodeProxy
+//! Document and Orchid nodes are opaque from Sequoia's point of view: their
+//! content cannot be resolved via Sequoia tables. Requests reaching into that
+//! content are forwarded to master; a small set of object-level requests is
+//! served at cypress proxies.
+class TDocumentNodeProxy
     : public TNodeProxy
 {
 public:
@@ -2057,21 +2045,89 @@ private:
             .Tokenizer
             .GetType();
 
-        if (tokenType == NYPath::ETokenType::EndOfStream ||
-            tokenType == NYPath::ETokenType::At ||
-            context->GetMethod() == "CheckPermission")
+        if (tokenType == NYPath::ETokenType::At ||
+            tokenType == NYPath::ETokenType::EndOfStream)
         {
             return TNodeProxy::DoInvoke(context);
         }
 
         SetBasicRequestInfo(context);
-
         context->SetRequestInfo();
 
         auto permission = IsRequestMutating(context->RequestHeader())
             ? EPermission::Write
             : EPermission::Read;
         ValidatePermissionForThis(permission);
+
+        AbortSequoiaSessionForLaterForwardingToMaster();
+        return true;
+    }
+
+    void GetSelf(TReqGet* request, TRspGet* /*response*/, const TCtxGetPtr& context) override
+    {
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+
+        context->SetRequestInfo("AttributeFilter: %v", attributeFilter);
+
+        ValidatePermissionForThis(EPermission::Read);
+
+        // NB: For documents such request does not return attributes.
+        AbortSequoiaSessionForLaterForwardingToMaster();
+    }
+
+    void ListSelf(
+        TReqList* /*request*/,
+        TRspList* /*response*/,
+        const TCtxListPtr& context) override
+    {
+        context->SetRequestInfo();
+        ValidatePermissionForThis(EPermission::Read);
+        AbortSequoiaSessionForLaterForwardingToMaster();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOrchidNodeProxy
+    : public TNodeProxy
+{
+public:
+    using TNodeProxy::TNodeProxy;
+
+private:
+    bool DoInvoke(const ISequoiaServiceContextPtr& context) override
+    {
+        auto tokenType = ParseUnresolvedSuffix(
+            GetRequestTargetYPath(context->GetRequestHeader()),
+            /*partLimit*/ 0)
+            .Tokenizer
+            .GetType();
+
+        if (tokenType == NYPath::ETokenType::At) {
+            return TNodeProxy::DoInvoke(context);
+        }
+
+        if (tokenType == NYPath::ETokenType::EndOfStream) {
+            const auto& method = context->GetMethod();
+            if (method == "Remove" ||
+                method == "GetBasicAttributes" ||
+                method == "Create" ||
+                method == "CheckPermission")
+            {
+                return TNodeProxy::DoInvoke(context);
+            }
+        }
+
+        SetBasicRequestInfo(context);
+        context->SetRequestInfo();
+
+        // Only forwarded self-request requires a permission check.
+        if (tokenType == NYPath::ETokenType::EndOfStream) {
+            // Orchid is read-only, so a Read check suffices regardless of the method.
+            ValidatePermissionForThis(EPermission::Read);
+        }
 
         AbortSequoiaSessionForLaterForwardingToMaster();
         return true;
@@ -2797,8 +2853,14 @@ INodeProxyPtr CreateNodeProxy(
     auto type = TypeFromId(resolveResult.Id);
     ValidateSupportedSequoiaType(type);
 
-    if (type == EObjectType::Document || type == EObjectType::Orchid) {
-        return New<TOpaqueNodeProxy>(
+    if (type == EObjectType::Document) {
+        return New<TDocumentNodeProxy>(
+            bootstrap,
+            std::move(session),
+            std::move(resolveResult),
+            std::move(resolvedPrerequisiteRevisions));
+    } else if (type == EObjectType::Orchid) {
+        return New<TOrchidNodeProxy>(
             bootstrap,
             std::move(session),
             std::move(resolveResult),
