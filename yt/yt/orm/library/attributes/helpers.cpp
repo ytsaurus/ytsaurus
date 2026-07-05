@@ -1283,6 +1283,14 @@ TError SetScalarField(
     END_SWITCH(std::string);
 }
 
+TError SetScalarField(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    const std::string& value)
+{
+    return SetScalarField(message, fieldDescriptor, TProtoStringType(value));
+}
+
 TError SetScalarFieldFromString(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
@@ -1387,6 +1395,15 @@ TError SetScalarRepeatedFieldEntry(
     END_SWITCH(std::string);
 }
 
+TError SetScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index,
+    const std::string& value)
+{
+    return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, TProtoStringType(value));
+}
+
 TError SetScalarRepeatedFieldEntryFromString(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
@@ -1486,6 +1503,14 @@ TError AddScalarRepeatedFieldEntry(
         CASE_ADD_DIRECT(std::string, String, STRING);
         CASE_ADD_ENUM();
     END_SWITCH(std::string);
+}
+
+TError AddScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    const std::string& value)
+{
+    return AddScalarRepeatedFieldEntry(message, fieldDescriptor, TProtoStringType(value));
 }
 
 TError AddScalarRepeatedFieldEntryFromString(
