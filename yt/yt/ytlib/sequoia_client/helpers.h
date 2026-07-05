@@ -32,7 +32,7 @@ TMangledSequoiaPath MangleSequoiaPath(const TRealPath& realPath);
 TRealPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
 
 //! Unescapes special characters.
-TString ToStringLiteral(NYPath::TYPathBuf key);
+std::string ToStringLiteral(NYPath::TYPathBuf key);
 
 // TODO(danilalexeev): YT-20675. This method is for the time being until the validation
 // is global across all components.
