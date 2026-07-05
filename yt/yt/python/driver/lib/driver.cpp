@@ -239,8 +239,7 @@ Py::Object TDriverBase::GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs)
     Py::Callable class_type(TCommandDescriptor::type());
     Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
     try {
-        // TODO(babenko): migrate to std::string
-        descriptor.getCxxObject()->SetDescriptor(UnderlyingDriver_->GetCommandDescriptor(TString(commandName)));
+        descriptor.getCxxObject()->SetDescriptor(UnderlyingDriver_->GetCommandDescriptor(commandName));
     } CATCH_AND_CREATE_YT_ERROR("Failed to get command descriptor");
 
     return descriptor;

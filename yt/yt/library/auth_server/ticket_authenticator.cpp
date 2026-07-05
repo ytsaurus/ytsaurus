@@ -157,8 +157,7 @@ private:
             return TError(errorNode->GetValue<std::string>(), TError::DisableFormat);
         }
 
-        static const TYPath UserPath("/users/0");
-        // TODO(babenko): migrat to std::string
+        static const std::string UserPath("/users/0");
         auto userNode = GetNodeByYPath(data, UserPath);
 
         auto login = BlackboxService_->GetLogin(userNode);

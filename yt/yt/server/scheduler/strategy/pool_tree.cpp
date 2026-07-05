@@ -975,8 +975,7 @@ public:
         }
 
         for (const auto& poolName : uniquePoolNames) {
-            // TODO(babenko): migrate to std::string
-            if (!FindPool(TString(poolName))) {
+            if (!FindPool(poolName)) {
                 return TError(
                     "User default parent pool %Qv is missing in pool tree %Qv",
                     poolName,
@@ -2494,8 +2493,7 @@ private:
                 auto it = userToDefaultPoolMap.find(poolName);
                 if (it != userToDefaultPoolMap.end() && it->second != actualParentName) {
                     const auto& configuredParentName = it->second;
-                    // TODO(babenko): migrate to std::string
-                    auto newParent = FindPool(TString(configuredParentName));
+                    auto newParent = FindPool(configuredParentName);
                     if (!newParent) {
                         YT_LOG_DEBUG(
                             "Configured parent of ephemeral pool not found; skipping (Pool: %v, ActualParent: %v, ConfiguredParent: %v)",

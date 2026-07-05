@@ -845,7 +845,6 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto getAccountTag = [&] (TAccountId accountId) {
         auto* account = securityManager->FindAccount(accountId);
-        // TODO(babenko): switch to std::string
         return IsObjectAlive(account) ? account->GetName() : std::string(Format("<%v>", accountId));
     };
 

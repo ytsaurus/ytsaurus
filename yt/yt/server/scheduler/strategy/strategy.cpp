@@ -2525,7 +2525,6 @@ private:
         {
             YT_ASSERT_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
 
-            // TODO(babenko): switch to std::string
             const auto it = Strategy_->IdToTree_.find(treeId);
             if (it == std::cend(Strategy_->IdToTree_)) {
                 return nullptr;

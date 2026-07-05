@@ -51,7 +51,6 @@ std::string TSchedulerPool::GetLowercaseObjectName() const
 {
     return IsRoot()
         ? MaybePoolTree_->GetLowercaseObjectName()
-        // TODO(babenko): switch to std::string
         : std::string(Format("scheduler pool %Qv", GetName()));
 }
 
@@ -59,7 +58,6 @@ std::string TSchedulerPool::GetCapitalizedObjectName() const
 {
     return IsRoot()
         ? MaybePoolTree_->GetCapitalizedObjectName()
-        // TODO(babenko): switch to std::string
         : std::string(Format("Scheduler pool %Qv", GetName()));
 }
 
