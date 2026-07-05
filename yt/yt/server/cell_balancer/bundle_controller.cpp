@@ -373,8 +373,7 @@ private:
             createOptions.IgnoreExisting = true;
             createOptions.Recursive = true;
             createOptions.Attributes = CreateEphemeralAttributes();
-            // TODO(babenko): switch to std::string
-            createOptions.Attributes->Set(TString(AttributeRemoteAddress), ConvertToYsonString(addresses));
+            createOptions.Attributes->Set(AttributeRemoteAddress, ConvertToYsonString(addresses));
 
             WaitFor(client->CreateNode(LeaderOrchidServicePath, EObjectType::Orchid, createOptions))
                 .ThrowOnError();

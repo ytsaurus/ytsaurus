@@ -54,8 +54,7 @@ public:
                 auto hashedPassword = node->Attributes().Get<std::string>(HashedPasswordAttribute);
                 auto passwordSalt = node->Attributes().Get<std::string>(PasswordSaltAttribute);
 
-                // TODO(babenko): migrate to std::string
-                if (HashPassword(TString(password), TString(passwordSalt)) != hashedPassword) {
+                if (HashPassword(password, passwordSalt) != hashedPassword) {
                     THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                         "Invalid password for user %Qlv",
                         user);

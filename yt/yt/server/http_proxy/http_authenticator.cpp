@@ -200,8 +200,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     if (auto cookieHeader = request->GetHeaders()->Find(CookieHeaderName)) {
         auto cookies = ParseCookies(*cookieHeader);
         TCookieCredentials credentials{
-            // TODO(babenko): switch to std::string
-            .Cookies = {cookies.begin(), cookies.end()},
+            .Cookies = std::move(cookies),
             .UserIP = userIP,
         };
         if (CookieAuthenticator_->CanAuthenticate(credentials)) {

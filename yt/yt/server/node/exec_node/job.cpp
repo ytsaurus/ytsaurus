@@ -3370,11 +3370,9 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->RootPath = FSSecretary_->GetRootVolume()->GetPath();
     } else {
         // Pass docker image if root volume is not materialized yet.
-        // TODO(babenko): migrate to std::string
         if (const auto& dockerImage = FSSecretary_->GetDockerImage()) {
             proxyInternalConfig->DockerImage = *dockerImage;
         }
-        // TODO(babenko): migrate to std::string
         if (const auto& dockerImageId = FSSecretary_->GetDockerImageId()) {
             proxyInternalConfig->DockerImageId = *dockerImageId;
         }
@@ -3424,8 +3422,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
 
-            // TODO(babenko): migrate to std::string
-            fileLogWriterConfig->FileName = jobProxyLogManager->AdjustLogPath(Id_, TString(fileLogWriterConfig->FileName));
+            fileLogWriterConfig->FileName = jobProxyLogManager->AdjustLogPath(Id_, fileLogWriterConfig->FileName);
         }
 
         return ConvertTo<IMapNodePtr>(fileLogWriterConfig);
@@ -3436,8 +3433,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
 
-            // TODO(babenko): migrate to std::string
-            *proxyInternalConfig->StderrPath = jobProxyLogManager->AdjustLogPath(Id_, TString(*proxyInternalConfig->StderrPath));
+            *proxyInternalConfig->StderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyInternalConfig->StderrPath);
             YT_LOG_DEBUG("Job proxy stderr path replaced (NewPath: %v)", *proxyInternalConfig->StderrPath);
         }
     }
@@ -3447,8 +3443,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
             YT_VERIFY(jobProxyLogManager);
 
-            // TODO(babenko): migrate to std::string
-            *proxyInternalConfig->ExecutorStderrPath = jobProxyLogManager->AdjustLogPath(Id_, TString(*proxyInternalConfig->ExecutorStderrPath));
+            *proxyInternalConfig->ExecutorStderrPath = jobProxyLogManager->AdjustLogPath(Id_, *proxyInternalConfig->ExecutorStderrPath);
             YT_LOG_DEBUG("Executor stderr path replaced (NewPath: %v)", *proxyInternalConfig->ExecutorStderrPath);
         }
     }
@@ -4153,8 +4148,7 @@ void TJob::UpdateIOStatistics(const TStatistics& statistics)
                     },
                     /*tags*/ {
                         {FormatIOTag(EAggregateIOTag::Direction), direction},
-                        // TODO(babenko): switch to std::string
-                        {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
+                        {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
                         {FormatIOTag(EAggregateIOTag::JobIoKind), "user_job"},
                     });
             }

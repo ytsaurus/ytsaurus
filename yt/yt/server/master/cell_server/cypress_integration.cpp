@@ -82,7 +82,6 @@ private:
     std::vector<std::string> GetKeys(i64 limit) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        // TODO(babenko): switch to std::string
         auto keys = ConvertToStrings(GetValues(cellManager->Areas(), limit), TObjectIdFormatter());
         return {keys.begin(), keys.end()};
     }

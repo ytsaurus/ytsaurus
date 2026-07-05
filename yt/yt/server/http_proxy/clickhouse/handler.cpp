@@ -536,8 +536,7 @@ private:
         } else if (hasHeader(xClickHouseKey) || hasHeader(xClickHouseUser)) {
             result = TUserAndToken{
                 xClickHouseUser ? *xClickHouseUser : "",
-                // TODO(babenko): switch to std::string
-                TString(xClickHouseKey ? *xClickHouseKey : ""),
+                xClickHouseKey ? *xClickHouseKey : "",
             };
         } else if (CgiParameters_.Has("user") || CgiParameters_.Has("password")) {
             result = TUserAndToken{CgiParameters_.Get("user"), CgiParameters_.Get("password")};

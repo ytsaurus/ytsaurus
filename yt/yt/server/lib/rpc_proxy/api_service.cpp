@@ -1676,8 +1676,7 @@ TDetailedProfilingCountersPtr TApiService::GetOrCreateDetailedProfilingCounters(
             }
             if (key.UserTag) {
                 profiler = profiler
-                    // TODO(babenko): switch to std::string
-                    .WithTag("user", ToString(*key.UserTag));
+                    .WithTag("user", *key.UserTag);
             }
             return New<TDetailedProfilingCounters>(std::move(profiler));
         })
