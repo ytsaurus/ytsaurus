@@ -187,6 +187,10 @@ TError SetScalarField(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     TProtoStringType value);
+TError SetScalarField(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const std::string& value);
 TError SetScalarFieldFromString(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
@@ -220,6 +224,11 @@ TError SetScalarRepeatedFieldEntry(
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     int index,
     TProtoStringType value);
+TError SetScalarRepeatedFieldEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    int index,
+    const std::string& value);
 TError SetScalarRepeatedFieldEntryFromString(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
@@ -250,6 +259,10 @@ TError AddScalarRepeatedFieldEntry(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     TProtoStringType value);
+TError AddScalarRepeatedFieldEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const std::string& value);
 TError AddScalarRepeatedFieldEntryFromString(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
