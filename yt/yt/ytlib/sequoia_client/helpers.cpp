@@ -73,7 +73,7 @@ TRealPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
     return TRealPath(std::move(path));
 }
 
-TString ToStringLiteral(TYPathBuf key)
+std::string ToStringLiteral(TYPathBuf key)
 {
     if (key.empty()) {
         return {};
