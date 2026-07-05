@@ -36,6 +36,7 @@
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
+#include <yt/yt/core/misc/expiration_verifier.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/iterator/concatenate.h>
@@ -693,7 +694,6 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
                 clusterName,
                 fetcher->GetChunkCount());
             Host_->MaybeCancel(ECancelationStage::ColumnarStatisticsFetch);
-            fetcher->SetCancelableContext(Host_->GetCancelableContext());
 
             auto applySelectivityFactors =
                 BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->GetLogger()] {
@@ -712,7 +712,6 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             YT_LOG_INFO("Fetching input chunk slice statistics for input tables (Cluster: %v, ChunkCount: %v)",
                 clusterName,
                 fetcher->GetChunkCount());
-            fetcher->SetCancelableContext(Host_->GetCancelableContext());
 
             auto applySelectivityFactors =
                 BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->GetLogger()] {
@@ -728,6 +727,13 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
     WaitFor(AllSucceeded(statisticsFutures))
         .ThrowOnError();
+
+    for (auto& [_, fetcher] : columnarStatisticsFetchers) {
+        VerifyEventualExpiration(std::move(fetcher), Logger);
+    }
+    for (auto& [_, fetcher] : chunkSliceSizeFetchers) {
+        VerifyEventualExpiration(std::move(fetcher), Logger);
+    }
 
     YT_LOG_INFO("All statistics fetched from nodes");
 
@@ -1467,8 +1473,6 @@ std::pair<NTableClient::IChunkSliceFetcherPtr, TUnavailableChunksWatcherPtr> TIn
                 cluster->Client(),
                 Host_->GetRowBuffer(),
                 Logger.WithTag("Cluster: %v", clusterName)));
-
-        chunkSliceFetchers.back()->SetCancelableContext(Host_->GetCancelableContext());
     }
 
     std::vector<int> tableIndexToFetcherIndex;
@@ -1521,7 +1525,6 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
             }
         }
 
-        samplesFetcher->SetCancelableContext(Host_->GetCancelableContext());
         samplesFetchers.push_back(std::move(samplesFetcher));
     }
     return std::pair(
