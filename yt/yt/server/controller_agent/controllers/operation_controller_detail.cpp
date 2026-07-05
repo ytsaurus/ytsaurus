@@ -144,6 +144,7 @@
 #include <yt/yt/core/misc/backtrace.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/expiration_verifier.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/statistics.h>
@@ -7548,11 +7549,12 @@ void TOperationControllerBase::ValidateUserFileSizes()
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
         YT_LOG_INFO("Fetching columnar statistics for table files with column selectors (ChunkCount: %v)",
             columnarStatisticsFetcher->GetChunkCount());
-        columnarStatisticsFetcher->SetCancelableContext(GetCancelableContext());
         WaitFor(columnarStatisticsFetcher->Fetch())
             .ThrowOnError();
         columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
     }
+
+    VerifyEventualExpiration(std::move(columnarStatisticsFetcher), Logger);
 
     auto updateOptional = [] (auto& updated, auto patch, auto defaultValue)
     {
@@ -8477,7 +8479,6 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                 totalDataWeightBefore += dataSlice->GetDataWeight();
             }
 
-            fetcher->SetCancelableContext(GetCancelableContext());
             asyncResults.emplace_back(fetcher->Fetch());
             fetchers.emplace_back(std::move(fetcher));
             comparators.push_back(table->Comparator);
@@ -8510,6 +8511,10 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
             result.emplace_back(std::move(dataSlice));
             ++totalDataSliceCount;
         }
+    }
+
+    for (auto& fetcher : fetchers) {
+        VerifyEventualExpiration(std::move(fetcher), Logger);
     }
 
     YT_LOG_INFO(

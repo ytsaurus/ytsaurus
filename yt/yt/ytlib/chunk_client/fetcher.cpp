@@ -17,8 +17,6 @@
 
 #include <yt/yt/core/rpc/retrying_channel.h>
 
-#include <yt/yt/core/actions/cancelable_context.h>
-
 #include <yt/yt/core/concurrency/action_queue.h>
 
 namespace NYT::NChunkClient {
@@ -320,16 +318,8 @@ TFuture<void> TFetcherBase::Fetch()
             .Apply(BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
                 .AsyncVia(Invoker_)));
     auto future = Promise_.ToFuture().ToImmediatelyCancelable();
-    if (CancelableContext_) {
-        CancelableContext_->PropagateTo(future);
-    }
     Promise_.OnCanceled(BIND(&TFetcherBase::OnCanceled, MakeWeak(this)));
     return future;
-}
-
-void TFetcherBase::SetCancelableContext(TCancelableContextPtr cancelableContext)
-{
-    CancelableContext_ = std::move(cancelableContext);
 }
 
 void TFetcherBase::PerformFetchingRoundStep(TPromise<void> fetchingRoundPromise, NNodeTrackerClient::TNodeId nodeId)
