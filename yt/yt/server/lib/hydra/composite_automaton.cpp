@@ -281,6 +281,7 @@ void TCompositeAutomaton::RegisterMethod(
         profiler.TimeCounter("/cumulative_mutation_time"),
         profiler.TimeCounter("/cumulative_mutation_execute_time"),
         profiler.TimeCounter("/cumulative_mutation_deserialize_time"),
+        profiler.Timer("/mutation_execute_time"),
         profiler.Counter("/mutation_count"),
         profiler.Gauge("/mutation_request_size"),
         New<TProfilerTag>("mutation_type", type),
