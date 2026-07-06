@@ -5,13 +5,13 @@ SRCS(
 )
 
 PEERDIR(
-    library/cpp/getopt
     yt/yt/client
     yt/yt/core
-    yt/yt/library/program
-    yt/yt/server/lib/nbd
+    yt/yt/core/service_discovery/yp
     yt/yt/ytlib
-    yt/yt_proto/yt/client
+    yt/yt/library/program
+    yt/yt/library/query/engine
+    yt/yt/server/lib/nbd
 )
 
 END()
