@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
