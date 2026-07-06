@@ -566,6 +566,8 @@ struct TDynamicSequoiaChunkReplicasConfig
     int MaxLocationsAwaitingRefresh;
     int MaxUnsuccessfulLocationRefreshAttempts;
 
+    bool ScheduleChunkSealInSequoiaChunkRefresh;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
     static void Register(TRegistrar registrar);

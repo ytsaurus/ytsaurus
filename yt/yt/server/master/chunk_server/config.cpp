@@ -564,6 +564,9 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_unsuccessful_location_refresh_attempts", &TThis::MaxUnsuccessfulLocationRefreshAttempts)
         .Default(10);
 
+    registrar.Parameter("schedule_chunk_seal_in_sequoia_refresh", &TThis::ScheduleChunkSealInSequoiaChunkRefresh)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(grphil).
         if (!config->BlobReplicasStoreConfig) {

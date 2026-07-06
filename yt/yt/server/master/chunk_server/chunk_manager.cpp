@@ -423,6 +423,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageExpiredChunks, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraTopUpSequoiaChunkPurgatory, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraScheduleMultipleChunkSeals, Unretained(this)));
 
         RegisterLoader(
             "ChunkManager.Keys",
@@ -783,6 +784,16 @@ public:
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
             &TChunkManager::HydraTopUpSequoiaChunkPurgatory,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateScheduleMultipleChunkSealsMutation(
+        const NProto::TReqScheduleMultipleChunkSeals& request) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            request,
+            &TChunkManager::HydraScheduleMultipleChunkSeals,
             this);
     }
 
@@ -6835,6 +6846,17 @@ private:
         for (const auto& protoChunkId : request->chunk_ids()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
             ++SequoiaChunkPurgatory_[chunkId];
+        }
+    }
+
+    void HydraScheduleMultipleChunkSeals(NProto::TReqScheduleMultipleChunkSeals* request)
+    {
+        for (const auto& protoChunkId : request->chunk_ids()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            auto* chunk = FindChunk(chunkId);
+            if (IsObjectAlive(chunk)) {
+                ScheduleChunkSeal(chunk);
+            }
         }
     }
 

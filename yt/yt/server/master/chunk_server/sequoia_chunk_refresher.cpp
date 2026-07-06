@@ -609,6 +609,11 @@ private:
                 }
 
                 NProto::TReqTopUpSequoiaChunkPurgatory topUpSequoiaChunkPurgatoryRequest;
+                // TODO(grphil): move seal scheduling to chunk replicator
+                NProto::TReqScheduleMultipleChunkSeals scheduleMultipleChunkSealsRequest;
+
+                const auto& sequoiaReplicasConfig = GetDynamicConfig()->SequoiaChunkReplicas;
+                auto scheduleSeal = sequoiaReplicasConfig->ScheduleChunkSealInSequoiaChunkRefresh;
 
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
 
@@ -616,6 +621,9 @@ private:
                     auto* chunk = chunkManager->FindChunk(chunkId);
                     if (IsObjectAlive(chunk)) {
                         chunkManager->ScheduleChunkRefresh(chunk);
+                        if (scheduleSeal && IsSealNeeded(chunk)) {
+                            ToProto(scheduleMultipleChunkSealsRequest.add_chunk_ids(), chunkId);
+                        }
                     } else {
                         ToProto(topUpSequoiaChunkPurgatoryRequest.add_chunk_ids(), chunkId);
                     }
@@ -626,6 +634,14 @@ private:
                     mutation->SetAllowLeaderForwarding(true);
                     WaitFor(mutation->CommitAndLog(Logger()))
                         .ThrowOnError();
+                }
+
+                if (scheduleMultipleChunkSealsRequest.chunk_ids_size() > 0) {
+                    auto mutation = chunkManager->CreateScheduleMultipleChunkSealsMutation(scheduleMultipleChunkSealsRequest);
+                    mutation->SetAllowLeaderForwarding(true);
+                    WaitFor(mutation->CommitAndLog(Logger()))
+                        .ThrowOnError();
+
                 }
             });
             WaitFor(refreshChunks
