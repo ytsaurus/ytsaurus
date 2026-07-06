@@ -277,11 +277,11 @@ namespace NYql::NDqs {
         auto* sa = response->ai_addr;
         Y_ABORT_UNLESS(sa->sa_family == family);
         switch (family) {
-        case AF_INET6: 
+        case AF_INET6:
             inet_ntop(AF_INET6, &(((struct sockaddr_in6*)sa)->sin6_addr),
                     &buffer[0], buffer.size() - 1);
             break;
-        case AF_INET: 
+        case AF_INET:
             inet_ntop(AF_INET, &(((struct sockaddr_in*)sa)->sin_addr),
                     &buffer[0], buffer.size() - 1);
             break;
@@ -308,7 +308,7 @@ namespace NYql::NDqs {
             ? *maybeTokenFile
             : home + "/.yt/token";
 
-        TString token = NFs::Exists(tokenFile) 
+        TString token = NFs::Exists(tokenFile)
             ? TFileInput(tokenFile).ReadLine()
             : "";
 

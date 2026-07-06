@@ -17,7 +17,6 @@ SRCS(
 )
 
 PEERDIR(
-    library/cpp/yson
     contrib/ydb/library/actors/core
     contrib/ydb/library/mkql_proto
     contrib/ydb/library/yql/dq/actors/compute
@@ -29,7 +28,6 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/api/grpc
     contrib/ydb/library/yql/providers/dq/api/protos
     contrib/ydb/library/yql/providers/dq/common
-    contrib/ydb/library/yql/providers/dq/config
     contrib/ydb/library/yql/providers/dq/counters
     contrib/ydb/library/yql/providers/dq/interface
     contrib/ydb/library/yql/providers/dq/planner
@@ -37,14 +35,16 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/task_runner_actor
     contrib/ydb/library/yql/providers/dq/worker_manager
     contrib/ydb/library/yql/providers/dq/worker_manager/interface
-    contrib/ydb/library/yql/utils/actors
     contrib/ydb/library/yql/utils/actor_log
+    contrib/ydb/library/yql/utils/actors
     contrib/ydb/public/api/protos
     contrib/ydb/public/lib/yson_value
+    library/cpp/yson
     yql/essentials/core
     yql/essentials/providers/common/metrics
     yql/essentials/utils/failure_injector
     yql/essentials/utils/log
+    yt/yql/providers/dq/config
 )
 
 YQL_LAST_ABI_VERSION()
