@@ -10,7 +10,8 @@
 
 using namespace NYT::NQueryClient::NAst;
 
-namespace NYT::NOrm::NServer::NObjects::NTests {
+namespace NYT::NOrm::NQuery::NTests {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +44,7 @@ TEST(TSplitFilterTest, Split)
             TExpressionList{e3}))[0];
 
     TFilterHints hints;
-    auto result = SplitFilter(filterExpression, hints, &objectsHolder);
+    auto result = SplitFilterIntoWhereAndHaving(filterExpression, hints, &objectsHolder);
 
     ASSERT_TRUE(result.Where.has_value());
     auto where = FormatExpression(*result.Where);
@@ -67,7 +68,7 @@ TEST(TSplitFilterTest, WhereOnly)
         TExpressionList{e2})[0];
 
     TFilterHints hints;
-    auto result = SplitFilter(filterExpression, hints, &objectsHolder);
+    auto result = SplitFilterIntoWhereAndHaving(filterExpression, hints, &objectsHolder);
 
     ASSERT_TRUE(result.Where.has_value());
     auto where = FormatExpression(*result.Where);
@@ -89,7 +90,7 @@ TEST(TSplitFilterTest, HavingOnly)
         TExpressionList{e2})[0];
 
     TFilterHints hints;
-    auto result = SplitFilter(filterExpression, hints, &objectsHolder);
+    auto result = SplitFilterIntoWhereAndHaving(filterExpression, hints, &objectsHolder);
 
     EXPECT_FALSE(result.Where.has_value());
 
@@ -117,7 +118,7 @@ TEST(TSplitFilterTest, HavingAndUnkndownInsideFunction)
         TExpressionList{andExpression})[0];
 
     TFilterHints hints;
-    auto result = SplitFilter(filterExpression, hints, &objectsHolder);
+    auto result = SplitFilterIntoWhereAndHaving(filterExpression, hints, &objectsHolder);
 
 
     ASSERT_FALSE(result.Where.has_value());
@@ -165,7 +166,7 @@ TEST(TSplitFilterTest, TopLevelLiteral)
 
     TFilterHints hints;
     hints.WhereAliases.insert("l");
-    auto result = SplitFilter(filterExpression, hints, &objectsHolder);
+    auto result = SplitFilterIntoWhereAndHaving(filterExpression, hints, &objectsHolder);
 
     ASSERT_TRUE(result.Having.has_value());
     auto having = FormatExpression(*result.Having);
@@ -178,4 +179,5 @@ TEST(TSplitFilterTest, TopLevelLiteral)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOrm::NServer::NObjects::NTests
+} // namespace
+} // namespace NYT::NOrm::NQuery::NTests
