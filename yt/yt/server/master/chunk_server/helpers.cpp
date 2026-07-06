@@ -1791,6 +1791,15 @@ void AccumulateNewlyReferencedHunkStatistics(TChunk* hunkChunk, i64 dataWeightDe
     });
 }
 
+bool IsSealNeeded(const TChunk* chunk)
+{
+    return
+        IsObjectAlive(chunk) &&
+        chunk->IsJournal() &&
+        chunk->IsConfirmed() &&
+        !chunk->IsSealed();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TDynamicSequoiaChunkReplicasStoreConfigPtr& GetChunkSequoiaStoreConfig(
