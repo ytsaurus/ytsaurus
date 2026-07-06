@@ -632,7 +632,14 @@ private:
             .Item("wait_time").Value(this->GetWaitDuration())
             .Item("execution_time").Value(this->GetExecutionDuration())
             .Item("finish_instant").Value(this->GetFinishInstant())
-            .OptionalItem("cpu_time", this->GetTraceContextTime());
+            .OptionalItem("cpu_time", this->GetTraceContextTime())
+            .DoIf(credentialsExt.has_user_ticket() && !credentialsExt.has_service_ticket(), [&] (auto fluent) {
+                fluent
+                    .Item("debug_info").Value(BuildYsonStringFluently()
+                        .BeginMap()
+                            .Item("user_ticket_and_no_service_ticket").Value(true)
+                        .EndMap());
+            });
     }
 
     void DoEmitError() const
