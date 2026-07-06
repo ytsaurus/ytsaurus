@@ -1,5 +1,7 @@
 PROGRAM()
 
+CMAKE_EXPORTED_TARGET_NAME(nbd_server_tool)
+
 SRCS(
     main.cpp
 )
