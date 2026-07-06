@@ -6,8 +6,6 @@
 
 #include <library/cpp/yt/string/format.h>
 
-#include <library/cpp/containers/cow_string/cow_string.h>
-
 #include <variant>
 
 namespace NYT::NYson {
@@ -119,7 +117,7 @@ private:
     struct TNullPayload
     { };
 
-    std::variant<TNullPayload, TSharedRangeHolderPtr, TCowString> Payload_;
+    std::variant<TNullPayload, TSharedRangeHolderPtr, TString> Payload_;
 
     const char* Begin_;
     ui64 Size_ : 56;

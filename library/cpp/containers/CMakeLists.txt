@@ -14,7 +14,6 @@
 
 add_subdirectory(absl_flat_hash)
 add_subdirectory(stack_vector)
-add_subdirectory(cow_string)
 add_subdirectory(concurrent_hash)
 add_subdirectory(bitset)
 add_subdirectory(stack_array)
