@@ -3300,9 +3300,23 @@ private:
 
         operation->SetUnregistering();
 
-        // Switch to regular control invoker.
-        // No recurrent complete is possible after this point.
-        SwitchTo(operation->GetControlInvoker());
+        // Run the final part via the operation's control invoker (the master
+        // connector's cancelable invoker): unlike the operation's own cancelable
+        // invoker it is not canceled by a per-operation abort/agent revocation.
+        operation->GetControlInvoker()->Invoke(BIND(
+            &TImpl::DoFinalizeCompletedOperation,
+            MakeStrong(this),
+            operation,
+            operationProgress));
+    }
+
+    void DoFinalizeCompletedOperation(
+        const TOperationPtr& operation,
+        const TOperationProgress& operationProgress)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         SubmitOperationToCleaner(operation, operationProgress);
 
@@ -3318,7 +3332,7 @@ private:
         FinishOperation(operation);
 
         YT_LOG_INFO("Operation completed (OperationId: %v)",
-            operationId);
+            operation->GetId());
     }
 
     void DoFailOperation(
@@ -3594,9 +3608,27 @@ private:
 
         operation->SetUnregistering();
 
-        // Switch to regular control invoker.
-        // No recurrent terminate is possible after this point.
-        SwitchTo(operation->GetControlInvoker());
+        // Run the final part via the operation's control invoker (the master
+        // connector's cancelable invoker): unlike the operation's own cancelable
+        // invoker it is not canceled by a per-operation abort/agent revocation.
+        operation->GetControlInvoker()->Invoke(BIND(
+            &TImpl::DoFinalizeTerminatedOperation,
+            MakeStrong(this),
+            operation,
+            logEventType,
+            error,
+            operationProgress));
+    }
+
+    void DoFinalizeTerminatedOperation(
+        const TOperationPtr& operation,
+        ELogEventType logEventType,
+        const TError& error,
+        const TOperationProgress& operationProgress)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         SubmitOperationToCleaner(operation, operationProgress);
 
