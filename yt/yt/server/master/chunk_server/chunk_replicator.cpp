@@ -2914,25 +2914,35 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
         for (auto replica : location->Replicas()) {
             ScheduleChunkRefresh(replica.GetPtr());
         }
+
+        ScheduleLocationRefreshSequoia(location.Get());
+    }
+}
+
+void TChunkReplicator::ScheduleLocationRefreshSequoia(const TChunkLocation* location)
+{
+    const auto node = location->GetNode();
+    if (!IsObjectAlive(node)) {
+        return;
     }
 
-    // It seems okay to loose ScheduleNodeRefreshSequoia on epoch end as global refresh
+    // It seems okay to loose location refresh on epoch end as global refresh
     // will take care of all chunks in that case.
     // Global refresh also makes scheduling this callback during recovery redundant.
     if (Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActive() &&
         GetDynamicConfig()->SequoiaChunkReplicas->Enable)
     {
         if (GetDynamicConfig()->SequoiaChunkReplicas->EnableLocationRefresh) {
-            SequoiaChunkRefresher_->RefreshNode(node);
+            SequoiaChunkRefresher_->ScheduleLocationRefresh(location);
         } else {
             // This is an unsafe way, we do not retry refresh on fail.
             auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher);
-            invoker->Invoke(BIND(&TChunkReplicator::ScheduleNodeRefreshSequoia, MakeStrong(this), node->GetId()));
+            invoker->Invoke(BIND(&TChunkReplicator::DoRefreshLocationSequoiaUnsafe, MakeStrong(this), node->GetId(), location->GetIndex()));
         }
     }
 }
 
-void TChunkReplicator::ScheduleNodeRefreshSequoia(TNodeId nodeId)
+void TChunkReplicator::DoRefreshLocationSequoiaUnsafe(TNodeId nodeId, TChunkLocationIndex locationIndex)
 {
     YT_VERIFY(!HasMutationContext());
 
@@ -2943,7 +2953,7 @@ void TChunkReplicator::ScheduleNodeRefreshSequoia(TNodeId nodeId)
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-    auto sequoiaReplicasFuture = chunkReplicaFetcher->GetSequoiaNodeReplicas(nodeId);
+    auto sequoiaReplicasFuture = chunkReplicaFetcher->GetSequoiaLocationReplicas(nodeId, locationIndex);
     auto sequoiaReplicasOrError = WaitFor(sequoiaReplicasFuture);
     if (!sequoiaReplicasOrError.IsOK()) {
         YT_LOG_ERROR(sequoiaReplicasOrError, "Error getting Sequoia node replicas");

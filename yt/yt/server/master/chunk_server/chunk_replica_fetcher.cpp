@@ -571,6 +571,7 @@ private:
         SortUnique(state->ChunkIdsToFetchUnapprovedReplicasFromSequoia);
     }
 
+    // FetchReplicasFromMaster includes non-online replicas.
     void FetchReplicasFromMaster(
         const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
         TReplicaFetchStatePtr state) const
@@ -603,7 +604,7 @@ private:
             }
 
             auto& replicas = state->MasterReplicas[chunk->GetId()];
-            for (const auto& masterReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ false)) {
+            for (const auto& masterReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true)) {
                 replicas.push_back(convertToSequoiaReplica(masterReplica));
             }
 
@@ -616,7 +617,7 @@ private:
                 auto& approvedReplicas = state->ApprovedMasterReplicasForPendingValidationChunks[chunk->GetId()];
                 // Chunks can have duplicates.
                 approvedReplicas.clear();
-                for (const auto& masterReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ false)) {
+                for (const auto& masterReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true)) {
                     if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {
                         auto* location = locationReplica->AsChunkLocationPtr();
                         if (location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk.Get(), masterReplica.GetReplicaIndex()))) {
