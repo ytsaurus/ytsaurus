@@ -46,8 +46,6 @@
 #include <yt/yt/server/lib/misc/cluster_throttlers_config.h>
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
-#include <yt/yt/server/lib/signature/components/config.h>
-
 #include <yt/yt/server/lib/nbd/block_device.h>
 #include <yt/yt/server/lib/nbd/image_reader.h>
 #include <yt/yt/server/lib/nbd/profiler.h>
@@ -115,6 +113,8 @@
 
 #include <yt/yt/library/profiling/producer.h>
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/library/signature/components/config.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
@@ -4254,7 +4254,6 @@ TNodeJobReport TJob::MakeDefaultJobReport()
 
     return report;
 }
-
 
 void TJob::InitializeJobProbe()
 {

@@ -3,19 +3,6 @@
 
 #include <yt/yt/tests/cpp/modify_rows_test.h>
 
-#include <yt/yt/server/lib/signature/common/key_info.h>
-
-#include <yt/yt/server/lib/signature/components/components.h>
-#include <yt/yt/server/lib/signature/components/config.h>
-
-#include <yt/yt/server/lib/signature/generation/config.h>
-#include <yt/yt/server/lib/signature/generation/cypress_key_writer.h>
-#include <yt/yt/server/lib/signature/generation/signature_generator.h>
-
-#include <yt/yt/server/lib/signature/validation/config.h>
-#include <yt/yt/server/lib/signature/validation/cypress_key_reader.h>
-#include <yt/yt/server/lib/signature/validation/signature_validator.h>
-
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/table_writer.h>
@@ -49,6 +36,16 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/yt/library/signature/common/key_info.h>
+#include <yt/yt/library/signature/components/components.h>
+#include <yt/yt/library/signature/components/config.h>
+#include <yt/yt/library/signature/generation/config.h>
+#include <yt/yt/library/signature/generation/cypress_key_writer.h>
+#include <yt/yt/library/signature/generation/signature_generator.h>
+#include <yt/yt/library/signature/validation/config.h>
+#include <yt/yt/library/signature/validation/cypress_key_reader.h>
+#include <yt/yt/library/signature/validation/signature_validator.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>

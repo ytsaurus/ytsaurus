@@ -39,7 +39,7 @@ target_link_libraries(cpp-integration-test-s3-data PUBLIC
   library-query-engine
   yt-core-test_framework
   yt-library-named_value
-  lib-signature-components
+  library-signature-components
   server-lib-s3
 )
 

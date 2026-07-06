@@ -16,8 +16,6 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
-#include <yt/yt/server/lib/signature/components/components.h>
-
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
 #include <yt/yt/library/coredumper/public.h>
@@ -56,6 +54,8 @@
 #include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/library/fusion/service_locator.h>
+
+#include <yt/yt/library/signature/components/components.h>
 
 #include <yt/yt/client/driver/driver.h>
 #include <yt/yt/client/driver/config.h>
