@@ -1061,9 +1061,6 @@ struct TControllerAgentConfig
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
 
-    //! Enables using tmpfs if tmpfs_path is specified in user spec.
-    bool EnableTmpfs;
-
     //! Enables dynamic change of job sizes.
     bool EnablePartitionMapJobSizeAdjustment;
 

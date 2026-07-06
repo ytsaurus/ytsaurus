@@ -1034,32 +1034,79 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
 ##################################################################
 
 
-class TestDisabledSandboxTmpfs(YTEnvSetup):
+class TestFakeNonRootVolumes(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"enable_tmpfs": False}}
+    DELTA_NODE_CONFIG = {"exec_node": {"slot_manager": {"enable_non_root_volumes": False}}}
 
-    @authors("ignat")
+    @authors("krasovav")
     def test_simple(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        with raises_yt_error("Tmpfs creation is disabled on this cluster. The operation cannot be started because tmpfs is requested in its specification"):
+        op = map(
+            command="[ -d tmpfs ]",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            track=True,
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": "tmpfs",
+                }
+            },
+        )
+
+        op.track()
+
+
+class TestPortoFakeNonRootVolumes(TestFakeNonRootVolumes):
+    USE_PORTO = True
+
+    def setup_files(self):
+        create("file", "//tmp/layer1")
+        write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
+
+    @authors("krasovav")
+    def test_layers(self):
+        self.setup_files()
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        with raises_yt_error("It is impossible to create a fake non-root volume if it contains a layer (VolumeId: 1)"):
             map(
-                command="[ -d tmpfs ] || echo -n 'Success' >&2",
+                command="[ -d tmpfs ]",
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
+                track=True,
                 spec={
                     "mapper": {
-                        "tmpfs_size": 1024 * 1024,
-                        "tmpfs_path": "tmpfs",
+                        "volumes": {
+                            "1": {
+                                "layers": [
+                                    {
+                                        "path": "//tmp/layer1",
+                                    },
+                                ],
+                                "disk_request": {
+                                    "type": "tmpfs",
+                                    "disk_space": 1024 * 1024
+                                }
+                            }
+                        },
+                        "job_volumes_mounts": [
+                            {
+                                "volume_id": "1",
+                                "mount_path": "/sandbox"
+                            }
+                        ],
                     }
                 },
             )
-
 
 ##################################################################
 

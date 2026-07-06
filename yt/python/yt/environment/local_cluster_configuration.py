@@ -75,7 +75,6 @@ CONTROLLER_AGENT_CONFIG_PATCH = {
         "transactions_refresh_period": None,
         "operations_update_period": None,
         "testing_options": None,
-        "enable_tmpfs": False,
         "enable_locality": False,
         "snapshot_timeout": 300000,
         "sort_operation_options": {
@@ -159,6 +158,13 @@ NODE_CONFIG_PATCHES = [
     },
     {
         "cell_directory_synchronizer": None,
+    },
+    {
+        "exec_node": {
+            "slot_manager": {
+                "enable_non_root_volumes": False,
+            },
+        },
     }
 ]
 
