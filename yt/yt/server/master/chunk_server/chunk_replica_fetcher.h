@@ -28,7 +28,6 @@ struct IChunkReplicaFetcher
         NNodeTrackerClient::TChunkLocationIndex locationIndex) const = 0;
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const = 0;
 
-    // TODO(aleksandra-zh): Let both of these helpers (future and non-future version) live for now, one will take over eventually.
     virtual TErrorOr<TStoredChunkReplicaList> GetChunkReplicas(
         const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk,
         bool includeUnapproved) const = 0;
@@ -36,6 +35,7 @@ struct IChunkReplicaFetcher
         const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks,
         bool includeUnapproved) const = 0;
 
+    // Async replica fetch may include non-online replicas.
     virtual TFuture<std::vector<TSequoiaChunkReplica>> GetChunkReplicasAsync(
         NObjectServer::TEphemeralObjectPtr<TChunk> chunk,
         bool includeUnapproved) const = 0;

@@ -69,7 +69,7 @@ struct ISequoiaChunkRefresher
 {
     virtual void AdjustRefresherState() = 0;
 
-    virtual void RefreshNode(const TNode* node) = 0;
+    virtual void ScheduleLocationRefresh(const TChunkLocation* location) = 0;
 
     virtual TSequoiaChunkRefresherStatus GetStatus() const = 0;
 
