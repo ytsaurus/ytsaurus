@@ -42,4 +42,18 @@ public class CommandSpecTest {
         Assert.assertEquals(diskRequest.getMediumName().get(), node.get("disk_request").asMap().get("medium_name")
                 .stringValue());
     }
+
+    @Test
+    public void testDiskRequestRequiresMediumNameWithAccount() {
+        IllegalStateException exception = Assert.assertThrows(
+                IllegalStateException.class,
+                () -> DiskRequest.builder()
+                        .setDiskSpace(DataSize.fromGigaBytes(3))
+                        .setAccount("tmp")
+                        .build()
+        );
+
+        Assert.assertEquals("\"medium_name\" is required in disk request if \"account\" is specified",
+                exception.getMessage());
+    }
 }
