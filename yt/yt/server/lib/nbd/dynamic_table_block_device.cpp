@@ -1,8 +1,6 @@
 #include "dynamic_table_block_device.h"
 #include "config.h"
 
-#include <yt/yt/ytlib/api/native/client.h>
-
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
@@ -36,7 +34,7 @@ public:
     TBlockCache(
         i64 deviceId,
         TDynamicTableBlockDeviceConfigPtr deviceConfig,
-        NApi::NNative::IClientPtr client,
+        NApi::IClientPtr client,
         NLogging::TLogger logger)
         : DeviceId_(deviceId)
         , DeviceConfig_(std::move(deviceConfig))
@@ -203,7 +201,7 @@ private:
     // TODO(yuryalekseev): Add support for max cache size.
     const i64 DeviceId_;
     const TDynamicTableBlockDeviceConfigPtr DeviceConfig_;
-    const NApi::NNative::IClientPtr Client_;
+    const NApi::IClientPtr Client_;
     const NLogging::TLogger Logger;
 
     const TNameTablePtr NameTable_ = New<TNameTable>();
@@ -287,7 +285,7 @@ public:
     TDynamicTableBlockDevice(
         std::string deviceId,
         TDynamicTableBlockDeviceConfigPtr deviceConfig,
-        NApi::NNative::IClientPtr client,
+        NApi::IClientPtr client,
         NLogging::TLogger logger)
         : DeviceId_(CityHash64(deviceId.data(), deviceId.size()))
         , DeviceConfig_(std::move(deviceConfig))
@@ -521,7 +519,7 @@ private:
 
     const i64 DeviceId_;
     const TDynamicTableBlockDeviceConfigPtr DeviceConfig_;
-    const NApi::NNative::IClientPtr Client_;
+    const NApi::IClientPtr Client_;
     const NLogging::TLogger Logger;
 
     TBlockCachePtr BlockCache_;
@@ -637,7 +635,7 @@ private:
 IBlockDevicePtr CreateDynamicTableBlockDevice(
     std::string deviceId,
     TDynamicTableBlockDeviceConfigPtr deviceConfig,
-    NApi::NNative::IClientPtr client,
+    NApi::IClientPtr client,
     NLogging::TLogger logger)
 {
     return New<TDynamicTableBlockDevice>(
