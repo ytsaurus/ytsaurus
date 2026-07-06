@@ -84,6 +84,7 @@ SRCS(
     exec_node/job_input_cache.cpp
     exec_node/proxying_data_node_service.cpp
     exec_node/orchid.cpp
+    exec_node/pending_downloads_tracker.cpp
     exec_node/preparation_options.cpp
     exec_node/private.cpp
     exec_node/public.cpp
