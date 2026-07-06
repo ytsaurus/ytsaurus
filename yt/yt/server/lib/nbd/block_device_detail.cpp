@@ -1,11 +1,11 @@
-#include "block_device.h"
+#include "block_device_detail.h"
 
 namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Get the latest error set for device.
-const TError& TBaseBlockDevice::GetError() const
+const TError& TBlockDeviceBase::GetError() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -14,7 +14,7 @@ const TError& TBaseBlockDevice::GetError() const
 }
 
 //! Set an error for device.
-void TBaseBlockDevice::SetError(TError error)
+void TBlockDeviceBase::SetError(TError error)
 {
     // Do not allow ok.
     YT_VERIFY(!error.IsOK());
@@ -30,7 +30,7 @@ void TBaseBlockDevice::SetError(TError error)
     CallSubscribers();
 }
 
-bool TBaseBlockDevice::SubscribeForErrors(TGuid id, const TCallback<void()>& callback)
+bool TBlockDeviceBase::SubscribeForErrors(TGuid id, const TCallback<void()>& callback)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -58,7 +58,7 @@ bool TBaseBlockDevice::SubscribeForErrors(TGuid id, const TCallback<void()>& cal
     return true;
 }
 
-bool TBaseBlockDevice::UnsubscribeFromErrors(TGuid id)
+bool TBlockDeviceBase::UnsubscribeFromErrors(TGuid id)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -73,7 +73,7 @@ bool TBaseBlockDevice::UnsubscribeFromErrors(TGuid id)
     return true;
 }
 
-void TBaseBlockDevice::CallSubscribers() const
+void TBlockDeviceBase::CallSubscribers() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

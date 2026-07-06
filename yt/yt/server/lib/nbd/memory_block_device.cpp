@@ -1,4 +1,5 @@
 #include "memory_block_device.h"
+#include "block_device_detail.h"
 #include "config.h"
 
 namespace NYT::NNbd {
@@ -6,7 +7,7 @@ namespace NYT::NNbd {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryBlockDevice
-    : public TBaseBlockDevice
+    : public TBlockDeviceBase
 {
 public:
     explicit TMemoryBlockDevice(TMemoryBlockDeviceConfigPtr config)

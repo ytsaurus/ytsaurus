@@ -1,4 +1,5 @@
 #include "dynamic_table_block_device.h"
+#include "block_device_detail.h"
 #include "config.h"
 
 #include <yt/yt/client/api/client.h>
@@ -279,7 +280,7 @@ DEFINE_REFCOUNTED_TYPE(TBlockCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTableBlockDevice
-    : public TBaseBlockDevice
+    : public TBlockDeviceBase
 {
 public:
     TDynamicTableBlockDevice(
