@@ -168,16 +168,29 @@ public:
 
         auto preparedRequest = SplitRequest(context, locationDirectory);
 
-        if (Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas->Enable) {
+        const auto& sequoiaReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
+
+        if (sequoiaReplicasConfig->Enable) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
 
             if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>) {
                 auto locationUuid = FromProto<TChunkLocationUuid>(preparedRequest->NonSequoiaRequest.location_uuid());
                 auto* location = FindAndValidateLocation<true>(node, locationUuid);
-                auto useLocationReplacement = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas->UseLocationReplacementForLocationFullHeartbeat;
 
+                auto isLocationRestarted = location->GetState() == EChunkLocationState::Restarted;
+                if (isLocationRestarted &&
+                    (!sequoiaReplicasConfig->EnableGlobalSequoiaChunkRefresh || !sequoiaReplicasConfig->EnableLocationRefresh))
+                {
+                    YT_LOG_ALERT(
+                        "Using no disposal for node restart is unsafe without enabled sequoia refreshes "
+                        "(GlobalSequoiaRefreshEnabled: %v, SequoiaLocationRefreshEnabled: %v)",
+                        sequoiaReplicasConfig->EnableGlobalSequoiaChunkRefresh,
+                        sequoiaReplicasConfig->EnableLocationRefresh);
+                }
+
+                auto useLocationReplacement = sequoiaReplicasConfig->UseLocationReplacementForLocationFullHeartbeat;
                 if ((preparedRequest->NonSequoiaRequest.is_validation() && GetDynamicConfig()->ValidateSequoiaReplicas) ||
-                    location->GetState() == EChunkLocationState::Restarted ||
+                    isLocationRestarted ||
                     (!preparedRequest->NonSequoiaRequest.is_validation() && useLocationReplacement))
                 {
                     auto replaceLocationRequest = std::make_unique<TReqReplaceLocationReplicas>();

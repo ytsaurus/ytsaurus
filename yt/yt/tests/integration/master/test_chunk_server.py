@@ -1348,8 +1348,6 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
     @authors("grphil")
     def test_replica_state_changes(self):
-        if get("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable"):
-            pytest.skip("Journal sequoia replicas are unsupported for now.")
         update_nodes_dynamic_config({
             "data_node": {
                 "testing_options": {
@@ -1450,10 +1448,26 @@ class TestNoDisposalForRestartingNodesSequoia(TestNoDisposalForRestartingNodes):
             "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "enable": True,
+                "blob_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": True,
+                    "process_removed_sequoia_replicas_on_master": True,
+                    "validate_sequoia_replicas_fetch": True,
+                    "allow_extra_master_replicas_during_validation": False,
+                },
+                "journal_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": True,
+                    "process_removed_sequoia_replicas_on_master": True,
+                    "validate_sequoia_replicas_fetch": True,
+                    "allow_extra_master_replicas_during_validation": False,
+                },
                 "enable_sequoia_chunk_refresh": True,
                 "sequoia_chunk_refresh_period": 100,
-                "replicas_percentage": 100,
-                "fetch_replicas_from_sequoia": True,
             }
         },
     }
@@ -1479,12 +1493,22 @@ class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNod
             "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "enable": True,
+                "blob_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": False,
+                    "process_removed_sequoia_replicas_on_master": False,
+                },
+                "journal_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": False,
+                    "process_removed_sequoia_replicas_on_master": False,
+                },
                 "enable_sequoia_chunk_refresh": True,
-                "replicas_percentage": 100,
-                "fetch_replicas_from_sequoia": True,
-                "store_sequoia_replicas_on_master": False,
-                "processed_removed_sequoia_replicas_on_master": False,
-                "validate_sequoia_replicas_fetch": False,
+                "sequoia_chunk_refresh_period": 100,
             }
         },
     }

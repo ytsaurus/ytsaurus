@@ -4349,7 +4349,7 @@ private:
 
         const auto& sequoiaChunkReplicasConfig = GetDynamicConfig()->SequoiaChunkReplicas;
         for (const auto& replica : location->Replicas()) {
-            const auto* chunk = replica.GetPtr();
+            auto* chunk = replica.GetPtr();
             auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunk->GetId(), sequoiaChunkReplicasConfig);
             if (chunkSequoiaConfig.StoreInSequoia) {
                 if (chunkSequoiaConfig.StoreSequoiaReplicasOnMaster) {
@@ -4371,6 +4371,9 @@ private:
                 TChunkIdWithIndexAndState(chunk->GetId(), replica.GetReplicaIndex(), replica.GetReplicaState())))
             {
                 replicasToRemove.emplace_back(replica);
+            } else {
+                ScheduleChunkRefresh(chunk);
+                ScheduleChunkSeal(chunk);
             }
         }
 
@@ -4379,6 +4382,12 @@ private:
         }
 
         location->SetState(EChunkLocationState::Online);
+
+        if (sequoiaChunkReplicasConfig->Enable) {
+            // After sequoia location replacement we schedule refresh for all changed Sequoia replicas.
+            // But unchanged Sequoia replicas are not refreshed, so we need to refresh location after it becomes online.
+            ChunkReplicator_->ScheduleLocationRefreshSequoia(location);
+        }
 
         return announceReplicaRequests;
     }
