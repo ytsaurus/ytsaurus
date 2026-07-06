@@ -70,19 +70,81 @@ def build_cluster_reference_workload_performance():
             .value(MonitoringSystemFields.DownsamplingAggregation, DownsamplingAggregation.Avg)
             .value(MonitoringSystemFields.DownsamplingGridInterval, _DOWNSAMPLING_GRID_INTERVAL_MS))
 
-    # Row 1: CPU throughput and big-file I/O throughput.
+    # cpu_model lives only on the CPU sensors, so the selector is bound here,
+    # per sensor, rather than dashboard-wide: a global cpu_model selector would
+    # match nothing on the disk panels (they have no such label) and blank them.
+    #
+    # The dashboard parameter is named probe_cpu_model, not cpu_model: the CPU
+    # panels alias each line as "{{cpu_model}}" to interpolate the series
+    # label, and a parameter with the same name would be substituted into that
+    # alias first (naming every line "*" when the dropdown is at its default).
+    def _by_cpu_model(expr):
+        return expr.value("cpu_model", TemplateTag("probe_cpu_model"))
+
+    # The probe's counters are scraped continuously, so the per-model .rate
+    # series are dense: zero between that model's cycles, a spike when a cycle
+    # lands on it. A per-bucket iterations/duration ratio is therefore
+    # 0/0 = NaN in every bucket without a measurement, and the renderer breaks
+    # the line at each NaN — the per-model lines degrade into dots. Summing
+    # both operands over a trailing window first keeps the denominator nonzero
+    # everywhere the model was measured within the last |window|, so the ratio
+    # is defined at every bucket and the line is continuous. The window must
+    # exceed the per-model measurement interval (probe period × number of CPU
+    # models in the cluster), else the gaps come back; it also sets how much
+    # history one point averages.
+    #
+    # Without a window the ratio is the raw per-bucket value: mostly dots, one
+    # per actual measurement at its exact time — deliberately kept as the
+    # unsmoothed view.
+    #
+    # The alias names each line by its CPU model so the legend stays readable.
+    def _cpu_ops_expr(window=None):
+        iterations = _by_cpu_model(_iterations_rate("cpu"))
+        duration = _by_cpu_model(_duration_rate("cpu"))
+        if window is not None:
+            iterations = iterations.moving_sum(window)
+            duration = duration.moving_sum(window)
+        return ((iterations / duration) * _K).drop_nan().alias("{{cpu_model}}")
+
+    _cpu_ops_description = (
+        "What op/s means: "
+        "https://a.yandex-team.ru/arcadia/yt/internal/cluster_workloads/"
+        "benchmark_probe/job/lib/README.md"
+    )
+
+    # Row 1: CPU throughput — smoothed trend, sensitive window, raw samples.
     d.add(_smoothed(Rowset()
         .stack(False)
         .min(0))
         .row()
             .cell(
-                "CPU op/s",
-                (
-                    _iterations_rate("cpu") / _duration_rate("cpu")
-                ) * _K,
+                "CPU op/s (2h window)",
+                _cpu_ops_expr("2h"),
                 yaxis_label="op/s",
-                display_legend=False,
+                display_legend=True,
+                description=_cpu_ops_description,
             )
+            .cell(
+                "CPU op/s (1h window)",
+                _cpu_ops_expr("1h"),
+                yaxis_label="op/s",
+                display_legend=True,
+                description=_cpu_ops_description,
+            )
+            .cell(
+                "CPU op/s (raw samples)",
+                _cpu_ops_expr(),
+                yaxis_label="op/s",
+                display_legend=True,
+                description=_cpu_ops_description,
+            )
+    )
+
+    # Row 2: disk throughput (big-file and many-files).
+    d.add(_smoothed(Rowset()
+        .stack(False)
+        .min(0))
+        .row()
             .cell(
                 "Big-file disk write",
                 (
@@ -93,13 +155,6 @@ def build_cluster_reference_workload_performance():
                 ).unit("UNIT_BYTES_SI_PER_SECOND"),
                 display_legend=False,
             )
-    )
-
-    # Row 2: Many-files throughput (files/s and MB/s).
-    d.add(_smoothed(Rowset()
-        .stack(False)
-        .min(0))
-        .row()
             .cell(
                 "Many-files files/s",
                 (
@@ -129,7 +184,9 @@ def build_cluster_reference_workload_performance():
             .cell(
                 "Liveness — cycles per second",
                 MultiSensor(
-                    _cycles_rate().all("type").alias("{{type}}"),
+                    # series_sum("type") collapses the per-cpu_model CPU series
+                    # back into a single line per workload type.
+                    _cycles_rate().all("type").series_sum("type").alias("{{type}}"),
                 ),
                 yaxis_label="cycles/s",
                 display_legend=True,
@@ -137,7 +194,8 @@ def build_cluster_reference_workload_performance():
             .cell(
                 "Avg cycle time",
                 (
-                    _duration_rate().all("type") / _cycles_rate().all("type")
+                    _duration_rate().all("type").series_sum("type")
+                    / _cycles_rate().all("type").series_sum("type")
                 ).alias("{{type}}"),
                 yaxis_label="ms/cycle",
                 display_legend=True,
@@ -167,6 +225,16 @@ def build_cluster_reference_workload_performance():
         "workload",
         "workload",
         MonitoringLabelDashboardParameter("yt", "workload", "*", selectors=_service_selector),
+        backends=["monitoring"],
+    )
+    # cpu_model exists only on the CPU sensors; the dropdown enumerates the
+    # models seen there. It is bound per-sensor (see _by_cpu_model), not via a
+    # dashboard-wide d.value, so the disk panels stay unaffected. The parameter
+    # name deliberately differs from the label name — see _by_cpu_model.
+    d.add_parameter(
+        "probe_cpu_model",
+        "cpu_model",
+        MonitoringLabelDashboardParameter("yt", "cpu_model", "*", selectors=_service_selector),
         backends=["monitoring"],
     )
 
