@@ -206,6 +206,8 @@ EChunkReplicaState GetAddedChunkReplicaState(
         TChunkId chunkId,
         const NChunkClient::NProto::TChunkAddInfo& chunkAddInfo);
 
+bool IsSealNeeded(const TChunk* chunk);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkSequoiaConfig
