@@ -207,6 +207,7 @@ private:
         NProfiling::TTimeCounter CumulativeTimeCounter;
         NProfiling::TTimeCounter CumulativeExecuteTimeCounter;
         NProfiling::TTimeCounter CumulativeDeserializeTimeCounter;
+        NProfiling::TEventTimer ExecuteTimer;
         NProfiling::TCounter MutationCounter;
         NProfiling::TGauge RequestSizeCounter;
 
