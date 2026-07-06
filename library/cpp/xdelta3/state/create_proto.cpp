@@ -14,7 +14,7 @@ namespace {
     template<typename TResult>
     TResult EncodeProto(const TStateHeader& header, const ui8* data, size_t size)
     {
-        using namespace NProtoBuf::io;
+        using namespace google::protobuf::io;
 
         TResult result;
         ui8 totalHeaderSize = SizeOfHeader(header);
