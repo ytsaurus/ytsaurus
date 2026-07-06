@@ -69,7 +69,7 @@ public:
         if (ReplaceLocationRequest_) {
             YT_LOG_ALERT_AND_THROW("Sequoia replicas modifier can not have both replace and modify requests");
         }
-        IsIncrementalHeartbeat_ |= request->is_incremental_heartbeat();
+        IsIncrementalHeartbeat_ &= request->is_incremental_heartbeat();
         Requests_.push_back(std::move(request));
     }
 
