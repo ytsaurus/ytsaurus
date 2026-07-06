@@ -10,16 +10,17 @@ struct TFilterSplit
 {
     NQueryClient::NAst::TNullableExpressionList Where;
     NQueryClient::NAst::TNullableExpressionList Having;
-    THashMap<std::string, NQueryClient::NAst::TNullableExpressionList> JoinPredicates;
 };
 
 struct TFilterHints
 {
-    THashSet<NQueryClient::NAst::TExpressionPtr> Having;
-    THashMap<NQueryClient::NAst::TExpressionPtr, std::string> JoinPredicates;
+    THashSet<std::string> WhereAliases;
 };
 
-// Splits expression into parts for different filters of select query using hints.
+// Returns true if expression contains an aggregate function.
+bool ContainsAggregateFunction(NQueryClient::NAst::TExpressionPtr expression);
+
+// Splits expression into WHERE and HAVING parts using table aliases and aggregate functions.
 TFilterSplit SplitFilter(
     NQueryClient::NAst::TExpressionPtr expression,
     const TFilterHints& hints,
