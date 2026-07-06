@@ -402,6 +402,7 @@ class YTEnvSetup(object):
     DELTA_CELL_BALANCER_CONFIG = {}
     DELTA_TABLET_BALANCER_CONFIG = {}
     DELTA_MASTER_CACHE_CONFIG = {}
+    DELTA_OFFSHORE_DATA_GATEWAY_CONFIG = {}
     DELTA_QUEUE_AGENT_CONFIG = {}
     DELTA_KAFKA_PROXY_CONFIG = {}
     DELTA_CYPRESS_PROXY_CONFIG = {}
@@ -537,6 +538,10 @@ class YTEnvSetup(object):
 
     @classmethod
     def modify_master_cache_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_offshore_data_gateway_config(cls, config, cluster_index):
         pass
 
     @classmethod
@@ -1214,7 +1219,6 @@ class YTEnvSetup(object):
         for cell_tag in cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index):
             assert cell_tag in cell_tags
 
-    # TODO(pavel-bash): use the modify_offshore_data_gateway_config when implemented.
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
         multidaemon_config = configs["multi"]
@@ -1281,6 +1285,12 @@ class YTEnvSetup(object):
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_master_cache_config(config)
             multidaemon_config["daemons"][f"master_cache_{index}"]["config"] = config
+
+        for index, config in enumerate(configs["offshore_data_gateway"]):
+            cls._apply_effective_config_patch(config, "DELTA_OFFSHORE_DATA_GATEWAY_CONFIG", cluster_index)
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_offshore_data_gateway_config(config, multidaemon_config)
+            multidaemon_config["daemons"][f"offshore_data_gateway_{index}"]["config"] = config
 
         for index, config in enumerate(configs["controller_agent"]):
             update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG)

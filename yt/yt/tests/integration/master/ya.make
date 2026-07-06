@@ -32,6 +32,10 @@ TEST_SRCS(
     test_users.py
 )
 
+PEERDIR(
+    contrib/python/boto3
+)
+
 END()
 
 RECURSE_FOR_TESTS(

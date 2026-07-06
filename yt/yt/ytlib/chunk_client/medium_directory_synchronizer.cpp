@@ -126,7 +126,10 @@ private:
             auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
             TGetClusterMetaOptions options;
-            options.ReadFrom = NApi::EMasterChannelKind::MasterSideCache;
+            // For tests.
+            if (Config_->UseCache) {
+                options.ReadFrom = NApi::EMasterChannelKind::MasterSideCache;
+            }
             options.PopulateMediumDirectory = true;
 
             auto result = WaitFor(client->GetClusterMeta(options))

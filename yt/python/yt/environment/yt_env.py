@@ -813,7 +813,7 @@ class YTInstance(object):
             components = ["multi"]
         else:
             components = ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
-                          "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer",
+                          "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer", "offshore_data_gateway",
                           "tablet_balancer", "cypress_proxy", "replicated_table_tracker", "queue_agent", "kafka_proxy", "multi"]
 
         self._send_component_kills(components)

@@ -1349,6 +1349,9 @@ struct TControllerAgentConfig
 
     bool FailOperationsInEmptyTrees;
 
+    //! If |true|, operations on tables whose primary medium is S3 (offshore) are forbidden.
+    bool ForbidOperationsOnOffshoreMedia;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);

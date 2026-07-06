@@ -2095,6 +2095,10 @@ def _build_offshore_data_gateway_configs(yt_config,
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
 
+        multidaemon_config_output["daemons"][f"offshore_data_gateway_{index}"] = {
+            "type": "offshore_data_gateway",
+            "config": config,
+        }
         configs.append(config)
 
     return configs
