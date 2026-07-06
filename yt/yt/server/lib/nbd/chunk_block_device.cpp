@@ -1,5 +1,6 @@
 #include "chunk_block_device.h"
 
+#include "block_device_detail.h"
 #include "chunk_handler.h"
 #include "config.h"
 #include "profiler.h"
@@ -22,7 +23,7 @@ using namespace NThreading;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkBlockDevice
-    : public TBaseBlockDevice
+    : public TBlockDeviceBase
 {
 public:
     TChunkBlockDevice(

@@ -1,5 +1,5 @@
 #include "file_system_block_device.h"
-#include "block_device.h"
+#include "block_device_detail.h"
 #include "config.h"
 #include "image_reader.h"
 #include "profiler.h"
@@ -37,7 +37,7 @@ using namespace NTracing;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileSystemBlockDevice
-    : public TBaseBlockDevice
+    : public TBlockDeviceBase
 {
 public:
     TFileSystemBlockDevice(
