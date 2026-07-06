@@ -6373,6 +6373,7 @@ class TestChaosMetaCluster(ChaosTestBase):
     def test_client_keeps_connection_to_chaos_cell(self, action):
         [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
         remote_driver2 = get_driver(cluster="remote_2")
+        remote_driver1 = get_driver(cluster="remote_1")
 
         nodes = ls("//sys/chaos_nodes", driver=remote_driver2)
         assert len(nodes) == 2
@@ -6409,6 +6410,10 @@ class TestChaosMetaCluster(ChaosTestBase):
             return [{"key": key, "value": str(key)}]
 
         if action == "migration":
+            # Ensure cells are known by each other.
+            wait(lambda: len(self._get_chaos_cell_orchid(beta_cell, "/chaos_manager/coordinators", driver=remote_driver2)) == 2)
+            wait(lambda: len(self._get_chaos_cell_orchid(alpha_cell, "/chaos_manager/coordinators", driver=remote_driver1)) == 2)
+
             migrate_replication_cards(beta_cell, [card_id1], destination_cell_id=alpha_cell)
 
             card_id2 = create_replication_card(chaos_cell_id=beta_cell)
