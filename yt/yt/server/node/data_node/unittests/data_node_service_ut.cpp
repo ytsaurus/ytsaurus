@@ -1867,4 +1867,55 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJournalSessionTest
+    : public TDataNodeTest
+{ };
+
+TEST_F(TJournalSessionTest, PutBlocksDuplicatesAndGaps)
+{
+    TSessionId sessionId(MakeRandomId(EObjectType::JournalChunk, TCellTag(0xf003)), GenericMediumIndex);
+    WaitFor(StartChunk(sessionId, /*useProbePutBlocks*/ false, /*preallocateDiskSpace*/ false, /*useDirectIo*/ false))
+        .ThrowOnError();
+
+    TRandomGenerator generator(42);
+    auto records = CreateBlocks(/*count*/ 5, /*blockSize*/ 10, generator);
+    auto cumulativeBlockSize = CalculateCummulativeBlockSize(records);
+
+    WaitFor(PutBlocks(sessionId, records, /*firstBlockIndex*/ 0, cumulativeBlockSize).AsVoid())
+        .ThrowOnError();
+    WaitFor(FlushBlocks(sessionId, /*blockIndex*/ 4))
+        .ThrowOnError();
+
+    // A request starting past the changelog end is rejected with a dedicated
+    // error code.
+    auto gapResult = WaitFor(PutBlocks(sessionId, records, /*firstBlockIndex*/ 7, cumulativeBlockSize).AsVoid());
+    EXPECT_FALSE(gapResult.IsOK());
+    EXPECT_TRUE(gapResult.FindMatching(NChunkClient::EErrorCode::MissingJournalChunkRecord))
+        << ToString(gapResult);
+
+    // A duplicate ending exactly at the changelog end is skipped.
+    auto exactDuplicateResult = WaitFor(PutBlocks(sessionId, records, /*firstBlockIndex*/ 0, cumulativeBlockSize).AsVoid());
+    EXPECT_TRUE(exactDuplicateResult.IsOK())
+        << ToString(exactDuplicateResult);
+
+    // A stale duplicate ending strictly before the changelog end must be
+    // skipped as well.
+    std::vector<TBlock> stalePrefix(records.begin(), records.begin() + 3);
+    auto staleDuplicateResult = WaitFor(PutBlocks(sessionId, stalePrefix, /*firstBlockIndex*/ 0, cumulativeBlockSize).AsVoid());
+    EXPECT_TRUE(staleDuplicateResult.IsOK())
+        << ToString(staleDuplicateResult);
+
+    // The session remains usable afterwards.
+    auto tailRecords = CreateBlocks(/*count*/ 3, /*blockSize*/ 10, generator);
+    WaitFor(PutBlocks(sessionId, tailRecords, /*firstBlockIndex*/ 5, cumulativeBlockSize).AsVoid())
+        .ThrowOnError();
+    WaitFor(FlushBlocks(sessionId, /*blockIndex*/ 7))
+        .ThrowOnError();
+
+    WaitFor(CancelChunk(sessionId))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 }
