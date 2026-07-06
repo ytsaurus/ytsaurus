@@ -63,7 +63,6 @@ RECURSE(
     security_server
     shell
     shuffle_server
-    signature
     squash_fs
     component_state_checker
     table_server

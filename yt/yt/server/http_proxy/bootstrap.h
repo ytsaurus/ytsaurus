@@ -8,8 +8,6 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
-#include <yt/yt/server/lib/signature/components/public.h>
-
 #include <yt/yt/ytlib/api/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -29,6 +27,8 @@
 #include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/library/disk_manager/public.h>
+
+#include <yt/yt/library/signature/components/public.h>
 
 #include <yt/yt/core/bus/public.h>
 
