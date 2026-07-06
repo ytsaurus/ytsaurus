@@ -788,6 +788,27 @@
             "uri": "https://{canondata_backend}/1777230/d749406d61a0f7d7dd2324a8ae0852c515dee79b/resource.tar.gz#test.test_join-mergejoin_with_different_key_names_nested--Results_/results.txt"
         }
     ],
+    "test.test[join-prune_keys_not_for_join_leaves--Debug]": [
+        {
+            "checksum": "5bfcba2383cee55dda19f56b4034ba7b",
+            "size": 7689,
+            "uri": "https://{canondata_backend}/1917492/3d169fc123b2eaf2db6230e53ec2d1d2eaaee356/resource.tar.gz#test.test_join-prune_keys_not_for_join_leaves--Debug_/opt.yql"
+        }
+    ],
+    "test.test[join-prune_keys_not_for_join_leaves--Plan]": [
+        {
+            "checksum": "2b41dfe39f289ac9b4b8d128e108e6f9",
+            "size": 12315,
+            "uri": "https://{canondata_backend}/1942525/df77bf542878873e8865d243e203cf9c0eacf475/resource.tar.gz#test.test_join-prune_keys_not_for_join_leaves--Plan_/plan.txt"
+        }
+    ],
+    "test.test[join-prune_keys_not_for_join_leaves--Results]": [
+        {
+            "checksum": "2df9836fb8cd8aef0c3a807c176c8aa0",
+            "size": 1557,
+            "uri": "https://{canondata_backend}/1031349/4b6ad63052179fe6f265537fa3eecd3bfc643815/resource.tar.gz#test.test_join-prune_keys_not_for_join_leaves--Results_/results.txt"
+        }
+    ],
     "test.test[join-pullup_inner--Debug]": [
         {
             "checksum": "cb9cc9836408279cfc036f3b7978499c",

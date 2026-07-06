@@ -1239,6 +1239,48 @@
             "uri": "https://{canondata_backend}/1931696/9fc8a2aa9b05cfb87c57269b5f254d398b4da328/resource.tar.gz#test.test_join-pullup_renaming--Results_/results.txt"
         }
     ],
+    "test.test[join-push_any_over_equijoin_join_types--Debug]": [
+        {
+            "checksum": "e2b13d6b320b482016ebcba21372c378",
+            "size": 16964,
+            "uri": "https://{canondata_backend}/1817427/1a2d4c3366bc3aded03abd2a43b877ebd17c8631/resource.tar.gz#test.test_join-push_any_over_equijoin_join_types--Debug_/opt.yql"
+        }
+    ],
+    "test.test[join-push_any_over_equijoin_join_types--Plan]": [
+        {
+            "checksum": "8d11fb81e081444ea7c97632fb84df2e",
+            "size": 56635,
+            "uri": "https://{canondata_backend}/1931696/e6888359f92824d172fc06a432a048032a2a3025/resource.tar.gz#test.test_join-push_any_over_equijoin_join_types--Plan_/plan.txt"
+        }
+    ],
+    "test.test[join-push_any_over_equijoin_join_types--Results]": [
+        {
+            "checksum": "23709e45af535100b6b5ca07788f476a",
+            "size": 12782,
+            "uri": "https://{canondata_backend}/1931696/e6888359f92824d172fc06a432a048032a2a3025/resource.tar.gz#test.test_join-push_any_over_equijoin_join_types--Results_/results.txt"
+        }
+    ],
+    "test.test[join-push_any_over_equijoin_multilevel--Debug]": [
+        {
+            "checksum": "482ae02907da2fd9a89713c66d302206",
+            "size": 10555,
+            "uri": "https://{canondata_backend}/1817427/1a2d4c3366bc3aded03abd2a43b877ebd17c8631/resource.tar.gz#test.test_join-push_any_over_equijoin_multilevel--Debug_/opt.yql"
+        }
+    ],
+    "test.test[join-push_any_over_equijoin_multilevel--Plan]": [
+        {
+            "checksum": "0689c0e24c24b70f6eaf46181002ecb5",
+            "size": 21349,
+            "uri": "https://{canondata_backend}/1937150/88b0519e27b0cda0552b19c934d9dab32588c3de/resource.tar.gz#test.test_join-push_any_over_equijoin_multilevel--Plan_/plan.txt"
+        }
+    ],
+    "test.test[join-push_any_over_equijoin_multilevel--Results]": [
+        {
+            "checksum": "9e1635b77b1ecc04e7d7cea8b9be0085",
+            "size": 2560,
+            "uri": "https://{canondata_backend}/1937150/88b0519e27b0cda0552b19c934d9dab32588c3de/resource.tar.gz#test.test_join-push_any_over_equijoin_multilevel--Results_/results.txt"
+        }
+    ],
     "test.test[join-pushdown_filter_over_inner_with_assume_strict--Debug]": [
         {
             "checksum": "802168505fe2a028eb945410452f07c2",
