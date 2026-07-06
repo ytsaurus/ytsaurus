@@ -11,7 +11,7 @@
 
 using namespace NYT::NQueryClient::NAst;
 
-namespace NYT::NOrm::NServer::NObjects {
+namespace NYT::NOrm::NQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -444,7 +444,7 @@ bool ContainsAggregateFunction(TExpressionPtr expression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFilterSplit SplitFilter(
+TFilterSplit SplitFilterIntoWhereAndHaving(
     TExpressionPtr filterExpression,
     const TFilterHints& filterHints,
     TObjectsHolder* objectsHolder)
@@ -454,4 +454,4 @@ TFilterSplit SplitFilter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOrm::NServer::NObjects
+} // namespace NYT::NOrm::NQuery
