@@ -179,6 +179,7 @@ public:
         const TString& revision,
         const TString& address,
         ui32 pid,
+        const TString& startTime,
         const VectorLike& files)
     {
         auto now = TInstant::Now();
@@ -188,6 +189,11 @@ public:
         t.Revision = revision;
         t.Pid = pid;
         t.Address = address;
+        if (!startTime.empty()) {
+            t.StartTime = startTime;
+        } else if (t.StartTime.empty()) {
+            t.StartTime = ToString(now);
+        }
         bool needUpdate = false;
         for (const auto& f : files) {
             needUpdate |= t.Files.insert(f.GetObjectId()).second;
@@ -236,6 +242,7 @@ public:
         TString Revision;
         ui32 Pid;
         TString Address;
+        TString StartTime;
     };
 
     const THashMap<TGUID, TServiceNodeFiles>& GetNodes() const {
@@ -737,6 +744,7 @@ private:
                 request.GetRevision(),
                 request.GetAddress(),
                 request.GetPid(),
+                request.GetStartTime(),
                 request.GetFilesOnNode());
         }
 
@@ -1102,6 +1110,7 @@ private:
             nodeInfo->SetNodeId(node.NodeId);
             nodeInfo->SetPid(node.Pid);
             nodeInfo->SetAddress(node.Address);
+            nodeInfo->SetStartTime(node.StartTime);
             nodeInfo->SetGuid(GetGuidAsString(guid));
             for (const auto& file : node.OrderedFiles) {
                 *nodeInfo->AddFile() = file;
@@ -1206,7 +1215,7 @@ private:
         r.SetObjectId(Revision);
         files.push_back(r);
 
-        AllCriticalFiles.Add(TGUID(), SelfId().NodeId(), Revision, Address, Pid, files);
+        AllCriticalFiles.Add(TGUID(), SelfId().NodeId(), Revision, Address, Pid, TString(), files);
     }
 
     void OnIsReadyForward(TEvIsReady::TPtr& ev, const TActorContext& ctx) {
