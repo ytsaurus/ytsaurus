@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -325,6 +326,40 @@ TDuration InvalidateMountCacheAndGetRetryDelay(
     }
 
     THROW_ERROR error;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TTableMountInfoPtr> GetTableMountInfo(const TRichYPath& objectPath, const IConnectionPtr& connection)
+{
+    const auto& objectCluster = objectPath.GetCluster();
+    // NB: For better cache locality, use the provided connection when its cluster is equal to the object's cluster.
+    auto objectConnection = ((objectCluster && objectCluster == connection->GetClusterName())
+        ? connection
+        : FindRemoteConnection(connection, objectPath.GetCluster()));
+    YT_VERIFY(objectConnection);
+    auto objectTableMountCache = objectConnection->GetTableMountCache();
+    return objectTableMountCache->GetTableInfo(objectPath.GetPath());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<bool> IsSuperuser(const IConnectionPtr& connection, const std::string& user)
+{
+    return connection->GetUserAttributeCache()->Get(user)
+        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
+            YT_VERIFY(attributes);
+            return attributes->MemberOfClosure.contains(SuperusersGroupName);
+        }));
+}
+
+TFuture<bool> IsUserBanned(const IConnectionPtr& connection, const std::string& user)
+{
+    return connection->GetUserAttributeCache()->Get(user)
+        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
+            YT_VERIFY(attributes);
+            return attributes->Banned;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

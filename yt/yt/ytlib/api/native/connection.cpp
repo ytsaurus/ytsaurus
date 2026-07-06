@@ -1801,38 +1801,4 @@ IConnectionPtr GetRemoteConnectionOrThrow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TTableMountInfoPtr> GetTableMountInfo(const TRichYPath& objectPath, const IConnectionPtr& connection)
-{
-    const auto& objectCluster = objectPath.GetCluster();
-    // NB: For better cache locality, use the provided connection when its cluster is equal to the object's cluster.
-    auto objectConnection = ((objectCluster && objectCluster == connection->GetClusterName())
-        ? connection
-        : FindRemoteConnection(connection, objectPath.GetCluster()));
-    YT_VERIFY(objectConnection);
-    auto objectTableMountCache = objectConnection->GetTableMountCache();
-    return objectTableMountCache->GetTableInfo(objectPath.GetPath());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<bool> IsSuperuser(const IConnectionPtr& connection, const std::string& user)
-{
-    return connection->GetUserAttributeCache()->Get(user)
-        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
-            YT_VERIFY(attributes);
-            return attributes->MemberOfClosure.contains(SuperusersGroupName);
-        }));
-}
-
-TFuture<bool> IsUserBanned(const IConnectionPtr& connection, const std::string& user)
-{
-    return connection->GetUserAttributeCache()->Get(user)
-        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
-            YT_VERIFY(attributes);
-            return attributes->Banned;
-        }));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NApi::NNative

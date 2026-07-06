@@ -263,6 +263,8 @@ struct TConnectionOptions
     TConnectionOptions() = default;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 //! Native connection talks directly to the cluster via internal
 //! (and typically not stable) RPC protocols.
 IConnectionPtr CreateConnection(
@@ -324,21 +326,6 @@ IConnectionPtr FindRemoteConnection(
 IConnectionPtr GetRemoteConnectionOrThrow(
     const NApi::NNative::IConnectionPtr& connection,
     NObjectClient::TCellTag cellTag);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Fetches table mount info for object on a potentially-remote cluster, which may be specified in the rich YPath.
-TFuture<NTabletClient::TTableMountInfoPtr> GetTableMountInfo(
-    const NYPath::TRichYPath& objectPath,
-    const IConnectionPtr& connection);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Uses user attribute cache to check if the user is a superuser.
-TFuture<bool> IsSuperuser(const NApi::NNative::IConnectionPtr& connection, const std::string& user);
-
-//! Uses user attribute cache to check if the user is banned.
-TFuture<bool> IsUserBanned(const NApi::NNative::IConnectionPtr& connection, const std::string& user);
 
 ////////////////////////////////////////////////////////////////////////////////
 

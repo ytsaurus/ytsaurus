@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
+#include <yt/yt/client/ypath/public.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -120,6 +122,21 @@ auto CallAndRetryIfMetadataCacheIsInconsistent(
     const TDetailedProfilingInfoPtr& profilingInfo,
     const NLogging::TLogger& logger,
     TCallback&& callback) -> decltype(callback());
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Fetches table mount info for object on a potentially-remote cluster, which may be specified in the rich YPath.
+TFuture<NTabletClient::TTableMountInfoPtr> GetTableMountInfo(
+    const NYPath::TRichYPath& objectPath,
+    const IConnectionPtr& connection);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Uses user attribute cache to check if the user is a superuser.
+TFuture<bool> IsSuperuser(const IConnectionPtr& connection, const std::string& user);
+
+//! Uses user attribute cache to check if the user is banned.
+TFuture<bool> IsUserBanned(const IConnectionPtr& connection, const std::string& user);
 
 ////////////////////////////////////////////////////////////////////////////////
 
