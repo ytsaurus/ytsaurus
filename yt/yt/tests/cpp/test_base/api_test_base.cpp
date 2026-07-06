@@ -88,6 +88,9 @@ void TApiTestBase::SetUpTestCase()
 
         auto ruleConfig = New<NLogging::TRuleConfig>();
         ruleConfig->Writers = {"stderr"};
+        // NB: the only reason to use min_level=debug is to suppress useless
+        // "Concurrency" and "Bus" categories in stderr.
+        ruleConfig->MinLevel = NLogging::ELogLevel::Debug;
         config
             ->GetChildOrThrow("rules")
             ->AsList()
