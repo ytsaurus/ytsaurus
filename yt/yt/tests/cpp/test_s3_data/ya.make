@@ -12,6 +12,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/local_s3_recipe/recipe.inc)
 
 PEERDIR(
     yt/yt/tests/cpp/test_base
+    yt/yt/client
     yt/yt/ytlib
     yt/yt/library/query/engine
     yt/yt/core/test_framework

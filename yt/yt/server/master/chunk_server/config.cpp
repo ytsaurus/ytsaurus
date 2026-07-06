@@ -999,6 +999,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("allow_offshore_media", &TThis::AllowOffshoreMedia)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
@@ -1006,6 +1009,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
                 auto jobThrottler = EmplaceOrCrash(jobTypeToThrottler, jobType, New<NConcurrency::TThroughputThrottlerConfig>());
                 jobThrottler->second->Limit = 10'000;
             }
+        }
+
+        if (config->SequoiaChunkReplicas->Enable && config->AllowOffshoreMedia) {
+            THROW_ERROR_EXCEPTION("Offshore media and Sequoia replicas cannot coexist (yet)");
         }
     });
 }

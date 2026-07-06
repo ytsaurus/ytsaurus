@@ -134,10 +134,25 @@ public:
 
         auto includeNonOnlineReplicas = GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->AlwaysFetchNonOnlineReplicas;
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+
         TStoredChunkReplicaList aliveReplicas;
         for (const auto& replica : replicas) {
             auto chunkId = replica.ChunkId;
+            if (replica.NodeId == OffshoreNodeId) {
+                auto mediumIndex = replica.MediumIndex;
+                auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                if (!IsObjectAlive(medium)) {
+                    YT_LOG_DEBUG("Found offshore chunk replica with a non-alive medium (ChunkId: %v, MediumIndex: %v)",
+                        chunkId,
+                        mediumIndex);
+                    continue;
+                }
+                aliveReplicas.emplace_back(TAugmentedStoredChunkReplicaPtr(medium, replica.ReplicaIndex, replica.ReplicaState));
+                continue;
+            }
+
             auto locationIndex = replica.LocationIndex;
             auto* location = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
             if (!IsObjectAlive(location)) {
@@ -585,11 +600,14 @@ private:
 
         for (const auto& chunk : chunks) {
             auto convertToSequoiaReplica = [&] (TAugmentedStoredChunkReplicaPtr masterReplica) {
+                auto mediumIndex = masterReplica.GetNodeId() == OffshoreNodeId ? masterReplica.GetEffectiveMediumIndex() : -1;
                 TSequoiaChunkReplica replica{
                     .ChunkId = chunk->GetId(),
                     .ReplicaIndex = masterReplica.GetReplicaIndex(),
                     .NodeId = masterReplica.GetNodeId(),
-                    .ReplicaState = masterReplica.GetReplicaState()
+                    .ReplicaState = masterReplica.GetReplicaState(),
+                    // For offshore media, -1 for domestic for correct validation.
+                    .MediumIndex = mediumIndex
                 };
                 if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {
                     // NB: InvalidChunkLocationIndex will be used as default for offshore media.

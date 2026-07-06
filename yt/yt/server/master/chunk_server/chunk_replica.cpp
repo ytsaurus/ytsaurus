@@ -198,12 +198,13 @@ void ToProto(NProto::TSequoiaReplicaInfo* protoReplica, const TSequoiaChunkRepli
 
 void FormatValue(TStringBuilderBase* builder, const TSequoiaChunkReplica& value, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{ChunkId: %v, ReplicaIndex: %v, NodeId: %v, LocationIndex: %v, ReplicaState: %v}",
+    builder->AppendFormat("{ChunkId: %v, ReplicaIndex: %v, NodeId: %v, LocationIndex: %v, ReplicaState: %v, MediumIndex: %v}",
         value.ChunkId,
         value.ReplicaIndex,
         value.NodeId,
         value.LocationIndex,
-        value.ReplicaState);
+        value.ReplicaState,
+        value.MediumIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -59,6 +59,7 @@ class TestMedia(YTEnvSetup):
         while medium_count < 119:
             create_domestic_medium("hdd" + str(medium_count))
             medium_count += 1
+        set("//sys/@config/chunk_manager/allow_offshore_media", True)
         create_s3_medium("s3", cls.S3_MEDIUM_CONFIG)
 
     def setup_method(self, method):
