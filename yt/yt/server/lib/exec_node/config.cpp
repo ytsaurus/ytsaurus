@@ -101,6 +101,10 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("numa_nodes", &TThis::NumaNodes)
         .Default();
 
+    registrar.Parameter("enable_non_root_volumes", &TThis::EnableNonRootVolumes)
+        .Alias("enable_tmpfs")
+        .Default(true);
+
     registrar.Postprocessor([] (TThis* config) {
         std::unordered_set<i64> numaNodeIds;
         for (const auto& numaNode : config->NumaNodes) {

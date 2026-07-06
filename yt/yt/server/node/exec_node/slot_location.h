@@ -42,6 +42,11 @@ public:
 
     TFuture<void> Initialize(IVolumeManagerPtr volumeManager = nullptr);
 
+    TFuture<void> CreateFakeNonRootVolumes(
+        const IVolumePtr& rootVolume,
+        int slotIndex,
+        const std::vector<TVolumeMountPtr>& volumeMounts);
+
     //! Apply disk quotas.
     TFuture<void> PrepareSandboxDirectories(
         int slotIndex,
