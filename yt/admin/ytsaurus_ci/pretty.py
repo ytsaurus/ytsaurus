@@ -34,6 +34,16 @@ def print_job_info(data, job_id):
     click.secho("  Status:    ", nl=False, bold=True)
     click.secho(status, fg=status_color, bold=True)
 
+    passed = data.get("passed")
+    if passed is not None:
+        click.secho("  Passed:    ", nl=False, bold=True)
+        click.secho("yes" if passed else "no", fg="green" if passed else "red", bold=True)
+
+    reason = data.get("reason")
+    if reason:
+        click.secho("  Reason:    ", nl=False, bold=True)
+        click.secho(reason, fg="red")
+
     click.secho("  Namespace: ", nl=False, bold=True)
     click.echo(data.get("namespace", "—"))
 
