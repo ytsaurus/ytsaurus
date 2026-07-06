@@ -14,6 +14,10 @@ PEERDIR(
     yt/yt/core/test_framework
 )
 
+SRCS(
+    pending_downloads_tracker_ut.cpp
+)
+
 DEPENDS(
     yt/yt/server/tools/bin
 )

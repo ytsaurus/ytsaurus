@@ -77,6 +77,8 @@ DECLARE_REFCOUNTED_CLASS(TLayerLocation)
 
 DECLARE_REFCOUNTED_CLASS(TSimpleTmpfsVolume)
 
+DECLARE_REFCOUNTED_CLASS(TPendingDownloadsTracker)
+
 DEFINE_ENUM(ESlotType,
     //! With cpu_policy=normal
     ((Common)    (0))
