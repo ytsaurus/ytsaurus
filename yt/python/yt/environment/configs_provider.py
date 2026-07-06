@@ -1671,7 +1671,8 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
                 logs_dir,
                 "rpc-proxy-{}".format(index),
                 singletons_config.setdefault("logging", {}),
-                yt_config)
+                yt_config,
+                has_structured_logs=True)
 
         init_jaeger_collector(singletons_config, "rpc_proxy", {"rpc_proxy_index": str(index)})
 
