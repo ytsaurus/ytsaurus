@@ -41,6 +41,7 @@ RESOURCE_FILES(
     configs/upgrades.yaml
     snapshots/ytsaurus
     templates/base-spec.yaml
+    templates/spec-with-update.yaml
     tests/configs/compat-operator.yaml
     tests/configs/compat-ytsaurus.yaml
     tests/configs/components.yaml

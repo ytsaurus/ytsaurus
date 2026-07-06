@@ -1,7 +1,7 @@
 scenarios:
   upgrade:
     type: upgrade
-    k8s_template: base-spec.yaml
+    k8s_template: spec-with-update.yaml
     checks:
       - odin_latest
     ttl: 600
