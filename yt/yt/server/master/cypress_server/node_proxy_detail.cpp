@@ -596,9 +596,16 @@ void TNontemplateCypressNodeProxyBase::LogAcdUpdate(TInternedAttributeKey key, c
     TObjectProxyBase::LogAcdUpdate(key, value);
 
     const auto* impl = GetThisImpl();
-    // TODO(h0pless): this is not quite correct since multiple changes may get
-    // encapsulated into a single Hive mutation.
-    if (impl->GetRevision() != NHydra::GetCurrentHydraContext()->GetVersion().ToRevision()) {
+
+
+    bool isBeingCreated = [&] {
+        if (impl->IsSequoia() && impl->MutableSequoiaProperties()) {
+            return impl->MutableSequoiaProperties()->BeingCreated;
+        } else {
+            return impl->GetRevision() == NHydra::GetCurrentHydraContext()->GetVersion().ToRevision();
+        }
+    }();
+    if (!isBeingCreated) {
         NSecurityServer::LogAcdUpdate(key.Unintern(), GetPath(), value);
     }
 }

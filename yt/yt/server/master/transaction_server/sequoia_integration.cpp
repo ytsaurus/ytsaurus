@@ -172,7 +172,8 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransactionInSequoia(
 TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
-    std::unique_ptr<NProto::TReqReturnBoomerang> boomerang)
+    std::unique_ptr<NProto::TReqReturnBoomerang> boomerang,
+    NCypressClient::TNodeId sequoiaNodeIdToLock)
 {
     auto features = GetSequoiaTransactionFeatures(bootstrap);
 
@@ -191,6 +192,7 @@ TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
             std::move(transactionIds),
             bootstrap->GetCellId(),
             std::move(boomerang),
+            sequoiaNodeIdToLock,
             cypressTransactionCoordinatorCellId,
             features,
             TDispatcher::Get()->GetHeavyInvoker(),

@@ -1,6 +1,10 @@
 #include "config.h"
 
+#include "private.h"
+
 namespace NYT::NSequoiaServer {
+
+constinit const auto Logger = SequoiaServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +58,14 @@ void TDynamicSequoiaManagerTestingConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TDynamicSequoiaManagerConfig::ShouldUseSequoiaRevisions() const noexcept
+{
+    return
+        EnableCypressTransactionsInSequoia &&
+        WrapObjectServiceExecuteIntoSequoiaTransaction &&
+        EnableSequoiaRevisions;
+}
+
 void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -82,6 +94,21 @@ void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
         &TThis::CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter(
+        "wrap_object_service_execute_into_sequoia_transaction",
+        &TThis::WrapObjectServiceExecuteIntoSequoiaTransaction)
+        .Default(false);
+
+    registrar.Parameter(
+        "enable_sequoia_revisions",
+        &TThis::EnableSequoiaRevisions)
+        .Default(false);
+
+    registrar.Postprocessor([] (TThis* config) {
+        YT_LOG_ALERT_IF(!config->WrapObjectServiceExecuteIntoSequoiaTransaction && config->EnableSequoiaRevisions,
+            "Sequoia revisions requires wrapping every ObjectService::Execute into Sequoia transaction");
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,5 +1,6 @@
 #include "object.h"
 
+#include "helpers.h"
 #include "garbage_collector.h"
 #include "object.h"
 #include "object_manager.h"
@@ -10,6 +11,8 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/yt/server/master/cypress_server/node.h>
+
+#include <yt/yt/server/master/sequoia_server/revision.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
@@ -262,6 +265,36 @@ YT_PREVENT_TLS_CACHING TRopSanTag TObject::GenerateRopSanTag()
 
 #endif
 
+TRevision TObject::GetAttributeRevision() const
+{
+    return AttributeRevision_;
+}
+
+TRevision TObject::GetContentRevision() const
+{
+    return ContentRevision_;
+}
+
+void TObject::SetAttributeRevision(TRevision revision)
+{
+    YT_LOG_ALERT_IF(AttributeRevision_ > revision,
+        "Trying to set stale attribute revision (NodeId: %v, ObjectAttributeRevision: %v, NewRevision: %v)",
+        Id_,
+        AttributeRevision_,
+        revision);
+    AttributeRevision_ = revision;
+}
+
+void TObject::SetContentRevision(TRevision revision)
+{
+    YT_LOG_ALERT_IF(ContentRevision_ > revision,
+        "Trying to set stale content revision (NodeId: %v, ObjectContentRevision: %v, NewRevision: %v)",
+        Id_,
+        ContentRevision_,
+        revision);
+    ContentRevision_ = revision;
+}
+
 TCellTag TObject::GetNativeCellTag() const
 {
     return CellTagFromId(Id_);
@@ -354,15 +387,39 @@ void TObject::SetModified(EModificationType modificationType)
     YT_VERIFY(hydraContext);
     auto currentRevision = hydraContext->GetVersion().ToRevision();
 
+    if (IsNativeSequoiaNode(this)) {
+        if (auto sequoiaRevision = GetCurrentSequoiaRevision()) {
+            bool postponed = false;
+            Visit(*sequoiaRevision,
+                [&] (TSequoiaRevisionPrepare prepareRevision) {
+                    prepareRevision.PrepareNodeModification(As<TCypressNode>()->GetVersionedId(), modificationType);
+                    postponed = true;
+                },
+                [&] (const TSequoiaRevisionCommit& commitRevision) {
+                    currentRevision = commitRevision.Revision;
+                },
+                [] (TSequoiaRevisionDisabled /*disabled*/) { });
+            if (postponed) {
+                return;
+            }
+        } else {
+            YT_LOG_ALERT(
+                "Changing revision of Sequoia node outside of Sequoia revision context (NodeId: %v)",
+                As<TCypressNode>()->GetVersionedId());
+        }
+    }
+
+    YT_LOG_TRACE("Setting revision (NodeId: %v, Revision: %v, Type: %v)", Id_, currentRevision, modificationType);
+
     switch (modificationType) {
-        case EModificationType::Attributes: {
-            AttributeRevision_ = currentRevision;
+        case EModificationType::Attributes:
+            SetAttributeRevision(currentRevision);
             break;
-        }
-        case EModificationType::Content: {
-            ContentRevision_ = currentRevision;
+
+        case EModificationType::Content:
+            SetContentRevision(currentRevision);
             break;
-        }
+
         default:
             YT_ABORT();
     }

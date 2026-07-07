@@ -85,6 +85,10 @@ void SetCausedByNodeExpiration(NRpc::NProto::TRequestHeader* header, bool value)
 
 bool GetCausedByNodeExpiration(const NRpc::NProto::TRequestHeader& header);
 
+void SetResolvedSequoiaObjectId(NRpc::NProto::TRequestHeader* header, TObjectId objectId);
+
+TObjectId GetResolvedSequoiaObjectId(const NRpc::NProto::TRequestHeader& header);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient
