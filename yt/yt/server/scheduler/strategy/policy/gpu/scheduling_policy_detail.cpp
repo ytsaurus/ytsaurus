@@ -160,14 +160,14 @@ void TSchedulingPolicy::UnregisterNode(TNodeId nodeId)
         nodeAddress);
 }
 
-void TSchedulingPolicy::ProcessSchedulingHeartbeat(
+TFuture<void> TSchedulingPolicy::ProcessSchedulingHeartbeat(
     const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const TPoolTreeSnapshotPtr& treeSnapshot,
     bool skipScheduleAllocations)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto processSchedulingHeartbeatFuture = BIND(
+    return BIND(
         &TSchedulingPolicy::DoProcessSchedulingHeartbeat,
         MakeWeak(this),
         schedulingHeartbeatContext,
@@ -175,8 +175,6 @@ void TSchedulingPolicy::ProcessSchedulingHeartbeat(
         skipScheduleAllocations)
         .AsyncVia(StrategyHost_->GetControlInvoker(EControlQueue::Strategy))
         .Run();
-
-    Y_UNUSED(WaitFor(processSchedulingHeartbeatFuture));
 }
 
 void TSchedulingPolicy::RegisterOperation(const TPoolTreeOperationElement* element)
@@ -1072,6 +1070,10 @@ void TSchedulingPolicy::UpdatePersistentState()
 
     auto updateOperationPersistentState = [&] (auto it) {
         const auto& [operationId, operation] = it;
+        if (!operation->IsInitialized() || !operation->IsFullHostModuleBound()) {
+            return;
+        }
+
         auto& operationPersistentState = PersistentState_->OperationStates[operationId];
         operationPersistentState.SchedulingModule = operation->SchedulingModule();
         operationPersistentState.NetworkPriority = operation->NetworkPriority();
@@ -1940,11 +1942,13 @@ void TNoopSchedulingPolicy::RegisterNode(TNodeId /*nodeId*/, const std::string& 
 void TNoopSchedulingPolicy::UnregisterNode(TNodeId /*nodeId*/)
 { }
 
-void TNoopSchedulingPolicy::ProcessSchedulingHeartbeat(
+TFuture<void> TNoopSchedulingPolicy::ProcessSchedulingHeartbeat(
     const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
     bool /*skipScheduleAllocations*/)
-{ }
+{
+    return OKFuture;
+}
 
 void TNoopSchedulingPolicy::RegisterOperation(const TPoolTreeOperationElement* /*element*/)
 { }

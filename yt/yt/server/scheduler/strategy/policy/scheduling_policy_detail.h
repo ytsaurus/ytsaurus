@@ -558,7 +558,7 @@ public:
     void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) override;
 
     //! Scheduling.
-    void ProcessSchedulingHeartbeat(
+    TFuture<void> ProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TPoolTreeSnapshotPtr& treeSnapshot,
         bool skipScheduleAllocations) override;
@@ -707,6 +707,11 @@ private:
     void InitSchedulingProfilingCounters();
 
     //! Process node heartbeat, including allocation scheduling.
+    void DoProcessSchedulingHeartbeat(
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        bool skipScheduleAllocations);
+
     TRunningAllocationStatistics ComputeRunningAllocationStatistics(
         const TNodeStatePtr& nodeState,
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
