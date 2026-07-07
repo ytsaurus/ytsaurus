@@ -303,7 +303,7 @@ TTabletInfoPtr GetOrderedTabletForRow(
     YT_ASSERT(!tableInfo->IsSorted());
 
     i64 tabletIndex = -1;
-    TTabletInfoPtr tabletInfo = nullptr;
+    TTabletInfoPtr tabletInfo;
     if (tabletIndexColumnId) {
         for (const auto& value : row) {
             if (value.Id == *tabletIndexColumnId && value.Type != EValueType::Null) {
@@ -319,7 +319,7 @@ TTabletInfoPtr GetOrderedTabletForRow(
         }
     }
 
-    if (tabletInfo == nullptr) {
+    if (!tabletInfo) {
         if (tableInfo->ReplicationCardId) {
             THROW_ERROR_EXCEPTION("Invalid input row for chaos ordered table %v: %Qlv column is not provided",
                 tableInfo->Path,
