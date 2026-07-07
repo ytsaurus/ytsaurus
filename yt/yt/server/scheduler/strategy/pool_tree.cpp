@@ -2798,21 +2798,15 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        GetCurrentInvoker()->Invoke(BIND(
-            &NPolicy::ISchedulingPolicy::ProcessSchedulingHeartbeat,
-            DryRunGpuSchedulingPolicy_,
+        Y_UNUSED(DryRunGpuSchedulingPolicy_->ProcessSchedulingHeartbeat(
             schedulingHeartbeatContext,
             treeSnapshot,
             skipScheduleAllocations));
 
-        auto processSchedulingHeartbeatFuture = BIND(
-            &NPolicy::ISchedulingPolicy::ProcessSchedulingHeartbeat,
-            SchedulingPolicy_,
+        auto processSchedulingHeartbeatFuture = SchedulingPolicy_->ProcessSchedulingHeartbeat(
             schedulingHeartbeatContext,
             treeSnapshot,
-            skipScheduleAllocations)
-            .AsyncVia(GetCurrentInvoker())
-            .Run();
+            skipScheduleAllocations);
 
         return processSchedulingHeartbeatFuture
             .Apply(BIND(

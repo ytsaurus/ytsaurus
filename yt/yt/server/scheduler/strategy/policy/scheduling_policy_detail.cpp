@@ -2453,7 +2453,24 @@ void TSchedulingPolicy::UnregisterNode(TNodeId nodeId)
     }));
 }
 
-void TSchedulingPolicy::ProcessSchedulingHeartbeat(
+TFuture<void> TSchedulingPolicy::ProcessSchedulingHeartbeat(
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    bool skipScheduleAllocations)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return BIND(
+        &TSchedulingPolicy::DoProcessSchedulingHeartbeat,
+        MakeWeak(this),
+        schedulingHeartbeatContext,
+        treeSnapshot,
+        skipScheduleAllocations)
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
+}
+
+void TSchedulingPolicy::DoProcessSchedulingHeartbeat(
     const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const TPoolTreeSnapshotPtr& treeSnapshot,
     bool skipScheduleAllocations)
