@@ -1798,11 +1798,12 @@ private:
                 maxAllowedCommitTimestamp,
                 identity);
         } catch (const std::exception& ex) {
-            if (auto commit = FindCommit(transactionId)) {
-                YT_VERIFY(!commit->GetPersistent());
-                SetCommitFailed(commit, ex);
-                RemoveTransientCommit(commit);
+            if (auto* existingCommit = FindCommit(transactionId)) {
+                YT_VERIFY(!existingCommit->GetPersistent());
+                SetCommitFailed(existingCommit, ex);
+                RemoveTransientCommit(existingCommit);
             }
+
             THROW_ERROR WrapHydraError(ex);
         }
 
