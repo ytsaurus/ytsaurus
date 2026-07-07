@@ -112,6 +112,42 @@ class TestSecondaryIndexBase(DynamicTablesBase):
         "12": {"roles": ["chunk_host"]},
     }
 
+    DELTA_NODE_CONFIG = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
+
+    DELTA_HTTP_PROXY_CONFIG = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
+
     def setup_method(self, method):
         super(TestSecondaryIndexBase, self).setup_method(method)
         self.collocation_id = None
@@ -223,6 +259,42 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
         "20": {"roles": ["transaction_coordinator"]},
         "21": {"roles": ["chunk_host", "cypress_node_host"]},
         "22": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
+    DELTA_NODE_CONFIG_REMOTE_0 = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
+
+    DELTA_MASTER_CONFIG_REMOTE_0 = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
+
+    DELTA_RPC_PROXY_CONFIG_REMOTE_0 = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
+
+    DELTA_HTTP_PROXY_CONFIG_REMOTE_0 = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
+
+    DELTA_DRIVER_CONFIG_REMOTE_0 = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG_REMOTE_0 = {
+        "solomon_exporter": {
+            "enable": False
+        }
     }
 
     def setup_method(self, method):
@@ -833,6 +905,12 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 class TestSecondaryIndexModifications(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
+
+    DELTA_NODE_CONFIG = {
+        "solomon_exporter": {
+            "enable": True
+        }
+    }
 
     def _insert_rows(self, rows, table="//tmp/table", **kwargs):
         insert_rows(table, rows, **kwargs)
@@ -1555,6 +1633,12 @@ class TestSecondaryIndexModificationsOverRpc(TestSecondaryIndexModifications):
 @pytest.mark.enabled_multidaemon
 class TestSecondaryIndexChaosBase(ChaosTestBase, TestSecondaryIndexReplicatedBase):
     BUNDLE_NAME = "chaos_bundle"
+
+    DELTA_CHAOS_NODE_CONFIG = {
+        "solomon_exporter": {
+            "enable": False
+        }
+    }
 
     def setup_method(self, method):
         super(TestSecondaryIndexChaosBase, self).setup_method(method)
