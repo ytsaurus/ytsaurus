@@ -449,6 +449,28 @@ public:
             /*actionName*/ "PrepareNonRootVolumes",
             /*uncancelable*/ false,
             [&] {
+                if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableNonRootVolumes) {
+                    for (const auto& volume : volumeParams) {
+                        if (!volume->LayerArtifactKeys.empty()) {
+                            THROW_ERROR_EXCEPTION(
+                                "It is impossible to create a fake non-root volume if it contains a layer (VolumeId: %v)",
+                                volume->VolumeId);
+                        }
+                    }
+
+                    return Location_->CreateFakeNonRootVolumes(rootVolume, SlotIndex_, volumeMounts)
+                        .AsUnique()
+                        .Apply(
+                            BIND([] (TError&& error) {
+                                if (!error.IsOK()) {
+                                    THROW_ERROR_EXCEPTION(
+                                        "Failed to prepare fake non-root volumes: %v",
+                                        error);
+                                }
+                                return MakeFuture(std::vector<TVolumeResultPtr>{});
+                            }));
+                }
+
                 return VolumeManager_->PrepareNonRootVolumes(userSandboxPath, jobId, volumeParams, std::move(perVolumeOverlayData), volumeMounts)
                     .AsUnique()
                     .Apply(
@@ -476,7 +498,6 @@ public:
                     })
                     .AsyncVia(Bootstrap_->GetJobInvoker()));
             });
-
     }
 
     TFuture<void> LinkVolumes(
@@ -493,6 +514,10 @@ public:
             auto error = TError("Failed to link volumes since volume manager is not initialized");
             YT_LOG_WARNING(error);
             return MakeFuture<void>(std::move(error));
+        }
+
+        if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableNonRootVolumes) {
+            return OKFuture;
         }
 
         auto rootPath = GetRootPath(rootVolume, testRootFs);

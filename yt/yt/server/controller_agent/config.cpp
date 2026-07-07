@@ -1094,8 +1094,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("udf_registry_path", &TThis::UdfRegistryPath)
         .Default();
 
-    registrar.Parameter("enable_tmpfs", &TThis::EnableTmpfs)
-        .Default(true);
     registrar.Parameter("enable_map_job_size_adjustment", &TThis::EnableMapJobSizeAdjustment)
         .Default(true);
     registrar.Parameter("enable_ordered_map_job_size_adjustment", &TThis::EnableOrderedMapJobSizeAdjustment)

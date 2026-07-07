@@ -121,6 +121,11 @@ struct TSlotManagerConfig
 
     std::vector<TNumaNodeConfigPtr> NumaNodes;
 
+    //! Unfortunately, we cannot always allow non-root volumes to be created. I know of two cases where this flag must be disabled:
+    //! 1) The node uses Simple environment but is not running as root.
+    //! 2) The node runs in a CRI environment, but the Kubernetes configuration for the node container does not set mountPropagation: Bidirectional.
+    bool EnableNonRootVolumes;
+
     REGISTER_YSON_STRUCT(TSlotManagerConfig);
 
     static void Register(TRegistrar registrar);

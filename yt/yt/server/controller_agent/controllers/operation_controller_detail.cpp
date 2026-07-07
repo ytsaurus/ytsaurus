@@ -10592,15 +10592,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_port_count(jobSpecConfig->PortCount);
     jobSpec->set_use_porto_memory_tracking(jobSpecConfig->UsePortoMemoryTracking);
 
-    if (!Config_->EnableTmpfs) {
-        for (const auto& [_, volume] : jobSpecConfig->Volumes) {
-            if (!volume->DiskRequest || !volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()) {
-                continue;
-            }
-            THROW_ERROR_EXCEPTION("Tmpfs creation is disabled on this cluster. The operation cannot be started because tmpfs is requested in its specification");
-        }
-    }
-
     // COMPAT(krasovav)
     std::vector<TTmpfsVolumeConfigPtr> requestedTmpfsVolumeConfigs;
     requestedTmpfsVolumeConfigs.resize(jobSpecConfig->Volumes.size());
