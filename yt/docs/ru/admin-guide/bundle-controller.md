@@ -308,6 +308,31 @@ yt --proxy <cluster> set //sys/tablet_cell_bundles/<bundle_name>/@bundle_control
 
 В качестве workaround во время учений рекомендуется отключать балансировку таблетов. Отсутствие балансировки в течение нескольких часов, как правило, не влияет на работоспособность бандла.
 
+## Запрет дата-центров для бандла { #forbidden-data-centers }
+
+Чтобы запретить размещение бандла в отдельных дата-центрах (например, для имитации отказа ДЦ при учениях или для эвакуации бандла из ДЦ с сетевыми проблемами), в `bundle_controller_target_config` есть атрибут `forbidden_data_centers` — список названий ДЦ, в которых ноды и RPC proxy бандла размещаться не должны.
+
+Установка списка (один или несколько ДЦ):
+
+```bash
+yt --proxy <cluster> set //sys/tablet_cell_bundles/<bundle_name>/@bundle_controller_target_config/forbidden_data_centers '["sas"]'
+```
+
+Снятие запрета (возврат к штатному размещению по всем ДЦ):
+
+```bash
+yt --proxy <cluster> set //sys/tablet_cell_bundles/<bundle_name>/@bundle_controller_target_config/forbidden_data_centers '[]'
+```
+
+### Как это работает { #forbidden-dc-how }
+
+Запрещённые ДЦ помещаются в конец предпочтительного порядка ДЦ бандла. Пока у бандла хватает разрешённых ДЦ для размещения, Bundle controller:
+
+- перестаёт назначать бандлу новые таблетные ноды и RPC proxy в запрещённых ДЦ;
+- освобождает уже выданные в запрещённых ДЦ ноды и proxy, перенося их в разрешённые ДЦ.
+
+Пока список `forbidden_data_centers` непуст, на бандле горит алерт `bundle_has_forbidden_dc` — он информационный и лишь подтверждает, что конфиг применён.
+
 ## Отключение Bundle controller
 
 Для перевода Bundle controller в read-only режим необходимо установить атрибут `//sys/@disable_bundle_controller` в значение `%true`. Bundle controller перестанет выполнять какие-либо действия с кластером, однако состояние бандлов по-прежнему можно будет наблюдать в пользовательском интерфейсе.
