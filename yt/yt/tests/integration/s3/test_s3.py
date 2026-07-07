@@ -584,7 +584,6 @@ class TestS3Medium(TestS3MediumBase):
         assert len(chunk_ids) == 3
 
     @authors("achulkov2")
-    @pytest.mark.run_with_no_offshore_node_proxies
     def test_chunk_merger(self):
         chunk_count = 10
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
@@ -610,7 +609,6 @@ class TestS3Medium(TestS3MediumBase):
             write_table("//tmp/f", [record1])
 
     @authors("achulkov2")
-    @pytest.mark.run_with_no_offshore_node_proxies
     def test_erasure_shenanigans(self):
         # We could forbid this specific action (and maybe we should), but it is quite complicated to forbid all possible
         # ways to configure a table to have non-null erasure codec *and* a replication policy on an offshore medium.
