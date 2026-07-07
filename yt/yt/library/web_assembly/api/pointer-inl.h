@@ -6,6 +6,8 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,8 +16,8 @@ template <typename T>
 T* PtrFromVM(IWebAssemblyCompartment* compartment, T* data, size_t length)
 {
     if (compartment) {
-        return std::bit_cast<T*>(std::bit_cast<uintptr_t>(
-            compartment->GetHostPointer(std::bit_cast<uintptr_t>(data), sizeof(T) * length)));
+        return BitCast<T*>(BitCast<uintptr_t>(
+            compartment->GetHostPointer(BitCast<uintptr_t>(data), sizeof(T) * length)));
     }
 
     return data;
@@ -26,8 +28,8 @@ T* PtrToVM(IWebAssemblyCompartment* compartment, T* data, size_t length)
 {
     if (compartment) {
         Y_UNUSED(length); // TODO(dtorilov): Check bounds.
-        return std::bit_cast<T*>(compartment->GetCompartmentOffset(
-            std::bit_cast<void*>(std::bit_cast<uintptr_t>(data))));
+        return BitCast<T*>(compartment->GetCompartmentOffset(
+            BitCast<void*>(BitCast<uintptr_t>(data))));
     }
 
     return data;

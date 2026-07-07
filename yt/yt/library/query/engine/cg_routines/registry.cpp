@@ -71,6 +71,7 @@
 
 #include <library/cpp/xdelta3/state/merge.h>
 
+#include <util/generic/cast.h>
 #include <util/charset/utf8.h>
 #include <util/digest/multi.h>
 
@@ -410,15 +411,15 @@ void ScanOpHelper(
                 *rowSchemaInformation,
                 compartment);
             auto copiedRangesPointersGuard = CopyIntoCompartment(
-                TRange(std::bit_cast<uintptr_t*>(copiedRangesGuard.second.data()), copiedRangesGuard.second.size()),
+                TRange(BitCast<uintptr_t*>(copiedRangesGuard.second.data()), copiedRangesGuard.second.size()),
                 compartment);
-            auto** valuesOffset = std::bit_cast<const TValue**>(copiedRangesPointersGuard.GetCopiedOffset());
+            auto** valuesOffset = BitCast<const TValue**>(copiedRangesPointersGuard.GetCopiedOffset());
             interrupt |= consumeRows(consumeRowsClosure, &scanContext, valuesOffset, values.size());
         } else {
             // TODO(dtorilov): This is a fix of YT-21907. Should use consumer with PI conversion here.
             for (auto row : rows) {
                 for (int index : rowSchemaInformation->StringLikeIndices) {
-                    MakePositionIndependentFromUnversioned(std::bit_cast<TPIValue*>(&row[index]), row[index]);
+                    MakePositionIndependentFromUnversioned(BitCast<TPIValue*>(&row[index]), row[index]);
                 }
             }
 
@@ -461,7 +462,7 @@ TPIValue* AllocateJoinKeys(
         auto* data = PtrFromVM(compartment, offset, length);
         auto row = TMutableRow::Create(data, joinItem.KeySize);
         auto* rowBeginOffset = PtrToVM(compartment, row.Begin(), row.GetCount());
-        PtrFromVM(compartment, keyPtrs)[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
+        PtrFromVM(compartment, keyPtrs)[joinId] = BitCast<TPIValue*>(rowBeginOffset);
     }
 
     size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TPIValue) + sizeof(TSlot*) * closure->Items.size();
@@ -509,7 +510,7 @@ bool StorePrimaryRow(
             // Key will be reallocated further.
         }
 
-        *std::bit_cast<TSlot*>(PtrFromVM(compartment, key) + item.KeySize) = TSlot{0, 0};
+        *BitCast<TSlot*>(PtrFromVM(compartment, key) + item.KeySize) = TSlot{0, 0};
 
         auto inserted = item.Lookup.insert(key);
         if (inserted.second) {
@@ -525,11 +526,11 @@ bool StorePrimaryRow(
             auto* data = PtrFromVM(compartment, offset, length);
             auto row = TMutableRow::Create(data, item.KeySize);
             auto* rowBeginOffset = PtrToVM(compartment, row.Begin(), row.GetCount());
-            PtrFromVM(compartment, keysPtr, joinItems.size())[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
+            PtrFromVM(compartment, keysPtr, joinItems.size())[joinId] = BitCast<TPIValue*>(rowBeginOffset);
         }
 
-        auto* insertedOffset = std::bit_cast<TSlot*>(*inserted.first + item.KeySize);
-        auto** arrayOffset = std::bit_cast<TSlot**>(*PtrFromVM(compartment, primaryValues) + closure->PrimaryRowSize);
+        auto* insertedOffset = BitCast<TSlot*>(*inserted.first + item.KeySize);
+        auto** arrayOffset = BitCast<TSlot**>(*PtrFromVM(compartment, primaryValues) + closure->PrimaryRowSize);
         auto** array = PtrFromVM(compartment, arrayOffset, joinItems.size());
         array[joinId] = insertedOffset;
     }
@@ -550,13 +551,13 @@ bool StorePrimaryRow(
             auto* dataAtHost = PtrFromVM(compartment, data, GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
             auto row = TMutableRow::Create(dataAtHost, item.KeySize);
             auto* rowBeginOffset = PtrToVM(compartment, row.Begin(), row.GetCount());
-            PtrFromVM(compartment, keysPtr)[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
+            PtrFromVM(compartment, keysPtr)[joinId] = BitCast<TPIValue*>(rowBeginOffset);
         }
     }
 
     size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * joinItems.size();
 
-    *PtrFromVM(compartment, primaryValues) = std::bit_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
+    *PtrFromVM(compartment, primaryValues) = BitCast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
 
     return false;
 }
@@ -679,7 +680,7 @@ void MultiJoinOpHelper(
                     value.Flags = {};
                     value.Id = id++;
                 }
-                auto row = TRow(PtrFromVM(compartment, std::bit_cast<const TUnversionedRowHeader*>(key) - 1));
+                auto row = TRow(PtrFromVM(compartment, BitCast<const TUnversionedRowHeader*>(key) - 1));
                 orderedKeys.emplace_back(key, row.GetCount());
             }
 
@@ -735,7 +736,7 @@ void MultiJoinOpHelper(
                 while (index != sortedForeignSequence.size() && currentKey != orderedKeys.end()) {
                     int cmpResult = fullTernaryComparer(*currentKey, sortedForeignSequence[index]);
                     if (cmpResult == 0) {
-                        auto* slot = std::bit_cast<TSlot*>(PtrFromVM(compartment, *currentKey + keySize));
+                        auto* slot = BitCast<TSlot*>(PtrFromVM(compartment, *currentKey + keySize));
                         if (slot->Count == 0) {
                             slot->Offset = index;
                         }
@@ -845,9 +846,9 @@ void MultiJoinOpHelper(
             bool finished = false;
             if (auto* compartment = GetCurrentCompartment()) {
                 auto guard = CopyIntoCompartment(
-                    TRange(std::bit_cast<uintptr_t*>(joinedRows.begin()), joinedRows.size()),
+                    TRange(BitCast<uintptr_t*>(joinedRows.begin()), joinedRows.size()),
                     compartment);
-                auto** offset = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+                auto** offset = BitCast<const TPIValue**>(guard.GetCopiedOffset());
                 finished = consumeRows(consumeRowsClosure, &intermediateContext, offset, joinedRows.size());
             } else {
                 finished = consumeRows(consumeRowsClosure, &intermediateContext, joinedRows.data(), joinedRows.size());
@@ -886,7 +887,7 @@ void MultiJoinOpHelper(
                 for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
                     auto** arrayAtHost = PtrFromVM(
                         compartment,
-                        std::bit_cast<TSlot**>(rowValues + closure.PrimaryRowSize),
+                        BitCast<TSlot**>(rowValues + closure.PrimaryRowSize),
                         closure.Items.size());
                     auto* slotPointer = PtrFromVM(compartment, arrayAtHost[joinId]);
                     auto slot = *slotPointer;
@@ -1203,9 +1204,9 @@ bool ArrayJoinOpHelper(
 
     if (compartment) {
         auto guard = CopyIntoCompartment(
-            TRange(std::bit_cast<uintptr_t*>(filteredRows.data()), std::ssize(filteredRows)),
+            TRange(BitCast<uintptr_t*>(filteredRows.data()), std::ssize(filteredRows)),
             compartment);
-        auto** begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+        auto** begin = BitCast<const TPIValue**>(guard.GetCopiedOffset());
         return consumeRows(consumeRowsClosure, context, begin, filteredRows.size());
     }
 
@@ -1690,7 +1691,7 @@ const TPIValue* TGroupByClosure::InsertIntermediateWhenCombinedWithOrderOp(TPIVa
 
     if (inserted) {
         ++GroupedRowCount_;
-        return std::bit_cast<const TPIValue*>(std::bit_cast<ui64>(inserted) | (1ULL << 48));
+        return BitCast<const TPIValue*>(BitCast<ui64>(inserted) | (1ULL << 48));
     }
 
     return nullptr;
@@ -1711,8 +1712,8 @@ void TGroupByClosure::FlushWithBatching(
     auto guard = TCopyGuard();
     if (auto* compartment = GetCurrentCompartment()) {
         i64 length = end - begin;
-        guard = CopyIntoCompartment(TRange(std::bit_cast<uintptr_t*>(begin), length), compartment);
-        begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+        guard = CopyIntoCompartment(TRange(BitCast<uintptr_t*>(begin), length), compartment);
+        begin = BitCast<const TPIValue**>(guard.GetCopiedOffset());
         end = begin + length;
     }
 
@@ -1934,7 +1935,7 @@ void AllocatePermanentRow(
 {
     // TODO(dtorilov): Use AllocateUnversioned.
     auto* offset = expressionContext->AllocateAligned(valueCount * sizeof(TPIValue), EAddressSpace::WebAssembly);
-    *PtrFromVM(GetCurrentCompartment(), row) = std::bit_cast<TValue*>(offset);
+    *PtrFromVM(GetCurrentCompartment(), row) = BitCast<TValue*>(offset);
 }
 
 void AddRowToCollector(TTopCollector* topCollector, TPIValue* row)
@@ -1975,8 +1976,8 @@ void OrderOpHelper(
     auto guard = TCopyGuard();
     auto** begin = rows.data();
     if (auto* compartment = GetCurrentCompartment()) {
-        guard = CopyIntoCompartment(TRange(std::bit_cast<uintptr_t*>(rows.data()), std::ssize(rows)), compartment);
-        begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+        guard = CopyIntoCompartment(TRange(BitCast<uintptr_t*>(rows.data()), std::ssize(rows)), compartment);
+        begin = BitCast<const TPIValue**>(guard.GetCopiedOffset());
     }
 
     auto rowCount = std::ssize(rows);
@@ -2459,7 +2460,7 @@ static void* XdeltaAllocate(void* opaque, size_t size)
 {
     auto* compartment = GetCurrentCompartment();
     if (opaque) {
-        return std::bit_cast<uint8_t*>(
+        return BitCast<uint8_t*>(
             PtrFromVM(compartment,
                 AllocateBytes(static_cast<TExpressionContext*>(opaque), size),
                 size));
@@ -3519,7 +3520,7 @@ void copyString(TExpressionContext* context, TUnversionedValue* result, const ch
 {
     result->Length = length;
     result->Data.String = AllocateBytes(context, length);
-    ::memcpy(std::bit_cast<void*>(result->Data.String), source, length);
+    ::memcpy(BitCast<void*>(result->Data.String), source, length);
 }
 
 // TODO(dtorilov): Convert pointers here.
@@ -3704,7 +3705,7 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
 
     if (stateAtHost->Length != 0) {
         const auto* start = PtrFromVM(compartment, stateAtHost->Data.String);
-        const auto* end = start + *PtrFromVM(compartment, std::bit_cast<const i64*>(stateAtHost->Data.String));
+        const auto* end = start + *PtrFromVM(compartment, BitCast<const i64*>(stateAtHost->Data.String));
         const auto* cursor = start + sizeof(i64);
 
         while (cursor < end) {
@@ -4179,12 +4180,12 @@ bool ProcessHierarchicalJoinBatch(THierarchicalJoinClosure* closure)
     bool finished = false;
     if (compartment) {
         auto guard = CopyIntoCompartment(
-            TRange(std::bit_cast<uintptr_t*>(closure->SelfSideRowBatch.data()), closure->SelfSideRowBatch.size()),
+            TRange(BitCast<uintptr_t*>(closure->SelfSideRowBatch.data()), closure->SelfSideRowBatch.size()),
             compartment);
         finished = closure->ConsumeJoinedRowsFunction(
             closure->ConsumeJoinedRowsClosure,
             &closure->SelfContext,
-            std::bit_cast<const TPIValue**>(guard.GetCopiedOffset()),
+            BitCast<const TPIValue**>(guard.GetCopiedOffset()),
             std::ssize(closure->SelfSideRowBatch));
     } else {
         finished = closure->ConsumeJoinedRowsFunction(
@@ -4211,7 +4212,7 @@ void StoreSelfRowIntoHierarchicalJoinBatch(
     auto* compartment = GetCurrentCompartment();
     size_t rowSize = closure->PrimaryRowSize;
 
-    auto* copy = std::bit_cast<TPIValue*>(
+    auto* copy = BitCast<TPIValue*>(
         closure->SelfContext.AllocateAligned(rowSize * sizeof(TPIValue), EAddressSpace::WebAssembly));
     {
         auto* hostCopy = PtrFromVM(compartment, copy, rowSize);
@@ -4310,7 +4311,7 @@ void SubqueryHierarchicalJoinWriteDomainRow(THierarchicalJoinClosure* closure, T
 
     size_t length = closure->Parameters->KeySize;
 
-    auto* copy = std::bit_cast<TPIValue*>(closure->SelfContext.AllocateAligned(length * sizeof(TPIValue), EAddressSpace::WebAssembly));
+    auto* copy = BitCast<TPIValue*>(closure->SelfContext.AllocateAligned(length * sizeof(TPIValue), EAddressSpace::WebAssembly));
     {
         auto* copyAtHost = PtrFromVM(compartment, copy, length);
         auto* rowAtHost = PtrFromVM(compartment, row, length);
@@ -4386,9 +4387,9 @@ bool SubqueryHierarchicalJoinLookupRows(
 
     if (compartment) {
         auto guard = CopyIntoCompartment(
-            TRange(std::bit_cast<uintptr_t*>(joinedRows.data()), joinedRows.size()),
+            TRange(BitCast<uintptr_t*>(joinedRows.data()), joinedRows.size()),
             compartment);
-        auto** offset = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+        auto** offset = BitCast<const TPIValue**>(guard.GetCopiedOffset());
         return consumeRows(consumeRowsClosure, buffer, offset, joinedRows.size());
     }
 
@@ -4569,8 +4570,8 @@ int memcmp(const void* firstOffset, const void* secondOffset, std::size_t count)
 {
     auto* compartment = GetCurrentCompartment();
 
-    auto* first = PtrFromVM(compartment, std::bit_cast<char*>(firstOffset), count);
-    auto* second = PtrFromVM(compartment, std::bit_cast<char*>(secondOffset), count);
+    auto* first = PtrFromVM(compartment, BitCast<char*>(firstOffset), count);
+    auto* second = PtrFromVM(compartment, BitCast<char*>(secondOffset), count);
     return ::memcmp(first, second, count);
 }
 
@@ -4660,7 +4661,7 @@ void RegisterLlvmRoutine(const char* symbol, bool onlyWebAssembly, TResult(*func
             #intrinsic, \
             reinterpret_cast<void*>(&TMakeWebAssemblyIntrinsic<decltype(NRoutines::intrinsic)>::Wrapper<&NRoutines::intrinsic>), \
             WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{ \
-                std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(NRoutines::intrinsic) >::Get()) \
+                BitCast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(NRoutines::intrinsic) >::Get()) \
             })));
 
 #define REGISTER_LLVM_ROUTINE(routine, onlyWebAssembly) \

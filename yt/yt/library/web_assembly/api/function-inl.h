@@ -6,6 +6,7 @@
 
 #include <array>
 
+#include <util/generic/cast.h>
 namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,7 +28,7 @@ Y_FORCE_INLINE void ConvertToWavmArguments(
     const THead& head,
     TTail&... tail)
 {
-    range[0].Data = std::bit_cast<ui64>(head);
+    range[0].Data = BitCast<ui64>(head);
     ConvertToWavmArguments(range.Slice(1, range.Size()), tail...);
 }
 
@@ -58,7 +59,7 @@ Y_FORCE_INLINE TCompartmentFunction<TResult(TArgs...)>::TCompartmentFunction(
         : TWebAssemblyRuntimeType{nullptr})
     , RuntimeFunction_(
         Compartment_
-        ? Compartment_->GetFunction(std::bit_cast<size_t>(Function_))
+        ? Compartment_->GetFunction(BitCast<size_t>(Function_))
         : nullptr)
 { }
 

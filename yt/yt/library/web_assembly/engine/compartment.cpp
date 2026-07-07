@@ -16,6 +16,7 @@
 
 #include <contrib/restricted/wavm/Lib/Runtime/RuntimePrivate.h>
 
+#include <util/generic/cast.h>
 #include <util/generic/hash_set.h>
 #include <util/system/type_name.h>
 
@@ -164,7 +165,7 @@ Runtime::ModuleRef LoadModuleFromBytecode(TRef bytecode)
     auto wasmModule = Runtime::ModuleRef();
 
     bool succeeded = Runtime::loadBinaryModule(
-        std::bit_cast<const U8*>(bytecode.Begin()),
+        BitCast<const U8*>(bytecode.Begin()),
         bytecode.size(),
         wasmModule,
         featureSpec,
@@ -286,7 +287,7 @@ public:
 
                 auto loadError = WASM::LoadError();
                 bool succeeded = WASM::loadBinaryModule(
-                    std::bit_cast<U8*>(bytecode.Data.begin()),
+                    BitCast<U8*>(bytecode.Data.begin()),
                     bytecode.Data.size(),
                     irModule,
                     &loadError);
@@ -363,7 +364,7 @@ public:
 
     void* GetFunction(size_t index) override
     {
-        auto* tableElement = Runtime::getTableElement(GetGlobalOffsetTable(), std::bit_cast<Uptr>(index));
+        auto* tableElement = Runtime::getTableElement(GetGlobalOffsetTable(), BitCast<Uptr>(index));
         return static_cast<void*>(Runtime::asFunction(tableElement));
     }
 
@@ -376,7 +377,7 @@ public:
     {
         static const auto signature = IR::FunctionType(/*inResults*/ {IR::ValueType::i64}, /*inParams*/ {IR::ValueType::i64});
         auto* mallocFunction = Runtime::getTypedInstanceExport(RuntimeLibraryInstance_, "malloc", signature);
-        auto arguments = std::array<IR::UntaggedValue, 1>{std::bit_cast<Uptr>(length)};
+        auto arguments = std::array<IR::UntaggedValue, 1>{BitCast<Uptr>(length)};
         auto result = IR::UntaggedValue{};
         SaveAndRestoreCompartment(this, [&] {
             Runtime::invokeFunction(Context_, mallocFunction, signature, arguments.data(), &result);
@@ -388,7 +389,7 @@ public:
     {
         static const auto signature = IR::FunctionType(/*inResults*/ {}, /*inParams*/ {IR::ValueType::i64});
         auto* freeFunction = getTypedInstanceExport(RuntimeLibraryInstance_, "free", signature);
-        auto arguments = std::array<IR::UntaggedValue, 1>{std::bit_cast<Uptr>(offset)};
+        auto arguments = std::array<IR::UntaggedValue, 1>{BitCast<Uptr>(offset)};
         SaveAndRestoreCompartment(this, [&] {
             Runtime::invokeFunction(Context_, freeFunction, signature, arguments.data(), {});
         });
@@ -426,14 +427,14 @@ public:
 
     void* GetHostPointer(uintptr_t offset, size_t length) override
     {
-        char* bytes = Runtime::memoryArrayPtr<char>(MemoryLayoutData_.LinearMemory, std::bit_cast<ui64>(offset), length);
+        char* bytes = Runtime::memoryArrayPtr<char>(MemoryLayoutData_.LinearMemory, BitCast<ui64>(offset), length);
         return static_cast<void*>(bytes);
     }
 
     uintptr_t GetCompartmentOffset(void* hostAddress) override
     {
-        ui64 hostAddressAsUint = std::bit_cast<ui64>(hostAddress);
-        ui64 baseAddress = std::bit_cast<ui64>(Runtime::getMemoryBaseAddress(MemoryLayoutData_.LinearMemory));
+        ui64 hostAddressAsUint = BitCast<ui64>(hostAddress);
+        ui64 baseAddress = BitCast<ui64>(Runtime::getMemoryBaseAddress(MemoryLayoutData_.LinearMemory));
         uintptr_t offset = hostAddressAsUint - baseAddress;
         return offset;
     }
@@ -1041,7 +1042,7 @@ Runtime::ModuleRef LoadBuiltinSdk()
 
     auto loadError = WASM::LoadError();
     bool succeeded = WASM::loadBinaryModule(
-        std::bit_cast<U8*>(bytecode.Data.begin()),
+        BitCast<U8*>(bytecode.Data.begin()),
         bytecode.Data.size(),
         irModule,
         &loadError);

@@ -604,7 +604,7 @@ struct TAbstractExpressionPrinter
                 auto groupClauseHolder = std::move(groupClause);
                 Builder->AppendString(it->AggregateFunction);
                 Builder->AppendChar('(');
-                Derived()->OnArguments(it, args...);
+                Derived()->OnArguments(&*it, args...);
                 Builder->AppendChar(')');
                 groupClause = std::move(groupClauseHolder);
                 return;

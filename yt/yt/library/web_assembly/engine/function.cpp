@@ -2,6 +2,8 @@
 
 #include <yt/yt/library/web_assembly/api/function.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NWebAssembly {
 
 using namespace WAVM;
@@ -19,14 +21,14 @@ void WavmInvoke(
 {
     const auto wavmType = IR::FunctionType(
         IR::FunctionType::Encoding{
-            std::bit_cast<Uptr>(type)});
+            BitCast<Uptr>(type)});
 
     Runtime::invokeFunction(
         static_cast<Runtime::Context*>(compartment->GetContext()),
         static_cast<Runtime::Function*>(runtimeFunction),
         wavmType,
-        std::bit_cast<IR::UntaggedValue*>(arguments.Begin()),
-        std::bit_cast<IR::UntaggedValue*>(result));
+        BitCast<IR::UntaggedValue*>(arguments.Begin()),
+        BitCast<IR::UntaggedValue*>(result));
 }
 
 } // namespace NDetail

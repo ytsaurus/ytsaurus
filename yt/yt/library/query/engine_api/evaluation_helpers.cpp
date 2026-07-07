@@ -5,6 +5,8 @@
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
@@ -26,7 +28,7 @@ ui64 TGroupHasher::operator()(const TPIValue* row) const
 
 const TPIValue* TRowComparer::MakeSentinel(ESentinelType type)
 {
-    return std::bit_cast<TPIValue*>(type);
+    return BitCast<TPIValue*>(type);
 }
 
 bool TRowComparer::IsSentinel(const TPIValue* value)

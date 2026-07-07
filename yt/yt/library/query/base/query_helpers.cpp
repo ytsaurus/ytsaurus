@@ -564,8 +564,10 @@ std::pair<TConstExpressionPtr, TConstExpressionPtr> SplitPredicateByColumnSubset
             return AreAllReferencesInSchema(expr, tableSchema);
         });
 
-    auto projected = BuildBalancedConjunction({operands.begin(), remainingBegin});
-    auto remaining = BuildBalancedConjunction({remainingBegin, operands.end()});
+    auto operandsRange = TRange<TConstExpressionPtr>(operands);
+    auto middle = static_cast<size_t>(remainingBegin - operands.begin());
+    auto projected = BuildBalancedConjunction(operandsRange.Slice(0, middle));
+    auto remaining = BuildBalancedConjunction(operandsRange.Slice(middle, operandsRange.Size()));
 
     return std::pair(projected, remaining);
 }
