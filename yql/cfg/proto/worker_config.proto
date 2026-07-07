@@ -2,7 +2,7 @@ package NYql.NProto;
 option java_package = "ru.yandex.yql.proto";
 
 import "yql/essentials/protos/yql_mount.proto";
-import "yt/yql/providers/dq/config/config.proto";
+import "contrib/ydb/library/yql/providers/dq/config/config.proto";
 import "yql/essentials/utils/log/proto/logger_config.proto";
 import "yt/yql/providers/yt/lib/access_provider/proto/access_provider.proto";
 import "yt/yql/providers/yt/lib/tvm_client/proto/tvm_client.proto";

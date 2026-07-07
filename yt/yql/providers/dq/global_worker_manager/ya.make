@@ -1,21 +1,21 @@
 LIBRARY()
 
 PEERDIR(
-    contrib/ydb/library/yql/providers/dq/actors
-    contrib/ydb/library/yql/providers/dq/api/grpc
-    contrib/ydb/library/yql/providers/dq/api/protos
-    contrib/ydb/library/yql/providers/dq/counters
-    contrib/ydb/library/yql/providers/dq/runtime
-    contrib/ydb/library/yql/providers/dq/task_runner
+    yql/essentials/utils/failure_injector
     yql/essentials/providers/common/config
     yql/essentials/providers/common/gateway
     yql/essentials/providers/common/metrics
-    yql/essentials/utils/failure_injector
+    contrib/ydb/library/yql/providers/dq/actors
+    contrib/ydb/library/yql/providers/dq/api/grpc
+    contrib/ydb/library/yql/providers/dq/api/protos
+    contrib/ydb/library/yql/providers/dq/config
+    contrib/ydb/library/yql/providers/dq/counters
+    contrib/ydb/library/yql/providers/dq/runtime
+    contrib/ydb/library/yql/providers/dq/task_runner
     yt/yql/providers/dq/actors
     yt/yql/providers/dq/actors/yt
-    yt/yql/providers/dq/config
     yt/yql/providers/dq/scheduler
-    yt/yql/providers/dq/service
+    contrib/ydb/library/yql/providers/dq/service
 )
 
 YQL_LAST_ABI_VERSION()
