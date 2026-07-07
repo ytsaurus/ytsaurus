@@ -1289,10 +1289,9 @@ class TestCoreTable(YTEnvSetup):
         assert "error" in core_info
 
     @authors("max42", "gritukan")
+    @pytest.mark.skip(reason="This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
     @skip_if_porto
     def test_core_when_user_job_was_killed(self):
-        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
-
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
 
         release_breakpoint()
@@ -1310,10 +1309,9 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
 
     @authors("max42", "gritukan")
+    @pytest.mark.skip(reason="This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
     @skip_if_porto
     def test_core_timeout_when_user_job_was_killed(self):
-        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
-
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
 
         release_breakpoint()
@@ -1410,13 +1408,10 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
 
     @authors("gritukan")
+    @pytest.mark.skipif(YT_CUDA_CORE_DUMP_SIMULATOR is None, reason="This test requires cuda_core_dump_simulator being built")
+    @pytest.mark.skipif(YT_LIB_CUDA_CORE_DUMP_INJECTION is None, reason="This test requires lib_cuda_core_dump_injection being built")
     @skip_if_porto
     def test_cuda_gpu_core_dump(self):
-        if YT_CUDA_CORE_DUMP_SIMULATOR is None:
-            pytest.skip("This test requires cuda_core_dump_simulator being built")
-        if YT_LIB_CUDA_CORE_DUMP_INJECTION is None:
-            pytest.skip("This test requires lib_cuda_core_dump_injection being built")
-
         op, job_ids = self._start_operation(1, enable_cuda_gpu_core_dump=True)
 
         ret_dict = {}

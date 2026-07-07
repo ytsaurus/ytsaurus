@@ -2634,10 +2634,9 @@ echo {v = 2} >&7
         assert read_table("//tmp/out2") == expected
 
     @authors("gritukan")
+    @pytest.mark.skip(reason="TODO: gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sort_by_without_key_guarantee(self, sort_order):
-        pytest.skip("TODO: gritukan")
-
         create(
             "table",
             "//tmp/in1",

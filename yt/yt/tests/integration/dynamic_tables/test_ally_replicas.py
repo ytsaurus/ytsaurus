@@ -114,8 +114,8 @@ class TestAllyReplicas(YTEnvSetup):
             set_node_banned(node, False)
 
     @authors("ifsmirnov")
+    @pytest.mark.skip(reason="YT-15097")
     def test_ally_replicas_disabled(self):
-        pytest.skip("YT-15097")
         self._create_table("//tmp/t")
         rows = [{"a": "b"}]
         write_table("//tmp/t", rows)

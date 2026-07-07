@@ -4227,10 +4227,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
     @authors("apachee")
+    @pytest.mark.skip(reason="FIXME(apachee): Remove skip after crash issue get resolved")
     def test_crashes_fix_yt_23930(self):
-        # FIXME(apachee): Remove skip after crash issue get resolved
-        pytest.skip()
-
         queue_path = self.create_queue_path()
         export_dir = queue_path + "-export"
 

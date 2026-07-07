@@ -100,19 +100,15 @@ def check_tags(actual_output):
 
 
 @authors("shishmak")
+@pytest.mark.skipif(arcadia_interop.yatest_common is None, reason="Requires yatest_common")
 def test_print_yt_fibers():
-    if arcadia_interop.yatest_common is None:
-        pytest.skip()
-
     actual_output = print_fibers("print_yt_fibers")
     check_backtraces(actual_output)
 
 
 @authors("shishmak")
+@pytest.mark.skipif(arcadia_interop.yatest_common is None, reason="Requires yatest_common")
 def test_print_yt_fibers_with_tags():
-    if arcadia_interop.yatest_common is None:
-        pytest.skip()
-
     actual_output = print_fibers("print_yt_fibers_with_tags")
     check_backtraces(actual_output)
     check_tags(actual_output)
