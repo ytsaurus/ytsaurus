@@ -41,6 +41,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/invoker_detail.h>
 
 #include <library/cpp/iterator/zip.h>
@@ -1362,10 +1363,10 @@ private:
             mutationCount);
 
         auto epochContext = GetControlEpochContext(epochId);
-        // TODO(aleksandra-zh): I hate that.
-        SwitchTo(epochContext->EpochControlInvoker);
 
-        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+        // Run the rest of the handler under the epoch's cancelable context so that
+        // it is aborted if the epoch changes.
+        TCurrentCancelableContextGuard cancelableContextGuard(epochContext->CancelableContext);
 
         auto isPersistenceEnabled = IsPersistenceEnabled(epochContext->CellManager, Options_);
         auto controlState = GetControlState();
