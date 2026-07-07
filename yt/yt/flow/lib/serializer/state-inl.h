@@ -1,7 +1,9 @@
+#pragma once
+
 #ifndef STATE_INL_H_
-#error "Direct inclusion of this file is not allowed, include state.h"
-// For the sake of sane code completion.
-#include "state.h"
+    #error "Direct inclusion of this file is not allowed, include state.h"
+    // For the sake of sane code completion.
+    #include "state.h"
 #endif
 
 #include <yt/yt/core/ytree/convert.h>

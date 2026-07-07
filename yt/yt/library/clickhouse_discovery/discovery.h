@@ -1,6 +1,8 @@
 #pragma once
 
-#include "config.h"
+#include "public.h"
+
+#include <yt/yt/ytlib/api/native/public.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -39,12 +41,20 @@ struct IDiscovery
     //! Stop updating the list of available participants.
     //! Returns a future that becomes set after stopping PeriodicExecutor.
     virtual TFuture<void> StopPolling() = 0;
-
-    //! Returns a version of the discovery.
-    virtual int Version() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDiscovery)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IDiscoveryPtr CreateDiscovery(
+    TDiscoveryConfigPtr config,
+    NApi::NNative::IConnectionPtr connection,
+    NRpc::IChannelFactoryPtr channelFactory,
+    IInvokerPtr invoker,
+    std::vector<std::string> extraAttributes,
+    NLogging::TLogger logger = {},
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -131,18 +131,16 @@ static void PopulateChunkSpecWithReplicas(
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
     auto addReplica = [&] (const TAugmentedStoredChunkReplicaPtr& replica)  {
-        auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
-        if (!locationReplica) {
-            // TODO(cherepashka): actually return medium replicas in chunk specs, once more logic is here.
-            return false;
-        }
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
             return false;
         }
-        const auto* location = locationReplica->AsChunkLocationPtr();
-        replicas.emplace_back(location->GetNode(), replica.GetReplicaIndex(), replica.GetEffectiveMediumIndex());
-        nodeDirectoryBuilder->Add(replica);
-        return true;
+        if (auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>()) {
+            const auto* location = locationReplica->AsChunkLocationPtr();
+            replicas.emplace_back(location->GetNode(), replica.GetReplicaIndex(), replica.GetEffectiveMediumIndex());
+            nodeDirectoryBuilder->Add(replica);
+            return true;
+        }
+        return false;
     };
 
     for (auto replica : chunkReplicas) {
@@ -150,6 +148,20 @@ static void PopulateChunkSpecWithReplicas(
     }
 
     ToProto(chunkSpec->mutable_replicas(), replicas);
+
+    // TODO(aleksandra-zh): refactor that.
+    for (auto replica : chunkReplicas) {
+        if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
+            continue;
+        }
+        if (replica.As<EStoredReplicaType::OffshoreMedia>()) {
+            NChunkClient::TChunkReplicaWithMedium offshoreReplica(
+                OffshoreNodeId,
+                replica.GetReplicaIndex(),
+                replica.GetEffectiveMediumIndex());
+            chunkSpec->add_replicas(ToProto<ui64>(offshoreReplica));
+        }
+    }
 }
 
 void BuildReplicalessChunkSpec(
@@ -1104,11 +1116,10 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                             const auto& sequoiaReplicas = it->second
                                 .ValueOrThrow();
 
-                            if (sequoiaReplicas.empty()) {
+                            auto replicas = chunkReplicaFetcher->FilterAliveReplicas(sequoiaReplicas);
+                            if (replicas.empty()) {
                                 return std::nullopt;
                             }
-
-                            auto replicas = chunkReplicaFetcher->FilterAliveReplicas(sequoiaReplicas);
 
                             // We should choose a single medium for the chunk if there are replicas
                             // with different media. We choose the most frequent medium if more than

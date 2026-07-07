@@ -764,7 +764,7 @@ ICriExecutorPtr CreateCriExecutor(TCriExecutorConfigPtr config)
 {
     return New<TCriExecutor>(
         std::move(config),
-        GetGrpcChannelFactory());
+        GetDefaultGrpcChannelFactory());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

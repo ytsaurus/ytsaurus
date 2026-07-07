@@ -49,7 +49,7 @@ constinit const auto Logger = ClusterNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatMemoryUsage(i64 memoryUsage)
+std::string FormatMemoryUsage(i64 memoryUsage)
 {
     TStringBuf prefix = "";
     if (memoryUsage < 0) {
@@ -138,7 +138,7 @@ void FormatResources(
         limits.ReincarnationSlots);
 }
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits)
 {
@@ -662,6 +662,8 @@ void TNodeResourceManager::UpdateMemoryLimits()
             totalMemory);
     }
 
+    bool jobResourceAvailabilityIncreased = false;
+
     if (auto oldMemoryLimit = memoryUsageTracker->GetTotalLimit(); totalMemory != oldMemoryLimit) {
         YT_LOG_INFO(
             "Setting new memory limit (OldMemoryLimit: %v, NewMemoryLimit: %v, FreeMemoryWatermark: %v)",
@@ -670,6 +672,8 @@ void TNodeResourceManager::UpdateMemoryLimits()
             freeMemoryWatermark);
 
         memoryUsageTracker->SetTotalLimit(totalMemory);
+
+        jobResourceAvailabilityIncreased = totalMemory > oldMemoryLimit;
     }
 
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
@@ -688,7 +692,16 @@ void TNodeResourceManager::UpdateMemoryLimits()
                 oldLimit,
                 newLimit);
             memoryUsageTracker->SetCategoryLimit(category, newLimit);
+
+            if (category == EMemoryCategory::UserJobs && newLimit > oldLimit) {
+                jobResourceAvailabilityIncreased = true;
+            }
         }
+    }
+
+    if (jobResourceAvailabilityIncreased) {
+        YT_LOG_DEBUG("Job memory availability increased, notifying job resource manager");
+        Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
     }
 
     auto externalMemory = std::max(
@@ -726,7 +739,18 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
     }
     newJobsCpuLimit = std::max<double>(newJobsCpuLimit, 0);
 
+    auto oldJobsCpuLimit = JobsCpuLimit_.load();
     JobsCpuLimit_.store(newJobsCpuLimit);
+
+    if (newJobsCpuLimit > oldJobsCpuLimit) {
+        YT_LOG_DEBUG(
+            "Jobs cpu limit increased, notifying job resource manager "
+            "(OldJobsCpuLimit: %v, NewJobsCpuLimit: %v)",
+            oldJobsCpuLimit,
+            newJobsCpuLimit);
+        Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
+    }
+
     JobsCpuLimitUpdated_.Fire();
 }
 

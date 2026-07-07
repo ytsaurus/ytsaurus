@@ -47,12 +47,45 @@ struct TScheduleAllocationsStatisticsImpl
     bool SsdPriorityPreemptionEnabled = false;
     THashSet<int> SsdPriorityPreemptionMedia;
 
-    TString FormatOperationCountByPreemptionPriorityCompact() const;
-    TString FormatScheduleAllocationAttemptsCompact() const;
+    std::string FormatOperationCountByPreemptionPriorityCompact() const;
+    std::string FormatScheduleAllocationAttemptsCompact() const;
 };
 using TScheduleAllocationsStatisticsImplPtr = TIntrusivePtr<TScheduleAllocationsStatisticsImpl>;
 
 void Serialize(const TScheduleAllocationsStatisticsImplPtr& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TScheduleAllocationAttemptStatistics
+{
+    int AttemptCount = 0;
+    int FailureCount = 0;
+    TEnumIndexedArray<NControllerAgent::EScheduleFailReason, int> FailedReasons;
+    std::vector<TDuration> TotalDurations;
+    TDuration TotalDuration;
+    TDuration ExecDuration;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCommonSchedulingProfilingCounters
+{
+    explicit TCommonSchedulingProfilingCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter ControllerScheduleAllocationCount;
+    NProfiling::TCounter ControllerScheduleAllocationTimedOutCount;
+
+    TEnumIndexedArray<NControllerAgent::EScheduleFailReason, NProfiling::TCounter> ControllerScheduleAllocationFail;
+
+    NProfiling::TEventTimer TotalControllerScheduleAllocationTime;
+    NProfiling::TEventTimer ControllerScheduleAllocationTime;
+    NProfiling::TEventTimer ExecControllerScheduleAllocationTime;
+    NProfiling::TTimeCounter CumulativeTotalControllerScheduleAllocationTime;
+    NProfiling::TTimeCounter CumulativeExecControllerScheduleAllocationTime;
+
+    NProfiling::TCounter ScheduleAllocationAttemptCount;
+    NProfiling::TCounter ScheduleAllocationFailureCount;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

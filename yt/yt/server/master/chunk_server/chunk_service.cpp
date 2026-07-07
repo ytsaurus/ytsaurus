@@ -27,6 +27,9 @@
 
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
+#include <yt/yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_replication_session.h>
 
@@ -65,6 +68,7 @@ using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NRpc;
 using namespace NDataNodeTrackerClient;
+using namespace NTableClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -985,17 +989,22 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         ValidateChunkMetaOnConfirmation(request->chunk_meta());
+        auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
 
         auto doConfirmChunks = [
             this,
             this_ = MakeStrong(this),
             context,
-            chunkId
+            chunkId,
+            schemaId
         ] () -> std::optional<TError> {
+            YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
             ValidatePeer(EPeerKind::Leader);
 
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             const auto& configManager = Bootstrap_->GetConfigManager();
+            const auto& tableManager = Bootstrap_->GetTableManager();
 
             const auto& sequoiaChunkReplicasConfig = configManager->GetConfig()->ChunkManager->SequoiaChunkReplicas;
 
@@ -1017,6 +1026,11 @@ private:
                 }
                 context->Reply();
                 return std::nullopt;
+            }
+
+            const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+            if (chunkManagerConfig->EnableChunkSchemas && schemaId != NullTableSchemaId) {
+                Y_UNUSED(tableManager->GetMasterTableSchemaOrThrow(schemaId));
             }
 
             auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, sequoiaChunkReplicasConfig);

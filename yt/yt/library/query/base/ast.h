@@ -30,6 +30,7 @@ XX(TTransformExpression)
 XX(TCaseExpression)
 XX(TLikeExpression)
 XX(TQueryExpression)
+XX(TQueryAstHead)
 
 #undef XX
 
@@ -563,19 +564,11 @@ struct TAstHead
 };
 
 struct TQueryAstHead
-    : public TObjectsHolder
-    , public TRefCounted
-    , private TNonCopyable
 {
     TQuery Ast;
     TAliasMap AliasMap;
     std::optional<std::string> Alias;
-
-    TQueryAstHead() = default;
-    ~TQueryAstHead();
 };
-
-DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
 
 ////////////////////////////////////////////////////////////////////////////////
 

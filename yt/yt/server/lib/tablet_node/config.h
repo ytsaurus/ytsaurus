@@ -400,6 +400,9 @@ struct TCustomTableMountConfig
     // if there are too many unexpected conflicts.
     bool CheckConflictHorizon;
 
+    // Quantum of waiting on blocked row for tables with enabled per-row serialization.
+    TDuration PerRowSerializationBlockedRowWaitQuantum;
+
     TTestingTableMountConfig Testing;
 
     bool TablePullerForceSameClusterQueue;

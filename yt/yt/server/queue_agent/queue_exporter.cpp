@@ -854,8 +854,24 @@ private:
             createOptions.Attributes->Set("external_cell_tag", QueueObject_.ExternalCellTag);
             createOptions.Attributes->Set("has_hunk_chunk_list", true);
         }
-        WaitFor(Client_->CreateNode(taskPart.DestinationObject.GetPath(), EObjectType::Table, createOptions))
-            .ThrowOnError();
+        try {
+            WaitFor(Client_->CreateNode(taskPart.DestinationObject.GetPath(), EObjectType::Table, createOptions))
+                .ThrowOnError();
+        } catch (const TErrorException& ex) {
+            if (ex.Error().FindMatching(NYTree::EErrorCode::AlreadyExists)) {
+                // NB(apachee): Enrich exported table already exists error with more details and possible solutions.
+                THROW_ERROR_EXCEPTION(
+                    "Generated output table name uniqueness invariant violated: output table name pattern should be unique for each export unix ts, "
+                    "you may need to adjust (usually increase) export period or export cron schedule to match your output table name pattern")
+                    << TErrorAttribute("output_table_name_pattern", ExportConfig_->OutputTableNamePattern)
+                    << TErrorAttribute("export_period", ExportConfig_->ExportPeriod)
+                    << TErrorAttribute("export_cron_expression", ExportConfig_->ExportCronSchedule)
+                    << TErrorAttribute("export_unix_ts", taskPart.ExportUnixTs)
+                    << ex;
+            } else {
+                throw;
+            }
+        }
 
         YT_LOG_DEBUG(
             "Created output node for export (DestinationPath: %v, OutputTableNamePattern: %v, UseUpperBoundForTableNames: %v, ExportTtl: %v, ExportUnixTs: %v)",
@@ -1162,7 +1178,6 @@ public:
         TTablePath queue,
         TQueueStaticExportConfigPtr exportConfig,
         TQueueExporterDynamicConfig dynamicConfig,
-        TClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker,
         IQueueExportManagerPtr queueExportManager,
         IAlertCollectorPtr alertCollector,
@@ -1174,7 +1189,6 @@ public:
         , RetryBackoff_(DynamicConfig_.RetryBackoff)
         , ExportName_(std::move(exportName))
         , Queue_(std::move(queue))
-        , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
         , QueueExportManager_(std::move(queueExportManager))
         , AlertCollector_(std::move(alertCollector))
@@ -1285,7 +1299,6 @@ private:
 
     const std::string ExportName_;
     const TTablePath Queue_;
-    const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
     const IQueueExportManagerPtr QueueExportManager_;
     const IAlertCollectorPtr AlertCollector_;
@@ -1387,7 +1400,7 @@ private:
         }
 
         TQueueExportTaskPtr exportTask = New<TQueueExportTask>(
-            ClientDirectory_->GetClientOrThrow(Queue_.GetCluster().value()),
+            QueueExportManager_->GetQueueExportClientDirectory()->GetClientOrThrow(Queue_.GetCluster().value()),
             Invoker_,
             Queue_.GetPath(),
             exportConfig,
@@ -1471,7 +1484,6 @@ IQueueExporterPtr CreateQueueExporter(
     TTablePath queue,
     TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,
-    TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
     IQueueExportManagerPtr queueExportManager,
     IAlertCollectorPtr alertCollector,
@@ -1483,7 +1495,6 @@ IQueueExporterPtr CreateQueueExporter(
         std::move(queue),
         std::move(exportConfig),
         std::move(dynamicConfig),
-        std::move(clientDirectory),
         std::move(invoker),
         std::move(queueExportManager),
         std::move(alertCollector),

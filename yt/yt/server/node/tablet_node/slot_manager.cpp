@@ -122,7 +122,7 @@ private:
     const TPeriodicExecutorPtr SlotScanExecutor_;
     const IYPathServicePtr OrchidService_;
 
-    using TBundlesMemoryPoolWeights = THashMap<TString, int>;
+    using TBundlesMemoryPoolWeights = THashMap<std::string, int>;
     TBundlesMemoryPoolWeights BundlesMemoryPoolWeights_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -275,7 +275,7 @@ private:
     {
         auto buildMemoryStatistics = BIND(&TSlotManager::BuildMemoryStatisticsYson, Unretained(this));
 
-        auto bundleByTable = [&] (const TString& tablePath) {
+        auto bundleByTable = [&] (const NYPath::TYPath& tablePath) {
             auto it = summary.TablePathToBundleName.find(tablePath);
             YT_ASSERT(it != summary.TablePathToBundleName.end());
             return it != summary.TablePathToBundleName.end()

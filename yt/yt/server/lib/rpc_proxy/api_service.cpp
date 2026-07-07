@@ -632,7 +632,14 @@ private:
             .Item("wait_time").Value(this->GetWaitDuration())
             .Item("execution_time").Value(this->GetExecutionDuration())
             .Item("finish_instant").Value(this->GetFinishInstant())
-            .OptionalItem("cpu_time", this->GetTraceContextTime());
+            .OptionalItem("cpu_time", this->GetTraceContextTime())
+            .DoIf(credentialsExt.has_user_ticket() && !credentialsExt.has_service_ticket(), [&] (auto fluent) {
+                fluent
+                    .Item("debug_info").Value(BuildYsonStringFluently()
+                        .BeginMap()
+                            .Item("user_ticket_and_no_service_ticket").Value(true)
+                        .EndMap());
+            });
     }
 
     void DoEmitError() const
@@ -1676,8 +1683,7 @@ TDetailedProfilingCountersPtr TApiService::GetOrCreateDetailedProfilingCounters(
             }
             if (key.UserTag) {
                 profiler = profiler
-                    // TODO(babenko): switch to std::string
-                    .WithTag("user", ToString(*key.UserTag));
+                    .WithTag("user", *key.UserTag);
             }
             return New<TDetailedProfilingCounters>(std::move(profiler));
         })
@@ -2115,27 +2121,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTableMountInfo)
             }
             response->set_physical_path(tableMountInfo->PhysicalPath);
 
-            for (const auto& indexInfo : tableMountInfo->Indices) {
-                auto* protoIndexInfo = response->add_indices();
-                ToProto(protoIndexInfo->mutable_index_table_id(), indexInfo.TableId);
-                protoIndexInfo->set_index_kind(ToProto(indexInfo.Kind));
-                if (const auto& predicate = indexInfo.Predicate) {
-                    ToProto(protoIndexInfo->mutable_predicate(), *predicate);
-                }
-                if (const auto& unfoldedColumns = indexInfo.UnfoldedColumns) {
-                    auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
-                    ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
-                    ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
-                    // COMPAT(sabdenovch): Query tracker best-effort backwards compat.
-                    if (unfoldedColumns->IndexColumn == unfoldedColumns->TableColumn) {
-                        ToProto(protoIndexInfo->mutable_unfolded_column(), unfoldedColumns->IndexColumn);
-                    }
-                }
-                protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
-                if (const auto& evaluatedColumnsSchema = indexInfo.EvaluatedColumnsSchema) {
-                    ToProto(protoIndexInfo->mutable_evaluated_columns_schema(), *evaluatedColumnsSchema);
-                }
-            }
+            ToProto(response->mutable_indices(), tableMountInfo->Indices);
 
             context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
                 tableMountInfo->Dynamic,
@@ -3186,6 +3172,23 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AlterReplicationCard)
     }
     if (request->has_collocation_options()) {
         options.CollocationOptions = ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(request->collocation_options()));
+    }
+
+    using ECase = NApi::NRpcProxy::NProto::TReqAlterReplicationCard::SecondaryIndexCase;
+    switch (request->secondary_index_case()) {
+        case ECase::kCreateSecondaryIndex:
+            options.CreateSecondaryIndex = ConvertTo<TCreateSecondaryIndexPtr>(
+                TYsonString(request->create_secondary_index()));
+            break;
+        case ECase::kDestroySecondaryIndex:
+            FromProto(&options.DestroySecondaryIndex, request->destroy_secondary_index());
+            break;
+        case ECase::kProgressSecondaryIndexCorrespondence:
+            options.ProgressSecondaryIndexCorrespondence = ConvertTo<TProgressSecondaryIndexCorrespondencePtr>(
+                TYsonString(request->progress_secondary_index_correspondence()));
+            break;
+        default:
+            break;
     }
 
     context->SetRequestInfo("ReplicationCardId: %v",
@@ -5477,6 +5480,20 @@ void TApiService::DoModifyRows(
         THROW_ERROR_EXCEPTION("Row count mismatch")
             << TErrorAttribute("rowset_size", rowsetSize)
             << TErrorAttribute("row_modification_types_size", request.row_modification_types_size());
+    }
+
+    auto totalLockCount = request.row_legacy_read_locks_size() + request.row_legacy_locks_size() + request.row_locks_size();
+    if ((request.row_legacy_read_locks_size() != 0 && request.row_legacy_read_locks_size() != rowsetSize) ||
+        (request.row_legacy_locks_size() != 0 && request.row_legacy_locks_size() != rowsetSize) ||
+        (request.row_locks_size() != 0 && request.row_locks_size() != rowsetSize) ||
+        (totalLockCount != 0 && totalLockCount != rowsetSize))
+    {
+        THROW_ERROR_EXCEPTION("Lock count mismatch")
+            << TErrorAttribute("rowset_size", rowsetSize)
+            << TErrorAttribute("row_legacy_read_locks_size", request.row_legacy_read_locks_size())
+            << TErrorAttribute("row_legacy_locks_size", request.row_legacy_locks_size())
+            << TErrorAttribute("row_locks_size", request.row_locks_size())
+            << TErrorAttribute("total_lock_count", totalLockCount);
     }
 
     std::vector<TRowModification> modifications;

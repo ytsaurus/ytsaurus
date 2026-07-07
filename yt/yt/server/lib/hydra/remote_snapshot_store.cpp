@@ -422,7 +422,7 @@ private:
                 .ValueOrThrow();
 
             YT_LOG_DEBUG("Snapshot list received");
-            auto keys = ConvertTo<std::vector<TString>>(result);
+            auto keys = ConvertTo<std::vector<std::string>>(result);
             int latestSnapshotId = InvalidSegmentId;
             for (const auto& key : keys) {
                 int id;

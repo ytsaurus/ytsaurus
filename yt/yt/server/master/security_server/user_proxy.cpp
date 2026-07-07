@@ -316,7 +316,11 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* rootUser = securityManager->GetRootUser();
 
-        auto validateUserNotRoot = [&] {
+        auto validateRequestLimitsChangeForRoot = [&] {
+            if (Bootstrap_->GetDynamicConfig()->SecurityManager->AllowChangeRequestLimitsForRoot) {
+                return;
+            }
+
             THROW_ERROR_EXCEPTION_IF(user == rootUser,
                 "Cannot set %Qv for %Qv",
                 key.Unintern(),
@@ -331,7 +335,7 @@ private:
             }
 
             case EInternedAttributeKey::ReadRequestRateLimit: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 auto limit = ConvertTo<int>(value);
                 if (limit < 0) {
@@ -343,7 +347,7 @@ private:
             }
 
             case EInternedAttributeKey::WriteRequestRateLimit: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 auto limit = ConvertTo<int>(value);
                 if (limit < 0) {
@@ -355,7 +359,7 @@ private:
             }
 
             case EInternedAttributeKey::RequestQueueSizeLimit: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 auto limit = ConvertTo<int>(value);
                 if (limit < 0) {
@@ -367,7 +371,7 @@ private:
             }
 
             case EInternedAttributeKey::RequestLimits: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
@@ -377,7 +381,7 @@ private:
             }
 
             case EInternedAttributeKey::ChunkServiceRequestWeightThrottler: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 auto config = ConvertTo<TThroughputThrottlerConfigPtr>(value);
                 securityManager->SetChunkServiceUserRequestWeightThrottlerConfig(user, config);
@@ -385,7 +389,7 @@ private:
             }
 
             case EInternedAttributeKey::ChunkServiceRequestBytesThrottler: {
-                validateUserNotRoot();
+                validateRequestLimitsChangeForRoot();
 
                 auto config = ConvertTo<TThroughputThrottlerConfigPtr>(value);
                 securityManager->SetChunkServiceUserRequestBytesThrottlerConfig(user, config);

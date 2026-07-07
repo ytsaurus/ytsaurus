@@ -30,6 +30,8 @@
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
+#include <yt/yt/core/ypath/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NDataNode {
@@ -339,7 +341,7 @@ struct TTmpfsLayerCacheConfig
     : public NYTree::TYsonStruct
 {
     i64 Capacity;
-    std::optional<TString> LayersDirectoryPath;
+    std::optional<NYPath::TYPath> LayersDirectoryPath;
     TDuration LayersUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TTmpfsLayerCacheConfig);

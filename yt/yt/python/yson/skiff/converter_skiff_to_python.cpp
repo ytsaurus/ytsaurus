@@ -24,7 +24,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSkiffToPythonConverter CreateSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime);
+TSkiffToPythonConverter CreateSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +69,7 @@ TSkiffToPythonConverter MaybeWrapSkiffToPythonConverter(
 class TOtherColumnsSkiffToPythonConverter
 {
 public:
-    TOtherColumnsSkiffToPythonConverter(TString description)
+    explicit TOtherColumnsSkiffToPythonConverter(std::string description)
         : OtherColumnsClass_(TSkiffOtherColumns::type())
         , OtherColumnsArgs_(1)
         , Description_(std::move(description))
@@ -102,14 +102,14 @@ public:
 private:
     Py::Callable OtherColumnsClass_;
     Py::Tuple OtherColumnsArgs_;
-    TString Description_;
+    std::string Description_;
 };
 
 template <EWireType WireType, EPythonType PythonType>
 class TPrimitiveSkiffToPythonConverter
 {
 public:
-    TPrimitiveSkiffToPythonConverter(TString description)
+    explicit TPrimitiveSkiffToPythonConverter(std::string description)
         : Description_(std::move(description))
     { }
 
@@ -136,7 +136,7 @@ public:
     }
 
 private:
-    TString Description_;
+    std::string Description_;
 
 private:
     PyObject* DoConvert(TCheckedInDebugSkiffParser* parser)
@@ -199,7 +199,7 @@ private:
 };
 
 TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverterImpl(
-    TString description,
+    std::string description,
     Py::Object pySchema,
     EPythonType pythonType,
     bool forceOptional,
@@ -271,7 +271,7 @@ TSkiffToPythonConverter WrapWithMiddlewareConverter(TSkiffToPythonConverter conv
 }
 
 TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverter(
-    TString description,
+    std::string description,
     Py::Object pySchema,
     bool forceOptional = false,
     bool validateOptionalOnRuntime = false)
@@ -301,7 +301,7 @@ TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverter(
 class TStructSkiffToPythonConverter
 {
 public:
-    explicit TStructSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
+    TStructSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
     {
         static auto StructFieldClass = GetSchemaType("StructField");
@@ -368,18 +368,18 @@ public:
     }
 
 private:
-    TString Description_;
+    std::string Description_;
     std::vector<TSkiffToPythonConverter> FieldConverters_;
-    std::vector<TString> FieldNames_;
+    std::vector<std::string> FieldNames_;
     Py::Object PyType_;
-    TString PyTypeStr_;
+    std::string PyTypeStr_;
     bool WithPostInit_;
     Py::Tuple EmptyTuple_;
-    std::vector<TString> FieldsMissingFromSchema_;
+    std::vector<std::string> FieldsMissingFromSchema_;
 };
 
 TSkiffToPythonConverter CreateStructSkiffToPythonConverter(
-    TString description,
+    std::string description,
     Py::Object pySchema,
     bool forceOptional = false,
     bool validateOptionalOnRuntime = false)
@@ -391,7 +391,7 @@ TSkiffToPythonConverter CreateStructSkiffToPythonConverter(
 class TListSkiffToPythonConverter
 {
 public:
-    explicit TListSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
+    TListSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
         , ItemConverter_(CreateSkiffToPythonConverter(
             description + ".<list-element>",
@@ -424,11 +424,11 @@ public:
     }
 
 private:
-    TString Description_;
+    std::string Description_;
     TSkiffToPythonConverter ItemConverter_;
 };
 
-TSkiffToPythonConverter CreateListSkiffToPythonConverter(TString description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
+TSkiffToPythonConverter CreateListSkiffToPythonConverter(std::string description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
 {
     auto converter = TListSkiffToPythonConverter(description, pySchema, validateOptionalOnRuntime);
     return MaybeWrapSkiffToPythonConverter(pySchema, std::move(converter), forceOptional, validateOptionalOnRuntime);
@@ -437,7 +437,7 @@ TSkiffToPythonConverter CreateListSkiffToPythonConverter(TString description, Py
 class TTupleSkiffToPythonConverter
 {
 public:
-    explicit TTupleSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
+    TTupleSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
     {
         int i = 0;
@@ -465,11 +465,11 @@ public:
     }
 
 private:
-    TString Description_;
+    std::string Description_;
     std::vector<TSkiffToPythonConverter> ElementConverters_;
 };
 
-TSkiffToPythonConverter CreateTupleSkiffToPythonConverter(TString description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
+TSkiffToPythonConverter CreateTupleSkiffToPythonConverter(std::string description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
 {
     auto converter = TTupleSkiffToPythonConverter(description, pySchema, validateOptionalOnRuntime);
     return MaybeWrapSkiffToPythonConverter(pySchema, std::move(converter), forceOptional, validateOptionalOnRuntime);
@@ -478,7 +478,7 @@ TSkiffToPythonConverter CreateTupleSkiffToPythonConverter(TString description, P
 class TDictSkiffToPythonConverter
 {
 public:
-    explicit TDictSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
+    TDictSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
         , KeyConverter_(CreateSkiffToPythonConverter(
             description + ".<key>",
@@ -516,12 +516,12 @@ public:
     }
 
 private:
-    TString Description_;
+    std::string Description_;
     TSkiffToPythonConverter KeyConverter_;
     TSkiffToPythonConverter ValueConverter_;
 };
 
-TSkiffToPythonConverter CreateDictSkiffToPythonConverter(TString description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
+TSkiffToPythonConverter CreateDictSkiffToPythonConverter(std::string description, Py::Object pySchema, bool forceOptional = false, bool validateOptionalOnRuntime = false)
 {
     auto converter = TDictSkiffToPythonConverter(description, pySchema, validateOptionalOnRuntime);
     return MaybeWrapSkiffToPythonConverter(pySchema, std::move(converter), forceOptional, validateOptionalOnRuntime);
@@ -579,14 +579,14 @@ public:
     }
 
 private:
-    TString RowClassName_;
+    std::string RowClassName_;
     bool ValidateOptionalOnRuntime_;
     TStructSkiffToPythonConverter StructConverter_;
 
     bool HasKeySwitch_ = false;
     bool HasRowIndex_ = false;
     bool HasRangeIndex_ = false;
-    TString OtherColumnsFieldName_;
+    std::string OtherColumnsFieldName_;
     std::optional<TOtherColumnsSkiffToPythonConverter> OtherColumnsConverter_;
 
 private:
@@ -652,7 +652,7 @@ TRowSkiffToPythonConverter CreateRowSkiffToPythonConverter(Py::Object pySchema)
     return TRowSkiffToPythonConverterImpl(std::move(pySchema));
 }
 
-TSkiffToPythonConverter CreateSkiffToPythonConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
+TSkiffToPythonConverter CreateSkiffToPythonConverter(std::string description, Py::Object pySchema, bool validateOptionalOnRuntime)
 {
     static auto StructSchemaClass = GetSchemaType("StructSchema");
     static auto PrimitiveSchemaClass = GetSchemaType("PrimitiveSchema");

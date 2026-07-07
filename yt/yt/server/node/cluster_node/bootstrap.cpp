@@ -1353,13 +1353,13 @@ private:
         }
     }
 
-    NConcurrency::IThroughputThrottlerPtr CreateInThrottler(const TString& bucket) override
+    NConcurrency::IThroughputThrottlerPtr CreateInThrottler(const std::string& bucket) override
     {
         EnabledInThrottlers_.insert(bucket);
         return InThrottler_->CreateBucketThrottler(bucket, Config_->InThrottlers[bucket]);
     }
 
-    NConcurrency::IThroughputThrottlerPtr CreateOutThrottler(const TString& bucket) override
+    NConcurrency::IThroughputThrottlerPtr CreateOutThrottler(const std::string& bucket) override
     {
         EnabledOutThrottlers_.insert(bucket);
         return OutThrottler_->CreateBucketThrottler(bucket, Config_->OutThrottlers[bucket]);

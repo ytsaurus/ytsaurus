@@ -34,6 +34,8 @@
 #include <yt/yt/server/master/security_server/user.h>
 #include <yt/yt/server/master/security_server/account.h>
 
+#include <yt/yt/server/master/sequoia_server/revision.h>
+
 #include <yt/yt/server/master/transaction_server/boomerang_tracker.h>
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -110,6 +112,7 @@ using namespace NProfiling;
 using namespace NRpc;
 using namespace NSecurityServer;
 using namespace NSequoiaClient;
+using namespace NSequoiaServer;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
 using namespace NYPath;
@@ -2217,6 +2220,13 @@ void TObjectManager::HydraExecuteLeader(
         traceContextGuard.emplace(
             traceContext,
             ConcatToString(TStringBuf("YPathWrite:"), rpcContext->GetService(), TStringBuf("."), rpcContext->GetMethod()));
+    }
+
+    const auto& sequoiaConfig = Bootstrap_->GetDynamicConfig()->SequoiaManager;
+
+    std::optional<TSequoiaRevisionGuard> sequoiaRevisionGuard;
+    if (!sequoiaConfig->ShouldUseSequoiaRevisions() && !GetCurrentSequoiaRevision()) {
+        sequoiaRevisionGuard.emplace(TSequoiaRevisionDisabled{});
     }
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();

@@ -73,8 +73,8 @@ bool TSlotLocation::TSandboxTmpfsData::IsInsideTmpfs(const std::string& path, co
     std::optional<std::string_view> longestVolumePath;
     for (const auto& [volumePath, type] : VolumePathToType_) {
         if (volumePath.IsAncestorOf(path, /*treatEqualPathAsAncestor*/ true)) {
-            if (!longestVolumePath || volumePath.Path().string().size() > longestVolumePath->size()) {
-                longestVolumePath = volumePath.Path().string();
+            if (!longestVolumePath || volumePath.Path().native().size() > longestVolumePath->size()) {
+                longestVolumePath = volumePath.Path().native();
                 isTmpfs = type == EVolumeType::Tmpfs;
             }
         }
@@ -450,6 +450,38 @@ void TSlotLocation::DoPrepareSandboxDirectories(
 
     YT_LOG_DEBUG("Sandbox directories prepared (SlotIndex: %v)",
         slotIndex);
+}
+
+TFuture<void> TSlotLocation::CreateFakeNonRootVolumes(
+    const IVolumePtr& rootVolume,
+    int slotIndex,
+    const std::vector<TVolumeMountPtr>& volumeMounts)
+{
+    return BIND([rootVolume, slotIndex, volumeMounts, this, this_ = MakeStrong(this)] () {
+        const auto& Logger = ExecNodeLogger();
+        if (rootVolume) {
+            for (const auto& volumeMount : volumeMounts) {
+                if (volumeMount->MountPath.Path().native() == "/") {
+                    continue;
+                }
+                auto fullPath = NFS::JoinPaths(rootVolume->GetPath(), volumeMount->MountPath.Path().native());
+                YT_LOG_DEBUG("Creating fake non-root volume inside root volume (VolumeMount %v)", fullPath);
+                NFS::MakeDirRecursive(fullPath);
+            }
+        } else {
+            YT_LOG_DEBUG("");
+            for (const auto& volumeMount : volumeMounts) {
+                if (volumeMount->MountPath.Path().native() == "/") {
+                    continue;
+                }
+                auto fullPath = NFS::JoinPaths(GetSlotPath(slotIndex), volumeMount->MountPath.Path().native());
+                YT_LOG_DEBUG("Creating fake non-root volumes inside sandbox volume (VolumeMount %v)", fullPath);
+                NFS::MakeDirRecursive(fullPath);
+            }
+        }
+    })
+    .AsyncVia(HeavyInvoker_)
+    .Run();
 }
 
 TFuture<void> TSlotLocation::PrepareSandboxDirectories(

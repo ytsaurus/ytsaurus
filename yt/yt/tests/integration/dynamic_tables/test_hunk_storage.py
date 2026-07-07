@@ -3,7 +3,7 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt_commands import (
     authors, create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells,
     sync_unmount_table, read_hunks, raises_yt_error, get_driver,
-    sync_freeze_table, sync_unfreeze_table, copy, move,
+    sync_freeze_table, sync_unfreeze_table, copy, move, sync_reshard_table,
     lock_hunk_store, unlock_hunk_store, start_transaction, commit_transaction, abort_transaction, lock
 )
 
@@ -742,6 +742,22 @@ class TestHunkStorage(DynamicTablesBase):
             lock_hunk_store("//tmp/h", 0, hunks["chunk_id"])
         with raises_yt_error("Tablet .* of table .* is in \"unmounted\" state"):
             unlock_hunk_store("//tmp/h", 0, hunks["chunk_id"])
+
+    @authors("akozhikhov")
+    def test_reshard_hunk_storage(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h")
+
+        sync_mount_table("//tmp/h")
+        hunk_chunk_id1 = self._write_hunks_with_retries("//tmp/h", ["a"])[0]["chunk_id"]
+        sync_unmount_table("//tmp/h")
+
+        sync_reshard_table("//tmp/h", 2)
+        sync_mount_table("//tmp/h")
+
+        hunk_chunk_id2 = self._write_hunks_with_retries("//tmp/h", ["aa"])[0]["chunk_id"]
+
+        assert hunk_chunk_id1 != hunk_chunk_id2
 
 
 class TestHunkStorageMulticell(TestHunkStorage):

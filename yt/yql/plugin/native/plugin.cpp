@@ -554,10 +554,10 @@ public:
 
         program->SetOperationAttrsYson(PatchQueryAttributes(OperationAttributes_, settings));
 
-        auto defaultQueryCluster = dynamicConfig->DefaultCluster;
+        auto defaultQueryClusterForUserArtifacts = dynamicConfig->DefaultCluster;
         auto ysonSettings = NodeFromYsonString(settings.ToString()).AsMap();
         if (auto cluster = ysonSettings.FindPtr("cluster")) {
-            defaultQueryCluster = cluster->AsString();
+            defaultQueryClusterForUserArtifacts = cluster->AsString();
         }
 
         SetProgramYqlVersion(program, ysonSettings);
@@ -568,8 +568,8 @@ public:
         NSQLTranslation::TTranslationSettings sqlSettings;
         sqlSettings.ClusterMapping = dynamicConfig->Clusters;
         sqlSettings.ModuleMapping = Modules_;
-        if (defaultQueryCluster) {
-            sqlSettings.DefaultCluster = *defaultQueryCluster;
+        if (defaultQueryClusterForUserArtifacts) {
+            sqlSettings.DefaultCluster = *defaultQueryClusterForUserArtifacts;
         }
         sqlSettings.SyntaxVersion = 1;
         sqlSettings.V0Behavior = NSQLTranslation::EV0Behavior::Disable;
@@ -602,10 +602,15 @@ public:
             clusters = dynamicConfig->ClusterAddresses;
         }
 
-        if (defaultQueryCluster) {
+        // Default cluster for execution. It may differ from default cluster for user artifacts
+        if (dynamicConfig->DefaultCluster) {
+            usedClusters->insert(*dynamicConfig->DefaultCluster);
+        }
+
+        if (defaultQueryClusterForUserArtifacts) {
             // Default cluster must be first in list.
-            usedClusters->erase(*defaultQueryCluster);
-            clustersList.emplace_back(std::pair<TString, TString>{std::move(*defaultQueryCluster), clusters[*defaultQueryCluster]});
+            usedClusters->erase(*defaultQueryClusterForUserArtifacts);
+            clustersList.emplace_back(std::pair<TString, TString>{std::move(*defaultQueryClusterForUserArtifacts), clusters[*defaultQueryClusterForUserArtifacts]});
         }
 
         for (const auto& cluster : *usedClusters) {

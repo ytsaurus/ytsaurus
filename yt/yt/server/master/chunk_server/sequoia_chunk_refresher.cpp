@@ -157,30 +157,39 @@ public:
         }
     }
 
-    void RefreshNode(const TNode* node) override
+    void ScheduleLocationRefresh(const TChunkLocation* location) override
     {
         VerifyPersistentStateRead();
 
         auto guard = Guard(Lock_);
 
-        if (!Status_.LocationRefreshEnabled) {
-            YT_LOG_DEBUG(
-                "Sequoia refresh will not occur for node as Sequoia location refresh is disabled (NodeId: %v, NodeAddress: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
+        const auto node = location->GetNode();
+        if (!IsObjectAlive(node)) {
+            YT_LOG_ALERT(
+                "Location scheduled for Sequoia refresh belongs to non alive node (LocationId: %v, LocationIndex: %v)",
+                location->GetId(),
+                location->GetIndex());
+            return;
         }
 
-        for (const auto& location : node->ChunkLocations()) {
-            LocationsAwaitingRefresh_.push_back(TLocationAwaitingRefresh{
-                .NodeId = node->GetId(),
-                .LocationIndex = location->GetIndex(),
-                .FailedAttempts = 0,
-            });
-            YT_LOG_DEBUG("Scheduling Sequoia location refresh (NodeId: %v, NodeAddress: %v, LocationIndex: %v)",
-                node->GetId(),
-                node->GetDefaultAddress(),
-                location->GetIndex());
+        if (!Status_.LocationRefreshEnabled) {
+            YT_LOG_WARNING(
+                "Sequoia refresh will not occur for location as Sequoia location refresh is disabled (LocationId: %v, NodeAddress: %v)",
+                location->GetId(),
+                node->GetDefaultAddress());
+
+            // We intentionally do not return here. The locations will be waiting until location refresh is enabled.
         }
+
+        LocationsAwaitingRefresh_.push_back(TLocationAwaitingRefresh{
+            .NodeId = node->GetId(),
+            .LocationIndex = location->GetIndex(),
+            .FailedAttempts = 0,
+        });
+        YT_LOG_DEBUG("Scheduling Sequoia location refresh (NodeId: %v, NodeAddress: %v, LocationIndex: %v)",
+            node->GetId(),
+            node->GetDefaultAddress(),
+            location->GetIndex());
 
         const auto& sequoiaReplicasConfig = GetDynamicConfig()->SequoiaChunkReplicas;
         if (std::ssize(LocationsAwaitingRefresh_) > sequoiaReplicasConfig->MaxLocationsAwaitingRefresh) {
@@ -600,6 +609,11 @@ private:
                 }
 
                 NProto::TReqTopUpSequoiaChunkPurgatory topUpSequoiaChunkPurgatoryRequest;
+                // TODO(grphil): move seal scheduling to chunk replicator
+                NProto::TReqScheduleMultipleChunkSeals scheduleMultipleChunkSealsRequest;
+
+                const auto& sequoiaReplicasConfig = GetDynamicConfig()->SequoiaChunkReplicas;
+                auto scheduleSeal = sequoiaReplicasConfig->ScheduleChunkSealInSequoiaChunkRefresh;
 
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
 
@@ -607,6 +621,9 @@ private:
                     auto* chunk = chunkManager->FindChunk(chunkId);
                     if (IsObjectAlive(chunk)) {
                         chunkManager->ScheduleChunkRefresh(chunk);
+                        if (scheduleSeal && IsSealNeeded(chunk)) {
+                            ToProto(scheduleMultipleChunkSealsRequest.add_chunk_ids(), chunkId);
+                        }
                     } else {
                         ToProto(topUpSequoiaChunkPurgatoryRequest.add_chunk_ids(), chunkId);
                     }
@@ -617,6 +634,14 @@ private:
                     mutation->SetAllowLeaderForwarding(true);
                     WaitFor(mutation->CommitAndLog(Logger()))
                         .ThrowOnError();
+                }
+
+                if (scheduleMultipleChunkSealsRequest.chunk_ids_size() > 0) {
+                    auto mutation = chunkManager->CreateScheduleMultipleChunkSealsMutation(scheduleMultipleChunkSealsRequest);
+                    mutation->SetAllowLeaderForwarding(true);
+                    WaitFor(mutation->CommitAndLog(Logger()))
+                        .ThrowOnError();
+
                 }
             });
             WaitFor(refreshChunks

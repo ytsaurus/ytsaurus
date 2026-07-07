@@ -1002,30 +1002,6 @@ def enable_sequoia(test_class):
     return test_class
 
 
-def enable_sequoia_acls(test_class):
-    if not test_class.USE_SEQUOIA:
-        return test_class
-
-    if not hasattr(test_class, "DELTA_CYPRESS_PROXY_CONFIG"):
-        test_class.DELTA_CYPRESS_PROXY_CONFIG = {}
-    test_class.DELTA_CYPRESS_PROXY_CONFIG.update({
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
-    })
-
-    if not hasattr(test_class, "DELTA_DYNAMIC_MASTER_CONFIG"):
-        test_class.DELTA_DYNAMIC_MASTER_CONFIG = {}
-    test_class.DELTA_DYNAMIC_MASTER_CONFIG.update({
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    })
-
-    return test_class
-
-
 def grant_system_permissions_to_clickhouse_user(user="yt-clickhouse"):
     yt_set("//sys/clickhouse/@acl/end", make_ace("allow", user, "write"))
     yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", user, "use"))

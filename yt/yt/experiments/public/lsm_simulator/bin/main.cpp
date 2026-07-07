@@ -36,9 +36,10 @@ std::string FormatDataSize(i64 value) {
     return "inf";
 }
 
-TTabletPtr LoadTablet(TString filename, TTableMountConfigPtr mountConfig)
+TTabletPtr LoadTablet(std::string filename, TTableMountConfigPtr mountConfig)
 {
-    TFile file(filename, EOpenModeFlag::RdOnly);
+    // TODO(babenko): drop TString cast once TFile accepts std::string.
+    TFile file(TString(filename), EOpenModeFlag::RdOnly);
     TUnbufferedFileInput stream(file);
     TStreamLoadContext context(&stream);
     auto tablet = New<TTablet>();
@@ -54,7 +55,7 @@ TTabletPtr LoadTablet(TString filename, TTableMountConfigPtr mountConfig)
 }
 
 void OptimizeWithMountConfigOptimizer(
-    std::optional<TString> loadFromFile,
+    std::optional<std::string> loadFromFile,
     const TTableMountConfigPtr& mountConfig,
     const TLsmSimulatorConfigPtr& simulatorConfig)
 {
@@ -94,8 +95,8 @@ void OptimizeWithMountConfigOptimizer(
 int main(int argc, char* argv[])
 {
     NLastGetopt::TOpts opts;
-    TString saveToFile;
-    TString loadFromFile;
+    std::string saveToFile;
+    std::string loadFromFile;
     opts.AddLongOption("save")
         .RequiredArgument("filename")
         .StoreResult(&saveToFile);
@@ -330,7 +331,8 @@ int main(int argc, char* argv[])
     Cerr << formatterFinal.Format(logLine) << "\n";
 
     if (parsed.Has("save")) {
-        TOFStream stream(saveToFile);
+        // TODO(babenko): drop TString cast once TOFStream accepts std::string.
+        TOFStream stream{TString(saveToFile)};
         TStreamSaveContext context(&stream);
 
         NYT::Save(context, *simulator->GetStoreManager()->GetTablet());

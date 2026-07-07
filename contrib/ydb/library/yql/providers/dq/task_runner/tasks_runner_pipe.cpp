@@ -6,6 +6,7 @@
 #include <yql/essentials/minikql/mkql_node_serialization.h>
 #include <yql/essentials/minikql/mkql_node_cast.h>
 #include <yql/essentials/minikql/mkql_program_builder.h>
+#include <yql/essentials/minikql/runtime_settings/runtime_settings_serialization.h>
 #include <yql/essentials/minikql/aligned_page_pool.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/backtrace/backtrace.h>
@@ -803,7 +804,7 @@ private:
 
 class TDqSource: public IDqAsyncInputBuffer {
 public:
-    TDqSource(ui64 taskId, ui64 inputIndex, TType* inputType, i64 channelBufferSize, IPipeTaskRunner* taskRunner, NKikimr::NMiniKQL::EValuePackerVersion packerVersion)
+    TDqSource(ui64 taskId, ui64 inputIndex, TType* inputType, i64 channelBufferSize, IPipeTaskRunner* taskRunner, NKikimr::NMiniKQL::EValuePackerVersion packerVersion, NYql::EDatumValidationMode datumValidationMode)
         : TaskId(taskId)
         , TaskRunner(taskRunner)
         , Input(TaskRunner->GetInput())
@@ -812,6 +813,7 @@ public:
         , BufferSize(channelBufferSize)
         , FreeSpace(channelBufferSize)
         , PackerVersion(packerVersion)
+        , DatumValidationMode(datumValidationMode)
     {
         PushStats.InputIndex = inputIndex;
     }
@@ -891,7 +893,7 @@ public:
 
     void Push(NKikimr::NMiniKQL::TUnboxedValueBatch&& batch, i64 space) override {
         auto inputType = GetInputType();
-        TDqDataSerializer dataSerializer(TaskRunner->GetTypeEnv(), TaskRunner->GetHolderFactory(), NDqProto::DATA_TRANSPORT_UV_PICKLE_1_0, PackerVersion);
+        TDqDataSerializer dataSerializer(TaskRunner->GetTypeEnv(), TaskRunner->GetHolderFactory(), NDqProto::DATA_TRANSPORT_UV_PICKLE_1_0, PackerVersion, DatumValidationMode);
         TDqSerializedBatch serialized = dataSerializer.Serialize(batch, inputType);
         Push(std::move(serialized), space);
     }
@@ -977,6 +979,7 @@ private:
     i64 BufferSize;
     i64 FreeSpace;
     NKikimr::NMiniKQL::EValuePackerVersion PackerVersion;
+    NYql::EDatumValidationMode DatumValidationMode;
 };
 
 /*______________________________________________________________________________________________*/
@@ -1403,6 +1406,7 @@ public:
         const TString& traceId)
         : TraceId(traceId)
         , Task(task)
+        , RuntimeSettings(DeserializeRuntimeSettingsFromProto(Task.GetProgram().GetRuntimeSettings()))
         , FilesHolder(std::move(filesHolder))
         , Alloc(alloc)
         , AllocatedHolder(std::make_optional<TAllocatedHolder>(*Alloc, "TDqTaskRunnerProxy"))
@@ -1691,7 +1695,13 @@ private:
         for (ui32 i = 0; i < Task.InputsSize(); ++i) {
             auto& inputDesc = Task.GetInputs(i);
             if (inputDesc.HasSource()) {
-                Sources[i] = new TDqSource(Task.GetId(), i, InputTypes.at(i), ChannelBufferSize, this, NDq::FromProto(Task.GetValuePackerVersion()));
+                Sources[i] = new TDqSource(Task.GetId(),
+                                           i,
+                                           InputTypes.at(i),
+                                           ChannelBufferSize,
+                                           this,
+                                           NDq::FromProto(Task.GetValuePackerVersion()),
+                                           RuntimeSettings->DatumValidation.Get());
             } else {
                 for (auto& inputChannelDesc : inputDesc.GetChannels()) {
                     ui64 channelId = inputChannelDesc.GetId();
@@ -1704,6 +1714,7 @@ private:
 private:
     const TString TraceId;
     NDqProto::TDqTask Task;
+    TRuntimeSettings::TConstPtr RuntimeSettings;
     TFilesHolder::TPtr FilesHolder;
     THashMap<TString, TString> SecureParams;
     THashMap<TString, TString> TaskParams;

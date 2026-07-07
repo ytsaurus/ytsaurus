@@ -480,10 +480,10 @@ class BigQueryParser(parser.Parser):
 
             info_schema_view = f"{table_parts[-2].name}.{table_parts[-1].name}"
             new_this = exp.Identifier(this=info_schema_view, quoted=True).update_positions(
-                line=table_parts[-2].meta.get("line"),
-                col=table_parts[-1].meta.get("col"),
-                start=table_parts[-2].meta.get("start"),
-                end=table_parts[-1].meta.get("end"),
+                line=table_parts[-2].meta_get("line"),
+                col=table_parts[-1].meta_get("col"),
+                start=table_parts[-2].meta_get("start"),
+                end=table_parts[-1].meta_get("end"),
             )
             table.set("this", new_this)
             table.set("db", seq_get(table_parts, -3))
@@ -508,6 +508,13 @@ class BigQueryParser(parser.Parser):
                 column.meta["quoted_column"] = True
 
         return column
+
+    def _parse_cluster_property(self) -> exp.ClusterProperty:
+        return self.expression(
+            exp.ClusterProperty(
+                expressions=self._parse_csv(self._parse_column),
+            )
+        )
 
     @t.overload
     def _parse_json_object(self, agg: t.Literal[False]) -> exp.JSONObject: ...

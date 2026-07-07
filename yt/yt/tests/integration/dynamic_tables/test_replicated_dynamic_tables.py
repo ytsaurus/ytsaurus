@@ -1,4 +1,5 @@
 from yt_dynamic_tables_base import DynamicTablesBase
+from .test_sorted_dynamic_tables import TestWriteRetries as WriteRetriesBase
 
 from yt_env_setup import parametrize_external
 
@@ -3993,3 +3994,62 @@ class TestErasureReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id)
 
         wait(lambda: select_rows("key, value1 from [//tmp/r] order by key limit 100", driver=self.replica_driver) == rows)
+
+
+##################################################################
+
+
+@pytest.mark.enable_multidaemon
+class TestReplicatedWriteRetries(WriteRetriesBase, TestReplicatedDynamicTablesBase):
+    NUM_REMOTE_CLUSTERS = 1
+
+    def _prepare_test(self, path, failure_probability, retry_count):
+        replica_path = f"{path}_replica"
+
+        self._configure_retries(failure_probability, retry_count)
+
+        [primary_cells, replica_cells] = self._create_cells(cell_count=4)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ]
+
+        pivot_keys = [[]] + [[i * 10] for i in range(1, len(primary_cells))]
+        self._create_replicated_table(path, schema=schema, pivot_keys=pivot_keys, mount=False)
+
+        replica_id1 = create_table_replica(
+            path,
+            self.REPLICA_CLUSTER_NAME,
+            replica_path,
+            attributes={"mode": "sync"},
+        )
+
+        replica_id2 = create_table_replica(
+            path,
+            "primary",
+            replica_path,
+            attributes={"mode": "sync"},
+        )
+
+        self._create_replica_table(replica_path, replica_id1, mount=False, schema=schema)
+        self._create_replica_table(replica_path, replica_id2, mount=False, schema=schema, replica_driver=self.primary_driver)
+
+        reshard_table(replica_path, pivot_keys, driver=self.replica_driver)
+        reshard_table(replica_path, pivot_keys)
+
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        sync_mount_table(path, target_cell_ids=primary_cells)
+        sync_mount_table(replica_path, target_cell_ids=primary_cells)
+        sync_mount_table(replica_path, target_cell_ids=replica_cells, driver=self.replica_driver)
+
+        return replica_cells, replica_path
+
+    def _get_data_driver(self):
+        return self.replica_driver
+
+    def _verify_rows(self, path, rows):
+        replica_path = f"{path}_replica"
+        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(4)]) == rows
+        assert lookup_rows(replica_path, [{"key": 10 * i + 1} for i in range(4)], driver=self.replica_driver) == rows

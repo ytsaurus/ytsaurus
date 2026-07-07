@@ -21,7 +21,7 @@ TLivePreview::TLivePreview(
     TNodeDirectoryPtr nodeDirectory,
     TLogger logger,
     TOperationId operationId,
-    TString name,
+    std::string name,
     TYPath path)
     : Schema_(std::move(schema))
     , NodeDirectory_(std::move(nodeDirectory))

@@ -298,7 +298,7 @@ private:
     bool CheckInvariants_ = true;
     std::string LoadSnapshotPath_;
     bool ReplayChangelogsFlag_ = false;
-    std::vector<TString> ReplayChangelogsPaths_;
+    std::vector<std::string> ReplayChangelogsPaths_;
     bool CellIdFlag_ = false;
     TCellId CellId_ = MakeWellKnownId(EObjectType::TabletCell, TCellTag(1));
     std::string TabletCellBundle_ = "fake-bundle";

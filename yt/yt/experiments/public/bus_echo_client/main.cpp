@@ -1,6 +1,7 @@
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/core/bus/bus.h>
+#include <yt/yt/core/bus/message_handler.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/client.h>
@@ -32,7 +33,9 @@ public:
 
     virtual void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
+        IBusPtr replyBus,
+        IDirectPlacementTransferPtr /*transfer*/,
+        TPacketId /*packetId*/) noexcept override
     {
         const auto& peer = replyBus->GetEndpointDescription();
         auto id = Counter_++;
@@ -167,10 +170,10 @@ protected:
     }
 
 private:
-    TString Address_;
-    TString CAFile_;
-    TString EncryptionMode_;
-    TString VerificationMode_;
+    std::string Address_;
+    std::string CAFile_;
+    std::string EncryptionMode_;
+    std::string VerificationMode_;
     bool Flood_ = false;
 };
 

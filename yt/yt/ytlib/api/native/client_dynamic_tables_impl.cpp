@@ -1658,7 +1658,7 @@ TDuration TClient::CheckPermissionsForQuery(
     };
 
     grabTablesFromQueryForPermissionCheck(fragment);
-    int numTables = permissionKeys.size();
+    int numTables = std::ssize(permissionKeys);
 
     if (options.ExecutionPool) {
         permissionKeys.push_back(NSecurityClient::TPermissionKey{
@@ -1674,14 +1674,14 @@ TDuration TClient::CheckPermissionsForQuery(
         .ValueOrThrow();
     YT_VERIFY(permissionKeys.size() == permissionCheckErrors.size());
 
-    for (int i = 0; i < std::ssize(permissionKeys); ++i) {
-        auto& error = permissionCheckErrors[i];
+    for (int index = 0; index < std::ssize(permissionKeys); ++index) {
+        auto& error = permissionCheckErrors[index];
         if (error.IsOK() || error.FindMatching(NYTree::EErrorCode::ResolveError)) {
             continue;
         }
 
-        if (i < numTables) {
-            const auto& key = permissionKeys[i];
+        if (index < numTables) {
+            const auto& key = permissionKeys[index];
             auto tableInfoOrError = WaitForFast(tableMountCache->GetTableInfo(key.Path));
             if (tableInfoOrError.IsOK()) {
                 const auto& tableInfo = tableInfoOrError.Value();
@@ -1800,6 +1800,9 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.ReadFrom = options.ReadFrom;
     queryOptions.EnableParallelizeUnorderedGroupBy = options.EnableParallelizeUnorderedGroupBy.value_or(
         enableParallelizeUnorderedGroupByDefault);
+    queryOptions.AllowReverseScanForOrderBy = queryConfig
+        ? queryConfig->AllowReverseScanForOrderBy.value_or(false)
+        : false;
 
     THROW_ERROR_EXCEPTION_UNLESS(queryOptions.RowsetProcessingBatchSize > 0,
         "Expected \"rowset_processing_batch_size\" > 0, found %v",
@@ -2199,7 +2202,10 @@ NYson::TYsonString TClient::DoExplainQuery(
         udfRegistryPath,
         options,
         memoryChunkProvider,
-        allowUnorderedGroupByWithLimit);
+        allowUnorderedGroupByWithLimit,
+        /*allowReverseScanForOrderBy*/ queryEngineConfig
+            ? queryEngineConfig->AllowReverseScanForOrderBy.value_or(false)
+            : false);
 }
 
 template <class TReq>
@@ -4146,6 +4152,15 @@ void TClient::DoAlterReplicationCard(
     }
     if (options.CollocationOptions) {
         req->set_collocation_options(ToProto(ConvertToYsonString(options.CollocationOptions)));
+    }
+    if (options.CreateSecondaryIndex) {
+        req->set_create_secondary_index(ConvertToYsonString(options.CreateSecondaryIndex).ToString());
+    }
+    if (options.DestroySecondaryIndex) {
+        ToProto(req->mutable_destroy_secondary_index(), options.DestroySecondaryIndex);
+    }
+    if (options.ProgressSecondaryIndexCorrespondence) {
+        req->set_progress_secondary_index_correspondence(ConvertToYsonString(options.ProgressSecondaryIndexCorrespondence).ToString());
     }
 
     auto result = WaitFor(req->Invoke());

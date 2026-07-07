@@ -38,7 +38,6 @@
 #include <yt/yt/ytlib/object_client/object_attribute_cache.h>
 
 #include <yt/yt/library/clickhouse_discovery/discovery.h>
-#include <yt/yt/library/clickhouse_discovery/discovery_v2.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 
@@ -164,7 +163,7 @@ public:
         YT_VERIFY(Config_->Discovery->Version == 2);
         auto groupId = (Config_->CliqueAlias.empty()) ? ToString(Config_->CliqueId) : Config_->CliqueAlias;
         Config_->Discovery->GroupId = "/chyt/" + groupId;
-        Discovery_ = CreateDiscoveryV2(
+        Discovery_ = CreateDiscovery(
             Config_->Discovery,
             Connection_,
             ChannelFactory_,

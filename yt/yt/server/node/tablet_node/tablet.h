@@ -233,7 +233,7 @@ struct TTabletSnapshot
     : public NTableClient::TTabletSnapshot
 {
     NHydra::TCellId CellId;
-    NHydra::ISimpleHydraManagerPtr HydraManager;
+    TWeakPtr<NHydra::ISimpleHydraManager> HydraManager;
     NTabletClient::TTabletId TabletId;
     std::string LoggingTag;
     NYPath::TYPath TablePath;

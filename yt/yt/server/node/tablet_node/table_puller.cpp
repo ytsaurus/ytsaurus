@@ -43,6 +43,7 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -75,7 +76,7 @@ DEFINE_ENUM(EPullerErrorKind,
 ////////////////////////////////////////////////////////////////////////////////
 
 inline static constexpr int TabletRowsPerRead = 1000;
-static const TString PullerErrorKindAttribute = "puller_error_kind";
+static const std::string PullerErrorKindAttribute = "puller_error_kind";
 
 inline static constexpr int PreviousIterationDurationSmoothingWeight = 4;
 inline static constexpr int CurrentIterationDurationSmoothingWeight = 1;
@@ -188,20 +189,25 @@ public:
     {
         Disable();
 
-        FiberFuture_ = BIND(&TTablePuller::FiberMain, MakeWeak(this))
-            .AsyncVia(Slot_->GetHydraManager()->GetAutomatonCancelableContext()->CreateInvoker(WorkerInvoker_))
-            .Run();
+        ReplicationExecutor_ = New<TPeriodicExecutor>(
+            Slot_->GetHydraManager()->GetAutomatonCancelableContext()->CreateInvoker(WorkerInvoker_),
+            BIND(&TTablePuller::OnReplicationTick, MakeWeak(this)),
+            TPeriodicExecutorOptions{
+                .Period = MountConfig_->ReplicationTickPeriod,
+                .DelayMode = EPeriodicExecutorDelayMode::FromPreviousStart,
+            });
+        ReplicationExecutor_->Start();
 
-        YT_LOG_INFO("Puller fiber started");
+        YT_LOG_INFO("Table puller enabled");
     }
 
     void Disable() override
     {
-        if (FiberFuture_) {
-            FiberFuture_.Cancel(TError("Puller disabled"));
-            YT_LOG_INFO("Puller fiber stopped");
+        if (auto executor = std::exchange(ReplicationExecutor_, nullptr)) {
+            YT_UNUSED_FUTURE(executor->Stop());
         }
-        FiberFuture_.Reset();
+
+        YT_LOG_INFO("Table puller disabled");
     }
 
     void BuildOrchidYson(NYTree::TFluentMap fluent) override
@@ -249,17 +255,7 @@ private:
     TPerFiberClusterClientCache ReplicatorClientCache_;
     TIterationTimeTracker ReplicationIterationTimeTracker_;
 
-    TFuture<void> FiberFuture_;
-
-    void FiberMain()
-    {
-        while (true) {
-            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TablePuller"));
-            NProfiling::TWallTimer timer;
-            FiberIteration();
-            TDelayedExecutor::WaitForDuration(MountConfig_->ReplicationTickPeriod - timer.GetElapsedTime());
-        }
-    }
+    TPeriodicExecutorPtr ReplicationExecutor_;
 
     void UpdatePullerErrors(TTabletErrors& tabletErrors, TError currentPullError)
     {
@@ -298,8 +294,10 @@ private:
         tabletErrors.BackgroundErrors[ETabletBackgroundActivity::Pull].Store(combinedError);
     }
 
-    void FiberIteration()
+    void OnReplicationTick()
     {
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TablePuller"));
+
         TTabletSnapshotPtr tabletSnapshot;
 
         try {

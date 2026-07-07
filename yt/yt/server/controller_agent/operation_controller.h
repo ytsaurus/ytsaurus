@@ -549,7 +549,7 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Controller invoker
      */
-    //virtual TString GetLoggingProgress() const = 0;
+    //virtual std::string GetLoggingProgress() const = 0;
 
     //! Called to get a cached YSON string representing the current progress.
     /*!
@@ -643,7 +643,7 @@ struct IOperationController
 
     virtual const std::vector<NScheduler::TJobShellPtr>& GetJobShells() const = 0;
 
-    virtual TString WriteCoreDump() const = 0;
+    virtual std::string WriteCoreDump() const = 0;
 
     virtual void RegisterOutputRows(i64 count, int tableIndex) = 0;
 

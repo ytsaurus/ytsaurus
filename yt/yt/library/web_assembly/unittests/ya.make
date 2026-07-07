@@ -42,4 +42,11 @@ PEERDIR(
 
 SIZE(MEDIUM)
 
+IF (NOT OPENSOURCE)
+    FROM_SANDBOX(
+        FILE 12661386116 OUT_NOAUTO libdtorilov-YT-28418.so
+    )
+    RESOURCE(libdtorilov-YT-28418.so libdtorilov-YT-28418.so)
+ENDIF()
+
 END()

@@ -60,7 +60,7 @@ public:
         : Config_(std::move(config))
         , Slot_(std::move(slot))
         , ObserveExecutor_(New<TPeriodicExecutor>(
-            Slot_->GetAutomatonInvoker(),
+            Slot_->GetGuardedAutomatonInvoker(),
             BIND(&TReplicationCardObserver::Observe, MakeWeak(this)),
             Config_->ObservationPeriod))
     { }
@@ -115,6 +115,9 @@ private:
                 ToProto(request.mutable_expired_replica_histories(), expiredHistories);
 
                 const auto& hydraManager = Slot_->GetHydraManager();
+                if (!hydraManager->IsActiveLeader()) {
+                    break;
+                }
                 auto mutation = CreateMutation(hydraManager, request);
                 YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
                 expiredHistories.clear();

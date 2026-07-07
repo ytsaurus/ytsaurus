@@ -21,7 +21,7 @@ namespace NYT::NExecNode {
 
 struct TVirtualSandboxData
 {
-    TString NbdDeviceId;
+    std::string NbdDeviceId;
     TArtifactKey ArtifactKey;
     NNbd::IImageReaderPtr Reader;
 };
@@ -40,7 +40,7 @@ struct TOverlayLayerPreparationOptions
 struct TSandboxNbdRootVolumeData
 {
     //! Identifier of NBD disk within NBD server.
-    TString DeviceId;
+    std::string DeviceId;
 
     //! Volume params.
     i64 Size = 0;

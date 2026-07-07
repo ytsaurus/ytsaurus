@@ -57,7 +57,7 @@ public:
         const THashSet<TGuid>& locationUuids);
 
     TFuture<void> FailDiskByName(
-        const TString& diskName,
+        const std::string& diskName,
         const TError& error);
 
     TFuture<void> UpdateDiskCache();

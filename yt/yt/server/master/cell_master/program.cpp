@@ -123,11 +123,11 @@ private:
     bool ExportSnapshotFlag_ = false;
     std::string LoadSnapshotPath_;
     bool ExportConfigFlag_ = false;
-    TString ExportConfigPath_;
+    std::string ExportConfigPath_;
     bool ReplayChangelogsFlag_ = false;
-    std::vector<TString> ReplayChangelogsPaths_;
+    std::vector<std::string> ReplayChangelogsPaths_;
     bool BuildSnapshotFlag_ = false;
-    TString BuildSnapshotPath_;
+    std::string BuildSnapshotPath_;
     bool AbortOnAlert_ = false;
     bool CheckInvariants_ = true;
     bool SkipTvmServiceEnvValidationFlag_ = false;

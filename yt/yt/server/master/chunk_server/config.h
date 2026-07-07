@@ -567,6 +567,8 @@ struct TDynamicSequoiaChunkReplicasConfig
     int MaxLocationsAwaitingRefresh;
     int MaxUnsuccessfulLocationRefreshAttempts;
 
+    bool ScheduleChunkSealInSequoiaChunkRefresh;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
     static void Register(TRegistrar registrar);
@@ -865,6 +867,8 @@ struct TDynamicChunkManagerConfig
 
     // COMPAT(koloshmet)
     bool UpdateHistoricallyNonVitalInUnexport;
+
+    bool AllowOffshoreMedia;
 
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 

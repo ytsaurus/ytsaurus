@@ -12,9 +12,9 @@ struct TValueExample
 {
     TLogicalTypePtr LogicalType;
     NNamedValue::TNamedValue::TValue Value;
-    TString PrettyYson;
+    std::string PrettyYson;
 
-    TValueExample(TLogicalTypePtr logicalType, NNamedValue::TNamedValue::TValue value, TString prettyYson);
+    TValueExample(TLogicalTypePtr logicalType, NNamedValue::TNamedValue::TValue value, std::string prettyYson);
 };
 
 std::vector<TValueExample> GetPrimitiveValueExamples();

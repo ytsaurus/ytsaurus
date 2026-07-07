@@ -33,8 +33,8 @@ int main(int argc, const char** argv)
         return 1;
     }
 
-    TString oldSchemaText = TFileInput(argv[1]).ReadAll();
-    TString newSchemaText = TFileInput(argv[2]).ReadAll();
+    std::string oldSchemaText = TFileInput(argv[1]).ReadAll();
+    std::string newSchemaText = TFileInput(argv[2]).ReadAll();
 
     auto oldSchema = ConvertTo<TTableSchemaPtr>(TYsonStringBuf(oldSchemaText));
     auto newSchema = ConvertTo<TTableSchemaPtr>(TYsonStringBuf(newSchemaText));

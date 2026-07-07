@@ -45,10 +45,12 @@ const auto BasicIndexSchema = New<TTableSchema>(std::vector{
     TColumnSchema("$empty", EValueType::Int64),
 }, true, true);
 
-const TIndexInfo DefaultIndexInfo = {
-    .Kind = ESecondaryIndexKind::FullSync,
-    .Correspondence = ETableToIndexCorrespondence::Bijective,
-};
+const TIndexInfo DefaultIndexInfo = [] {
+    TIndexInfo info;
+    info.Kind = ESecondaryIndexKind::FullSync;
+    info.Correspondence = ETableToIndexCorrespondence::Bijective;
+    return info;
+}();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,16 +129,16 @@ public:
             .Locks = {},
             .SequentialId = 0,
         };
+        auto indexInfo = TIndexInfo();
+        indexInfo.Kind = kind;
+        indexInfo.EvaluatedColumnsSchema = std::move(evaluatedColumns);
 
         auto modifications = Run(
             std::move(tableSchema),
             std::move(indexSchema),
             TRange(&modification, 1),
             {},
-            TIndexInfo{
-                .Kind = kind,
-                .EvaluatedColumnsSchema = std::move(evaluatedColumns),
-            });
+            indexInfo);
 
         THROW_ERROR_EXCEPTION_IF(modifications.Size() != 1,
             "Expected a single index modification, got %v",
@@ -521,15 +523,16 @@ TEST_F(TSecondaryIndexTest, EvaluatedColumns)
         TColumnSchema("eva2", EValueType::Int64).SetExpression("-value1"),
     });
 
+    auto indexInfo = TIndexInfo();
+    indexInfo.Kind = ESecondaryIndexKind::FullSync;
+    indexInfo.EvaluatedColumnsSchema = std::move(evaluatedColumns);
+
     Run(
         std::move(tableSchema),
         std::move(indexSchema),
         {},
         {},
-        TIndexInfo{
-            .Kind = ESecondaryIndexKind::FullSync,
-            .EvaluatedColumnsSchema = std::move(evaluatedColumns),
-        });
+        indexInfo);
 }
 
 TEST_F(TSecondaryIndexTest, UnfoldingDifferentNames)
@@ -556,18 +559,16 @@ TEST_F(TSecondaryIndexTest, UnfoldingDifferentNames)
         .SequentialId=0,
     };
 
+    auto indexInfo = TIndexInfo();
+    indexInfo.Kind = ESecondaryIndexKind::Unfolding;
+    indexInfo.UnfoldedColumns = TUnfoldedColumns("values", "value");
+
     auto indexModifications = Run(
         std::move(tableSchema),
         std::move(indexSchema),
         TRange(&modification, 1),
         {},
-        TIndexInfo{
-            .Kind = ESecondaryIndexKind::Unfolding,
-            .UnfoldedColumns = TUnfoldedColumns{
-                .TableColumn = "values",
-                .IndexColumn = "value",
-            },
-        });
+        indexInfo);
 
     EXPECT_EQ(indexModifications.size(), 4ul);
 }
@@ -601,19 +602,17 @@ TEST_F(TSecondaryIndexTest, UnfoldingDifferentNamesEvaluated)
         .SequentialId=0,
     };
 
+    auto indexInfo = TIndexInfo();
+    indexInfo.Kind = ESecondaryIndexKind::Unfolding;
+    indexInfo.UnfoldedColumns = TUnfoldedColumns("values_evaluated", "value");
+    indexInfo.EvaluatedColumnsSchema = std::move(evaluatedColumns);
+
     auto indexModifications = Run(
         std::move(tableSchema),
         std::move(indexSchema),
         TRange(&modification, 1),
         {},
-        TIndexInfo{
-            .Kind = ESecondaryIndexKind::Unfolding,
-            .UnfoldedColumns = TUnfoldedColumns{
-                .TableColumn = "values_evaluated",
-                .IndexColumn = "value",
-            },
-            .EvaluatedColumnsSchema = std::move(evaluatedColumns),
-        });
+        indexInfo);
 
     EXPECT_EQ(indexModifications.size(), 4ul);
 }

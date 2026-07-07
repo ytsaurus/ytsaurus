@@ -845,7 +845,6 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto getAccountTag = [&] (TAccountId accountId) {
         auto* account = securityManager->FindAccount(accountId);
-        // TODO(babenko): switch to std::string
         return IsObjectAlive(account) ? account->GetName() : std::string(Format("<%v>", accountId));
     };
 
@@ -2233,7 +2232,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
                 chunkIds,
                 newChunkId,
                 accountId);
-            updateFailedReplacements(1);
+            updateFailedReplacements(replacementCount - chunkReplacementsSucceeded);
             break;
         }
     }
@@ -2366,6 +2365,7 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
 
         const auto& config = GetDynamicConfig();
         if (config->RescheduleMergeOnSuccess && result == EMergeSessionResult::OK && jobCount > 0) {
+            RemoveNodeFromRescheduleMaps(accountId, nodeId);
             ScheduleMerge(nodeId);
             continue;
         }

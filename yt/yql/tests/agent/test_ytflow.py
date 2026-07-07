@@ -12,7 +12,7 @@ import library.python.ydb.federated_topic_client as federated_topic_client
 
 import yt.yson as yson
 
-from yt.yt.experiments.private.flow.yandex.extensions.monium.python.mock import _MoniumServerMock
+from yt.yt.flow.yandex.extensions.monium.python.mock import _MoniumServerMock
 
 import logbroker.tools.lib.recipe_helpers.cm_requests as cm_requests
 from logbroker.public.api.admin import config_manager_admin_pb2
@@ -355,6 +355,7 @@ class TestYtflowBase(TestQueueAgentBase):
                 dict(name='_LogbrokerConfigManagerPollingPeriod', value='100ms'),
                 dict(name='_SwitchComputationNodeBufferSizeBytes', value='0'),
                 dict(name='_RunVanillaOperation', value=str(run_vanilla_operation)),
+                dict(name='_MoniumDriverSecure', value='false'),
             ],
             cluster_mapping=[dict(
                 name=cls.Env.id,

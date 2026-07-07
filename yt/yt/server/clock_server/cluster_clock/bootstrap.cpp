@@ -46,6 +46,8 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
@@ -272,10 +274,14 @@ void TBootstrap::DoStart()
 
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+    if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+        HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+    }
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
+        HttpsServer_,
         ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
@@ -304,6 +310,10 @@ void TBootstrap::DoStart()
         CreateVirtualNode(CreateCellOrchidService()));
 
     HttpServer_->Start();
+    if (HttpsServer_) {
+        YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+        HttpsServer_->Start();
+    }
 
     YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
     RpcServer_->RegisterService(CreateOrchidService(

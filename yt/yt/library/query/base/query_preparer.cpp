@@ -348,12 +348,13 @@ void PrepareQuery(
 
         bool canReverseScanForOrderBy = false;
         if (!canOmitOrderBy &&
-            !query->GroupClause &&
             builder->GetContext().Options.AllowReverseScanForOrderBy)
         {
             canReverseScanForOrderBy = CanReverseScanForOrderBy(
+                /*fixedKeyPrefix*/ 0,
                 query->OrderClause->OrderItems,
-                query->GetKeyColumns());
+                query->GetKeyColumns(),
+                query->GroupClause);
         }
 
         if (canReverseScanForOrderBy) {
@@ -1096,9 +1097,9 @@ void RewriteCardinalityIntoHyperLogLogWithPrecision(
 
     if (auto* subquery = std::get_if<NAst::TQueryAstHeadPtr>(&ast->FromClause); subquery) {
         RewriteCardinalityIntoHyperLogLogWithPrecision(
-            &subquery->Get()->Ast,
-            &subquery->Get()->AliasMap,
-            subquery->Get(),
+            &(*subquery)->Ast,
+            &(*subquery)->AliasMap,
+            holder,
             hyperLogLogPrecision);
     }
 

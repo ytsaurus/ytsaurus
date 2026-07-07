@@ -31,7 +31,7 @@ void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& de
 ////////////////////////////////////////////////////////////////////////////////
 
 TTraceContextGuard CreateOperationTraceContextGuard(
-    TString spanName,
+    std::string spanName,
     TOperationId operationId)
 {
     auto traceContext = CreateTraceContextFromCurrent(std::move(spanName));

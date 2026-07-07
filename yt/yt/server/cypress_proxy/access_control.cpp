@@ -226,7 +226,7 @@ public:
         EPermission permission,
         const TMatchAceSubjectCallback* matchAceSubjectCallback,
         const TPermissionCheckBasicOptions* options)
-        : Underlying_(permission, *matchAceSubjectCallback, options)
+        : Underlying_(permission, *matchAceSubjectCallback, options, /*checkAllAceColumnsFullRead*/ true)
     { }
 
     void Put(const TAccessControlDescriptor* acd)

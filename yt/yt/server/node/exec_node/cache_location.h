@@ -59,7 +59,7 @@ class TCacheLocation
 {
 public:
     TCacheLocation(
-        TString id,
+        std::string id,
         NDataNode::TCacheLocationConfigPtr config,
         const NClusterNode::IBootstrap* bootstrap,
         TArtifactCachePtr artifactCache);

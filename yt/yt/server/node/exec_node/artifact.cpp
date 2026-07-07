@@ -178,8 +178,8 @@ bool TArtifactKey::operator==(const TArtifactKey& other) const
         return false;
 
     if (data_source().has_column_filter()) {
-        auto lhsColumns = FromProto<std::vector<TString>>(data_source().column_filter().admitted_names());
-        auto rhsColumns = FromProto<std::vector<TString>>(other.data_source().column_filter().admitted_names());
+        auto lhsColumns = FromProto<std::vector<std::string>>(data_source().column_filter().admitted_names());
+        auto rhsColumns = FromProto<std::vector<std::string>>(other.data_source().column_filter().admitted_names());
         if (lhsColumns != rhsColumns) {
             return false;
         }
@@ -269,14 +269,14 @@ bool TArtifactKey::operator==(const TArtifactKey& other) const
     return true;
 }
 
-TString TArtifactKey::GetRuntimeGuid() const
+std::string TArtifactKey::GetRuntimeGuid() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     // It is a global cache with unique artifact ids of a bounded size CacheMaxSize. It is
     // hoped for that the number of unique TArtifactKey keys will rarely exceed CacheMaxSize.
     static constexpr size_t CacheMaxSize = 100'000;
-    static TSimpleLruCache<TArtifactKey, TString> Cache(CacheMaxSize);
+    static TSimpleLruCache<TArtifactKey, std::string> Cache(CacheMaxSize);
     static YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CacheLock);
 
     // NB. It is all right that guids can be evicted.

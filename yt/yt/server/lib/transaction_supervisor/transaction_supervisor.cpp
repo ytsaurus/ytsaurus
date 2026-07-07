@@ -1551,6 +1551,8 @@ private:
                     return;
                 }
 
+                // Best effort to reduce duration of transient locks for
+                // trasnsaction which will be unlikely to be committed.
                 SetCommitFailed(commit, errorOrResponse);
                 RemoveTransientCommit(commit);
             }).Via(EpochAutomatonInvoker_));

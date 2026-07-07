@@ -66,6 +66,11 @@ TMaybeUnreachableResolveResult ResolvePathWithUnreachableResultAllowed(
     TStringBuf service,
     TStringBuf method);
 
+//! Sometimes full resolve is not needed but object ID still has to be parsed
+//! and validated.
+//! Returns null ID on failure.
+NCypressClient::TNodeId TryParseTargetObjectId(NYPath::TYPath path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressProxy

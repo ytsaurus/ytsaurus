@@ -127,7 +127,7 @@ template <class T>
 T ParseEnumArgMapper(TStringBuf arg);
 
 //! Helper for TOpt::StoreMappedResult to parse YSON strings.
-NYson::TYsonString CheckYsonArgMapper(const TString& arg);
+NYson::TYsonString CheckYsonArgMapper(const std::string& arg);
 
 //! Drop privileges and save them if running with suid-bit.
 void ConfigureUids();

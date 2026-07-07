@@ -742,7 +742,7 @@ class TestJournalsSequoia(TestJournalsMulticell):
     }
 
 
-class TestJournalsSequoiaReplicasWithValidation(TestJournals):
+class TestJournalsMasterAndSequoiaJournalReplicas(TestJournalsMulticell):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
 
@@ -752,6 +752,7 @@ class TestJournalsSequoiaReplicasWithValidation(TestJournals):
             "sequoia_chunk_replicas": {
                 "enable": True,
                 "enable_sequoia_chunk_refresh": True,
+                "schedule_chunk_seal_in_sequoia_refresh": True,
                 "sequoia_chunk_refresh_period": 100,
                 "batch_chunk_confirmation": True,
                 "journal_chunk_replicas": {
@@ -813,17 +814,7 @@ class TestJournalsSequoiaReplicasWithValidation(TestJournals):
         wait(check)
 
 
-class TestJournalsSequoiaReplicasMulticellWithValidation(TestJournalsSequoiaReplicasWithValidation):
-    ENABLE_MULTIDAEMON = False
-    NUM_SECONDARY_MASTER_CELLS = 2
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
-
-class TestJournalsOnlySequoiaReplicasMulticell(TestJournalsSequoiaReplicasWithValidation):
+class TestJournalsOnlySequoiaJournalReplicas(TestJournalsMasterAndSequoiaJournalReplicas):
     ENABLE_MULTIDAEMON = False
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -838,6 +829,7 @@ class TestJournalsOnlySequoiaReplicasMulticell(TestJournalsSequoiaReplicasWithVa
             "sequoia_chunk_replicas": {
                 "enable": True,
                 "enable_sequoia_chunk_refresh": True,
+                "schedule_chunk_seal_in_sequoia_refresh": True,
                 "sequoia_chunk_refresh_period": 100,
                 "batch_chunk_confirmation": True,
                 "journal_chunk_replicas": {
@@ -1201,6 +1193,7 @@ class TestChunkAutotomizer(TestJournalsBase):
         )
 
         body_chunk_id = get("//tmp/j/@chunk_ids/0")
+        wait(lambda: len(self._find_replicas_with_length(body_chunk_id, 7)) > 0)
         replica = self._find_replicas_with_length(body_chunk_id, 7)[0]
 
         set_node_banned(replica, True)
@@ -1291,6 +1284,7 @@ class TestChunkAutotomizer(TestJournalsBase):
 
     @authors("gritukan")
     @pytest.mark.parametrize("build_snapshot", [False, True])
+    @pytest.mark.timeout(120)
     def test_master_restart(self, build_snapshot):
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
@@ -1309,7 +1303,7 @@ class TestChunkAutotomizer(TestJournalsBase):
         master_exit_read_only_sync()
 
         self._set_fail_jobs(False)
-        wait(lambda: self._check_simple_journal(), ignore_exceptions=True)
+        wait(lambda: self._check_simple_journal(), ignore_exceptions=True, timeout=90)
 
     @authors("gritukan")
     def test_abandon_autotomy(self):

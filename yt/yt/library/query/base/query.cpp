@@ -813,6 +813,15 @@ std::string InferName(TConstBaseQueryPtr query, const TInferNameOptions& options
             }
         }
 
+        for (const auto& hierarchicalJoin : derivedQuery->HierarchicalJoinsInWhereClause) {
+            clauses.push_back(Format(
+                "%v HIERARCHICAL JOIN IN WHERE [result: %v, keys: %v, subquery: %v]",
+                hierarchicalJoin->IsLeft ? "LEFT" : "INNER",
+                hierarchicalJoin->ResultColumnName,
+                InferName(hierarchicalJoin->SelfSideJoinKeys, options),
+                InferName(hierarchicalJoin->JoiningSubquery, options)));
+        }
+
         for (const auto& hierarchicalJoin : derivedQuery->HierarchicalJoinsBeforeGroupBy) {
             clauses.push_back(Format(
                 "%v HIERARCHICAL JOIN [result: %v, keys: %v, subquery: %v]",
@@ -1869,6 +1878,7 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
     ToProto(serialized->mutable_schema_mapping(), original->Schema.Mapping);
 
     ToProto(serialized->mutable_join_clauses(), original->JoinClauses);
+    ToProto(serialized->mutable_hierarchical_joins_in_where_clause(), original->HierarchicalJoinsInWhereClause);
     ToProto(serialized->mutable_hierarchical_joins_before_group_by(), original->HierarchicalJoinsBeforeGroupBy);
     ToProto(serialized->mutable_hierarchical_joins_after_group_by(), original->HierarchicalJoinsAfterGroupBy);
 
@@ -1908,6 +1918,7 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
     FromProto(&result->Schema.Mapping, serialized.schema_mapping());
 
     FromProto(&result->JoinClauses, serialized.join_clauses());
+    FromProto(&result->HierarchicalJoinsInWhereClause, serialized.hierarchical_joins_in_where_clause());
     FromProto(&result->HierarchicalJoinsBeforeGroupBy, serialized.hierarchical_joins_before_group_by());
     FromProto(&result->HierarchicalJoinsAfterGroupBy, serialized.hierarchical_joins_after_group_by());
 

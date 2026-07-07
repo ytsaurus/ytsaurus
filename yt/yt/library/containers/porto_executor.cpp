@@ -571,6 +571,7 @@ private:
 
     void DoCreateContainer(const std::string& container)
     {
+        // TODO(babenko): drop cast once Porto API accepts std::string.
         ExecuteApiCall(
             [&] { return Api_->Create(TString(container)); },
             "Create",
@@ -738,6 +739,7 @@ private:
 
     void DoSetContainerProperty(const std::string& container, const std::string& property, const std::string& value)
     {
+        // TODO(babenko): drop cast once Porto API accepts std::string.
         ExecuteApiCall(
             [&] { return Api_->SetProperty(TString(container), TString(property), TString(value)); },
             "SetProperty",
@@ -747,6 +749,7 @@ private:
     void DoDestroyContainer(const std::string& container)
     {
         try {
+            // TODO(babenko): drop cast once Porto API accepts std::string.
             ExecuteApiCall(
                 [&] { return Api_->Destroy(TString(container)); },
                 "Destroy",
@@ -760,6 +763,7 @@ private:
 
     void DoStopContainer(const std::string& container)
     {
+        // TODO(babenko): drop cast once Porto API accepts std::string.
         ExecuteApiCall(
             [&] { return Api_->Stop(TString(container)); },
             "Stop",
@@ -768,6 +772,7 @@ private:
 
     void DoStartContainer(const std::string& container)
     {
+        // TODO(babenko): drop cast once Porto API accepts std::string.
         ExecuteApiCall(
             [&] { return Api_->Start(TString(container)); },
             "Start",
@@ -776,6 +781,7 @@ private:
 
     void DoRespawnContainer(const std::string& container)
     {
+        // TODO(babenko): drop cast once Porto API accepts std::string.
         ExecuteApiCall(
             [&] { return Api_->Respawn(TString(container)); },
             "Respawn",
@@ -784,6 +790,7 @@ private:
 
     std::string DoConvertPath(const std::string& path, const std::string& container)
     {
+        // TODO(babenko): drop cast once Porto API accepts std::string.
         TString result;
         ExecuteApiCall(
             [&] { return Api_->ConvertPath(TString(path), TString(container), "self", result); },
@@ -794,6 +801,7 @@ private:
 
     void DoKillContainer(const std::string& container, int signal)
     {
+        // TODO(babenko): drop cast once Porto API accepts std::string.
         ExecuteApiCall(
             [&] { return Api_->Kill(TString(container), signal); },
             "Kill",

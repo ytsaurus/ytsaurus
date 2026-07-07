@@ -1286,6 +1286,22 @@ private:
             immediate ? TDuration::Zero() : Config_->SchedulerHandshakeFailureBackoff);
     }
 
+    template <class TCallback>
+    bool RunGuarded(const TCallback& callback)
+    {
+        try {
+            callback();
+            return true;
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error connecting to scheduler");
+
+            SchedulerDisconnected_.Fire();
+            DoCleanup();
+            ScheduleConnect(false);
+            return false;
+        }
+    }
+
     void DoConnect()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -1293,24 +1309,18 @@ private:
         YT_VERIFY(ConnectScheduled_);
         ConnectScheduled_ = false;
 
-        try {
-            OnConnecting();
-            SyncClusterDirectory();
-            SyncMediumDirectory();
-            SyncMasterCellDirectory();
-            UpdateConfig();
-            PerformHandshake();
-            OnConnected();
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error connecting to scheduler");
-
-            SchedulerDisconnected_.Fire();
-            DoCleanup();
-            ScheduleConnect(false);
+        auto connected = RunGuarded([&] {
+            StartConnecting();
+        });
+        if (connected) {
+            // Run the rest of the connection sequence on the cancelable control
+            // invoker so that a disconnect aborts it.
+            CancelableControlInvoker_->Invoke(
+                BIND(&TImpl::DoConnectCancelable, MakeStrong(this)));
         }
     }
 
-    void OnConnecting()
+    void StartConnecting()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -1332,10 +1342,21 @@ private:
                 error,
                 "Unexpected failure in job tracker initialization");
         }
+    }
 
-        SwitchTo(CancelableControlInvoker_);
+    void DoConnectCancelable()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        SchedulerConnecting_.Fire();
+        RunGuarded([&] {
+            SchedulerConnecting_.Fire();
+            SyncClusterDirectory();
+            SyncMediumDirectory();
+            SyncMasterCellDirectory();
+            UpdateConfig();
+            PerformHandshake();
+            OnConnected();
+        });
     }
 
     void SyncClusterDirectory()
@@ -1955,8 +1976,7 @@ private:
                 auto scheduleAllocationInvoker = controller->GetCancelableInvoker(Config_->ScheduleAllocationControllerQueue);
                 auto requestDequeueInstant = TInstant::Now();
 
-                GuardedInvoke(
-                    scheduleAllocationInvoker,
+                scheduleAllocationInvoker->Invoke(MakeGuardedCallback(
                     BIND([=, rsp = rsp, this, this_ = MakeStrong(this)] {
                         TTraceContextFinishGuard guard(TryGetCurrentTraceContext());
 
@@ -2043,7 +2063,7 @@ private:
                             operationId,
                             allocationId,
                             EScheduleFailReason::UnknownOperation);
-                    }));
+                    })));
             });
     }
 

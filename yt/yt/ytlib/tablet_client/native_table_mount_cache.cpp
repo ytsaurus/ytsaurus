@@ -27,6 +27,7 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/client/tablet_client/index_info.h>
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/tablet_client/table_mount_cache_detail.h>
 
@@ -65,6 +66,9 @@ using namespace NApi::NNative;
 
 using NNative::IConnection;
 using NNative::IConnectionPtr;
+
+using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -421,26 +425,20 @@ private:
 
             tableInfo->Indices.reserve(rsp->indices_size());
             for (const auto& protoIndexInfo : rsp->indices()) {
-                auto indexInfo = TIndexInfo{
-                    .TableId = FromProto<TObjectId>(protoIndexInfo.index_table_id()),
-                    .Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind()),
-                    .Predicate = YT_OPTIONAL_FROM_PROTO(protoIndexInfo, predicate),
-                    .Correspondence = protoIndexInfo.has_index_correspondence()
-                        ? FromProto<ETableToIndexCorrespondence>(protoIndexInfo.index_correspondence())
-                        : ETableToIndexCorrespondence::Unknown,
-                };
+                TIndexInfo indexInfo;
+                indexInfo.IndexObjectId = FromProto<TObjectId>(protoIndexInfo.index_table_id());
+                indexInfo.Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind());
+                indexInfo.Predicate = YT_OPTIONAL_FROM_PROTO(protoIndexInfo, predicate);
+                indexInfo.Correspondence = protoIndexInfo.has_index_correspondence()
+                    ? FromProto<ETableToIndexCorrespondence>(protoIndexInfo.index_correspondence())
+                    : ETableToIndexCorrespondence::Unknown;
 
-                if (protoIndexInfo.has_unfolded_columns()) {
-                    indexInfo.UnfoldedColumns = {
-                        .TableColumn = protoIndexInfo.unfolded_columns().table_column(),
-                        .IndexColumn = protoIndexInfo.unfolded_columns().index_column(),
-                    };
-                } else if (protoIndexInfo.has_unfolded_column()) {
-                    // COMPAT(sabdenovch)
-                    indexInfo.UnfoldedColumns = {
-                        .TableColumn = protoIndexInfo.unfolded_column(),
-                        .IndexColumn = protoIndexInfo.unfolded_column(),
-                    };
+                indexInfo.UnfoldedColumns = YT_OPTIONAL_FROM_PROTO(protoIndexInfo, unfolded_columns, TUnfoldedColumns);
+                // COMPAT(sabdenovch)
+                if (protoIndexInfo.has_unfolded_column()) {
+                    indexInfo.UnfoldedColumns = TUnfoldedColumns(
+                        protoIndexInfo.unfolded_column(),
+                        protoIndexInfo.unfolded_column());
                 }
 
                 if (protoIndexInfo.has_evaluated_columns_schema()) {

@@ -427,7 +427,7 @@ void TGpuManager::OnHealthCheck()
             }
 
             if (size(newFreeSlotIndices) > size(FreeSlots_)) {
-                Bootstrap_->GetJobResourceManager()->OnNewSlotsAvailable();
+                Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
             }
 
             FreeSlots_ = std::move(newFreeSlotIndices);
@@ -752,7 +752,7 @@ std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
     }
 }
 
-void TGpuManager::VerifyCudaToolkitDriverVersion(const TString& toolkitVersion)
+void TGpuManager::VerifyCudaToolkitDriverVersion(const std::string& toolkitVersion)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

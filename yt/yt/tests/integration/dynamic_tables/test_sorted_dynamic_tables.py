@@ -2217,7 +2217,7 @@ class TestSortedDynamicTablesSequoia(TestSortedDynamicTablesMulticell):
 
 
 @pytest.mark.enable_multidaemon
-class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
+class TestWriteRetries(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -2244,21 +2244,23 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
         },
     }
 
-    def _prepare_test(self, path, failure_probability=0.2, retry_count=3):
-        set("//sys/rpc_proxies/@config", {
-            "cluster_connection": {
-                "local_tablet_write_retry_count": retry_count,
-                "use_uniform_prepare_signatures": True,
-            },
-        })
-
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "tablet_cell_write_manager": {
-                    "failure_probability_before_write": failure_probability,
+    def _configure_retries(self, failure_probability, retry_count):
+        for driver in {None, self._get_data_driver()}:
+            update_nodes_dynamic_config({
+                "tablet_node": {
+                    "tablet_cell_write_manager": {
+                        "failure_probability_before_write": failure_probability,
+                    },
                 },
-            },
-        })
+            }, driver=driver)
+
+        connection_patch = {
+            "local_tablet_write_retry_count": retry_count,
+            "use_uniform_prepare_signatures": True,
+        }
+
+        for key, value in connection_patch.items():
+            set(f"//sys/rpc_proxies/@config/cluster_connection/{key}", value)
 
         proxy_name = ls("//sys/rpc_proxies")[0]
 
@@ -2266,6 +2268,15 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
             config = get(f"//sys/rpc_proxies/{proxy_name}/orchid/dynamic_config_manager/effective_config")
             return config["cluster_connection"]["local_tablet_write_retry_count"] == retry_count
         wait(config_updated)
+
+        cluster_names = self.get_cluster_names()
+        if len(cluster_names) > 1:
+            assert len(cluster_names) == 2
+            for key, value in connection_patch.items():
+                set(f"//sys/clusters/{cluster_names[1]}/{key}", value)
+
+    def _prepare_test(self, path, failure_probability, retry_count):
+        self._configure_retries(failure_probability, retry_count)
 
         cell_ids = sync_create_cells(cell_count=4)
         schema = [
@@ -2279,15 +2290,25 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
 
         sync_mount_table(path, target_cell_ids=cell_ids)
 
-        return cell_ids
+        return cell_ids, path
+
+    def _get_data_driver(self):
+        return None
+
+    def _verify_rows(self, path, rows):
+        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(4)]) == rows
 
     @authors("alexelexa")
     def test_first_batch_write_retries_after_tablet_moving(self):
         path = "//tmp/tablet_move"
-        cell_ids = self._prepare_test(path, failure_probability=0.)
+        cell_ids, data_path = self._prepare_test(path, failure_probability=0., retry_count=3)
+
+        insert_rows(path, [{"key": 1, "value": 1}], update=True)
+
+        data_driver = self._get_data_driver()
         tx1 = start_transaction(type="tablet")
 
-        insert_rows(path, [{"key": 1, "value": 1}], update=True, tx=tx1)
+        insert_rows(path, [{"key": 1, "value": 2}], update=True, tx=tx1)
 
         action = create(
             "tablet_action",
@@ -2296,29 +2317,32 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
                 "kind": "smooth_move",
                 "skip_freezing": True,
                 "keep_finished": True,
-                "tablet_ids": [get(f"{path}/@tablets/0/tablet_id")],
+                "tablet_ids": [get(f"{data_path}/@tablets/0/tablet_id", driver=data_driver)],
                 "cell_ids": [cell_ids[1]],
             },
+            driver=data_driver,
         )
 
-        assert action == ls("//sys/tablet_actions")[0]
-        wait(lambda: get(f"#{action}/@state") == "completed")
+        assert action == ls("//sys/tablet_actions", driver=data_driver)[0]
+        wait(lambda: get(f"#{action}/@state", driver=data_driver) == "completed")
 
         commit_transaction(tx1)
 
     @authors("alexelexa")
     def test_first_batch_write_retries(self):
         path = "//tmp/simple"
-        cell_ids = self._prepare_test(path, failure_probability=0.2, retry_count=10)
+        cell_ids, _ = self._prepare_test(path, failure_probability=0.2, retry_count=10)
+        data_driver = self._get_data_driver()
         peers = defaultdict(list)
+
         for cell_id in cell_ids:
-            peer = get(f"//sys/tablet_cells/{cell_id}/@peers/0/address")
+            peer = get(f"//sys/tablet_cells/{cell_id}/@peers/0/address", driver=data_driver)
             peers[peer].append(cell_id)
 
         peer = max(peers, key=lambda k: len(peers[k]))
-        set_node_banned(peer, True)
+        set_node_banned(peer, True, driver=data_driver)
 
-        wait_for_cells(peers[peer], decommissioned_addresses=[peer])
+        wait_for_cells(peers[peer], decommissioned_addresses=[peer], driver=data_driver)
 
         # Writes rows to multiple tablets, some of which are on recently moved cells.
         # Sending the first batch for some tablets may fail with "Test error before write call execution".
@@ -2339,9 +2363,9 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
                     raise
             time.sleep(2)
 
-        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(4)]) == rows
+        self._verify_rows(path, rows)
 
-        set_node_banned(peer, False)
+        set_node_banned(peer, False, driver=data_driver)
 
 
 class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):

@@ -55,8 +55,6 @@ class TTabletCellWriteManager
     : public ITabletCellWriteManager
     , public TTabletAutomatonPart
 {
-    DEFINE_SIGNAL_OVERRIDE(void(TTablet*), ReplicatorWriteTransactionFinished);
-
 public:
     TTabletCellWriteManager(
         ITabletCellWriteManagerHostPtr host,
@@ -336,7 +334,7 @@ public:
                 auto mutation = CreateMutation(HydraManager_, hydraRequest);
                 mutation->SetHandler(BIND_NO_PROPAGATE(
                     &TTabletCellWriteManager::HydraLeaderWriteRows,
-                    MakeWeak(this),
+                    MakeStrong(this),
                     params.TransactionId,
                     tablet->GetMountRevision(),
                     mutationPrepareSignature,

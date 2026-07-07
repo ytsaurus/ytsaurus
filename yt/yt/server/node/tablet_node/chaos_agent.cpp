@@ -24,7 +24,7 @@
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
@@ -77,45 +77,44 @@ public:
 
     void Enable() override
     {
-        YT_LOG_DEBUG("Starting chaos agent (ReplicationTickPeriod: %v, ReplicationProgressUpdateTickPeriod: %v)",
-            MountConfig_->ReplicationTickPeriod,
-            MountConfig_->ReplicationProgressUpdateTickPeriod);
-
         const auto& epochAutomatonInvoker = Tablet_->GetEpochAutomatonInvoker();
         SelfInvoker_.Store(epochAutomatonInvoker);
-        FiberFuture_ = BIND(
-            &TChaosAgent::FiberMain,
-            MakeWeak(this),
-            BIND_NO_PROPAGATE(&TChaosAgent::FiberIteration, MakeWeak(this)),
-            MountConfig_->ReplicationTickPeriod)
-            .AsyncVia(epochAutomatonInvoker)
-            .Run();
+        UpdateReplicationCardExecutor_ = New<TPeriodicExecutor>(
+            epochAutomatonInvoker,
+            BIND(&TChaosAgent::OnUpdateReplicationCardTick, MakeWeak(this)),
+            TPeriodicExecutorOptions{
+                .Period = MountConfig_->ReplicationTickPeriod,
+                .DelayMode = EPeriodicExecutorDelayMode::FromPreviousStart,
+            });
+        UpdateReplicationCardExecutor_->Start();
 
-        ProgressReporterFiberFuture_ = BIND(
-            &TChaosAgent::FiberMain,
-            MakeWeak(this),
-            BIND_NO_PROPAGATE(&TChaosAgent::ReportUpdatedReplicationProgress,
-            MakeWeak(this)),
-            MountConfig_->ReplicationProgressUpdateTickPeriod)
-            .AsyncVia(epochAutomatonInvoker)
-            .Run();
+        ReplicationProgressExecutor_ = New<TPeriodicExecutor>(
+            epochAutomatonInvoker,
+            BIND(&TChaosAgent::OnReplicationProgressTick, MakeWeak(this)),
+            TPeriodicExecutorOptions{
+                .Period = MountConfig_->ReplicationProgressUpdateTickPeriod,
+                .DelayMode = EPeriodicExecutorDelayMode::FromPreviousStart,
+            });
+        ReplicationProgressExecutor_->Start();
 
-        YT_LOG_INFO("Chaos agent fiber started");
+        YT_LOG_INFO("Chaos agent enabled (ReplicationTickPeriod: %v, ReplicationProgressUpdateTickPeriod: %v)",
+            MountConfig_->ReplicationTickPeriod,
+            MountConfig_->ReplicationProgressUpdateTickPeriod);
     }
 
     void Disable() override
     {
-        if (FiberFuture_) {
-            FiberFuture_.Cancel(TError("Chaos agent disabled"));
+        if (auto executor = std::exchange(UpdateReplicationCardExecutor_, nullptr)) {
+            YT_UNUSED_FUTURE(executor->Stop());
             YT_LOG_INFO("Chaos agent fiber stopped");
         }
-        if (ProgressReporterFiberFuture_) {
-            ProgressReporterFiberFuture_.Cancel(TError("Chaos agent progress reporter disabled"));
+        if (auto executor = std::exchange(ReplicationProgressExecutor_, nullptr)) {
+            YT_UNUSED_FUTURE(executor->Stop());
             YT_LOG_INFO("Chaos agent progress reporter fiber stopped");
         }
-        FiberFuture_.Reset();
-        ProgressReporterFiberFuture_.Reset();
         SelfInvoker_.Store(nullptr);
+
+        YT_LOG_INFO("Chaos agent disabled");
     }
 
     TAsyncSemaphoreGuard TryGetConfigLockGuard() override
@@ -170,26 +169,18 @@ private:
     TReplicationCardPtr ReplicationCard_;
     bool ReplicationCardReconfigured_ = false;
 
-    TFuture<void> FiberFuture_;
-    TFuture<void> ProgressReporterFiberFuture_;
+    TPeriodicExecutorPtr UpdateReplicationCardExecutor_;
+    TPeriodicExecutorPtr ReplicationProgressExecutor_;
     TAsyncSemaphorePtr ConfigurationLock_;
     TAtomicObject<TWeakPtr<IInvoker>> SelfInvoker_;
 
     TAtomicObject<TFuture<void>> RefreshEraFuture_;
     TAtomicObject<TPromise<void>> UpdateEraPromise_ = NewPromise<void>();
 
-    void FiberMain(TCallback<void()> callback, TDuration period)
+    void OnUpdateReplicationCardTick()
     {
-        while (true) {
-            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosAgent"));
-            TWallTimer timer;
-            callback();
-            TDelayedExecutor::WaitForDuration(period - timer.GetElapsedTime());
-        }
-    }
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosAgent"));
 
-    void FiberIteration()
-    {
         if (!Tablet_->IsActiveServant()) {
             return;
         }
@@ -492,8 +483,10 @@ private:
         }
     }
 
-    void ReportUpdatedReplicationProgress()
+    void OnReplicationProgressTick()
     {
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosAgent"));
+
         if (!Tablet_->IsActiveServant()) {
             return;
         }

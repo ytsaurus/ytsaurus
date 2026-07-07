@@ -63,9 +63,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeValueRow(const std::vector<TString>& values)
+std::string MakeValueRow(const std::vector<std::string>& values)
 {
-    TString result;
+    std::string result;
     for (int i = 0; i < std::ssize(values); ++i) {
         result += Format("%v<id=%v> %v;", (i == 0 ? "" : " "), i, values[i]);
     }
@@ -86,10 +86,11 @@ public:
 
         // TODO(achulkov2): Separate useful teardown methods from TDynamicTablesTestBase and stop inheriting from it altogether.
         CreateTable(
-            "//tmp/fake", // tablePath
-            "[" // schema
-            "{name=key;type=uint64;sort_order=ascending};"
-            "{name=value;type=uint64}]");
+            /*tablePath*/ "//tmp/fake",
+            /*schema*/ TYsonString(R"([
+                {name=key;type=uint64;sort_order=ascending};
+                {name=value;type=uint64}
+            ])"_sb));
 
         CreateTableOnce(RegistrationTablePath, NQueueClient::NRecords::TConsumerRegistrationDescriptor::Get()->GetSchema());
     }
@@ -175,7 +176,7 @@ public:
             .ThrowOnError();
     }
 
-    static void WriteSingleRow(const TYPath& path, const TNameTablePtr& nameTable, const std::vector<TString>& values)
+    static void WriteSingleRow(const TYPath& path, const TNameTablePtr& nameTable, const std::vector<std::string>& values)
     {
         auto owningRow = YsonToSchemalessRow(MakeValueRow(values));
         WriteSingleRow(path, nameTable, owningRow);
@@ -192,7 +193,7 @@ public:
         Format("%v rows were expected", rowCount));
     }
 
-    auto CreateQueueAndConsumer(const TString& testName, std::optional<bool> useNativeTabletNodeApi = {}, int queueTabletCount = 1) const
+    auto CreateQueueAndConsumer(const std::string& testName, std::optional<bool> useNativeTabletNodeApi = {}, int queueTabletCount = 1) const
     {
         auto queueAttributes = CreateEphemeralAttributes();
         queueAttributes->Set("tablet_count", queueTabletCount);
@@ -231,7 +232,7 @@ public:
     }
 
     // NB: Only creates user once per test YT instance.
-    IClientPtr CreateUser(const TString& name) const
+    IClientPtr CreateUser(const std::string& name) const
     {
         if (!WaitFor(Client_->NodeExists("//sys/users/" + name)).ValueOrThrow()) {
             TCreateObjectOptions options;
@@ -505,7 +506,7 @@ TEST_W(TListRegistrationsTest, ListQueueConsumerRegistrations)
 
 class TConsumerApiTest
     : public TQueueTestBase
-    , public ::testing::WithParamInterface<std::tuple<bool, TString, TString>>
+    , public ::testing::WithParamInterface<std::tuple<bool, NYPath::TYPath, NYPath::TYPath>>
 {
 public:
     static void TearDownTestCase();
@@ -693,7 +694,7 @@ TEST_F(TProducerApiTest, TestApi)
 
         rowBuilder.AddValue(MakeUnversionedUint64Value(rowIndex, 0));
 
-        TString value = ToString(rowIndex * rowIndex);
+        auto value = ToString(rowIndex * rowIndex);
         rowBuilder.AddValue(MakeUnversionedStringValue(value, 1));
 
         rowsBuilder.AddRow(rowBuilder.GetRow());
@@ -775,7 +776,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
 
             rowBuilder.AddValue(MakeUnversionedUint64Value(rowIndex, 0));
 
-            TString value = ToString(rowIndex * rowIndex);
+            auto value = ToString(rowIndex * rowIndex);
             rowBuilder.AddValue(MakeUnversionedStringValue(value, 1));
 
             if (startSequenceNumber) {

@@ -132,13 +132,27 @@ public:
     {
         VerifyPersistentStateRead();
 
-        // COMPAT(grphil)
         auto includeNonOnlineReplicas = GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->AlwaysFetchNonOnlineReplicas;
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+
         TStoredChunkReplicaList aliveReplicas;
         for (const auto& replica : replicas) {
             auto chunkId = replica.ChunkId;
+            if (replica.NodeId == OffshoreNodeId) {
+                auto mediumIndex = replica.MediumIndex;
+                auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                if (!IsObjectAlive(medium)) {
+                    YT_LOG_DEBUG("Found offshore chunk replica with a non-alive medium (ChunkId: %v, MediumIndex: %v)",
+                        chunkId,
+                        mediumIndex);
+                    continue;
+                }
+                aliveReplicas.emplace_back(TAugmentedStoredChunkReplicaPtr(medium, replica.ReplicaIndex, replica.ReplicaState));
+                continue;
+            }
+
             auto locationIndex = replica.LocationIndex;
             auto* location = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
             if (!IsObjectAlive(location)) {
@@ -155,7 +169,8 @@ public:
                 continue;
             }
 
-            if (!includeNonOnlineReplicas && node->GetLocalState() != ENodeState::Online) {
+            if (!includeNonOnlineReplicas && !location->IsRegisteredOrOnline())
+            {
                 YT_LOG_TRACE("Found Sequoia chunk replica on non-online node, ignoring replica (ChunkId: %v, NodeAddress: %v, NodeState: %v)",
                     chunkId,
                     node->GetDefaultAddress(),
@@ -571,6 +586,7 @@ private:
         SortUnique(state->ChunkIdsToFetchUnapprovedReplicasFromSequoia);
     }
 
+    // FetchReplicasFromMaster includes non-online replicas.
     void FetchReplicasFromMaster(
         const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
         TReplicaFetchStatePtr state) const
@@ -584,11 +600,14 @@ private:
 
         for (const auto& chunk : chunks) {
             auto convertToSequoiaReplica = [&] (TAugmentedStoredChunkReplicaPtr masterReplica) {
+                auto mediumIndex = masterReplica.GetNodeId() == OffshoreNodeId ? masterReplica.GetEffectiveMediumIndex() : -1;
                 TSequoiaChunkReplica replica{
                     .ChunkId = chunk->GetId(),
                     .ReplicaIndex = masterReplica.GetReplicaIndex(),
                     .NodeId = masterReplica.GetNodeId(),
-                    .ReplicaState = masterReplica.GetReplicaState()
+                    .ReplicaState = masterReplica.GetReplicaState(),
+                    // For offshore media, -1 for domestic for correct validation.
+                    .MediumIndex = mediumIndex
                 };
                 if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {
                     // NB: InvalidChunkLocationIndex will be used as default for offshore media.
@@ -603,7 +622,7 @@ private:
             }
 
             auto& replicas = state->MasterReplicas[chunk->GetId()];
-            for (const auto& masterReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ false)) {
+            for (const auto& masterReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true)) {
                 replicas.push_back(convertToSequoiaReplica(masterReplica));
             }
 
@@ -616,7 +635,7 @@ private:
                 auto& approvedReplicas = state->ApprovedMasterReplicasForPendingValidationChunks[chunk->GetId()];
                 // Chunks can have duplicates.
                 approvedReplicas.clear();
-                for (const auto& masterReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ false)) {
+                for (const auto& masterReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true)) {
                     if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {
                         auto* location = locationReplica->AsChunkLocationPtr();
                         if (location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk.Get(), masterReplica.GetReplicaIndex()))) {

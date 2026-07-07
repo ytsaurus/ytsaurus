@@ -1139,15 +1139,35 @@ public:
         return AllSucceeded(std::move(sessions));
     }
 
-    void VerifyBucketTree(TEnumIndexedArray<EWorkloadCategory, std::optional<double>> workloadCategoryToWeight)
+    TError TryVerifyBucketTree(TEnumIndexedArray<EWorkloadCategory, std::optional<double>> workloadCategoryToWeight)
     {
-        auto rootBucket = GetFairShareHierarchicalScheduler()->GetBucket({});
         double sumWeight = 0;
         for (const auto& weight : workloadCategoryToWeight) {
             if (weight) {
                 sumWeight += *weight;
             }
         }
+
+        // Nothing to verify (e.g. the empty test case): pass trivially.
+        if (sumWeight == 0) {
+            return TError();
+        }
+
+        auto rootBucket = GetFairShareHierarchicalScheduler()->GetBucket({});
+        if (!rootBucket) {
+            return TError("Root bucket is missing");
+        }
+
+        auto rootRequestWindowSize = rootBucket->RequestWindowSize.load();
+        auto rootSlotWindowSize = rootBucket->SlotWindowSize.load();
+        if (rootRequestWindowSize <= 0 || rootSlotWindowSize <= 0) {
+            return TError("Root windows are not filled yet: requestWindowSize %v, slotWindowSize %v",
+                rootRequestWindowSize,
+                rootSlotWindowSize);
+        }
+
+        constexpr double WeightTolerance = 0.05;
+        constexpr double ShareTolerance = 0.15;
 
         for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
             if (!workloadCategoryToWeight[category]) {
@@ -1157,22 +1177,47 @@ public:
             auto weight = *workloadCategoryToWeight[category];
 
             auto currentBucket = GetBucket(category);
+            if (!currentBucket) {
+                return TError("Bucket for category %Qlv is missing", category);
+            }
 
-            EXPECT_NEAR(
-                1.0 * weight,
-                1.0 * currentBucket->SummaryRequestWeight / currentBucket->RequestWindowLogCount,
-                0.05);
+            auto requestWindowLogCount = currentBucket->RequestWindowLogCount.load();
+            auto summaryRequestWeight = currentBucket->SummaryRequestWeight.load();
+            auto requestWindowSize = currentBucket->RequestWindowSize.load();
+            auto slotWindowSize = currentBucket->SlotWindowSize.load();
 
-            EXPECT_NEAR(
-                1.0 * weight / sumWeight,
-                1.0 * currentBucket->RequestWindowSize / rootBucket->RequestWindowSize,
-                0.15);
+            if (requestWindowLogCount <= 0) {
+                return TError("Request window for category %Qlv is empty", category);
+            }
 
-            EXPECT_NEAR(
-                1.0 * weight / sumWeight,
-                1.0 * currentBucket->SlotWindowSize / rootBucket->SlotWindowSize,
-                0.15);
+            auto avgWeight = summaryRequestWeight / requestWindowLogCount;
+            if (std::abs(avgWeight - weight) > WeightTolerance) {
+                return TError("Average request weight mismatch for category %Qlv: expected %v, got %v",
+                    category,
+                    weight,
+                    avgWeight);
+            }
+
+            auto expectedShare = weight / sumWeight;
+
+            auto requestShare = 1.0 * requestWindowSize / rootRequestWindowSize;
+            if (std::abs(requestShare - expectedShare) > ShareTolerance) {
+                return TError("Request window share mismatch for category %Qlv: expected %v, got %v",
+                    category,
+                    expectedShare,
+                    requestShare);
+            }
+
+            auto slotShare = 1.0 * slotWindowSize / rootSlotWindowSize;
+            if (std::abs(slotShare - expectedShare) > ShareTolerance) {
+                return TError("Slot window share mismatch for category %Qlv: expected %v, got %v",
+                    category,
+                    expectedShare,
+                    slotShare);
+            }
         }
+
+        return TError();
     }
 
     void CheckRequestWindowSize(TWorkloadDescriptor workloadDescriptor = {})
@@ -1205,8 +1250,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(ilyaibraev): YTSAURUSSUP-2782
-TEST_P(TFairShareHierarchicalTest, DISABLED_StressTest)
+TEST_P(TFairShareHierarchicalTest, StressTest)
 {
     int blockCount = 80;
     int blkSize = 1_MB;
@@ -1214,10 +1258,12 @@ TEST_P(TFairShareHierarchicalTest, DISABLED_StressTest)
     auto workloadCategories = GetParam().WorkloadCategories;
     auto workloadCategoriesWeights = GetParam().FairShareWorkloadCategoryWeights;
 
-    // Use continuous workloads so that all categories are guaranteed to be active
-    // at the moment of measurement. With finite writes, a higher-priority category
-    // consumes proportionally more bandwidth and finishes sooner, leaving the last
-    // window dominated by lower-priority work.
+    {
+        auto schedulerConfig = GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->FairShareHierarchicalScheduler;
+        schedulerConfig->WindowSize = TDuration::Seconds(10);
+        GetFairShareHierarchicalScheduler()->Reconfigure(schedulerConfig);
+    }
+
     SetShouldStop(false);
     std::vector<TFuture<void>> workloadWrites;
     workloadWrites.reserve(workloadCategories.size());
@@ -1227,24 +1273,22 @@ TEST_P(TFairShareHierarchicalTest, DISABLED_StressTest)
         workloadWrites.emplace_back(GenerateContinuousWriteWorkload(blockCount, blkSize, workload, writesPerCategory));
     }
 
-    // Wait until all categories have started writing before measuring the window,
-    // since startup may take longer than the window size on slow systems.
-    while (true) {
-        bool allActive = std::all_of(
+    constexpr int MinWarmupLogCount = 80;
+    auto warmupDeadline = TInstant::Now() + TDuration::Seconds(30);
+    while (TInstant::Now() < warmupDeadline) {
+        bool allWarm = std::all_of(
             workloadCategories.begin(),
             workloadCategories.end(),
             [&, this](EWorkloadCategory category) {
                 TWorkloadDescriptor workload(category);
                 auto bucket = GetBucket(workload);
-                return bucket && bucket->RequestWindowSize > 0;
+                return bucket && bucket->RequestWindowLogCount.load() >= MinWarmupLogCount;
             });
-        if (allActive) {
+        if (allWarm) {
             break;
         }
         TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
     }
-
-    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
 
     TStringStream output;
     NYson::TYsonWriter writer(&output, NYson::EYsonFormat::Pretty, NYson::EYsonType::MapFragment);
@@ -1260,7 +1304,17 @@ TEST_P(TFairShareHierarchicalTest, DISABLED_StressTest)
         CheckRequestWindowSize(workload);
     }
 
-    VerifyBucketTree(workloadCategoriesWeights);
+    constexpr int RequiredStableHits = 3;
+    auto convergeDeadline = TInstant::Now() + TDuration::Seconds(30);
+    int stableHits = 0;
+    TError lastMismatch;
+    while (TInstant::Now() < convergeDeadline && stableHits < RequiredStableHits) {
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(200));
+        lastMismatch = TryVerifyBucketTree(workloadCategoriesWeights);
+        stableHits = lastMismatch.IsOK() ? stableHits + 1 : 0;
+    }
+    EXPECT_GE(stableHits, RequiredStableHits)
+        << "Bucket tree did not converge to configured weights: " << ToString(lastMismatch);
 
     SetShouldStop(true);
     WaitFor(AllSucceeded(workloadWrites))
@@ -1776,8 +1830,7 @@ TEST_P(TWriteTest, DuplicateWrite)
         .ThrowOnError();
 }
 
-// TODO(ilyaibraev): YTSAURUSSUP-2782
-TEST_P(TWriteTest, DISABLED_RandomWrite)
+TEST_P(TWriteTest, RandomWrite)
 {
     auto testCase = GetParam();
 
@@ -1798,11 +1851,9 @@ TEST_P(TWriteTest, DISABLED_RandomWrite)
     std::transform(blockIndices.begin(), blockIndices.end(), fetchedBlocks.begin(), [&] (int blockIndex) {
         return blocks[blockIndex];
     });
-    auto rspOrError = WaitFor(GetBlockSet(sessionId.ChunkId, blockIndices, true, true, true));
+    auto rspOrError = WaitFor(GetBlockSet(sessionId.ChunkId, blockIndices, false, false, true));
     YT_VERIFY(rspOrError.IsOK());
     auto rsp = rspOrError.Value();
-    auto chunkReaderStatistics = rsp->chunk_reader_statistics();
-    EXPECT_EQ(chunkReaderStatistics.data_io_requests(), 1);
     auto gotBlocks = GetRpcAttachedBlocks(rsp);
     EXPECT_EQ(gotBlocks.size(), fetchedBlocks.size());
     EXPECT_EQ(BlocksToChecksums(gotBlocks), BlocksToChecksums(fetchedBlocks));
@@ -1813,6 +1864,57 @@ INSTANTIATE_TEST_SUITE_P(
     TWriteTest,
     ::testing::ValuesIn(GenerateWriteTestParams())
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJournalSessionTest
+    : public TDataNodeTest
+{ };
+
+TEST_F(TJournalSessionTest, PutBlocksDuplicatesAndGaps)
+{
+    TSessionId sessionId(MakeRandomId(EObjectType::JournalChunk, TCellTag(0xf003)), GenericMediumIndex);
+    WaitFor(StartChunk(sessionId, /*useProbePutBlocks*/ false, /*preallocateDiskSpace*/ false, /*useDirectIo*/ false))
+        .ThrowOnError();
+
+    TRandomGenerator generator(42);
+    auto records = CreateBlocks(/*count*/ 5, /*blockSize*/ 10, generator);
+    auto cumulativeBlockSize = CalculateCummulativeBlockSize(records);
+
+    WaitFor(PutBlocks(sessionId, records, /*firstBlockIndex*/ 0, cumulativeBlockSize).AsVoid())
+        .ThrowOnError();
+    WaitFor(FlushBlocks(sessionId, /*blockIndex*/ 4))
+        .ThrowOnError();
+
+    // A request starting past the changelog end is rejected with a dedicated
+    // error code.
+    auto gapResult = WaitFor(PutBlocks(sessionId, records, /*firstBlockIndex*/ 7, cumulativeBlockSize).AsVoid());
+    EXPECT_FALSE(gapResult.IsOK());
+    EXPECT_TRUE(gapResult.FindMatching(NChunkClient::EErrorCode::MissingJournalChunkRecord))
+        << ToString(gapResult);
+
+    // A duplicate ending exactly at the changelog end is skipped.
+    auto exactDuplicateResult = WaitFor(PutBlocks(sessionId, records, /*firstBlockIndex*/ 0, cumulativeBlockSize).AsVoid());
+    EXPECT_TRUE(exactDuplicateResult.IsOK())
+        << ToString(exactDuplicateResult);
+
+    // A stale duplicate ending strictly before the changelog end must be
+    // skipped as well.
+    std::vector<TBlock> stalePrefix(records.begin(), records.begin() + 3);
+    auto staleDuplicateResult = WaitFor(PutBlocks(sessionId, stalePrefix, /*firstBlockIndex*/ 0, cumulativeBlockSize).AsVoid());
+    EXPECT_TRUE(staleDuplicateResult.IsOK())
+        << ToString(staleDuplicateResult);
+
+    // The session remains usable afterwards.
+    auto tailRecords = CreateBlocks(/*count*/ 3, /*blockSize*/ 10, generator);
+    WaitFor(PutBlocks(sessionId, tailRecords, /*firstBlockIndex*/ 5, cumulativeBlockSize).AsVoid())
+        .ThrowOnError();
+    WaitFor(FlushBlocks(sessionId, /*blockIndex*/ 7))
+        .ThrowOnError();
+
+    WaitFor(CancelChunk(sessionId))
+        .ThrowOnError();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

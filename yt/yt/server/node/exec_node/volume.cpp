@@ -49,7 +49,7 @@ TLayer::~TLayer()
     }
 }
 
-const TString& TLayer::GetCypressPath() const
+const NYPath::TYPath& TLayer::GetCypressPath() const
 {
     return GetKey().data_source().path();
 }

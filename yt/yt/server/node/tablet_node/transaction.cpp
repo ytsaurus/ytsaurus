@@ -265,7 +265,7 @@ TExternalizedTransaction::TExternalizedTransaction(TExternalizedTransactionId id
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatTransactionId(
+std::string FormatTransactionId(
     TTransactionId transactionId,
     TTransactionExternalizationToken externalizationToken)
 {

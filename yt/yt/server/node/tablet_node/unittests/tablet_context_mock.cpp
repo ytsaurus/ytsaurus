@@ -176,7 +176,7 @@ IHedgingManagerRegistryPtr TTabletContextMock::GetHedgingManagerRegistry() const
 
 std::string TTabletContextMock::GetLocalHostName() const
 {
-    return TString();
+    return {};
 }
 
 ITabletWriteManagerHostPtr TTabletContextMock::GetTabletWriteManagerHost() const

@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, enable_sequoia_acls
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
 from helpers import get_async_expiring_cache_config, get_disabled_cache_config, get_breakpoint_node, release_breakpoint, wait_breakpoint
 
@@ -719,6 +719,5 @@ class TestYtDictionaries(ClickHouseTestBase):
 
 
 @enable_sequoia
-@enable_sequoia_acls
 class TestYtDictionariesSequoia(TestYtDictionaries):
     pass

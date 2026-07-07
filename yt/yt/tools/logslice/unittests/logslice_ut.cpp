@@ -92,7 +92,7 @@ protected:
 
     //! Slices [fileName] using an auto-detected engine (so the file's extension
     //! also drives which engine is selected).
-    std::vector<TString> Slice(const TString& fileName, TInstant from, TInstant to)
+    std::vector<std::string> Slice(const TString& fileName, TInstant from, TInstant to)
     {
         auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, fileName);
 
@@ -100,7 +100,7 @@ protected:
         TStringStream output;
         engine->Slice(file, from, to, output);
 
-        std::vector<TString> lines;
+        std::vector<std::string> lines;
         for (TStringBuf line : StringSplitter(output.Str()).Split('\n').SkipEmpty()) {
             lines.emplace_back(line);
         }
@@ -108,18 +108,18 @@ protected:
     }
 
     //! Extracts the message field (4th tab-separated column) of a formatted log line.
-    static TString MessageOf(TStringBuf line)
+    static std::string MessageOf(TStringBuf line)
     {
         TStringBuf rest = line;
         rest.NextTok('\t'); // timestamp
         rest.NextTok('\t'); // level
         rest.NextTok('\t'); // category
-        return TString(rest.NextTok('\t'));
+        return std::string(rest.NextTok('\t'));
     }
 
-    std::vector<TString> MessagesOf(const std::vector<TString>& lines)
+    std::vector<std::string> MessagesOf(const std::vector<std::string>& lines)
     {
-        std::vector<TString> messages;
+        std::vector<std::string> messages;
         for (const auto& line : lines) {
             messages.push_back(MessageOf(line));
         }
@@ -137,7 +137,7 @@ protected:
         // A middle sub-range.
         {
             auto messages = MessagesOf(Slice(fileName, base + TDuration::Seconds(2) - half, base + TDuration::Seconds(5) + half));
-            EXPECT_EQ((std::vector<TString>{"msg-2", "msg-3", "msg-4", "msg-5"}), messages);
+            EXPECT_EQ((std::vector<std::string>{"msg-2", "msg-3", "msg-4", "msg-5"}), messages);
         }
 
         // The full range returns everything in order.
@@ -151,7 +151,7 @@ protected:
         // A narrow window around a single event selects exactly that line.
         {
             auto messages = MessagesOf(Slice(fileName, base + TDuration::Seconds(7) - half, base + TDuration::Seconds(7) + half));
-            EXPECT_EQ((std::vector<TString>{"msg-7"}), messages);
+            EXPECT_EQ((std::vector<std::string>{"msg-7"}), messages);
         }
 
         // A range entirely before the log is empty.
@@ -332,13 +332,13 @@ TEST_F(TLogSliceTest, SliceOpenBounds)
     // Open start (read from the beginning of file): everything up to msg-3.
     {
         auto messages = MessagesOf(Slice(logFile.Name(), TInstant::Zero(), base + TDuration::Seconds(3) + half));
-        EXPECT_EQ((std::vector<TString>{"msg-0", "msg-1", "msg-2", "msg-3"}), messages);
+        EXPECT_EQ((std::vector<std::string>{"msg-0", "msg-1", "msg-2", "msg-3"}), messages);
     }
 
     // Open end (read until the end of file): msg-6 onwards.
     {
         auto messages = MessagesOf(Slice(logFile.Name(), base + TDuration::Seconds(6) - half, TInstant::Max()));
-        EXPECT_EQ((std::vector<TString>{"msg-6", "msg-7", "msg-8", "msg-9"}), messages);
+        EXPECT_EQ((std::vector<std::string>{"msg-6", "msg-7", "msg-8", "msg-9"}), messages);
     }
 
     // Both bounds open: the whole file.
@@ -422,7 +422,7 @@ TEST_F(TLogSliceTest, GetTimeRangeBrokenLastLine)
 
 // Test wrapper: runs the streaming FilterWithGrep over an in-memory string and
 // collects grep's output back into a string.
-static TString FilterWithGrep(const std::vector<TString>& grepArgs, const TString& input)
+static std::string FilterWithGrep(const std::vector<std::string>& grepArgs, const std::string& input)
 {
     TStringStream output;
     NYT::NLogSlice::FilterWithGrep(
@@ -436,7 +436,7 @@ static TString FilterWithGrep(const std::vector<TString>& grepArgs, const TStrin
 
 TEST_F(TLogSliceTest, FilterWithGrep)
 {
-    TString input = "alpha\nbeta\ngamma\n";
+    std::string input = "alpha\nbeta\ngamma\n";
 
     // A plain pattern keeps only matching lines.
     EXPECT_EQ("beta\n", FilterWithGrep({"beta"}, input));
@@ -451,14 +451,14 @@ TEST_F(TLogSliceTest, FilterWithGrep)
 
 TEST_F(TLogSliceTest, SplitCommandLine)
 {
-    EXPECT_EQ((std::vector<TString>{"-o", "-E", "[0-9]+"}), SplitCommandLine("-o -E [0-9]+"));
+    EXPECT_EQ((std::vector<std::string>{"-o", "-E", "[0-9]+"}), SplitCommandLine("-o -E [0-9]+"));
 
     // A quoted multi-word pattern stays a single argument.
-    EXPECT_EQ((std::vector<TString>{"-E", "foo bar"}), SplitCommandLine("-E 'foo bar'"));
-    EXPECT_EQ((std::vector<TString>{"foo bar baz"}), SplitCommandLine("\"foo bar baz\""));
+    EXPECT_EQ((std::vector<std::string>{"-E", "foo bar"}), SplitCommandLine("-E 'foo bar'"));
+    EXPECT_EQ((std::vector<std::string>{"foo bar baz"}), SplitCommandLine("\"foo bar baz\""));
 
     // Surrounding whitespace and empty input.
-    EXPECT_EQ((std::vector<TString>{"a", "b"}), SplitCommandLine("  a   b  "));
+    EXPECT_EQ((std::vector<std::string>{"a", "b"}), SplitCommandLine("  a   b  "));
     EXPECT_TRUE(SplitCommandLine("   ").empty());
 
     // An unbalanced quote is rejected.

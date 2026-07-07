@@ -122,6 +122,83 @@ def test_ypath_join():
     assert ypath_join("a", YPath("//b")) == "//b"
 
 
+@authors("asklit")
+def test_ypath_join_method_preserves_attributes():
+    path = YPath("<cluster=foo;my_attr=10>//a")
+    joined_path = path.join("b")
+
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {"cluster": "foo", "my_attr": 10}
+
+    joined_path = YPath("//a").join("<b_attr=some_val>b", with_attributes=True)
+
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {"b_attr": "some_val"}
+
+    joined_path = YPath("<same=left;left_attr=value>//a").join(
+        "<same=right;right_attr=value>b", with_attributes=True)
+
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {
+        "same": "right",
+        "left_attr": "value",
+        "right_attr": "value",
+    }
+
+    joined_path = YPath("<cluster=foo>//a{key,value}[#1:#10]").join(
+        "<columns=[other]>b[#20:#30]", with_attributes=True)
+
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {
+        "cluster": "foo",
+        "columns": ["other"],
+        "ranges": [{
+            "lower_limit": {"row_index": 20},
+            "upper_limit": {"row_index": 30},
+        }],
+    }
+
+    joined_path = YPath("<cluster=foo;left_attr=value>//a").join(
+        "<cluster=bar;right_attr=value>//b")
+
+    assert str(joined_path) == "//b"
+    assert joined_path.attributes == {"cluster": "bar", "right_attr": "value"}
+
+    path = YPath("<my_attr={nested=value}>//a")
+    joined_path = path.join("b")
+    joined_path.attributes["my_attr"]["nested"] = "other"
+
+    assert path.attributes == {"my_attr": {"nested": "value"}}
+    assert joined_path.attributes == {"my_attr": {"nested": "other"}}
+
+    joined_path = YPath.join("//a", "b")
+
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {}
+
+    joined_path = YPath("<cluster=foo>//a").join("")
+
+    assert str(joined_path) == "//a/"
+    assert joined_path.attributes == {"cluster": "foo"}
+
+    joined_path = YPath("<cluster=foo>//a").join("<columns=bar>b")
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {"cluster": "foo"}
+
+    joined_path = YPath("<cluster=hahn;attr=left>//a").join(
+        "<cluster=arnold;attr=right>b", with_attributes=True)
+    assert str(joined_path) == "//a/b"
+    assert joined_path.attributes == {"cluster": "arnold", "attr": "right"}
+
+    joined_path = YPath("//a").join("some_strange_path_<#_with_strange_simbols")
+    assert str(joined_path) == "//a/some_strange_path_<#_with_strange_simbols"
+    assert joined_path.attributes == {}
+
+    joined_path = YPath("<cluster=hahn>//a").join("some_strange_path_<#_with_strange_simbols")
+    assert str(joined_path) == "//a/some_strange_path_<#_with_strange_simbols"
+    assert joined_path.attributes == {"cluster": "hahn"}
+
+
 @authors("ostyakov")
 def test_ypath_split():
     assert ypath_split("/") == ("/", "")

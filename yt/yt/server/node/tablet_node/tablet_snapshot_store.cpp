@@ -150,8 +150,8 @@ public:
             .ThrowOnError();
 
         if (timestamp != AsyncLastCommittedTimestamp) {
-            const auto& hydraManager = tabletSnapshot->HydraManager;
-            if (!hydraManager->IsActiveLeader()) {
+            auto hydraManager = tabletSnapshot->HydraManager.Lock();
+            if (!hydraManager || !hydraManager->IsActiveLeader()) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Not an active leader");
@@ -267,22 +267,22 @@ public:
             if (snapshot->CellId == slot->GetCellId()) {
                 guard.Release();
 
-                snapshot->Unregistered.store(true);
+                if (!snapshot->Unregistered.exchange(true)) {
+                    auto evictionTimeout = tablet->GetSnapshotEvictionTimeout().value_or(
+                        Config_->TabletSnapshotEvictionTimeout);
 
-                auto evictionTimeout = tablet->GetSnapshotEvictionTimeout().value_or(
-                    Config_->TabletSnapshotEvictionTimeout);
+                    YT_LOG_DEBUG("Tablet snapshot unregistered; eviction scheduled "
+                        "(%v, MountRevision: %x, CellId: %v, EvictionTimeout: %v)",
+                        snapshot->LoggingTag,
+                        snapshot->MountRevision,
+                        slot->GetCellId(),
+                        evictionTimeout);
 
-                YT_LOG_DEBUG("Tablet snapshot unregistered; eviction scheduled "
-                    "(%v, MountRevision: %x, CellId: %v, EvictionTimeout: %v)",
-                    snapshot->LoggingTag,
-                    snapshot->MountRevision,
-                    slot->GetCellId(),
-                    evictionTimeout);
-
-                TDelayedExecutor::Submit(
-                    BIND(&TTabletSnapshotStore::EvictTabletSnapshot, MakeStrong(this), tablet->GetId(), snapshot)
-                        .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()),
-                    evictionTimeout);
+                    TDelayedExecutor::Submit(
+                        BIND(&TTabletSnapshotStore::EvictTabletSnapshot, MakeStrong(this), tablet->GetId(), snapshot)
+                            .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()),
+                        evictionTimeout);
+                }
 
                 break;
             }
@@ -423,7 +423,8 @@ private:
         // Outdated snapshots are useful for AsyncLastCommitted reads and ReadDynamicStore requests.
 
         auto getComparisonSurrogate = [] (const TTabletSnapshotPtr& snapshot) {
-            return std::pair(snapshot->HydraManager->IsActive(), snapshot->MountRevision);
+            auto hydraManager = snapshot->HydraManager.Lock();
+            return std::pair(hydraManager && hydraManager->IsActive(), snapshot->MountRevision);
         };
 
         for (auto it = range.first; it != range.second; ++it) {

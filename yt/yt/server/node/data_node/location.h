@@ -171,7 +171,7 @@ class TChunkLocation
 public:
     TChunkLocation(
         NNode::ELocationType type,
-        TString id,
+        std::string id,
         TChunkLocationConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
@@ -412,7 +412,7 @@ public:
     };
 
     TStoreLocation(
-        TString id,
+        std::string id,
         TStoreLocationConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,

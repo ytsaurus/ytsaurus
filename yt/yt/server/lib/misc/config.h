@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/https/public.h>
 
+#include <yt/yt/core/ypath/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NServer {
@@ -81,8 +83,8 @@ struct TDiskLocationConfig
     static inline const std::string UnknownDeviceModel = "UNKNOWN";
 
     //! Disk family in this location (HDD, SDD, etc.)
-    TString DiskFamily;
-    static inline const TString UnknownDiskFamily = "UNKNOWN";
+    std::string DiskFamily;
+    static inline const std::string UnknownDiskFamily = "UNKNOWN";
 
     bool DisableProfiling;
 
@@ -221,7 +223,7 @@ struct TArchiveHandlerConfig
     : public NYTree::TYsonStruct
 {
     i64 MaxInProgressDataSize;
-    TString Path;
+    NYPath::TYPath Path;
 
     REGISTER_YSON_STRUCT(TArchiveHandlerConfig);
 

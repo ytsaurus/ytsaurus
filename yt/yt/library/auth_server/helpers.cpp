@@ -58,7 +58,7 @@ std::string GetBlackboxCacheKeyFactorFromUserIP(
     const TNetworkAddress& address)
 {
     if (mode == EBlackboxCacheKeyMode::Credentials) {
-        return TString();
+        return {};
     }
 
     if (mode == EBlackboxCacheKeyMode::CredentialsAndUserAddressProjectId &&

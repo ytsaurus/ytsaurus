@@ -240,8 +240,8 @@ TUnversionedUniversalReader CreateUnversionedUniversalReader(
 void GuardedMain(int argc, char** argv)
 {
     TOpts opts;
-    TString formatStr = "yson";
-    TString formatFileStr;
+    std::string formatStr = "yson";
+    std::string formatFileStr;
     opts.AddLongOption("format", "Yson output format").StoreResult(&formatStr);
     opts.AddLongOption("format-file", "File with yson output format").StoreResult(&formatFileStr);
     opts.SetFreeArgsNum(1);
@@ -249,7 +249,8 @@ void GuardedMain(int argc, char** argv)
 
     NFormats::TFormat format;
     if (!formatFileStr.empty()) {
-        auto formatYsonStr = TFileInput(formatFileStr).ReadAll();
+        // TODO(babenko): drop cast once TFileInput accepts std::string
+        auto formatYsonStr = TFileInput(TString(formatFileStr)).ReadAll();
         format =  NYTree::ConvertTo<NFormats::TFormat>(TYsonString(formatYsonStr));
     } else {
         format = NYTree::ConvertTo<NFormats::TFormat>(TYsonString(formatStr));

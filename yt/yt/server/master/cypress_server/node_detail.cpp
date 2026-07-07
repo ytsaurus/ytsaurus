@@ -15,10 +15,13 @@
 
 #include <yt/yt/server/master/maintenance_tracker_server/cluster_proxy_node.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
+#include <yt/yt/server/master/object_server/yson_intern_registry.h>
+
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/yt/server/master/object_server/yson_intern_registry.h>
+#include <yt/yt/server/master/sequoia_server/revision.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -30,6 +33,7 @@ using namespace NChunkServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
+using namespace NSequoiaServer;
 using namespace NTabletServer;
 using namespace NTransactionServer;
 using namespace NYson;
@@ -305,7 +309,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
     }
 
     // Copy sequoia properties.
-    if (originatingNode->IsSequoia() && originatingNode->IsNative() && originatingNode->MutableSequoiaProperties()) {
+    if (IsNativeSequoiaNode(originatingNode) && originatingNode->MutableSequoiaProperties()) {
         YT_VERIFY(!originatingNode->MutableSequoiaProperties()->Tombstone);
         YT_VERIFY(!originatingNode->MutableSequoiaProperties()->BeingCreated);
 
@@ -377,11 +381,37 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
     // Merge modification time.
     const auto* mutationContext = NHydra::GetCurrentMutationContext();
     originatingNode->SetModificationTime(std::max(originatingNode->GetModificationTime(), branchedNode->GetModificationTime()));
-    originatingNode->SetAttributeRevision(mutationContext->GetVersion().ToRevision());
-    originatingNode->SetContentRevision(mutationContext->GetVersion().ToRevision());
+
+    auto currentRevision = mutationContext->GetVersion().ToRevision();
+    if (IsNativeSequoiaNode(originatingNode)) {
+        if (auto sequoiaRevision = GetCurrentSequoiaRevision()) {
+            Visit(*sequoiaRevision,
+                [&] (const TSequoiaRevisionPrepare& prepareRevision) {
+                    YT_LOG_ALERT("Merging Sequoia node during Sequoia transaction prepare (OriginatingNodeId: %v, BranchedNodeId: %v)",
+                        originatingNode->GetVersionedId(),
+                        branchedNode->GetVersionedId());
+                    // NB: it's better set wrong revision than crash master server.
+                    currentRevision = prepareRevision.NonMonotonicRevision;
+                },
+                [&] (const TSequoiaRevisionCommit& commitRevision) {
+                    currentRevision = commitRevision.Revision;
+                },
+                [] (TSequoiaRevisionDisabled /*disabled*/) { });
+        } else {
+            YT_LOG_ALERT(
+                "Merging Sequoia node outside of Sequoia revision context (OriginatingNodeId: %v, BranchedNodeId: %v)",
+                originatingNode->GetVersionedId(),
+                branchedNode->GetVersionedId());
+        }
+    }
+
+    originatingNode->SetAttributeRevision(currentRevision);
+    originatingNode->SetContentRevision(currentRevision);
     if (originatingNode->IsForeign()) {
         auto* transaction = branchedNode->GetTransaction();
-        auto nativeContentRevision = transaction->GetNativeCommitMutationRevision();
+        auto nativeContentRevision = originatingNode->IsSequoia()
+            ? transaction->NativeCommitRevision().Sequoia
+            : transaction->NativeCommitRevision().Mutation;
         if (branchedNode->GetNativeContentRevision() <= nativeContentRevision) {
             originatingNode->SetNativeContentRevision(nativeContentRevision);
         } else {

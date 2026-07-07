@@ -2977,6 +2977,56 @@ class TestQuery(DynamicTablesBase):
         )
         assert expected == actual
 
+    @authors("dtorilov")
+    def test_hierarchical_join_in_where_clause(self):
+        sync_create_cells(1)
+
+        right_table_rows = [
+            {"x": 10, "c": 100},
+            {"x": 20, "c": 200},
+            {"x": 30, "c": 300},
+        ]
+
+        left_table_rows = [
+            {"pk": 1, "fks": [10, 20]},
+            {"pk": 2, "fks": [99]},
+            {"pk": 3, "fks": [30]},
+            {"pk": 4, "fks": []},
+        ]
+
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "fks", "type_v3": {"type_name": "list", "item": "int64"}},
+            ],
+            left_table_rows,
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "x", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"},
+            ],
+            right_table_rows,
+        )
+
+        actual = select_rows(
+            """
+            l.pk as pk
+            from `//tmp/l` as l
+            where yson_length(
+                (select r.c
+                    from (l.fks as fk)
+                    join `//tmp/r` as r on fk = r.x
+                )
+            ) > 0
+            """,
+            expression_builder_version=2,
+            syntax_version=2,
+        )
+        assert actual == [{"pk": 1}, {"pk": 3}]
+
 
 class TestQueryRpcProxy(TestQuery):
     ENABLE_MULTIDAEMON = True
@@ -3511,6 +3561,64 @@ class TestQueryRpcProxy(TestQuery):
                           {"a": 2, "b": 1, "val": 9}, {"a": 2, "b": 0, "val": 8}]
         assert rows_read == 3 * rows_per_tablet
 
+    @authors("dtorilov")
+    def test_reverse_scan_for_order_by_3(self):
+        num_tablets = 5
+        rows_per_tablet = 4
+
+        sync_create_cells(1)
+
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", True)
+
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("k0", "int64"),
+            make_sorted_column("k1", "int64"),
+            make_column("payload", "int64"),
+        ]
+        create("table", path, attributes={"dynamic": True, "schema": schema})
+        reshard_table(path, [[]] + [[i] for i in range(1, num_tablets)])
+        sync_mount_table(path)
+        insert_rows(
+            path,
+            [
+                {"k0": k0, "k1": k1, "payload": 0}
+                for k0 in range(num_tablets)
+                for k1 in range(rows_per_tablet)
+            ],
+        )
+
+        def select_rows_returning_statistics(query):
+            response_parameters = {}
+            result = select_rows(query, response_parameters=response_parameters, enable_statistics=True)
+            return result, response_parameters['inner_statistics'][0]['rows_read']
+
+        for k0_value in (4, 0):
+            result, rows_read = select_rows_returning_statistics(
+                f"* from [{path}] where k0 = {k0_value} order by k1 desc limit 3")
+            assert result == [
+                {"k0": k0_value, "k1": 3, "payload": 0},
+                {"k0": k0_value, "k1": 2, "payload": 0},
+                {"k0": k0_value, "k1": 1, "payload": 0},
+            ]
+            assert rows_read <= rows_per_tablet
+
+        response = explain_query(f"* from [{path}] where k0 = 4 order by k1 desc limit 3")
+        assert response["query"]["scan_order"] == "reversed"
+
+        response = explain_query(f"* from [{path}] where k0 = 1 and k1 = 2 order by k1 desc limit 10")
+        assert response["query"]["scan_order"] == "unordered"
+
+        response = explain_query(f"* from [{path}] where k0 > 1 order by k1 desc limit 10")
+        assert response["query"]["scan_order"] == "unordered"
+
+        response = explain_query(f"* from [{path}] order by k0 desc, k1 desc limit 10")
+        assert response["query"]["scan_order"] == "reversed"
+
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", False)
+
     @authors("sabdenovch")
     def test_prefetch_join_table(self):
         set("//sys/rpc_proxies/@config", {
@@ -3648,6 +3756,34 @@ class TestQueryRpcProxy(TestQuery):
                 select_rows("(1 / sum(0)) as s from [//tmp/t] group by key % 5 as gk")
             with raises_yt_error("Division by zero"):
                 select_rows("sum(0) as s from [//tmp/t] group by key % 5 as gk having (1 / s) = 0")
+
+    @authors("shamteev")
+    def test_parallel_group_by_offset(self):
+        sync_create_cells(3)
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ])
+        row_count = 1000
+        reshard_table("//tmp/t", [[]] + [[i] for i in range(100, row_count, 100)])
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": i} for i in range(row_count)])
+
+        queries = [
+            "gk, sum(value) as s FROM [//tmp/t] "
+            "GROUP BY key % 1000 AS gk ORDER BY gk DESC OFFSET {} LIMIT {}".format(offset, limit)
+            for offset, limit in ((1, 1), (5, 1), (37, 1), (100, 1), (500, 1), (37, 10), (100, 50))
+        ]
+
+        def run_queries():
+            return [select_rows(query, expression_builder_version=2) for query in queries]
+
+        baselines = run_queries()
+        with self.RpcProxyDynamicConfig("/query_engine_config/enable_parallelize_unordered_group_by", True):
+            sidelines = run_queries()
+            for baseline, sideline, query in zip(baselines, sidelines, queries):
+                assert baseline == sideline, "OFFSET/LIMIT differs in parallel GROUP BY: " + query
 
 
 class TestSelectWithRowCache(TestLookupCache):

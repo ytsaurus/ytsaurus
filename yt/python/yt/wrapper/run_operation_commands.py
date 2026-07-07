@@ -56,7 +56,7 @@ from .driver import get_api_version
 import yt.logger as logger
 from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id, _pretty_format_for_logging
 
-from typing import Union, Dict
+from typing import Union, Dict, Optional
 
 import sys
 import time
@@ -590,7 +590,7 @@ def _run_reduce_optimizer(spec, client=None):
 
 
 @forbidden_inside_job
-def run_operation(spec_builder, sync=True, run_operation_mutation_id=None, enable_optimizations=False, client=None):
+def run_operation(spec_builder, sync=True, run_operation_mutation_id=None, enable_optimizations=False, client=None) -> Optional[Operation]:
     """Runs operation.
 
     :param spec_builder: spec builder with parameters of the operation.

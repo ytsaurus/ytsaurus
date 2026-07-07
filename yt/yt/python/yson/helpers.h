@@ -8,9 +8,9 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TString> ParseEncodingArgument(Py::Tuple& args, Py::Dict& kwargs);
+std::optional<std::string> ParseEncodingArgument(Py::Tuple& args, Py::Dict& kwargs);
 
-Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>& encoding, TContext* context = nullptr);
+Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<std::string>& encoding, TContext* context = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

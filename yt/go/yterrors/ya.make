@@ -6,6 +6,7 @@ SRCS(
     error.go
     error_code.go
     http_error.go
+    partial_result_error.go
     interop.go
     utf8.go
 )

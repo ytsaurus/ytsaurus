@@ -48,7 +48,7 @@ public:
     void SetUp() override;
 
 public:
-    static void CreateFile(const TString& path);
+    static void CreateFile(const NYPath::TYPath& path);
 
     static NApi::TDistributedWriteFileSessionWithCookies StartDistributedWriteSession(
         int cookieCount,
@@ -68,7 +68,7 @@ public:
     static TString ReadFile();
 
 private:
-    static inline TString File_;
+    static inline NYPath::TYPath File_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,7 +32,7 @@ struct TChunkOwnerDataStatistics
 
 void Serialize(const TChunkOwnerDataStatistics& statistics, NYson::IYsonConsumer* consumer);
 void FormatValue(TStringBuilderBase* builder, const TChunkOwnerDataStatistics& statistics, TStringBuf spec);
-TString ToString(const TChunkOwnerDataStatistics& statistics);
+std::string ToString(const TChunkOwnerDataStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

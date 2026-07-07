@@ -18,8 +18,20 @@ DEFINE_ENUM_UNKNOWN_VALUE(EFilesystemType, Unknown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkBlockDeviceConfig
+struct TBlockDeviceConfigBase
     : public NYTree::TYsonStruct
+{
+    REGISTER_YSON_STRUCT(TBlockDeviceConfigBase);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBlockDeviceConfigBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkBlockDeviceConfig
+    : public TBlockDeviceConfigBase
 {
     i64 Size;
     int MediumIndex;
@@ -41,7 +53,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkBlockDeviceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFileSystemBlockDeviceConfig
-    : public NYTree::TYsonStruct
+    : public TBlockDeviceConfigBase
 {
     REGISTER_YSON_STRUCT(TFileSystemBlockDeviceConfig);
 
@@ -53,7 +65,7 @@ DEFINE_REFCOUNTED_TYPE(TFileSystemBlockDeviceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMemoryBlockDeviceConfig
-    : public NYTree::TYsonStruct
+    : public TBlockDeviceConfigBase
 {
     i64 Size;
 
@@ -67,7 +79,7 @@ DEFINE_REFCOUNTED_TYPE(TMemoryBlockDeviceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDynamicTableBlockDeviceConfig
-    : public NYTree::TYsonStruct
+    : public TBlockDeviceConfigBase
 {
     i64 Size;
     i64 BlockSize;

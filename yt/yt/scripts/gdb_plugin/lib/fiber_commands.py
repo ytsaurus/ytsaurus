@@ -1,0 +1,247 @@
+# Interactive fiber commands.
+#
+#     yt-fiber-list [-a]      roster of parked fibers (idle pooled ones hidden
+#                             unless -a)
+#     yt-fiber-bt <n>         full backtrace of parked fiber n (read-only)
+#     yt-fiber-locals <n> [<frame>]  args + locals of fiber n's frame (read-only)
+#     yt-fiber-select [<n>]   switch gdb into fiber n's register context
+#                             (no argument restores the original context)
+#
+# All build on the core-friendly enumeration in fiber_attribution.py (the
+# TFiberRegistry is read straight from memory, no inferior calls), so the list,
+# backtrace, and locals work on a coredump. yt-fiber-select alone needs a live
+# inferior (gdb forbids modifying registers on a core) and degrades with a clear
+# message -- use yt-fiber-locals for read-only local inspection on a core.
+
+import re
+
+import gdb
+
+import _announce
+import fiber
+from fiber_attribution import (
+    fiber_stacks, format_fiber_backtrace, format_fiber_frame_locals,
+)
+
+# Scheduler / context-switch plumbing that wraps every parked fiber; skipped when
+# picking the "interesting" leaf frame for the concise roster.
+_PLUMBING = (
+    "MachineContext", "SwitchTo", "SwitchFromFiber", "YieldFiber",
+    "WaitUntilSet", "WaitFor", "RunInFiberContext", "FiberTrampoline",
+    "TBindState", "TCallback", "TInvoker", "TRunnableAdapter",
+)
+
+
+def _parked_fiber(index):
+    for _lo, _hi, _rsp, idx, fib in fiber_stacks():
+        if idx == index:
+            return fib
+    return None
+
+
+def _frame_symbol(line):
+    """The symbol part of a backtrace line, or None for a non-frame line.
+    Handles both address-bearing frames and inlined frames (which have no
+    address) so the leaf-frame pick can land on an inlined user lambda."""
+    m = re.match(r"\s*#\d+\s+(.*\S)\s+\(inlined\)\s*$", line)
+    if m:
+        return m.group(1)
+    m = re.search(r"0x[0-9a-f]+\s+(.+)$", line)
+    return m.group(1).strip() if m else None
+
+
+def _interesting_frame(lines):
+    """The first frame outside the scheduler plumbing -- i.e. the user code the
+    fiber is actually parked in. Falls back to the deepest available frame."""
+    fallback = None
+    for line in lines:
+        sym = _frame_symbol(line)
+        if sym is None:
+            continue
+        if fallback is None:
+            fallback = sym
+        if not any(p in sym for p in _PLUMBING):
+            return sym
+    return fallback or "?"
+
+
+# An idle pooled fiber has been returned to TIdleFiberPool awaiting reuse -- its
+# stack is just the switch plumbing plus the pool, with no user work above it.
+_IDLE_MARKERS = ("IdleFiberPool", "MakeItIdle")
+
+
+def _is_idle_fiber(lines):
+    """True if the fiber is parked idle in the pool (no real work on its stack):
+    every frame is scheduler plumbing or the idle-pool machinery."""
+    for line in lines:
+        sym = _frame_symbol(line)
+        if sym is None:
+            continue
+        if any(p in sym for p in _PLUMBING) or any(m in sym for m in _IDLE_MARKERS):
+            continue
+        return False  # a real (user/work) frame -> not idle
+    return True
+
+
+class YtFiberList(gdb.Command):
+    """yt-fiber-list [-a]: concise roster of parked fibers (index, rsp, leaf frame).
+    Idle pooled fibers (recycled, awaiting reuse) are hidden unless -a is given."""
+
+    def __init__(self):
+        super().__init__("yt-fiber-list", gdb.COMMAND_STACK)
+
+    def invoke(self, arg, from_tty):
+        show_all = arg.strip() in ("-a", "--all")
+        stacks = fiber_stacks()
+        if not stacks:
+            print("No parked fibers found")
+            return
+        rows, idle = [], 0
+        for _lo, _hi, rsp, idx, fib in stacks:
+            bt = format_fiber_backtrace(fib)
+            if not show_all and _is_idle_fiber(bt):
+                idle += 1
+                continue
+            rows.append((idx, rsp, _interesting_frame(bt)))
+        if not rows:
+            print("%d parked fiber(s), all idle/pooled (yt-fiber-list -a to show them)"
+                  % len(stacks))
+            return
+        hidden = "" if show_all or not idle else " (%d idle/pooled hidden; -a to show all)" % idle
+        print("%d parked fiber(s)%s; backtrace one with: yt-fiber-bt <n>"
+              % (len(stacks), hidden))
+        for idx, rsp, frame in rows:
+            print("  #%-4d rsp=0x%012x  %s" % (idx, rsp, frame))
+
+
+class YtFiberBacktrace(gdb.Command):
+    """yt-fiber-bt <n>: full backtrace of parked fiber n (read-only, core-safe)."""
+
+    def __init__(self):
+        super().__init__("yt-fiber-bt", gdb.COMMAND_STACK)
+
+    def invoke(self, arg, from_tty):
+        arg = arg.strip()
+        if not arg:
+            raise gdb.GdbError("Expected a fiber index (see yt-fiber-list)")
+        try:
+            index = int(arg)
+        except ValueError:
+            raise gdb.GdbError("Expected a fiber index")
+        fib = _parked_fiber(index)
+        if fib is None:
+            raise gdb.GdbError("No parked fiber #%d (run yt-fiber-list)" % index)
+        print("Fiber #%d:" % index)
+        for line in format_fiber_backtrace(fib):
+            print("  " + line)
+
+
+class YtFiberLocals(gdb.Command):
+    """yt-fiber-locals <n> [<frame>]: args + locals of parked fiber n's frame
+    (default the innermost, #0). Read-only and core-safe -- reads the locals out
+    of a CFI-unwound frame without modifying registers, so unlike yt-fiber-select
+    it works on a coredump. Frame numbers match yt-fiber-bt."""
+
+    def __init__(self):
+        super().__init__("yt-fiber-locals", gdb.COMMAND_STACK)
+
+    def invoke(self, arg, from_tty):
+        parts = arg.split()
+        if not parts:
+            raise gdb.GdbError("Expected a fiber index (see yt-fiber-list)")
+        try:
+            index = int(parts[0])
+            frame_index = int(parts[1]) if len(parts) > 1 else 0
+        except ValueError:
+            raise gdb.GdbError("Usage: yt-fiber-locals <n> [<frame>]")
+        fib = _parked_fiber(index)
+        if fib is None:
+            raise gdb.GdbError("No parked fiber #%d (run yt-fiber-list)" % index)
+        lines = format_fiber_frame_locals(fib, frame_index)
+        if lines is None:
+            raise gdb.GdbError(
+                "Could not CFI-unwind fiber #%d, so locals are unavailable; "
+                "yt-fiber-bt %d still gives the frame list" % (index, index))
+        print("Fiber #%d frame #%d:" % (index, frame_index))
+        for line in lines:
+            print("  " + line)
+
+
+class _FiberRegisterSwitcher:
+    """Save the live registers, set them to a fiber's saved TContMachineContext,
+    and restore on demand. The switch lets gdb's native unwinder walk the fiber."""
+
+    _REG_NAMES = [name for name, _idx in fiber._FIBER_SEED_REGS]
+
+    def __init__(self, fib):
+        self._saved = {
+            name: int(gdb.parse_and_eval("(unsigned long)$%s" % name))
+            for name in self._REG_NAMES
+        }
+        self._buf = fiber.retrieve_fiber_context_regs(fib)
+
+    def _apply(self, values):
+        # Pin the innermost frame first so setting registers can't corrupt a
+        # selected outer frame.
+        gdb.execute("select-frame 0")
+        for name, value in values.items():
+            gdb.execute("set $%s = %d" % (name, value))
+
+    def switch(self):
+        self._apply({name: int(self._buf[idx]) for name, idx in fiber._FIBER_SEED_REGS})
+
+    def restore(self):
+        self._apply(self._saved)
+
+
+class YtFiberSelect(gdb.Command):
+    """yt-fiber-select [<n>]: switch gdb into parked fiber n's context; no argument
+    restores. While selected, `bt` / `info locals` operate on the fiber. Needs a
+    live inferior -- gdb cannot modify registers on a coredump."""
+
+    def __init__(self):
+        super().__init__("yt-fiber-select", gdb.COMMAND_STACK)
+        self._active = None
+
+    def invoke(self, arg, from_tty):
+        arg = arg.strip()
+        if not arg:
+            if self._active is None:
+                print("No fiber context selected")
+                return
+            self._active.restore()
+            self._active = None
+            print("Restored original context")
+            return
+        if self._active is not None:
+            print("Already in a fiber context; run 'yt-fiber-select' with no argument to restore first")
+            return
+        try:
+            index = int(arg)
+        except ValueError:
+            raise gdb.GdbError("Expected a fiber index")
+        fib = _parked_fiber(index)
+        if fib is None:
+            raise gdb.GdbError("No parked fiber #%d (run yt-fiber-list)" % index)
+        switcher = _FiberRegisterSwitcher(fib)
+        try:
+            switcher.switch()
+        except gdb.error:
+            # Setting registers needs a live inferior; gdb forbids it on a core.
+            raise gdb.GdbError(
+                "Cannot switch register context on a coredump; use "
+                "yt-fiber-bt %d for a read-only backtrace instead" % index)
+        self._active = switcher
+        print("Switched to fiber #%d; use bt / info locals, then 'yt-fiber-select' to restore" % index)
+
+
+def register():
+    YtFiberList()
+    YtFiberBacktrace()
+    YtFiberLocals()
+    YtFiberSelect()
+    _announce.command("fibers", "yt-fiber-list", "yt-fiber-bt",
+                      "yt-fiber-locals", "yt-fiber-select")
+
+
+register()

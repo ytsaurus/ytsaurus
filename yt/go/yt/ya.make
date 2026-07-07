@@ -13,6 +13,7 @@ SRCS(
     mount.go
     query_tracker.go
     range_operations.go
+    reader.go
     skynet.go
     tables.go
     tx.go

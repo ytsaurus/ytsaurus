@@ -152,24 +152,26 @@ TPermissionCheckResponse TPermissionChecker<TAccessControlEntry, TCallback>::Get
             }
         }
 
-        if (FullReadRequested_) {
-            for (const auto& [column, result] : ColumnToResult_) {
-                if (result.Action == NSecurityClient::ESecurityAction::Deny ||
-                    (result.Action == NSecurityClient::ESecurityAction::Undefined && !FullReadExplicitlyGranted_))
-                {
-                    Response_.DeniedColumnResult = result;
-                    Response_.DeniedColumnResult->Action = NSecurityClient::ESecurityAction::Deny;
-                    break;
-                }
-            }
-            if (CheckAllAceColumnsFullRead_) {
-                deniedColumnResult = Response_.DeniedColumnResult;
-            }
-        }
-
         if (FullReadRequested_ && deniedColumnResult) {
             RequestedFullReadButReadIsDenied_ = false;
             SetDeny(deniedColumnResult->SubjectId, deniedColumnResult->ObjectId);
+        }
+    }
+
+    // COMPAT(danilalexeev)
+    if (Response_.Action == NSecurityClient::ESecurityAction::Allow && FullReadRequested_) {
+        for (const auto& [column, result] : ColumnToResult_) {
+            if (result.Action == NSecurityClient::ESecurityAction::Deny ||
+                (result.Action == NSecurityClient::ESecurityAction::Undefined && !FullReadExplicitlyGranted_))
+            {
+                Response_.DeniedColumnResult = result;
+                Response_.DeniedColumnResult->Action = NSecurityClient::ESecurityAction::Deny;
+                if (CheckAllAceColumnsFullRead_) {
+                    RequestedFullReadButReadIsDenied_ = false;
+                    SetDeny(result.SubjectId, result.ObjectId);
+                }
+                break;
+            }
         }
     }
 
@@ -299,7 +301,7 @@ void TSubtreePermissionChecker<TAccessControlEntry, TCallback>::TrackAce(
     }
 
     auto subjectId = MatchAceSubjectCallback_(*ace);
-    if (!subjectId && !ace->RowAccessPredicate) {
+    if (!subjectId && !ace->RowAccessPredicate && !ace->Columns) {
         return;
     }
 

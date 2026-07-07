@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <library/cpp/yt/string/string.h>
+
 #include <util/string/join.h>
 #include <util/string/split.h>
 
@@ -131,7 +133,7 @@ class TNvidiaSmiGpuInfoProvider
 
             result.push_back(TGpuInfo{
                 .Index = gpuIndex,
-                .Name = SubstGlobalCopy(to_lower(TString(StripString(tokens[metricsIndex.Name]))), ' ', '_'),
+                .Name = SubstGlobalCopy(AsciiStringToLower(StripString(tokens[metricsIndex.Name])), ' ', '_'),
                 .UtilizationGpuRate = FromString<i64>(StripString(tokens[metricsIndex.UtilizationGpu])) / 100.0,
                 .UtilizationMemoryRate = FromString<i64>(StripString(tokens[metricsIndex.UtilizationMemory])) / 100.0,
                 .MemoryUsed = static_cast<i64>(memoryUsed),

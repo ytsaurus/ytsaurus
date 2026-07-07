@@ -41,7 +41,10 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/invoker_detail.h>
+
+#include <library/cpp/iterator/zip.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -174,6 +177,10 @@ public:
         , Profiler_(HydraProfiler().WithTag("cell_id", ToString(cellId)).WithSparse())
         , Logger(HydraLogger().WithTag("CellId: %v", cellId))
         , LeaderSyncTimer_(Profiler_.Timer("/leader_sync_time"))
+        , SerializeMutationsExecutor_(New<NConcurrency::TPeriodicExecutor>(
+            ControlInvoker_,
+            BIND(&TDistributedHydraManager::SerializeMutations, MakeWeak(this)),
+            Config_->Get()->MutationSerializationPeriod))
         , DecoratedAutomaton_(New<TDecoratedAutomaton>(
             Config_,
             Options_,
@@ -222,6 +229,8 @@ public:
         YT_LOG_INFO("Hydra instance initialized");
 
         ControlState_ = EPeerState::Elections;
+
+        SerializeMutationsExecutor_->Start();
 
         Participate();
     }
@@ -739,7 +748,9 @@ private:
     NProfiling::TEventTimer LeaderSyncTimer_;
 
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
-    const TMutationDraftQueuePtr MutationDraftQueue_ = New<TMutationDraftQueue>();
+    const NConcurrency::TPeriodicExecutorPtr SerializeMutationsExecutor_;
+
+    TMutationDraftQueue MutationDraftQueue_;
 
     int SnapshotId_ = InvalidSegmentId;
     TFuture<TRemoteSnapshotParams> SnapshotFuture_;
@@ -1352,10 +1363,10 @@ private:
             mutationCount);
 
         auto epochContext = GetControlEpochContext(epochId);
-        // TODO(aleksandra-zh): I hate that.
-        SwitchTo(epochContext->EpochControlInvoker);
 
-        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+        // Run the rest of the handler under the epoch's cancelable context so that
+        // it is aborted if the epoch changes.
+        TCurrentCancelableContextGuard cancelableContextGuard(epochContext->CancelableContext);
 
         auto isPersistenceEnabled = IsPersistenceEnabled(epochContext->CellManager, Options_);
         auto controlState = GetControlState();
@@ -1534,24 +1545,40 @@ private:
             request.Data.Size(),
             request.EpochId);
 
-        MutationDraftQueue_->Enqueue({
+        MutationDraftQueue_.Enqueue({
             .Request = request,
             .Promise = std::move(promise),
             .RandomSeed = randomSeed,
         });
 
         if (Config_->Get()->MinimizeCommitLatency) {
-            if (auto epochContext = AtomicEpochContext_.Acquire()) {
-                epochContext->EpochControlInvoker->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
-                    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-                    if (ControlState_ == EPeerState::Leading) {
-                        epochContext->LeaderCommitter->SerializeMutations();
-                    }
-                }));
-            }
+            SerializeMutationsExecutor_->ScheduleOutOfBand();
         }
 
         return future;
+    }
+
+    void SerializeMutations()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        const auto& epochContext = ControlEpochContext_;
+        if (epochContext && epochContext->LeaderCommitter && epochContext->LeaderCommitter->IsActive()) {
+            epochContext->LeaderCommitter->SerializeMutations(&MutationDraftQueue_);
+        } else {
+            DrainMutationDraftQueue();
+        }
+    }
+
+    void DrainMutationDraftQueue()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer is not an active leader");
+        TMutationDraft draft;
+        while (MutationDraftQueue_.TryDequeue(&draft)) {
+            draft.Promise.TrySet(error);
+        }
     }
 
     // TODO(aleksandra-zh): epochId seems redundant.
@@ -2094,6 +2121,8 @@ private:
 
         StateHashChecker_->ReconfigureLimit(newConfig->MaxStateHashCheckerEntryCount);
 
+        SerializeMutationsExecutor_->SetPeriod(newConfig->MutationSerializationPeriod);
+
         if (!ControlEpochContext_) {
             return;
         }
@@ -2251,7 +2280,6 @@ private:
                 Options_,
                 DecoratedAutomaton_,
                 LeaderLease_,
-                MutationDraftQueue_,
                 newChangelog,
                 epochContext->ReachableState,
                 epochContext.Get(),
@@ -3200,6 +3228,7 @@ private:
                 "Must be in read-only mode to discombobulate"));
         }
 
+        std::vector<int> peerIds;
         std::vector<TFuture<TInternalHydraServiceProxy::TRspDiscombobulatePtr>> futures;
         const auto& cellManager = epochContext->CellManager;
         for (int peerId = 0; peerId < cellManager->GetTotalPeerCount(); ++peerId) {
@@ -3219,11 +3248,27 @@ private:
             auto req = proxy.Discombobulate();
             req->SetTimeout(Config_->Get()->ControlRpcTimeout);
             req->set_sequence_number(DecoratedAutomaton_->GetSequenceNumber());
+            peerIds.push_back(peerId);
             futures.push_back(req->Invoke());
         }
 
-        WaitFor(AllSucceeded(std::move(futures)))
-            .ThrowOnError();
+        auto rsps = WaitFor(AllSet(std::move(futures)))
+            .ValueOrThrow();
+
+        bool anySucceeded = false;
+        for (const auto& [peerId, rsp] : Zip(peerIds, rsps)) {
+            if (rsp.IsOK()) {
+                anySucceeded = true;
+            } else {
+                YT_LOG_WARNING(rsp,
+                    "Failed to discombobulate observer (PeerId: %v)",
+                    peerId);
+            }
+        }
+
+        if (!peerIds.empty() && !anySucceeded) {
+            rsps[0].ThrowOnError();
+        }
     }
 
     void Freeze(int term)

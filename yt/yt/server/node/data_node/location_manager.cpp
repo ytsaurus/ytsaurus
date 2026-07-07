@@ -20,6 +20,8 @@
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
+#include <library/cpp/yt/string/string.h>
+
 namespace NYT::NDataNode {
 
 using namespace NClusterNode;
@@ -54,7 +56,7 @@ TLocationManager::TLocationManager(
 }
 
 TFuture<void> TLocationManager::FailDiskByName(
-    const TString& diskName,
+    const std::string& diskName,
     const TError& error)
 {
     if (!DiskInfoProvider_) {
@@ -329,11 +331,8 @@ TLocationHealthChecker::TLocationHealthChecker(
 {
     for (auto diskState : TEnumTraits<EDiskState>::GetDomainValues()) {
         for (auto storageClass : TEnumTraits<EStorageClass>::GetDomainValues()) {
-            auto diskStateName = TString(FormatEnum(diskState));
-            auto diskFamilyName = TString(FormatEnum(storageClass));
-
-            diskStateName.to_upper();
-            diskFamilyName.to_upper();
+            auto diskStateName = AsciiStringToUpper(FormatEnum(diskState));
+            auto diskFamilyName = AsciiStringToUpper(FormatEnum(storageClass));
 
             Gauges_[diskState][storageClass] = Profiler_
                 .WithTags(TTagSet(TTagList{
@@ -376,8 +375,7 @@ void TLocationHealthChecker::OnDiskHealthCheckFailed(
     auto config = DynamicConfig_.Acquire();
 
     if (config->Enabled && config->EnableManualDiskFailures) {
-        // TODO(babenko): migrate to std::string
-        YT_UNUSED_FUTURE(LocationManager_->FailDiskByName(TString(location->GetStaticConfig()->DeviceName), error));
+        YT_UNUSED_FUTURE(LocationManager_->FailDiskByName(location->GetStaticConfig()->DeviceName, error));
     }
 }
 

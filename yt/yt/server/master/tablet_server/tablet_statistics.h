@@ -97,7 +97,7 @@ bool operator==(const TTabletStatistics& lhs, const TTabletStatistics& rhs);
 void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics);
 void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStatistics& protoStatistics);
 
-TString ToString(const TTabletStatistics& statistics, const NChunkServer::IChunkManagerPtr& chunkManager);
+std::string ToString(const TTabletStatistics& statistics, const NChunkServer::IChunkManagerPtr& chunkManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

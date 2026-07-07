@@ -473,15 +473,6 @@ private:
         Semaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentChunkSeals);
     }
 
-    static bool IsSealNeeded(const TChunk* chunk)
-    {
-        return
-            IsObjectAlive(chunk) &&
-            chunk->IsJournal() &&
-            chunk->IsConfirmed() &&
-            !chunk->IsSealed();
-    }
-
     static bool IsAttached(const TChunk* chunk)
     {
         return chunk->HasParents();

@@ -35,6 +35,8 @@ const (
 	NodeSys               NodeType = "sys_node"
 	NodePortalEntrance    NodeType = "portal_entrance"
 	NodePortalExit        NodeType = "portal_exit"
+	NodeScion             NodeType = "scion"
+	NodeRootstock         NodeType = "rootstock"
 	NodeSchedulerPool     NodeType = "scheduler_pool"
 	NodeSchedulerPoolTree NodeType = "scheduler_pool_tree"
 

@@ -60,8 +60,12 @@ struct TModuleProfilingCounters
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGpuSchedulingProfilingCounters
+    : public TCommonSchedulingProfilingCounters
 {
     explicit TGpuSchedulingProfilingCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TProfiler PlanUpdateProfiler;
+    NProfiling::TProfiler SchedulingHeartbeatProfiler;
 
     NProfiling::TCounter PlannedAssignments;
     NProfiling::TCounter PreemptedAssignments;
@@ -77,6 +81,9 @@ struct TGpuSchedulingProfilingCounters
     NProfiling::TGauge FullHostModuleBoundOperations;
 
     NProfiling::TGauge AssignedGpu;
+
+    NProfiling::TCounter ScheduledAllocationCount;
+    NProfiling::TCounter PreemptedAllocationCount;
 
     THashMap<std::string, TModuleProfilingCounters> ModuleCounters;
 };
@@ -99,7 +106,7 @@ public:
     void RegisterNode(TNodeId nodeId, const std::string& nodeAddress) override;
     void UnregisterNode(TNodeId nodeId) override;
 
-    void ProcessSchedulingHeartbeat(
+    TFuture<void> ProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TPoolTreeSnapshotPtr& treeSnapshot,
         bool skipScheduleAllocations) override;
@@ -243,6 +250,8 @@ private:
 
     void ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatisticsPtr& statistics);
 
+    void ProfileSchedulingHeartbeat(const TGpuScheduleAllocationsStatisticsPtr& statistics);
+
     TLogger MakeNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor);
 
     void DoProcessSchedulingHeartbeat(
@@ -339,7 +348,7 @@ public:
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const TResourceUsageSnapshotPtr& resourceUsageSnapshot) const override;
 
-    void ProcessSchedulingHeartbeat(
+    TFuture<void> ProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TPoolTreeSnapshotPtr& treeSnapshot,
         bool skipScheduleAllocations) override;

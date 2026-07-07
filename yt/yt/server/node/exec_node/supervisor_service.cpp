@@ -292,17 +292,17 @@ private:
             job->SetStatistics(ysonStatistics);
 
             // NB(bystrovserg): Always report statistics when job is finished.
-            jobReport.SetStatistics(job->GetStatistics());
+            jobReport.Statistics(job->GetStatistics());
         }
 
         job->SetTotalInputDataStatistics(request->total_input_data_statistics());
         job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
         // COMPAT(ignat): migrate to new fields (node_start_time, node_finish_time)
         if (request->has_start_time()) {
-            jobReport.SetStartTime(FromProto<TInstant>(request->start_time()));
+            jobReport.StartTime(FromProto<TInstant>(request->start_time()));
         }
         if (request->has_finish_time()) {
-            jobReport.SetFinishTime(FromProto<TInstant>(request->finish_time()));
+            jobReport.FinishTime(FromProto<TInstant>(request->finish_time()));
         }
         job->SetCoreInfos(FromProto<NControllerAgent::TCoreInfos>(request->core_infos()));
         job->HandleJobReport(std::move(jobReport));

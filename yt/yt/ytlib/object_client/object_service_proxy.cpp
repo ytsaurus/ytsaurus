@@ -925,14 +925,14 @@ void TObjectServiceProxy::TRspExecuteBatch::SetResponseReceived(
     auto& descriptor = InnerResponseDescriptors_[index];
     YT_VERIFY(!descriptor.Meta);
 
-    const auto attachmentCount = std::ssize(Attachments_);
+    const auto attachmentCount = std::ssize(Attachments());
     const auto rangeSize = std::distance(attachments.Begin, attachments.End);
 
     descriptor.Uncertain = false;
     descriptor.Meta = {{attachmentCount, attachmentCount + rangeSize}, revision};
     ++ResponseCount_;
 
-    Attachments_.insert(Attachments_.end(), attachments.Begin, attachments.End);
+    Attachments().insert(Attachments().end(), attachments.Begin, attachments.End);
 
     if (index == FirstUnreceivedResponseIndex_) {
         for (; FirstUnreceivedResponseIndex_ < std::ssize(InnerRequestDescriptors_); ++FirstUnreceivedResponseIndex_) {
@@ -1016,8 +1016,8 @@ TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int in
     }
     return TSharedRefArray(
         TRange(
-            Attachments_.data() + beginIndex,
-            Attachments_.data() + endIndex),
+            Attachments().data() + beginIndex,
+            Attachments().data() + endIndex),
         TSharedRefArray::TCopyParts{});
 }
 
@@ -1043,8 +1043,8 @@ TObjectServiceProxy::TRspExecuteBatch::TAttachmentRange TObjectServiceProxy::TRs
     const auto& meta = InnerResponseDescriptors_[index].Meta;
     YT_VERIFY(meta);
     return {
-        Attachments_.begin() + meta->PartRange.first,
-        Attachments_.begin() + meta->PartRange.second
+        Attachments().begin() + meta->PartRange.first,
+        Attachments().begin() + meta->PartRange.second
     };
 }
 

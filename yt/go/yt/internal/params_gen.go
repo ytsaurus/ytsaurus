@@ -6060,7 +6060,7 @@ func NewPullQueueConsumerParams(
 	}
 	optionsCopy := *options
 	return &PullQueueConsumerParams{
-		VerbPullQueueConsumer,
+		Verb("pull_queue_consumer"),
 		consumerPath,
 		queuePath,
 		&optionsCopy,
@@ -7598,9 +7598,7 @@ func (p *PingDistributedWriteSessionParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *PingDistributedWriteSessionParams) Log() []log.Field {
-	fields := []log.Field{
-		log.Any("session", p.session),
-	}
+	fields := []log.Field{}
 	fields = append(fields, logPingDistributedWriteSessionOptions(p.options)...)
 	return fields
 }
@@ -7642,10 +7640,7 @@ func (p *FinishDistributedWriteSessionParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *FinishDistributedWriteSessionParams) Log() []log.Field {
-	fields := []log.Field{
-		log.Any("session", p.session),
-		log.Any("results", p.results),
-	}
+	fields := []log.Field{}
 	fields = append(fields, logFinishDistributedWriteSessionOptions(p.options)...)
 	return fields
 }
@@ -7686,9 +7681,7 @@ func (p *WriteTableFragmentParams) YPath() (ypath.YPath, bool) {
 	return nil, false
 }
 func (p *WriteTableFragmentParams) Log() []log.Field {
-	fields := []log.Field{
-		log.Any("cookie", p.cookie),
-	}
+	fields := []log.Field{}
 	fields = append(fields, logTableFragmentWriterOptions(p.options)...)
 	return fields
 }

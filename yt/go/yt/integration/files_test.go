@@ -75,3 +75,68 @@ func TestFiles(t *testing.T) {
 		})
 	})
 }
+
+func TestHighLevelFileWriter(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+
+	t.Run("BigWrite", func(t *testing.T) {
+		name := tmpPath()
+
+		w, err := yt.WriteFile(env.Ctx, env.YT, name, yt.WithWriteFileBatchSize(100))
+		require.NoError(t, err)
+
+		const testSize = 1024
+		content := make([]byte, testSize)
+		for i := range content {
+			content[i] = byte(i)
+			_, err := w.Write(content[i : i+1])
+			require.NoError(t, err)
+		}
+
+		exists, err := env.YT.NodeExists(env.Ctx, name, nil)
+		require.NoError(t, err)
+		require.False(t, exists, "File should not be visible because it is written inside tx")
+
+		require.NoError(t, w.Close())
+
+		r, err := env.YT.ReadFile(env.Ctx, name, nil)
+		require.NoError(t, err)
+		defer func() { _ = r.Close() }()
+
+		got, err := io.ReadAll(r)
+		require.NoError(t, err)
+		require.Equal(t, content, got)
+	})
+}
+
+func TestHighLevelFileReader(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+
+	t.Run("BigRead", func(t *testing.T) {
+		name := tmpPath()
+
+		const testSize = 1024
+		content := make([]byte, testSize)
+		for i := range content {
+			content[i] = byte(i)
+		}
+
+		w, err := yt.WriteFile(env.Ctx, env.YT, name)
+		require.NoError(t, err)
+		_, err = w.Write(content)
+		require.NoError(t, err)
+		require.NoError(t, w.Close())
+
+		r, err := yt.ReadFile(env.Ctx, env.YT, name, yt.WithReadFileRetries(3))
+		require.NoError(t, err)
+		defer func() { _ = r.Close() }()
+
+		got, err := io.ReadAll(r)
+		require.NoError(t, err)
+		require.Equal(t, content, got)
+	})
+}

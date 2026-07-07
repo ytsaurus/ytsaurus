@@ -1,6 +1,6 @@
 from yt_dynamic_tables_base import DynamicTablesBase
 
-from yt.common import wait
+from yt.common import YtError, wait
 
 from yt_commands import (
     create, create_secondary_index, create_table_replica, create_table_collocation, create_user,
@@ -8,10 +8,13 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
     select_rows, explain_query, insert_rows, delete_rows,
     commit_transaction, start_transaction,
+    alter_replication_card, migrate_replication_cards,
     sorted_dicts, raises_yt_error,
 )
 
 from yt.test_helpers import assert_items_equal
+
+from yt_chaos_test_base import ChaosTestBase
 
 import yt.yson as yson
 
@@ -1529,26 +1532,6 @@ class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestS
             sorted_dicts([{"keyA": i, "keyB": f"key{i}", "valueA": i, "valueB": i % 2 == 0} for i in range(5)])
         )
 
-    @authors("sabdenovch")
-    def test_postpone_index_resolve(self):
-        self._create_table("//tmp/table", PRIMARY_SCHEMA)
-
-        create("table", "//tmp/index_table", driver=self.REPLICA_DRIVER, attributes={
-            "dynamic": True,
-            "schema": INDEX_ON_VALUE_SCHEMA,
-        })
-
-        self._sync_create_cells()
-        self._mount("//tmp/table")
-        sync_mount_table("//tmp/index_table", driver=self.REPLICA_DRIVER)
-
-        select_rows("* from [//tmp/table] with index [//tmp/index_table] I")
-
-        remove("//tmp/index_table", driver=self.REPLICA_DRIVER)
-
-        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
-            select_rows("* from [//tmp/table] with index [//tmp/index_table] I")
-
 
 ##################################################################
 
@@ -1564,3 +1547,196 @@ class TestSecondaryIndexModificationsOverRpc(TestSecondaryIndexModifications):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSecondaryIndexChaosBase(ChaosTestBase, TestSecondaryIndexReplicatedBase):
+    BUNDLE_NAME = "chaos_bundle"
+
+    def setup_method(self, method):
+        super(TestSecondaryIndexChaosBase, self).setup_method(method)
+
+        self.cell_id = self._sync_create_chaos_bundle_and_cell(name=self.BUNDLE_NAME)
+        set(f"//sys/chaos_cell_bundles/{self.BUNDLE_NAME}/@metadata_cell_id", self.cell_id)
+        self.table_to_replication_card = {}
+
+    def _mount(self, *tables):
+        for table in tables:
+            for kind in ("data", "queue"):
+                for mode in ("sync", "async"):
+                    sync_mount_table(f"{table}_{kind}_{mode}", driver=self.REPLICA_DRIVER)
+            self._sync_replication_era(self.table_to_replication_card[table])
+
+    def _unmount(self, *tables):
+        for table in tables:
+            for kind in ("data", "queue"):
+                for mode in ("sync", "async"):
+                    sync_unmount_table(f"{table}_{kind}_{mode}", driver=self.REPLICA_DRIVER)
+
+    def _create_table(self, table_path, table_schema):
+        attributes = {
+            "schema": table_schema,
+            "chaos_cell_bundle": self.BUNDLE_NAME,
+        }
+
+        table_id = create("chaos_replicated_table", table_path, attributes=attributes)
+        self.table_to_replication_card[table_path] = get(f"{table_path}/@replication_card_id")
+
+        replicas = []
+        for kind in ("data", "queue"):
+            for mode in ("sync", "async"):
+                replicas.append({
+                    "cluster_name": "remote_0",
+                    "content_type": kind,
+                    "mode": mode,
+                    "enabled": True,
+                    "replica_path": f"{table_path}_{kind}_{mode}",
+                })
+
+        replica_ids = self._create_chaos_table_replicas(
+            replicas,
+            table_path=table_path)
+        self._create_replica_tables(
+            replicas,
+            replica_ids,
+            schema=table_schema,
+            mount_tables=False)
+
+        return table_id
+
+    def _create_secondary_index(
+        self,
+        table_path="//tmp/table",
+        index_table_path="//tmp/index_table",
+        kind="full_sync",
+        table_to_index_correspondence="bijective",
+        **kwargs
+    ):
+        collocation_id = create("replication_card_collocation", None, attributes={
+            "type": "replication",
+            "table_paths": [table_path, index_table_path]
+        })
+        kwargs["kind"] = kind
+        kwargs["correspondence"] = table_to_index_correspondence
+        kwargs["index_replication_card_id"] = self.table_to_replication_card[index_table_path]
+        alter_replication_card(self.table_to_replication_card[table_path], create_secondary_index=kwargs)
+
+        return None, collocation_id
+
+    def _get_replication_card(self, table_path):
+        card_id = self.table_to_replication_card[table_path]
+        peer = get(f"//sys/chaos_cells/{self.cell_id}/@peers/0/address")
+        return get(
+            f"//sys/cluster_nodes/{peer}/orchid/chaos_cells/{self.cell_id}/chaos_manager/replication_cards/{card_id}")
+
+
+@pytest.mark.enabled_multidaemon
+class TestChaosMetadata(TestSecondaryIndexChaosBase):
+    ENABLE_MULTIDAEMON = True
+
+    @authors("sabdenovch")
+    def test_create_and_delete_index(self):
+        table_path = "//tmp/table"
+        self._create_table(table_path, PRIMARY_SCHEMA)
+        with raises_yt_error("Cannot create index to itself"):
+            attributes = {
+                "kind": "full_sync",
+                "correspondence": "invalid",
+                "index_replication_card_id": self.table_to_replication_card[table_path]
+            }
+            alter_replication_card(self.table_to_replication_card[table_path], create_secondary_index=attributes)
+
+        index_path = "//tmp/index_table"
+        self._create_table(index_path, INDEX_ON_VALUE_SCHEMA)
+
+        with raises_yt_error("Cannot create index with correspondence"):
+            attributes = {
+                "kind": "full_sync",
+                "correspondence": "unknown",
+                "index_replication_card_id": self.table_to_replication_card[index_path]
+            }
+            alter_replication_card(self.table_to_replication_card[table_path], create_secondary_index=attributes)
+
+        attributes = {
+            "kind": "full_sync",
+            "correspondence": "bijective",
+            "index_replication_card_id": self.table_to_replication_card[index_path]
+        }
+
+        with raises_yt_error("Table and index table must belong to the same non-null collocation"):
+            alter_replication_card(self.table_to_replication_card[table_path], create_secondary_index=attributes)
+
+        create("replication_card_collocation", None, attributes={
+            "type": "replication",
+            "table_paths": [table_path, index_path]
+        })
+        alter_replication_card(self.table_to_replication_card[table_path], create_secondary_index=attributes)
+
+        assert self._get_replication_card(table_path)["secondary_indices"] == {
+            self.table_to_replication_card[index_path] : {
+                "kind": "full_sync",
+                "correspondence": "bijective",
+                "index_object_id": self.table_to_replication_card[index_path],
+            }
+        }
+
+        with raises_yt_error("Cannot update replication card collocation, because replication card has secondary indices"):
+            alter_replication_card(self.table_to_replication_card[table_path], replication_card_collocation_id="0-0-0-0")
+
+        with raises_yt_error("Cannot update replication card collocation, because replication card has secondary indices"):
+            alter_replication_card(self.table_to_replication_card[index_path], replication_card_collocation_id="0-0-0-0")
+
+        alter_replication_card(
+            self.table_to_replication_card[table_path],
+            destroy_secondary_index=self.table_to_replication_card[index_path])
+
+        assert "secondary_indices" not in self._get_replication_card(table_path)
+
+        alter_replication_card(self.table_to_replication_card[index_path], replication_card_collocation_id="0-0-0-0")
+        alter_replication_card(self.table_to_replication_card[table_path], replication_card_collocation_id="0-0-0-0")
+
+    @authors("sabdenovch")
+    def test_migration(self):
+        self._create_basic_tables()
+        dst_cell_id = self._sync_create_chaos_cell(self.BUNDLE_NAME)
+
+        card_ids = [
+            self.table_to_replication_card["//tmp/table"],
+            self.table_to_replication_card["//tmp/secondary"],
+        ]
+
+        migrate_replication_cards(
+            self.cell_id,
+            card_ids,
+            destination_cell_id=dst_cell_id)
+
+        def _check_migrated():
+            primary_peer_address = get(f"#{dst_cell_id}/@peers/0/address")
+            orchid_path = f"//sys/cluster_nodes/{primary_peer_address}/orchid/chaos_cells/{dst_cell_id}"
+
+            for card_id in card_ids:
+                migration_path = f"{orchid_path}/chaos_manager/replication_cards/{card_id}"
+                if not exists(migration_path):
+                    return False
+
+            return True
+
+        # Here we check that either migration is in progress and alter RPC throws
+        # or migration is done and does not throw (migration).
+        with raises_yt_error() as err:
+            alter_replication_card(
+                self.table_to_replication_card["//tmp/table"],
+                destroy_secondary_index=self.table_to_replication_card["//tmp/secondary"])
+
+            assert _check_migrated()
+
+            # Silence the check.
+            err.append(YtError("Migrated before alter"))
+
+        # Alter might fail due to encountered migrating collocation or chaos channel misdirection.
+        assert err[0].contains_text("Migrated before alter") or \
+            err[0].contains_text("migrating") or \
+            err[0].contains_text("Replication card is not in \"normal\" state")

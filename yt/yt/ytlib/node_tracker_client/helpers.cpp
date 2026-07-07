@@ -115,7 +115,7 @@ std::string FormatResourceUsage(
     return Format("{%v}", FormatResources(usage, limits));
 }
 
-TString ToString(const NProto::TDiskResources& diskResources, const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
+std::string ToString(const NProto::TDiskResources& diskResources, const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
 {
     return Format(
         "%v",

@@ -78,12 +78,12 @@ private:
     }
 };
 
-TString Prettify(const TYsonString& yson)
+std::string Prettify(const TYsonString& yson)
 {
     return ConvertToYsonString(yson, EYsonFormat::Pretty).ToString();
 }
 
-TString Prettify(TStringBuf yson)
+std::string Prettify(TYsonStringBuf yson)
 {
     return Prettify(TYsonString(yson));
 }
@@ -113,7 +113,7 @@ TEST_F(TSequoiaTest, TestCreateMapNode)
     auto rsp = WaitFor(Client_->GetNode("//sequoia/a"))
         .ValueOrThrow();
 
-    YSON_EXPECT_EQ("{b = {}}", rsp);
+    YSON_EXPECT_EQ(TYsonStringBuf("{b = {}}"), rsp);
 }
 
 TEST_F(TSequoiaTest, TestRowLockConflict)
@@ -203,15 +203,15 @@ TEST_F(TSequoiaTest, TestCypressTransactionSimple)
 
     YSON_EXPECT_EQ(WaitFor(Client_->GetNode(Format("#%v/@cypress_transaction", topmostTx->GetId())))
         .ValueOrThrow(),
-        "%true");
+        TYsonStringBuf("%true"));
 
     YSON_EXPECT_EQ(WaitFor(Client_->GetNode(Format("#%v/@cypress_transaction", nestedTx->GetId())))
         .ValueOrThrow(),
-        "%true");
+        TYsonStringBuf("%true"));
 
     YSON_EXPECT_EQ(WaitFor(Client_->GetNode(Format("#%v/@cypress_transaction", dependentTx->GetId())))
         .ValueOrThrow(),
-        "%true");
+        TYsonStringBuf("%true"));
 
     WaitFor(topmostTx->Abort())
         .ThrowOnError();

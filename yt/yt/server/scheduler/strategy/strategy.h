@@ -72,7 +72,7 @@ struct IStrategyHost
     virtual void ValidatePoolPermission(
         const std::string& treeId,
         TGuid poolObjectId,
-        const TString& poolName,
+        const std::string& poolName,
         const std::string& user,
         NYTree::EPermission permission) const = 0;
 

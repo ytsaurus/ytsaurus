@@ -130,7 +130,7 @@ int TProgram::Run(int argc, const char** argv)
 {
     ::srand(time(nullptr));
 
-    Argv0_ = TString(argv[0]);
+    Argv0_ = argv[0];
     OptsParseResult_ = std::make_unique<TOptsParseResult>(this, argc, argv);
 
     auto run = [&] {
@@ -245,7 +245,7 @@ std::string CheckPathExistsArgMapper(const std::string& arg)
     return arg;
 }
 
-NYson::TYsonString CheckYsonArgMapper(const TString& arg)
+NYson::TYsonString CheckYsonArgMapper(const std::string& arg)
 {
     ParseYsonStringBuffer(arg, EYsonType::Node, GetNullYsonConsumer());
     return NYson::TYsonString(arg);

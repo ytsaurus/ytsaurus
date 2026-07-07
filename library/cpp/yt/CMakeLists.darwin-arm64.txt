@@ -14,9 +14,9 @@
 
 add_subdirectory(assert)
 add_subdirectory(containers)
-add_subdirectory(global)
 add_subdirectory(misc)
 add_subdirectory(exception)
+add_subdirectory(global)
 add_subdirectory(memory)
 add_subdirectory(malloc)
 add_subdirectory(system)

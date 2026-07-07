@@ -132,6 +132,10 @@ def _make_upgrade_tasks(
 ) -> List[TaskCI]:
     upgrade_cfg = yaml.safe_load(resource.resfs_read(config.upgrade_config))
 
+    if upgrade_config and upgrade_config not in upgrade_cfg:
+        available = ", ".join(sorted(upgrade_cfg))
+        raise ValueError(f"unknown upgrade config {upgrade_config!r}, available: {available}")
+
     registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
     graph = compatibility_graph.CompatibilityGraph(registry)
 

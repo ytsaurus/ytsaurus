@@ -14,7 +14,6 @@
 
 add_subdirectory(changelog_surgeon)
 add_subdirectory(cuda_core_dump_injection)
-add_subdirectory(cypress_nbd_server)
 add_subdirectory(data_node_rpc_request)
 add_subdirectory(dump_changelog)
 add_subdirectory(dump_chunk_meta)

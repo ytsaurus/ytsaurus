@@ -92,6 +92,9 @@ public:
         // finalize the meta in parallel with the completion of the chunk upload itself.
         ChunkMeta_->CopyFrom(*FinalizeChunkMeta(std::move(chunkMeta), BlocksExt_));
         auto chunkMetaBlob = SerializeChunkMeta(GetChunkId(), ChunkMeta_);
+
+        ChunkInfo_.set_disk_space(DataSize_ + std::ssize(chunkMetaBlob));
+
         auto closeFutures = std::vector{
             ChunkUploadSession_->Complete(),
             ChunkMetaUploadSession_->Upload(std::move(chunkMetaBlob)),
@@ -153,7 +156,7 @@ public:
 
     TFuture<void> Cancel() override
     {
-        YT_UNIMPLEMENTED();
+        return ChunkUploadSession_->Abort(TError("S3 writer canceled"));
     }
 
 private:

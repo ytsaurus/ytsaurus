@@ -385,13 +385,14 @@ void TChunk::AddReplica(
                 medium->GetIndex());
             return;
         }
-        // TODO(cherepashka): allow once offshore media are implemented.
-        YT_LOG_ALERT(
-            "Attempted to add offshore medium stored replica for chunk, ignored "
-            "(ChunkId: %v, ReplicaIndex: %v, MediumIndex: %v)",
-            GetId(),
-            replica.GetReplicaIndex(),
-            replica.GetEffectiveMediumIndex());
+        if (approved) {
+            ++data->ApprovedReplicaCount;
+        } else {
+            YT_LOG_ALERT("Received unapproved offshore replica (ChunkId: %v, MediumIndex: %v)",
+                GetId(),
+                medium->GetIndex());
+        }
+        data->AddStoredReplica(replica);
         return;
     }
 
@@ -1048,8 +1049,8 @@ TStoredChunkReplicaList TChunk::GetStoredReplicaList(bool includeNonOnlineReplic
                 return false;
             }
             auto locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
-            auto node = locationReplica->AsChunkLocationPtr()->GetNode();
-            return node->GetLocalState() != NNodeTrackerClient::ENodeState::Online;
+            const auto* location = locationReplica->AsChunkLocationPtr();
+            return !location->IsRegisteredOrOnline();
         });
         replicas.erase(endIt, replicas.end());
     }

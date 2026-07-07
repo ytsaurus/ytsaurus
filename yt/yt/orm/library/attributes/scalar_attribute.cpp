@@ -140,7 +140,7 @@ protected:
     void VisitUnrecognizedField(
         Message* message,
         const Descriptor* descriptor,
-        TString name,
+        TStringBuf name,
         EVisitReason reason)
     {
         switch (Options_.UnknownYsonFieldModeResolver(GetCurrentPath())) {
@@ -162,7 +162,7 @@ protected:
         TProtoVisitor::VisitUnrecognizedField(message, descriptor, std::move(name), reason);
     }
 
-    void KeepUnrecognizedField(Message* message, const Descriptor* descriptor, TString name)
+    void KeepUnrecognizedField(Message* message, const Descriptor* descriptor, TStringBuf name)
     {
         Y_UNUSED(descriptor);
 
@@ -174,7 +174,7 @@ protected:
         auto errorOrItem = LookupUnknownYsonFieldsItem(unknownFields, name, unknownFieldNumber);
 
         TYsonString value;
-        TString* item = nullptr;
+        TProtoStringType* item = nullptr;
         if (errorOrItem.IsOK()) {
             int index;
             std::tie(index, value) = std::move(errorOrItem).Value();
@@ -223,8 +223,7 @@ protected:
 
         SkipSlash();
 
-        // TODO(babenko): migrate to std::string
-        TString key(GetLiteralValue());
+        std::string key(GetLiteralValue());
         AdvanceOver(key);
 
         auto [index, error] = FindAttributeDictionaryEntry(message, fieldDescriptor, key);
@@ -349,7 +348,7 @@ protected:
         }
     }
 
-    std::vector<std::pair<TString, INodePtr>> SortedMapChildren() const
+    std::vector<std::pair<std::string, INodePtr>> SortedMapChildren() const
     {
         auto children = CurrentValue_->AsMap()->GetChildren();
         std::ranges::sort(children, std::less{}, &std::pair<std::string, INodePtr>::first);
@@ -677,7 +676,7 @@ protected:
         const std::pair<const Message*, const Message*>& message,
         const FieldDescriptor* fieldDescriptor,
         std::unique_ptr<NProtoBuf::Message> keyMessage,
-        TString key,
+        TStringBuf key,
         EVisitReason reason,
         TError error)
     {
@@ -695,7 +694,7 @@ protected:
             message,
             fieldDescriptor,
             std::move(keyMessage),
-            std::move(key),
+            key,
             reason,
             std::move(error));
     }

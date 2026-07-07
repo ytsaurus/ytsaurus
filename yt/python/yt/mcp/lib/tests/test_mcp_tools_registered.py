@@ -98,3 +98,20 @@ def test_tools_callable_through_mcp():
             mcp._tool_manager.call_tool(registered_tool.name, args, context=context)
         )
         assert result is not None
+
+
+def test_default_rw_mode_is_false():
+    runner = YTToolRunnerMCP()
+    assert runner._rw_mode is False
+
+
+def test_configure_server_sets_rw_mode():
+    runner = YTToolRunnerMCP()
+    runner.configure_server(rw_mode=True)
+    assert runner._rw_mode is True
+
+
+def test_configure_server_readonly():
+    runner = YTToolRunnerMCP()
+    runner.configure_server(rw_mode=False)
+    assert runner._rw_mode is False

@@ -211,8 +211,8 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const auto& attributes = *attributeDictionaryPtr;
 
     auto [accessMethod, filesystem] = GetAccessMethodAndFilesystemFromStrings(
-        attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local)),
-        attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
+        attributes.Find<std::string>("access_method").value_or(ToString(ELayerAccessMethod::Local)),
+        attributes.Find<std::string>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
 
     // Create artifact key.
     TArtifactKey layerKey;

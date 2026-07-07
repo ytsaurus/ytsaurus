@@ -33,11 +33,12 @@ target_link_libraries(cpp-integration-test-s3-data PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   tests-cpp-test_base
+  yt-yt-client
   yt-yt-ytlib
   library-query-engine
   yt-core-test_framework
   yt-library-named_value
-  lib-signature-components
+  library-signature-components
   server-lib-s3
 )
 

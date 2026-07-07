@@ -34,6 +34,8 @@
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <util/random/fast.h>
 
 #include <google/protobuf/text_format.h>
@@ -149,9 +151,9 @@ INodePtr ParseYson(TStringBuf data)
     return ConvertToNode(NYson::TYsonString(data));
 }
 
-TString LenvalBytes(const ::google::protobuf::Message& message)
+std::string LenvalBytes(const ::google::protobuf::Message& message)
 {
-    TStringStream out;
+    TStdStringStream out;
     ui32 messageSize = static_cast<ui32>(message.ByteSizeLong());
     out.Write(&messageSize, sizeof(messageSize));
     if (!message.SerializeToArcadiaStream(&out)) {
@@ -182,8 +184,8 @@ TCollectingValueConsumer ParseRows(
     const TTableSchemaPtr& schema = New<TTableSchema>(),
     int count = 1)
 {
-    TString lenvalBytes;
-    TStringOutput out(lenvalBytes);
+    std::string lenvalBytes;
+    TStdStringOutput out(lenvalBytes);
     auto messageSize = static_cast<ui32>(message.ByteSize());
     for (int i = 0; i < count; ++i) {
         out.Write(&messageSize, sizeof(messageSize));
@@ -467,7 +469,7 @@ INodePtr CreateAllFieldsConfig(EProtoFormatType protoFormatType)
 
 struct TLenvalEntry
 {
-    TString RowData;
+    std::string RowData;
     ui32 TableIndex;
     ui64 TabletIndex;
 };
@@ -526,7 +528,7 @@ public:
                 result.RowData.resize(rowSize);
                 result.TableIndex = CurrentTableIndex_;
                 result.TabletIndex = CurrentTabletIndex_;
-                Input_->Load(result.RowData.Detach(), rowSize);
+                Input_->Load(result.RowData.data(), rowSize);
 
                 return result;
             }
@@ -1160,8 +1162,8 @@ TEST(TProtobufFormatTest, TestWriteEnumerationString)
 
     auto nameTable = New<TNameTable>();
 
-    TString result;
-    TStringOutput resultStream(result);
+    std::string result;
+    TStdStringOutput resultStream(result);
     auto writer = CreateWriterForProtobuf(
         config->Attributes(),
         {New<TTableSchema>()},
@@ -1185,8 +1187,7 @@ TEST(TProtobufFormatTest, TestWriteEnumerationString)
     WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput si(result);
-    TLenvalParser parser(&si);
+    TLenvalParser parser(result);
     {
         auto row = parser.Next();
         ASSERT_TRUE(row);
@@ -1232,8 +1233,8 @@ TEST(TProtobufFormatTest, TestWriteEnumerationInt)
     auto nameTable = New<TNameTable>();
 
     auto writeAndParseRow = [&] (TUnversionedRow row, TMessage* message) {
-        TString result;
-        TStringOutput resultStream(result);
+        std::string result;
+        TStdStringOutput resultStream(result);
         auto writer = CreateWriterForProtobuf(
             config->Attributes(),
             {New<TTableSchema>()},
@@ -1246,8 +1247,7 @@ TEST(TProtobufFormatTest, TestWriteEnumerationInt)
         WaitForFast(writer->Close())
             .ThrowOnError();
 
-        TStringInput si(result);
-        TLenvalParser parser(&si);
+        TLenvalParser parser(result);
         auto protoRow = parser.Next();
         ASSERT_TRUE(protoRow);
 
@@ -1339,8 +1339,8 @@ TEST(TProtobufFormatTest, TestWriteZeroColumns)
 
     auto nameTable = New<TNameTable>();
 
-    TString result;
-    TStringOutput resultStream(result);
+    std::string result;
+    TStdStringOutput resultStream(result);
     auto writer = CreateWriterForProtobuf(
         config->Attributes(),
         {New<TTableSchema>()},
@@ -1387,8 +1387,8 @@ TEST(TProtobufFormatTest, TestTabletIndex)
 
     auto nameTable = New<TNameTable>();
 
-    TString result;
-    TStringOutput resultStream(result);
+    std::string result;
+    TStdStringOutput resultStream(result);
     auto controlAttributesConfig = New<TControlAttributesConfig>();
     controlAttributesConfig->EnableTabletIndex = true;
 
@@ -1415,8 +1415,7 @@ TEST(TProtobufFormatTest, TestTabletIndex)
     WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput si(result);
-    TLenvalParser parser(&si);
+    TLenvalParser parser(result);
     {
         auto row = parser.Next();
         ASSERT_TRUE(row);
@@ -2009,8 +2008,8 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedWrite)
     auto schema = BuildEmbeddedSchema();
     auto config = BuildEmbeddedConfig(complexTypeMode, protoFormatType);
 
-    TString result;
-    TStringOutput resultStream(result);
+    std::string result;
+    TStdStringOutput resultStream(result);
     auto writer = CreateWriterForProtobuf(
         ConvertTo<TProtobufFormatConfigPtr>(config->Attributes()),
         {schema},
@@ -2058,8 +2057,7 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedWrite)
     WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput input(result);
-    TLenvalParser lenvalParser(&input);
+    TLenvalParser lenvalParser(result);
 
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         auto entry = lenvalParser.Next();
@@ -2142,8 +2140,8 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     auto schema = CreateSchemaWithStructuredMessage();
     auto config = CreateConfigWithStructuredMessage(complexTypeMode, protoFormatType);
 
-    TString result;
-    TStringOutput resultStream(result);
+    std::string result;
+    TStdStringOutput resultStream(result);
     auto writer = CreateWriterForProtobuf(
         ConvertTo<TProtobufFormatConfigPtr>(config->Attributes()),
         {schema},
@@ -2347,8 +2345,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput input(result);
-    TLenvalParser lenvalParser(&input);
+    TLenvalParser lenvalParser(result);
 
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         auto entry = lenvalParser.Next();
@@ -3053,8 +3050,8 @@ TEST_P(TProtobufFormatSeveralTables, Write)
     auto stringFieldId = nameTable->RegisterName("string_field");
     auto tableIndexId = nameTable->RegisterName(TableIndexColumnName);
 
-    TString result;
-    TStringOutput resultStream(result);
+    std::string result;
+    TStdStringOutput resultStream(result);
     auto controlAttributesConfig = New<TControlAttributesConfig>();
     controlAttributesConfig->EnableTableIndex = true;
     controlAttributesConfig->EnableEndOfStream = true;
@@ -3100,8 +3097,7 @@ TEST_P(TProtobufFormatSeveralTables, Write)
     WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput input(result);
-    TLenvalParser lenvalParser(&input);
+    TLenvalParser lenvalParser(result);
 
     {
         auto entry = lenvalParser.Next();
@@ -3184,9 +3180,9 @@ TEST_P(TProtobufFormatSeveralTables, Parse)
     thirdMessage.set_string_field("blah");
 
     auto parse = [] (auto& parser, const auto& message) {
-        TString lenvalBytes;
+        std::string lenvalBytes;
         {
-            TStringOutput out(lenvalBytes);
+            TStdStringOutput out(lenvalBytes);
             auto messageSize = static_cast<ui32>(message.ByteSizeLong());
             out.Write(&messageSize, sizeof(messageSize));
             ASSERT_TRUE(message.SerializeToArcadiaStream(&out));
@@ -3239,8 +3235,8 @@ TEST(TProtobufFormatTest, SchemaConfigMismatch)
             0);
     };
     auto createSeveralTableWriter = [] (const std::vector<TTableSchemaPtr>& schemas, const INodePtr& configNode) {
-        TString result;
-        TStringOutput resultStream(result);
+        std::string result;
+        TStdStringOutput resultStream(result);
         return CreateWriterForProtobuf(
             ConvertTo<TProtobufFormatConfigPtr>(configNode),
             schemas,
@@ -3671,8 +3667,8 @@ TEST(TProtobufFormatTest, MultipleOtherColumns)
 {
     auto nameTable = New<TNameTable>();
 
-    TString data;
-    TStringOutput resultStream(data);
+    std::string data;
+    TStdStringOutput resultStream(data);
 
     auto controlAttributesConfig = New<TControlAttributesConfig>();
     controlAttributesConfig->EnableTableIndex = true;
@@ -3723,8 +3719,8 @@ TEST(TProtobufFormatTest, EmbeddedSecondTableBug)
 {
     auto nameTable = New<TNameTable>();
 
-    TString data;
-    TStringOutput resultStream(data);
+    std::string data;
+    TStdStringOutput resultStream(data);
 
     auto controlAttributesConfig = New<TControlAttributesConfig>();
     controlAttributesConfig->EnableTableIndex = true;
@@ -3849,8 +3845,8 @@ TEST_P(TProtobufFormatAllFields, Writer)
 
     auto missintInt64Id = nameTable->RegisterName("MissingInt64");
 
-    TString result;
-    TStringOutput resultStream(result);
+    std::string result;
+    TStdStringOutput resultStream(result);
     auto writer = CreateWriterForProtobuf(
         config->Attributes(),
         {New<TTableSchema>()},
@@ -3931,8 +3927,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
     WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput input(result);
-    TLenvalParser lenvalParser(&input);
+    TLenvalParser lenvalParser(result);
 
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         auto entry = lenvalParser.Next();
@@ -4274,8 +4269,8 @@ TMessage WriteRow(
     const TTableSchemaPtr& schema,
     const TNameTablePtr& nameTable)
 {
-    TString result;
-    TStringOutput resultStream(result);
+    std::string result;
+    TStdStringOutput resultStream(result);
 
     auto writer = CreateWriterForProtobuf(
         config,
@@ -4288,8 +4283,7 @@ TMessage WriteRow(
     Y_UNUSED(writer->Write(std::vector<TUnversionedRow>{row}));
     WaitForFast(writer->Close()).ThrowOnError();
 
-    TStringInput input(result);
-    TLenvalParser lenvalParser(&input);
+    TLenvalParser lenvalParser(result);
     auto entry = lenvalParser.Next();
     if (!entry) {
         THROW_ERROR_EXCEPTION("Unexpected end of stream in lenval parser");

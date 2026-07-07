@@ -2218,13 +2218,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         if (const auto& predicate = index->Predicate()) {
             ToProto(protoIndexInfo->mutable_predicate(), *predicate);
         }
-        if (const auto& unfoldedColumns = index->UnfoldedColumns()) {
-            auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
-            ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
-            ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
-            if (unfoldedColumns->IndexColumn == unfoldedColumns->TableColumn) {
-                ToProto(protoIndexInfo->mutable_unfolded_column(), unfoldedColumns->IndexColumn);
-            }
+        const auto& unfoldedColumns = index->UnfoldedColumns();
+        YT_OPTIONAL_TO_PROTO(protoIndexInfo, unfolded_columns, unfoldedColumns);
+        if (unfoldedColumns && unfoldedColumns->IndexColumn == unfoldedColumns->TableColumn) {
+            ToProto(protoIndexInfo->mutable_unfolded_column(), unfoldedColumns->IndexColumn);
         }
         protoIndexInfo->set_index_correspondence(ToProto(index->GetTableToIndexCorrespondence()));
         if (const auto& evaluatedColumnsSchema = index->EvaluatedColumnsSchema()) {
@@ -2494,7 +2491,17 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                     ValidatePivotKey(segment.LowerKey, *heavySchema, "replication progress");
                 }
             } else {
-                ValidateOrderedTabletReplicationProgress(*options.ReplicationProgress);
+                if (table->IsExternal()) {
+                    // We can't get actual tablet count from the secondary cell,
+                    // so accept any valid progress and check it again on mount.
+                    ValidateOrderedTableReplicationProgress(
+                        *options.ReplicationProgress,
+                        /*tabletCount*/ std::numeric_limits<int>::max());
+                } else {
+                    ValidateOrderedTableReplicationProgress(
+                        *options.ReplicationProgress,
+                        std::ssize(table->Tablets()));
+                }
             }
 
             table->ValidateAllTabletsUnmounted("Cannot change replication progress");

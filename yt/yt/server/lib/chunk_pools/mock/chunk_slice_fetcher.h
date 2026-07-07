@@ -6,8 +6,6 @@
 
 #include <yt/yt/core/phoenix/context.h>
 
-#include <yt/yt/core/actions/cancelable_context.h>
-
 #include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT::NTableClient {
@@ -23,7 +21,6 @@ public:
     MOCK_METHOD(int, GetChunkCount, (), (const, override));
     MOCK_METHOD(TFuture<void>, Fetch, (), (override));
     MOCK_METHOD(std::vector<NChunkClient::TInputChunkSlicePtr>, GetChunkSlices, (), (override));
-    MOCK_METHOD(void, SetCancelableContext, (TCancelableContextPtr), (override));
     MOCK_METHOD(i64, GetChunkSliceCount, (), (const, override));
 };
 

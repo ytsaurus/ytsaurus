@@ -95,7 +95,7 @@ private:
 public:
     TDqInputChannel(const TDqChannelSettings& settings, const NKikimr::NMiniKQL::TTypeEnvironment& typeEnv)
         : Impl(settings.ChannelId, settings.SrcStageId, settings.RowType, settings.MaxStoredBytes, settings.Level)
-        , DataSerializer(typeEnv, *settings.HolderFactory, settings.TransportVersion, settings.PackerVersion) {
+        , DataSerializer(typeEnv, *settings.HolderFactory, settings.TransportVersion, settings.PackerVersion, settings.DatumValidationMode) {
     }
 
     ui64 GetChannelId() const override {

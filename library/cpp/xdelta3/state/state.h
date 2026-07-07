@@ -4,13 +4,15 @@
 
 #include <google/protobuf/arena.h>
 
+#include <util/system/types.h>
+
 namespace NXdeltaAggregateColumn {
 
     constexpr auto ArenaMaxSize = 65525;
 
     class TState {
     public:
-        TState(NProtoBuf::Arena& arena, const ui8* data, size_t size);
+        TState(google::protobuf::Arena& arena, const ui8* data, size_t size);
 
         const NXdeltaAggregateColumn::TStateHeader& Header() const
         {

@@ -118,7 +118,7 @@ class TInputCluster
     : public TRefCounted
 {
 public:
-    using TPathToInputTablesMapping = THashMap<TString, std::vector<TInputTablePtr>>;
+    using TPathToInputTablesMapping = THashMap<NYPath::TYPath, std::vector<TInputTablePtr>>;
 
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TClusterName, Name);
     DEFINE_BYREF_RW_PROPERTY(NApi::NNative::IClientPtr, Client, nullptr);
@@ -223,7 +223,7 @@ public:
 
     // NB: Asserts that there is only one input table.
     TFuture<NYTree::IAttributeDictionaryPtr> FetchSingleInputTableAttributes(
-        const std::optional<std::vector<TString>>& attributeKeys) const;
+        const std::optional<std::vector<std::string>>& attributeKeys) const;
 
 private:
     PHOENIX_DECLARE_FRIEND();

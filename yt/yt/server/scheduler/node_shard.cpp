@@ -993,7 +993,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         execNode->SetSchedulingOptions(schedulingOptionsYson ? ConvertToAttributes(schedulingOptionsYson) : nullptr);
 
-        static const TString InfinibandClusterAnnotationsPath = "/" + InfinibandClusterNameKey;
+        static const std::string InfinibandClusterAnnotationsPath = "/" + InfinibandClusterNameKey;
         auto infinibandCluster = annotationsYson
             ? TryGetString(annotationsYson.AsStringBuf(), InfinibandClusterAnnotationsPath)
             : std::nullopt;
@@ -2391,7 +2391,18 @@ void TNodeShard::SubmitAllocationsToStrategy()
             }
 
             for (const auto& allocationId : allocationsToPostpone) {
-                AllocationsToSubmitToStrategy_.try_emplace(allocationId, std::move(allocationsToSubmit[allocationId]));
+                auto& allocationUpdate = GetOrCrash(allocationsToSubmit, allocationId);
+
+                // An allocation present in the global submit map but no longer tracked by its
+                // operation's per-op index is an orphan left by a revival that interleaved while the
+                // map was swapped out; re-adding it would resurrect a stale update that can never be
+                // purged. Only re-add updates the operation still tracks; drop the rest.
+                auto* operationState = FindOperationState(allocationUpdate.OperationId);
+                if (!operationState || !operationState->AllocationsToSubmitToStrategy.contains(allocationId)) {
+                    continue;
+                }
+
+                AllocationsToSubmitToStrategy_.try_emplace(allocationId, std::move(allocationUpdate));
             }
 
             for (const auto& allocation : allocationUpdates) {

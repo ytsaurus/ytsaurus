@@ -9,12 +9,12 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDynamicAttributes
+//! Per-element attributes computed and used within a single assignment plan update.
+struct TPlanUpdateAttributes
 {
     TJobResources AssignedResourceUsage;
+    bool PriorityModuleBindingEnabled = false;
 };
-
-using TDynamicAttributesList = TAttributesList<TDynamicAttributes>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,7 +74,9 @@ public:
         TOperationId preemptedForOperationId = {}) override;
 
     TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const override;
-    std::optional<TString> FindLimitViolatingParentId(const TPoolTreeElement* element) const;
+    std::optional<std::string> FindLimitViolatingParentId(const TPoolTreeElement* element) const;
+
+    bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const override;
 
     void UpdatePreemptionStatuses() const;
     void FillOperationUsage();
@@ -96,7 +98,7 @@ private:
 
     const EGpuSchedulingPolicyMode PolicyMode_;
 
-    TDynamicAttributesList AttributesList_;
+    TAttributesList<TPlanUpdateAttributes> AttributesList_;
 
     const TOperationMap SchedulableOperations_;
 
@@ -113,6 +115,11 @@ private:
         const TPoolTreeOperationElement* operationElement) const;
 
     void IncreaseOperationUsage(const TOperationPtr& operation, const TJobResources& resourceDelta = {});
+
+    void InitializeRecursiveAttributes(const TPoolTreeElement* element);
+    void InitializeRecursiveAttributesAtCompositeElement(const TPoolTreeCompositeElement* element);
+    void InitializeRecursiveAttributesAtOperation(const TPoolTreeOperationElement* element);
+    void SetPriorityModuleBindingAttribute(const TPoolTreeCompositeElement* element);
 
     void PreemptAllOperationAssignments(
         const TOperationPtr& operation,

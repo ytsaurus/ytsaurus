@@ -193,7 +193,7 @@ private:
             maxChunks = std::ranges::min(std::ssize(GetOrCrash(chunksSample, cellTags.front())), limit);
         }
 
-        for (i64 i = 0; i < maxChunks; ++i) {
+        for (i64 index = 0; index < maxChunks; ++index) {
             for (auto cellTag : cellTags) {
                 if (limit == 0) {
                     return result;
@@ -201,11 +201,11 @@ private:
 
                 const auto& cellChunkIds = GetOrCrash(chunksSample, cellTag);
                 // Cell tags are descending sorted by the number of chunks.
-                if (std::ssize(cellChunkIds) <= i) {
+                if (std::ssize(cellChunkIds) <= index) {
                     break;
                 }
 
-                result[cellTag].push_back(cellChunkIds[i]);
+                result[cellTag].push_back(cellChunkIds[index]);
                 --limit;
             }
         }
@@ -565,7 +565,7 @@ private:
 
             void Invoke(const IYPathServiceContextPtr& context) override
             {
-                GuardedInvoke(Invoker_,
+                Invoker_->Invoke(MakeGuardedCallback(
                     BIND([=, this, this_ = MakeStrong(this)] {
                         try {
                             if (!Map_->CheckChunkFilter(EphemeralChunk_)) {
@@ -585,7 +585,7 @@ private:
                     }),
                     BIND([=] {
                         THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Hydra peer is not active");
-                    }));
+                    })));
             }
 
             TResolveResult Resolve(

@@ -33,7 +33,7 @@ TOptions CreateOperationOptions(const TOptions& options, const NYTree::INodePtr&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TrimCommandForBriefSpec(const std::string& command);
+std::string TrimCommandForBriefSpec(const std::string& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +84,7 @@ void BuildFileSpecs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetIntermediatePath(int streamIndex);
+NYPath::TYPath GetIntermediatePath(int streamIndex);
 
 NChunkClient::TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     const std::string& intermediateAccount,

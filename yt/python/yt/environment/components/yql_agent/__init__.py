@@ -61,6 +61,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self.default_yql_ui_version = config.get("default_yql_ui_version")
         self.allow_not_released_yql_versions = config.get("allow_not_released_yql_versions")
 
+        self.dynamic_config_update_period = config.get("dynamic_config_update_period")
+
         super(YqlAgent, self).prepare(env, config)
 
         if config.get("native_client_supported", False):
@@ -273,6 +275,12 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             return self._get_artifact_path("libyqlplugin.so")
         return self.config["yql_plugin_shared_library"]
 
+    def override_common_settings(self, config, instance_index: int):
+        # TODO(mpereskokova): YQLOVERYT-333: Remove after rpc timeout set in dq
+        if self.enable_dq:
+            config["rpc_dispatcher"]["alert_on_unset_request_timeout"] = False
+        return config
+
     def get_default_config(self, instance_index: int):
         self.token_path = os.path.join(self.env.configs_path, "yql_agent_token")
 
@@ -331,6 +339,11 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             },
         }
 
+        if self.dynamic_config_update_period is not None:
+            config["dynamic_config_manager"] = {
+                "update_period": self.dynamic_config_update_period
+            }
+
         # Add DQ configuration if enabled
         if self.enable_dq:
             dq_vanilla_job = self._get_artifact_path("dq_vanilla_job")
@@ -358,6 +371,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                         ],
                         "token_file": self.token_path,
                         "user": self.USER_NAME,
+                        "use_tmp_fs": False,
                         "max_jobs": 1,
                         "jobs_per_operation": 1,
                     },

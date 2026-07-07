@@ -501,7 +501,7 @@ public:
         return DoExecuteGuarded(&IOperationController::GetJobShells);
     }
 
-    TString WriteCoreDump() const override
+    std::string WriteCoreDump() const override
     {
         return DoExecuteGuarded(&IOperationController::WriteCoreDump);
     }

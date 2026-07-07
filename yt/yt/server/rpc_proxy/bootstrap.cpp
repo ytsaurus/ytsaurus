@@ -12,8 +12,6 @@
 #include <yt/yt/server/lib/rpc_proxy/private.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
-#include <yt/yt/server/lib/signature/components/components.h>
-
 #include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -60,12 +58,15 @@
 
 #include <yt/yt/library/fusion/service_locator.h>
 
+#include <yt/yt/library/signature/components/components.h>
+
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
 #include <yt/yt/core/rpc/grpc/config.h>
 #include <yt/yt/core/rpc/grpc/server.h>
 
 #include <yt/yt/core/http/server.h>
+
 #include <yt/yt/core/https/server.h>
 
 #include <yt/yt/core/bus/public.h>

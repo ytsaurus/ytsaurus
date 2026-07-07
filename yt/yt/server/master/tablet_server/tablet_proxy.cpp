@@ -77,7 +77,7 @@ private:
             .SetOpaque(!Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->AddPerfCountersToTabletsAttribute)
             .SetPresent(tablet->GetCell()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKey)
-            .SetPresent(table->IsPhysicallySorted()));
+            .SetPresent(table->IsSorted()));
         descriptors->push_back(EInternedAttributeKey::RetainedTimestamp);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ConflictHorizonTimestamp)
             .SetPresent(table->IsPhysicallySorted()));
@@ -133,7 +133,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::PivotKey:
-                if (!table->IsPhysicallySorted()) {
+                if (!table->IsSorted()) {
                     break;
                 }
                 BuildYsonFluently(consumer)

@@ -4743,6 +4743,19 @@ for line in sys.stdin:
                 },
             )
 
+        with raises_yt_error("Option .* cannot be specified when \"enable_final_partitions_merging\" is enabled"):
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                reduce_by=["x"],
+                sort_by=["x", "y"],
+                reducer_command="cat",
+                spec={
+                    "enable_final_partitions_merging": True,
+                    "pivot_keys": [["01"], ["43"]],
+                },
+            )
+
         with raises_yt_error("Option .* cannot be greater than .*"):
             map_reduce(
                 in_="//tmp/t_in",

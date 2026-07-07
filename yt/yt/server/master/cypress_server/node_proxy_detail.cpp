@@ -596,9 +596,16 @@ void TNontemplateCypressNodeProxyBase::LogAcdUpdate(TInternedAttributeKey key, c
     TObjectProxyBase::LogAcdUpdate(key, value);
 
     const auto* impl = GetThisImpl();
-    // TODO(h0pless): this is not quite correct since multiple changes may get
-    // encapsulated into a single Hive mutation.
-    if (impl->GetRevision() != NHydra::GetCurrentHydraContext()->GetVersion().ToRevision()) {
+
+
+    bool isBeingCreated = [&] {
+        if (impl->IsSequoia() && impl->MutableSequoiaProperties()) {
+            return impl->MutableSequoiaProperties()->BeingCreated;
+        } else {
+            return impl->GetRevision() == NHydra::GetCurrentHydraContext()->GetVersion().ToRevision();
+        }
+    }();
+    if (!isBeingCreated) {
         NSecurityServer::LogAcdUpdate(key.Unintern(), GetPath(), value);
     }
 }
@@ -1598,6 +1605,26 @@ void TNontemplateCypressNodeProxyBase::ValidateMediaChange(
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
+    auto checkOffshore = [&] (const TChunkReplication& replication) {
+        for (auto& entry : replication) {
+            auto* medium = chunkManager->FindMediumByIndex(entry.GetMediumIndex());
+            if (!IsObjectAlive(medium)) {
+                YT_LOG_ALERT("Dead medium found in replication (MediumIndex: %v)",
+                    entry.GetMediumIndex());
+                continue;
+            }
+
+
+            if (medium->IsOffshore()) {
+                THROW_ERROR_EXCEPTION("Cannot set replication with offshore media");
+            }
+        }
+    };
+    if (oldReplication) {
+        checkOffshore(*oldReplication);
+    }
+    checkOffshore(newReplication);
+
     for (const auto& entry : newReplication) {
         if (entry.Policy()) {
             auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
@@ -1621,6 +1648,16 @@ bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
     const std::optional<TChunkReplication>& oldReplication)
 {
     YT_VERIFY(newReplication);
+
+    if (newPrimaryMedium.IsOffshore()) {
+        THROW_ERROR_EXCEPTION("Cannot set replication with offshore media");
+    }
+    if (oldPrimaryMediumIndex) {
+        const auto* oldPrimaryMedium = Bootstrap_->GetChunkManager()->FindMediumByIndex(*oldPrimaryMediumIndex);
+        if (IsObjectAlive(oldPrimaryMedium) && oldPrimaryMedium->IsOffshore()) {
+            THROW_ERROR_EXCEPTION("Cannot set replication with offshore media");
+        }
+    }
 
     ValidateNoTransaction();
 

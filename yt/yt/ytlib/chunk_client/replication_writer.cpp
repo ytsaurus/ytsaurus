@@ -22,6 +22,12 @@
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
+#include <yt/yt/client/node_tracker_client/public.h>
+
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+
 #include <yt/yt/client/rpc/helpers.h>
 
 #include <yt/yt/client/api/config.h>
@@ -177,6 +183,9 @@ public:
 
     TFuture<void> StopPing()
     {
+        if (!PingExecutor_) {
+            return MakeFuture(TError());
+        }
         return PingExecutor_->Stop();
     }
 
@@ -591,10 +600,32 @@ private:
     void DoOpen()
     {
         try {
-            bool disableSendBlocks = InitialTargets_.size() <= 1 && (UploadReplicationFactor_ == 1 || !Options_->AllowAllocatingNewTargetNodes);
-            StartSessions(InitialTargets_, disableSendBlocks);
+            auto targets = InitialTargets_;
+            int uploadReplicationFactor = UploadReplicationFactor_;
 
-            while (std::ssize(Nodes_) < UploadReplicationFactor_) {
+            if (targets.empty()) {
+                const auto& connection = Client_->GetNativeConnection();
+                auto mediumDescriptor = connection->GetMediumDirectory()->FindByIndex(SessionId_.MediumIndex);
+                if (!mediumDescriptor) {
+                    WaitFor(connection->GetMediumDirectorySynchronizer()->NextSync(/*force*/ true))
+                        .ThrowOnError();
+                    mediumDescriptor = connection->GetMediumDirectory()->FindByIndex(SessionId_.MediumIndex);
+                }
+                // TODO(aleksandra-zh): Maybe check AllocateTargets for "Write targets allocation for offshore media is forbidden"
+                // and retry instead of sync.
+                if (mediumDescriptor && mediumDescriptor->IsOffshore()) {
+                    targets = {TChunkReplicaWithMedium(
+                        OffshoreNodeId,
+                        GenericChunkReplicaIndex,
+                        SessionId_.MediumIndex)};
+                    uploadReplicationFactor = 1;
+                }
+            }
+
+            bool disableSendBlocks = targets.size() <= 1 && (uploadReplicationFactor == 1 || !Options_->AllowAllocatingNewTargetNodes);
+            StartSessions(targets, disableSendBlocks);
+
+            while (std::ssize(Nodes_) < uploadReplicationFactor) {
                 StartSessions(AllocateTargets(), disableSendBlocks);
             }
 
@@ -913,43 +944,59 @@ private:
         YT_ASSERT_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(IsErasureChunkPartId(SessionId_.ChunkId) || target.GetReplicaIndex() == GenericChunkReplicaIndex);
 
-        const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
-        const auto& nodeDescriptor = nodeDirectory->GetDescriptor(target);
-        const auto& address = nodeDescriptor.GetAddressOrThrow(Networks_);
+        bool isOffshore = (target.GetNodeId() == OffshoreNodeId);
+
+        TNodeDescriptor nodeDescriptor;
+        std::string address;
+        if (isOffshore) {
+            address = OffshoreDataGatewayAddress;
+            nodeDescriptor = TNodeDescriptor(address);
+        } else {
+            const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
+            nodeDescriptor = nodeDirectory->GetDescriptor(target);
+            address = nodeDescriptor.GetAddressOrThrow(Networks_);
+        }
+
         YT_LOG_DEBUG("Starting write session (Address: %v)", address);
 
         auto node = New<TNode>(
             nodeDescriptor,
             target);
 
-        auto channel = CreateRetryingChannel(
-            Config_->NodeChannel,
-            Client_->GetChannelFactory()->CreateChannel(address),
-            BIND([weakNode = MakeWeak(node), weakThis = MakeWeak(this)] (const TError& error) {
-                auto node = weakNode.Lock();
-                auto this_ = weakThis.Lock();
+        IChannelPtr channel;
+        if (isOffshore) {
+            // TODO(aleksandra-zh): Separate nonbalancing channel for writes.
+            channel = Client_->GetNativeConnection()->GetOffshoreDataGatewayChannel();
+        } else {
+            channel = CreateRetryingChannel(
+                Config_->NodeChannel,
+                Client_->GetChannelFactory()->CreateChannel(address),
+                BIND([weakNode = MakeWeak(node), weakThis = MakeWeak(this)] (const TError& error) {
+                    auto node = weakNode.Lock();
+                    auto this_ = weakThis.Lock();
 
-                if (!node || !this_ || !node->IsAlive()) {
-                    return false;
-                }
+                    if (!node || !this_ || !node->IsAlive()) {
+                        return false;
+                    }
 
-                auto innerError = error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive);
+                    auto innerError = error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive);
 
-                if (!innerError) {
-                    return false;
-                }
+                    if (!innerError) {
+                        return false;
+                    }
 
-                // TODO(don-dron): Come up with a more accurate solution.
-                auto address = innerError->Attributes().Find<std::string>("address");
-                auto needRetry = !address || std::count_if(
-                    this_->Nodes_.begin(),
-                    this_->Nodes_.end(),
-                    [&] (const auto& node) {
-                        return node->GetDefaultAddress() == address && !node->IsAlive();
-                    }) == 0;
+                    // TODO(don-dron): Come up with a more accurate solution.
+                    auto address = innerError->Attributes().Find<std::string>("address");
+                    auto needRetry = !address || std::count_if(
+                        this_->Nodes_.begin(),
+                        this_->Nodes_.end(),
+                        [&] (const auto& node) {
+                            return node->GetDefaultAddress() == address && !node->IsAlive();
+                        }) == 0;
 
-                return needRetry;
-            }));
+                    return needRetry;
+                }));
+        }
 
         RegisterCandidateNode(channel);
 
@@ -961,18 +1008,20 @@ private:
         req->set_sync_on_close(Config_->SyncOnClose);
         req->set_enable_direct_io(Config_->EnableDirectIO);
         req->set_disable_send_blocks(disableSendBlocks);
-        req->set_use_probe_put_blocks(Config_->UseProbePutBlocks);
-        req->set_preallocate_disk_space(Config_->PreallocateDiskSpace);
+        req->set_use_probe_put_blocks(isOffshore ? false : Config_->UseProbePutBlocks);
+        req->set_preallocate_disk_space(isOffshore ? false : Config_->PreallocateDiskSpace);
         ToProto(req->mutable_placement_id(), Options_->PlacementId);
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
             UnregisterCandidateNode(channel);
+            if (isOffshore) {
+                rspOrError.ThrowOnError();
+            }
             if (Config_->BanFailedNodes) {
                 BannedNodeAddresses_.push_back(address);
             }
-            YT_LOG_WARNING(rspOrError, "Failed to start write session (Address: %v)",
-                address);
+            YT_LOG_WARNING(rspOrError, "Failed to start write session (Address: %v)", address);
             return;
         }
 
@@ -992,9 +1041,12 @@ private:
             targetLocationUuid,
             targetLocationIndex,
             rsp->use_probe_put_blocks());
-        node->StartPing(
-            BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(node)),
-            Config_->NodePingPeriod);
+
+        if (!isOffshore) {
+            node->StartPing(
+                BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(node)),
+                Config_->NodePingPeriod);
+        }
 
         Nodes_.push_back(node);
         ++AliveNodeCount_;

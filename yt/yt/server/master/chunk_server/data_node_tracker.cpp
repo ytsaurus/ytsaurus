@@ -63,6 +63,7 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NProfiling;
 using namespace NChunkClient;
 using namespace NSequoiaClient;
 using namespace NYTree;
@@ -168,16 +169,29 @@ public:
 
         auto preparedRequest = SplitRequest(context, locationDirectory);
 
-        if (Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas->Enable) {
+        const auto& sequoiaReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
+
+        if (sequoiaReplicasConfig->Enable) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
 
             if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>) {
                 auto locationUuid = FromProto<TChunkLocationUuid>(preparedRequest->NonSequoiaRequest.location_uuid());
                 auto* location = FindAndValidateLocation<true>(node, locationUuid);
-                auto useLocationReplacement = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas->UseLocationReplacementForLocationFullHeartbeat;
 
+                auto isLocationRestarted = location->GetState() == EChunkLocationState::Restarted;
+                if (isLocationRestarted &&
+                    (!sequoiaReplicasConfig->EnableGlobalSequoiaChunkRefresh || !sequoiaReplicasConfig->EnableLocationRefresh))
+                {
+                    YT_LOG_ALERT(
+                        "Using no disposal for node restart is unsafe without enabled sequoia refreshes "
+                        "(GlobalSequoiaRefreshEnabled: %v, SequoiaLocationRefreshEnabled: %v)",
+                        sequoiaReplicasConfig->EnableGlobalSequoiaChunkRefresh,
+                        sequoiaReplicasConfig->EnableLocationRefresh);
+                }
+
+                auto useLocationReplacement = sequoiaReplicasConfig->UseLocationReplacementForLocationFullHeartbeat;
                 if ((preparedRequest->NonSequoiaRequest.is_validation() && GetDynamicConfig()->ValidateSequoiaReplicas) ||
-                    location->GetState() == EChunkLocationState::Restarted ||
+                    isLocationRestarted ||
                     (!preparedRequest->NonSequoiaRequest.is_validation() && useLocationReplacement))
                 {
                     auto replaceLocationRequest = std::make_unique<TReqReplaceLocationReplicas>();
@@ -211,7 +225,11 @@ public:
             // We will reset Sequoia request in case the location replacement is applied.
             if (sequoiaRequest && sequoiaRequest->removed_chunks_size() + sequoiaRequest->added_chunks_size() > 0) {
 
-                WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::FullHeartbeat, std::move(sequoiaRequest)))
+                WaitFor(
+                    chunkManager->ModifySequoiaReplicas(
+                        ESequoiaTransactionType::FullHeartbeat,
+                        std::move(sequoiaRequest),
+                        /*allowBatching*/ false))
                     .ThrowOnError();
             }
         }
@@ -414,8 +432,29 @@ public:
 
         if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
             YT_LOG_TRACE("There are Sequoia replicas for this request (NodeId: %v)", nodeId);
-            WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::IncrementalHeartbeat, std::move(preparedRequest->SequoiaRequest)))
-                .ThrowOnError();
+
+            auto allowBatching = true;
+            if (auto it = NodesWithFailedPreviousIncrementalHeartbeat_.find(nodeId);
+                it != NodesWithFailedPreviousIncrementalHeartbeat_.end())
+            {
+                allowBatching = false;
+                NodesWithFailedPreviousIncrementalHeartbeat_.erase(it);
+            }
+
+            auto sequoiaModificationResult = WaitFor(chunkManager->ModifySequoiaReplicas(
+                ESequoiaTransactionType::IncrementalHeartbeat,
+                std::move(preparedRequest->SequoiaRequest),
+                /*allowBatching*/ allowBatching));
+
+            if (!sequoiaModificationResult.IsOK()) {
+                NodesWithFailedPreviousIncrementalHeartbeat_.insert(nodeId);
+                YT_LOG_DEBUG(
+                    sequoiaModificationResult,
+                    "Failed to modify Sequoia replicas during incremental heartbeat (NodeAddress: %v, NodeId: %v)",
+                    node->GetDefaultAddress(),
+                    nodeId);
+                sequoiaModificationResult.ThrowOnError();
+            }
         } else {
             YT_LOG_TRACE("No Sequoia replicas for this request (NodeId: %v)", nodeId);
         }
@@ -813,6 +852,9 @@ private:
     // COMPAT(koloshmet)
     TInstant DanglingLocationsDefaultLastSeenTime_;
 
+    // Transient
+    THashSet<TNodeId> NodesWithFailedPreviousIncrementalHeartbeat_;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     template <class THeartbeatContextPtr>
@@ -894,6 +936,11 @@ private:
             return *customLastSeen;
         }
         return DanglingLocationsDefaultLastSeenTime_;
+    }
+
+    void OnProfiling(TSensorBuffer* buffer) const override
+    {
+        buffer->AddGauge("/nodes_with_failed_previous_incremental_heartbeat", NodesWithFailedPreviousIncrementalHeartbeat_.size());
     }
 
     template <bool FullHeartbeat>
@@ -1118,6 +1165,10 @@ private:
             auto& sequoiaRequest = preparedRequest->SequoiaRequest;
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             sequoiaRequest->set_node_id(originalRequest.node_id());
+
+            if constexpr (std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>) {
+                sequoiaRequest->set_is_incremental_heartbeat(true);
+            }
 
             auto splitChunks = [&] (const auto& chunkInfos) {
                 for (auto chunkInfo : chunkInfos) {
@@ -1397,6 +1448,8 @@ private:
             location->SetState(EChunkLocationState::Offline);
             location->SetLastSeenTime(mutationContext->GetTimestamp());
         }
+
+        NodesWithFailedPreviousIncrementalHeartbeat_.erase(node->GetId());
     }
 
     void OnNodeRestarted(TNode* node)

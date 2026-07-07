@@ -55,6 +55,8 @@ struct IChunkManager
         const NProto::TReqScheduleChunkRequisitionUpdates& request) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateTopUpSequoiaChunkPurgatoryMutation(
         const NProto::TReqTopUpSequoiaChunkPurgatory& request) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateScheduleMultipleChunkSealsMutation(
+        const NProto::TReqScheduleMultipleChunkSeals& request) = 0;
 
     using TCtxExportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExportChunks,
@@ -219,7 +221,8 @@ struct IChunkManager
 
     virtual void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTreeRawPtr> children) = 0;
+        TRange<TChunkTreeRawPtr> children,
+        bool updateChunkListStatistics = true) = 0;
 
     virtual void DetachFromChunkList(
         TChunkList* chunkList,
@@ -387,7 +390,8 @@ struct IChunkManager
 
     virtual TFuture<void> ModifySequoiaReplicas(
         NSequoiaClient::ESequoiaTransactionType transactionType,
-        std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request) = 0;
+        std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request,
+        bool allowBatching) = 0;
 
     virtual TFuture<void> ReplaceSequoiaLocationReplicas(
         NSequoiaClient::ESequoiaTransactionType transactionType,

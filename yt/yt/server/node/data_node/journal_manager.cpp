@@ -306,7 +306,7 @@ private:
 
     void DumpAnalysisResults()
     {
-        auto dumpChunkIds = [&] (const THashSet<TChunkId>& chunkIds, const TString& action) {
+        auto dumpChunkIds = [&] (const THashSet<TChunkId>& chunkIds, const std::string& action) {
             for (auto chunkId : chunkIds) {
                 YT_LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantVersion: %v)",
                     action,

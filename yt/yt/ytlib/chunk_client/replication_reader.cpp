@@ -130,7 +130,7 @@ void FormatValue(TStringBuilderBase* builder, const TPeerId& peerId, TStringBuf 
     if (!peerId.IsOffshore) {
         builder->AppendFormat("%v", *peerId.Address);
     } else {
-        builder->AppendString("generic-peer-adddress");
+        builder->AppendString(OffshoreDataGatewayAddress);
     }
 
     if (peerId.MediumIndex == GenericMediumIndex) {
@@ -3515,6 +3515,9 @@ private:
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(BlockCount_);
+        if (peerId.IsOffshore) {
+            ToProto(req->mutable_replica_spec(), peer.Replica);
+        }
 
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());

@@ -88,7 +88,7 @@ public:
     void Complete(EAllocationFinishReason finishReason);
     void Preempt(
         TDuration timeout,
-        TString preemptionReason,
+        std::string preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     bool IsResourceUsageOverdraftOccurred() const;

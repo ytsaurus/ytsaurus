@@ -43,6 +43,7 @@ RECURSE(
     safe_assert
     server_program
     signals
+    signature
     skiff_ext
     sparse_coredump
     stockpile

@@ -20,6 +20,7 @@ PEERDIR(
     yt/yt/orm/client/misc
 
     yt/yt/orm/library/attributes
+    yt/yt/orm/library/mpl
 
     yt/yt/library/query/base
 

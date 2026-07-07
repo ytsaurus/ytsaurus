@@ -34,6 +34,7 @@ target_link_libraries(orm-library-query PUBLIC
   yutil
   orm-client-misc
   orm-library-attributes
+  orm-library-mpl
   library-query-base
   yt-yt-core
   yt-yt-client

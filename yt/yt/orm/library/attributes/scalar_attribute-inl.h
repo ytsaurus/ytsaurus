@@ -33,6 +33,7 @@ template <class T>
 concept CScalarAttributeTriviallyComparable =
     std::equality_comparable<T> && (
         std::same_as<T, TString> ||
+        std::same_as<T, std::string> ||
         std::same_as<T, TStringBuf> ||
         std::same_as<T, TGuid> ||
         std::same_as<T, TInstant> ||
@@ -288,7 +289,7 @@ protected:
     void VisitMapEntry(
         TVisitParam&& target,
         TMapIterator mapIterator,
-        TString key,
+        TStringBuf key,
         EVisitReason reason)
     {
         if (PathComplete()) {
@@ -363,7 +364,7 @@ protected:
     void VisitUnrecognizedField(
         NProtoBuf::Message* message,
         const NProtoBuf::Descriptor* descriptor,
-        TString name,
+        TStringBuf name,
         EVisitReason reason)
     {
         auto* unknownFields = message->GetReflection()->MutableUnknownFields(message);
@@ -390,7 +391,7 @@ protected:
             }
         }
 
-        TProtoVisitor::VisitUnrecognizedField(message, descriptor, std::move(name), reason);
+        TProtoVisitor::VisitUnrecognizedField(message, descriptor, name, reason);
     }
 
     void VisitField(
@@ -415,7 +416,7 @@ protected:
         NProtoBuf::Message* message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         NProtoBuf::Message* entryMessage,
-        TString key,
+        TStringBuf key,
         EVisitReason reason)
     {
         if (PathComplete()) {
@@ -428,7 +429,7 @@ protected:
             message,
             fieldDescriptor,
             entryMessage,
-            std::move(key),
+            key,
             reason);
     }
 

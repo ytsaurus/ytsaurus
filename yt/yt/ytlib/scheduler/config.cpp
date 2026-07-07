@@ -211,16 +211,14 @@ TPoolName TPoolName::FromString(const std::string& value)
     }
 }
 
-TString TPoolName::ToString() const
+std::string TPoolName::ToString() const
 {
-    // TODO(babenko): migrate to std::string
-    return TString(Pool_);
+    return Pool_;
 }
 
 void Deserialize(TPoolName& value, INodePtr node)
 {
-    // TODO(babenko): migrate to std::string
-    value = TPoolName::FromString(std::string(node->AsString()->GetValue()));
+    value = TPoolName::FromString(node->AsString()->GetValue());
 }
 
 void Deserialize(TPoolName& value, TYsonPullParserCursor* cursor)
@@ -1951,7 +1949,7 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
         .GreaterThan(1);
 
     registrar.Parameter("enable_final_partitions_merging", &TThis::EnableFinalPartitionsMerging)
-        .Default(false);
+        .Default();
 
     registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
         .Default(false);
@@ -1988,28 +1986,37 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
             }
         }
 
-        THROW_ERROR_EXCEPTION_IF(
-            spec->EnableFinalPartitionsMerging && spec->PartitionCount.has_value(),
-            "Option %Qv cannot be specified when %Qv is enabled",
-            "partition_count",
-            "enable_final_partitions_merging");
+        if (spec->EnableFinalPartitionsMerging.value_or(false)) {
+            THROW_ERROR_EXCEPTION_IF(
+                spec->PartitionCount.has_value(),
+                "Option %Qv cannot be specified when %Qv is enabled",
+                "partition_count",
+                "enable_final_partitions_merging");
 
-        THROW_ERROR_EXCEPTION_IF(
-            !spec->EnableFinalPartitionsMerging && spec->PartitionDataWeightForMerging.has_value(),
-            "Option %Qv cannot be specified when %Qv is not enabled",
-            "partition_data_weight_for_merging",
-            "enable_final_partitions_merging");
+            THROW_ERROR_EXCEPTION_IF(
+                !spec->PivotKeys.empty(),
+                "Option %Qv cannot be specified when %Qv is enabled",
+                "pivot_keys",
+                "enable_final_partitions_merging");
+        }
 
-        if (spec->EnableFinalPartitionsMerging &&
-            spec->PartitionDataWeightForMerging.has_value() &&
-            *spec->PartitionDataWeightForMerging > spec->DataWeightPerShuffleJob)
-        {
-            THROW_ERROR_EXCEPTION(
-                "Option %Qv cannot be greater than %Qv",
+        if (spec->PartitionDataWeightForMerging.has_value()) {
+            THROW_ERROR_EXCEPTION_IF(
+                !spec->EnableFinalPartitionsMerging.value_or(false),
+                "Option %Qv cannot be specified when %Qv is not enabled",
                 "partition_data_weight_for_merging",
-                "data_weight_per_sort_job")
-                << TErrorAttribute("partition_data_weight_for_merging", *spec->PartitionDataWeightForMerging)
-                << TErrorAttribute("data_weight_per_sort_job", spec->DataWeightPerShuffleJob);
+                "enable_final_partitions_merging");
+
+            if (spec->EnableFinalPartitionsMerging.value_or(false) &&
+                *spec->PartitionDataWeightForMerging > spec->DataWeightPerShuffleJob)
+            {
+                THROW_ERROR_EXCEPTION(
+                    "Option %Qv cannot be greater than %Qv",
+                    "partition_data_weight_for_merging",
+                    "data_weight_per_sort_job")
+                    << TErrorAttribute("partition_data_weight_for_merging", *spec->PartitionDataWeightForMerging)
+                    << TErrorAttribute("data_weight_per_sort_job", spec->DataWeightPerShuffleJob);
+            }
         }
     });
 }

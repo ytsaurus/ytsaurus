@@ -12,11 +12,11 @@ using namespace NYTree;
 
 namespace {
 
-TString FormatPatch(const INodePtr& patch)
+std::string FormatPatch(const INodePtr& patch)
 {
     return patch
-        ? ConvertToYsonString(patch, EYsonFormat::Text).ToString()
-        : TString("<null>");
+        ? std::string(ConvertToYsonString(patch, EYsonFormat::Text).ToString())
+        : std::string("<null>");
 }
 
 } // namespace

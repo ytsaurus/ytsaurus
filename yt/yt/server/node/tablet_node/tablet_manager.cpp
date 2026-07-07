@@ -3291,11 +3291,20 @@ private:
                 SetBackingStore(tablet, store, backingStore);
             }
 
-            YT_LOG_DEBUG("Chunk store added (%v, StoreId: %v, MaxTimestamp: %v, BackingStoreId: %v)",
-                tablet->GetLoggingTag(),
-                storeId,
-                store->GetMaxTimestamp(),
-                backingStoreId);
+            if (store->IsOrdered()) {
+                YT_LOG_DEBUG("Ordered chunk store added (%v, StoreId: %v, MaxTimestamp: %v, StartingRowIndex: %v, BackingStoreId: %v)",
+                    tablet->GetLoggingTag(),
+                    storeId,
+                    store->GetMaxTimestamp(),
+                    store->AsOrdered()->GetStartingRowIndex(),
+                    backingStoreId);
+            } else {
+                YT_LOG_DEBUG("Sorted chunk store added (%v, StoreId: %v, MaxTimestamp: %v, BackingStoreId: %v)",
+                    tablet->GetLoggingTag(),
+                    storeId,
+                    store->GetMaxTimestamp(),
+                    backingStoreId);
+            }
 
             if (store->IsChunk()) {
                 auto chunkStore = store->AsChunk();
@@ -5817,7 +5826,7 @@ private:
                     FormatValue(builder, experiment.first, /*format*/ TStringBuf{});
                 }));
 
-        auto globalPatchYson = ConvertToYsonString(globalPatch).ToString();
+        auto globalPatchYson = ConvertToYsonString(globalPatch);
         auto experimentsYson = ConvertToYsonString(patch->TableConfigExperiments).ToString();
 
         for (const auto& [id, tablet] : Tablets()) {
@@ -5845,7 +5854,7 @@ private:
     void ScheduleTabletConfigUpdate(
         TTablet* tablet,
         const TClusterTableConfigPatchSetPtr& patch,
-        const TString& globalPatchYson,
+        const TYsonString& globalPatchYson,
         const TString& experimentsYson)
     {
         // Applying new settings is a rather expensive operation: it is a mutation to say the least.
@@ -5859,7 +5868,7 @@ private:
             TReqUpdateTabletSettings req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             req.set_mount_revision(ToProto(tablet->GetMountRevision()));
-            req.set_global_patch(globalPatchYson);
+            ToProto(req.mutable_global_patch(), globalPatchYson);
             req.set_experiments(experimentsYson);
             Slot_->CommitTabletMutation(req);
         };

@@ -158,7 +158,7 @@ public:
     void ValidatePoolPermission(
         const std::string& /*treeId*/,
         NObjectClient::TObjectId /*poolObjectId*/,
-        const TString& /*poolName*/,
+        const std::string& /*poolName*/,
         const std::string& /*user*/,
         NYTree::EPermission /*permission*/) const override
     { }

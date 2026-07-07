@@ -56,7 +56,7 @@ class TJob
 {
     struct TNameWithAddress
     {
-        TString Name;
+        std::string Name;
         NNet::TIP6Address Address;
     };
 
@@ -87,12 +87,12 @@ public:
     void OnJobProxySpawned();
 
     void PrepareArtifact(
-        const TString& artifactName,
+        const std::string& artifactName,
         const TString& pipePath);
 
     void OnArtifactPreparationFailed(
-        const TString& artifactName,
-        const TString& artifactPath,
+        const std::string& artifactName,
+        const std::string& artifactPath,
         const TError& error);
 
     void OnArtifactsPrepared();
@@ -155,9 +155,9 @@ public:
 
     void SetStderrSize(i64 value);
 
-    void SetStderr(const TString& value);
+    void SetStderr(const std::string& value);
 
-    void SetFailContext(const TString& value);
+    void SetFailContext(const std::string& value);
 
     void AddProfile(NJobAgent::TJobProfile value);
 
@@ -186,7 +186,7 @@ public:
 
     std::optional<NApi::TGetJobStderrResponse> GetStderr(const NApi::TGetJobStderrOptions& options);
 
-    std::optional<TString> GetFailContext();
+    std::optional<std::string> GetFailContext();
 
     const NControllerAgent::TCoreInfos& GetCoreInfos();
 
@@ -218,7 +218,7 @@ public:
     void DoInterrupt(
         TDuration timeout,
         NScheduler::EInterruptionReason interruptionReason,
-        std::optional<TString> preemptionReason,
+        std::optional<std::string> preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     void DoFail(TError error);
@@ -244,14 +244,14 @@ public:
     void OnJobInterruptionTimeout(
         NScheduler::EInterruptionReason interruptionReason,
         TDuration interruptionTimeout,
-        const std::optional<TString>& preemptionReason);
+        const std::optional<std::string>& preemptionReason);
 
     TControllerAgentConnectorPool::TControllerAgentConnectorPtr GetControllerAgentConnector() const noexcept;
 
     void Interrupt(
         TDuration timeout,
         NScheduler::EInterruptionReason interruptionReason,
-        std::optional<TString> preemptionReason,
+        std::optional<std::string> preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     NScheduler::EInterruptionReason GetInterruptionReason() const noexcept;
@@ -315,7 +315,7 @@ private:
 
     const std::vector<NScheduler::TTmpfsVolumeConfigPtr> TmpfsVolumeInfos_;
 
-    THashSet<TString> RequestedMonitoringSensors_;
+    THashSet<std::string> RequestedMonitoringSensors_;
 
     // Used to terminate artifacts downloading in case of cancelation.
     TFuture<void> ArtifactsFuture_ = OKFuture;
@@ -324,8 +324,8 @@ private:
     double Progress_ = 0.0;
     i64 StderrSize_ = 0;
 
-    std::optional<TString> Stderr_;
-    std::optional<TString> FailContext_;
+    std::optional<std::string> Stderr_;
+    std::optional<std::string> FailContext_;
     std::vector<NJobAgent::TJobProfile> Profiles_;
     std::optional<NJobAgent::TJobProfile> JobProxyPeakMemoryProfile_;
     NControllerAgent::TCoreInfos CoreInfos_;
@@ -476,7 +476,7 @@ private:
         TInstant time,
         TDuration timeout,
         NScheduler::EInterruptionReason interruptionReason,
-        const std::optional<TString>& preemptionReason,
+        const std::optional<std::string>& preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     void DoSetResult(TError error);

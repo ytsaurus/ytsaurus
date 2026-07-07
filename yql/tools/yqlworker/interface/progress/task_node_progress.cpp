@@ -97,7 +97,9 @@ bool TNodeProgress::MergeWith(const NProto::TTaskProgress::TNodeProgress& p)
     auto stages = ProtoToStages(p);
     if (stages != Stages_) {
         Stages_ = stages;
-        Progress_.Stage = Stages_.back();
+        if (!Stages_.empty()) {
+            Progress_.Stage = Stages_.back();
+        }
         dirty = true;
     }
 

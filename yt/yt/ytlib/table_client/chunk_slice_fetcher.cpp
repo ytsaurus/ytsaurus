@@ -428,13 +428,6 @@ public:
         return chunkCount;
     }
 
-    void SetCancelableContext(TCancelableContextPtr cancelableContext) override
-    {
-        for (auto& fetcher : ChunkSliceFetchers_) {
-            fetcher->SetCancelableContext(cancelableContext);
-        }
-    }
-
     TFuture<void> Fetch() override
     {
         std::vector<TFuture<void>> fetchFutures;

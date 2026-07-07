@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"go.ytsaurus.tech/library/go/ptr"
-	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/proto/client/api/common"
 	"go.ytsaurus.tech/yt/go/yson"
 )
 
-func ConvertFromProto(rpcSchema *rpc_proxy.TTableSchema) (Schema, error) {
+func ConvertFromProto(rpcSchema *common.TTableSchema) (Schema, error) {
 	schema := Schema{
 		Strict:     ptr.Bool(rpcSchema.GetStrict()),
 		UniqueKeys: rpcSchema.GetUniqueKeys(),

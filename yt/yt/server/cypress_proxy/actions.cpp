@@ -476,7 +476,7 @@ void DetachChild(
         transaction->DeleteRow(NRecords::TChildNodeKey{
             .ParentId = parentId.ObjectId,
             .TransactionId = parentId.TransactionId,
-            .ChildKey = TString(childKey), // TODO(babenko): migrate to std::string.
+            .ChildKey = childKey,
         });
 
         if (parentId.IsBranched()) {

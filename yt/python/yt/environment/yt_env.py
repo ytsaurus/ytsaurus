@@ -159,6 +159,8 @@ def _configure_logger(path):
             logger.addHandler(logging.StreamHandler())
         logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     else:
+        for handler in logger.handlers:
+            handler.close()
         logger.handlers = [logging.FileHandler(path)]
         logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 
@@ -811,7 +813,7 @@ class YTInstance(object):
             components = ["multi"]
         else:
             components = ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
-                          "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer",
+                          "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer", "offshore_data_gateway",
                           "tablet_balancer", "cypress_proxy", "replicated_table_tracker", "queue_agent", "kafka_proxy", "multi"]
 
         self._send_component_kills(components)
@@ -1388,10 +1390,15 @@ class YTInstance(object):
     def _dump_backtraces(self, pid):
         from .arcadia_interop import get_gdb_path
 
+        gdb_path = get_gdb_path()
+        if not shutil.which(gdb_path):
+            logger.warning("Cannot dump backtraces of process %s: gdb is not available (path: %s)", pid, gdb_path)
+            return
+
         try:
             gdb_output = subprocess.check_output(
                 [
-                    get_gdb_path(),
+                    gdb_path,
                     "-p",
                     str(pid),
                     "--batch",
@@ -1914,7 +1921,7 @@ class YTInstance(object):
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
                     raise YtError("Master cache config {0} not found. It is possible that you requested "
-                                  "more timestamp providers than configs exist".format(config_path))
+                                  "more master caches than configs exist".format(config_path))
                 config = read_config(config_path)
             else:
                 config = master_cache_configs[master_cache_index]

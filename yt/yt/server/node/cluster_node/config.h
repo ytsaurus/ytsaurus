@@ -388,8 +388,8 @@ struct TClusterNodeBootstrapConfig
 
     int AuxPollerThreadCount;
 
-    std::optional<TString> Rack;
-    std::optional<TString> DataCenter;
+    std::optional<std::string> Rack;
+    std::optional<std::string> DataCenter;
 
     THeapProfilerConfigPtr HeapProfiler;
 
@@ -426,7 +426,7 @@ struct TClusterNodeDynamicConfig
     static constexpr bool EnableHazard = true;
 
     //! Dynamic config annotation.
-    TString ConfigAnnotation;
+    std::string ConfigAnnotation;
 
     //! Node resource limits.
     TResourceLimitsDynamicConfigPtr ResourceLimits;

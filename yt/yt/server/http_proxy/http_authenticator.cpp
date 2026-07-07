@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
@@ -107,7 +108,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
             .Realm = "YT",
             .UserTicket = UserTicket,
         };
-        return TAuthenticationResultAndToken{result, TString()};
+        return TAuthenticationResultAndToken{result, {}};
     }
 
     auto userIP = request->GetRemoteAddress();
@@ -192,8 +193,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
             }
 
             auto tokenHash = GetCryptoHash(*credentials.Token);
-            // TOOD(babenko): migrate to std::string
-            return TAuthenticationResultAndToken{authenticationResult, TString(tokenHash)};
+            return TAuthenticationResultAndToken{authenticationResult, tokenHash};
         }
     }
 
@@ -201,8 +201,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     if (auto cookieHeader = request->GetHeaders()->Find(CookieHeaderName)) {
         auto cookies = ParseCookies(*cookieHeader);
         TCookieCredentials credentials{
-            // TODO(babenko): switch to std::string
-            .Cookies = {cookies.begin(), cookies.end()},
+            .Cookies = std::move(cookies),
             .UserIP = userIP,
         };
         if (CookieAuthenticator_->CanAuthenticate(credentials)) {
@@ -232,7 +231,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                 }
             }
 
-            return TAuthenticationResultAndToken{authResult.Value(), TString()};
+            return TAuthenticationResultAndToken{authResult.Value(), {}};
         }
     }
 
@@ -245,8 +244,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
 
         TTicketCredentials credentials{
-            // TODO(babenko): switch to std::string
-            .Ticket = TString(*userTicketHeader),
+            .Ticket = *userTicketHeader,
         };
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {
@@ -265,8 +263,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
 
         TServiceTicketCredentials credentials{
-            // TODO(babenko): switch to std::string
-            .Ticket = TString(*serviceTicketHeader),
+            .Ticket = *serviceTicketHeader,
         };
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {

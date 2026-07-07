@@ -1005,6 +1005,11 @@ private:
                 continue;
             }
 
+            // NB: Backups for sorted tables are created in a different way for both serializing and non-serializing transactions.
+            if (!tablet->IsPhysicallyOrdered()) {
+                continue;
+            }
+
             if (tablet->GetCommitOrdering() != ECommitOrdering::Strong) {
                 continue;
             }

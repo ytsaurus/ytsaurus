@@ -250,7 +250,8 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 }
 
-std::optional<i64> GetChunkSpecRowCount(const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+std::optional<i64> GetChunkSpecRowCount(const NChunkClient::NProto::TChunkSpec& chunkSpec)
+{
     if (chunkSpec.has_row_count_override()) {
         return chunkSpec.row_count_override();
     }
@@ -263,7 +264,8 @@ std::optional<i64> GetChunkSpecRowCount(const NChunkClient::NProto::TChunkSpec& 
     return std::nullopt;
 }
 
-std::optional<i64> GetChunkSpecDataWeight(const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+std::optional<i64> GetChunkSpecDataWeight(const NChunkClient::NProto::TChunkSpec& chunkSpec)
+{
     if (chunkSpec.has_data_weight_override()) {
         return chunkSpec.data_weight_override();
     }

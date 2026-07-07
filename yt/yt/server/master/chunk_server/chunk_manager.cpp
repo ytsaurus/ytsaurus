@@ -423,6 +423,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageExpiredChunks, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraTopUpSequoiaChunkPurgatory, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraScheduleMultipleChunkSeals, Unretained(this)));
 
         RegisterLoader(
             "ChunkManager.Keys",
@@ -786,6 +787,16 @@ public:
             this);
     }
 
+    std::unique_ptr<TMutation> CreateScheduleMultipleChunkSealsMutation(
+        const NProto::TReqScheduleMultipleChunkSeals& request) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            request,
+            &TChunkManager::HydraScheduleMultipleChunkSeals,
+            this);
+    }
+
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
@@ -891,6 +902,28 @@ public:
 
         for (auto replica : replicas) {
             auto nodeId = replica.GetNodeId();
+
+            // Offshore replicas are confirmed via OffshoreNodeId sentinel — no real node.
+            if (nodeId == NNodeTrackerClient::OffshoreNodeId) {
+                auto mediumIndex = replica.GetMediumIndex();
+                const auto* medium = GetMediumByIndexOrThrow(mediumIndex);
+                if (!medium->IsOffshore()) {
+                    YT_LOG_ALERT(
+                        "Confirmed offshore replica references non-offshore medium "
+                        "(ChunkId: %v, MediumName: %v, MediumIndex: %v)",
+                        chunk->GetId(),
+                        medium->GetName(),
+                        mediumIndex);
+                    continue;
+                }
+                TAugmentedStoredChunkReplicaPtr storedReplica(
+                    const_cast<TMedium*>(medium),
+                    replica.GetReplicaIndex());
+                chunk->AddReplica(storedReplica, medium, /*approved*/ true);
+                ScheduleChunkRefresh(chunk);
+                continue;
+            }
+
             auto* node = nodeTracker->FindNode(nodeId);
             if (!IsObjectAlive(node)) {
                 YT_LOG_DEBUG("Tried to confirm chunk at an unknown node (ChunkId: %v, NodeId: %v)",
@@ -1713,9 +1746,10 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTreeRawPtr> children) override
+        TRange<TChunkTreeRawPtr> children,
+        bool updateChunkListStatistics = true) override
     {
-        NChunkServer::AttachToChunkList(chunkList, children);
+        NChunkServer::AttachToChunkList(chunkList, children, updateChunkListStatistics);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto child : children) {
@@ -2336,6 +2370,10 @@ public:
         std::optional<int> hintIndex,
         TObjectId hintId) override
     {
+        if (!GetDynamicConfig()->AllowOffshoreMedia) {
+            THROW_ERROR_EXCEPTION("Offshore media creation is not allowed");
+        }
+
         CreateMediumPrologue(name);
 
         auto objectManager = Bootstrap_->GetObjectManager();
@@ -2718,6 +2756,9 @@ private:
     // COMPAT(akozhikhov)
     bool RecomputeHunkRelatedChunkStatisticsAgain_ = false;
 
+    // COMPAT(akozhikhov)
+    bool FixHunkChunkWeightStatisticsHistogram_ = false;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -3038,10 +3079,64 @@ private:
             return;
         }
 
-        auto rowCount = chunk->GetRowCount();
-        auto compressedDataSize = chunk->GetCompressedDataSize();
-        auto uncompressedDataSize = chunk->GetUncompressedDataSize();
-        auto dataWeight = chunk->GetDataWeight();
+        i64 rowCount = 0;
+        i64 compressedDataSize;
+        i64 uncompressedDataSize;
+        i64 dataWeight;
+        if (IsHunkChunkFormat(chunk->GetChunkFormat())) {
+            // NB: We just set compressed data size to all the three fields because it does not change
+            // depending on referenced part and it is good enough for the purposes of the histograms.
+            compressedDataSize = chunk->GetCompressedDataSize();
+            uncompressedDataSize = compressedDataSize;
+            dataWeight = compressedDataSize;
+
+            auto isCompressionDictionary = chunk->ChunkMeta()->GetExtension<TMiscExt>().has_dictionary_compression_policy();
+            auto transaction = chunk->GetStagingTransaction();
+            auto isRemoteCopyResult = transaction && transaction->FindAttribute("operation_id");
+
+            auto doAlert = [&] {
+                YT_LOG_ALERT("Encountered hunk chunk in unexpected state upon updating chunk weight statistics histogram "
+                    "(Add: %v, ChunkId: %v, IsDictionary: %v, TransactionId: %v, IsRemoteCopyResult: %v, "
+                    "DataWeight: %v, UncompressedDataSize: %v, CompressedDataSize: %v, RefCount: %v)",
+                    add,
+                    chunk->GetId(),
+                    isCompressionDictionary,
+                    (transaction ? transaction->GetId() : NullTransactionId),
+                    isRemoteCopyResult,
+                    chunk->GetDataWeight(),
+                    chunk->GetUncompressedDataSize(),
+                    chunk->GetCompressedDataSize(),
+                    chunk->GetObjectRefCounter());
+            };
+
+            // Drop after resolving YT-28522.
+            if (add) {
+                if (isCompressionDictionary || isRemoteCopyResult) {
+                    if (chunk->GetUncompressedDataSize() != 0 || chunk->GetDataWeight() != 0) {
+                        doAlert();
+                    }
+                } else{
+                    if (chunk->GetUncompressedDataSize() != chunk->GetCompressedDataSize()) {
+                        doAlert();
+                    }
+                }
+
+                if (chunk->GetObjectRefCounter() < 1) {
+                    doAlert();
+                }
+            } else {
+                if (chunk->GetUncompressedDataSize() != 0 ||
+                    chunk->GetObjectRefCounter() > 0)
+                {
+                    doAlert();
+                }
+            }
+        } else {
+            rowCount = chunk->GetRowCount();
+            compressedDataSize = chunk->GetCompressedDataSize();
+            uncompressedDataSize = chunk->GetUncompressedDataSize();
+            dataWeight = chunk->GetDataWeight();
+        }
 
         if (add) {
             ChunkRowCountHistogram_.Add(rowCount, 1);
@@ -4093,7 +4188,8 @@ private:
 
     TFuture<void> ModifySequoiaReplicas(
         ESequoiaTransactionType transactionType,
-        std::unique_ptr<TReqModifyReplicas> request) override
+        std::unique_ptr<TReqModifyReplicas> request,
+        bool allowBatching) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -4108,7 +4204,8 @@ private:
             transactionType);
 
         const auto& config = GetDynamicConfig();
-        if (transactionType == ESequoiaTransactionType::IncrementalHeartbeat &&
+        if (allowBatching &&
+            transactionType == ESequoiaTransactionType::IncrementalHeartbeat &&
             config->SequoiaChunkReplicas->BatchIncrementalHeartbeat)
         {
             try {
@@ -4291,7 +4388,7 @@ private:
 
         const auto& sequoiaChunkReplicasConfig = GetDynamicConfig()->SequoiaChunkReplicas;
         for (const auto& replica : location->Replicas()) {
-            const auto* chunk = replica.GetPtr();
+            auto* chunk = replica.GetPtr();
             auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunk->GetId(), sequoiaChunkReplicasConfig);
             if (chunkSequoiaConfig.StoreInSequoia) {
                 if (chunkSequoiaConfig.StoreSequoiaReplicasOnMaster) {
@@ -4313,6 +4410,9 @@ private:
                 TChunkIdWithIndexAndState(chunk->GetId(), replica.GetReplicaIndex(), replica.GetReplicaState())))
             {
                 replicasToRemove.emplace_back(replica);
+            } else {
+                ScheduleChunkRefresh(chunk);
+                ScheduleChunkSeal(chunk);
             }
         }
 
@@ -4321,6 +4421,12 @@ private:
         }
 
         location->SetState(EChunkLocationState::Online);
+
+        if (sequoiaChunkReplicasConfig->Enable) {
+            // After sequoia location replacement we schedule refresh for all changed Sequoia replicas.
+            // But unchanged Sequoia replicas are not refreshed, so we need to refresh location after it becomes online.
+            ChunkReplicator_->ScheduleLocationRefreshSequoia(location);
+        }
 
         return announceReplicaRequests;
     }
@@ -5867,6 +5973,17 @@ private:
         RecomputeHunkRelatedChunkStatisticsAgain_ = context.GetVersion() < EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain ||
             (context.GetVersion() >= EMasterReign::Start_26_2 &&
              context.GetVersion() < EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain_26_2);
+
+        FixHunkChunkWeightStatisticsHistogram_ = context.GetVersion() < EMasterReign::FixHunkChunkWeightStatisticsHistogram ||
+            (context.GetVersion() >= EMasterReign::Start_26_2 &&
+             context.GetVersion() < EMasterReign::FixHunkChunkWeightStatisticsHistogram_26_2);
+
+        if (FixHunkChunkWeightStatisticsHistogram_) {
+            ChunkRowCountHistogram_.Reset();
+            ChunkCompressedDataSizeHistogram_.Reset();
+            ChunkUncompressedDataSizeHistogram_.Reset();
+            ChunkDataWeightHistogram_.Reset();
+        }
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -5907,7 +6024,9 @@ private:
                     crpChunks.push_back(chunk);
                 }
 
-                if (NeedRecomputeChunkWeightStatisticsHistogram_) {
+                if (NeedRecomputeChunkWeightStatisticsHistogram_ ||
+                    FixHunkChunkWeightStatisticsHistogram_)
+                {
                     UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
                 }
 
@@ -6145,8 +6264,10 @@ private:
                 continue;
             }
 
-            VisitAllAncestorsInHunkTree(chunk, [&] (TChunkList* chunkList, bool /*firstOccurrence*/) {
-                chunkList->AccumulateHunkStatistics(chunk);
+            VisitAllAncestorsInHunkTree(chunk, [&] (TChunkList* chunkList, bool firstOccurrence) {
+                if (firstOccurrence) {
+                    chunkList->AccumulateHunkStatistics(chunk, /*force*/ true);
+                }
             });
         }
 
@@ -6292,6 +6413,7 @@ private:
 
         RecomputeHunkRelatedChunkStatistics_ = false;
         RecomputeHunkRelatedChunkStatisticsAgain_ = false;
+        FixHunkChunkWeightStatisticsHistogram_ = false;
     }
 
     void SetZeroState() override
@@ -6771,6 +6893,17 @@ private:
         }
     }
 
+    void HydraScheduleMultipleChunkSeals(NProto::TReqScheduleMultipleChunkSeals* request)
+    {
+        for (const auto& protoChunkId : request->chunk_ids()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            auto* chunk = FindChunk(chunkId);
+            if (IsObjectAlive(chunk)) {
+                ScheduleChunkSeal(chunk);
+            }
+        }
+    }
+
     TFuture<void> RemoveDeadSequoiaChunkReplicas(std::unique_ptr<NProto::TReqRemoveDeadSequoiaChunkReplicas> request)
     {
         return Bootstrap_
@@ -7061,7 +7194,8 @@ private:
         YT_LOG_EVENT(
             Logger(),
             reason == ERemoveReplicaReason::NodeDisposed ||
-            reason == ERemoveReplicaReason::ChunkDestroyed
+            reason == ERemoveReplicaReason::ChunkDestroyed ||
+            reason == ERemoveReplicaReason::SequoiaNodeDisposed
             ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
             "Chunk replica removed "
             "(ChunkId: %v, Reason: %v, NodeId: %v, Address: %v, Approved: %v, TemporarilyUnavailable: %v)",
@@ -7419,8 +7553,8 @@ private:
             buffer.AddCounter("/chunks_created", ChunksCreated_);
             buffer.AddCounter("/chunks_destroyed", ChunksDestroyed_);
 
-            buffer.AddGauge("/erasure_chunk_count", ErasureChunkCount_);
-            buffer.AddGauge("/regular_chunk_count", RegularChunkCount_);
+            buffer.AddCounter("/erasure_chunk_count", ErasureChunkCount_);
+            buffer.AddCounter("/regular_chunk_count", RegularChunkCount_);
 
             buffer.AddGauge("/chunk_replica_count", TotalReplicaCount_);
             buffer.AddCounter("/chunk_replicas_added", ChunkReplicasAdded_);

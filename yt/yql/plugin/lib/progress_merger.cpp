@@ -1,5 +1,7 @@
 #include "progress_merger.h"
 
+#include <library/cpp/yt/string/format.h>
+
 namespace NYT::NYqlPlugin {
 
 //////////////////////////////////////////////////////////////////////////////

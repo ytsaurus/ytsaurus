@@ -1113,7 +1113,7 @@ public:
 
         for (const auto& [treeId, future] : treeIdToUpdateFuture) {
             const auto& treeAllocationUpdates = GetOrCrash(allocationUpdatesPerTree, treeId);
-            auto updateResults = WaitFor(future)
+            auto updateResults = WaitForFast(future)
                 .ValueOrThrow();
             YT_VERIFY(updateResults.size() == treeAllocationUpdates.size());
 
@@ -2525,7 +2525,6 @@ private:
         {
             YT_ASSERT_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
 
-            // TODO(babenko): switch to std::string
             const auto it = Strategy_->IdToTree_.find(treeId);
             if (it == std::cend(Strategy_->IdToTree_)) {
                 return nullptr;

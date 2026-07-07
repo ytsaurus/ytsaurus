@@ -89,6 +89,7 @@ std::vector<std::string> TClient::DoListBannedUsers(const TListBannedUsersOption
 
     return bannedUsers;
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

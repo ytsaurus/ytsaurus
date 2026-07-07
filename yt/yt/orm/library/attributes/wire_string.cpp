@@ -449,7 +449,7 @@ struct TProtoVisitorTraits<TUnpackedWireString>
             "Map item is not found");
     }
 
-    using TMapReturn = THashMap<TString, TMessageReturn>;
+    using TMapReturn = THashMap<TProtoStringType, TMessageReturn>;
     static TErrorOr<TMapReturn> GetMessagesFromWholeMapField(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor)
@@ -724,7 +724,7 @@ NYTree::IAttributeDictionaryPtr ParseAttributeDictionary(const TWireString& wire
 
 std::string SerializeUint64(ui64 value, NYson::TProtobufElementType type)
 {
-    TString result;
+    TProtoStringType result;
     switch (type.Underlying()) {
         IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_UINT32, WriteUInt32NoTag)
         IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_UINT64, WriteUInt64NoTag)
@@ -738,7 +738,7 @@ std::string SerializeUint64(ui64 value, NYson::TProtobufElementType type)
 
 std::string SerializeInt64(i64 value, NYson::TProtobufElementType type)
 {
-    TString result;
+    TProtoStringType result;
     switch (type.Underlying()) {
         IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_INT32, WriteInt32NoTag)
         IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_INT64, WriteInt64NoTag)
@@ -756,7 +756,7 @@ std::string SerializeInt64(i64 value, NYson::TProtobufElementType type)
 
 std::string SerializeDouble(double value, NYson::TProtobufElementType type)
 {
-    TString result;
+    TProtoStringType result;
     switch (type.Underlying()) {
         IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_FLOAT, WriteFloatNoTag)
         IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_DOUBLE, WriteDoubleNoTag)
@@ -769,7 +769,7 @@ std::string SerializeDouble(double value, NYson::TProtobufElementType type)
 
 std::string SerializeBoolean(bool value, NYson::TProtobufElementType type)
 {
-    TString result;
+    TProtoStringType result;
     switch (type.Underlying()) {
         IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_BOOL, WriteBoolNoTag)
         default:
@@ -785,7 +785,7 @@ std::string SerializeKeyValuePair(
     const TWireString& value,
     NYson::TProtobufElementType valueType)
 {
-    TString result;
+    TProtoStringType result;
     {
         google::protobuf::io::StringOutputStream stringStream(&result);
         google::protobuf::io::CodedOutputStream stream(&stringStream);
@@ -821,7 +821,7 @@ std::string SerializeMessage(
     const NYson::TProtobufMessageType* messageType,
     NYson::TProtobufWriterOptions options)
 {
-    TString result;
+    TProtoStringType result;
     google::protobuf::io::StringOutputStream stringStream(&result);
     auto protobufWriter = NYson::CreateProtobufWriter(&stringStream, messageType, options);
     NYTree::Serialize(message, protobufWriter.get());
@@ -834,7 +834,7 @@ std::string SerializeMessage(
     const NYson::TProtobufMessageType* messageType,
     NYson::TProtobufWriterOptions options)
 {
-    TString result;
+    TProtoStringType result;
     google::protobuf::io::StringOutputStream stringStream(&result);
     auto protobufWriter = NYson::CreateProtobufWriter(&stringStream, messageType, options);
     NYson::Serialize(message, protobufWriter.get());
@@ -845,9 +845,9 @@ std::string SerializeMessage(
 std::string AddWireTag(
     const NYson::TProtobufMessageType* messageType,
     std::string_view fieldName,
-    const TString& serializedMessage)
+    const TProtoStringType& serializedMessage)
 {
-    TString result;
+    TProtoStringType result;
     {
         google::protobuf::io::StringOutputStream stringStream(&result);
         google::protobuf::io::CodedOutputStream outputStream(&stringStream);

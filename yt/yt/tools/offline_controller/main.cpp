@@ -491,13 +491,13 @@ void GuardedMain(int argc, char** argv)
     TSignalRegistry::Get()->PushCallback(NSignals::AllCrashSignals, CrashSignalHandler);
     TSignalRegistry::Get()->PushDefaultSignalHandler(NSignals::AllCrashSignals);
 
-    auto mode = TString("load");
-    TString loadFromFiles;
-    TString storeToFiles;
-    TString proxy;
-    TString path;
-    TString operationId;
-    TString token;
+    std::string mode = "load";
+    std::string loadFromFiles;
+    std::string storeToFiles;
+    std::string proxy;
+    NYPath::TYPath path;
+    std::string operationId;
+    std::string token;
     bool loop = false;
     bool rct = false;
     bool ignoreVersionMismatch = false;
@@ -529,29 +529,33 @@ void GuardedMain(int argc, char** argv)
 
     TOptsParseResult results(&opts, argc, argv);
 
-    if (!token) {
+    if (token.empty()) {
         auto tokenPath = NFS::GetHomePath() + "/.yt/token";
         if (NFS::Exists(tokenPath)) {
             TIFStream tokenStream(tokenPath);
-            tokenStream >> token;
+            // TODO(babenko): drop temporary once operator>> accepts std::string
+            TString tokenString;
+            tokenStream >> tokenString;
+            token = tokenString;
         } else {
             token = GetEnv("YT_TOKEN");
         }
     }
 
-    if (!proxy) {
+    if (proxy.empty()) {
         proxy = GetEnv("YT_PROXY");
     }
 
-    if (!path && operationId) {
+    if (path.empty() && !operationId.empty()) {
         path = Format("//sys/operations/%v/%v", operationId.substr(operationId.size() - 2), operationId);
     }
 
     NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateQuiet());
 
     TOfflineOperation operation;
-    if (loadFromFiles) {
-        operation = LoadFromFiles(loadFromFiles);
+    if (!loadFromFiles.empty()) {
+        // TODO(babenko): drop cast once LoadFromFiles accepts std::string.
+        operation = LoadFromFiles(TString(loadFromFiles));
     } else {
         operation = DownloadOperation(token, proxy, path);
     }
@@ -570,8 +574,9 @@ void GuardedMain(int argc, char** argv)
         THROW_ERROR_EXCEPTION(error);
     }
 
-    if (storeToFiles) {
-        StoreToFiles(operation, storeToFiles);
+    if (!storeToFiles.empty()) {
+        // TODO(babenko): drop cast once StoreToFiles accepts std::string.
+        StoreToFiles(operation, TString(storeToFiles));
     }
 
     if (prepareAndExit) {

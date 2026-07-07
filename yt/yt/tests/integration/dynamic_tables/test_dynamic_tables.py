@@ -4299,6 +4299,58 @@ class TestDynamicTablesSequoia(TestDynamicTablesShardedTx):
     }
 
 
+class TestDynamicTablesSequoiaAndMasterJournalReplicas(TestDynamicTablesMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    USE_SEQUOIA = True
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "replica_approve_timeout": 5000,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "enable_sequoia_chunk_refresh": True,
+                "schedule_chunk_seal_in_sequoia_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "batch_chunk_confirmation": True,
+                "journal_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": True,
+                    "store_sequoia_replicas_on_master_percentage": 100,
+                    "validate_sequoia_replicas_fetch": True,
+                    "allow_extra_master_replicas_during_validation": False,
+                },
+            },
+        },
+    }
+
+
+class TestDynamicTablesOnlySequoiaJournalReplicas(TestDynamicTablesSequoiaAndMasterJournalReplicas):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "replica_approve_timeout": 5000,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "enable_sequoia_chunk_refresh": True,
+                "schedule_chunk_seal_in_sequoia_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "batch_chunk_confirmation": True,
+                "journal_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": False,
+                    "process_removed_sequoia_replicas_on_master": False,
+                    "validate_sequoia_replicas_fetch": False,
+                },
+            },
+        },
+    }
+
+
 ##################################################################
 
 

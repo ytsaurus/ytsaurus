@@ -135,7 +135,6 @@ void FromProto(
 
 TTablet::TTablet(TTabletId id)
     : TTabletBase(id)
-    , RetainedTimestamp_(MinTimestamp)
 { }
 
 std::string TTablet::GetLowercaseObjectName() const

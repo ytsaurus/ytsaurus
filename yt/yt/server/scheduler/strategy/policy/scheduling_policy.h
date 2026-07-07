@@ -95,7 +95,7 @@ struct ISchedulingPolicy
 
     //! Scheduling.
     //! Thread affinity: Any.
-    virtual void ProcessSchedulingHeartbeat(
+    virtual TFuture<void> ProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TPoolTreeSnapshotPtr& treeSnapshot,
         bool skipScheduleAllocations) = 0;

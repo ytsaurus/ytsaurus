@@ -127,9 +127,9 @@ TEST_F(TTypeV3Test, TestCreateStaticTable)
 
 void CreateDynamicTable(
     const NApi::IClientPtr& client,
-    const TString& path,
+    const NYPath::TYPath& path,
     const TTableSchema& schema,
-    const std::vector<std::pair<TString, TString>>& attributes = {})
+    const std::vector<std::pair<std::string, std::string>>& attributes = {})
 {
     TTypeV3Test::SetTablePath(path);
 
@@ -230,10 +230,10 @@ TEST_F(TTypeV3Test, TestCreateDynamicTable)
 
 struct TTypeV3TestWithOptimizedFor
     : public TTypeV3Test
-    , public testing::WithParamInterface<TString>
+    , public testing::WithParamInterface<std::string>
 { };
 
-static std::string PrintOptimizedFor(const ::testing::TestParamInfo<TString>& info)
+static std::string PrintOptimizedFor(const ::testing::TestParamInfo<std::string>& info)
 {
     auto data = info.param;
     return {data.data(), data.size()};

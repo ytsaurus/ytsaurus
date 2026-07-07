@@ -82,6 +82,7 @@ private:
     NRpc::IChannelPtr LocalRpcChannel_;
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;

@@ -6,7 +6,7 @@
 
 #include <yt/yt/library/profiling/solomon/config.h>
 
-#include <yt/yt/server/lib/signature/components/config.h>
+#include <yt/yt/library/signature/components/config.h>
 
 #include <yt/yt/core/misc/config.h>
 
@@ -100,6 +100,10 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("numa_nodes", &TThis::NumaNodes)
         .Default();
+
+    registrar.Parameter("enable_non_root_volumes", &TThis::EnableNonRootVolumes)
+        .Alias("enable_tmpfs")
+        .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
         std::unordered_set<i64> numaNodeIds;

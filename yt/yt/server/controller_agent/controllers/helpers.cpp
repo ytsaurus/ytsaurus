@@ -173,10 +173,10 @@ std::vector<TInputStreamDescriptorPtr> BuildInputStreamDescriptorsFromOutputStre
 
 void TControllerFeatures::AddSingular(TStringBuf name, double value)
 {
-    Features_[name] += value;
+    Features_[std::string(name)] += value;
 }
 
-void TControllerFeatures::AddSingular(const TString& name, const INodePtr& node)
+void TControllerFeatures::AddSingular(const std::string& name, const INodePtr& node)
 {
     switch (node->GetType()) {
         case ENodeType::Map:
@@ -205,23 +205,19 @@ void TControllerFeatures::AddSingular(const TString& name, const INodePtr& node)
 
 void TControllerFeatures::AddCounted(TStringBuf name, double value)
 {
-    TString sumFeature{name};
-    sumFeature += ".sum";
-    Features_[sumFeature] += value;
-    TString countFeature{name};
-    countFeature += ".count";
-    Features_[countFeature] += 1;
+    Features_[std::string(name) + ".sum"] += value;
+    Features_[std::string(name) + ".count"] += 1;
 }
 
 void TControllerFeatures::CalculateJobStatisticsAverage()
 {
-    static const TString SumSuffix = ".sum";
-    static const TString CountSuffix = ".count";
-    static const TString AvgSuffix = ".avg";
-    static const TString JobStatisticsPrefix = "job_statistics.";
-    TVector<std::pair<TString, double>> newAvgValues;
+    static const std::string SumSuffix = ".sum";
+    static const std::string CountSuffix = ".count";
+    static const std::string AvgSuffix = ".avg";
+    static const std::string JobStatisticsPrefix = "job_statistics.";
+    std::vector<std::pair<std::string, double>> newAvgValues;
     for (const auto& [sumFeature, sum] : Features_) {
-        if (sumFeature.StartsWith(JobStatisticsPrefix) && sumFeature.EndsWith(SumSuffix)) {
+        if (sumFeature.starts_with(JobStatisticsPrefix) && sumFeature.ends_with(SumSuffix)) {
             auto feature = sumFeature;
             feature.resize(std::ssize(feature) - std::ssize(SumSuffix));
             auto countFeature = feature + CountSuffix;

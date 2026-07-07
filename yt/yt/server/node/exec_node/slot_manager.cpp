@@ -684,7 +684,7 @@ void TSlotManager::InitializeSlots()
                     InitializedSlotCount_.fetch_add(1);
                     PushSlot(slotIndex);
                     YT_LOG_DEBUG("Slot initialized (SlotIndex: %v)", slotIndex);
-                    Bootstrap_->GetJobResourceManager()->OnNewSlotsAvailable();
+                    Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
                 } else {
                     auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
                     jobEnvironment->Disable(std::move(wrappedError));

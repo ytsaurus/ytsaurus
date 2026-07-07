@@ -1309,6 +1309,10 @@ class TestGangOperations(YTEnvSetup):
     def _verify_job_ids_equal(self, running_jobs, job_ids):
         assert set(running_jobs.keys()) == set(job_ids)
 
+    def _wait_job_aborted_on_node(self, op, job_id):
+        job_path = op.get_job_node_orchid_path(job_id) + "/exec_node/job_controller/active_jobs/{}".format(job_id)
+        wait(lambda: get(job_path + "/job_state", default="aborted") == "aborted")
+
     def _get_jobs_with_no_ranks(self, running_jobs):
         return [job_id for job_id, info in running_jobs.items() if info.get("gang_rank") is None]
 
@@ -1799,12 +1803,10 @@ class TestGangOperations(YTEnvSetup):
         incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_lack_after_revival"}).counter(
             "controller_agent/gang_operations/incarnation_switch_count")
 
-        # if with_gang_policy:
-        #     release_breakpoint(job_id=job_id_a, breakpoint_name="task_a")
-        # else:
-        #     release_breakpoint(job_id=job_id_b, breakpoint_name="task_b")
-
         if with_gang_policy:
+            # The pre-restart task_a job is aborted by the incarnation switch, but its
+            # breakpoint file persists; release it so the wait below sees only the new job.
+            release_breakpoint(job_id=job_id_a, breakpoint_name="task_a")
             job_id_a, = wait_breakpoint(job_count=1, breakpoint_name="task_a")
         job_id_b, = wait_breakpoint(job_count=1, breakpoint_name="task_b")
 
@@ -1999,9 +2001,14 @@ class TestGangOperations(YTEnvSetup):
 
         wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
 
-        release_breakpoint(job_id=first_job_ids[0])
-        release_breakpoint(job_id=first_job_ids[1])
-        release_breakpoint(job_id=first_job_ids[2])
+        # Release each old job's breakpoint only after the job is aborted on its node.
+        # Otherwise a released job may run to completion before the incarnation-change
+        # abort reaches the node; a completed single-job gang allocation then finishes
+        # instead of being preserved for the replacement job, losing the monitoring
+        # descriptor association the assertion below checks. See YT-28595.
+        for old_job_id in first_job_ids:
+            self._wait_job_aborted_on_node(op, old_job_id)
+            release_breakpoint(job_id=old_job_id)
 
         first_allocation_id_to_monitoring_descriptors.pop(get_allocation_id_from_job_id(first_job_id))
 

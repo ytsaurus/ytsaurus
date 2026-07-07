@@ -752,7 +752,7 @@ public:
     }
 
     template <class TMethod, class... TArgs>
-    void DoRun(TString name, IInvokerPtr invoker, TMethod method, TArgs&&... args)
+    void DoRun(std::string name, IInvokerPtr invoker, TMethod method, TArgs&&... args)
     {
         auto callback = [
             this,

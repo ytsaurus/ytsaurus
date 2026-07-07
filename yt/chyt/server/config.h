@@ -155,6 +155,7 @@ class TTestingSettings
 public:
     bool ThrowExceptionInDistributor;
     bool ThrowExceptionInSubquery;
+    bool ThrowExceptionInWriterFinish;
     i64 SubqueryAllocationSize;
 
     bool HangControlInvoker;

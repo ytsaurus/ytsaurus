@@ -39,7 +39,37 @@ target_link_libraries(core-rpc-http PUBLIC
 
 target_sources(core-rpc-http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/http/channel.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/http/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/http/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/http/server.cpp
+)
+
+
+add_global_library_for(core-rpc-http.global
+  core-rpc-http)
+
+
+target_compile_options(core-rpc-http.global PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
+)
+
+target_link_libraries(core-rpc-http.global PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  yt-core-http
+  yt-core-https
+  core-rpc-grpc
+)
+
+target_sources(core-rpc-http.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/http/backend.cpp
 )
 

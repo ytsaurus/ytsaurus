@@ -14,15 +14,15 @@ namespace NYT::NExecNode {
 class TVolumeProfilerCounters
 {
 public:
-    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name);
+    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const std::string& name);
 
-    NProfiling::TGauge GetGauge(const NProfiling::TTagSet& tagSet, const TString& name);
+    NProfiling::TGauge GetGauge(const NProfiling::TTagSet& tagSet, const std::string& name);
 
-    NProfiling::TEventTimer GetTimeHistogram(const NProfiling::TTagSet& tagSet, const TString& name);
+    NProfiling::TEventTimer GetTimeHistogram(const NProfiling::TTagSet& tagSet, const std::string& name);
 
-    NProfiling::TEventTimer GetTimer(const NProfiling::TTagSet& tagSet, const TString& name);
+    NProfiling::TEventTimer GetTimer(const NProfiling::TTagSet& tagSet, const std::string& name);
 
-    static NProfiling::TTagSet MakeTagSet(const TString& volumeType, const TString& volumeFilePath);
+    static NProfiling::TTagSet MakeTagSet(const std::string& volumeType, const std::string& volumeFilePath);
 
     static TVolumeProfilerCounters* Get();
 
@@ -38,7 +38,7 @@ private:
     THashMap<TKey, NProfiling::TGauge> Gauges_;
     THashMap<TKey, NProfiling::TEventTimer> EventTimers_;
 
-    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name);
+    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const std::string& name);
 
     Y_DECLARE_SINGLETON_FRIEND()
 };
@@ -75,12 +75,12 @@ class TTmpfsLayerCacheCounters
 public:
     explicit TTmpfsLayerCacheCounters(NProfiling::TProfiler profiler);
 
-    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name);
+    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const std::string& name);
 
 private:
     using TKey = NProfiling::TTagList;
 
-    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name);
+    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const std::string& name);
 
     const NProfiling::TProfiler Profiler_;
 

@@ -203,6 +203,7 @@ SRCS(
     cypress_server/scion_node.cpp
     cypress_server/scion_proxy.cpp
     cypress_server/scion_type_handler.cpp
+    cypress_server/sequoia_actions_executor_state.cpp
     cypress_server/serialize.cpp
     cypress_server/shard_map_type_handler.cpp
     cypress_server/shard_proxy.cpp
@@ -343,6 +344,7 @@ SRCS(
     sequoia_server/cypress_proxy_type_handler.cpp
     sequoia_server/helpers.cpp
     sequoia_server/ground_update_queue_manager.cpp
+    sequoia_server/revision.cpp
     sequoia_server/sequoia_manager.cpp
     sequoia_server/sequoia_transaction_service.cpp
 
@@ -455,7 +457,7 @@ ELSE()
 ENDIF()
 
 PEERDIR(
-    library/cpp/containers/absl_flat_hash
+    library/cpp/containers/absl
     library/cpp/getopt
     library/cpp/yt/phdr_cache
 

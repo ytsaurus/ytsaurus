@@ -82,7 +82,7 @@ bool TMockHttpServer::IsStarted() const
     return Server_.operator bool();
 }
 
-TString TMockHttpServer::GetHost() const
+std::string TMockHttpServer::GetHost() const
 {
     return Server_->Options().Host;
 }

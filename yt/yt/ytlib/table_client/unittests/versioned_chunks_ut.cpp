@@ -39,8 +39,6 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <yt/yt/core/logging/log.h>
-
 #include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
@@ -61,10 +59,6 @@ using namespace NConcurrency;
 using namespace NTransactionClient;
 
 using NYT::FromProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-const NLogging::TLogger Logger("VersionedChunksTest");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -355,7 +349,12 @@ protected:
         for (int i = 0; i < 3; ++i) {
             std::vector<TVersionedRow> rows;
             startIndex = CreateManyRows(&memoryPool, &rows, startIndex);
-            EXPECT_TRUE(chunkWriter->Write(rows));
+
+            if (!chunkWriter->Write(rows)) {
+                WaitForFast(chunkWriter->GetReadyEvent())
+                    .ThrowOnError();
+            }
+
             // NB: Check that chunk writers does not refer to rows after Write.
             memoryPool.Clear();
         }
@@ -529,10 +528,6 @@ protected:
 
             EXPECT_TRUE(WaitForFast(versionedReader->Open()).IsOK());
             EXPECT_TRUE(WaitForFast(versionedReader->GetReadyEvent()).IsOK());
-
-            YT_LOG_INFO("Checking versioned chunk lookup result (Options: %v, LookupKeys: %v)",
-                testOptions,
-                sharedKeys);
 
             CheckResult(std::move(expectedRows), versionedReader);
         }

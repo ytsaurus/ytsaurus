@@ -130,7 +130,7 @@ void TTentativeTreeEligibility::LogTentativeTreeStatistics() const
         return;
     }
 
-    THashMap<TString, TDuration> treeAverageJobDurations;
+    THashMap<std::string, TDuration> treeAverageJobDurations;
     for (const auto& [treeId, jobs] : TreeIdToStartedJobs_) {
         treeAverageJobDurations.emplace(treeId, GetTentativeTreeAverageJobDuration(treeId));
     }

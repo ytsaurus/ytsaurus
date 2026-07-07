@@ -62,7 +62,7 @@ public:
 
     static const char Delimiter;
 
-    TString ToString() const;
+    std::string ToString() const;
     static TPoolName FromString(const std::string& value);
 
     const std::string& GetPool() const;
@@ -947,7 +947,7 @@ struct TJobExperimentConfig
     : public NYTree::TYsonStruct
 {
     //! The base layer used in the treatment jobs of the experiment.
-    std::optional<std::string> BaseLayerPath;
+    std::optional<NYPath::TYPath> BaseLayerPath;
 
     //! The network project used in the treatment jobs of the experiment.
     std::optional<std::string> NetworkProject;
@@ -1286,7 +1286,7 @@ struct TOperationSpecBase
     std::vector<TJobProfilerSpecPtr> Profilers;
 
     //! Default base layer used if no other layers are requested.
-    std::optional<std::string> DefaultBaseLayerPath;
+    std::optional<NYPath::TYPath> DefaultBaseLayerPath;
 
     //! The setup for the experimental jobs.
     TJobExperimentConfigPtr JobExperiment;
@@ -1302,7 +1302,7 @@ struct TOperationSpecBase
     std::optional<bool> BypassHunkRemoteCopyProhibition;
 
     //! Options for cuda profiler.
-    std::optional<std::string> CudaProfilerLayerPath;
+    std::optional<NYPath::TYPath> CudaProfilerLayerPath;
 
     THashMap<std::string, std::string> CudaProfilerEnvironmentVariables;
     // COMPAT(omgronnny)
@@ -1679,7 +1679,7 @@ struct TUserJobSpec
     //! Describes user job monitoring settings.
     TUserJobMonitoringConfigPtr Monitoring;
 
-    std::optional<std::string> SystemLayerPath;
+    std::optional<NYPath::TYPath> SystemLayerPath;
 
     //! The docker image to use in the operation.
     std::optional<std::string> DockerImage;
@@ -2215,7 +2215,7 @@ struct TSortOperationSpecBase
     // This option is used for partition/partition_map and sorted_reduce/sorted_merge jobs.
     bool ForceJobSizeAdjuster;
 
-    bool EnableFinalPartitionsMerging;
+    std::optional<bool> EnableFinalPartitionsMerging;
 
     REGISTER_YSON_STRUCT(TSortOperationSpecBase);
 

@@ -408,7 +408,9 @@ void TS3MultiPartUploadSession::DoAbortIncompleteUpload()
     }
 
     // Accessing UploadId_ is fine, since the value is read-only after the upload is started.
-    YT_VERIFY(!UploadId_.empty());
+    if (UploadId_.empty()) {
+        return;
+    }
 
     YT_LOG_DEBUG("Aborting incomplete multi-part upload to S3 (UploadId: %v)", UploadId_);
     WaitFor(Client_->AbortMultipartUpload(TAbortMultipartUploadRequest{

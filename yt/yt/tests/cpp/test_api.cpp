@@ -69,12 +69,12 @@ TEST_F(TApiTestBase, TestCreateInvalidNode)
 ////////////////////////////////////////////////////////////////////////////////
 
 using TLookupFilterTestParam = std::tuple<
-    std::vector<std::string>,
-    TString,
-    std::vector<int>,
-    TString,
-    TString,
-    TString>;
+    std::vector<std::string>, // namedColumns - column names used for key preparation
+    std::string,              // keyString - key Yson string for lookup
+    std::vector<int>,         // columnFilter - column indices for filtering
+    std::string,              // resultKeyString - expected result key Yson string
+    std::string,              // resultValueString - expected result value Yson string
+    std::string>;             // schemaString - expected schema Yson string
 
 class TLookupFilterTest
     : public TDynamicTablesTestBase
@@ -86,14 +86,15 @@ public:
         TDynamicTablesTestBase::SetUpTestCase();
 
         CreateTable(
-            "//tmp/lookup_test", // tablePath
-            "[" // schema
-            "{name=k0;type=int64;sort_order=ascending};"
-            "{name=k1;type=int64;sort_order=ascending};"
-            "{name=k2;type=int64;sort_order=ascending};"
-            "{name=v3;type=int64};"
-            "{name=v4;type=int64};"
-            "{name=v5;type=int64}]");
+            /*tablePath*/ "//tmp/lookup_test",
+            /*schema*/ TYsonString(R"([
+                {name=k0;type=int64;sort_order=ascending};
+                {name=k1;type=int64;sort_order=ascending};
+                {name=k2;type=int64;sort_order=ascending};
+                {name=v3;type=int64};
+                {name=v4;type=int64};
+                {name=v5;type=int64}
+            ])"_sb));
 
         InitializeRows();
     }
@@ -112,7 +113,7 @@ protected:
 
     static void WriteUnversionedRow(
         const std::vector<std::string>& names,
-        const TString& rowString,
+        const std::string& rowString,
         int timestampTag)
     {
         auto preparedRow = PrepareUnversionedRow(names, rowString);
@@ -145,7 +146,7 @@ protected:
 
     static void DeleteRow(
         const std::vector<std::string>& names,
-        const TString& rowString,
+        const std::string& rowString,
         int timestampTag)
     {
         auto preparedKey = PrepareUnversionedRow(names, rowString);
@@ -174,8 +175,8 @@ protected:
     }
 
     TVersionedRow BuildVersionedRow(
-        const TString& keyYson,
-        const TString& valueYson,
+        const std::string& keyYson,
+        const std::string& valueYson,
         const std::vector<TTimestamp>& extraWriteTimestamps = {},
         const std::vector<TTimestamp>& deleteTimestamps = {})
     {
@@ -708,11 +709,12 @@ public:
         TDynamicTablesTestBase::SetUpTestCase();
 
         CreateTable(
-            "//tmp/write_ordered_test", // tablePath
-            "[" // schema
-            "{name=v1;type=int64};"
-            "{name=v2;type=int64};"
-            "{name=v3;type=int64}]");
+            /*tablePath*/ "//tmp/write_ordered_test",
+            /*schema*/ TYsonString(R"([
+                {name=v1;type=int64};
+                {name=v2;type=int64};
+                {name=v3;type=int64}
+            ])"_sb));
     }
 };
 
@@ -784,11 +786,12 @@ public:
 TEST_P(TQueueApiTest, TestQueueApi)
 {
     CreateTable(
-        Format("//tmp/test_queue_api_%v", GetParam()), // tablePath
-        "[" // schema
-        "{name=v1;type=int64};"
-        "{name=v2;type=int64};"
-        "{name=v3;type=int64}]");
+        /*tablePath*/ Format("//tmp/test_queue_api_%v", GetParam()),
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=int64};
+            {name=v2;type=int64};
+            {name=v3;type=int64}
+        ])"_sb));
 
     TPullQueueOptions pullQueueOptions;
     pullQueueOptions.UseNativeTabletNodeApi = GetParam();
@@ -899,9 +902,10 @@ TEST_P(TQueueApiTest, TestQueueApi)
 TEST_P(TQueueApiTest, PullQueueCanReadBigBatches)
 {
     CreateTable(
-        Format("//tmp/pull_queue_can_read_big_batches_%v", GetParam()), // tablePath
-        "[" // schema
-        "{name=v1;type=string}]",
+        /*tablePath*/ Format("//tmp/pull_queue_can_read_big_batches_%v", GetParam()),
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string}
+        ])"_sb),
         /*mount*/ false);
 
     auto chunkWriterConfig = New<TChunkWriterConfig>();
@@ -915,7 +919,7 @@ TEST_P(TQueueApiTest, PullQueueCanReadBigBatches)
 
     SyncMountTable(Table_);
 
-    TString bigString(1_MB, 'a');
+    std::string bigString(1_MB, 'a');
 
     for (int i = 0; i < 20; ++i) {
         WriteUnversionedRow(
@@ -998,12 +1002,13 @@ public:
     void SetUp()
     {
         CreateTable(
-            "//tmp/optional_key_test",
-            "["
-            "{name=k0;type=int64;sort_order=ascending};"
-            "{name=k1;type=int64;sort_order=ascending;required=%false};"
-            "{name=k2;type=int64;sort_order=ascending;required=%false};"
-            "{name=v0;type=int64}]");
+            /*tablePath*/ "//tmp/optional_key_test",
+            /*schema*/ TYsonString(R"([
+                {name=k0;type=int64;sort_order=ascending};
+                {name=k1;type=int64;sort_order=ascending;required=%false};
+                {name=k2;type=int64;sort_order=ascending;required=%false};
+                {name=v0;type=int64}
+            ])"_sb));
     }
 
     void TearDown()

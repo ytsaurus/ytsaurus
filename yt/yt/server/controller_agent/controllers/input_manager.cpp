@@ -36,6 +36,7 @@
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
+#include <yt/yt/core/misc/expiration_verifier.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/iterator/concatenate.h>
@@ -693,7 +694,6 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
                 clusterName,
                 fetcher->GetChunkCount());
             Host_->MaybeCancel(ECancelationStage::ColumnarStatisticsFetch);
-            fetcher->SetCancelableContext(Host_->GetCancelableContext());
 
             auto applySelectivityFactors =
                 BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->GetLogger()] {
@@ -712,7 +712,6 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             YT_LOG_INFO("Fetching input chunk slice statistics for input tables (Cluster: %v, ChunkCount: %v)",
                 clusterName,
                 fetcher->GetChunkCount());
-            fetcher->SetCancelableContext(Host_->GetCancelableContext());
 
             auto applySelectivityFactors =
                 BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->GetLogger()] {
@@ -728,6 +727,13 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
     WaitFor(AllSucceeded(statisticsFutures))
         .ThrowOnError();
+
+    for (auto& [_, fetcher] : columnarStatisticsFetchers) {
+        VerifyEventualExpiration(std::move(fetcher), Logger);
+    }
+    for (auto& [_, fetcher] : chunkSliceSizeFetchers) {
+        VerifyEventualExpiration(std::move(fetcher), Logger);
+    }
 
     YT_LOG_INFO("All statistics fetched from nodes");
 
@@ -859,6 +865,7 @@ void TInputManager::FetchInputTablesAttributes()
                 "schema_id",
                 "unflushed_timestamp",
                 "content_revision",
+                "primary_medium",
                 "enable_dynamic_store_read",
                 "tablet_state",
                 "account",
@@ -889,6 +896,20 @@ void TInputManager::FetchInputTablesAttributes()
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
             auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
             tableAttributes.emplace(std::move(table), std::move(attributes));
+        }
+    }
+
+    if (Host_->GetConfig()->ForbidOperationsOnOffshoreMedia) {
+        const auto& mediumDirectory = Host_->GetMediumDirectory();
+        for (const auto& [table, attributes] : tableAttributes) {
+            auto mediumName = attributes->Get<std::string>("primary_medium", "default");
+            auto mediumDescriptor = mediumDirectory->FindByName(mediumName);
+            if (mediumDescriptor && mediumDescriptor->IsOffshore()) {
+                THROW_ERROR_EXCEPTION(
+                    "Operations on tables with offshore medium are forbidden by controller agent config")
+                    << TErrorAttribute("table_path", table->GetPath())
+                    << TErrorAttribute("primary_medium", mediumName);
+            }
         }
     }
 
@@ -1467,8 +1488,6 @@ std::pair<NTableClient::IChunkSliceFetcherPtr, TUnavailableChunksWatcherPtr> TIn
                 cluster->Client(),
                 Host_->GetRowBuffer(),
                 Logger.WithTag("Cluster: %v", clusterName)));
-
-        chunkSliceFetchers.back()->SetCancelableContext(Host_->GetCancelableContext());
     }
 
     std::vector<int> tableIndexToFetcherIndex;
@@ -1521,7 +1540,6 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
             }
         }
 
-        samplesFetcher->SetCancelableContext(Host_->GetCancelableContext());
         samplesFetchers.push_back(std::move(samplesFetcher));
     }
     return std::pair(
@@ -1532,7 +1550,7 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NYTree::IAttributeDictionaryPtr> TInputManager::FetchSingleInputTableAttributes(
-    const std::optional<std::vector<TString>>& attributeKeys) const
+    const std::optional<std::vector<std::string>>& attributeKeys) const
 {
     YT_VERIFY(InputTables_.size() == 1 && Clusters_.size() == 1);
     const auto& table = InputTables_[0];

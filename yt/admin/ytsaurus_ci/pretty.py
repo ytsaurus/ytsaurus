@@ -34,18 +34,34 @@ def print_job_info(data, job_id):
     click.secho("  Status:    ", nl=False, bold=True)
     click.secho(status, fg=status_color, bold=True)
 
+    passed = data.get("passed")
+    if passed is not None:
+        click.secho("  Passed:    ", nl=False, bold=True)
+        click.secho("yes" if passed else "no", fg="green" if passed else "red", bold=True)
+
+    reason = data.get("reason")
+    if reason:
+        click.secho("  Reason:    ", nl=False, bold=True)
+        click.secho(reason, fg="red")
+
     click.secho("  Namespace: ", nl=False, bold=True)
     click.echo(data.get("namespace", "—"))
+
+    priority, priority_color = _format_priority(data.get("priority", ""))
+    click.secho("  Priority:  ", nl=False, bold=True)
+    click.secho(priority, fg=priority_color, bold=True)
 
     click.secho("  Duration:  ", nl=False, bold=True)
     click.echo(_format_duration(data))
 
     logs = [url for url in data.get("logs_urls", []) if url]
+    click.echo()
     if logs:
-        click.echo()
         click.secho("  Logs:", bold=True)
         for url in logs:
             click.secho(f"    • {url}", fg="blue")
+    else:
+        click.secho("  No logs", fg="yellow")
 
     components = data.get("components", [])
     operator = data.get("operator", {})
@@ -152,3 +168,21 @@ def _format_job_status(status):
 
     status = status.replace("TASK_STATUS_", "")
     return status, color
+
+
+def _format_priority(priority):
+    match priority:
+        case enums.TaskPriority.CRITICAL:
+            color = "red"
+        case enums.TaskPriority.HIGH:
+            color = "yellow"
+        case enums.TaskPriority.NORMAL:
+            color = "green"
+        case _:
+            color = "white"
+
+    if not priority:
+        return "—", color
+
+    priority = priority.replace("TASK_PRIORITY_", "")
+    return priority, color

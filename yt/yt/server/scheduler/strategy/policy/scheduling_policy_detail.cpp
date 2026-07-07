@@ -770,33 +770,20 @@ TJobResources TDynamicAttributesManager::FillResourceUsageAtOperation(const TPoo
 
 TSchedulingStageProfilingCounters::TSchedulingStageProfilingCounters(
     const NProfiling::TProfiler& profiler)
-    : PrescheduleAllocationCount(profiler.Counter("/preschedule_job_count"))
+    : TCommonSchedulingProfilingCounters(profiler)
+    , PrescheduleAllocationCount(profiler.Counter("/preschedule_job_count"))
     , UselessPrescheduleAllocationCount(profiler.Counter("/useless_preschedule_job_count"))
     , PrescheduleAllocationTime(profiler.Timer("/preschedule_job_time"))
-    , TotalControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time/total"))
-    , ControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time"))
-    , ExecControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time/exec"))
     , StrategyScheduleAllocationTime(profiler.Timer("/strategy_schedule_job_time"))
     , PackingRecordHeartbeatTime(profiler.Timer("/packing_record_heartbeat_time"))
     , PackingCheckTime(profiler.Timer("/packing_check_time"))
     , AnalyzeAllocationsTime(profiler.Timer("/analyze_jobs_time"))
     , CumulativePrescheduleAllocationTime(profiler.TimeCounter("/cumulative_preschedule_job_time"))
-    , CumulativeTotalControllerScheduleAllocationTime(profiler.TimeCounter("/cumulative_controller_schedule_job_time/total"))
-    , CumulativeExecControllerScheduleAllocationTime(profiler.TimeCounter("/cumulative_controller_schedule_job_time/exec"))
     , CumulativeStrategyScheduleAllocationTime(profiler.TimeCounter("/cumulative_strategy_schedule_job_time"))
     , CumulativeAnalyzeAllocationsTime(profiler.TimeCounter("/cumulative_analyze_jobs_time"))
-    , ScheduleAllocationAttemptCount(profiler.Counter("/schedule_job_attempt_count"))
-    , ScheduleAllocationFailureCount(profiler.Counter("/schedule_job_failure_count"))
-    , ControllerScheduleAllocationCount(profiler.Counter("/controller_schedule_job_count"))
-    , ControllerScheduleAllocationTimedOutCount(profiler.Counter("/controller_schedule_job_timed_out_count"))
     , ActiveTreeSize(profiler.Summary("/active_tree_size"))
     , ActiveOperationCount(profiler.Summary("/active_operation_count"))
 {
-    for (auto reason : TEnumTraits<NControllerAgent::EScheduleFailReason>::GetDomainValues()) {
-        ControllerScheduleAllocationFail[reason] = profiler
-            .WithTag("reason", FormatEnum(reason))
-            .Counter("/controller_schedule_job_fail");
-    }
     for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
         DeactivationCount[reason] = profiler
             .WithTag("reason", FormatEnum(reason))
@@ -930,7 +917,7 @@ bool TScheduleAllocationsContext::ShouldContinueScheduling(const std::optional<T
 
 TScheduleAllocationsContext::TFairShareScheduleAllocationResult TScheduleAllocationsContext::ScheduleAllocation(bool ignorePacking)
 {
-    ++StageState_->ScheduleAllocationAttemptCount;
+    ++StageState_->AttemptStatistics.AttemptCount;
 
     auto* bestOperation = FindBestOperationForScheduling();
     if (!bestOperation) {
@@ -1338,7 +1325,7 @@ void TScheduleAllocationsContext::FinishStage()
     YT_VERIFY(StageState_);
 
     StageState_->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant] = DynamicAttributesManager_.GetCompositeElementDeactivationCount();
-    SchedulingStatistics_->ScheduleAllocationAttemptCountPerStage[GetStageType()] = StageState_->ScheduleAllocationAttemptCount;
+    SchedulingStatistics_->ScheduleAllocationAttemptCountPerStage[GetStageType()] = StageState_->AttemptStatistics.AttemptCount;
     ProfileAndLogStatisticsOfStage();
 
     StageState_.reset();
@@ -1707,17 +1694,17 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TPoolTreeOperationElement* 
         scheduleAllocationResult = DoScheduleAllocation(element, availableAllocationResources, availableDiskResources, &precommittedResources);
 
         scheduleAllocationDuration = timer.GetElapsedTime();
-        StageState_->TotalScheduleAllocationDuration += scheduleAllocationDuration;
-        StageState_->ExecScheduleAllocationDuration += scheduleAllocationResult->Duration;
-        StageState_->ScheduleAllocationDurations.push_back(scheduleAllocationDuration);
+        StageState_->AttemptStatistics.TotalDuration += scheduleAllocationDuration;
+        StageState_->AttemptStatistics.ExecDuration += scheduleAllocationResult->Duration;
+        StageState_->AttemptStatistics.TotalDurations.push_back(scheduleAllocationDuration);
     }
 
     if (!scheduleAllocationResult->StartDescriptor) {
         for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
-            StageState_->FailedScheduleAllocation[reason] += scheduleAllocationResult->Failed[reason];
+            StageState_->AttemptStatistics.FailedReasons[reason] += scheduleAllocationResult->Failed[reason];
         }
 
-        ++StageState_->ScheduleAllocationFailureCount;
+        ++StageState_->AttemptStatistics.FailureCount;
         deactivateOperationElement(EDeactivationReason::ScheduleAllocationFailed);
 
         element->OnScheduleAllocationFailed(
@@ -2244,7 +2231,7 @@ void TScheduleAllocationsContext::ProfileAndLogStatisticsOfStage()
 
     ProfileStageStatistics();
 
-    if (StageState_->ScheduleAllocationAttemptCount > 0 && SchedulingInfoLoggingEnabled_) {
+    if (StageState_->AttemptStatistics.AttemptCount > 0 && SchedulingInfoLoggingEnabled_) {
         LogStageStatistics();
     }
 }
@@ -2264,37 +2251,37 @@ void TScheduleAllocationsContext::ProfileStageStatistics()
 
     if (StageState_->PrescheduleExecuted) {
         profilingCounters->PrescheduleAllocationCount.Increment();
-        if (StageState_->ScheduleAllocationAttemptCount == 0) {
+        if (StageState_->AttemptStatistics.AttemptCount == 0) {
             profilingCounters->UselessPrescheduleAllocationCount.Increment();
         }
     }
 
     auto strategyScheduleAllocationDuration = StageState_->TotalDuration
         - StageState_->PrescheduleDuration
-        - StageState_->TotalScheduleAllocationDuration;
+        - StageState_->AttemptStatistics.TotalDuration;
     profilingCounters->StrategyScheduleAllocationTime.Record(strategyScheduleAllocationDuration);
     profilingCounters->CumulativeStrategyScheduleAllocationTime.Add(strategyScheduleAllocationDuration);
 
-    profilingCounters->TotalControllerScheduleAllocationTime.Record(StageState_->TotalScheduleAllocationDuration);
-    profilingCounters->CumulativeTotalControllerScheduleAllocationTime.Add(StageState_->TotalScheduleAllocationDuration);
-    profilingCounters->ExecControllerScheduleAllocationTime.Record(StageState_->ExecScheduleAllocationDuration);
-    profilingCounters->CumulativeExecControllerScheduleAllocationTime.Add(StageState_->ExecScheduleAllocationDuration);
+    profilingCounters->TotalControllerScheduleAllocationTime.Record(StageState_->AttemptStatistics.TotalDuration);
+    profilingCounters->CumulativeTotalControllerScheduleAllocationTime.Add(StageState_->AttemptStatistics.TotalDuration);
+    profilingCounters->ExecControllerScheduleAllocationTime.Record(StageState_->AttemptStatistics.ExecDuration);
+    profilingCounters->CumulativeExecControllerScheduleAllocationTime.Add(StageState_->AttemptStatistics.ExecDuration);
     profilingCounters->PackingRecordHeartbeatTime.Record(StageState_->PackingRecordHeartbeatDuration);
     profilingCounters->PackingCheckTime.Record(StageState_->PackingCheckDuration);
     profilingCounters->AnalyzeAllocationsTime.Record(StageState_->AnalyzeAllocationsDuration);
     profilingCounters->CumulativeAnalyzeAllocationsTime.Add(StageState_->AnalyzeAllocationsDuration);
 
-    profilingCounters->ScheduleAllocationAttemptCount.Increment(StageState_->ScheduleAllocationAttemptCount);
-    profilingCounters->ScheduleAllocationFailureCount.Increment(StageState_->ScheduleAllocationFailureCount);
+    profilingCounters->ScheduleAllocationAttemptCount.Increment(StageState_->AttemptStatistics.AttemptCount);
+    profilingCounters->ScheduleAllocationFailureCount.Increment(StageState_->AttemptStatistics.FailureCount);
     profilingCounters->ControllerScheduleAllocationCount.Increment(SchedulingStatistics()->ControllerScheduleAllocationCount);
     profilingCounters->ControllerScheduleAllocationTimedOutCount.Increment(SchedulingStatistics()->ControllerScheduleAllocationTimedOutCount);
 
-    for (auto scheduleAllocationDuration : StageState_->ScheduleAllocationDurations) {
+    for (auto scheduleAllocationDuration : StageState_->AttemptStatistics.TotalDurations) {
         profilingCounters->ControllerScheduleAllocationTime.Record(scheduleAllocationDuration);
     }
 
     for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
-        profilingCounters->ControllerScheduleAllocationFail[reason].Increment(StageState_->FailedScheduleAllocation[reason]);
+        profilingCounters->ControllerScheduleAllocationFail[reason].Increment(StageState_->AttemptStatistics.FailedReasons[reason]);
     }
     for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
         profilingCounters->DeactivationCount[reason].Increment(StageState_->DeactivationReasons[reason]);
@@ -2466,7 +2453,24 @@ void TSchedulingPolicy::UnregisterNode(TNodeId nodeId)
     }));
 }
 
-void TSchedulingPolicy::ProcessSchedulingHeartbeat(
+TFuture<void> TSchedulingPolicy::ProcessSchedulingHeartbeat(
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    bool skipScheduleAllocations)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return BIND(
+        &TSchedulingPolicy::DoProcessSchedulingHeartbeat,
+        MakeWeak(this),
+        schedulingHeartbeatContext,
+        treeSnapshot,
+        skipScheduleAllocations)
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
+}
+
+void TSchedulingPolicy::DoProcessSchedulingHeartbeat(
     const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const TPoolTreeSnapshotPtr& treeSnapshot,
     bool skipScheduleAllocations)
@@ -2785,6 +2789,13 @@ std::vector<TProcessAllocationUpdateResult> TSchedulingPolicy::DoProcessAllocati
     // context are permitted inside the classic policy.
     TForbidContextSwitchGuard contextSwitchGuard;
 
+    // Testing-only sync sleep under the guard (a blocking sleep performs no context switch). It blocks
+    // the node-shard thread for the configured duration so a concurrent CA disconnect can enqueue
+    // StartOperationRevival on the node-shard invoker while the submit map is swapped out empty.
+    MaybeDelay(
+        treeSnapshot->TreeConfig()->TestingOptions->SyncDelayInsideProcessAllocationUpdates,
+        EDelayType::Sync);
+
     std::vector<TProcessAllocationUpdateResult> updateResults;
     updateResults.reserve(allocationUpdates.size());
     for (const auto& allocationUpdate : allocationUpdates) {
@@ -2827,30 +2838,27 @@ TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
             allocationUpdate.OperationId,
             allocationUpdate.AllocationId);
 
-        if (operationSharedState->OnAllocationFinished(element, allocationUpdate.AllocationId)) {
-            return TProcessAllocationUpdateResult{
-                .Status = EAllocationUpdateStatus::Updated,
-            };
-        }
-
+        auto status = operationSharedState->OnAllocationFinished(element, allocationUpdate.AllocationId);
         return TProcessAllocationUpdateResult{
-            .Status = EAllocationUpdateStatus::Disabled,
-            .NeedToPostpone = true,
+            .Status = status,
+            // Disabled -> postpone until the operation re-enables; Unexpected -> drop the stale update.
+            .NeedToPostpone = status == EAllocationUpdateStatus::Disabled,
         };
     }
 
     YT_VERIFY(allocationUpdate.AllocationResources || allocationUpdate.PreemptibleProgressStartTime);
 
-    if (!operationSharedState->ProcessAllocationUpdate(
-        element,
-        allocationUpdate.AllocationId,
-        allocationUpdate.AllocationResources,
-        /*resetPreemptibleProgress*/ allocationUpdate.PreemptibleProgressStartTime.has_value()))
+    if (auto status = operationSharedState->ProcessAllocationUpdate(
+            element,
+            allocationUpdate.AllocationId,
+            allocationUpdate.AllocationResources,
+            /*resetPreemptibleProgress*/ allocationUpdate.PreemptibleProgressStartTime.has_value());
+        status != EAllocationUpdateStatus::Updated)
     {
-        // Operation is disabled.
+        // Disabled -> postpone until the operation re-enables; Unexpected -> drop the stale update.
         return TProcessAllocationUpdateResult{
-            .Status = EAllocationUpdateStatus::Disabled,
-            .NeedToPostpone = true,
+            .Status = status,
+            .NeedToPostpone = status == EAllocationUpdateStatus::Disabled,
         };
     }
 
@@ -3187,7 +3195,7 @@ void TSchedulingPolicy::ProcessAllocationUpdateInTest(
         element,
         allocationId,
         allocationResources,
-        /*resetPreemptibleProgress*/ false));
+        /*resetPreemptibleProgress*/ false) == EAllocationUpdateStatus::Updated);
 }
 
 EAllocationPreemptionStatus TSchedulingPolicy::GetAllocationPreemptionStatusInTest(

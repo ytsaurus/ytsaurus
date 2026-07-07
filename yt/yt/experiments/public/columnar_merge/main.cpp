@@ -349,7 +349,7 @@ size_t DoReadImpl(IVersionedReaderPtr versionedReader, int batchSize, TOnRows On
 
 void DoRead(
     IVersionedReaderPtr versionedReader,
-    TString outputName,
+    std::string outputName,
     int batchSize,
     bool calculateChecksum)
 {
@@ -358,8 +358,9 @@ void DoRead(
     stat.CalculateChecksum = calculateChecksum;
 
     std::unique_ptr<TFileOutput> textFile;
-    if (outputName) {
-        textFile = std::make_unique<TFileOutput>(outputName);
+    if (!outputName.empty()) {
+        // TODO(babenko): drop TString cast once TFileOutput accepts std::string.
+        textFile = std::make_unique<TFileOutput>(TString(outputName));
     }
 
     size_t getReadyEventCount;
@@ -508,7 +509,7 @@ void TestVersionedScanRead(std::string chunkName, TOptions options)
 
             DoRead(
                 versionedReader,
-                options.Dump ? Format(fileNamePattern, chunkName) : TString{},
+                options.Dump ? std::string(Format(fileNamePattern, chunkName)) : std::string{},
                 options.BatchSize,
                 options.CalculateChecksum);
 
@@ -542,7 +543,7 @@ void TestVersionedScanRead(std::string chunkName, TOptions options)
 
         DoRead(
             versionedReader,
-            options.Dump ? Format("%v.lookup.txt", chunkName) : TString{},
+            options.Dump ? std::string(Format("%v.lookup.txt", chunkName)) : std::string{},
             options.BatchSize,
             options.CalculateChecksum);
     }
@@ -659,7 +660,7 @@ void TestVersionedLookupRead(std::string chunkName, TOptions options, int nth)
 
             DoRead(
                 versionedReader,
-                options.Dump ? Format(fileNamePattern, chunkName) : TString{},
+                options.Dump ? std::string(Format(fileNamePattern, chunkName)) : std::string{},
                 options.BatchSize,
                 options.CalculateChecksum);
 
@@ -721,7 +722,7 @@ void TestVersionedLookupRead(std::string chunkName, TOptions options, int nth)
 
             DoRead(
                 versionedReader,
-                options.Dump ? Format("%v.lookup.txt", chunkName) : TString{},
+                options.Dump ? std::string(Format("%v.lookup.txt", chunkName)) : std::string{},
                 options.BatchSize,
                 options.CalculateChecksum);
         }
@@ -910,6 +911,7 @@ void GuardedMain(int argc, char** argv)
         if (allChunks) {
 
             TFileInput file("index.txt");
+            // TODO(babenko): drop TString once TInputStream::ReadLine accepts std::string.
             TString line;
             while (file.ReadLine(line)) {
                 chunkIds.push_back(line);

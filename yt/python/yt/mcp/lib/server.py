@@ -6,6 +6,9 @@ from yt.mcp.lib.tools.account import CheckPermissions, AccountProperty
 from yt.mcp.lib.tools.common_client import CommonCypress
 from yt.mcp.lib.tools.table import ReadStaticTable
 from yt.mcp.lib.tool_runner_mcp import YTToolRunnerMCP
+from yt.mcp.lib.tools.query_tracker import (
+    StartQuery, GetQuery, GetQueryResults
+)
 
 
 def get_tools_groups():
@@ -17,6 +20,11 @@ def get_tools_groups():
             CheckIsPathsExists(),
             CommonCypress(),
             ReadStaticTable(),
+        ],
+        "query_tracker": [
+            StartQuery(),
+            GetQuery(),
+            GetQueryResults(),
         ],
         "account": [
             CheckPermissions(),

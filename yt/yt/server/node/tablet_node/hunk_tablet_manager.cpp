@@ -144,7 +144,7 @@ private:
 
         std::unique_ptr<THunkTablet> Create(TTabletId id) const
         {
-            return std::make_unique<THunkTablet>(MakeStrong(Host_), id, /*hunkStoragePath*/ TYPath{});
+            return std::make_unique<THunkTablet>(Host_, id, /*hunkStoragePath*/ TYPath{});
         }
 
     private:
@@ -308,7 +308,7 @@ private:
         auto masterAvenueEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
         auto hunkStoragePath = request->path();
 
-        auto tabletHolder = std::make_unique<THunkTablet>(MakeStrong(this), tabletId, hunkStoragePath);
+        auto tabletHolder = std::make_unique<THunkTablet>(this, tabletId, hunkStoragePath);
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         tablet->SetState(ETabletState::Mounted);

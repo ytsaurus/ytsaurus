@@ -11,6 +11,8 @@
 #include <yt/yt/client/table_client/validate_logical_type.h>
 #include <yt/yt/library/formats/format.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
 #include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
@@ -775,9 +777,9 @@ TEST(TArrowParserTest, String)
 }
 
 
-TString ConvertToYsonTextStringStable(const INodePtr& node, bool binary = false)
+std::string ConvertToYsonTextStringStable(const INodePtr& node, bool binary = false)
 {
-    TStringStream out;
+    TStdStringStream out;
     auto format = binary ? EYsonFormat::Binary : EYsonFormat::Text;
     TYsonWriter writer(&out, format);
     VisitTree(node, &writer, true, TAttributeFilter());

@@ -567,6 +567,9 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_unsuccessful_location_refresh_attempts", &TThis::MaxUnsuccessfulLocationRefreshAttempts)
         .Default(10);
 
+    registrar.Parameter("schedule_chunk_seal_in_sequoia_refresh", &TThis::ScheduleChunkSealInSequoiaChunkRefresh)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(grphil).
         if (!config->BlobReplicasStoreConfig) {
@@ -996,6 +999,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("allow_offshore_media", &TThis::AllowOffshoreMedia)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
@@ -1005,8 +1011,8 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
             }
         }
 
-        if (!config->AlwaysFetchNonOnlineReplicas && !config->RefreshNodeOnOnline) {
-            THROW_ERROR_EXCEPTION("Can not disable always_fetch_non_online_replicas without online node refresh");
+        if (config->SequoiaChunkReplicas->Enable && config->AllowOffshoreMedia) {
+            THROW_ERROR_EXCEPTION("Offshore media and Sequoia replicas cannot coexist (yet)");
         }
     });
 }

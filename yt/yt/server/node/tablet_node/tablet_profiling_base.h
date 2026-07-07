@@ -53,7 +53,7 @@ public:
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
-    THashSet<TString> AllTables_;
+    THashSet<NYPath::TYPath> AllTables_;
     NProfiling::TGauge ConsumedTableTags_;
 
     using TProfilerKey = std::tuple<

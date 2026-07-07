@@ -1454,7 +1454,7 @@ TEST(TUnversionedValueProtoRoundTripTest, VectorUnknownYsonFieldsKept)
     NTableClient::TUnversionedValue output;
     NTableClient::ToUnversionedValue(&output, messages, buffer);
 
-    auto node = NYTree::ConvertToNode(NYson::TYsonString(TString(output.AsStringBuf())));
+    auto node = NYTree::ConvertToNode(NYson::TYsonString(output.AsStringBuf()));
     auto item = node->AsList()->GetChildOrThrow(0)->AsMap();
     EXPECT_EQ(42, item->GetChildOrThrow("int32_field")->AsInt64()->GetValue());
     EXPECT_EQ(123, item->GetChildOrThrow("unknown_key")->AsInt64()->GetValue());
@@ -1466,7 +1466,7 @@ TEST(TUnversionedValueProtoRoundTripTest, HashMapOfMessages)
 {
     auto buffer = New<NTableClient::TRowBuffer>();
 
-    THashMap<TString, NProto::TNestedMessage> map;
+    THashMap<std::string, NProto::TNestedMessage> map;
     map["a"].set_int32_field(1);
     map["b"].set_int32_field(2);
     map["b"].mutable_nested_message()->set_int32_field(3);
@@ -1474,7 +1474,7 @@ TEST(TUnversionedValueProtoRoundTripTest, HashMapOfMessages)
     NTableClient::TUnversionedValue value;
     NTableClient::ToUnversionedValue(&value, map, buffer);
 
-    THashMap<TString, NProto::TNestedMessage> reconstructed;
+    THashMap<std::string, NProto::TNestedMessage> reconstructed;
     NTableClient::FromUnversionedValue(&reconstructed, value);
 
     ASSERT_EQ(2u, reconstructed.size());
@@ -1487,11 +1487,11 @@ TEST(TUnversionedValueProtoRoundTripTest, EmptyHashMapOfMessages)
 {
     auto buffer = New<NTableClient::TRowBuffer>();
 
-    THashMap<TString, NProto::TNestedMessage> map;
+    THashMap<std::string, NProto::TNestedMessage> map;
     NTableClient::TUnversionedValue value;
     NTableClient::ToUnversionedValue(&value, map, buffer);
 
-    THashMap<TString, NProto::TNestedMessage> reconstructed;
+    THashMap<std::string, NProto::TNestedMessage> reconstructed;
     NTableClient::FromUnversionedValue(&reconstructed, value);
 
     EXPECT_TRUE(reconstructed.empty());
@@ -1499,7 +1499,7 @@ TEST(TUnversionedValueProtoRoundTripTest, EmptyHashMapOfMessages)
 
 TEST(TUnversionedValueProtoRoundTripTest, HashMapOfMessagesFromNullValue)
 {
-    THashMap<TString, NProto::TNestedMessage> reconstructed;
+    THashMap<std::string, NProto::TNestedMessage> reconstructed;
     reconstructed["a"].set_int32_field(1);
 
     NTableClient::FromUnversionedValue(&reconstructed, NTableClient::MakeUnversionedNullValue());
@@ -1521,7 +1521,7 @@ TEST(TUnversionedValueProtoRoundTripTest, HashMapUnknownYsonFieldsKept)
     auto input = buffer->CaptureValue(
         NTableClient::MakeUnversionedAnyValue(ysonMap.AsStringBuf()));
 
-    THashMap<TString, NProto::TNestedMessage> map;
+    THashMap<std::string, NProto::TNestedMessage> map;
     NTableClient::FromUnversionedValue(&map, input);
 
     ASSERT_EQ(1u, map.size());
@@ -1530,7 +1530,7 @@ TEST(TUnversionedValueProtoRoundTripTest, HashMapUnknownYsonFieldsKept)
     NTableClient::TUnversionedValue output;
     NTableClient::ToUnversionedValue(&output, map, buffer);
 
-    auto node = NYTree::ConvertToNode(NYson::TYsonString(TString(output.AsStringBuf())));
+    auto node = NYTree::ConvertToNode(NYson::TYsonString(output.AsStringBuf()));
     auto entry = node->AsMap()->GetChildOrThrow("entry")->AsMap();
     EXPECT_EQ(42, entry->GetChildOrThrow("int32_field")->AsInt64()->GetValue());
     EXPECT_EQ(123, entry->GetChildOrThrow("unknown_key")->AsInt64()->GetValue());

@@ -598,10 +598,10 @@ ECompressionCodec DetectCompressionCodec(TStringBuf fileName)
     return ECompressionCodec::PlainText;
 }
 
-std::vector<TString> SplitCommandLine(TStringBuf line)
+std::vector<std::string> SplitCommandLine(TStringBuf line)
 {
-    std::vector<TString> args;
-    TString current;
+    std::vector<std::string> args;
+    std::string current;
     bool inToken = false;
     enum { None, Single, Double } quote = None;
 
@@ -656,10 +656,11 @@ std::vector<TString> SplitCommandLine(TStringBuf line)
 }
 
 void FilterWithGrep(
-    const std::vector<TString>& grepArgs,
+    const std::vector<std::string>& grepArgs,
     const std::function<void(IOutputStream&)>& produce,
     IOutputStream& output)
 {
+    // TShellCommand requires TList<TString>; direct-init from std::string is fine.
     TList<TString> args(grepArgs.begin(), grepArgs.end());
 
     // Stream grep's stdin from [produce] and grep's stdout into [output] rather
