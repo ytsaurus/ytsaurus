@@ -6,11 +6,6 @@ namespace NYT::NYqlPlugin {
 
 //////////////////////////////////////////////////////////////////////////////
 
-bool TNodeProgress::HasStages() const
-{
-    return !Stages_.empty();
-}
-
 void TNodeProgress::Serialize(::NYson::TYsonWriter& writer) const
 {
     writer.OnBeginMap();
@@ -96,15 +91,6 @@ void TProgressMerger::MergeWith(const NYql::NProto::TTaskProgress& taskProgress)
         auto in = NodesMap_.emplace(node.GetId(), TNodeProgress(node));
         bool changed = in.second;
         if (!changed) {
-            if (in.first->second.HasStages()) {
-                YT_VERIFY(
-                    node.StagesSize() > 0,
-                    Format("Node %v has empty stages. Full TaskProgress dump: %v. Current progress: %v",
-                        node.GetId(),
-                        taskProgress.DebugString(),
-                        ToYsonString()));
-            }
-
             changed |= in.first->second.MergeWith(node);
         }
         HasChanges_ |= changed;
