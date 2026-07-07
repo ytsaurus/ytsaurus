@@ -16,6 +16,8 @@
 
 #include <library/cpp/yt/memory/range.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NQueryClient {
 
 using namespace NWebAssembly;
@@ -69,7 +71,7 @@ void TCGWebAssemblyCaller<TCGExpressionSignature, TCGPIExpressionSignature>::Run
 
     auto opaqueDataGuard = CopyOpaqueDataIntoCompartment(opaqueData, opaqueDataSizes, compartment);
 
-    auto* resultOffset = std::bit_cast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
+    auto* resultOffset = BitCast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
     MakePositionIndependentFromUnversioned(PtrFromVM(compartment, resultOffset), *result);
     CapturePIValue(compartment, &context, resultOffset);
     auto finallySaveResult = Finally([&] {
@@ -83,14 +85,14 @@ void TCGWebAssemblyCaller<TCGExpressionSignature, TCGPIExpressionSignature>::Run
         compartment);
 
     auto arguments = std::array<WAVM::IR::UntaggedValue, 5>{
-        std::bit_cast<WAVM::Uptr>(literalValuesGuard.GetCopiedOffset()),
-        std::bit_cast<WAVM::Uptr>(opaqueDataGuard.GetCopiedOffset()),
-        std::bit_cast<WAVM::Uptr>(resultOffset),
-        std::bit_cast<WAVM::Uptr>(copiedRow.GetCopiedOffset()),
-        std::bit_cast<WAVM::Uptr>(&context),
+        BitCast<WAVM::Uptr>(literalValuesGuard.GetCopiedOffset()),
+        BitCast<WAVM::Uptr>(opaqueDataGuard.GetCopiedOffset()),
+        BitCast<WAVM::Uptr>(resultOffset),
+        BitCast<WAVM::Uptr>(copiedRow.GetCopiedOffset()),
+        BitCast<WAVM::Uptr>(&context),
     };
 
-    auto runtimeType = WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{std::bit_cast<WAVM::Uptr>(RuntimeType_)});
+    auto runtimeType = WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{BitCast<WAVM::Uptr>(RuntimeType_)});
 
     auto* function = static_cast<WAVM::Runtime::Function*>(compartment->GetFunction(FunctionName_));
 
@@ -115,12 +117,12 @@ void TCGWebAssemblyCaller<TCGQuerySignature, TCGPIQuerySignature>::Run(
     auto opaqueDataGuard = CopyOpaqueDataIntoCompartment(opaqueData, opaqueDataSizes, compartment);
 
     auto arguments = std::array<WAVM::IR::UntaggedValue, 3>{
-        std::bit_cast<WAVM::Uptr>(literalValuesGuard.GetCopiedOffset()),
-        std::bit_cast<WAVM::Uptr>(opaqueDataGuard.GetCopiedOffset()),
-        std::bit_cast<WAVM::Uptr>(context),
+        BitCast<WAVM::Uptr>(literalValuesGuard.GetCopiedOffset()),
+        BitCast<WAVM::Uptr>(opaqueDataGuard.GetCopiedOffset()),
+        BitCast<WAVM::Uptr>(context),
     };
 
-    auto runtimeType = WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{std::bit_cast<WAVM::Uptr>(RuntimeType_)});
+    auto runtimeType = WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{BitCast<WAVM::Uptr>(RuntimeType_)});
 
     auto* function = static_cast<WAVM::Runtime::Function*>(compartment->GetFunction(FunctionName_));
 
@@ -146,7 +148,7 @@ void TCGWebAssemblyCaller<TCGAggregateInitSignature, TCGPIAggregateInitSignature
         context.ClearWebAssemblyPool();
     });
 
-    auto* resultOffset = std::bit_cast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
+    auto* resultOffset = BitCast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
     MakePositionIndependentFromUnversioned(PtrFromVM(compartment, resultOffset), *result);
     auto finallySaveResult = Finally([&] {
         MakeUnversionedFromPositionIndependent(result, *PtrFromVM(compartment, resultOffset));
@@ -154,11 +156,11 @@ void TCGWebAssemblyCaller<TCGAggregateInitSignature, TCGPIAggregateInitSignature
     });
 
     auto arguments = std::array<WAVM::IR::UntaggedValue, 2>{
-        std::bit_cast<WAVM::Uptr>(&context),
-        std::bit_cast<WAVM::Uptr>(resultOffset),
+        BitCast<WAVM::Uptr>(&context),
+        BitCast<WAVM::Uptr>(resultOffset),
     };
 
-    auto runtimeType = WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{std::bit_cast<WAVM::Uptr>(RuntimeType_)});
+    auto runtimeType = WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{BitCast<WAVM::Uptr>(RuntimeType_)});
 
     auto* function = static_cast<WAVM::Runtime::Function*>(compartment->GetFunction(FunctionName_));
 
@@ -183,7 +185,7 @@ void TCGWebAssemblyCaller<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSigna
         context.ClearWebAssemblyPool();
     });
 
-    auto* resultOffset = std::bit_cast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
+    auto* resultOffset = BitCast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
     MakePositionIndependentFromUnversioned(PtrFromVM(compartment, resultOffset), *result);
     CapturePIValue(compartment, &context, resultOffset);
     auto finallySaveResult = Finally([&] {
@@ -197,12 +199,12 @@ void TCGWebAssemblyCaller<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSigna
         compartment);
 
     auto arguments = std::array<WAVM::IR::UntaggedValue, 3>{
-        std::bit_cast<WAVM::Uptr>(&context),
-        std::bit_cast<WAVM::Uptr>(resultOffset),
-        std::bit_cast<WAVM::Uptr>(copiedRow.GetCopiedOffset()),
+        BitCast<WAVM::Uptr>(&context),
+        BitCast<WAVM::Uptr>(resultOffset),
+        BitCast<WAVM::Uptr>(copiedRow.GetCopiedOffset()),
     };
 
-    auto runtimeType = WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{std::bit_cast<WAVM::Uptr>(RuntimeType_)});
+    auto runtimeType = WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{BitCast<WAVM::Uptr>(RuntimeType_)});
 
     auto* function = static_cast<WAVM::Runtime::Function*>(compartment->GetFunction(FunctionName_));
 
@@ -227,7 +229,7 @@ void TCGWebAssemblyCaller<TCGAggregateMergeSignature, TCGPIAggregateMergeSignatu
         context.ClearWebAssemblyPool();
     });
 
-    auto* resultOffset = std::bit_cast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
+    auto* resultOffset = BitCast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
     MakePositionIndependentFromUnversioned(PtrFromVM(compartment, resultOffset), *result);
     CapturePIValue(compartment, &context, resultOffset);
     auto finallySaveResult = Finally([&] {
@@ -235,21 +237,21 @@ void TCGWebAssemblyCaller<TCGAggregateMergeSignature, TCGPIAggregateMergeSignatu
         buffer->CaptureValue(result);
     });
 
-    auto* stateOffset = std::bit_cast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
+    auto* stateOffset = BitCast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
     MakePositionIndependentFromUnversioned(PtrFromVM(compartment, stateOffset), *state);
     if (IsStringLikeType(state->Type)) {
-        auto* offset = std::bit_cast<char*>(context.AllocateAligned(state->Length, EAddressSpace::WebAssembly));
+        auto* offset = BitCast<char*>(context.AllocateAligned(state->Length, EAddressSpace::WebAssembly));
         ::memcpy(PtrFromVM(compartment, offset), state->AsStringBuf().data(), state->Length);
         PtrFromVM(compartment, stateOffset)->SetStringPosition(PtrFromVM(compartment, offset));
     }
 
     auto arguments = std::array<WAVM::IR::UntaggedValue, 3>{
-        std::bit_cast<WAVM::Uptr>(&context),
-        std::bit_cast<WAVM::Uptr>(resultOffset),
-        std::bit_cast<WAVM::Uptr>(stateOffset),
+        BitCast<WAVM::Uptr>(&context),
+        BitCast<WAVM::Uptr>(resultOffset),
+        BitCast<WAVM::Uptr>(stateOffset),
     };
 
-    auto runtimeType = WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{std::bit_cast<WAVM::Uptr>(RuntimeType_)});
+    auto runtimeType = WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{BitCast<WAVM::Uptr>(RuntimeType_)});
 
     auto* function = static_cast<WAVM::Runtime::Function*>(compartment->GetFunction(FunctionName_));
 

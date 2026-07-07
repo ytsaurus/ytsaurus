@@ -1,6 +1,7 @@
 #include "cg_helpers.h"
 #include "cg_fragment_compiler.h"
 
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -487,9 +488,9 @@ TCGValue TCGValue::Cast(TCGBaseContext& builder, EValueType destination) const
             if (StaticType_ == EValueType::Uint64 || StaticType_ == EValueType::Boolean) {
                 result = builder->CreateIntCast(value, destType, /*isSigned*/ false);
             } else if (StaticType_ == EValueType::Double) {
-                constexpr auto LowerBound = std::bit_cast<double>(0xc3e0000000000000);
+                constexpr auto LowerBound = __builtin_bit_cast(double, 0xc3e0000000000000);
                 static_assert(static_cast<i64>(LowerBound) == std::numeric_limits<i64>::min());
-                constexpr auto UpperBound = std::bit_cast<double>(0x43dfffffffffffff);
+                constexpr auto UpperBound = __builtin_bit_cast(double, 0x43dfffffffffffff);
                 // i64's upper bound is not a perfect power of 2, thus a loss of precision.
                 static_assert(static_cast<i64>(UpperBound) == 0x7ffffffffffffc00);
                 CodegenThrowOnNanOrOutOfRange(builder, value, LowerBound, UpperBound);
@@ -507,7 +508,7 @@ TCGValue TCGValue::Cast(TCGBaseContext& builder, EValueType destination) const
                 result = builder->CreateIntCast(value, destType, /*isSigned*/ true);
             } else if (StaticType_ == EValueType::Double) {
                 constexpr auto LowerBound = 0.0;
-                constexpr auto UpperBound = std::bit_cast<double>(0x43efffffffffffff);
+                constexpr auto UpperBound = __builtin_bit_cast(double, 0x43efffffffffffff);
                 // ui64's upper bound is not a perfect power of 2, thus a loss of precision.
                 static_assert(static_cast<ui64>(UpperBound) == 0xfffffffffffff800);
                 CodegenThrowOnNanOrOutOfRange(builder, value, LowerBound, UpperBound);

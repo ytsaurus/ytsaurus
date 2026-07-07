@@ -2,6 +2,8 @@
 
 #include <yt/yt/library/web_assembly/api/pointer.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NWebAssembly {
 
 using namespace NQueryClient;
@@ -21,8 +23,8 @@ TCopyGuard CopyIntoCompartment(TRange<TPIValue> range, IWebAssemblyCompartment* 
 
     uintptr_t copyOffset = compartment->AllocateBytes(byteLength);
 
-    auto* destination = PtrFromVM(compartment, std::bit_cast<char*>(copyOffset), byteLength);
-    auto* copiedRangeAtHost = std::bit_cast<TPIValue*>(destination);
+    auto* destination = PtrFromVM(compartment, BitCast<char*>(copyOffset), byteLength);
+    auto* copiedRangeAtHost = BitCast<TPIValue*>(destination);
 
     ::memcpy(destination, range.Begin(), rangeByteLength);
     destination += rangeByteLength;
@@ -59,19 +61,19 @@ TCopyGuard CopyOpaqueDataIntoCompartment(
 
     uintptr_t copyOffset = compartment->AllocateBytes(byteLength);
 
-    auto* destination = PtrFromVM(compartment, std::bit_cast<char*>(copyOffset), byteLength);
-    auto* copiedRangeAtHost = std::bit_cast<size_t*>(destination);
+    auto* destination = PtrFromVM(compartment, BitCast<char*>(copyOffset), byteLength);
+    auto* copiedRangeAtHost = BitCast<size_t*>(destination);
 
     destination += rangeByteLength;
 
     for (size_t index = 0; index < opaqueData.size(); ++index) {
         if (opaqueDataSizes[index] == 0) {
             // Not a POD value.
-            copiedRangeAtHost[index] = std::bit_cast<size_t>(opaqueData[index]);
+            copiedRangeAtHost[index] = BitCast<size_t>(opaqueData[index]);
         } else {
             // A POD value.
             ::memcpy(destination, opaqueData[index], opaqueDataSizes[index]);
-            uintptr_t offset = copyOffset + (destination - std::bit_cast<char*>(copiedRangeAtHost));
+            uintptr_t offset = copyOffset + (destination - BitCast<char*>(copiedRangeAtHost));
             copiedRangeAtHost[index] = offset;
             destination += opaqueDataSizes[index];
         }
@@ -98,8 +100,8 @@ std::pair<TCopyGuard, std::vector<TPIValue*>> CopyRowRangeIntoCompartment(
     uintptr_t copyOffset = compartment->AllocateBytes(batchByteLength);
     uintptr_t rowOffset = copyOffset;
 
-    auto* startPointer = PtrFromVM(compartment, std::bit_cast<char*>(copyOffset), batchByteLength);
-    auto* destinationRow = std::bit_cast<TPIValue*>(startPointer);
+    auto* startPointer = PtrFromVM(compartment, BitCast<char*>(copyOffset), batchByteLength);
+    auto* destinationRow = BitCast<TPIValue*>(startPointer);
     auto* destinationString = startPointer + allRowsByteLength;
 
     std::vector<TPIValue*> resultOffsets;
@@ -112,13 +114,13 @@ std::pair<TCopyGuard, std::vector<TPIValue*>> CopyRowRangeIntoCompartment(
         for (int index = 0; index < rowSchemaInformation.Length; ++index) {
             TPIValue* value = &destinationRow[index];
             if (IsStringLikeType(value->Type)) {
-                ::memcpy(destinationString, std::bit_cast<char*>(value->Data.Uint64), value->Length);
+                ::memcpy(destinationString, BitCast<char*>(value->Data.Uint64), value->Length);
                 value->SetStringPosition(destinationString);
                 destinationString += value->Length;
             }
         }
 
-        resultOffsets.push_back(std::bit_cast<TPIValue*>(rowOffset));
+        resultOffsets.push_back(BitCast<TPIValue*>(rowOffset));
         rowOffset += singleRowByteLength;
 
         destinationRow += rowSchemaInformation.Length;
@@ -144,15 +146,15 @@ std::pair<TCopyGuard, std::vector<NQueryClient::TPIValue*>> CopyRowRangeIntoComp
 
     i64 totalByteLength = allRowsByteLength + allStringsByteLength;
     uintptr_t copyOffset = compartment->AllocateBytes(totalByteLength);
-    auto* startPointer = PtrFromVM(compartment, std::bit_cast<char*>(copyOffset), totalByteLength);
-    auto* itemDestination = std::bit_cast<TPIValue*>(startPointer);
+    auto* startPointer = PtrFromVM(compartment, BitCast<char*>(copyOffset), totalByteLength);
+    auto* itemDestination = BitCast<TPIValue*>(startPointer);
     uintptr_t currentRowOffset = copyOffset;
     auto* stringsDestination = startPointer + allRowsByteLength;
     auto resultOffsets = std::vector<TPIValue*>();
     resultOffsets.reserve(rows.size());
 
     for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
-        resultOffsets.push_back(std::bit_cast<TPIValue*>(currentRowOffset));
+        resultOffsets.push_back(BitCast<TPIValue*>(currentRowOffset));
 
         for (size_t itemIndex = 0; itemIndex < rows[rowIndex].size(); ++itemIndex) {
             auto& item = rows[rowIndex][itemIndex];

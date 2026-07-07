@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/memory/range.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NQueryClient {
 
 using namespace NWebAssembly;
@@ -181,8 +183,8 @@ TMutablePIValueRange CaptureUnversionedValueRange(TExpressionContext* context, T
     }
 
     auto* copyOffset = context->AllocateAligned(byteLength, EAddressSpace::WebAssembly);
-    auto* destination = PtrFromVM(GetCurrentCompartment(), std::bit_cast<char*>(copyOffset), byteLength);
-    auto* copiedRangeAtHost = std::bit_cast<TPIValue*>(destination);
+    auto* destination = PtrFromVM(GetCurrentCompartment(), BitCast<char*>(copyOffset), byteLength);
+    auto* copiedRangeAtHost = BitCast<TPIValue*>(destination);
 
     ::memcpy(destination, range.Begin(), rangeByteLength);
     destination += rangeByteLength;
@@ -195,7 +197,7 @@ TMutablePIValueRange CaptureUnversionedValueRange(TExpressionContext* context, T
         }
     }
 
-    return TMutableRange(std::bit_cast<TPIValue*>(copyOffset), range.Size());
+    return TMutableRange(BitCast<TPIValue*>(copyOffset), range.Size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,6 +7,8 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/finally.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,7 +43,7 @@ struct TMakeIntrinsic<TResult(TArgs...)>
         #intrinsic, \
         reinterpret_cast<void*>(Intrinsic##intrinsic), \
         WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{ \
-            std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(intrinsic) >::Get()) \
+            BitCast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(intrinsic) >::Get()) \
         }));
 
 #define DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(name, result, ...) \

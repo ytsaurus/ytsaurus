@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/heap.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,7 +16,7 @@ template <class TOnInsert, class TOnEvict>
 const TPIValue* TTopCollector::AddRow(const TPIValue* row, TOnInsert onInsert, TOnEvict onEvict)
 {
     if (std::ssize(Heap_) < Limit_) {
-        auto* destination = std::bit_cast<TPIValue*>(
+        auto* destination = BitCast<TPIValue*>(
             RowsContext_.AllocateAligned(
                 sizeof(TPIValue) * RowSize_,
                 NWebAssembly::EAddressSpace::WebAssembly));
