@@ -1905,6 +1905,9 @@ void TJob::DoInterrupt(
     try {
         if (!InterruptionRequested_) {
             AddJobEvent(interruptionReason);
+
+            ReportJobInterruptionInfo(now, timeout, interruptionReason, preemptionReason, preemptedFor);
+
             GetJobProbeOrThrow()->Interrupt();
         }
 
@@ -1923,8 +1926,6 @@ void TJob::DoInterrupt(
                 Bootstrap_->GetJobInvoker());
             InterruptionDeadline_ = now + timeout;
         }
-
-        ReportJobInterruptionInfo(now, timeout, interruptionReason, preemptionReason, preemptedFor);
     } catch (const std::exception& ex) {
         YT_LOG_INFO(ex, "Failed to interrupt job via job prober service; graceful job phase check scheduled (Tmeout: %v)", timeout);
 
