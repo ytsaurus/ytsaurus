@@ -79,36 +79,6 @@ IAttributeDictionaryPtr GetCompactInputMessagesTableAttributes()
     return attributes;
 }
 
-IAttributeDictionaryPtr GetOutputMessagesTableAttributes()
-{
-    return CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
-            TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("message", EValueType::String).SetMaxInlineHunkSize(128),
-            TColumnSchema("system_timestamp", EValueType::Uint64),
-            TColumnSchema("codec", EValueType::Int64),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-}
-
-IAttributeDictionaryPtr GetPartitionOutputMessagesTableAttributes()
-{
-    return CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("hash", EValueType::Uint64, ESortOrder::Ascending).SetExpression(("farm_hash(partition_id)")),
-            TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("message", EValueType::String).SetMaxInlineHunkSize(128),
-            TColumnSchema("system_timestamp", EValueType::Uint64),
-            TColumnSchema("codec", EValueType::Int64),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-}
-
 IAttributeDictionaryPtr GetStatesTableAttributes()
 {
     return CreateDynamicTableAttributes(TTableSchema(
@@ -288,8 +258,6 @@ auto GetTables()
     return std::vector<std::tuple<TStringBuf, IAttributeDictionaryPtr>>{
         {InputMessagesTableName, GetInputMessagesTableAttributes()},
         {CompactInputMessagesTableName, GetCompactInputMessagesTableAttributes()},
-        {OutputMessagesTableName, GetOutputMessagesTableAttributes()},
-        {PartitionOutputMessagesTableName, GetPartitionOutputMessagesTableAttributes()},
         {CompactPartitionOutputMessagesTableName, GetCompactPartitionOutputMessagesTableAttributes()},
         {CompactOutputMessagesTableName, GetCompactOutputMessagesTableAttributes()},
         {StatesTableName, GetStatesTableAttributes()},
