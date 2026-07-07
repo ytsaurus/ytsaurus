@@ -123,7 +123,7 @@ public:
 
         try {
             YQL_ENSURE(Handlers_.contains(*handlerName));
-            if (*handlerName == ::EOperationHandler::SendHeartbeatResponse) {
+            if (*handlerName == EOperationHandler::SendHeartbeatResponse) {
                 // for now, just check tvm for worker, for other methods we need to get service tickets from yql gateway.
                 CheckTvmServiceTicket(params.Input.Headers(), TvmClient_, AllowedSourceTvmIds_);
             }
