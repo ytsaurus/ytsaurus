@@ -850,8 +850,8 @@ message TReferencesOption
         optional TReferenceOption.EDuplicatePolicy duplicate_policy = 26;
     }
 
-    optional TEndpoint first = 1;
-    optional TEndpoint second = 2;
+    optional TEndpoint left = 1;
+    optional TEndpoint right = 2;
     optional TReferenceOption.EReferenceMode mode = 3;
 }
 
