@@ -451,6 +451,11 @@ private:
 
     TJobFSSecretaryPtr FSSecretary_;
 
+    //! Interrupts this job on an NBD device error. Subscribed to each of the job's
+    //! NBD devices once its artifacts are prepared; the same instance is used to
+    //! unsubscribe on cleanup.
+    TCallback<void(const TError&)> NbdErrorInterrupter_;
+
     bool HasJobTrace_ = false;
     bool HasGpuCheckStderr_ = false;
 
@@ -546,6 +551,7 @@ private:
     // Finalization.
     void Cleanup();
 
+    void SubscribeJobToNbdDevices();
     void UnsubscribeJobFromNbdDevices();
 
     // Preparation.

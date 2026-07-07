@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/signal.h>
 
 #include <library/cpp/yt/memory/ref.h>
 
@@ -70,13 +71,12 @@ struct IBlockDevice
     virtual TFuture<void> Flush() = 0;
 
     //! Get the latest error set for device.
-    virtual const TError& GetError() const = 0;
-    //! Set an error (error.IsOK() == false) for device.
+    virtual TError GetError() const = 0;
+    //! Set an error for device.
     virtual void SetError(TError error) = 0;
-    //! Subscribe #id (e.g. job id) for device errors.
-    virtual bool SubscribeForErrors(TGuid id, const TCallback<void()>& callback) = 0;
-    //! Unsubscribe #id (e.g. job id) from device errors.
-    virtual bool UnsubscribeFromErrors(TGuid id) = 0;
+    //! Fired with the error once one is set on the device (see #SetError).
+    //! A subscriber added after the error was set is invoked in situ.
+    DECLARE_INTERFACE_SIGNAL(void(const TError&), Error);
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockDevice)

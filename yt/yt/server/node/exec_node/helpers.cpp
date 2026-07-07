@@ -329,27 +329,6 @@ void TControllerAgentAffiliationInfo::ResetControllerAgent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap)
-{
-    // NB. It is all right to pass only bootstrap pointer since it outlives the closure.
-    return BIND_NO_PROPAGATE(
-        [
-            jobId,
-            bootstrap,
-            jobInterrupted = std::make_unique<std::atomic<bool>>(false)
-        ] () {
-            // Interrupt job only once.
-            if (!jobInterrupted->exchange(true)) {
-                bootstrap->GetJobController()->InterruptJob(
-                jobId,
-                EInterruptionReason::NbdDeviceStopping,
-                TDuration::Zero());
-            }
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 const TAbsoluteNormalizedPath& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<TVolumeMountPtr>& volumeMounts)
 {
     auto volumeMountIt = std::find_if(volumeMounts.begin(), volumeMounts.end(), [&] (const auto& volumeMount) {

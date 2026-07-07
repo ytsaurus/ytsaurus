@@ -759,6 +759,7 @@ void TJob::OnJobPrepared()
             YT_LOG_INFO("Job prepared");
 
             ValidateJobPhase(EJobPhase::PreparingJob);
+            SubscribeJobToNbdDevices();
             SetJobPhase(EJobPhase::Running);
         });
 }
@@ -3094,25 +3095,60 @@ void TJob::Cleanup()
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
 }
 
+void TJob::SubscribeJobToNbdDevices()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto nbdServer = Bootstrap_->GetNbdServer();
+    if (!nbdServer) {
+        return;
+    }
+
+    YT_VERIFY(!NbdErrorInterrupter_);
+    NbdErrorInterrupter_ = BIND_NO_PROPAGATE(
+        [
+            jobId = Id_,
+            bootstrap = Bootstrap_,
+            jobInterrupted = std::make_unique<std::atomic<bool>>(false)
+        ] (const TError& /*error*/) {
+            // Try interrupting the job only once.
+            if (!jobInterrupted->exchange(true)) {
+                bootstrap->GetJobController()->InterruptJob(
+                    jobId,
+                    EInterruptionReason::NbdDeviceStopping,
+                    TDuration::Zero());
+            }
+        });
+
+    for (const auto& deviceId : FSSecretary_->GetNbdDeviceIds()) {
+        if (auto device = nbdServer->FindDevice(deviceId)) {
+            YT_LOG_DEBUG(
+                "Subscribing job to NBD device errors (DeviceId: %v)",
+                deviceId);
+            device->SubscribeError(NbdErrorInterrupter_);
+        } else {
+            YT_LOG_DEBUG(
+                "Failed to subscribe job to NBD device errors; device not found (DeviceId: %v)",
+                deviceId);
+        }
+    }
+}
+
 void TJob::UnsubscribeJobFromNbdDevices()
 {
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    if (!NbdErrorInterrupter_) {
+        return;
+    }
+
     if (auto nbdServer = Bootstrap_->GetNbdServer()) {
         for (const auto& deviceId : FSSecretary_->ReleaseNbdDeviceIds()) {
-            YT_LOG_DEBUG(
-                "Unsubscribing job from NBD device errors (DeviceId: %v)",
-                deviceId);
-
             if (auto device = nbdServer->FindDevice(deviceId)) {
-                auto res = device->UnsubscribeFromErrors(Id_.Underlying());
-                if (!res) {
-                    YT_LOG_WARNING(
-                        "Failed to unsubscribe job from NBD device errors (DeviceId: %v)",
-                        deviceId);
-                } else {
-                    YT_LOG_DEBUG(
-                        "Unsubscribed job from NBD device errors (DeviceId: %v)",
-                        deviceId);
-                }
+                YT_LOG_DEBUG(
+                    "Unsubscribing job from NBD device errors (DeviceId: %v)",
+                    deviceId);
+                device->UnsubscribeError(NbdErrorInterrupter_);
             } else {
                 YT_LOG_DEBUG(
                     "Failed to unsubscribe job from NBD device errors; device not found (DeviceId: %v)",
@@ -3120,6 +3156,8 @@ void TJob::UnsubscribeJobFromNbdDevices()
             }
         }
     }
+
+    NbdErrorInterrupter_.Reset();
 }
 
 TFuture<void> TJob::GetCleanupFinishedEvent()
