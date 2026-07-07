@@ -13,6 +13,20 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUnfoldedColumnsCompat
+{
+    std::string TableColumn;
+    std::string IndexColumn;
+
+    void Persist(const TStreamPersistenceContext& context)
+    {
+        NYT::Persist(context, TableColumn);
+        NYT::Persist(context, IndexColumn);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::string TSecondaryIndex::GetLowercaseObjectName() const
 {
     return Format("secondary index %v", GetId());
@@ -50,8 +64,14 @@ void TSecondaryIndex::Load(TLoadContext& context)
     Load(context, Predicate_);
 
     // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexUnfoldedNames) {
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexUnfoldedColumnsSerializationFix) {
         Load(context, UnfoldedColumns_);
+    } else if (context.GetVersion() >= EMasterReign::SecondaryIndexUnfoldedNames) {
+        if (auto unfoldedColumnsCompat = Load<std::optional<TUnfoldedColumnsCompat>>(context)) {
+            UnfoldedColumns_ = TUnfoldedColumns(
+                unfoldedColumnsCompat->TableColumn,
+                unfoldedColumnsCompat->IndexColumn);
+        }
     } else {
         if (auto unfoldedColumn = Load<std::optional<std::string>>(context)) {
             UnfoldedColumns_ = TUnfoldedColumns(*unfoldedColumn, *unfoldedColumn);
