@@ -92,10 +92,6 @@ void SetNodeInfoToRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap);
-
-////////////////////////////////////////////////////////////////////////////////
-
 const TAbsoluteNormalizedPath& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<TVolumeMountPtr>& volumeMounts);
 const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volumeId, const std::vector<TVolumeResultPtr>& volumes);
 

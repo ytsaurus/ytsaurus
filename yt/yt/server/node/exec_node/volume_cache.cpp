@@ -305,15 +305,18 @@ TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
             value.IsSet() && value.GetOrCrash().IsOK() ? ToString(value.GetOrCrash().Value()->GetId()) : "<importing>");
     }
 
-    // Subscribe job for NBD device errors.
     return value
-        .Apply(
-            MakeJobSubscriberForDeviceErrors(
-                jobId,
-                deviceId,
-                nbdServer,
-                Logger)
-            .AsyncVia(nbdServer->GetInvoker()))
+        .Apply(BIND(
+            [jobId, deviceId] (const TErrorOr<TVolumePtr>& volumeOrError) {
+                if (!volumeOrError.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Failed to prepare RO NBD volume")
+                        << TErrorAttribute("job_id", jobId)
+                        << TErrorAttribute("device_id", deviceId)
+                        << volumeOrError;
+                }
+
+                return volumeOrError.Value();
+            }))
         .As<IVolumePtr>();
 }
 
@@ -365,12 +368,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateVolume(
                 return PrepareRWNbdVolume(tag, options);
             }))
         .Apply(BIND(
-            [
-                Logger,
-                options,
-                this,
-                this_ = MakeStrong(this)
-            ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
+            [options] (const TErrorOr<IVolumePtr>& errorOrVolume) {
                 if (!errorOrVolume.IsOK()) {
                     THROW_ERROR_EXCEPTION("Failed to create RW NBD volume")
                         << TErrorAttribute("job_id", options.JobId)
@@ -378,23 +376,6 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateVolume(
                         << errorOrVolume;
                 }
 
-                auto device = Bootstrap_->GetNbdServer()->FindDevice(options.DeviceId);
-                if (!device) {
-                    THROW_ERROR_EXCEPTION("Failed to find RW NBD device")
-                        << TErrorAttribute("job_id", options.JobId)
-                        << TErrorAttribute("device_id", options.DeviceId);
-                }
-
-                YT_LOG_DEBUG("Subscribing job for RW NBD device errors");
-                auto res = device->SubscribeForErrors(
-                    options.JobId.Underlying(),
-                    MakeJobInterrupter(options.JobId, Bootstrap_));
-                if (!res) {
-                    THROW_ERROR_EXCEPTION("Failed to subscribe job for RW NBD device errors")
-                        << TErrorAttribute("job_id", options.JobId)
-                        << TErrorAttribute("device_id", options.DeviceId);
-                }
-                YT_LOG_DEBUG("Subscribed job for RW NBD device errors");
                 return errorOrVolume.Value();
             })
         ).As<IVolumePtr>();
@@ -456,51 +437,6 @@ TNbdVolumeFactory::TInsertCookie TNbdVolumeFactory::GetInsertCookie(const std::s
     }
 
     return cookie;
-}
-
-TExtendedCallback<TNbdVolumeFactory::TVolumePtr(const TErrorOr<TNbdVolumeFactory::TVolumePtr>&)> TNbdVolumeFactory::MakeJobSubscriberForDeviceErrors(
-    TJobId jobId,
-    const std::string& deviceId,
-    const INbdServerPtr& nbdServer,
-    const TLogger& Logger)
-{
-    return BIND_NO_PROPAGATE(
-        [
-            Logger,
-            nbdServer,
-            deviceId,
-            jobId,
-            this,
-            this_ = MakeStrong(this)
-        ] (const TErrorOr<TVolumePtr>& volumeOrError) {
-            if (!volumeOrError.IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to prepare RO NBD volume")
-                    << TErrorAttribute("job_id", jobId)
-                    << TErrorAttribute("device_id", deviceId)
-                    << volumeOrError;
-            }
-
-            auto device = nbdServer->FindDevice(deviceId);
-            if (!device) {
-                THROW_ERROR_EXCEPTION("Failed to find RO NBD device")
-                    << TErrorAttribute("job_id", jobId)
-                    << TErrorAttribute("device_id", deviceId);
-            }
-
-            YT_LOG_DEBUG("Subscribing job for NBD device errors");
-            auto res = device->SubscribeForErrors(
-                jobId.Underlying(),
-                MakeJobInterrupter(jobId, Bootstrap_));
-            if (!res) {
-                THROW_ERROR_EXCEPTION("Failed to subscribe job for NBD device errors")
-                    << TErrorAttribute("job_id", jobId)
-                    << TErrorAttribute("device_id", deviceId);
-            } else {
-                YT_LOG_DEBUG("Subscribed job for NBD device errors");
-            }
-
-            return volumeOrError.Value();
-    });
 }
 
 TFuture<IBlockDevicePtr> TNbdVolumeFactory::InitializeNbdDevice(

@@ -4,94 +4,35 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Get the latest error set for device.
-const TError& TBlockDeviceBase::GetError() const
+TError TBlockDeviceBase::GetError() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(Lock_);
-    return Error_;
+    return Error_.Load();
 }
 
-//! Set an error for device.
 void TBlockDeviceBase::SetError(TError error)
 {
-    // Do not allow ok.
+    YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_VERIFY(!error.IsOK());
 
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    {
-        auto guard = WriterGuard(Lock_);
-        Error_ = std::move(error);
+    if (ErrorList_.Fire(error)) {
+        Error_.Store(error);
     }
-
-    // Notify subscribers about error.
-    CallSubscribers();
 }
 
-bool TBlockDeviceBase::SubscribeForErrors(TGuid id, const TCallback<void()>& callback)
+void TBlockDeviceBase::SubscribeError(const TCallback<void(const TError&)>& callback)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    // NB. Callbacks can be called multiple times (e.g. if multiple errors occur).
-    // If you need `exactly once` semantics make sure to support it in the callback itself.
-
-    bool callSubscriber = false;
-
-    {
-        auto guard = WriterGuard(Lock_);
-
-        auto [it, inserted] = SubscriberCallbacks_.emplace(id, callback);
-        if (!inserted) {
-            return false;
-        }
-
-        // Error is already set, call subscriber.
-        callSubscriber = !Error_.IsOK();
-    }
-
-    if (callSubscriber) {
-        callback.Run();
-    }
-
-    return true;
+    ErrorList_.Subscribe(callback);
 }
 
-bool TBlockDeviceBase::UnsubscribeFromErrors(TGuid id)
+void TBlockDeviceBase::UnsubscribeError(const TCallback<void(const TError&)>& callback)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto guard = WriterGuard(Lock_);
-
-    auto it = SubscriberCallbacks_.find(id);
-    if (it == SubscriberCallbacks_.end()) {
-        return false;
-    }
-
-    SubscriberCallbacks_.erase(it);
-    return true;
-}
-
-void TBlockDeviceBase::CallSubscribers() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    std::vector<TCallback<void()>> callbacks;
-
-    {
-        auto guard = ReaderGuard(Lock_);
-
-        callbacks.reserve(SubscriberCallbacks_.size());
-        for (const auto& [_, callback] : SubscriberCallbacks_) {
-            callbacks.push_back(callback);
-        }
-    }
-
-    // If any of the callbacks throws the remaining ones are not called.
-    for (const auto& callback : callbacks) {
-        callback.Run();
-    }
+    ErrorList_.Unsubscribe(callback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

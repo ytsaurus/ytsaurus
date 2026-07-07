@@ -2,29 +2,30 @@
 
 #include "block_device.h"
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <yt/yt/core/actions/callback_list.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A convenience base for block devices providing the error subscription machinery.
+//! A convenience base for block devices providing the error-signal machinery.
 class TBlockDeviceBase
     : public IBlockDevice
 {
 public:
-    const TError& GetError() const final;
+    TError GetError() const final;
     void SetError(TError error) final;
 
-    bool SubscribeForErrors(TGuid id, const TCallback<void()>& callback) final;
-    bool UnsubscribeFromErrors(TGuid id) final;
+    //! The device error is a one-shot terminal event, so a subscriber added after
+    //! the error was set is invoked in situ (see TSingleShotCallbackList).
+    void SubscribeError(const TCallback<void(const TError&)>& callback) override;
+    void UnsubscribeError(const TCallback<void(const TError&)>& callback) override;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
-    THashMap<TGuid, TCallback<void()>> SubscriberCallbacks_;
-    TError Error_;
-
-    void CallSubscribers() const;
+    NThreading::TAtomicObject<TError> Error_;
+    TSingleShotCallbackList<void(const TError&)> ErrorList_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
