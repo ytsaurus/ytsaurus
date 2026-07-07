@@ -106,9 +106,9 @@ def set(
     value,
     format=None,
     recursive: bool = False,
-    force: bool = None,
-    suppress_transaction_coordinator_sync: bool = None,
-    suppress_upstream_sync: bool = None,
+    force: Optional[bool] = None,
+    suppress_transaction_coordinator_sync: Optional[bool] = None,
+    suppress_upstream_sync: Optional[bool] = None,
     client=None,
 ):
     """Sets new value to Cypress node.
@@ -191,19 +191,19 @@ class _CrosscellCopyMoveRetrier(Retrier):
 def copy(
     source_path: Union[str, YPath],
     destination_path: Union[str, YPath],
-    recursive: bool = None,
-    force: bool = None,
-    ignore_existing: bool = None,
-    lock_existing: bool = None,
-    preserve_account: bool = None,
-    preserve_owner: bool = None,
-    preserve_acl: bool = None,
-    preserve_expiration_time: bool = None,
-    preserve_expiration_timeout: bool = None,
-    preserve_creation_time: bool = None,
-    preserve_modification_time: bool = None,
-    pessimistic_quota_check: bool = None,
-    enable_cross_cell_copying: bool = None,
+    recursive: Optional[bool] = None,
+    force: Optional[bool] = None,
+    ignore_existing: Optional[bool] = None,
+    lock_existing: Optional[bool] = None,
+    preserve_account: Optional[bool] = None,
+    preserve_owner: Optional[bool] = None,
+    preserve_acl: Optional[bool] = None,
+    preserve_expiration_time: Optional[bool] = None,
+    preserve_expiration_timeout: Optional[bool] = None,
+    preserve_creation_time: Optional[bool] = None,
+    preserve_modification_time: Optional[bool] = None,
+    pessimistic_quota_check: Optional[bool] = None,
+    enable_cross_cell_copying: Optional[bool] = None,
     client=None
 ):
     """Copies Cypress node.
@@ -255,17 +255,17 @@ def copy(
 def move(
     source_path: Union[str, YPath],
     destination_path: Union[str, YPath],
-    recursive: bool = None,
-    force: bool = None,
-    preserve_account: bool = None,
-    preserve_owner: bool = None,
-    preserve_acl: bool = None,
-    preserve_expiration_time: bool = None,
-    preserve_expiration_timeout: bool = None,
-    preserve_creation_time: bool = None,
-    preserve_modification_time: bool = None,
-    pessimistic_quota_check: bool = None,
-    enable_cross_cell_copying: bool = None,
+    recursive: Optional[bool] = None,
+    force: Optional[bool] = None,
+    preserve_account: Optional[bool] = None,
+    preserve_owner: Optional[bool] = None,
+    preserve_acl: Optional[bool] = None,
+    preserve_expiration_time: Optional[bool] = None,
+    preserve_expiration_timeout: Optional[bool] = None,
+    preserve_creation_time: Optional[bool] = None,
+    preserve_modification_time: Optional[bool] = None,
+    pessimistic_quota_check: Optional[bool] = None,
+    enable_cross_cell_copying: Optional[bool] = None,
     client=None,
 ):
     """Moves (renames) Cypress node.
@@ -365,7 +365,7 @@ def link(
     link_path: Union[str, YPath],
     recursive: bool = False,
     ignore_existing: bool = False,
-    lock_existing: bool = None,
+    lock_existing: Optional[bool] = None,
     force: bool = False,
     attributes: Optional[Dict[str, Any]] = None,
     client=None,
@@ -403,13 +403,13 @@ def list(
     path: Union[str, YPath],
     max_size: Optional[int] = None,
     format: Optional[Format] = None,
-    absolute: bool = None,
+    absolute: Optional[bool] = None,
     attributes: Union[List[str], Tuple, None] = None,
     sort: bool = True,
     read_from=None,
-    cache_sticky_group_size: int = None,
-    suppress_transaction_coordinator_sync: bool = None,
-    suppress_upstream_sync: bool = None,
+    cache_sticky_group_size: Optional[int] = None,
+    suppress_transaction_coordinator_sync: Optional[bool] = None,
+    suppress_upstream_sync: Optional[bool] = None,
     client=None,
 ):
     """Lists directory (map_node) content. Node type must be "map_node".
@@ -470,8 +470,8 @@ def list(
 def exists(
     path: Union[str, YPath],
     read_from: str = None,
-    cache_sticky_group_size: int = None,
-    suppress_transaction_coordinator_sync: bool = None,
+    cache_sticky_group_size: Optional[int] = None,
+    suppress_transaction_coordinator_sync: Optional[bool] = None,
     client=None,
 ):
     """Checks if Cypress node exists.
@@ -522,8 +522,8 @@ def create(
     path: Union[str, YPath, None] = None,
     recursive: bool = False,
     ignore_existing: bool = False,
-    lock_existing: bool = None,
-    force: bool = None,
+    lock_existing: Optional[bool] = None,
+    force: Optional[bool] = None,
     attributes: Optional[Dict[str, Any]] = None,
     ignore_type_mismatch: bool = False,
     client=None,
@@ -600,7 +600,7 @@ def internalize(path: Union[str, YPath], client=None):
 
 def mkdir(
     path: Union[str, YPath],
-    recursive: bool = None,
+    recursive: Optional[bool] = None,
     client=None,
 ):
     """Makes directory (Cypress node of map_node type).
@@ -716,11 +716,11 @@ def search(
     list_node_order: Callable[[str, List[Any]], List[int]] = None,
     attributes: Union[List[str], Tuple, None] = None,
     exclude: Union[List[str], Tuple, None] = None,
-    depth_bound: int = None,
+    depth_bound: Optional[int] = None,
     follow_links: bool = False,
     read_from: Literal["cache"] = None,
-    cache_sticky_group_size: int = None,
-    enable_batch_mode: bool = None,
+    cache_sticky_group_size: Optional[int] = None,
+    enable_batch_mode: Optional[bool] = None,
     client=None,
 ):
     """Searches for some nodes in Cypress subtree.
