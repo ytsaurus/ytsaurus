@@ -137,6 +137,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (SequoiaTransactionService)
     (TransactionFinisher)
     (ExpirationTracker)
+    (SequoiaActionExecutor)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

@@ -24,6 +24,7 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node.h>
+#include <yt/yt/server/master/cypress_server/sequoia_actions_executor.h>
 
 #include <yt/yt/server/master/object_server/attribute_set.h>
 #include <yt/yt/server/master/object_server/object.h>
@@ -36,6 +37,7 @@
 
 #include <yt/yt/server/master/sequoia_server/config.h>
 #include <yt/yt/server/master/sequoia_server/context.h>
+#include <yt/yt/server/master/sequoia_server/revision.h>
 #include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
@@ -54,6 +56,8 @@
 #include <yt/yt/server/lib/sequoia/protobuf_helpers.h>
 #include <yt/yt/server/lib/sequoia/transaction_finish_request.h>
 
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 #include <yt/yt/server/lib/transaction_server/private.h>
 
@@ -63,6 +67,8 @@
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h>
+
+#include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
 
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
@@ -74,6 +80,10 @@
 #include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
 
 #include <yt/yt/ytlib/tablet_client/bulk_insert_locking.h>
+
+// TODO(kvk1920): it's a dirty way to detect dyntable-related system
+// transactions.
+#include <yt/yt/ytlib/tablet_client/proto/master_tablet_service.pb.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
@@ -147,7 +157,12 @@ namespace {
 class TTransactionContextGuard
 {
 public:
-    TTransactionContextGuard(TBootstrap* bootstrap, TTransaction* transaction)
+    // TODO(kvk1920): make separate constructors for Prepare, Commit and Abort.
+    TTransactionContextGuard(
+        TBootstrap* bootstrap,
+        TTransaction* transaction,
+        std::optional<TTimestamp> timestamp,
+        std::optional<bool> latePrepare = std::nullopt)
         : UserGuard_(
             bootstrap->GetSecurityManager(),
             transaction->IsSequoiaTransaction()
@@ -171,6 +186,66 @@ public:
                         }
                     } ()));
         }
+
+        bool needSequoiaRevision = false;
+        if (transaction->IsSequoiaTransaction()) {
+            needSequoiaRevision = true;
+        } else {
+            static const THashSet<std::string> ActionTypes = {
+                NTabletClient::NProto::TReqMount::GetDescriptor()->full_name(),
+                NTabletClient::NProto::TReqUnmount::GetDescriptor()->full_name(),
+                NTabletClient::NProto::TReqFreeze::GetDescriptor()->full_name(),
+                NTabletClient::NProto::TReqUnfreeze::GetDescriptor()->full_name(),
+                NTabletClient::NProto::TReqRemount::GetDescriptor()->full_name(),
+                NTabletClient::NProto::TReqReshard::GetDescriptor()->full_name(),
+                NTabletServer::NProto::TReqUpdateTabletStores::GetDescriptor()->full_name(),
+                NTabletServer::NProto::TReqUpdateHunkTabletStores::GetDescriptor()->full_name(),
+                NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode::GetDescriptor()->full_name(),
+            };
+
+            needSequoiaRevision = std::ranges::any_of(transaction->Actions(), [] (const auto& action) {
+                return ActionTypes.contains(action.Type);
+            });
+        }
+
+        const auto& config = bootstrap->GetDynamicConfig()->SequoiaManager;
+        bool enableSequoiaRevision = config->ShouldUseSequoiaRevisions();
+
+        if (needSequoiaRevision) {
+            // NB: transaction state becomes "aborted"/"committed" _before_ the
+            // execution of corresponding actions. But transition to "prepared"
+            // state happens _after_ action execution. That's why only
+            // "Committed" and "Aborted" states are explicitly checked here.
+            if (transaction->GetPersistentState() == ETransactionState::Committed) {
+                YT_ASSERT(timestamp);
+                if (enableSequoiaRevision) {
+                    SequoiaRevisionGuard_.emplace(TSequoiaRevisionCommit{TRevision(*timestamp)});
+                } else {
+                    SequoiaRevisionGuard_.emplace(TSequoiaRevisionDisabled{});
+                }
+            } else if (transaction->GetPersistentState() != ETransactionState::Aborted) {
+                YT_VERIFY(latePrepare.has_value());
+                YT_ASSERT(timestamp);
+                if (enableSequoiaRevision) {
+                    const auto& sequoiaActionExecutor = bootstrap->GetSequoiaActionsExecutor();
+                    SequoiaRevisionGuard_.emplace(TSequoiaRevisionPrepare{
+                        [sequoiaActionExecutor, transaction, latePrepare] (
+                            TVersionedNodeId node,
+                            EModificationType modificationType
+                        ) {
+                            sequoiaActionExecutor->PrepareSequoiaNodeModification(
+                                transaction,
+                                node,
+                                modificationType,
+                                *latePrepare);
+                        },
+                        TRevision(*timestamp),
+                    });
+                } else {
+                    SequoiaRevisionGuard_.emplace(TSequoiaRevisionDisabled{});
+                }
+            }
+        }
     }
 
 private:
@@ -178,6 +253,7 @@ private:
     std::optional<NTracing::TTraceContextGuard> TraceGuard_;
     std::optional<TSequoiaContextGuard> SequoiaGuard_;
     std::optional<NLogging::TFiberMessageTagGuard> MessageTagGuard_;
+    std::optional<TSequoiaRevisionGuard> SequoiaRevisionGuard_;
 };
 
 //! When a mirrored Cypress transaction is used as a prerequisite for another
@@ -515,7 +591,10 @@ public:
         // Participant: TReqCommitTransaction, commit only
         RegisterTransactionActionHandlers<NProto::TReqCommitCypressTransaction>({
             .Prepare = BIND_NO_PROPAGATE(
-                &TTransactionManager::HydraPrepareAndCommitCommitCypressTransactionInSequoia,
+                &TTransactionManager::HydraPrepareCommitCypressTransactionInSequoia,
+                Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(
+                &TTransactionManager::HydraCommitCommitCypressTransactionInSequoia,
                 Unretained(this)),
         });
         // TODO(kvk1920): consider renaming TReqCommitTransaction ->
@@ -982,7 +1061,7 @@ public:
 
         NProfiling::TWallTimer timer;
 
-        YT_VERIFY(transaction->IsForeign() || transaction->GetNativeCommitMutationRevision() == NHydra::NullRevision);
+        YT_VERIFY(transaction->IsForeign() || transaction->NativeCommitRevision().Mutation == NHydra::NullRevision);
 
         auto transactionId = transaction->GetId();
 
@@ -1062,6 +1141,23 @@ public:
         }
         YT_VERIFY(transaction->NestedTransactions().empty());
 
+        auto mutationRevision = GetCurrentMutationContext()
+            ->GetVersion()
+            .ToRevision();
+        auto sequoiaRevision = mutationRevision;
+        if (auto currentSequoiaRevision = GetCurrentSequoiaRevision()) {
+            Visit(*currentSequoiaRevision,
+                [&] (const TSequoiaRevisionPrepare&) {
+                    YT_LOG_ALERT_IF(IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transaction->GetId()),
+                        "Mirrored transaction commit is executed outside of Sequoia transaction commit (TransactionId: %v)",
+                        transaction->GetId());
+                },
+                [&] (const TSequoiaRevisionCommit& revision) {
+                    sequoiaRevision = revision.Revision;
+                },
+                [] (TSequoiaRevisionDisabled /*disabled*/) { });
+        }
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         // NB: mirrored Cypress transactions are committed with Sequoia
         // transaction actions instead of Hive.
@@ -1070,8 +1166,8 @@ public:
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(options.CommitTimestamp);
-            const auto* mutationContext = GetCurrentMutationContext();
-            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
+            request.set_native_commit_mutation_revision(ToProto(mutationRevision));
+            request.set_native_commit_sequoia_revision(ToProto(sequoiaRevision));
             multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
         // Externalized transactions are always finished via Hive.
@@ -1079,8 +1175,8 @@ public:
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
             request.set_commit_timestamp(options.CommitTimestamp);
-            const auto* mutationContext = GetCurrentMutationContext();
-            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
+            request.set_native_commit_mutation_revision(ToProto(mutationRevision));
+            request.set_native_commit_sequoia_revision(ToProto(sequoiaRevision));
             multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
 
@@ -1090,7 +1186,7 @@ public:
 
         transaction->SetPersistentState(ETransactionState::Committed);
 
-        TTransactionContextGuard guard(Bootstrap_, transaction);
+        TTransactionContextGuard guard(Bootstrap_, transaction, options.CommitTimestamp);
         TransactionCommitted_.Fire(transaction);
 
         if (temporarilyRefTimestampHolder) {
@@ -1228,7 +1324,7 @@ public:
 
         transaction->SetPersistentState(ETransactionState::Aborted);
 
-        TTransactionContextGuard guard(Bootstrap_, transaction);
+        TTransactionContextGuard guard(Bootstrap_, transaction, /*commitTimestamp*/ std::nullopt);
         TransactionAborted_.Fire(transaction);
         RunAbortTransactionActions(transaction, options, /*requireLegacyBehavior*/ false);
 
@@ -1839,7 +1935,7 @@ public:
                 << ex;
         }
 
-        TTransactionContextGuard guard(Bootstrap_, transaction);
+        TTransactionContextGuard guard(Bootstrap_, transaction, options.PrepareTimestamp, /*latePrepare*/ options.LatePrepare);
 
         if (transaction->IsSequoiaTransaction()) {
             try {
@@ -1932,14 +2028,14 @@ public:
     void CommitTransaction(
         TTransactionId transactionId,
         const TTransactionCommitOptions& options,
-        TRevision nativeCommitMutationRevision)
+        TTransaction::TNativeCommitRevision nativeCommitRevision)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ValidateMirroredTransactionFinish(transactionId, /*commit*/ true);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        transaction->SetNativeCommitMutationRevision(nativeCommitMutationRevision);
+        transaction->NativeCommitRevision() = nativeCommitRevision;
         CommitTransaction(transaction, options);
     }
 
@@ -1950,7 +2046,7 @@ public:
         CommitTransaction(
             transactionId,
             options,
-            /*nativeCommitMutationRevision*/ NullRevision);
+            /*nativeCommitMutationRevision*/ {});
     }
 
     void AbortTransaction(
@@ -2877,10 +2973,14 @@ private:
         auto commitTimestamp = request->commit_timestamp();
         auto nativeCommitMutationRevision = FromProto<NHydra::TRevision>(request->native_commit_mutation_revision());
 
+        // COMPAT(kvk1920): SequoiaRevision.
+        auto nativeCommitSequoiaRevision = YT_OPTIONAL_FROM_PROTO(*request, native_commit_sequoia_revision, TRevision)
+            .value_or(nativeCommitMutationRevision);
+
         TTransactionCommitOptions options{
             .CommitTimestamp = commitTimestamp,
         };
-        CommitTransaction(transactionId, options, nativeCommitMutationRevision);
+        CommitTransaction(transactionId, options, {nativeCommitMutationRevision, nativeCommitSequoiaRevision});
     }
 
     void HydraCommitAbortForeignTransactionInSequoia(
@@ -2905,7 +3005,7 @@ private:
         AbortTransaction(transactionId, options);
     }
 
-    void HydraPrepareAndCommitCommitCypressTransactionInSequoia(
+    void HydraPrepareCommitCypressTransactionInSequoia(
         TTransaction* /*sequoiaTransaction*/,
         NProto::TReqCommitCypressTransaction* request,
         const TTransactionPrepareOptions& options)
@@ -2924,22 +3024,40 @@ private:
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 
         try {
-            PrepareAndCommitCypressTransaction(
-                transaction,
-                prerequisiteTransactionIds,
-                request->commit_timestamp());
+            TTransactionPrepareOptions prepareOptions{
+                .Persistent = true,
+                .LatePrepare = true, // Technically true.
+                .PrepareTimestamp = request->commit_timestamp(),
+                .PrepareTimestampClusterTag = Bootstrap_->GetPrimaryCellTag(),
+                .PrerequisiteTransactionIds = prerequisiteTransactionIds,
+            };
+            PrepareTransactionCommit(transaction, prepareOptions);
         } catch (const std::exception& ex) {
-
             if (TError(ex).GetNonTrivialCode() != NSecurityClient::EErrorCode::AuthorizationError) {
                 TTransactionAbortRequest abortRequest;
                 abortRequest.AuthenticationIdentity = identity;
                 abortRequest.Force = true;
+
                 const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
                 transactionFinisher->PersistRequest(transaction, abortRequest, /*update*/ true);
             }
 
             throw;
         }
+    }
+
+    void HydraCommitCommitCypressTransactionInSequoia(
+        TTransaction* /*sequoiaTransaction*/,
+        NProto::TReqCommitCypressTransaction* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
+        auto* transaction = GetTransaction(FromProto<TTransactionId>(request->transaction_id()));
+
+        TTransactionCommitOptions commitOptions{
+            .CommitTimestamp = request->commit_timestamp(),
+            .CommitTimestampClusterTag = Bootstrap_->GetPrimaryCellTag(),
+        };
+        CommitTransaction(transaction, commitOptions);
     }
 
     void PrepareAndCommitCypressTransaction(
