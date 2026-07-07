@@ -63,6 +63,7 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NProfiling;
 using namespace NChunkClient;
 using namespace NSequoiaClient;
 using namespace NYTree;
@@ -224,7 +225,11 @@ public:
             // We will reset Sequoia request in case the location replacement is applied.
             if (sequoiaRequest && sequoiaRequest->removed_chunks_size() + sequoiaRequest->added_chunks_size() > 0) {
 
-                WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::FullHeartbeat, std::move(sequoiaRequest)))
+                WaitFor(
+                    chunkManager->ModifySequoiaReplicas(
+                        ESequoiaTransactionType::FullHeartbeat,
+                        std::move(sequoiaRequest),
+                        /*allowBatching*/ false))
                     .ThrowOnError();
             }
         }
@@ -420,8 +425,29 @@ public:
 
         if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
             YT_LOG_TRACE("There are Sequoia replicas for this request (NodeId: %v)", nodeId);
-            WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::IncrementalHeartbeat, std::move(preparedRequest->SequoiaRequest)))
-                .ThrowOnError();
+
+            auto allowBatching = true;
+            if (auto it = NodesWithFailedPreviousIncrementalHeartbeat_.find(nodeId);
+                it != NodesWithFailedPreviousIncrementalHeartbeat_.end())
+            {
+                allowBatching = false;
+                NodesWithFailedPreviousIncrementalHeartbeat_.erase(it);
+            }
+
+            auto sequoiaModificationResult = WaitFor(chunkManager->ModifySequoiaReplicas(
+                ESequoiaTransactionType::IncrementalHeartbeat,
+                std::move(preparedRequest->SequoiaRequest),
+                /*allowBatching*/ allowBatching));
+
+            if (!sequoiaModificationResult.IsOK()) {
+                NodesWithFailedPreviousIncrementalHeartbeat_.insert(nodeId);
+                YT_LOG_DEBUG(
+                    sequoiaModificationResult,
+                    "Failed to modify Sequoia replicas during incremental heartbeat (NodeAddress: %v, NodeId: %v)",
+                    node->GetDefaultAddress(),
+                    nodeId);
+                sequoiaModificationResult.ThrowOnError();
+            }
         } else {
             YT_LOG_TRACE("No Sequoia replicas for this request (NodeId: %v)", nodeId);
         }
@@ -819,6 +845,9 @@ private:
     // COMPAT(koloshmet)
     TInstant DanglingLocationsDefaultLastSeenTime_;
 
+    // Transient
+    THashSet<TNodeId> NodesWithFailedPreviousIncrementalHeartbeat_;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     template <class THeartbeatContextPtr>
@@ -900,6 +929,11 @@ private:
             return *customLastSeen;
         }
         return DanglingLocationsDefaultLastSeenTime_;
+    }
+
+    void OnProfiling(TSensorBuffer* buffer) const override
+    {
+        buffer->AddGauge("/nodes_with_failed_previous_incremental_heartbeat", NodesWithFailedPreviousIncrementalHeartbeat_.size());
     }
 
     template <bool FullHeartbeat>
@@ -1407,6 +1441,8 @@ private:
             location->SetState(EChunkLocationState::Offline);
             location->SetLastSeenTime(mutationContext->GetTimestamp());
         }
+
+        NodesWithFailedPreviousIncrementalHeartbeat_.erase(node->GetId());
     }
 
     void OnNodeRestarted(TNode* node)
