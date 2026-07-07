@@ -3679,8 +3679,8 @@ class TestQueryRpcProxy(TestQuery):
             if d["dkey1"] == 42 and d["dkey2"] == t["value"]
         ]
 
-        insert_rows("//tmp/d", [{"dkey1": 6006, "dkey2": i, "dvalue": 0} for i in range(100000)])
-        insert_rows("//tmp/d", [{"dkey1": 6006, "dkey2": i, "dvalue": 0} for i in range(100000, 200000)])
+        insert_rows("//tmp/d", [{"dkey1": 6006, "dkey2": i, "dvalue": 0} for i in range(50000)])
+        insert_rows("//tmp/d", [{"dkey1": 6006, "dkey2": i, "dvalue": 0} for i in range(50000, 100005)])
         result, stats = select_with_statistics(
             f"* from [{table}] join [{dictionary}] ON (6006, value) = (dkey1, dkey2) limit 10000000")
         assert "inner_statistics" in stats["inner_statistics"][0]["inner_statistics"][0]
