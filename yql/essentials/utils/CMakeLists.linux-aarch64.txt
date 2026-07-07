@@ -51,6 +51,7 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/rand_guid.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/retry.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/sort.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/strong_alias.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/swap_bytes.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/time_provider.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/tty.cpp
@@ -75,6 +76,7 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/checked_deref_ptr.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/runnable.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/sort.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/strong_alias.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/swap_bytes.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/time_provider.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/tty.h
