@@ -28,7 +28,7 @@ using namespace NKikimr::NMiniKQL;
 class TSimpleUdfResolver: public IUdfResolver {
 public:
     TSimpleUdfResolver(const NKikimr::NMiniKQL::IFunctionRegistry* functionRegistry, const TFileStoragePtr& fileStorage, bool useFakeMD5)
-        : FunctionRegistry_(functionRegistry)
+        : FunctionRegistry_(functionRegistry->Clone())
         , FileStorage_(fileStorage)
         , TypeInfoHelper_(new TTypeInfoHelper)
         , UseFakeMD5_(useFakeMD5)
@@ -62,11 +62,13 @@ public:
                     ctx.AddError(TIssue(udf.Pos, TStringBuilder() << "Incorrect format of function name: " << udf.Name));
                     hasErrors = true;
                 } else {
+                    if (FunctionRegistry_->IsLoadedUdfModule(moduleName)) {
+                        continue;
+                    }
                     requiredModules.insert(TString(moduleName));
                 }
             }
 
-            auto newRegistry = FunctionRegistry_->Clone();
             THashMap<std::pair<TString, TString>, THashSet<TString>> cachedModules;
             for (auto import : imports) {
                 if (import->Modules) {
@@ -92,7 +94,7 @@ public:
                         auto path = link->GetPath().GetPath();
                         auto [it, inserted] = cachedModules.emplace(std::make_pair(path, customUdfPrefix), THashSet<TString>());
                         if (inserted) {
-                            newRegistry->LoadUdfs(
+                            FunctionRegistry_->LoadUdfs(
                                 path,
                                 {},
                                 NUdf::IRegistrator::TFlags::TypesOnly,
@@ -110,7 +112,7 @@ public:
                         }
                         auto [it, inserted] = cachedModules.emplace(std::make_pair(import->Block->Data, customUdfPrefix), THashSet<TString>());
                         if (inserted) {
-                            newRegistry->LoadUdfs(
+                            FunctionRegistry_->LoadUdfs(
                                 import->Block->Data,
                                 {},
                                 NUdf::IRegistrator::TFlags::TypesOnly,
@@ -131,7 +133,7 @@ public:
                 }
             }
 
-            hasErrors = !LoadFunctionsMetadata(functions, *newRegistry, TypeInfoHelper_, ctx, logLevel) || hasErrors;
+            hasErrors = !LoadFunctionsMetadata(functions, *FunctionRegistry_, TypeInfoHelper_, ctx, logLevel) || hasErrors;
             return !hasErrors;
         }
     }
@@ -148,7 +150,7 @@ public:
 
 private:
     mutable TAdaptiveLock Lock_;
-    const NKikimr::NMiniKQL::IFunctionRegistry* FunctionRegistry_;
+    const TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FunctionRegistry_;
     TFileStoragePtr FileStorage_;
     NUdf::ITypeInfoHelper::TPtr TypeInfoHelper_;
     const bool UseFakeMD5_;
