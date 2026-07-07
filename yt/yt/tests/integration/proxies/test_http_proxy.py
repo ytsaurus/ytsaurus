@@ -483,9 +483,8 @@ class TestHttpProxy(HttpProxyTestBase):
         wait(config_updated)
 
     @authors("prime")
+    @pytest.mark.skip
     def test_taken_port(self):
-        pytest.skip()
-
         monitoring_port = self.Env.configs["node"][0]["monitoring_port"]
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

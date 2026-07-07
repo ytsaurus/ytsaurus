@@ -99,9 +99,8 @@ class TestPoolMetrics(YTEnvSetup):
     USE_PORTO = True
 
     @authors("ignat")
+    @pytest.mark.skip(reason="this test is broken")
     def test_map(self):
-        pytest.skip("this test is broken")
-
         create_pool("parent")
         create_pool("child1", parent_name="parent")
         create_pool("child2", parent_name="parent")

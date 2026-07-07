@@ -142,8 +142,8 @@ done
         assert interrupted["job_split"] >= 1
 
     @authors("gritukan")
+    @pytest.mark.skip(reason="Job splitting + lost jobs = no way.")
     def test_job_splitting(self):
-        pytest.skip("Job splitting + lost jobs = no way.")
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         expected = []
