@@ -3,10 +3,10 @@
 #include <yql/essentials/utils/signals/signals.h>
 #include <yql/essentials/utils/network/bind_in_range.h>
 
-#include <yt/yql/providers/dq/stats_collector/pool_stats_collector.h>
+#include <contrib/ydb/library/yql/providers/dq/stats_collector/pool_stats_collector.h>
 #include <yt/yql/providers/dq/actors/yt/nodeid_assigner.h>
 #include <yt/yql/providers/dq/actors/dynamic_nameserver.h>
-#include <yt/yql/providers/dq/service/interconnect_helpers.h>
+#include <contrib/ydb/library/yql/providers/dq/service/interconnect_helpers.h>
 #include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
 
 #include <yt/yql/providers/dq/runtime/file_cache.h>

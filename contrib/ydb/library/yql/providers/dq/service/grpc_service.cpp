@@ -201,7 +201,7 @@ namespace NYql::NDqs {
                     r->SetStatus("Awaiting");
                     this->Send(ev->Sender, response.Release());
                 } else {
-                    ctx.Send(ev->Forward(ExecuterActorId));
+                    ctx.Send(ev->Forward(ExecuterActorId)); 
                 }
             }
 

@@ -26,7 +26,6 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/interface
     contrib/ydb/library/yql/providers/dq/worker_manager
     contrib/ydb/library/yql/providers/dq/worker_manager/interface
-    yt/yql/providers/dq/config
 )
 
 YQL_LAST_ABI_VERSION()
