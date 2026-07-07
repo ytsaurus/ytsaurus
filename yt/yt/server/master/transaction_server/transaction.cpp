@@ -280,7 +280,8 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, TablesWithBackupCheckpoints_);
     Save(context, Depth_);
     Save(context, RecursiveLockCount_);
-    Save(context, NativeCommitMutationRevision_);
+    Save(context, NativeCommitRevision_.Mutation);
+    Save(context, NativeCommitRevision_.Sequoia);
     Save(context, GetTransactionLeasesState());
     Save(context, LeaseCellIds_);
     Save(context, SuccessorTransactionLeaseCount_);
@@ -336,7 +337,15 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
         Load(context, upload);
     }
     Load(context, RecursiveLockCount_);
-    Load(context, NativeCommitMutationRevision_);
+    Load(context, NativeCommitRevision_.Mutation);
+
+    // Yes, this heavily relies on timestamps being significantly greater than
+    // every possible Hydra revision.
+    if (context.GetVersion() < EMasterReign::SequoiaRevision_26_1) {
+        NativeCommitRevision_.Sequoia = NativeCommitRevision_.Mutation;
+    } else {
+        Load(context, NativeCommitRevision_.Sequoia);
+    }
     if (context.GetVersion() < EMasterReign::RemoveCompatsAroundStartTransaction) {
         bool isCypressTransaction;
         Load(context, isCypressTransaction);

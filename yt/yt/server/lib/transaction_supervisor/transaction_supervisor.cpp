@@ -1533,7 +1533,44 @@ private:
 
         auto mutation = CreateMutation(HydraManager_, request);
         mutation->SetCurrentTraceContext();
-        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+
+        mutation
+            ->CommitAndLog(Logger)
+            .Subscribe(BIND([
+                this,
+                this_ = MakeStrong(this),
+                transactionId = commit->GetTransactionId()
+            ] (const TErrorOr<TMutationResponse>& errorOrResponse) {
+                if (errorOrResponse.GetCode() != NHydra::EErrorCode::ReadOnly) {
+                    return;
+                }
+
+                auto* commit = FindTransientCommit(transactionId);
+                if (!commit) {
+                    return;
+                }
+
+                if (commit->GetPersistent()) {
+                    YT_LOG_ALERT("Found persistent commit in transient commit map (TransactionId: %v, TransientState: %v, PersistentState: %v)",
+                        transactionId,
+                        commit->GetTransientState(),
+                        commit->GetPersistentState());
+                    return;
+                }
+
+                if (FindPersistentCommit(transactionId)) {
+                    YT_LOG_ALERT("Found transient commit in persistent commit map (TransactionId: %v, TransientState: %v, PersistentState: %v)",
+                        transactionId,
+                        commit->GetTransientState(),
+                        commit->GetPersistentState());
+                    return;
+                }
+
+                // Best effort to reduce duration of transient locks for
+                // trasnsaction which will be unlikely to be committed.
+                SetCommitFailed(commit, errorOrResponse);
+                RemoveTransientCommit(commit);
+            }).Via(EpochAutomatonInvoker_));
     }
 
     TFuture<TSharedRefArray> CoordinatorAbortTransaction(

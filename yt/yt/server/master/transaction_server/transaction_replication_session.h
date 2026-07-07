@@ -90,6 +90,8 @@ protected:
 
     NObjectClient::TCellTagList UnsyncedLocalTransactionCells_;
 
+    NCypressClient::TNodeId SequoiaNodeIdToLock_;
+
     // COMPAT(kvk1920): remove when use of Cypress tx proxy becomes mandatory.
     // We cannot rely on ID only to distinguish mirrored Cypress transaction
     // from non-mirrored one: both mirrored Cypress and Sequoia transactions
@@ -227,7 +229,11 @@ public:
      */
     using TTransactionReplicationSessionBase::TTransactionReplicationSessionBase;
 
-    void SetMutation(std::unique_ptr<NHydra::TMutation> mutation);
+    //! If #sequoiaNodeIdToLock is specified the request is executed in Sequoia
+    //! transaction. Shared lock will be acquired to conflict with node removal.
+    void SetMutation(
+        std::unique_ptr<NHydra::TMutation> mutation,
+        NCypressClient::TNodeId sequoiaNodeIdToLock);
 
     //! Returns a future that will be set when all necessary syncs with
     //! transaction coordinator cells are done, all transactions are

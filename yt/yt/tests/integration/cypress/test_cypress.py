@@ -5765,6 +5765,7 @@ class TestCypressSequoia(TestCypressMulticell):
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["sequoia_node_host"]},
         "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["sequoia_node_host"]},
     }
 
     @authors("theevilbird")
@@ -5795,5 +5796,21 @@ class TestCypressSequoia(TestCypressMulticell):
             branched_node_ids = get(f"#{tx}/@branched_node_ids")
             for cell, ids in branched_node_ids.items():
                 assert len(ids) == 0
+
+    @authors("kvk1920")
+    def test_cross_cell_revision(self):
+        last_revision = 0
+        for i in range(20):
+            node_id = create("document", f"//tmp/doc{i}", attributes={"value": {}})
+            new_revision = get(f"#{node_id}/@revision")
+            assert last_revision < new_revision
+            last_revision = new_revision
+
+        for i in range(20):
+            set(f"//tmp/doc{i}/value", 123)
+            new_revision = get(f"//tmp/doc{i}/@revision")
+            assert last_revision < new_revision
+            last_revision = new_revision
+
 
 ################################################################################

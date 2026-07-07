@@ -391,6 +391,7 @@ private:
     std::atomic<bool> MinimizeExecuteLatency_ = false;
     static constexpr double NullPrematureBackoffAlarmProbability = -1.0;
     std::atomic<double> PrematureBackoffAlarmProbability_ = NullPrematureBackoffAlarmProbability;
+    std::atomic<bool> WrapRequestsIntoSequoiaTransactions_;
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -485,6 +486,7 @@ public:
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(Bootstrap_, Logger))
         , PrematureBackoffAlarmProbability_(Owner_->GetPrematureBackoffAlarmProbability())
+        , WrapIntoSequoiaTransaction_(Owner_->WrapRequestsIntoSequoiaTransactions_.load(std::memory_order::acquire))
         , LocalReadInvoker_(Owner_->CreateLocalReadInvoker(Identity_.User))
         , AutomatonInvoker_(Owner_->GetAutomatonInvoker())
         , ReplyLockCount_(TotalSubrequestCount_)
@@ -599,6 +601,7 @@ private:
     const EPeerState TentativePeerState_;
     const TMultiPhaseCellSyncSessionPtr CellSyncSession_;
     const std::optional<double> PrematureBackoffAlarmProbability_;
+    const bool WrapIntoSequoiaTransaction_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
 
@@ -643,6 +646,7 @@ private:
         TReadRequestComplexityOverrides ReadRequestComplexityOverrides;
 
         i64 GroundUpdateQueueSequenceNumber = -1;
+        TNodeId SequoiaNodeIdToLock;
     };
 
     // For (local) read requests. (Write requests are handled by per-subrequest replication sessions.)
@@ -821,6 +825,18 @@ private:
             }
             if (GetSuppressTransactionCoordinatorSync(RpcContext_)) {
                 SetSuppressTransactionCoordinatorSync(&requestHeader, true);
+            }
+
+            if (WrapIntoSequoiaTransaction_ &&
+                requestHeader.HasExtension(NObjectClient::NProto::TResolvedSequoiaObjectExt::resolved_sequoia_object))
+            {
+                auto nodeId = FromProto<TObjectId>(requestHeader.GetExtension(NObjectClient::NProto::TResolvedSequoiaObjectExt::resolved_sequoia_object).object_id());
+                if (IsVersionedType(TypeFromId(nodeId)) &&
+                    CellTagFromId(nodeId) == Owner_->Bootstrap_->GetCellTag() &&
+                    IsSequoiaId(nodeId))
+                {
+                    subrequest.SequoiaNodeIdToLock = nodeId;
+                }
             }
 
             auto* ypathExt = requestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
@@ -1425,7 +1441,7 @@ private:
                 }
                 if (subrequest.Mutation) {
                     // Pre-phase-two.
-                    subrequest.RemoteTransactionReplicationSession->SetMutation(std::move(subrequest.Mutation));
+                    subrequest.RemoteTransactionReplicationSession->SetMutation(std::move(subrequest.Mutation), subrequest.SequoiaNodeIdToLock);
                 }
             } else {
                 addSubrequestTransactions(
@@ -2151,8 +2167,7 @@ private:
 
         auto timeLeft = GetTimeLeft(subrequest);
 
-        if (subrequest->RemoteTransactionReplicationSession && !subrequest->MutationResponseFuture)
-        {
+        if (subrequest->RemoteTransactionReplicationSession && !subrequest->MutationResponseFuture) {
             YT_VERIFY(subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
 
             subrequest->MutationResponseFuture =
@@ -2633,6 +2648,9 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
     EnableCypressTransactionsInSequoia_.store(
         sequoiaConfig->Enable && sequoiaConfig->EnableCypressTransactionsInSequoia,
+        std::memory_order::release);
+    WrapRequestsIntoSequoiaTransactions_.store(
+        sequoiaConfig->WrapObjectServiceExecuteIntoSequoiaTransaction,
         std::memory_order::release);
 
     LocalReadExecutor_->SetThreadCount(objectServiceConfig->LocalReadThreadCount);

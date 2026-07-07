@@ -260,6 +260,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/scion_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/scion_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/sequoia_actions_executor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/sequoia_actions_executor_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/shard_map_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/shard_proxy.cpp
@@ -385,6 +386,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/cypress_proxy_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/ground_update_queue_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/revision.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/config.cpp

@@ -503,6 +503,13 @@ TMaybeUnreachableResolveResult ResolvePathWithUnreachableResultAllowed(
     return DoResolvePath(session, path, /*pathIsAdditional*/ false, service, method, /*history*/ nullptr);
 }
 
+TNodeId TryParseTargetObjectId(NYPath::TYPath path)
+{
+    return Visit(GetRootDesignator(path).first,
+        [] (TNodeId id) { return id; },
+        [] (auto) { return NullObjectId; });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressProxy

@@ -116,6 +116,7 @@ TFuture<void> ReplicateCypressTransactionsToCell(
     std::vector<NTransactionClient::TTransactionId> transactionIds,
     NObjectClient::TCellId destinationCellId,
     std::unique_ptr<NTransactionServer::NProto::TReqReturnBoomerang> boomerang,
+    NCypressClient::TNodeId sequoiaNodeIdToLock,
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NSequoiaClient::TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,

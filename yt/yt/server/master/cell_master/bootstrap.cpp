@@ -357,6 +357,11 @@ const IMulticellStatisticsCollectorPtr& TBootstrap::GetMulticellStatisticsCollec
     return MulticellStatisticsCollector_;
 }
 
+const ISequoiaActionsExecutorPtr& TBootstrap::GetSequoiaActionsExecutor() const
+{
+    return SequoiaActionsExecutor_;
+}
+
 const IIncumbentManagerPtr& TBootstrap::GetIncumbentManager() const
 {
     return IncumbentManager_;

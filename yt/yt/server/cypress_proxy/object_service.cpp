@@ -859,6 +859,7 @@ private:
     {
         TStringBuf newPath;
 
+        auto& header = *subrequest->RequestHeader;
         Visit(resolveResult,
             [&] (const TCypressResolveResult& cypressResolveResult) {
                 newPath = cypressResolveResult.Path;
@@ -868,16 +869,17 @@ private:
             },
             [&] (const TSequoiaResolveResult& sequoiaResolveResult) {
                 subrequest->ResolvedNodeId = sequoiaResolveResult.Id;
+                NCypressClient::SetResolvedSequoiaObjectId(&header, subrequest->ResolvedNodeId);
 
                 newPath = sequoiaResolveResult.UnresolvedSuffix;
             },
             [&] (const TUnreachableSequoiaResolveResult& unreachableResolveResult) {
                 subrequest->ResolvedNodeId = unreachableResolveResult.Id;
+                NCypressClient::SetResolvedSequoiaObjectId(&header, subrequest->ResolvedNodeId);
 
                 newPath = "";
             });
 
-        auto& header = *subrequest->RequestHeader;
         SetAllowResolveFromSequoiaObject(&header, true);
         MaybeRewriteRequestTargetYPath(&header, newPath);
 
@@ -927,7 +929,7 @@ private:
         subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, header);
 
         YT_LOG_DEBUG(
-            "Forwarding subrequest to master (SubrequestIndex: %v, TargetPath: %v)",
+            "Forwarding subrequest to master after resolve in Sequoia (SubrequestIndex: %v, TargetPath: %v)",
             subrequest->Index,
             ypathExt->target_path());
     }
@@ -957,6 +959,18 @@ private:
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
             // Requests with system transactions cannot be handled in Sequoia.
             subrequest->Target = ERequestTarget::Master;
+
+            // Typical case is EndUpload. It can't be fully resolved because of
+            // the lack of Cypress transaction.
+            if (auto objectId = TryParseTargetObjectId(originalTargetPath)) {
+                NCypressClient::SetResolvedSequoiaObjectId(&*subrequest->RequestHeader, objectId);
+                subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, *subrequest->RequestHeader);
+            }
+
+            YT_LOG_DEBUG("Forwarding subrequest to master because of non-Cypress transaction (SubrequestIndex: %v, TransactionId: %v)",
+                subrequest->Index,
+                cypressTransactionId);
+
             return std::nullopt;
         }
 
@@ -1096,7 +1110,7 @@ private:
 
             subrequest.Target = ERequestTarget::None;
 
-            if (auto subresponseOrError = subresponses[subresponseIndex]; subresponseOrError.IsOK()) {
+            if (const auto& subresponseOrError = subresponses[subresponseIndex]; subresponseOrError.IsOK()) {
                 if (auto& subresponse = subresponseOrError.Value()) {
                     ReplyOnSubrequest(subrequestIndex, *subresponse);
                 }

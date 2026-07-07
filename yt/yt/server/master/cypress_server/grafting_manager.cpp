@@ -14,7 +14,12 @@
 
 #include <yt/yt/server/master/security_server/helpers.h>
 
+#include <yt/yt/server/master/sequoia_server/config.h>
+#include <yt/yt/server/master/sequoia_server/revision.h>
+
 #include <yt/yt/server/master/transaction_server/public.h>
+
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -27,6 +32,7 @@ namespace NYT::NCypressServer {
 using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NCypressClient;
+using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -453,6 +459,18 @@ private:
         if (scionCellTag == Bootstrap_->GetCellTag()) {
             HydraCreateScion(&request);
         } else {
+            if (auto sequoiaRevision = GetCurrentSequoiaRevision()) {
+                // Rootstock/scion creation is the only case when prepare
+                // timestamp is used insteaf of commit one.
+                if (auto* prepareRevision = std::get_if<TSequoiaRevisionPrepare>(&*sequoiaRevision)) {
+                    request.set_sequoia_revision(prepareRevision->NonMonotonicRevision.Underlying());
+                } else {
+                    YT_LOG_ALERT_UNLESS(
+                        std::holds_alternative<TSequoiaRevisionDisabled>(*sequoiaRevision),
+                        "Unexpected Sequoia revision kind during rootstock creation");
+                }
+            }
+
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, scionCellTag);
         }
@@ -512,6 +530,17 @@ private:
             effectiveAnnotationPath = request->effective_annotation_path();
         } else if (effectiveAnnotation) {
             effectiveAnnotationPath = path;
+        }
+
+        const auto& sequoiaConfig = Bootstrap_->GetDynamicConfig()->SequoiaManager;
+
+        std::optional<TSequoiaRevisionGuard> sequoiaTimestampGuard;
+        if (IsHiveMutation()) {
+            if (!sequoiaConfig->ShouldUseSequoiaRevisions()) {
+                sequoiaTimestampGuard.emplace(TSequoiaRevisionDisabled{});
+            } else if (request->has_sequoia_revision()) {
+                sequoiaTimestampGuard.emplace(TSequoiaRevisionCommit(TRevision(request->sequoia_revision())));
+            }
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();

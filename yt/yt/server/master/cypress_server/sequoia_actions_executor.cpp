@@ -2,8 +2,9 @@
 
 #include "config.h"
 #include "cypress_manager.h"
-#include "node_detail.h"
 #include "helpers.h"
+#include "node_detail.h"
+#include "sequoia_actions_executor_state.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -52,10 +53,11 @@ constinit const auto Logger = CypressServerLogger;
 
 class TSequoiaActionsExecutor
     : public ISequoiaActionsExecutor
+    , public TSequoiaActionsExecutorState
 {
 public:
     explicit TSequoiaActionsExecutor(TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
+        : TSequoiaActionsExecutorState(bootstrap)
     { }
 
     void Initialize() override
@@ -110,6 +112,38 @@ public:
         transactionManager->RegisterTransactionActionHandlers<TReqValidatePrerequisiteRevisions>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitValidatePrerequisites, Unretained(this)),
         });
+
+        transactionManager->SubscribeTransactionCommitted(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::OnTransactionCommitted, MakeStrong(this)));
+        transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::OnTransactionAborted, MakeStrong(this)));
+    }
+
+    void PrepareSequoiaNodeModification(
+        TTransaction* sequoiaTransaction,
+        TVersionedNodeId versionedNodeId,
+        EModificationType modificationType,
+        bool latePrepare) override
+    {
+        YT_ASSERT(sequoiaTransaction->IsSequoiaTransaction());
+
+        auto nodeId = versionedNodeId.ObjectId;
+        YT_ASSERT(IsSequoiaId(nodeId));
+
+        // NB: scion creation is special.
+        if (TypeFromId(nodeId) != EObjectType::Scion &&
+            TimestampFromId(nodeId) != CounterFromId(sequoiaTransaction->GetId()) &&
+            !latePrepare)
+        {
+            YT_LOG_ALERT(
+                "Attempt to postpone revision change for previously existed Sequoia node without late prepare "
+                "(NodeId: %v, ModificationType: %v)",
+                versionedNodeId,
+                modificationType);
+        }
+
+        PreparedModifications_[sequoiaTransaction].push_back({
+            .SequoiaNodeId = versionedNodeId,
+            .Type = modificationType,
+        });
     }
 
 private:
@@ -122,12 +156,53 @@ private:
         PreparingCommitting,
         PreparedCommitted,
         Aborting,
-        Aborted
+        Aborted,
     };
 
-    TBootstrap* const Bootstrap_;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    void OnTransactionCommitted(TTransaction* transaction)
+    {
+        if (!transaction->IsSequoiaTransaction()) {
+            return;
+        }
+
+        auto it = PreparedModifications_.find(transaction);
+        if (it == PreparedModifications_.end()) {
+            return;
+        }
+
+        auto commitRevision = GetOrCrash<TSequoiaRevisionCommit>(GetOrCrash(GetCurrentSequoiaRevision()))
+            .Revision;
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        for (const auto& modification : it->second) {
+            auto* node = cypressManager->FindNode(modification.SequoiaNodeId);
+            if (!node || !IsObjectAlive(node->GetTrunkNode())) {
+                continue;
+            }
+
+            switch (modification.Type) {
+                case EModificationType::Attributes:
+                    node->SetAttributeRevision(commitRevision);
+                    break;
+                case EModificationType::Content:
+                    node->SetContentRevision(commitRevision);
+                    break;
+            }
+        }
+
+        PreparedModifications_.erase(it);
+    }
+
+    void OnTransactionAborted(TTransaction* transaction)
+    {
+        if (!transaction->IsSequoiaTransaction()) {
+            return;
+        }
+
+        PreparedModifications_.erase(transaction);
+    }
 
     static TStringBuf FormatLogStage(ELogStage logStage)
     {

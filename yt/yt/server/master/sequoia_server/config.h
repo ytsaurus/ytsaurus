@@ -98,6 +98,13 @@ struct TDynamicSequoiaManagerConfig
 
     bool CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator;
 
+    bool WrapObjectServiceExecuteIntoSequoiaTransaction;
+
+    // NB: don't use it directly. Use ShouldUseSequoiaRevisions() instead.
+    bool EnableSequoiaRevisions;
+
+    bool ShouldUseSequoiaRevisions() const noexcept;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaManagerConfig);
 
     static void Register(TRegistrar registrar);
