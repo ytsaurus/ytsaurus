@@ -311,7 +311,10 @@ private:
                     .ValueOrThrow();
 
                 chunkManager
-                    ->ModifySequoiaReplicas(ESequoiaTransactionType::ChunkLocationDisposal, std::move(sequoiaRequest))
+                    ->ModifySequoiaReplicas(
+                        ESequoiaTransactionType::ChunkLocationDisposal,
+                        std::move(sequoiaRequest),
+                        /*allowBatching*/ false)
                     .Subscribe(BIND([=, mutation = std::move(mutation), this, this_ = MakeStrong(this)] (const TError& response) {
                         if (!response.IsOK()) {
                             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();

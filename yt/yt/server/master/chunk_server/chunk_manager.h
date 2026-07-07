@@ -390,7 +390,8 @@ struct IChunkManager
 
     virtual TFuture<void> ModifySequoiaReplicas(
         NSequoiaClient::ESequoiaTransactionType transactionType,
-        std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request) = 0;
+        std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request,
+        bool allowBatching) = 0;
 
     virtual TFuture<void> ReplaceSequoiaLocationReplicas(
         NSequoiaClient::ESequoiaTransactionType transactionType,
