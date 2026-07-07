@@ -200,6 +200,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixHunkChunkWeightStatisticsHistogram_26_2)                   (3328))  // akozhikhov
     ((NewWayToStoreHunkChunkListStatistics)                         (3329))  // akozhikhov
     ((SequoiaRevision_26_2)                                         (3330))  // kvk1920
+    ((SecondaryIndexUnfoldedColumnsSerializationFix)                (3331))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
