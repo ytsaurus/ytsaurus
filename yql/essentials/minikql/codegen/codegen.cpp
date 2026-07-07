@@ -505,7 +505,6 @@ public:
         }
 
         auto finalizeStart = Now();
-        Engine_->clearErrorMessage();
         Engine_->finalizeObject();
         if (Engine_->hasError()) {
             ythrow yexception() << "LLVM JIT finalization error: " << Engine_->getErrorMessage();
