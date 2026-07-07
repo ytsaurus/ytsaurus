@@ -14,8 +14,6 @@ from yt_type_helpers import (
 
 from yt_helpers import profiler_factory
 
-from yt.common import YtError
-
 from yt.yson.yson_types import YsonEntity
 
 import pytest
@@ -173,7 +171,6 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
         return result["summary"]
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatistics(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -183,7 +180,7 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
         write_table("<append=%true>//tmp/t", [{"a": "x" * 200}, {"c": True}])
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Table .* does not have schema and column selector is not specified"):
             get_table_columnar_statistics('["//tmp/t";]')
         self._expect_data_weight_statistics(2, 2, "a,b,c", [0, 0, 0])
         self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], expected_estimated_unique_counts=[2, 1, 2])
@@ -667,7 +664,7 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
         s = "x" * 100
         for i in range(5):
             write_table("<append=%true>//tmp/t", [{"a": s, "b": s, "c": s, "d": s, "e": s}])
-        with pytest.raises(YtError):
+        with raises_yt_error("User file table .* exceeds data weight limit: .* > .*"):
             vanilla(
                 spec={
                     "tasks": {
@@ -925,7 +922,6 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -963,7 +959,7 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
         write_table("<append=%true>//tmp/t", [{"a": "x" * 200}, {"c": True}])
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unable to fetch info for chunk .* from"):
             self._expect_data_weight_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=False)
 
         self._expect_data_weight_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=True)
@@ -972,7 +968,6 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsCommandEarlyFinishRpcProxy(TestColumnarStatisticsCommandEarlyFinish):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -988,7 +983,6 @@ class TestColumnarStatisticsCommandEarlyFinishRpcProxy(TestColumnarStatisticsCom
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1078,7 +1072,6 @@ class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1088,7 +1081,6 @@ class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsUseControllerAgentDefault(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -1128,7 +1120,6 @@ class TestColumnarStatisticsUseControllerAgentDefault(_TestColumnarStatisticsBas
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReadSizeEstimation(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1308,7 +1299,7 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
                 (200 + 400 + 800 + 1600 + 3200 + 6400) * 150,  # small + large_1 + large_2.
                 0 if strict else (12800 + 25600) * 150,  # unknown1 + unknown2.
                 ]):
-            assert expected_size * (1. - delta) <= statistic["read_size_estimation"] <= expected_size * (1. + delta)
+            assert expected_size * (1. - delta) <= statistic["read_size_estimate"] <= expected_size * (1. + delta)
 
     @authors("apollo1321")
     @pytest.mark.timeout(300)
@@ -1329,4 +1320,4 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
         delta = 0.03 if mode == "from_nodes" else 0.10
 
         for statistic in statistics:
-            assert expected_size * (1. - delta) <= statistic["read_size_estimation"] <= expected_size * (1. + delta)
+            assert expected_size * (1. - delta) <= statistic["read_size_estimate"] <= expected_size * (1. + delta)

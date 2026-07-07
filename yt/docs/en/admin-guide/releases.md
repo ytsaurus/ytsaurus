@@ -1,6 +1,9 @@
 # Release notes
 
-> Thanks to multiple outside contributors for the active participation in {{product-name}} development. 🖤
+> Note: This page is only available in English.
+
+Thanks to multiple outside contributors for the active participation in {{product-name}} development. 🖤
+
 
 ## {{product-name}} Server
 
@@ -24,9 +27,29 @@
 
 ## Kubernetes operator
 
-{% include notitle [SPYT](../_includes/releases/k8s.md) %}
+{% include notitle [k8s](../_includes/releases/k8s.md) %}
 
-## {{product-name}} Python YSON
+## Cron
+
+{% include notitle [Cron](../_includes/releases/cron.md) %}
+
+## Odin
+
+{% include notitle [Odin](../_includes/releases/odin.md) %}
+
+## Excel integration
+
+{% include notitle [Excel integration](../_includes/releases/excel-integration.md) %}
+
+## Tutorial
+
+{% include notitle [Tutorial](../_includes/releases/tutorial.md) %}
+
+## Task proxy
+
+{% include notitle [Task proxy](../_includes/releases/task-proxy.md) %}
+
+## Python YSON
 
 {% include notitle [Python YSON](../_includes/releases/python-yson.md) %}
 
@@ -39,5 +62,9 @@
 ### Java
 
 {% include notitle [Java](../_includes/releases/java-sdk.md) %}
+
+## UI
+
+{% include notitle [UI](../_includes/releases/ui.md) %}
 
 

@@ -14,6 +14,7 @@ import javax.persistence.Entity;
 import javax.persistence.Transient;
 
 import org.junit.Test;
+import tech.ytsaurus.testlib.proto.MapOutputProtoType;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -33,17 +34,22 @@ public class SkiffEntitySerializationTest {
         private List<String> organizations = new ArrayList<>();
         @Nullable
         private String car;
+        @Column(name = "proto-name")
+        private MapOutputProtoType protoName;
 
         Person() {
         }
 
-        Person(String name, int age, Phone phone, String password, List<String> organizations, @Nullable String car) {
+        Person(String name, int age, Phone phone, String password, List<String> organizations,
+               @Nullable String car, MapOutputProtoType protoName
+        ) {
             this.name = name;
             this.age = age;
             this.phone = phone;
             this.password = password;
             this.organizations = organizations;
             this.car = car;
+            this.protoName = protoName;
         }
 
         public String getName() {
@@ -82,6 +88,14 @@ public class SkiffEntitySerializationTest {
             return organizations;
         }
 
+        public MapOutputProtoType getProtoName() {
+            return protoName;
+        }
+
+        public void setProtoName(MapOutputProtoType protoName) {
+            this.protoName = protoName;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -95,12 +109,13 @@ public class SkiffEntitySerializationTest {
                     Objects.equals(name, person.name) &&
                     Objects.equals(phone, person.phone) &&
                     Objects.equals(organizations, person.organizations) &&
-                    Objects.equals(car, person.car);
+                    Objects.equals(car, person.car) &&
+                    Objects.equals(protoName, person.protoName);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, age, phone, password, organizations, car);
+            return Objects.hash(name, age, phone, password, organizations, car, protoName);
         }
 
         @Override
@@ -112,6 +127,7 @@ public class SkiffEntitySerializationTest {
                     ", password='" + password + '\'' +
                     ", organizations=" + organizations +
                     ", car='" + car + '\'' +
+                    ", protoName=" + protoName +
                     '}';
         }
     }
@@ -161,9 +177,15 @@ public class SkiffEntitySerializationTest {
 
     @Test
     public void testSerializeEntity() {
-        Person person = new Person("Ivan", 20,
+        Person person = new Person(
+                "Ivan",
+                20,
                 new Phone(12345),
-                "secret", Arrays.asList("ytsaurus", null, "spbu"), null);
+                "secret",
+                Arrays.asList("ytsaurus", null, "spbu"),
+                null,
+                MapOutputProtoType.newBuilder().setName("Ivan").setNameLength(4).build()
+        );
 
         ByteBuffer buffer = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
         buffer.putInt(person.getName().length());
@@ -188,11 +210,16 @@ public class SkiffEntitySerializationTest {
         byte[] lengthOfThirdOrganizationBytes = buffer.array();
         byte[] thirdOrganizationBytes = person.getOrganizations().get(2).getBytes(StandardCharsets.UTF_8);
 
+        buffer = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(person.getProtoName().getSerializedSize());
+        byte[] lengthOfProtoNameBytes = buffer.array();
+        byte[] protoNameBytes = person.getProtoName().toByteArray();
+
         byte[] expectedBytes = ByteBuffer
                 .allocate(3 + lengthOfNameBytes.length + nameBytes.length +
                         ageBytes.length + phoneNumberBytes.length + 2 + lengthOfFirstOrganizationBytes.length +
                         firstOrganizationBytes.length + 4 + lengthOfThirdOrganizationBytes.length +
-                        thirdOrganizationBytes.length + 1)
+                        thirdOrganizationBytes.length + 1 + lengthOfProtoNameBytes.length + protoNameBytes.length + 1)
                 .put(lengthOfNameBytes)
                 .put(nameBytes)
                 .put(ageBytes)
@@ -211,6 +238,9 @@ public class SkiffEntitySerializationTest {
                 .put(thirdOrganizationBytes)
                 .put((byte) 0xFF)
                 .put((byte) 0x00)
+                .put((byte) 0x01)
+                .put(lengthOfProtoNameBytes)
+                .put(protoNameBytes)
                 .array();
 
         byte[] bytes = new EntitySkiffSerializer<>(Person.class).serialize(person);
@@ -220,9 +250,15 @@ public class SkiffEntitySerializationTest {
 
     @Test
     public void testDeserializeEntity() {
-        Person person = new Person("Ivan", 20,
+        Person person = new Person(
+                "Ivan",
+                20,
                 new Phone(12345),
-                "secret", Arrays.asList("ytsaurus", null, "spbu"), null);
+                "secret",
+                Arrays.asList("ytsaurus", null, "spbu"),
+                null,
+                MapOutputProtoType.newBuilder().setName("Ivan").setNameLength(4).build()
+        );
 
         byte[] bytes = new EntitySkiffSerializer<>(Person.class).serialize(person);
 
@@ -230,6 +266,26 @@ public class SkiffEntitySerializationTest {
                 .deserialize(bytes)
                 .orElseThrow(IllegalStateException::new);
 
+        assertEquals(person, deserializedPerson);
+    }
+
+    @Test
+    public void testDeserializeEntityWithNullProtobuf() {
+        Person person = new Person(
+                "Ivan",
+                20,
+                new Phone(12345),
+                null,
+                Arrays.asList("ytsaurus", null, "spbu"),
+                null,
+                null
+        );
+
+        byte[] bytes = new EntitySkiffSerializer<>(Person.class).serialize(person);
+
+        Person deserializedPerson = new EntitySkiffSerializer<>(Person.class)
+                .deserialize(bytes)
+                .orElseThrow(IllegalStateException::new);
         assertEquals(person, deserializedPerson);
     }
 }

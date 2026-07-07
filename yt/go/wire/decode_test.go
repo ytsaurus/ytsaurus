@@ -1218,3 +1218,77 @@ func TestDecoder_decodeReflectTypeError(t *testing.T) {
 	require.Contains(t, err.Error(), "map[string]interface {}")
 	require.Contains(t, err.Error(), "wire.StructField")
 }
+
+func TestDecoder_UnmarshalRowOptionalInt64Pointer(t *testing.T) {
+	nameTable := NameTable{
+		{Name: "creation_time"},
+	}
+
+	// optional<int64> matches optional YT timestamp64 (microseconds as int64) at wire level.
+	d := NewDecoder(nameTable, &schema.Schema{Columns: []schema.Column{
+		{Name: "creation_time", ComplexType: schema.Optional{Item: schema.TypeInt64}},
+	}})
+
+	type row struct {
+		CreationTime *int64 `yson:"creation_time"`
+	}
+
+	t.Run("present", func(t *testing.T) {
+		var got row
+		const micros int64 = 1700000000000123
+		err := d.UnmarshalRow(Row{
+			NewInt64(0, micros),
+		}, &got)
+		require.NoError(t, err)
+		require.NotNil(t, got.CreationTime)
+		require.Equal(t, micros, *got.CreationTime)
+	})
+
+	t.Run("null", func(t *testing.T) {
+		x := int64(1)
+		got := row{CreationTime: &x}
+		err := d.UnmarshalRow(Row{
+			NewNull(0),
+		}, &got)
+		require.NoError(t, err)
+		require.Nil(t, got.CreationTime)
+	})
+}
+
+func TestDecoder_UnmarshalRowOptionalBoolPointer(t *testing.T) {
+	nameTable := NameTable{
+		{Name: "active"},
+	}
+
+	d := NewDecoder(nameTable, &schema.Schema{Columns: []schema.Column{
+		{Name: "active", ComplexType: schema.Optional{Item: schema.TypeBoolean}},
+	}})
+
+	type row struct {
+		Active *bool `yson:"active"`
+	}
+
+	t.Run("true", func(t *testing.T) {
+		var got row
+		err := d.UnmarshalRow(Row{NewBool(0, true)}, &got)
+		require.NoError(t, err)
+		require.NotNil(t, got.Active)
+		require.True(t, *got.Active)
+	})
+
+	t.Run("false", func(t *testing.T) {
+		var got row
+		err := d.UnmarshalRow(Row{NewBool(0, false)}, &got)
+		require.NoError(t, err)
+		require.NotNil(t, got.Active)
+		require.False(t, *got.Active)
+	})
+
+	t.Run("null", func(t *testing.T) {
+		b := true
+		got := row{Active: &b}
+		err := d.UnmarshalRow(Row{NewNull(0)}, &got)
+		require.NoError(t, err)
+		require.Nil(t, got.Active)
+	})
+}

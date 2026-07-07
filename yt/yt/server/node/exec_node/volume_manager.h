@@ -1,7 +1,8 @@
 #pragma once
 
-#include "public.h"
 #include "preparation_options.h"
+#include "public.h"
+#include "volume.h"
 #include "volume_artifact.h"
 
 #include <yt/yt/core/actions/future.h>
@@ -12,31 +13,50 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This class can create root volume as well as tmpfs volumes.
+//! This class creates all volumes for job.
 struct IVolumeManager
     : public virtual TRefCounted
 {
-    //! Prepare root overlayfs volume.
+    //! Create root overlayfs volume from pre-prepared overlay layer data.
     virtual TFuture<IVolumePtr> PrepareVolume(
-        const std::vector<TArtifactKey>& artifactKeys,
+        std::vector<TOverlayData> overlayDataArray,
         const TVolumePreparationOptions& options) = 0;
 
-    //! Prepare tmpfs volumes.
-    virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
-        const std::optional<TString>& sandboxPath,
-        const std::vector<TTmpfsVolumeParams>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
+    //! Prepare non-root volumes from pre-prepared overlay layer data.
+    //! perVolumeOverlayData[i] is the overlay data for volumes[i].
+    virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
+        const std::optional<std::string>& sandboxPath,
+        const TJobId& jobId,
+        const std::vector<TBaseVolumeParamsPtr>& volumes,
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
+        const std::vector<TVolumeMountPtr>& volumeMounts) = 0;
+
+    //! Prepare overlay layers (download/import) for a set of artifact keys.
+    //! Returns one future per layer; each resolves to TOverlayData.
+    virtual std::vector<TFuture<TOverlayData>> PrepareOverlayLayers(
+        TJobId jobId,
+        std::vector<TOverlayLayerPreparationOptions> layerOptions,
+        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
 
     //! TODO(yuryalekeev): Remove this method after we get rid of rbind volume.
     virtual TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
-        const TString& slotPath) = 0;
+        const std::string& slotPath) = 0;
 
-    //! Link tmpfs volumes into destination directory.
-    virtual TFuture<void> LinkTmpfsVolumes(
-        const TString& destinationDirectory,
-        const std::vector<TTmpfsVolumeResult>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
+    //! Link volumes into destination directory.
+    virtual TFuture<void> LinkVolumes(
+        const std::string& destinationDirectory,
+        const std::vector<TVolumeResultPtr>& volumes,
+        const std::vector<TVolumeMountPtr>& volumeMounts) = 0;
+
+    //! Remove volumes planted at a given place, excluding the given porto mount paths.
+    virtual TFuture<void> RemoveVolumes(
+        const std::string& place,
+        TDuration timeout,
+        const THashSet<std::string>& excludedVolumePaths = {}) = 0;
+
+    //! Remove layers planted at a given place.
+    virtual TFuture<void> RemoveLayers(const std::string& place, TDuration timeout) = 0;
 
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 

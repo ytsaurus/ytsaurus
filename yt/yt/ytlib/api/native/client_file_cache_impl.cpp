@@ -26,7 +26,7 @@ namespace {
 constexpr int FileCacheHashDigitCount = 2;
 constexpr int MD5HashDigitCount = 32;
 
-TYPath GetFilePathInCache(const TString& md5, const TYPath& cachePath)
+TYPath GetFilePathInCache(const std::string& md5, const TYPath& cachePath)
 {
     YT_VERIFY(std::size(md5) == MD5HashDigitCount);
 
@@ -39,7 +39,7 @@ TYPath GetFilePathInCache(const TString& md5, const TYPath& cachePath)
 ////////////////////////////////////////////////////////////////////////////////
 
 void TClient::SetTouchedAttribute(
-    const TString& destination,
+    const TYPath& destination,
     const TPrerequisiteOptions& options,
     TTransactionId transactionId)
 {
@@ -66,7 +66,7 @@ void TClient::SetTouchedAttribute(
 }
 
 TGetFileFromCacheResult TClient::DoGetFileFromCache(
-    const TString& md5,
+    const std::string& md5,
     const TGetFileFromCacheOptions& options)
 {
     TGetFileFromCacheResult result;
@@ -102,7 +102,7 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
     auto rsp = rspOrError.Value();
     auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-    auto originalMD5 = attributes->Get<TString>("md5", TString());
+    auto originalMD5 = attributes->Get<std::string>("md5", std::string());
     if (md5 != originalMD5) {
         YT_LOG_DEBUG(
             "File has incorrect MD5 hash "
@@ -130,7 +130,7 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
 
 TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
     const TYPath& path,
-    const TString& expectedMD5,
+    const std::string& expectedMD5,
     const TPutFileToCacheOptions& options,
     NLogging::TLogger logger)
 {
@@ -211,7 +211,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
         auto rsp = rspOrError.Value();
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-        auto md5 = attributes->Get<TString>("md5");
+        auto md5 = attributes->Get<std::string>("md5");
         if (expectedMD5 != md5) {
             THROW_ERROR_EXCEPTION(
                 "MD5 mismatch: expected %v, got %v",
@@ -256,7 +256,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
 
 TPutFileToCacheResult TClient::DoPutFileToCache(
     const TYPath& path,
-    const TString& expectedMD5,
+    const std::string& expectedMD5,
     const TPutFileToCacheOptions& options)
 {
     auto Logger = this->Logger().WithTag("Path: %v, Command: PutFileToCache", path);

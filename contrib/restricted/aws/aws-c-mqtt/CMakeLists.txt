@@ -49,6 +49,7 @@ target_sources(restricted-aws-aws-c-mqtt PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/mqtt.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/mqtt311_decoder.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/mqtt311_listener.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/mqtt_iot_metrics.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/mqtt_subscription_set.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/packets.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/request-response/protocol_adapter.c
@@ -122,6 +123,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/mqtt311_listener.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/mqtt_iot_metrics.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS

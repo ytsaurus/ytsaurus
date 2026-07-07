@@ -31,6 +31,16 @@ func CastInt[S, D constraints.Integer](src *S) *D {
 	return &dst
 }
 
+// CastString converts given ~string pointer to another ~string pointer
+// e.g. CastString[CustomType, string](&CustomTypeValue)
+func CastString[S, D ~string](src *S) *D {
+	if src == nil {
+		return nil
+	}
+	dst := D(*src)
+	return &dst
+}
+
 // Uint returns pointer to provided value
 func Uint(v uint) *uint { return &v }
 
@@ -116,6 +126,17 @@ func From[T any](v *T) T {
 // EqualVal nil-safe compare dereference values. True if both pointers are nil
 func EqualVal[T comparable](v *T, w *T) bool {
 	return (v == nil && w == nil) || (v != nil && w != nil && *v == *w)
+}
+
+// Coalesce returns the first non-nil pointer in its arguments.
+// It returns nil if all arguments are nil.
+func Coalesce[T any](vs ...*T) *T {
+	for _, v := range vs {
+		if v != nil {
+			return v
+		}
+	}
+	return nil
 }
 
 // isZero checks if provided value is empty value for the T

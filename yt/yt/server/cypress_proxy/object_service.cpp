@@ -4,7 +4,7 @@
 
 #include "actions.h"
 #include "bootstrap.h"
-#include "config.h"
+#include "ban_service.h"
 #include "cypress_proxy_service_base.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
@@ -16,6 +16,8 @@
 #include "sequoia_session.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/object_server/helpers.h>
 
@@ -106,7 +108,7 @@ public:
             BIND_NO_PROPAGATE(&TObjectService::OnUserDirectoryUpdated, MakeWeak(this)));
 
         const auto& configManager = Bootstrap_->GetDynamicConfigManager();
-        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeAfterConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     IServicePtr GetService() override
@@ -119,7 +121,7 @@ public:
         return Bootstrap_->GetMasterConnector()->IsUp();
     }
 
-    const TObjectServiceDynamicConfigPtr& GetDynamicConfig() const
+    TObjectServiceDynamicConfigPtr GetDynamicConfig() const
     {
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService;
     }
@@ -214,15 +216,11 @@ private:
             }
 
             auto limit = GetUserRequestRateLimit(*descriptor, userNameAndWorkloadType.second);
-            if (limit) {
-                limit = *limit * dynamicConfig->RequestRateLimitFactor;
-            }
-
             auto newConfig = TThroughputThrottlerConfig::Create(limit);
             queue->ConfigureWeightThrottler(newConfig);
             queue->SetQueueSizeLimit(descriptor->QueueSizeLimit);
 
-            // We utilize the fact that #GetOrCreateThrottle keeps #TWrappedThrottler pointers valid,
+            // We utilize the fact that #GetOrCreateThrottler keeps #TWrappedThrottler pointers valid,
             // including the one inside the request queue.
             // TODO(danilalexeev): Implement public methods to explicitly set request queue's throttlers.
             auto queueName = GetRequestQueueNameForKey(userNameAndWorkloadType);
@@ -241,12 +239,10 @@ private:
         RequestQueueProvider_->UpdateTotalLimits(Bootstrap_->GetUserDirectory());
     }
 
-    void OnDynamicConfigChanged(
-        const TCypressProxyDynamicConfigPtr& oldConfig,
-        const TCypressProxyDynamicConfigPtr& newConfig)
+    void OnDynamicConfigChanged(const TCypressProxyDynamicConfigPtr& oldConfig)
     {
         const auto& oldObjectServiceConfig = oldConfig->ObjectService;
-        const auto& newObjectServiceConfig = newConfig->ObjectService;
+        const auto& newObjectServiceConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService;
 
         ThrottlerFactory_->Reconfigure(newObjectServiceConfig->DistributedThrottler);
 
@@ -264,12 +260,7 @@ private:
 
             YT_LOG_DEBUG("Per-user request weight throttling was %v",
                 newObjectServiceConfig->EnablePerUserRequestWeightThrottling ? "enabled" : "disabled");
-        } else if (newObjectServiceConfig->EnablePerUserRequestWeightThrottling &&
-            newObjectServiceConfig->RequestRateLimitFactor != oldObjectServiceConfig->RequestRateLimitFactor)
-        {
-            RequestQueueProvider_->ReconfigureAllQueues();
         }
-
     }
 };
 
@@ -302,6 +293,7 @@ public:
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
             targetCellTag != Owner_->Connection_->GetPrimaryMasterCellTag())
+        , DynamicConfig_(Owner_->GetDynamicConfig())
         , Logger(Owner_->Logger.WithTag("RequestId: %v", RpcContext_->GetRequestId()))
     { }
 
@@ -339,6 +331,7 @@ private:
         std::optional<NRpc::NProto::TRequestHeader> RequestHeader;
 
         ERequestTarget Target = ERequestTarget::Undetermined;
+        bool IsSequoiaFallback = false;
 
         // If request was resolved in Sequoia and forwared to master server then
         // "No such object" error should be retriable to allow the following use
@@ -362,13 +355,16 @@ private:
     };
     std::vector<TSubrequest> Subrequests_;
 
+    const TObjectServiceDynamicConfigPtr DynamicConfig_;
+
     const NLogging::TLogger Logger;
 
     void GuardedRun()
     {
+        ValidateUserNotBanned();
         ParseSubrequests();
 
-        if (!Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
+        if (!DynamicConfig_->AllowBypassMasterResolve) {
             PredictNonMaster();
             InvokeMasterRequests(/*beforeSequoiaResolve*/ true);
         } else {
@@ -379,6 +375,14 @@ private:
         InvokeMasterRequests(/*beforeSequoiaResolve*/ false);
 
         Reply();
+    }
+
+    void ValidateUserNotBanned()
+    {
+        const auto& user = AuthenticationIdentity_.User;
+        if (Owner_->Bootstrap_->GetBanService()->IsBanned(user)) {
+            THROW_ERROR_EXCEPTION("User %Qv is banned via ban service", user);
+        }
     }
 
     void ParseSubrequests()
@@ -437,7 +441,7 @@ private:
                 mutating = mutatingSubrequest;
             }
 
-            if (mutating != mutatingSubrequest && Owner_->GetDynamicConfig()->AlertOnMixedReadWriteBatch) {
+            if (mutating != mutatingSubrequest) {
                 YT_LOG_ALERT("Batch request contains both mutating and non-mutating subrequests");
             }
         }
@@ -604,7 +608,7 @@ private:
                 NObjectServer::ComputeForwardingTimeout(
                     *RpcContext_->GetTimeout(),
                     RpcContext_->GetStartTime(),
-                    Owner_->GetDynamicConfig()->ForwardedRequestTimeoutReserve));
+                    DynamicConfig_->ForwardedRequestTimeoutReserve));
         }
 
         // Copy some header extensions.
@@ -740,6 +744,7 @@ private:
         if (involvesSequoiaError.has_value()) {
             auto& subrequest = Subrequests_[subrequestIndex];
             subrequest.Target = ERequestTarget::Sequoia;
+            subrequest.IsSequoiaFallback = true;
             RewriteSequoiaRequestTargetPath(&subrequest, *involvesSequoiaError);
         }
 
@@ -752,12 +757,12 @@ private:
     {
         const auto& attributes = error.Attributes();
 
-        auto rootstockPath = attributes.Find<TString>("rootstock_path");
+        auto rootstockPath = attributes.Find<NYPath::TYPath>("rootstock_path");
         if (!rootstockPath.has_value()) {
             return;
         }
 
-        auto unresolvedSuffix = attributes.Find<TString>("unresolved_suffix");
+        auto unresolvedSuffix = attributes.Find<NYPath::TYPath>("unresolved_suffix");
         if (!unresolvedSuffix.has_value()) {
             return;
         }
@@ -845,6 +850,7 @@ private:
     {
         TStringBuf newPath;
 
+        auto& header = *subrequest->RequestHeader;
         Visit(resolveResult,
             [&] (const TCypressResolveResult& cypressResolveResult) {
                 newPath = cypressResolveResult.Path;
@@ -854,16 +860,17 @@ private:
             },
             [&] (const TSequoiaResolveResult& sequoiaResolveResult) {
                 subrequest->ResolvedNodeId = sequoiaResolveResult.Id;
+                NCypressClient::SetResolvedSequoiaObjectId(&header, subrequest->ResolvedNodeId);
 
                 newPath = sequoiaResolveResult.UnresolvedSuffix;
             },
             [&] (const TUnreachableSequoiaResolveResult& unreachableResolveResult) {
                 subrequest->ResolvedNodeId = unreachableResolveResult.Id;
+                NCypressClient::SetResolvedSequoiaObjectId(&header, subrequest->ResolvedNodeId);
 
                 newPath = "";
             });
 
-        auto& header = *subrequest->RequestHeader;
         SetAllowResolveFromSequoiaObject(&header, true);
         MaybeRewriteRequestTargetYPath(&header, newPath);
 
@@ -897,8 +904,9 @@ private:
         auto& header = *subrequest->RequestHeader;
         SetAllowResolveFromSequoiaObject(&header, true);
         if (payload.EffectiveAcl.has_value()) {
-            SetSequoiaNodeEffectiveAcl(&header, payload.EffectiveAcl->ToString());
+            SetSequoiaNodeEffectiveAcl(&header, *payload.EffectiveAcl);
         }
+        SetSequoiaNodeHasRowLevelAce(&header, payload.HasRowLevelAce);
 
         auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         // Replace "<unresolved-suffix>"" with "#<object-id>/<unresolved-suffix>".
@@ -912,7 +920,7 @@ private:
         subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, header);
 
         YT_LOG_DEBUG(
-            "Forwarding subrequest to master (SubrequestIndex: %v, TargetPath: %v)",
+            "Forwarding subrequest to master after resolve in Sequoia (SubrequestIndex: %v, TargetPath: %v)",
             subrequest->Index,
             ypathExt->target_path());
     }
@@ -942,6 +950,18 @@ private:
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
             // Requests with system transactions cannot be handled in Sequoia.
             subrequest->Target = ERequestTarget::Master;
+
+            // Typical case is EndUpload. It can't be fully resolved because of
+            // the lack of Cypress transaction.
+            if (auto objectId = TryParseTargetObjectId(originalTargetPath)) {
+                NCypressClient::SetResolvedSequoiaObjectId(&*subrequest->RequestHeader, objectId);
+                subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, *subrequest->RequestHeader);
+            }
+
+            YT_LOG_DEBUG("Forwarding subrequest to master because of non-Cypress transaction (SubrequestIndex: %v, TransactionId: %v)",
+                subrequest->Index,
+                cypressTransactionId);
+
             return std::nullopt;
         }
 
@@ -1025,18 +1045,27 @@ private:
         const auto& masterConnector = Owner_->Bootstrap_->GetMasterConnector();
         masterConnector->ValidateRegistration();
 
+        bool hasSequoiaFallbackRequests = false;
+        int relevantSubrequestCount = 0;
         auto isSubrequestRelevant = [] (const TSubrequest& subrequest) {
             return subrequest.Target == ERequestTarget::Undetermined ||
                 subrequest.Target == ERequestTarget::Sequoia;
         };
+        for (const auto& subrequest : Subrequests_) {
+            if (isSubrequestRelevant(subrequest)) {
+                ++relevantSubrequestCount;
+            }
+            if (subrequest.IsSequoiaFallback) {
+                hasSequoiaFallbackRequests = true;
+            }
+        }
 
-        auto relevantSubrequestCount = std::ranges::count_if(Subrequests_, isSubrequestRelevant);
         if (relevantSubrequestCount == 0) {
             // No Sequoia requests are present.
             return;
         }
 
-        MaybeSyncWithMaster();
+        MaybeSyncWithMaster(hasSequoiaFallbackRequests);
 
         const auto& invoker = Owner_->GetDefaultInvoker();
         std::vector<TFuture<std::optional<TSharedRefArray>>> asyncSubresponses;
@@ -1072,7 +1101,7 @@ private:
 
             subrequest.Target = ERequestTarget::None;
 
-            if (auto subresponseOrError = subresponses[subresponseIndex]; subresponseOrError.IsOK()) {
+            if (const auto& subresponseOrError = subresponses[subresponseIndex]; subresponseOrError.IsOK()) {
                 if (auto& subresponse = subresponseOrError.Value()) {
                     ReplyOnSubrequest(subrequestIndex, *subresponse);
                 }
@@ -1121,8 +1150,12 @@ private:
     // Performs selective synchronization with
     // - the user directory,
     // - the ground update queues across all master cells.
-    void MaybeSyncWithMaster() const
+    void MaybeSyncWithMaster(bool hasSequoiaFallbackRequests) const
     {
+        const auto& userDirectorySynchronizer = Owner_->Bootstrap_->GetUserDirectorySynchronizer();
+        WaitForFast(userDirectorySynchronizer->RecentSync())
+            .ThrowOnError();
+
         const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
         if (!config->EnableUserDirectoryPerRequestSync &&
             !config->EnableGroundUpdateQueuesSync)
@@ -1138,10 +1171,11 @@ private:
 
         std::vector<TFuture<void>> futures;
         if (config->EnableUserDirectoryPerRequestSync) {
-            const auto& userDirectorySynchronizer = Owner_->Bootstrap_->GetUserDirectorySynchronizer();
             futures.push_back(userDirectorySynchronizer->NextSync(true));
         }
-        if (config->EnableGroundUpdateQueuesSync) {
+        if (config->EnableGroundUpdateQueuesSync &&
+            (Owner_->GetDynamicConfig()->SyncGroundUpdateQueueOnEveryRequest || hasSequoiaFallbackRequests))
+        {
             futures.push_back(DoSyncWithGroundUpdateQueues());
         }
 

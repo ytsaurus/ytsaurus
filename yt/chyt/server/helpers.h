@@ -29,19 +29,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<NYT::NTableClient::ESimpleLogicalValueType LogicalType>
+template <NYT::NTableClient::ESimpleLogicalValueType LogicalType>
 using TTzIntegerType = NYT::NTableClient::TUnderlyingTimestampIntegerType<NYT::NTableClient::TUnderlyingTzType<LogicalType>>;
 
-template<NTableClient::ESimpleLogicalValueType LogicalType>
+template <NTableClient::ESimpleLogicalValueType LogicalType>
 TTzIntegerType<LogicalType> GetTimestampFromTzString(std::string_view tzString);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<TString, NHydra::TRevision>& path);
+void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<NYPath::TYPath, NHydra::TRevision>& path);
 
-////////////////////////////////////////////////////////////////////////////////
-
-void FromProto(std::pair<TString, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath);
+void FromProto(std::pair<NYPath::TYPath, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,11 +49,14 @@ namespace NClickHouseServer {
 
 TGuid ToGuid(DB::UUID uuid);
 
+//! Register a new user in CH AccessControl and grant them all the necessary permissions.
+//! This is suitable for internal CHYT users. For real users, it is preferable to use THost::PrepareClickHouseUser.
 void RegisterNewUser(
     DB::AccessControl& accessControl,
     const std::string& userName,
     const std::vector<TString>& userDefinedDatabaseNames = {},
-    bool allowSqlUdfManagement = false);
+    bool allowSqlUdfManagement = false,
+    bool allowGlobalDictionaryAccess = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,8 +140,8 @@ namespace DB {
 void Serialize(const QueryStatusInfo& queryStatusInfo, NYT::NYson::IYsonConsumer* consumer);
 void Serialize(const ProcessListForUserInfo& processListForUserInfo, NYT::NYson::IYsonConsumer* consumer);
 
-TString ToString(const Field& field);
-TString ToString(const Block& block);
+std::string ToString(const Field& field);
+std::string ToString(const Block& block);
 
 void FormatValue(NYT::TStringBuilderBase* builder, const Field& field, TStringBuf spec);
 void FormatValue(NYT::TStringBuilderBase* builder, const Block& block, TStringBuf spec);

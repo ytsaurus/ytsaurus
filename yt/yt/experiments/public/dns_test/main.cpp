@@ -7,6 +7,7 @@
 #include <yt/yt/core/dns/config.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/yt/misc/optional.h>
 
@@ -85,7 +86,7 @@ protected:
 
         auto resolver = CreateAresDnsResolver(config);
 
-        std::vector<TString> hostnames;
+        std::vector<std::string> hostnames;
         std::vector<TFuture<TNetworkAddress>> futures;
 
         auto t0 = TInstant::Now();
@@ -99,6 +100,7 @@ protected:
         }
 
         if (args.empty()) {
+            // TODO(babenko): drop TString once TInputStream::ReadLine accepts std::string.
             TString hostname;
             while (Cin.ReadLine(hostname)) {
                 hostnames.push_back(hostname);
@@ -122,7 +124,7 @@ protected:
             .Run());
         }
 
-        auto results = AllSet(futures).Get().ValueOrThrow();
+        auto results = WaitFor(AllSet(futures)).ValueOrThrow();
 
         auto t1 = TInstant::Now();
 

@@ -1,8 +1,7 @@
 #pragma once
 
-#include "private.h"
-
 #include "chunk_pool.h"
+#include "private.h"
 
 #include <yt/yt/core/logging/log.h>
 

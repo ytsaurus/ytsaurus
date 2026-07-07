@@ -14,9 +14,9 @@ namespace NYT::NS3 {
 
 struct TCredentials
 {
-    TString AccessKeyId;
-    TString SecretAccessKey;
-    TString SessionToken;
+    std::string AccessKeyId;
+    std::string SecretAccessKey;
+    std::string SessionToken;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,8 +35,8 @@ DEFINE_REFCOUNTED_TYPE(ICredentialsProvider)
 ////////////////////////////////////////////////////////////////////////////////
 
 ICredentialsProviderPtr CreateAnonymousCredentialProvider();
-ICredentialsProviderPtr CreateStaticCredentialProvider(TString accessKey, TString secretKey);
-ICredentialsProviderPtr CreateTVMCredentialProvider(NAuth::TTvmId selfTvm, NAuth::TTvmId s3Tvm, TString tvmSecret);
+ICredentialsProviderPtr CreateStaticCredentialProvider(std::string accessKey, std::string secretKey);
+ICredentialsProviderPtr CreateTVMCredentialProvider(NAuth::TTvmId selfTvm, NAuth::TTvmId s3Tvm, std::string tvmSecret);
 
 ////////////////////////////////////////////////////////////////////////////////
 

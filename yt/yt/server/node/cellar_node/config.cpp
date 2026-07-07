@@ -44,12 +44,41 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TBundleControllerConnectorDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
+        .Default({
+            {
+                .Period = TDuration::Seconds(5),
+                .Splay = TDuration::Seconds(5),
+                .Jitter = 0.1,
+            },
+            {
+                .MinBackoff = TDuration::Seconds(5),
+                .MaxBackoff = TDuration::Seconds(60),
+                .BackoffMultiplier = 2.0,
+            },
+        });
+
+    registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
+        .Default(TDuration::Seconds(60));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCellarNodeDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cellar_manager", &TThis::CellarManager)
         .DefaultNew();
     registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
+    registrar.Parameter("bundle_controller_connector", &TThis::BundleControllerConnector)
+        .DefaultNew();
+    registrar.Parameter("deduce_profiling_tag_from_bundle_name", &TThis::DeduceProfilingTagFromBundleName)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +93,9 @@ void TCellarNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("transaction_lease_tracker", &TThis::TransactionLeaseTracker)
         .DefaultNew();
+
+    registrar.Parameter("deduce_profiling_tag_from_bundle_name", &TThis::DeduceProfilingTagFromBundleName)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

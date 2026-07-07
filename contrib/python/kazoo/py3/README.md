@@ -6,7 +6,7 @@ Kazoo
 [![Reviewed by Hound](https://img.shields.io/badge/Reviewed_by-Hound-8E64B0.svg)](https://houndci.com)
 
 `kazoo` implements a higher level API to [Apache
-Zookeeper](http://zookeeper.apache.org/) for Python clients.
+ZooKeeper](http://zookeeper.apache.org/) for Python clients.
 
 See [the full docs](http://kazoo.rtfd.org/) for more information.
 

@@ -8,12 +8,15 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/json/json_parser.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/library/named_value/named_value.h>
+
+#include <library/cpp/yt/string/stream.h>
 
 #include <limits>
 
@@ -50,7 +53,7 @@ class TWriterForWebJson
 protected:
     TNameTablePtr NameTable_ = New<TNameTable>();
     TWebJsonFormatConfigPtr Config_ = New<TWebJsonFormatConfig>();
-    TStringStream OutputStream_;
+    TStdStringStream OutputStream_;
     ISchemalessFormatWriterPtr Writer_;
 
     const std::string ValueColumnName_ = "value";
@@ -678,7 +681,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
             }).Get(),
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        WaitForFast(Writer_->Close()).ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());
@@ -761,7 +764,7 @@ TEST_F(TWriterForWebJson, ColumnNameEncoding)
             }).Get()
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        WaitForFast(Writer_->Close()).ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());
@@ -1151,7 +1154,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             }).Get(),
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        WaitForFast(Writer_->Close()).ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());
@@ -1485,7 +1488,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
             }).Get(),
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        WaitForFast(Writer_->Close()).ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());
@@ -1582,7 +1585,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Any)
             MakeRow(NameTable_, {{"column_a", 42u}}).Get(),
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        WaitForFast(Writer_->Close()).ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());
@@ -1673,7 +1676,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_CompositeNoSchema)
             MakeRow(NameTable_, {{"column_a", EValueType::Composite, "[1;2]"}}).Get(),
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        WaitForFast(Writer_->Close()).ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());

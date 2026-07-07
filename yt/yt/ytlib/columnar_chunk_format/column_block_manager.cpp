@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/client/table_client/config.h>
@@ -50,7 +51,7 @@ constinit const auto Logger = NTableClient::TableClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Need to declare move constructor to use in std::vector
-TGroupBlockHolder::TGroupBlockHolder(TGroupBlockHolder&&)
+TGroupBlockHolder::TGroupBlockHolder(TGroupBlockHolder&&) noexcept
 {
     YT_ABORT();
 }
@@ -151,8 +152,8 @@ TCompactVector<ui16, 32> GetGroupsIds(
         *groupIdsData++ = preparedChunkMeta.ColumnInfos[index].GroupId;
     }
 
-    for (auto [chunkSchemaIndex, _] : valuesIdMapping) {
-        *groupIdsData++ = preparedChunkMeta.ColumnInfos[chunkSchemaIndex].GroupId;
+    for (const auto& entry : valuesIdMapping) {
+        *groupIdsData++ = preparedChunkMeta.ColumnInfos[entry.ChunkSchemaIndex].GroupId;
     }
 
     // Timestamp group id.
@@ -282,7 +283,7 @@ public:
                 return false;
             }
 
-            auto loadedBlocksOrError = FetchedBlocks_.AsUnique().Get();
+            auto loadedBlocksOrError = FetchedBlocks_.AsUnique().GetOrCrash();
             if (!loadedBlocksOrError.IsOK()) {
                 return false;
             }
@@ -558,7 +559,7 @@ public:
                 return false;
             }
 
-            auto loadedBlocksOrError = FetchedBlocks_.AsUnique().Get();
+            auto loadedBlocksOrError = FetchedBlocks_.AsUnique().GetOrCrash();
             if (!loadedBlocksOrError.IsOK()) {
                 return false;
             }

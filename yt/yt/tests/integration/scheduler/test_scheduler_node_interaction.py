@@ -5,7 +5,7 @@ from yt_commands import (
     get, set, remove, exists, raises_yt_error,
     update_nodes_dynamic_config, update_scheduler_config, update_pool_tree_config_option,
     create_pool, create_pool_tree, read_table, write_table,
-    map, run_test_vanilla,
+    map, run_test_vanilla, run_sleeping_vanilla,
     abort_job, get_job, list_jobs,
     get_operation_cypress_path, set_node_banned)
 
@@ -16,7 +16,7 @@ from yt_helpers import profiler_factory
 from yt_scheduler_helpers import (
     scheduler_orchid_node_path, scheduler_orchid_path)
 
-from yt.common import YtError, YtResponseError
+from yt.common import YtResponseError
 
 import pytest
 
@@ -27,7 +27,6 @@ import builtins
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -102,7 +101,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         for id in jobs:
             release_breakpoint(job_id=id)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("All suitable online nodes in trees .* were banned"):
             op.track()
 
     @authors("ignat")
@@ -112,7 +111,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
 
         create("table", "//tmp/t2", attributes={"replication_factor": 1})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -127,7 +126,6 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplacementCpuToVCpu(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -240,7 +238,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
     @authors("nadya73")
     def test_cpu_to_vcpu_factor_no_enough_cpu(self):
         self._init_dynamic_config()
-        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+        with raises_yt_error(code=yt_error_codes.NoOnlineNodeToScheduleJob):
             run_test_vanilla(
                 "sleep 1",
                 task_patch={"cpu_limit": 24},
@@ -263,7 +261,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
             }
         })
 
-        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+        with raises_yt_error(code=yt_error_codes.NoOnlineNodeToScheduleJob):
             run_test_vanilla(
                 "sleep 1",
                 task_patch={"cpu_limit": 24},
@@ -275,7 +273,6 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
         assert resource_limits["cpu"] == 23.35
 
 
-@pytest.mark.enabled_multidaemon
 class TestVCpuDisableByDefault(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -301,7 +298,7 @@ class TestVCpuDisableByDefault(YTEnvSetup):
             },
         })
 
-        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+        with raises_yt_error(code=yt_error_codes.NoOnlineNodeToScheduleJob):
             run_test_vanilla(
                 "sleep 1",
                 task_patch={"cpu_limit": 23},
@@ -316,7 +313,6 @@ class TestVCpuDisableByDefault(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestResourceLimitsOverrides(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -463,7 +459,7 @@ class TestSchedulingTags(YTEnvSetup):
         self._prepare()
 
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out")
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no nodes with enough resources to schedule an allocation"):
             map(
                 command="cat",
                 in_="//tmp/t_in",
@@ -486,7 +482,7 @@ class TestSchedulingTags(YTEnvSetup):
             spec={"scheduling_tag_filter": "tagA & !tagC"},
         )
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no nodes with enough resources to schedule an allocation"):
             map(
                 command="cat",
                 in_="//tmp/t_in",
@@ -498,7 +494,7 @@ class TestSchedulingTags(YTEnvSetup):
 
         wait(lambda: "default" in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(self.node)))
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No online node can satisfy the resource demand|Found no nodes with enough resources"):
             map(
                 command="cat",
                 in_="//tmp/t_in",
@@ -765,7 +761,6 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOperationNodeBan(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -790,7 +785,7 @@ class TestOperationNodeBan(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         jobs = list_jobs(op.id)["jobs"]
@@ -798,7 +793,6 @@ class TestOperationNodeBan(YTEnvSetup):
         assert len(builtins.set(job["address"] for job in jobs)) == 3
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulingHeartbeatThrottling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -871,3 +865,50 @@ class TestSchedulingHeartbeatThrottling(YTEnvSetup):
 
         wait(lambda: get_total_scheduling_heartbeat_complexity() == 18)
         wait(lambda: concurrent_complexity_limit_reached_count.get_delta() > 0)
+
+
+##################################################################
+
+
+class TestUnutilizedResources(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "node_shard_count": 2,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 2,
+                "cpu": 2,
+                "memory": 2 * 1024 ** 3,
+            }
+        }
+    }
+
+    @authors("bystrovserg")
+    def test_unutilized_resources_counter_sanity(self):
+        unutilized_cpu = profiler_factory().at_scheduler().counter(
+            "scheduler/unutilized_node_resources/cpu",
+            tags={"reason": "unknown"},
+        )
+        throttled_cpu = profiler_factory().at_scheduler().counter(
+            "scheduler/unutilized_node_resources/cpu",
+            tags={"reason": "throttling"},
+        )
+
+        op = run_sleeping_vanilla(
+            job_count=3,
+            task_patch={"cpu_limit": 1},
+            track=False,
+        )
+
+        wait(lambda: op.get_job_count("running") == 3)
+
+        wait(lambda: unutilized_cpu.get_delta() > 12)
+        assert throttled_cpu.get_delta() == 0

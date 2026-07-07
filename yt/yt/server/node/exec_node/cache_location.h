@@ -1,8 +1,8 @@
 #pragma once
 
-#include "public.h"
 #include "artifact.h"
 #include "private.h"
+#include "public.h"
 
 #include <yt/yt/server/node/data_node/blob_chunk.h>
 #include <yt/yt/server/node/data_node/public.h>
@@ -59,7 +59,7 @@ class TCacheLocation
 {
 public:
     TCacheLocation(
-        TString id,
+        std::string id,
         NDataNode::TCacheLocationConfigPtr config,
         const NClusterNode::IBootstrap* bootstrap,
         TArtifactCachePtr artifactCache);
@@ -84,12 +84,14 @@ private:
 
     const NClusterNode::IBootstrap* const Bootstrap_;
 
+    const NProfiling::TCounter EnospcRate_;
+
     TFuture<void> RemoveChunks();
 
-    std::optional<NNode::TChunkDescriptor> Repair(NDataNode::TChunkId chunkId, const TString& metaSuffix);
+    std::optional<NNode::TChunkDescriptor> Repair(NDataNode::TChunkId chunkId, const std::string& metaSuffix);
     std::optional<NNode::TChunkDescriptor> RepairChunk(NDataNode::TChunkId chunkId) override;
 
-    std::vector<TString> GetChunkPartNames(NDataNode::TChunkId chunkId) const override;
+    std::vector<std::string> GetChunkPartNames(NDataNode::TChunkId chunkId) const override;
 
     NNode::TBriefChunkLocationConfig GetBriefConfig() const;
 };

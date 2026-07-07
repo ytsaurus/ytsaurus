@@ -451,7 +451,7 @@ public:
                 auto it = IdToOperation_.find(id);
                 return it == IdToOperation_.end() ? nullptr : it->second;
             },
-            [&] (const TString& alias) -> TOperationPtr {
+            [&] (const std::string& alias) -> TOperationPtr {
                 auto it = OperationAliases_.find(alias);
                 return it == OperationAliases_.end() ? nullptr : it->second.Operation;
             });
@@ -532,14 +532,14 @@ public:
     void ValidatePoolPermission(
         const std::string& treeId,
         NObjectClient::TObjectId poolObjectId,
-        const TString& poolName,
+        const std::string& poolName,
         const std::string& user,
         EPermission permission) const override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto path = poolObjectId
-            ? Format("#%v", poolObjectId)
+            ? TYPath(Format("#%v", poolObjectId))
             : Config_->PoolTreesRoot;
 
         YT_LOG_DEBUG("Validating pool permission (Permission: %v, User: %v, Pool: %v, Path: %v, TreeId: %v)",
@@ -590,7 +590,7 @@ public:
     // COMPAT(pogorelov)
     void DoValidateJobShellAccess(
         const std::string& user,
-        const TString& jobShellName,
+        const std::string& jobShellName,
         const std::vector<std::string>& jobShellOwners)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -611,7 +611,7 @@ public:
     // COMPAT(pogorelov)
     TFuture<void> ValidateJobShellAccess(
         const std::string& user,
-        const TString& jobShellName,
+        const std::string& jobShellName,
         const std::vector<std::string>& jobShellOwners)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -785,7 +785,7 @@ public:
         }
 
         if (operation->GetState() == EOperationState::Orphaned) {
-            operation->SetOrhanedOperationAbortionError(error);
+            operation->SetOrphanedOperationAbortionError(error);
         } else {
             operation->GetCancelableControlInvoker()->Invoke(
                 BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
@@ -853,6 +853,10 @@ public:
 
         operation->SetSuspended(false);
         DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, TError());
+
+        if (const auto& controller = operation->GetController()) {
+            controller->Resume();
+        }
 
         YT_LOG_INFO("Operation resumed (OperationId: %v)",
             operation->GetId());
@@ -938,7 +942,8 @@ public:
             operation,
             error,
             /*abortRunningAllocations*/ true,
-            /*setAlert*/ true));
+            /*setAlert*/ true,
+            /*initiatedByController*/ true));
     }
 
     void OnOperationAgentUnregistered(const TOperationPtr& operation)
@@ -1035,7 +1040,7 @@ public:
 
         {
             const auto& shells = operation->Spec()->JobShells;
-            THashSet<TString> jobShellNames;
+            THashSet<std::string> jobShellNames;
             for (const auto& shell : shells) {
                 jobShellNames.insert(shell->Name);
             }
@@ -1339,10 +1344,8 @@ public:
                     }
 
                     // Async materialize result is ready here as the combined future already has finished.
-                    YT_VERIFY(asyncMaterializeResult.IsSet());
-
-                    // asyncMaterializeResult contains no error, otherwise the |!error.IsOk()| check would trigger.
-                    return asyncMaterializeResult.Get().Value().Suspend;
+                    // It contains no error, otherwise the |!error.IsOK()| check would trigger.
+                    return asyncMaterializeResult.GetOrCrash().Value().Suspend;
                 }();
 
                 FinishOperationMaterialization(operation, shouldSuspend, scheduleOperationInSingleTree);
@@ -1483,7 +1486,7 @@ public:
     void LogResourceMetering(
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
-        const THashMap<TString, TString>& otherTags,
+        const THashMap<std::string, std::string>& otherTags,
         TInstant connectionTime,
         TInstant previousLogTime,
         TInstant currentTime) override
@@ -1492,7 +1495,7 @@ public:
             return;
         }
 
-        auto buildCommonLogEventPart = [&] (const TString& schema, i64 usageQuantity, TInstant startTime, TInstant finishTime) {
+        auto buildCommonLogEventPart = [&] (const std::string& schema, i64 usageQuantity, TInstant startTime, TInstant finishTime) {
             return NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger(), NLogging::ELogLevel::Info)
                 .Item("schema").Value(schema)
                 .Item("id").Value(TGuid::Create())
@@ -1520,10 +1523,10 @@ public:
                     .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
                     .Item("cluster").Value(ClusterName_)
                     .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
-                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
                 .EndMap();
@@ -1542,10 +1545,10 @@ public:
                     .Item("allocated_resources").Value(averageAllocatedResources * timeRatio)
                     .Item("cluster").Value(ClusterName_)
                     .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
-                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<std::string, std::string>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     })
                 .EndMap();
@@ -1633,7 +1636,7 @@ public:
         return *OperationBaseAcl_;
     }
 
-    TString FormatResources(const TJobResourcesWithQuota& resources) const override
+    std::string FormatResources(const TJobResourcesWithQuota& resources) const override
     {
         return NScheduler::FormatResources(resources);
     }
@@ -1656,7 +1659,7 @@ public:
         NScheduler::SerializeDiskQuota(diskQuota, mediumDirectory, consumer);
     }
 
-    TString FormatHeartbeatResourceUsage(
+    std::string FormatHeartbeatResourceUsage(
         const TJobResources& usage,
         const TJobResources& limits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
@@ -1810,7 +1813,7 @@ private:
     };
 
     THashMap<TOperationId, TOperationPtr> IdToOperation_;
-    THashMap<TString, TOperationAlias> OperationAliases_;
+    THashMap<std::string, TOperationAlias> OperationAliases_;
     THashMap<TOperationId, IYPathServicePtr> IdToOperationService_;
 
     THashMap<TOperationId, TOperationPtr> IdToStartingOperation_;
@@ -1873,7 +1876,7 @@ private:
     NYTree::ICachedYPathServicePtr StaticOrchidService_;
     NYTree::IServiceCombinerPtr CombinedOrchidService_;
 
-    THashMap<std::string, TString> UserToDefaultPoolMap_;
+    THashMap<std::string, std::string> UserToDefaultPoolMap_;
 
     TExperimentAssigner ExperimentsAssigner_;
     TError LastExperimentAssignmentError_;
@@ -2490,7 +2493,7 @@ private:
             return;
         }
 
-        ClusterName_ = ConvertTo<TString>(TYsonString(rspOrError.Value()->value()));
+        ClusterName_ = ConvertTo<std::string>(TYsonString(rspOrError.Value()->value()));
     }
 
     void RequestUserToDefaultPoolMap(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
@@ -2514,7 +2517,7 @@ private:
 
         auto future =
             BIND([userToDefaultPoolMapYson = TYsonString(rspOrError.Value()->value())] {
-                return ConvertTo<THashMap<std::string, TString>>(userToDefaultPoolMapYson);
+                return ConvertTo<THashMap<std::string, std::string>>(userToDefaultPoolMapYson);
             })
             .AsyncVia(GetBackgroundInvoker())
             .Run();
@@ -2761,7 +2764,7 @@ private:
         return briefSpec;
     }
 
-    ITransactionPtr AttachTransaction(TOperationId operationId, TTransactionId transactionId, const TString& name)
+    ITransactionPtr AttachTransaction(TOperationId operationId, TTransactionId transactionId, const std::string& name)
     {
         if (!transactionId) {
             return nullptr;
@@ -2916,7 +2919,7 @@ private:
             operation->SetStateAndEnqueueEvent(EOperationState::Reviving);
 
             {
-                auto result = WaitFor(controller->Revive())
+                auto result = WaitFor(controller->Revive(operation->GetSuspended()))
                     .ValueOrThrow();
 
                 ValidateOperationState(operation, EOperationState::Reviving);
@@ -3215,8 +3218,7 @@ private:
         // Failure is intentionally ignored.
         Y_UNUSED(WaitFor(AllSet(futures)));
 
-        YT_VERIFY(unregisterFuture.IsSet());
-        auto resultOrError = unregisterFuture.Get();
+        auto resultOrError = unregisterFuture.GetOrCrash();
         if (!resultOrError.IsOK()) {
             return;
         }
@@ -3298,9 +3300,23 @@ private:
 
         operation->SetUnregistering();
 
-        // Switch to regular control invoker.
-        // No recurrent complete is possible after this point.
-        SwitchTo(operation->GetControlInvoker());
+        // Run the final part via the operation's control invoker (the master
+        // connector's cancelable invoker): unlike the operation's own cancelable
+        // invoker it is not canceled by a per-operation abort/agent revocation.
+        operation->GetControlInvoker()->Invoke(BIND(
+            &TImpl::DoFinalizeCompletedOperation,
+            MakeStrong(this),
+            operation,
+            operationProgress));
+    }
+
+    void DoFinalizeCompletedOperation(
+        const TOperationPtr& operation,
+        const TOperationProgress& operationProgress)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         SubmitOperationToCleaner(operation, operationProgress);
 
@@ -3316,7 +3332,7 @@ private:
         FinishOperation(operation);
 
         YT_LOG_INFO("Operation completed (OperationId: %v)",
-            operationId);
+            operation->GetId());
     }
 
     void DoFailOperation(
@@ -3376,7 +3392,8 @@ private:
         const TOperationPtr& operation,
         const TError& error,
         bool abortRunningAllocations,
-        bool setAlert)
+        bool setAlert,
+        bool initiatedByController = false)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -3389,6 +3406,12 @@ private:
         auto codicilGuard = operation->MakeCodicilGuard();
 
         operation->SetSuspended(true);
+
+        if (!initiatedByController) {
+            if (const auto& controller = operation->GetController()) {
+                controller->Suspend();
+            }
+        }
 
         if (abortRunningAllocations) {
             AbortOperationAllocations(
@@ -3407,7 +3430,9 @@ private:
             DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, error);
         }
 
-        YT_LOG_INFO(error, "Operation suspended (OperationId: %v)",
+        YT_LOG_INFO(
+            error,
+            "Operation suspended (OperationId: %v)",
             operation->GetId());
     }
 
@@ -3583,9 +3608,27 @@ private:
 
         operation->SetUnregistering();
 
-        // Switch to regular control invoker.
-        // No recurrent terminate is possible after this point.
-        SwitchTo(operation->GetControlInvoker());
+        // Run the final part via the operation's control invoker (the master
+        // connector's cancelable invoker): unlike the operation's own cancelable
+        // invoker it is not canceled by a per-operation abort/agent revocation.
+        operation->GetControlInvoker()->Invoke(BIND(
+            &TImpl::DoFinalizeTerminatedOperation,
+            MakeStrong(this),
+            operation,
+            logEventType,
+            error,
+            operationProgress));
+    }
+
+    void DoFinalizeTerminatedOperation(
+        const TOperationPtr& operation,
+        ELogEventType logEventType,
+        const TError& error,
+        const TOperationProgress& operationProgress)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         SubmitOperationToCleaner(operation, operationProgress);
 
@@ -3906,7 +3949,7 @@ private:
                 return;
             }
 
-            if (auto abortionError = operation->GetOrhanedOperationAbortionError(); !abortionError.IsOK()) {
+            if (auto abortionError = operation->GetOrphanedOperationAbortionError(); !abortionError.IsOK()) {
                 AbortOperationWithoutRevival(
                     operation,
                     abortionError);
@@ -4100,7 +4143,7 @@ private:
         return result;
     }
 
-    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, std::string>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
     }
@@ -4121,8 +4164,7 @@ private:
             std::vector<TError> errors;
             errors.reserve(futures.size());
             for (const auto& future : futures) {
-                YT_VERIFY(future.IsSet());
-                errors.push_back(future.Get());
+                errors.push_back(future.GetOrCrash());
             }
             THROW_ERROR_EXCEPTION("Access to perform %Qlv of operation %v denied",
                 action,
@@ -4314,7 +4356,7 @@ private:
                 // If it has finished, but we still have an entry in alias -> operation id internal
                 // mapping, we return a fictive map { operation_id = <operation_id> }. It is useful
                 // for alias resolution when operation is not archived yet but already finished.
-                auto it = Scheduler_->OperationAliases_.find(TString(key));
+                auto it = Scheduler_->OperationAliases_.find(key);
                 if (it == Scheduler_->OperationAliases_.end()) {
                     return nullptr;
                 } else {
@@ -4411,7 +4453,8 @@ private:
                             .Item("preempted").Value(allocationProperties.Preempted)
                             .Item("preemption_reason").Value(allocationProperties.PreemptionReason)
                             .Item("preemption_timeout").Value(allocationProperties.PreemptionTimeout)
-                            .Item("preemptible_progress_start_time").Value(allocationProperties.PreemptibleProgressStartTime);
+                            .Item("preemptible_progress_start_time").Value(allocationProperties.PreemptibleProgressStartTime)
+                            .Item("allocation_group_name").Value(allocationProperties.AllocationGroupName);
 
                         auto const& operation = Scheduler_->FindOperation(allocationProperties.OperationId);
                         if (operation) {
@@ -4641,7 +4684,7 @@ int TScheduler::GetOperationsArchiveVersion() const
     return Impl_->GetOperationsArchiveVersion();
 }
 
-TString TScheduler::FormatResources(const TJobResourcesWithQuota& resources) const
+std::string TScheduler::FormatResources(const TJobResourcesWithQuota& resources) const
 {
     return Impl_->FormatResources(resources);
 }
@@ -4657,7 +4700,7 @@ TFuture<void> TScheduler::SetOperationAlert(
 
 TFuture<void> TScheduler::ValidateJobShellAccess(
     const std::string& user,
-    const TString& jobShellName,
+    const std::string& jobShellName,
     const std::vector<std::string>& jobShellOwners)
 {
     return Impl_->ValidateJobShellAccess(user, jobShellName, jobShellOwners);

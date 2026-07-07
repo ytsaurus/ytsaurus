@@ -4,11 +4,11 @@
 
 #include <yt/yt/ytlib/controller_agent/persistence.h>
 
-#include <yt/yt/library/profiling/sensor.h>
-
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NControllerAgent {
 
@@ -74,9 +74,9 @@ struct TJobMonitoringDescriptor
     TGuid Guid;
     int Index = 0;
 
-    void Persist(const TPersistenceContext& context);
-
     auto operator<=>(const TJobMonitoringDescriptor& other) const = default;
+
+    PHOENIX_DECLARE_TYPE(TJobMonitoringDescriptor, 0xa1c3d5e7);
 };
 
 inline const TJobMonitoringDescriptor NullMonitoringDescriptor{
@@ -108,7 +108,7 @@ using TOperationIdToWeakControllerMap = THashMap<TOperationId, IOperationControl
 //! Returns TraceContextGuard with the trace context.
 
 NTracing::TTraceContextGuard CreateOperationTraceContextGuard(
-    TString spanName,
+    std::string spanName,
     TOperationId operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,12 +116,12 @@ NTracing::TTraceContextGuard CreateOperationTraceContextGuard(
 struct TCompositePendingJobCount
 {
     int DefaultCount = 0;
-    THashMap<TString, int> CountByPoolTree = {};
+    THashMap<std::string, int> CountByPoolTree = {};
 
-    int GetJobCountFor(const TString& tree) const;
+    int GetJobCountFor(const std::string& tree) const;
     bool IsZero() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TCompositePendingJobCount, 0x7ba21384);
 };
 
 void Serialize(const TCompositePendingJobCount& jobCount, NYson::IYsonConsumer* consumer);

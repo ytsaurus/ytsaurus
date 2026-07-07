@@ -464,10 +464,7 @@ public:
         // Read time is accounted from our own read timer (reacall that multi reader manager deals with chunk readers
         // while Read() is a table reader level methdd).
         auto statistics = MultiReaderManager_->GetTimingStatistics();
-        {
-            auto guard = Guard(ReadTimerLock_);
-            statistics.ReadTime = ReadTimer_.GetElapsedTime();
-        }
+        statistics.ReadTime = ReadTimer_.GetElapsedTime();
         statistics.IdleTime -= statistics.ReadTime;
         return statistics;
     }
@@ -510,8 +507,7 @@ private:
 
     std::atomic<bool> Finished_ = false;
 
-    TWallTimer ReadTimer_ = TWallTimer(false /*active */);
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReadTimerLock_);
+    TConcurrentTimer<TWallTimer> ReadTimer_{false /*start*/};
 
     void OnReaderSwitched();
 };
@@ -543,9 +539,9 @@ TSchemalessMultiChunkReader::~TSchemalessMultiChunkReader()
 
 IUnversionedRowBatchPtr TSchemalessMultiChunkReader::Read(const TRowBatchReadOptions& options)
 {
-    auto readGuard = TTimerGuard<TWallTimer>(&ReadTimer_, &ReadTimerLock_);
+    auto readGuard = TTimerGuard<TConcurrentTimer<TWallTimer>>(&ReadTimer_);
 
-    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().GetOrCrash().IsOK()) {
         return CreateEmptyUnversionedRowBatch();
     }
 
@@ -611,7 +607,7 @@ void TSchemalessMultiChunkReader::Interrupt()
 
 void TSchemalessMultiChunkReader::SkipCurrentReader()
 {
-    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().GetOrCrash().IsOK()) {
         return;
     }
 

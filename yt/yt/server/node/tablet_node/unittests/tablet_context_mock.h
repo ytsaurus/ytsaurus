@@ -26,7 +26,7 @@ public:
     NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const override;
     NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const override;
     NApi::NNative::IClientPtr GetClient() const override;
-    NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const override;
+    TTabletNodeDynamicConfigPtr GetDynamicConfig() const override;
     IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
@@ -40,6 +40,7 @@ public:
     NRpc::IServerPtr GetLocalRpcServer() const override;
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
     INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const override;
+    TRowCacheControllerPtr GetRowCacheController() const override;
     NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const override;
     std::string GetLocalHostName() const override;
     IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const override;

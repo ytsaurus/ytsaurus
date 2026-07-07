@@ -135,9 +135,17 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
-        return UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
+        return UnderlyingChangelog_->EstimateWriteSize(payloadSize);
+    }
+
+    i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        return UnderlyingChangelog_->EstimateReadSize(firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Append(TRange<TSharedRef> records) override
@@ -257,9 +265,17 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
-        return UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
+        return UnderlyingChangelog_->EstimateWriteSize(payloadSize);
+    }
+
+    i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        return UnderlyingChangelog_->EstimateReadSize(firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Append(TRange<TSharedRef> records) override
@@ -314,7 +330,7 @@ public:
         , Config_(std::move(config))
         , Dispatcher_(CreateFileChangelogDispatcher(
             IOEngine_,
-            /*memoryUsageTracker*/ nullptr,
+            /*indexMemoryUsageTracker*/ nullptr,
             Config_,
             threadName,
             profiler))
@@ -567,12 +583,10 @@ private:
         auto recordCountGetter = [&] (int changelogId) {
             auto changelog = WaitFor(OpenChangelog(changelogId, /*options*/ {}, epoch))
                 .ValueOrThrow();
-            return TChangelogScanInfo{
-                .RecordCount = changelog->GetRecordCount(),
-            };
+            return changelog->GetRecordCount();
         };
 
-        auto recordReader = [&] (int changelogId, int recordId, bool /*atPrimaryPath*/) {
+        auto recordReader = [&] (int changelogId, int recordId) {
             auto changelog = WaitFor(OpenChangelog(changelogId, /*options*/ {}, epoch))
                 .ValueOrThrow();
 
@@ -598,6 +612,11 @@ private:
     {
         auto fileName = GetLockFileName(Config_->Path);
         LockFileHandle_.emplace(fileName, RdWr | CreateAlways);
+
+        if (!LockFileHandle_->IsOpen()) {
+            YT_LOG_FATAL(TError::FromSystem(), "Cannot open local changelog store");
+        }
+
         if (LockFileHandle_->Flock(LOCK_EX | LOCK_NB) != 0) {
             YT_LOG_FATAL(TError::FromSystem(), "Cannot lock local changelog store");
         }

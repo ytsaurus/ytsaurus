@@ -7,14 +7,14 @@ using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobStatisticsTags::Persist(const TStreamPersistenceContext& context)
+void TJobStatisticsTags::RegisterMetadata(auto&& registrar)
 {
-    using ::NYT::Persist;
-
-    Persist(context, JobState);
-    Persist(context, JobType);
-    Persist(context, PoolTree);
+    PHOENIX_REGISTER_FIELD(1, JobState);
+    PHOENIX_REGISTER_FIELD(2, JobType);
+    PHOENIX_REGISTER_FIELD(3, PoolTree);
 }
+
+PHOENIX_DEFINE_TYPE(TJobStatisticsTags);
 
 bool operator<(const TJobStatisticsTags& lhs, const TJobStatisticsTags& rhs)
 {
@@ -52,7 +52,7 @@ i64 TAggregatedJobStatistics::CalculateCustomStatisticsCount() const
 i64 TAggregatedJobStatistics::GetSumByJobStateAndType(
     const TStatisticPath& statisticPath,
     EJobState jobState,
-    const TString& jobType) const
+    const std::string& jobType) const
 {
     auto* taggedStatistics = FindTaggedSummaries(statisticPath);
     if (!taggedStatistics) {
@@ -72,7 +72,7 @@ i64 TAggregatedJobStatistics::GetSumByJobStateAndType(
 std::optional<TSummary> TAggregatedJobStatistics::FindSummaryByJobStateAndType(
     const TStatisticPath& statisticPath,
     EJobState jobState,
-    const TString& jobType) const
+    const std::string& jobType) const
 {
     auto* taggedStatistics = FindTaggedSummaries(statisticPath);
     if (!taggedStatistics) {
@@ -100,7 +100,7 @@ void TAggregatedJobStatistics::SerializeLegacy(IYsonConsumer* consumer) const
                 THROW_ERROR_EXCEPTION("Unreachable code. Summaries cannot be empty");
             }
 
-            THashMap<EJobState, THashMap<TString, TSummary>> groupedByJobStateAndType;
+            THashMap<EJobState, THashMap<std::string, TSummary>> groupedByJobStateAndType;
             for (const auto& [tags, summary] : summaries) {
                 groupedByJobStateAndType[tags.JobState][tags.JobType].Merge(summary);
             }

@@ -8,7 +8,7 @@ from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, asdict
 from pydantic_core import PydanticUndefined
-from typing import Any, Optional, List, Tuple, TypedDict
+from typing import Any, Optional, List, Tuple, TypedDict, Callable
 
 from yt.common import _pretty_format_messages
 from yt.mcp.lib.tool_runner_mcp import YTToolRunnerMCP
@@ -44,7 +44,7 @@ class YTToolBase:
 
     @dataclass
     class ToolInputField:
-        name: str
+        name: Optional[str] = None
         description: Optional[str] = None
         examples: Optional[List[str]] = None
         field_type: Optional[type] = None
@@ -62,8 +62,33 @@ class YTToolBase:
             self._tool_description = self.get_tool_description()
         return self._tool_description
 
+    def _get_description_from_handler(self, f: Callable[[Any], Any]) -> typing.Tuple["YTToolBase.ToolName", List["YTToolBase.ToolInputField"]]:
+        tool_fields = []
+        tool_name = None
+        argument_types = typing.get_type_hints(f, include_extras=True)
+        for argument_name, argument_type in argument_types.items():
+            if typing.get_origin(argument_type) == typing.Annotated \
+                    and len(typing.get_args(argument_type)) == 2 \
+                    and isinstance(typing.get_args(argument_type)[1], self.ToolInputField):
+                field_type: Tuple[typing.Type, "YTToolBase.ToolInputField"] = typing.get_args(argument_type)
+                if not field_type[1].name:
+                    field_type[1].name = argument_name
+                if not field_type[1].field_type:
+                    field_type[1].field_type = field_type[0]
+                tool_fields.append(field_type[1])
+        if f.__doc__:
+            tool_name = self.ToolName(
+                self.__class__.__name__,
+                f.__doc__,
+            )
+        return tool_name, tool_fields
+
     def get_tool_description(self) -> Tuple[ToolName, List[ToolInputField]]:
-        raise RuntimeError("Not Implemented")
+        description = self._get_description_from_handler(self.on_handle_request)
+        if description[0] and description[1]:
+            return description
+        else:
+            raise RuntimeError("Not Implemented")
 
     def on_handle_request(self, **kwargs):
         raise RuntimeError("Not Implemented")

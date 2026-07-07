@@ -1,4 +1,6 @@
 #include "versioned_block_reader.h"
+
+#include "chunk_column_mapping.h"
 #include "versioned_block_writer.h"
 #include "schemaless_block_reader.h"
 #include "hunks.h"
@@ -183,7 +185,7 @@ void TSimpleVersionedBlockParser::ReadKeyValue(
     int rowIndex) const
 {
     bool isNull = KeyNullFlags_[rowIndex * ChunkKeyColumnCount_ + id];
-    if (Y_UNLIKELY(isNull)) {
+    if (isNull) [[unlikely]] {
         value->Type = EValueType::Null;
         return;
     }
@@ -474,7 +476,7 @@ void TIndexedVersionedRowParser::ReadKeyValue(
     const char** rowData) const
 {
     bool isNull = KeyNullFlags_[id];
-    if (Y_UNLIKELY(isNull)) {
+    if (isNull) [[unlikely]] {
         value->Type = EValueType::Null;
         return;
     }

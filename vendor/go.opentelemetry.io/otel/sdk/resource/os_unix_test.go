@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build aix || darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris || zos
-// +build aix darwin dragonfly freebsd linux netbsd openbsd solaris zos
 
 package resource_test
 
@@ -27,7 +26,7 @@ func fakeUnameProvider(buf *unix.Utsname) error {
 	return nil
 }
 
-func fakeUnameProviderWithError(buf *unix.Utsname) error {
+func fakeUnameProviderWithError(*unix.Utsname) error {
 	return fmt.Errorf("error invoking uname(2)")
 }
 
@@ -92,8 +91,6 @@ func TestGetFirstAvailableFile(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		tc := tc
-
 		t.Run(tc.Name, func(t *testing.T) {
 			file, err := resource.GetFirstAvailableFile(tc.Candidates)
 

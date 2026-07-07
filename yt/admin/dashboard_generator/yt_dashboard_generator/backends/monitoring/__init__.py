@@ -259,6 +259,7 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         axis_to_precision = {}
         axis_to_type = {}
         downsampling_aggregation = None
+        downsampling_grid_interval = None
         targets = []
         for sensor in sensors:
             tags = sensor.get_tags()
@@ -278,6 +279,8 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
                 axis_to_type[axis] = axis_type
             if MonitoringSystemFields.DownsamplingAggregation in tags:
                 downsampling_aggregation = tags[MonitoringSystemFields.DownsamplingAggregation]
+            if MonitoringSystemFields.DownsamplingGridInterval in tags:
+                downsampling_grid_interval = tags[MonitoringSystemFields.DownsamplingGridInterval]
             structure = {}
             structure["query"] = self._get_sensor_query(sensor)
 
@@ -300,10 +303,13 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             }
         }
 
-        if downsampling_aggregation is not None:
-            result["chart"]["queries"]["downsampling"] = {
-                "grid_aggregation": downsampling_aggregation,
-            }
+        if downsampling_aggregation is not None or downsampling_grid_interval is not None:
+            downsampling = {}
+            if downsampling_aggregation is not None:
+                downsampling["grid_aggregation"] = downsampling_aggregation
+            if downsampling_grid_interval is not None:
+                downsampling["grid_interval"] = downsampling_grid_interval
+            result["chart"]["queries"]["downsampling"] = downsampling
 
         settings = result["chart"]["visualization_settings"]
         if stack is not None:

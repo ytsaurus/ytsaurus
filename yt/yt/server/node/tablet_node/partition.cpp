@@ -47,7 +47,8 @@ void TSampleKeyList::Load(TLoadContext& context, const IMemoryUsageTrackerPtr& t
         New<TRowBuffer>(
             TSampleKeyListTag(),
             TChunkedMemoryPool::DefaultStartChunkSize,
-            tracker));
+            tracker,
+            /*allowMemoryOvercommit*/ true));
     Keys = reader->ReadUnversionedRowset(true);
 }
 
@@ -163,7 +164,7 @@ void TPartition::AsyncLoad(TLoadContext& context)
     YT_ASSERT(Tablet_);
 
     auto nodeMemoryTracker = Tablet_
-        ? Tablet_->MaybeGetNodeMemoryUsageTracker()
+        ? Tablet_->TryGetNodeMemoryUsageTracker()
         : nullptr;
 
     SampleKeys_->Load(

@@ -197,7 +197,7 @@ private:
 
             case EInternedAttributeKey::CypressTransaction:
                 BuildYsonFluently(consumer)
-                    .Value(transaction->GetIsCypressTransaction());
+                    .Value(transaction->IsCypressTransaction());
                 return true;
 
             case EInternedAttributeKey::LeaseCellIds:

@@ -20,7 +20,7 @@ using namespace NLogging;
 
 TDiskHealthChecker::TDiskHealthChecker(
     TDiskHealthCheckerConfigPtr config,
-    const TString& path,
+    const std::string& path,
     IInvokerPtr invoker,
     TLogger logger,
     const TProfiler& profiler)
@@ -143,14 +143,14 @@ void TDiskHealthChecker::DoRunCheck()
     YT_LOG_DEBUG("Disk health check started");
 
     if (auto lockFilePath = NFS::CombinePaths(Path_, DisabledLockFileName); NFS::Exists(lockFilePath)) {
-        TError lockFileError(NChunkClient::EErrorCode::LockFileIsFound, "Lock file is found");
+        auto lockFileError = TError(NChunkClient::EErrorCode::LockFileIsFound, "Lock file is found")
+            << TErrorAttribute("path", lockFilePath);
         TString fileContents;
         try {
             fileContents = TFileInput(lockFilePath).ReadAll();
         } catch (const std::exception& ex) {
             YT_LOG_INFO(ex, "Failed to extract error from location lock file");
             lockFileError <<= TError("Failed to extract error from location lock file")
-                << TErrorAttribute("path", lockFilePath)
                 << ex;
 
             THROW_ERROR(lockFileError);
@@ -160,13 +160,12 @@ void TDiskHealthChecker::DoRunCheck()
                 auto error = NYTree::ConvertTo<TError>(NYson::TYsonString(fileContents));
                 !error.IsOK())
             {
-                lockFileError = std::move(error);
+                lockFileError <<= std::move(error);
             }
         } catch (const std::exception& ex) {
             YT_LOG_INFO(ex, "Failed to parse error from location lock file");
 
             lockFileError <<= TError("Failed to parse error from location lock file (%v)", fileContents)
-                << TErrorAttribute("path", lockFilePath)
                 << ex;
         }
 

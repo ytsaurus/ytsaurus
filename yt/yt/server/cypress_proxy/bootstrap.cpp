@@ -2,17 +2,19 @@
 
 #include "private.h"
 
-#include "config.h"
 #include "cypress_transaction_service.h"
 #include "dynamic_config_manager.h"
 #include "master_connector.h"
 #include "object_service.h"
+#include "ban_service.h"
 #include "response_keeper.h"
 #include "sequoia_service.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 
@@ -30,6 +32,7 @@
 
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/public.h>
 #include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
@@ -56,6 +59,8 @@
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/https/server.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -181,6 +186,11 @@ public:
         return MasterConnector_;
     }
 
+    const IBanServicePtr& GetBanService() const override
+    {
+        return BanService_;
+    }
+
     IInvokerPtr GetInvoker(const NConcurrency::TFairShareThreadPoolTag& tag) const override
     {
         return ThreadPool_->GetInvoker(tag);
@@ -194,15 +204,16 @@ public:
         NProfiling::TProfiler profiler) const override
     {
         auto selfAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
+        auto selfAddressCopy = selfAddress;
         return NDistributedThrottler::CreateDistributedThrottlerFactory(
             std::move(config),
             NativeConnection_->GetChannelFactory(),
             NativeConnection_,
             std::move(invoker),
             NYPath::TYPath(groupId),
-            selfAddress,
-            RpcServer_,
             std::move(selfAddress),
+            RpcServer_,
+            std::move(selfAddressCopy),
             std::move(logger),
             NativeAuthenticator_,
             profiler);
@@ -226,8 +237,10 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
 
     IObjectServicePtr ObjectService_;
+    IBanServicePtr BanService_;
 
     IMapNodePtr OrchidRoot_;
     IMonitoringManagerPtr MonitoringManager_;
@@ -249,9 +262,12 @@ private:
     {
         ITableDescriptor::ScheduleInitialization();
 
-        BusServer_ = NBus::CreateBusServer(Config_->BusServer);
+        BusServer_ = NBus::NTcp::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+        if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+            HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+        }
 
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.EnableClientSideCache = false;
@@ -265,7 +281,7 @@ private:
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
         UserDirectory_ = New<TUserDirectory>();
         UserDirectorySynchronizer_ = CreateUserDirectorySynchronizer(
@@ -281,6 +297,7 @@ private:
 
         NMonitoring::Initialize(
             HttpServer_,
+            HttpsServer_,
             ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
@@ -302,6 +319,23 @@ private:
             OrchidRoot_,
             "/sequoia_reign",
             ConvertToNode(GetCurrentSequoiaReign()));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/ground_reign",
+            ConvertToNode(GetCurrentGroundReign()));
+
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/sequoia_connection_reconfiguration_time",
+            CreateVirtualNode(IYPathService::FromProducer(
+                BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (NYson::IYsonConsumer* consumer) {
+                    if (auto strongThis = weakThis.Lock()) {
+                        BuildYsonFluently(consumer)
+                            .Value(GetSequoiaConnection()->GetLastReconfigurationTime());
+                    } else {
+                        consumer->OnEntity();
+                    }
+                }))));
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
@@ -314,8 +348,10 @@ private:
 
         ResponseKeeper_ = CreateSequoiaResponseKeeper(GetDynamicConfigManager()->GetConfig()->ResponseKeeper, Logger());
         ObjectService_ = CreateObjectService(this);
+        BanService_ = CreateBanService(this);
         RpcServer_->RegisterService(ObjectService_->GetService());
         RpcServer_->RegisterService(CreateCypressTransactionService(this));
+        RpcServer_->RegisterService(BanService_->GetService());
     }
 
     void DoStart()
@@ -330,6 +366,10 @@ private:
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
+        if (HttpsServer_) {
+            YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+            HttpsServer_->Start();
+        }
 
         YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
         RpcServer_->Start();
@@ -343,6 +383,7 @@ private:
 
         ThreadPool_->SetThreadCount(newConfig->ThreadPoolSize);
         ResponseKeeper_->Reconfigure(newConfig->ResponseKeeper);
+        BanService_->Reconfigure(newConfig->BanService);
     }
 };
 

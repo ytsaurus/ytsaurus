@@ -63,6 +63,8 @@
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
 #include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
 
+#include <yt/yt/client/rpc/request_info.h>
+
 #include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/config.h>
@@ -77,6 +79,7 @@
 #include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -105,6 +108,7 @@
 #include <library/cpp/yt/misc/cast.h>
 
 #include <library/cpp/yt/string/string.h>
+#include <library/cpp/yt/string/stream.h>
 
 #include <algorithm>
 
@@ -477,21 +481,54 @@ DEFINE_REFCOUNTED_TYPE(TDetailedProfilingCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This context extends standard typed service context. By this moment it is used for structured
-//! logging reasons.
+DECLARE_REFCOUNTED_STRUCT(IApiServiceContext)
+
+struct IApiServiceContext
+    : public virtual IServiceContext
+{
+    virtual void SetClient(std::optional<std::string> clientClusterName, NNative::IClientPtr client) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IApiServiceContext)
+
 template <class TRequestMessage, class TResponseMessage>
 class TApiServiceContext
     : public TTypedServiceContext<TRequestMessage, TResponseMessage>
+    , public IApiServiceContext
 {
+    using TBase = TTypedServiceContext<TRequestMessage, TResponseMessage>;
+
 public:
     // For most cases the most important request field is "path". If it is present in request message,
     // we want to see it in the structured log.
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, RequestPath);
-
-    TLogger Logger;
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TYPath>, RequestPath);
 
 public:
     using TTypedServiceContext<TRequestMessage, TResponseMessage>::TTypedServiceContext;
+
+    void Reply(const TError& error = {}) override
+    {
+        if (Client_ && Client_->GetNativeConnection()->IsTerminated()) {
+            auto replyError = TError(NRpc::EErrorCode::TransportError, "Connection to cluster %v was terminated", ClientClusterName_);
+            if (!error.IsOK()) {
+                replyError <<= error;
+            }
+            TBase::Reply(replyError);
+        } else {
+            TBase::Reply(error);
+        }
+    }
+
+    void SetLogger(TLogger logger)
+    {
+        Logger = std::move(logger);
+    }
+
+    void SetClient(std::optional<std::string> clientClusterName, NNative::IClientPtr client) override
+    {
+        ClientClusterName_ = std::move(clientClusterName);
+        Client_ = std::move(client);
+    }
 
     void SetupMainMessage(TYsonString requestYson)
     {
@@ -520,11 +557,16 @@ public:
                 DoEmitError();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(TError(ex), "Error while logging structured event");
+            YT_LOG_ERROR(ex, "Error while logging structured event");
         }
     }
 
 private:
+    TLogger Logger;
+
+    std::optional<std::string> ClientClusterName_;
+    NNative::IClientPtr Client_;
+
     //! True if message should be emitted to main topic.
     bool EmitMain_ = false;
     // YSON-serialized request body. This field may be really heavy.
@@ -590,7 +632,14 @@ private:
             .Item("wait_time").Value(this->GetWaitDuration())
             .Item("execution_time").Value(this->GetExecutionDuration())
             .Item("finish_instant").Value(this->GetFinishInstant())
-            .OptionalItem("cpu_time", this->GetTraceContextTime());
+            .OptionalItem("cpu_time", this->GetTraceContextTime())
+            .DoIf(credentialsExt.has_user_ticket() && !credentialsExt.has_service_ticket(), [&] (auto fluent) {
+                fluent
+                    .Item("debug_info").Value(BuildYsonStringFluently()
+                        .BeginMap()
+                            .Item("user_ticket_and_no_service_ticket").Value(true)
+                        .EndMap());
+            });
     }
 
     void DoEmitError() const
@@ -1136,9 +1185,9 @@ TApiService::TApiService(
 
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AdvanceConsumer));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AdvanceQueueConsumer));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullQueue));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullConsumer));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullQueueConsumer));
+    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PullQueue));
+    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PullConsumer));
+    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PullQueueConsumer));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnregisterQueueConsumer));
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
@@ -1375,15 +1424,14 @@ void TApiService::InitContext(TApiServiceContext<TRequestMessage, TResponseMessa
 {
     using TContext = NYT::NRpcProxy::TApiServiceContext<TRequestMessage, TResponseMessage>;
 
-    context->Logger = Logger
-        .WithTag("RequestId: %v", context->GetRequestId());
+    context->SetLogger(Logger
+        .WithTag("RequestId: %v", context->GetRequestId()));
 
     // First, recover request path from the typed request context using the incredible power of C++20 concepts.
-    std::optional<TString> requestPath;
+    std::optional<TYPath> requestPath;
     if constexpr (requires { context->Request().path(); }) {
         requestPath.emplace(context->Request().path());
     }
-
     context->SetRequestPath(std::move(requestPath));
 
     // Then, connect it to the typed context using subscriptions for reply and cancel signals.
@@ -1402,8 +1450,8 @@ void TApiService::InitContext(TApiServiceContext<TRequestMessage, TResponseMessa
 
     // NB: We try to do heavy work only if we are actually going to omit corresponding message. Conserve priceless CPU time.
     if (shouldEmit(config->StructuredLoggingMainTopic)) {
-        TString requestYson;
-        TStringOutput requestOutput(requestYson);
+        std::string requestYson;
+        TStdStringOutput requestOutput(requestYson);
         TYsonWriter requestYsonWriter(&requestOutput, EYsonFormat::Text);
         TProtobufParserOptions parserOptions{
             .SkipUnknownFields = true,
@@ -1486,6 +1534,8 @@ NNative::IClientPtr TApiService::GetAuthenticatedClientOrThrow(
     if (!client) {
         THROW_ERROR_EXCEPTION("No client found for identity %Qv", identity);
     }
+
+    VerifyDynamicCast<IApiServiceContext*>(context.Get())->SetClient(multiproxyTargetCluster, client);
 
     return client;
 }
@@ -1602,8 +1652,8 @@ void TApiService::ExecuteCall(
     New<TExecuteCallSession<TContext, TExecutor, TResultHandler>>(
         this,
         std::move(context),
-        std::move(executor),
-        std::move(resultHandler))
+        std::forward<TExecutor>(executor),
+        std::forward<TResultHandler>(resultHandler))
         ->Run();
 }
 
@@ -1614,7 +1664,7 @@ void TApiService::ExecuteCall(
 {
     ExecuteCall(
         context,
-        std::move(executor),
+        std::forward<TExecutor>(executor),
         [] (const TIntrusivePtr<TContext>& /*context*/) { });
 }
 
@@ -1633,8 +1683,7 @@ TDetailedProfilingCountersPtr TApiService::GetOrCreateDetailedProfilingCounters(
             }
             if (key.UserTag) {
                 profiler = profiler
-                    // TODO(babenko): switch to std::string
-                    .WithTag("user", ToString(*key.UserTag));
+                    .WithTag("user", *key.UserTag);
             }
             return New<TDetailedProfilingCounters>(std::move(profiler));
         })
@@ -1845,6 +1894,18 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
     TTransactionCommitOptions options;
     SetMutatingOptions(&options, request, context.Get());
     options.AdditionalParticipantCellIds = FromProto<std::vector<TCellId>>(request->additional_participant_cell_ids());
+    options.ExpectedPrepareSignatures = FromProto<std::vector<TTransactionSignature>>(request->expected_prepare_signatures());
+    // COMPAT(atalmenev): old clients don't send expected_prepare_signatures.
+    if (options.ExpectedPrepareSignatures.empty()) {
+        options.ExpectedPrepareSignatures.assign(
+            options.AdditionalParticipantCellIds.size(),
+            FinalTransactionSignature);
+    }
+    if (options.ExpectedPrepareSignatures.size() != options.AdditionalParticipantCellIds.size()) {
+        THROW_ERROR_EXCEPTION("Expected prepare signatures count mismatch")
+            << TErrorAttribute("additional_participant_cell_ids_size", options.AdditionalParticipantCellIds.size())
+            << TErrorAttribute("expected_prepare_signatures_size", options.ExpectedPrepareSignatures.size());
+    }
     if (request->has_max_allowed_commit_timestamp()) {
         options.MaxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
     }
@@ -1854,8 +1915,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
 
     context->SetRequestInfo("TransactionId: %v, AdditionalParticipantCellIds: %v, PrerequisiteTransactionIds: %v",
         transactionId,
-        options.PrerequisiteTransactionIds,
-        options.AdditionalParticipantCellIds);
+        options.AdditionalParticipantCellIds,
+        options.PrerequisiteTransactionIds);
 
     TTransactionAttachOptions attachOptions = {};
     attachOptions.Ping = false;
@@ -1905,6 +1966,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FlushTransaction)
         [&] (const auto& context, const TTransactionFlushResult& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_participant_cell_ids(), result.ParticipantCellIds);
+            ToProto(response->mutable_expected_prepare_signatures(), result.ExpectedPrepareSignatures);
 
             context->SetResponseInfo("ParticipantCellIds: %v",
                 result.ParticipantCellIds);
@@ -2059,23 +2121,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTableMountInfo)
             }
             response->set_physical_path(tableMountInfo->PhysicalPath);
 
-            for (const auto& indexInfo : tableMountInfo->Indices) {
-                auto* protoIndexInfo = response->add_indices();
-                ToProto(protoIndexInfo->mutable_index_table_id(), indexInfo.TableId);
-                protoIndexInfo->set_index_kind(ToProto(indexInfo.Kind));
-                if (const auto& predicate = indexInfo.Predicate) {
-                    ToProto(protoIndexInfo->mutable_predicate(), *predicate);
-                }
-                if (const auto& unfoldedColumns = indexInfo.UnfoldedColumns) {
-                    auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
-                    ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
-                    ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
-                }
-                protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
-                if (const auto& evaluatedColumnsSchema = indexInfo.EvaluatedColumnsSchema) {
-                    ToProto(protoIndexInfo->mutable_evaluated_columns_schema(), *evaluatedColumnsSchema);
-                }
-            }
+            ToProto(response->mutable_indices(), tableMountInfo->Indices);
 
             context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
                 tableMountInfo->Dynamic,
@@ -3128,6 +3174,23 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AlterReplicationCard)
         options.CollocationOptions = ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(request->collocation_options()));
     }
 
+    using ECase = NApi::NRpcProxy::NProto::TReqAlterReplicationCard::SecondaryIndexCase;
+    switch (request->secondary_index_case()) {
+        case ECase::kCreateSecondaryIndex:
+            options.CreateSecondaryIndex = ConvertTo<TCreateSecondaryIndexPtr>(
+                TYsonString(request->create_secondary_index()));
+            break;
+        case ECase::kDestroySecondaryIndex:
+            FromProto(&options.DestroySecondaryIndex, request->destroy_secondary_index());
+            break;
+        case ECase::kProgressSecondaryIndexCorrespondence:
+            options.ProgressSecondaryIndexCorrespondence = ConvertTo<TProgressSecondaryIndexCorrespondencePtr>(
+                TYsonString(request->progress_secondary_index_correspondence()));
+            break;
+        default:
+            break;
+    }
+
     context->SetRequestInfo("ReplicationCardId: %v",
         replicationCardId);
 
@@ -3659,7 +3722,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListJobs)
         options.WithCompetitors = request->with_competitors();
     }
     if (request->has_collective_id()) {
-        options.CollectiveId = FromProto<TGuid>(request->collective_id());
+        options.CollectiveId = FromProto<NJobTrackerClient::TCollectiveId>(request->collective_id());
     }
     if (request->has_job_competition_id()) {
         options.JobCompetitionId = FromProto<TJobId>(request->job_competition_id());
@@ -4195,6 +4258,7 @@ static void LookupRowsPrologue(
         ? TColumnFilter()
         : TColumnFilter(std::move(columnFilterIndexes));
     options->KeepMissingRows = request->keep_missing_rows();
+    options->AllowMissingKeyColumns = request->allow_missing_key_columns();
     options->EnablePartialResult = request->enable_partial_result();
     if (request->has_use_lookup_cache()) {
         options->UseLookupCache = request->use_lookup_cache();
@@ -4266,8 +4330,9 @@ void TApiService::ProcessPullQueueDetailedProfilingInfo(
     const std::string& userTag,
     const TDetailedProfilingInfoPtr& detailedProfilingInfo)
 {
+    TDetailedProfilingCountersPtr counters;
     if (detailedProfilingInfo->EnableDetailedTableProfiling) {
-        auto counters = GetOrCreateDetailedProfilingCounters({
+        counters = GetOrCreateDetailedProfilingCounters({
             .UserTag = userTag,
             .TablePath = detailedProfilingInfo->TablePath,
         });
@@ -4275,6 +4340,12 @@ void TApiService::ProcessPullQueueDetailedProfilingInfo(
         counters->PullQueueDurationTimer().Record(timer.GetElapsedTime());
         counters->PullQueueMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
         counters->PullQueuePermissionCacheWaitTimer().Record(detailedProfilingInfo->PermissionCacheWaitTime);
+    } else if (!detailedProfilingInfo->RetryReasons.empty()) {
+        counters = GetOrCreateDetailedProfilingCounters({});
+    }
+
+    for (const auto& reason : detailedProfilingInfo->RetryReasons) {
+        counters->GetRetryCounterByReason(reason)->Increment();
     }
 }
 
@@ -4656,6 +4727,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
         options.MaxJoinBatchSize = request->max_join_batch_size();
     }
     options.UseOrderByInJoinSubqueries = YT_OPTIONAL_FROM_PROTO(*request, use_order_by_in_join_subqueries);
+    options.EnableParallelizeUnorderedGroupBy = YT_OPTIONAL_FROM_PROTO(*request, enable_parallelize_unordered_group_by);
     if (request->has_statistics_aggregation()) {
         options.StatisticsAggregation = CheckedEnumCast<EStatisticsAggregation>(request->statistics_aggregation());
     }
@@ -4665,14 +4737,16 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
 
     auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
     options.DetailedProfilingInfo = detailedProfilingInfo;
+    i64 queryTruncateLimit = config->TruncatedQueryLengthForRequestInfo.value_or(std::numeric_limits<int>::max());
+
     if (options.PlaceholderValues) {
         context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
-            query,
+            TTruncatedStringView(query, queryTruncateLimit),
             options.Timestamp,
             options.PlaceholderValues);
     } else {
         context->SetRequestInfo("Query: %v, Timestamp: %v",
-            query,
+            TTruncatedStringView(query, queryTruncateLimit),
             options.Timestamp);
     }
 
@@ -5161,8 +5235,8 @@ void TApiService::PullQueueConsumerImpl(
     context->SetRequestInfo(
         "ConsumerPath: %v, QueuePath: %v, Offset: %v, PartitionIndex: %v, "
         "MaxRowCount: %v, MaxDataWeight: %v, DataWeightPerRowHint: %v",
-        request->consumer_path(),
-        request->queue_path(),
+        consumerPath,
+        queuePath,
         offset,
         request->partition_index(),
         rowBatchReadOptions.MaxRowCount,
@@ -5408,6 +5482,20 @@ void TApiService::DoModifyRows(
             << TErrorAttribute("row_modification_types_size", request.row_modification_types_size());
     }
 
+    auto totalLockCount = request.row_legacy_read_locks_size() + request.row_legacy_locks_size() + request.row_locks_size();
+    if ((request.row_legacy_read_locks_size() != 0 && request.row_legacy_read_locks_size() != rowsetSize) ||
+        (request.row_legacy_locks_size() != 0 && request.row_legacy_locks_size() != rowsetSize) ||
+        (request.row_locks_size() != 0 && request.row_locks_size() != rowsetSize) ||
+        (totalLockCount != 0 && totalLockCount != rowsetSize))
+    {
+        THROW_ERROR_EXCEPTION("Lock count mismatch")
+            << TErrorAttribute("rowset_size", rowsetSize)
+            << TErrorAttribute("row_legacy_read_locks_size", request.row_legacy_read_locks_size())
+            << TErrorAttribute("row_legacy_locks_size", request.row_legacy_locks_size())
+            << TErrorAttribute("row_locks_size", request.row_locks_size())
+            << TErrorAttribute("total_lock_count", totalLockCount);
+    }
+
     std::vector<TRowModification> modifications;
     modifications.reserve(rowsetSize);
     for (ssize_t index = 0; index < rowsetSize; ++index) {
@@ -5421,18 +5509,38 @@ void TApiService::DoModifyRows(
             }
         } else if (index < request.row_legacy_locks_size()) {
             auto legacyLocks = TLegacyLockMask(request.row_legacy_locks(index));
-            for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
+            int lockedPrefixLength = legacyLocks.GetLockedPrefixLength();
+            for (int index = 0; index < lockedPrefixLength; ++index) {
                 lockMask.Set(index, legacyLocks.Get(index));
             }
         } else if (index < request.row_locks_size()) {
             FromProto(&lockMask, request.row_locks(index));
         }
 
-        modifications.push_back({
-            FromProto<ERowModificationType>(request.row_modification_types(index)),
-            rowsetRows[index].ToTypeErasedRow(),
-            lockMask,
-        });
+        switch (request.row_modification_types(index)) {
+            case NApi::NRpcProxy::NProto::ERowModificationType::RMT_WRITE:
+                THROW_ERROR_EXCEPTION_IF(!lockMask.IsNone(),
+                    "Cannot perform lock by \"write\" modification type; use \"write_and_lock\"");
+
+                modifications.push_back(NRowModifications::TWriteRow(rowsetRows[index]));
+                break;
+
+            case NApi::NRpcProxy::NProto::ERowModificationType::RMT_DELETE:
+                THROW_ERROR_EXCEPTION_IF(!lockMask.IsNone(),
+                    "Cannot perform lock by \"delete\" modification type; use \"write_and_lock\"");
+
+                modifications.push_back(NRowModifications::TDeleteRow(rowsetRows[index]));
+                break;
+
+            case NApi::NRpcProxy::NProto::ERowModificationType::RMT_MODIFY:
+                modifications.push_back(NRowModifications::TWriteAndLockRow(rowsetRows[index], std::move(lockMask)));
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unknown modification type")
+                    << TErrorAttribute("row_modification_type", request.row_modification_types(index))
+                    << TErrorAttribute("index", index);
+        }
     }
 
     TModifyRowsOptions options;
@@ -5890,7 +5998,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveMaintenance)
     using TByUser = TMaintenanceFilter::TByUser;
     if (request->has_user()) {
         auto user = request->user();
-        requestInfo.AppendFormat(", User: ", user);
+        requestInfo.AppendFormat(", User: %v", user);
         filter.User = user;
     } else if (request->mine()) {
         filter.User = TByUser::TMine{};
@@ -6202,7 +6310,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermissionByAcl)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
-    std::optional<TString> user;
+    std::optional<std::string> user;
     if (request->has_user()) {
         user = request->user();
     }
@@ -6523,14 +6631,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTable)
         format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
 
-    context->SetRequestInfo(
-        "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v, OmitInaccessibleRows: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
+    SetReadTableRequestInfo(
+        context,
         path,
-        options.Unordered,
-        options.OmitInaccessibleColumns,
-        options.OmitInaccessibleRows,
-        NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat),
-        NApi::NRpcProxy::NProto::ERowsetFormat_Name(arrowFallbackRowsetFormat));
+        *request);
 
     PutMethodInfoInTraceContext("read_table");
 
@@ -6677,7 +6781,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteTable)
         path);
 
     NApi::TTableWriterOptions options;
-    TString tableWriterConfig("{}");
+    std::string tableWriterConfig("{}");
     if (request->has_config()) {
         tableWriterConfig = request->config();
     }
@@ -6776,7 +6880,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
 
     options.PartitionMode = FromProto<NTableClient::ETablePartitionMode>(request->partition_mode());
 
-    options.DataWeightPerPartition = request->data_weight_per_partition();
+    if (request->has_data_weight_per_partition()) {
+        options.DataWeightPerPartition = request->data_weight_per_partition();
+    }
+
+    if (request->has_compressed_data_size_per_partition()) {
+        options.CompressedDataSizePerPartition = request->compressed_data_size_per_partition();
+    }
 
     if (request->has_max_partition_count()) {
         options.MaxPartitionCount = request->max_partition_count();
@@ -6786,19 +6896,22 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
 
     options.EnableKeyGuarantee = request->enable_key_guarantee();
     options.EnableCookies = request->enable_cookies();
+    options.FetchCookieNodeDescriptors = request->fetch_cookie_node_descriptors();
     options.OmitInaccessibleRows = request->omit_inaccessible_rows();
 
     if (request->has_transactional_options()) {
         FromProto(&options, request->transactional_options());
     }
 
-    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
+    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, CompressedDataSizePerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v, FetchCookieNodeDescriptors: %v",
         paths,
         options.PartitionMode,
         options.EnableKeyGuarantee,
         options.DataWeightPerPartition,
+        options.CompressedDataSizePerPartition,
         options.AdjustDataWeightPerPartition,
-        options.EnableCookies);
+        options.EnableCookies,
+        options.FetchCookieNodeDescriptors);
 
     ExecuteCall(
         context,
@@ -7801,6 +7914,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartShuffle)
             }
             if (request->has_replication_factor()) {
                 options.ReplicationFactor = request->replication_factor();
+            }
+            options.UsePushBasedShuffle = request->use_push_based_shuffle();
+            if (request->has_schema()) {
+                FromProto(&options.Schema, request->schema());
+            }
+            if (request->has_push_config()) {
+                options.PushConfig = TYsonString(request->push_config());
             }
             return client->StartShuffle(
                 request->account(),

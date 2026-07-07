@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/core/actions/signal.h>
@@ -20,6 +18,9 @@ struct ITabletSnapshotStore
 {
     //! Returns the list of snapshots for all registered tablets.
     virtual std::vector<TTabletSnapshotPtr> GetTabletSnapshots() = 0;
+
+    //! Returns the list of snapshots for all registered tablets with latest mount revision.
+    virtual std::vector<TTabletSnapshotPtr> GetLatestTabletSnapshots() = 0;
 
     //! Returns the snapshot for a given tablet with latest mount revision or |nullptr| if none.
     virtual TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId) = 0;

@@ -15,7 +15,7 @@ namespace NYT::NClickHouseServer {
 struct TDiscoveryBaseConfig
     : public virtual NYTree::TYsonStruct
 {
-    TString GroupId;
+    NDiscoveryClient::TGroupId GroupId;
     TDuration UpdatePeriod;
     TDuration BanTimeout;
 
@@ -28,52 +28,14 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryBaseConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDiscoveryV1Config
-    : public virtual TDiscoveryBaseConfig
-{
-    NYPath::TYPath Directory;
-    TDuration TransactionTimeout;
-    TDuration TransactionPingPeriod;
-    bool SkipUnlockedParticipants;
-
-    //! How long a clique node can live without a transaction lock after creation.
-    //! Mostly for test configurations.
-    TDuration LockNodeTimeout;
-
-    NApi::EMasterChannelKind ReadFrom;
-    //! Used only for ReadFrom == Cache.
-    TDuration MasterCacheExpireTime;
-
-    REGISTER_YSON_STRUCT(TDiscoveryV1Config);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TDiscoveryV1Config)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TDiscoveryV2Config
-    : public virtual TDiscoveryBaseConfig
+struct TDiscoveryConfig
+    : public TDiscoveryBaseConfig
     , public NDiscoveryClient::TDiscoveryClientConfig
     , public NDiscoveryClient::TMemberClientConfig
 {
-    TDuration DiscoveryReadinessTimeout;
-
-    REGISTER_YSON_STRUCT(TDiscoveryV2Config);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TDiscoveryV2Config)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TDiscoveryConfig
-    : public TDiscoveryV1Config
-    , public TDiscoveryV2Config
-{
     int Version;
+
+    TDuration DiscoveryReadinessTimeout;
 
     REGISTER_YSON_STRUCT(TDiscoveryConfig);
 

@@ -14,19 +14,20 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(yt-yt-tools-trigrep-lib-unittests)
+add_executable(unittester-tools-trigrep)
 
 
-target_compile_options(yt-yt-tools-trigrep-lib-unittests PRIVATE
+target_compile_options(unittester-tools-trigrep PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
-target_link_libraries(yt-yt-tools-trigrep-lib-unittests PUBLIC
+target_link_libraries(unittester-tools-trigrep PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -39,12 +40,12 @@ target_link_libraries(yt-yt-tools-trigrep-lib-unittests PUBLIC
   tools-trigrep-lib
 )
 
-target_allocator(yt-yt-tools-trigrep-lib-unittests
+target_allocator(unittester-tools-trigrep
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(yt-yt-tools-trigrep-lib-unittests PRIVATE
+target_link_options(unittester-tools-trigrep PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -55,38 +56,39 @@ target_link_options(yt-yt-tools-trigrep-lib-unittests PRIVATE
   -lutil
 )
 
-target_sources(yt-yt-tools-trigrep-lib-unittests PRIVATE
+target_sources(unittester-tools-trigrep PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/unittests/index_builder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/unittests/zstd_reader_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-tools-trigrep-lib-unittests
+  unittester-tools-trigrep
   COMMAND
-  yt-yt-tools-trigrep-lib-unittests
+  unittester-tools-trigrep
 )
 
 set_property(
   TEST
-  yt-yt-tools-trigrep-lib-unittests
+  unittester-tools-trigrep
   PROPERTY
   LABELS
-  SMALL
+  MEDIUM
 )
 
 set_property(
   TEST
-  yt-yt-tools-trigrep-lib-unittests
+  unittester-tools-trigrep
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-tools-trigrep-lib-unittests)
+vcs_info(unittester-tools-trigrep)
 
 set_property(
   TEST
-  yt-yt-tools-trigrep-lib-unittests
+  unittester-tools-trigrep
   PROPERTY
   PROCESSORS
   1

@@ -57,11 +57,17 @@ void SetAllowResolveFromSequoiaObject(NRpc::NProto::TRequestHeader* header, bool
 //! Sets allow resolve from Sequoia object flag.
 void SetAllowResolveFromSequoiaObject(const NRpc::IClientRequestPtr& request, bool value);
 
-//! Sets target Sequoia node's effective acl.
-void SetSequoiaNodeEffectiveAcl(NRpc::NProto::TRequestHeader* header, const TString& effectiveAcl);
+//! Sets target Sequoia node's effective ACL.
+void SetSequoiaNodeEffectiveAcl(NRpc::NProto::TRequestHeader* header, const NYson::TYsonString& effectiveAcl);
 
-//! Gets target Sequoia node's effective acl.
-std::optional<TStringBuf> GetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequestHeader& header);
+//! Gets target Sequoia node's effective ACL; returns a null TYsonStringBuf if absent.
+NYson::TYsonStringBuf TryGetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequestHeader& header);
+
+//! Sets whether the target Sequoia node has row-level ACEs in its effective ACL.
+void SetSequoiaNodeHasRowLevelAce(NRpc::NProto::TRequestHeader* header, bool value);
+
+//! Gets whether the target Sequoia node has row-level ACEs in its effective ACL.
+bool GetSequoiaNodeHasRowLevelAce(const NRpc::NProto::TRequestHeader& header);
 
 //! Gets allow resolve from Sequoia object flag.
 bool GetAllowResolveFromSequoiaObject(const NRpc::NProto::TRequestHeader& header);
@@ -78,6 +84,10 @@ int GetResolveDepth(const NRpc::NProto::TRequestHeader& header);
 void SetCausedByNodeExpiration(NRpc::NProto::TRequestHeader* header, bool value);
 
 bool GetCausedByNodeExpiration(const NRpc::NProto::TRequestHeader& header);
+
+void SetResolvedSequoiaObjectId(NRpc::NProto::TRequestHeader* header, TObjectId objectId);
+
+TObjectId GetResolvedSequoiaObjectId(const NRpc::NProto::TRequestHeader& header);
 
 ////////////////////////////////////////////////////////////////////////////////
 

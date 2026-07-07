@@ -6,15 +6,14 @@
 
 #include <yt/yt/client/table_client/public.h>
 
-#include <limits>
-
 namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkPoolPtr CreateChunkPool(
     NTableClient::ETablePartitionMode partitionMode,
-    i64 dataWeightPerPartition,
+    std::optional<i64> dataWeightPerPartition,
+    std::optional<i64> compressedDataSizePerPartition,
     std::optional<int> maxPartitionCount,
     NLogging::TLogger logger);
 

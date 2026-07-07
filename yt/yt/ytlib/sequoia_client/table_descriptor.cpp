@@ -1,5 +1,7 @@
 #include "table_descriptor.h"
 
+#include "private.h"
+
 #include <yt/yt/ytlib/sequoia_client/records/acls.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
@@ -37,6 +39,14 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+constinit const auto Logger = SequoiaClientLogger;
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FormatValue(TStringBuilderBase* builder, const TSequoiaTablePathDescriptor& descriptor, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{Table: %v, MasterCellTag: %v}", descriptor.Table, descriptor.MasterCellTag);
@@ -61,7 +71,15 @@ void ITableDescriptor::ScheduleInitialization()
             .Run());
     }
     YT_UNUSED_FUTURE(AllSet(std::move(futures))
-        .Apply(BIND([threadPool = std::move(threadPool)] (const std::vector<TError>&) {
+        .Apply(BIND([threadPool = std::move(threadPool)] (const std::vector<TError>& errors) {
+            for (int i : std::views::iota(0, std::ssize(errors))) {
+                if (!errors[i].IsOK()) {
+                    YT_LOG_ERROR(
+                        errors[i],
+                        "Failed to initialize Sequoia table descriptor (Table: %v)",
+                        TEnumTraits<ESequoiaTable>::GetDomainValues()[i]);
+                }
+            }
             threadPool->Shutdown();
         })
             .AsyncVia(GetFinalizerInvoker())));
@@ -85,9 +103,9 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
                     return LeakySingleton<T##TableName##TableDescriptor>(); \
                 } \
                 \
-                const TString& GetTableName() const override \
+                const std::string& GetTableName() const override \
                 { \
-                    static const TString Result(tableName); \
+                    static const std::string Result(tableName); \
                     return Result; \
                 } \
                 \

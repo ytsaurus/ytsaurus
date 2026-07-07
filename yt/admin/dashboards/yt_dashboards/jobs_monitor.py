@@ -156,6 +156,25 @@ def _build_disk_metrics(d, mode):
                     mode=mode),
                 yaxis_label="IO operations/sec",
                 display_legend=False)
+        .row()
+            .stack(False)
+            .min(0)
+            .cell("Disk read speed",
+                _build_user_job_sensor(
+                    "yt.user_job.block_io.bytes_read.rate",
+                    legend="Read speed",
+                    unit="UNIT_BYTES_SI_PER_SECOND",
+                    mode=mode),
+                yaxis_label="Bytes/sec",
+                display_legend=False)
+            .cell("Disk write speed",
+                _build_user_job_sensor(
+                    "yt.user_job.block_io.bytes_written.rate",
+                    legend="Write speed",
+                    unit="UNIT_BYTES_SI_PER_SECOND",
+                    mode=mode),
+                yaxis_label="Bytes/sec",
+                display_legend=False)
     )
 
 

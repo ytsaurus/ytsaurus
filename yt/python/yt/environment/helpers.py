@@ -23,12 +23,7 @@ except ImportError:
 
 import yt.yson as yson
 
-try:
-    from yt.packages.six import iteritems, PY3, text_type, Iterator
-    from yt.packages.six.moves import xrange, map as imap
-except ImportError:
-    from six import iteritems, PY3, text_type, Iterator
-    from six.moves import xrange, map as imap
+from collections.abc import Iterator
 
 import codecs
 import collections
@@ -48,15 +43,15 @@ except ImportError:
     yatest_common = None
 
 if yatest_common is not None:
-    from yatest.common import network as yatest_common_network
+    from library.python import port_manager as port_manager_module
 else:
-    yatest_common_network = None
+    port_manager_module = None
 
 logger = logging.getLogger("YtLocal")
 
-if PY3:
-    def cmp(a, b):
-        return (a > b) - (a < b)
+
+def cmp(a, b):
+    return (a > b) - (a < b)
 
 
 def _dump_netstat(dump_file_path):
@@ -67,7 +62,7 @@ def _dump_netstat(dump_file_path):
 
 class OpenPortIterator(Iterator):
     def __init__(self, port_locks_path=None, local_port_range=None):
-        if yatest_common_network is None:
+        if port_manager_module is None:
             self._impl = OpenPortIteratorNonArcadia(port_locks_path, local_port_range)
         else:
             self._impl = OpenPortIteratorArcadia()
@@ -84,11 +79,11 @@ class OpenPortIterator(Iterator):
 
 class OpenPortIteratorArcadia(Iterator):
     def __init__(self):
-        if yatest_common_network is None:
+        if port_manager_module is None:
             raise RuntimeError("Cannot use OpenPortIteratorArcadia outside arcadia")
         if os.environ.get("PS1") and not os.environ.get("VALID_PORT_RANGE"):
             os.environ["VALID_PORT_RANGE"] = "10000:20000"
-        self.port_manager = yatest_common_network.PortManager()
+        self.port_manager = port_manager_module.PortManager()
 
     def release(self):
         self.port_manager.release()
@@ -112,7 +107,7 @@ class OpenPortIteratorNonArcadia(Iterator):
         self.local_port_range = local_port_range
         if self.local_port_range is None and os.path.exists("/proc/sys/net/ipv4/ip_local_port_range"):
             with open("/proc/sys/net/ipv4/ip_local_port_range") as f:
-                start, end = list(imap(int, f.read().split()))
+                start, end = list(map(int, f.read().split()))
                 self.local_port_range = start, min(end, start + 10000)
 
     def release(self):
@@ -197,7 +192,7 @@ class OpenPortIteratorNonArcadia(Iterator):
 
     def __next__(self):
         error_counter = collections.Counter()
-        for _ in xrange(self.GEN_PORT_ATTEMPTS):
+        for _ in range(self.GEN_PORT_ATTEMPTS):
             port = self._next_impl(verbose=False, error_counter=error_counter)
             if port is not None:
                 return port
@@ -252,13 +247,13 @@ def is_port_opened(port, verbose=False):
 
 def versions_cmp(version1, version2):
     def normalize(v):
-        return list(imap(int, v.split(".")))
+        return list(map(int, v.split(".")))
     return cmp(normalize(version1), normalize(version2))
 
 
 def _fix_yson_booleans(obj):
     if isinstance(obj, dict):
-        for key, value in list(iteritems(obj)):
+        for key, value in list(obj.items()):
             _fix_yson_booleans(value)
             if isinstance(value, yson.YsonBoolean):
                 obj[key] = True if value else False
@@ -271,14 +266,12 @@ def _fix_yson_booleans(obj):
 def write_config(config, filename, format="yson"):
     with open(filename, "wb") as f:
         if format == "json":
-            writer = lambda stream: stream  # noqa
-            if PY3:
-                writer = codecs.getwriter("utf-8")
+            writer = codecs.getwriter("utf-8")
             json.dump(_fix_yson_booleans(config), writer(f), indent=4)
         elif format == "yson":
             yson.dump(config, f, yson_format="pretty")
         else:
-            if isinstance(config, text_type):
+            if isinstance(config, str):
                 config = config.encode("utf-8")
             f.write(config)
         f.write(b"\n")
@@ -289,9 +282,7 @@ def read_config(filename, format="yson"):
         if format == "yson":
             return yson.load(f)
         elif format == "json":
-            reader = lambda stream: stream  # noqa
-            if PY3:
-                reader = codecs.getreader("utf-8")
+            reader = codecs.getreader("utf-8")
             return json.load(reader(f))
         else:
             return to_native_str(f.read())
@@ -398,6 +389,7 @@ QUEUE_AGENTS_SERVICE = "queue_agents"
 RPC_PROXIES_SERVICE = "rpc_proxies"
 HTTP_PROXIES_SERVICE = "http_proxies"
 KAFKA_PROXIES_SERVICE = "kafka_proxies"
+OFFSHORE_DATA_GATEWAYS_SERVICE = "offshore_data_gateways"
 CYPRESS_PROXIES_SERVICE = "cypress_proxies"
 
 
@@ -424,6 +416,7 @@ class Restarter(object):
             RPC_PROXIES_SERVICE: self.yt_instance.start_rpc_proxy,
             HTTP_PROXIES_SERVICE: self.yt_instance.start_http_proxy,
             KAFKA_PROXIES_SERVICE: self.yt_instance.start_kafka_proxy,
+            OFFSHORE_DATA_GATEWAYS_SERVICE: self.yt_instance.start_offshore_data_gateways,
             CYPRESS_PROXIES_SERVICE: self.yt_instance.start_cypress_proxies,
         }
         self.kill_dict = {
@@ -431,12 +424,13 @@ class Restarter(object):
             CONTROLLER_AGENTS_SERVICE: lambda: self.yt_instance.kill_controller_agents(*self.kill_args, **self.kill_kwargs),
             NODES_SERVICE: lambda: self.yt_instance.kill_nodes(*self.kill_args, **self.kill_kwargs),
             CHAOS_NODES_SERVICE: lambda: self.yt_instance.kill_chaos_nodes(*self.kill_args, **self.kill_kwargs),
-            MASTERS_SERVICE: lambda: self.yt_instance.kill_all_masters(*self.kill_args, **self.kill_kwargs),
+            MASTERS_SERVICE: lambda: self.yt_instance.kill_masters_at_cells(*self.kill_args, **self.kill_kwargs),
             MASTER_CACHES_SERVICE: lambda: self.yt_instance.kill_master_caches(*self.kill_args, **self.kill_kwargs),
             QUEUE_AGENTS_SERVICE: lambda: self.yt_instance.kill_queue_agents(*self.kill_args, **self.kill_kwargs),
             RPC_PROXIES_SERVICE: lambda: self.yt_instance.kill_rpc_proxies(*self.kill_args, **self.kill_kwargs),
             HTTP_PROXIES_SERVICE: lambda: self.yt_instance.kill_http_proxies(*self.kill_args, **self.kill_kwargs),
             KAFKA_PROXIES_SERVICE: lambda: self.yt_instance.kill_kafka_proxies(*self.kill_args, **self.kill_kwargs),
+            OFFSHORE_DATA_GATEWAYS_SERVICE: lambda: self.yt_instance.kill_offshore_data_gateways(*self.kill_args, **self.kill_kwargs),
             CYPRESS_PROXIES_SERVICE: lambda: self.yt_instance.kill_cypress_proxies(*self.kill_args, **self.kill_kwargs),
         }
 

@@ -39,7 +39,7 @@ using NVectorHdrf::ToJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString InvalidCustomProfilingTag("invalid");
+static const std::string InvalidCustomProfilingTag("invalid");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,7 +179,7 @@ void TPoolTreeElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrapp
         GetAccumulatedResourceRatioVolume());
 }
 
-TString TPoolTreeElement::GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const
+std::string TPoolTreeElement::GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const
 {
     TStringBuilder builder;
     builder.AppendFormat("Scheduling info for tree %Qv = {", GetTreeId());
@@ -374,7 +374,7 @@ TPoolTreeElement::TPoolTreeElement(
     IPoolTreeElementHost* treeElementHost,
     TStrategyTreeConfigPtr treeConfig,
     std::string treeId,
-    TString id,
+    std::string id,
     EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
     : TPoolTreeElementFixedState(strategyHost, treeElementHost, std::move(treeConfig), std::move(treeId))
@@ -589,7 +589,7 @@ TJobResourcesConfigPtr TPoolTreeElement::GetSpecifiedResourceLimitsOvercommitTol
 
 void TPoolTreeElement::BuildResourceMetering(
     const std::optional<TMeteringKey>& /*lowestMeteredAncestorKey*/,
-    const THashMap<TString, TResourceVolume>& /*poolResourceUsages*/,
+    const THashMap<std::string, TResourceVolume>& /*poolResourceUsages*/,
     TMeteringMap* /*statistics*/) const
 { }
 
@@ -672,7 +672,7 @@ TPoolTreeCompositeElement::TPoolTreeCompositeElement(
     IPoolTreeElementHost* treeElementHost,
     TStrategyTreeConfigPtr treeConfig,
     const std::string& treeId,
-    const TString& id,
+    const std::string& id,
     EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
     : TPoolTreeElement(strategyHost, treeElementHost, std::move(treeConfig), treeId, id, elementKind, logger)
@@ -815,7 +815,8 @@ void TPoolTreeCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpda
                 updateSchedulableCounters(child);
             }
         }
-    } else { // Fifo pool, MaxSchedulableElementCountInFifoPool specified.
+    } else {
+        // FIFO pool, MaxSchedulableElementCountInFifoPool specified.
         std::vector<TPoolTreeOperationElement*> sortedChildren;
         for (const auto& child : EnabledChildren_) {
             YT_VERIFY(child->IsOperation());
@@ -1188,7 +1189,7 @@ void TPoolTreeCompositeElement::UpdateStarvationStatuses(TInstant now, bool enab
 
 TYPath TPoolTreeCompositeElement::GetFullPath(bool explicitOnly, bool withTreeId) const
 {
-    std::vector<TString> tokens;
+    std::vector<std::string> tokens;
     const auto* current = this;
     while (!current->IsRoot()) {
         if (!explicitOnly || current->IsExplicit()) {
@@ -1205,7 +1206,7 @@ TYPath TPoolTreeCompositeElement::GetFullPath(bool explicitOnly, bool withTreeId
     }
     for (const auto& token : tokens) {
         path.append('/');
-        path.append(NYPath::ToYPathLiteral(token));
+        path.append(TStringBuf(NYPath::ToYPathLiteral(token)));
     }
     return path;
 }
@@ -1217,7 +1218,7 @@ std::optional<std::string> TPoolTreeCompositeElement::GetRedirectToCluster() con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPoolTreePoolElementFixedState::TPoolTreePoolElementFixedState(TString id, NObjectClient::TObjectId objectId)
+TPoolTreePoolElementFixedState::TPoolTreePoolElementFixedState(std::string id, NObjectClient::TObjectId objectId)
     : Id_(std::move(id))
     , ObjectId_(objectId)
 { }
@@ -1227,7 +1228,7 @@ TPoolTreePoolElementFixedState::TPoolTreePoolElementFixedState(TString id, NObje
 TPoolTreePoolElement::TPoolTreePoolElement(
     IStrategyHost* strategyHost,
     IPoolTreeElementHost* treeElementHost,
-    const TString& id,
+    const std::string& id,
     TGuid objectId,
     TPoolConfigPtr config,
     bool defaultConfigured,
@@ -1336,7 +1337,7 @@ std::optional<TDuration> TPoolTreePoolElement::GetSpecifiedWaitingForResourcesOn
     return Config_->WaitingForResourcesOnNodeTimeout;
 }
 
-TString TPoolTreePoolElement::GetId() const
+std::string TPoolTreePoolElement::GetId() const
 {
     return Id_;
 }
@@ -1503,9 +1504,13 @@ bool TPoolTreePoolElement::IsEphemeralHub() const
     return Config_->CreateEphemeralSubpools;
 }
 
-THashSet<TString> TPoolTreePoolElement::GetAllowedProfilingTags() const
+THashSet<std::string> TPoolTreePoolElement::GetAllowedProfilingTags() const
 {
-    return Config_->AllowedProfilingTags;
+    THashSet<std::string> result;
+    for (const auto& tag : Config_->AllowedProfilingTags) {
+        result.insert(tag);
+    }
+    return result;
 }
 
 bool TPoolTreePoolElement::IsStepFunctionForGangOperationsEnabled() const
@@ -1525,7 +1530,7 @@ std::optional<TDuration> TPoolTreePoolElement::GetMaybeHistoricUsageAggregatorPe
 
 void TPoolTreePoolElement::BuildResourceMetering(
     const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
-    const THashMap<TString, TResourceVolume>& poolResourceUsages,
+    const THashMap<std::string, TResourceVolume>& poolResourceUsages,
     TMeteringMap* meteringMap) const
 {
     YT_VERIFY(lowestMeteredAncestorKey);
@@ -1982,7 +1987,7 @@ bool TPoolTreeOperationElement::AreDetailedLogsEnabled() const
     return RuntimeParameters_->EnableDetailedLogs || enabledDueToStarvation || enabledSinceSingleAllocation;
 }
 
-TString TPoolTreeOperationElement::GetId() const
+std::string TPoolTreeOperationElement::GetId() const
 {
     return ToString(OperationId_);
 }
@@ -2030,7 +2035,9 @@ std::optional<double> TPoolTreeOperationElement::GetSpecifiedWeight() const
 
 const NVectorHdrf::TJobResourcesConfig* TPoolTreeOperationElement::GetStrongGuaranteeResourcesConfig() const
 {
-    return Spec_->StrongGuaranteeResources.Get();
+    // Operations never receive a strong guarantee, so we always report an empty config here.
+    static const NVectorHdrf::TJobResourcesConfig EmptyConfig;
+    return &EmptyConfig;
 }
 
 const TStrategyOperationStatePtr& TPoolTreeOperationElement::GetStrategyOperationState() const
@@ -2150,8 +2157,6 @@ void TPoolTreeOperationElement::SetStarvationStatus(EStarvationStatus starvation
                 .Item("usage_on_starvation_start").Value(PersistentAttributes_.UsageOnStarvationStart);
         }
 
-
-
         PersistentAttributes_.StarvingSince.reset();
     }
 }
@@ -2175,7 +2180,8 @@ void TPoolTreeOperationElement::CheckForStarvation(TInstant now)
         now);
 }
 
-std::optional<TInstant> TPoolTreeOperationElement::GetStarvingSince() const {
+std::optional<TInstant> TPoolTreeOperationElement::GetStarvingSince() const
+{
     return PersistentAttributes_.StarvingSince;
 }
 
@@ -2294,9 +2300,9 @@ bool TPoolTreeOperationElement::IsMaxConcurrentScheduleAllocationExecDurationPer
     return Controller_->IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(schedulingHeartbeatContext);
 }
 
-bool TPoolTreeOperationElement::HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const
+bool TPoolTreeOperationElement::HasRecentScheduleAllocationFailure(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const
 {
-    return Controller_->HasRecentScheduleAllocationFailure(now);
+    return Controller_->HasRecentScheduleAllocationFailure(schedulingHeartbeatContext, ScheduleAllocationBackoffCheckEnabled_);
 }
 
 bool TPoolTreeOperationElement::IsSaturatedInTentativeTree(
@@ -2312,7 +2318,8 @@ TControllerScheduleAllocationResultPtr TPoolTreeOperationElement::ScheduleAlloca
     const TJobResources& availableResources,
     const TDiskResources& availableDiskResources,
     TDuration timeLimit,
-    const std::string& treeId)
+    const std::string& treeId,
+    std::optional<std::string> allocationGroupName)
 {
     return Controller_->ScheduleAllocation(
         context,
@@ -2321,15 +2328,16 @@ TControllerScheduleAllocationResultPtr TPoolTreeOperationElement::ScheduleAlloca
         timeLimit,
         treeId,
         GetParent()->GetFullPath(/*explicitOnly*/ false),
-        EffectiveWaitingForResourcesOnNodeTimeout_);
+        EffectiveWaitingForResourcesOnNodeTimeout_,
+        std::move(allocationGroupName));
 }
 
 void TPoolTreeOperationElement::OnScheduleAllocationFailed(
-    TCpuInstant now,
+    const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const std::string& treeId,
     const TControllerScheduleAllocationResultPtr& scheduleAllocationResult)
 {
-    Controller_->OnScheduleAllocationFailed(now, treeId, scheduleAllocationResult);
+    Controller_->OnScheduleAllocationFailed(schedulingHeartbeatContext, treeId, scheduleAllocationResult);
 }
 
 void TPoolTreeOperationElement::AbortAllocation(
@@ -2374,9 +2382,14 @@ void TPoolTreeOperationElement::DecreaseHierarchicalResourceUsagePrecommit(const
     TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
 }
 
-void TPoolTreeOperationElement::CommitHierarchicalResourceUsage(const TJobResources& resourceUsage, const TJobResources& precommittedResources)
+void TPoolTreeOperationElement::CommitHierarchicalResourceUsage(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
 {
-    TreeElementHost_->GetResourceTree()->CommitHierarchicalResourceUsage(ResourceTreeElement_, resourceUsage, precommittedResources);
+    TreeElementHost_->GetResourceTree()->CommitHierarchicalResourceUsage(
+        ResourceTreeElement_,
+        resourceUsageDelta,
+        precommittedResources);
 }
 
 void TPoolTreeOperationElement::ReleaseResources(bool markAsNonAlive)
@@ -2392,9 +2405,14 @@ EResourceTreeIncreasePreemptedResult TPoolTreeOperationElement::TryIncreaseHiera
         violatedIdOutput);
 }
 
-bool TPoolTreeOperationElement::CommitHierarchicalPreemptedResourceUsage(const TJobResources& delta)
+bool TPoolTreeOperationElement::CommitHierarchicalPreemptedResourceUsage(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
 {
-    return TreeElementHost_->GetResourceTree()->CommitHierarchicalPreemptedResourceUsage(ResourceTreeElement_, delta);
+    return TreeElementHost_->GetResourceTree()->CommitHierarchicalPreemptedResourceUsage(
+        ResourceTreeElement_,
+        resourceUsageDelta,
+        precommittedResources);
 }
 
 void TPoolTreeOperationElement::InitializeResourceUsageAndDemand()
@@ -2544,7 +2562,7 @@ void TPoolTreeOperationElement::MarkPendingBy(TPoolTreeCompositeElement* violate
         violatedPool->GetMaxRunningOperationCount());
 }
 
-std::optional<TString> TPoolTreeOperationElement::GetCustomProfilingTag() const
+std::optional<std::string> TPoolTreeOperationElement::GetCustomProfilingTag() const
 {
     auto tagName = Spec_->CustomProfilingTag;
     if (!tagName) {
@@ -2555,7 +2573,7 @@ std::optional<TString> TPoolTreeOperationElement::GetCustomProfilingTag() const
         return {};
     }
 
-    THashSet<TString> allowedProfilingTags;
+    THashSet<std::string> allowedProfilingTags;
     const auto* parent = GetParent();
     while (parent) {
         for (const auto& tag : parent->GetAllowedProfilingTags()) {
@@ -2711,7 +2729,7 @@ const TSchedulingTagFilter& TPoolTreeRootElement::GetSchedulingTagFilter() const
     return EmptySchedulingTagFilter;
 }
 
-TString TPoolTreeRootElement::GetId() const
+std::string TPoolTreeRootElement::GetId() const
 {
     return RootPoolName;
 }
@@ -2814,7 +2832,7 @@ bool TPoolTreeRootElement::IsEphemeralHub() const
     return false;
 }
 
-THashSet<TString> TPoolTreeRootElement::GetAllowedProfilingTags() const
+THashSet<std::string> TPoolTreeRootElement::GetAllowedProfilingTags() const
 {
     return {};
 }
@@ -2857,7 +2875,7 @@ std::optional<TDuration> TPoolTreeRootElement::GetMaybeHistoricUsageAggregatorPe
 
 void TPoolTreeRootElement::BuildResourceMetering(
     const std::optional<TMeteringKey>& /*lowestMeteredAncestorKey*/,
-    const THashMap<TString, TResourceVolume>& poolResourceUsages,
+    const THashMap<std::string, TResourceVolume>& poolResourceUsages,
     TMeteringMap* meteringMap) const
 {
     auto key = TMeteringKey{

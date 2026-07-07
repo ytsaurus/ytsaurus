@@ -22,11 +22,17 @@ const (
 	VerbWriteTable Verb = "write_table"
 	VerbReadTable  Verb = "read_table"
 
-	VerbListOperations Verb = "list_operations"
-	VerbStartOperation Verb = "start_operation"
-	VerbGetOperation   Verb = "get_operation"
-	VerbListJobs       Verb = "list_jobs"
-	VerbGetJobStderr   Verb = "get_job_stderr"
+	VerbStartDistributedWriteSession  Verb = "start_distributed_write_session"
+	VerbPingDistributedWriteSession   Verb = "ping_distributed_write_session"
+	VerbFinishDistributedWriteSession Verb = "finish_distributed_write_session"
+	VerbWriteTableFragment            Verb = "write_table_fragment"
+
+	VerbListOperations      Verb = "list_operations"
+	VerbStartOperation      Verb = "start_operation"
+	VerbGetOperation        Verb = "get_operation"
+	VerbListJobs            Verb = "list_jobs"
+	VerbGetJobStderr        Verb = "get_job_stderr"
+	VerbListOperationEvents Verb = "list_operation_events"
 
 	VerbStartTransaction  Verb = "start_transaction"
 	VerbPingTransaction   Verb = "ping_transaction"
@@ -59,6 +65,8 @@ const (
 
 	VerbPushQueueProducer Verb = "push_queue_producer"
 
+	VerbPullQueueConsumer Verb = "pull_queue_consumer"
+
 	VerbMountTable   Verb = "mount_table"
 	VerbUnmountTable Verb = "unmount_table"
 	VerbRemountTable Verb = "remount_table"
@@ -81,7 +89,7 @@ const (
 
 func (v Verb) hasInput() bool {
 	switch v {
-	case VerbSet, VerbMultisetAttributes, VerbWriteFile, VerbWriteTable:
+	case VerbSet, VerbMultisetAttributes, VerbWriteFile, VerbWriteTable, VerbWriteTableFragment:
 		return true
 
 	case VerbInsertRows, VerbDeleteRows, VerbLookupRows, VerbLockRows, VerbPushQueueProducer:
@@ -96,7 +104,7 @@ func (v Verb) hasInput() bool {
 
 func (v Verb) IsHeavy() bool {
 	switch v {
-	case VerbReadFile, VerbWriteFile, VerbReadTable, VerbWriteTable:
+	case VerbReadFile, VerbWriteFile, VerbReadTable, VerbWriteTable, VerbWriteTableFragment:
 		return true
 
 	case VerbLocateSkynetShare:
@@ -113,6 +121,9 @@ func (v Verb) IsHeavy() bool {
 
 	case VerbReadQueryResult:
 		return true
+
+	case VerbPullQueueConsumer:
+		return true
 	}
 
 	return false
@@ -120,7 +131,7 @@ func (v Verb) IsHeavy() bool {
 
 func (v Verb) volatile() bool {
 	switch v {
-	case VerbGet, VerbList, VerbExists, VerbReadFile, VerbReadTable, VerbGetOperation, VerbGetFileFromCache, VerbListJobs, VerbGetJobStderr, VerbListOperations:
+	case VerbGet, VerbList, VerbExists, VerbReadFile, VerbReadTable, VerbGetOperation, VerbGetFileFromCache, VerbListJobs, VerbGetJobStderr, VerbListOperationEvents, VerbListOperations:
 		return false
 
 	case VerbLocateSkynetShare:
@@ -136,6 +147,9 @@ func (v Verb) volatile() bool {
 		return false
 
 	case VerbStartQuery, VerbAbortQuery, VerbGetQuery, VerbListQueries, VerbGetQueryResult, VerbReadQueryResult, VerbAlterQuery:
+		return false
+
+	case VerbPullQueueConsumer:
 		return false
 	}
 

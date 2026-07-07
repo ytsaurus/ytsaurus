@@ -68,6 +68,30 @@ void TCellDirectorySynchronizerConfig::Register(TRegistrar registrar)
     registrar.Parameter("expire_after_failed_update_time", &TThis::ExpireAfterFailedUpdateTime)
         .Alias("failure_expiration_time")
         .Default(TDuration::Seconds(15));
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCellDirectorySynchronizerOverrideDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("sync_period", &TThis::SyncPeriod)
+        .Default();
+    registrar.Parameter("retry_period", &TThis::RetryPeriod)
+        .Default();
+    registrar.Parameter("expire_after_successful_update_time", &TThis::ExpireAfterSuccessfulUpdateTime)
+        .Default();
+    registrar.Parameter("expire_after_failed_update_time", &TThis::ExpireAfterFailedUpdateTime)
+        .Default();
+    registrar.Parameter("testing", &TThis::Testing)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTestConfig::Register(TRegistrar registrar)
+{
     registrar.Parameter("duplicate_directory_update", &TThis::DuplicateDirectoryUpdate)
         .Default(false);
 }

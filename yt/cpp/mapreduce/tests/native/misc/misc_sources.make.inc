@@ -5,12 +5,15 @@ SET(MISC_SRCS
     ${MISC_SRCS_ROOT}/enable_debug_command_line_arguments_spec_flag.cpp
     ${MISC_SRCS_ROOT}/batch_request.cpp
     ${MISC_SRCS_ROOT}/canonize_path.cpp
+#   TODO(dagorokhov): Enable after YT-28273 or use with -DYT_RECIPE_BUILD_FROM_SOURCE=yes
+#   ${MISC_SRCS_ROOT}/cluster_liveness.cpp
     ${MISC_SRCS_ROOT}/custom_client_config.cpp
     ${MISC_SRCS_ROOT}/cypress_client.cpp
     ${MISC_SRCS_ROOT}/distributed_table_api.cpp
 #   TODO(achains): Enable After YT-26108 or use with -DYT_RECIPE_BUILD_FROM_SOURCE=yes
 #   ${MISC_SRCS_ROOT}/distributed_file_api.cpp
     ${MISC_SRCS_ROOT}/error.cpp
+    ${MISC_SRCS_ROOT}/file_cache_replication_factor.cpp
     ${MISC_SRCS_ROOT}/file_io.cpp
     ${MISC_SRCS_ROOT}/format_attribute.cpp
     ${MISC_SRCS_ROOT}/lock.cpp

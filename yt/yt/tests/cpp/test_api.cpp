@@ -57,24 +57,24 @@ using namespace NProfiling;
 TEST_F(TApiTestBase, TestClusterConnection)
 {
     auto resOrError = Client_->GetNode(TYPath("/"));
-    EXPECT_TRUE(resOrError.Get().IsOK());
+    EXPECT_TRUE(WaitFor(resOrError).IsOK());
 }
 
 TEST_F(TApiTestBase, TestCreateInvalidNode)
 {
     auto resOrError = Client_->CreateNode(TYPath("//tmp/a"), EObjectType::SortedDynamicTabletStore);
-    EXPECT_FALSE(resOrError.Get().IsOK());
+    EXPECT_FALSE(WaitFor(resOrError).IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using TLookupFilterTestParam = std::tuple<
-    std::vector<std::string>,
-    TString,
-    std::vector<int>,
-    TString,
-    TString,
-    TString>;
+    std::vector<std::string>, // namedColumns - column names used for key preparation
+    std::string,              // keyString - key Yson string for lookup
+    std::vector<int>,         // columnFilter - column indices for filtering
+    std::string,              // resultKeyString - expected result key Yson string
+    std::string,              // resultValueString - expected result value Yson string
+    std::string>;             // schemaString - expected schema Yson string
 
 class TLookupFilterTest
     : public TDynamicTablesTestBase
@@ -86,14 +86,15 @@ public:
         TDynamicTablesTestBase::SetUpTestCase();
 
         CreateTable(
-            "//tmp/lookup_test", // tablePath
-            "[" // schema
-            "{name=k0;type=int64;sort_order=ascending};"
-            "{name=k1;type=int64;sort_order=ascending};"
-            "{name=k2;type=int64;sort_order=ascending};"
-            "{name=v3;type=int64};"
-            "{name=v4;type=int64};"
-            "{name=v5;type=int64}]");
+            /*tablePath*/ "//tmp/lookup_test",
+            /*schema*/ TYsonString(R"([
+                {name=k0;type=int64;sort_order=ascending};
+                {name=k1;type=int64;sort_order=ascending};
+                {name=k2;type=int64;sort_order=ascending};
+                {name=v3;type=int64};
+                {name=v4;type=int64};
+                {name=v5;type=int64}
+            ])"_sb));
 
         InitializeRows();
     }
@@ -112,7 +113,7 @@ protected:
 
     static void WriteUnversionedRow(
         const std::vector<std::string>& names,
-        const TString& rowString,
+        const std::string& rowString,
         int timestampTag)
     {
         auto preparedRow = PrepareUnversionedRow(names, rowString);
@@ -145,7 +146,7 @@ protected:
 
     static void DeleteRow(
         const std::vector<std::string>& names,
-        const TString& rowString,
+        const std::string& rowString,
         int timestampTag)
     {
         auto preparedKey = PrepareUnversionedRow(names, rowString);
@@ -174,8 +175,8 @@ protected:
     }
 
     TVersionedRow BuildVersionedRow(
-        const TString& keyYson,
-        const TString& valueYson,
+        const std::string& keyYson,
+        const std::string& valueYson,
         const std::vector<TTimestamp>& extraWriteTimestamps = {},
         const std::vector<TTimestamp>& deleteTimestamps = {})
     {
@@ -708,11 +709,12 @@ public:
         TDynamicTablesTestBase::SetUpTestCase();
 
         CreateTable(
-            "//tmp/write_ordered_test", // tablePath
-            "[" // schema
-            "{name=v1;type=int64};"
-            "{name=v2;type=int64};"
-            "{name=v3;type=int64}]");
+            /*tablePath*/ "//tmp/write_ordered_test",
+            /*schema*/ TYsonString(R"([
+                {name=v1;type=int64};
+                {name=v2;type=int64};
+                {name=v3;type=int64}
+            ])"_sb));
     }
 };
 
@@ -784,11 +786,12 @@ public:
 TEST_P(TQueueApiTest, TestQueueApi)
 {
     CreateTable(
-        Format("//tmp/test_queue_api_%v", GetParam()), // tablePath
-        "[" // schema
-        "{name=v1;type=int64};"
-        "{name=v2;type=int64};"
-        "{name=v3;type=int64}]");
+        /*tablePath*/ Format("//tmp/test_queue_api_%v", GetParam()),
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=int64};
+            {name=v2;type=int64};
+            {name=v3;type=int64}
+        ])"_sb));
 
     TPullQueueOptions pullQueueOptions;
     pullQueueOptions.UseNativeTabletNodeApi = GetParam();
@@ -899,9 +902,10 @@ TEST_P(TQueueApiTest, TestQueueApi)
 TEST_P(TQueueApiTest, PullQueueCanReadBigBatches)
 {
     CreateTable(
-        Format("//tmp/pull_queue_can_read_big_batches_%v", GetParam()), // tablePath
-        "[" // schema
-        "{name=v1;type=string}]",
+        /*tablePath*/ Format("//tmp/pull_queue_can_read_big_batches_%v", GetParam()),
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string}
+        ])"_sb),
         /*mount*/ false);
 
     auto chunkWriterConfig = New<TChunkWriterConfig>();
@@ -915,7 +919,7 @@ TEST_P(TQueueApiTest, PullQueueCanReadBigBatches)
 
     SyncMountTable(Table_);
 
-    TString bigString(1_MB, 'a');
+    std::string bigString(1_MB, 'a');
 
     for (int i = 0; i < 20; ++i) {
         WriteUnversionedRow(
@@ -987,6 +991,204 @@ TEST_F(TClusterIdentificationTest, FetchFromMaster)
         ASSERT_TRUE(clusterName);
         ASSERT_EQ(clusterName->ValueOrThrow(), ClusterName_);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOptionalKeyColumnsTest
+    : public TDynamicTablesTestBase
+{
+public:
+    void SetUp()
+    {
+        CreateTable(
+            /*tablePath*/ "//tmp/optional_key_test",
+            /*schema*/ TYsonString(R"([
+                {name=k0;type=int64;sort_order=ascending};
+                {name=k1;type=int64;sort_order=ascending;required=%false};
+                {name=k2;type=int64;sort_order=ascending;required=%false};
+                {name=v0;type=int64}
+            ])"_sb));
+    }
+
+    void TearDown()
+    {
+        WaitFor(Client_->RemoveNode(Table_))
+            .ThrowOnError();
+        Table_ = "";
+    }
+
+    void WriteRow(
+        const std::vector<std::string>& names,
+        TStringBuf rowString,
+        bool allowMissingKeyColumns = true)
+    {
+        auto preparedRow = PrepareUnversionedRow(names, rowString);
+        auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+
+        TModifyRowsOptions options;
+        options.AllowMissingKeyColumns = allowMissingKeyColumns;
+
+        transaction->WriteRows(
+            Table_,
+            std::get<1>(preparedRow),
+            std::get<0>(preparedRow),
+            options);
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+    }
+
+    void DeleteRows(
+        const std::vector<std::string>& names,
+        TStringBuf rowString,
+        bool allowMissingKeyColumns = true)
+    {
+        auto preparedKey = PrepareUnversionedRow(names, rowString);
+        auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+
+        TModifyRowsOptions options;
+        options.AllowMissingKeyColumns = allowMissingKeyColumns;
+
+        transaction->DeleteRows(
+            Table_,
+            std::get<1>(preparedKey),
+            std::get<0>(preparedKey),
+            options);
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+    }
+
+    TSharedRange<TUnversionedRow> LookupRows(
+        const std::vector<std::string>& names,
+        TStringBuf rowString,
+        bool allowMissingKeyColumns = true)
+    {
+        TLookupRowsOptions options;
+        options.AllowMissingKeyColumns = allowMissingKeyColumns;
+        auto preparedKey = PrepareUnversionedRow(names, rowString);
+        return WaitFor(Client_->LookupRows(
+            Table_,
+            std::get<1>(preparedKey),
+            std::get<0>(preparedKey),
+            options))
+            .ValueOrThrow()
+            .Rowset
+            ->GetRows();
+    }
+
+    TSharedRange<TUnversionedRow> SelectAllRows()
+    {
+        return WaitFor(Client_->SelectRows(Format("* from [%v]", Table_)))
+            .ValueOrThrow()
+            .Rowset
+            ->GetRows();
+    }
+};
+
+TEST_F(TOptionalKeyColumnsTest, TestWriteRowsOnKeyPrefix)
+{
+    EXPECT_THROW(WriteRow(
+        {"k0", "v0"},
+        "<id=0> 1; <id=1> 100",
+        /*allowMissingKeyColumns*/ false), TErrorException);
+
+    WriteRow(
+        {"k0", "v0"},
+        "<id=0> 1; <id=1> 100");
+
+    WriteRow(
+        {"k0", "k1", "v0"},
+        "<id=0> 2; <id=1> 20; <id=2> 200");
+
+    auto rows = SelectAllRows();
+    ASSERT_EQ(2u, rows.Size());
+
+    auto actual = ToString(rows[0]);
+    auto expected = ToString(YsonToSchemalessRow(
+        "<id=0> 1; <id=1> #; <id=2> #; <id=3> 100;"));
+    EXPECT_EQ(expected, actual);
+
+    actual = ToString(rows[1]);
+    expected = ToString(YsonToSchemalessRow(
+        "<id=0> 2; <id=1> 20; <id=2> #; <id=3> 200;"));
+    EXPECT_EQ(expected, actual);
+}
+
+TEST_F(TOptionalKeyColumnsTest, TestLookupOnKeyPrefix)
+{
+    WriteRow(
+        {"k0", "k1", "k2", "v0"},
+        "<id=0> 10; <id=1> 11; <id=2> 12; <id=3> 1000");
+    WriteRow(
+        {"k0", "k1", "v0"},
+        "<id=0> 10; <id=1> 11; <id=2> 2000");
+    WriteRow(
+        {"k0", "v0"},
+        "<id=0> 10; <id=1> 3000");
+
+    EXPECT_THROW(LookupRows(
+        {"k0", "k1"},
+        "<id=0> 10; <id=1> 11",
+        /*allowMissingKeyColumns*/ false), TErrorException);
+
+    auto rows = LookupRows(
+        {"k0", "k1"},
+        "<id=0> 10; <id=1> 11");
+
+    ASSERT_EQ(1u, rows.Size());
+    auto actual = ToString(rows[0]);
+    auto expected = ToString(YsonToSchemalessRow(
+        "<id=0> 10; <id=1> 11; <id=2> #; <id=3> 2000"));
+    EXPECT_EQ(expected, actual);
+
+    EXPECT_THROW(LookupRows(
+        {"k0"},
+        "<id=0> 10",
+        /*allowMissingKeyColumns*/ false), TErrorException);
+
+    rows = LookupRows(
+        {"k0"},
+        "<id=0> 10");
+
+    ASSERT_EQ(1u, rows.Size());
+    actual = ToString(rows[0]);
+    expected = ToString(YsonToSchemalessRow(
+        "<id=0> 10; <id=1> #; <id=2> #; <id=3> 3000"));
+    EXPECT_EQ(expected, actual);
+}
+
+TEST_F(TOptionalKeyColumnsTest, TestDeleteRowsOnKeyPrefix)
+{
+    WriteRow(
+        {"k0", "k1", "k2", "v0"},
+        "<id=0> 200; <id=1> 201; <id=2> 102; <id=3> 10000");
+    WriteRow(
+        {"k0", "k1", "v0"},
+        "<id=0> 200; <id=1> 201; <id=2> 20000");
+    WriteRow(
+        {"k0", "v0"},
+        "<id=0> 200; <id=1> 30000");
+
+    EXPECT_THROW(DeleteRows({"k0"}, "<id=0> 200", /*allowMissingKeyColumns*/ false), TErrorException);
+
+    DeleteRows({"k0"},"<id=0> 200");
+
+    auto rows = SelectAllRows();
+    ASSERT_EQ(2u, rows.Size());
+
+    DeleteRows({"k0", "k1"}, "<id=0> 200; <id=1> 201");
+
+    rows = SelectAllRows();
+    ASSERT_EQ(1u, rows.Size());
+
+    auto actual = ToString(rows[0]);
+    auto expected = ToString(YsonToSchemalessRow(
+        "<id=0> 200; <id=1> 201; <id=2> 102; <id=3> 10000;"));
+    EXPECT_EQ(expected, actual);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

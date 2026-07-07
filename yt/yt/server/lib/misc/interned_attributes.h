@@ -56,7 +56,9 @@
     XX(AvailableSpace, available_space) \
     XX(AvailableSpacePerMedium, available_space_per_medium) \
     XX(BackupCheckpointTimestamp, backup_checkpoint_timestamp) \
+    XX(BackupConfig, backup_config) \
     XX(BackupError, backup_error) \
+    XX(BackupSourceAccounts, backup_source_accounts) \
     XX(BackupState, backup_state) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
@@ -94,6 +96,7 @@
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
     XX(ChunkMergerStatus, chunk_merger_status) \
     XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
+    XX(ChunkMergerUsage, chunk_merger_usage) \
     XX(ChunkReader, chunk_reader) \
     XX(ChunkRefreshEnabled, chunk_refresh_enabled) \
     XX(ChunkReplicaCount, chunk_replica_count) \
@@ -224,6 +227,7 @@
     XX(ExternalRequisitionIndexes, external_requisition_indexes) \
     XX(ExternalRequisitions, external_requisitions) \
     XX(ExternalizedToCellTags, externalized_to_cell_tags) \
+    XX(FailedExpirationAttempts, failed_expiration_attempts) \
     XX(FairShareAggressiveStarvationTimeout, fair_share_aggressive_starvation_timeout) \
     XX(FairSharePreemptionTimeout, fair_share_preemption_timeout) \
     XX(FairSharePreemptionTimeoutLimit, fair_share_preemption_timeout_limit) \
@@ -263,6 +267,7 @@
     XX(HunkMedia, hunk_media) \
     XX(HunkPrimaryMedium, hunk_primary_medium) \
     XX(HunkPrimaryMediumId, hunk_primary_medium_id) \
+    XX(HunkReferenceStatistics, hunk_reference_statistics) \
     XX(HunkStatistics, hunk_statistics) \
     XX(HunkStorageId, hunk_storage_id) \
     XX(HunkStoreWriter, hunk_store_writer) \
@@ -281,6 +286,7 @@
     XX(IndexTablePath, index_table_path) \
     XX(IndexTo, index_to) \
     XX(InheritAcl, inherit_acl) \
+    XX(InplaceReshard, inplace_reshard) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOStatistics, io_statistics) \
     XX(IOStatisticsPerMedium, io_statistics_per_medium) \
@@ -363,6 +369,7 @@
     XX(MountRevision, mount_revision) \
     XX(MountTime, mount_time) \
     XX(Movable, movable) \
+    XX(MulticellChunkMergerUsage, multicell_chunk_merger_usage) \
     XX(MulticellCount, multicell_count) \
     XX(MulticellResourceUsage, multicell_resource_usage) \
     XX(MulticellStates, multicell_states) \
@@ -513,6 +520,7 @@
     XX(SecurityTags, security_tags) \
     XX(SecurityTagsUpdateMode, security_tags_update_mode) \
     XX(Sequoia, sequoia) \
+    XX(SequoiaAcl, sequoia_acl) \
     XX(SequoiaReign, sequoia_reign) \
     XX(SerializationType, serialization_type) \
     XX(Servants, servants) \
@@ -542,6 +550,7 @@
     XX(StrongGuaranteeResources, strong_guarantee_resources) \
     XX(SuccessorTransactionLeaseCount, successor_transaction_lease_count) \
     XX(Suspended, suspended) \
+    XX(TableBackupEnabled, table_backup_enabled) \
     XX(TableChunkFormat, table_chunk_format) \
     XX(TableChunkFormatStatistics, table_chunk_format_statistics) \
     XX(TableId, table_id) \

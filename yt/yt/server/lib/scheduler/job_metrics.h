@@ -37,6 +37,7 @@ DEFINE_ENUM(EJobMetricName,
     (ExecTime)
     (PrepareTime)
     (PrepareRootFSTime)
+    (PrepareLayersTime)
     (ArtifactsCachingTime)
 
     (TotalTimeCompleted)
@@ -51,7 +52,8 @@ DEFINE_ENUM(EJobMetricName,
     (MainResourceConsumptionOperationAborted)
 
     (ValidateRootFSTime)
-    (PrepareTmpfsTime)
+    (PrepareNonRootVolumesTime)
+    (LinkVolumesTime)
 );
 
 DEFINE_ENUM(ESummaryValueType,
@@ -64,7 +66,7 @@ DEFINE_ENUM(ESummaryValueType,
 struct TCustomJobMetricDescription
 {
     NStatisticPath::TStatisticPath StatisticsPath;
-    TString ProfilingName;
+    std::string ProfilingName;
     ESummaryValueType SummaryValueType = ESummaryValueType::Sum;
     std::optional<NJobTrackerClient::EJobState> JobStateFilter = {};
 

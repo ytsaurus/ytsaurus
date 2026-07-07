@@ -871,6 +871,7 @@ func writePutFileToCacheOptions(w *yson.Writer, o *yt.PutFileToCacheOptions) {
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
+	writeTransactionOptions(w, o.TransactionOptions)
 }
 
 func logPutFileToCacheOptions(o *yt.PutFileToCacheOptions) []log.Field {
@@ -885,6 +886,7 @@ func logPutFileToCacheOptions(o *yt.PutFileToCacheOptions) []log.Field {
 	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
 	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
 	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
 	return fields
 }
 
@@ -1272,6 +1274,10 @@ func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
 		w.MapKeyString("attributes")
 		w.Any(o.Attributes)
 	}
+	if o.WithSpec != nil {
+		w.MapKeyString("with_spec")
+		w.Any(o.WithSpec)
+	}
 	if o.SortField != nil {
 		w.MapKeyString("sort_field")
 		w.Any(o.SortField)
@@ -1326,6 +1332,9 @@ func logListJobsOptions(o *yt.ListJobsOptions) []log.Field {
 	if o.Attributes != nil {
 		fields = append(fields, log.Any("attributes", o.Attributes))
 	}
+	if o.WithSpec != nil {
+		fields = append(fields, log.Any("with_spec", o.WithSpec))
+	}
 	if o.SortField != nil {
 		fields = append(fields, log.Any("sort_field", o.SortField))
 	}
@@ -1376,6 +1385,34 @@ func logGetJobStderrOptions(o *yt.GetJobStderrOptions) []log.Field {
 		return nil
 	}
 	fields := []log.Field{}
+	return fields
+}
+
+func writeListOperationEventsOptions(w *yson.Writer, o *yt.ListOperationEventsOptions) {
+	if o == nil {
+		return
+	}
+	if o.EventType != nil {
+		w.MapKeyString("event_type")
+		w.Any(o.EventType)
+	}
+	if o.Limit != nil {
+		w.MapKeyString("limit")
+		w.Any(o.Limit)
+	}
+}
+
+func logListOperationEventsOptions(o *yt.ListOperationEventsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.EventType != nil {
+		fields = append(fields, log.Any("event_type", o.EventType))
+	}
+	if o.Limit != nil {
+		fields = append(fields, log.Any("limit", o.Limit))
+	}
 	return fields
 }
 
@@ -1660,6 +1697,10 @@ func writeCheckPermissionOptions(w *yson.Writer, o *yt.CheckPermissionOptions) {
 		w.MapKeyString("columns")
 		w.Any(o.Columns)
 	}
+	if o.Vital != nil {
+		w.MapKeyString("vital")
+		w.Any(o.Vital)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 	writeMasterReadOptions(w, o.MasterReadOptions)
@@ -1672,6 +1713,9 @@ func logCheckPermissionOptions(o *yt.CheckPermissionOptions) []log.Field {
 	fields := []log.Field{}
 	if o.Columns != nil {
 		fields = append(fields, log.Any("columns", o.Columns))
+	}
+	if o.Vital != nil {
+		fields = append(fields, log.Any("vital", o.Vital))
 	}
 	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
 	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
@@ -2348,6 +2392,10 @@ func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
 	w.Any(o.Type)
 	w.MapKeyString("sticky")
 	w.Any(o.Sticky)
+	if o.PrerequisiteTransactionIDs != nil {
+		w.MapKeyString("prerequisite_transaction_ids")
+		w.Any(o.PrerequisiteTransactionIDs)
+	}
 }
 
 func logStartTabletTxOptions(o *yt.StartTabletTxOptions) []log.Field {
@@ -2367,6 +2415,9 @@ func logStartTabletTxOptions(o *yt.StartTabletTxOptions) []log.Field {
 	}
 	if o.Sticky {
 		fields = append(fields, log.Any("sticky", o.Sticky))
+	}
+	if o.PrerequisiteTransactionIDs != nil {
+		fields = append(fields, log.Any("prerequisite_transaction_ids", o.PrerequisiteTransactionIDs))
 	}
 	return fields
 }
@@ -2404,6 +2455,142 @@ func writeRemoveQueueProducerSessionOptions(w *yson.Writer, o *yt.RemoveQueuePro
 }
 
 func logRemoveQueueProducerSessionOptions(o *yt.RemoveQueueProducerSessionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logTimeoutOptions(o.TimeoutOptions)...)
+	return fields
+}
+
+func writePullQueueConsumerOptions(w *yson.Writer, o *yt.PullQueueConsumerOptions) {
+	if o == nil {
+		return
+	}
+	if o.Offset != nil {
+		w.MapKeyString("offset")
+		w.Any(o.Offset)
+	}
+	if o.PartitionIndex != nil {
+		w.MapKeyString("partition_index")
+		w.Any(o.PartitionIndex)
+	}
+	if o.MaxRowCount != nil {
+		w.MapKeyString("max_row_count")
+		w.Any(o.MaxRowCount)
+	}
+	if o.MaxDataWeight != nil {
+		w.MapKeyString("max_data_weight")
+		w.Any(o.MaxDataWeight)
+	}
+	if o.DataWeightPerRowHint != nil {
+		w.MapKeyString("data_weight_per_row_hint")
+		w.Any(o.DataWeightPerRowHint)
+	}
+	writeTimeoutOptions(w, o.TimeoutOptions)
+}
+
+func logPullQueueConsumerOptions(o *yt.PullQueueConsumerOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Offset != nil {
+		fields = append(fields, log.Any("offset", o.Offset))
+	}
+	if o.PartitionIndex != nil {
+		fields = append(fields, log.Any("partition_index", o.PartitionIndex))
+	}
+	if o.MaxRowCount != nil {
+		fields = append(fields, log.Any("max_row_count", o.MaxRowCount))
+	}
+	if o.MaxDataWeight != nil {
+		fields = append(fields, log.Any("max_data_weight", o.MaxDataWeight))
+	}
+	if o.DataWeightPerRowHint != nil {
+		fields = append(fields, log.Any("data_weight_per_row_hint", o.DataWeightPerRowHint))
+	}
+	fields = append(fields, logTimeoutOptions(o.TimeoutOptions)...)
+	return fields
+}
+
+func writeAdvanceQueueConsumerOptions(w *yson.Writer, o *yt.AdvanceQueueConsumerOptions) {
+	if o == nil {
+		return
+	}
+	if o.PartitionIndex != nil {
+		w.MapKeyString("partition_index")
+		w.Any(o.PartitionIndex)
+	}
+	if o.OldOffset != nil {
+		w.MapKeyString("old_offset")
+		w.Any(o.OldOffset)
+	}
+	if o.NewOffset != nil {
+		w.MapKeyString("new_offset")
+		w.Any(o.NewOffset)
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+	writeTimeoutOptions(w, o.TimeoutOptions)
+}
+
+func logAdvanceQueueConsumerOptions(o *yt.AdvanceQueueConsumerOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.PartitionIndex != nil {
+		fields = append(fields, log.Any("partition_index", o.PartitionIndex))
+	}
+	if o.OldOffset != nil {
+		fields = append(fields, log.Any("old_offset", o.OldOffset))
+	}
+	if o.NewOffset != nil {
+		fields = append(fields, log.Any("new_offset", o.NewOffset))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logTimeoutOptions(o.TimeoutOptions)...)
+	return fields
+}
+
+func writeRegisterQueueConsumerOptions(w *yson.Writer, o *yt.RegisterQueueConsumerOptions) {
+	if o == nil {
+		return
+	}
+	if o.Vital != nil {
+		w.MapKeyString("vital")
+		w.Any(o.Vital)
+	}
+	if o.Partitions != nil {
+		w.MapKeyString("partitions")
+		w.Any(o.Partitions)
+	}
+	writeTimeoutOptions(w, o.TimeoutOptions)
+}
+
+func logRegisterQueueConsumerOptions(o *yt.RegisterQueueConsumerOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Vital != nil {
+		fields = append(fields, log.Any("vital", o.Vital))
+	}
+	if o.Partitions != nil {
+		fields = append(fields, log.Any("partitions", o.Partitions))
+	}
+	fields = append(fields, logTimeoutOptions(o.TimeoutOptions)...)
+	return fields
+}
+
+func writeUnregisterQueueConsumerOptions(w *yson.Writer, o *yt.UnregisterQueueConsumerOptions) {
+	if o == nil {
+		return
+	}
+	writeTimeoutOptions(w, o.TimeoutOptions)
+}
+
+func logUnregisterQueueConsumerOptions(o *yt.UnregisterQueueConsumerOptions) []log.Field {
 	if o == nil {
 		return nil
 	}
@@ -2839,6 +3026,90 @@ func logGetInSyncReplicasOptions(o *yt.GetInSyncReplicasOptions) []log.Field {
 		return nil
 	}
 	fields := []log.Field{}
+	return fields
+}
+
+func writeStartDistributedWriteSessionOptions(w *yson.Writer, o *yt.StartDistributedWriteSessionOptions) {
+	if o == nil {
+		return
+	}
+	if o.CookieCount != nil {
+		w.MapKeyString("cookie_count")
+		w.Any(o.CookieCount)
+	}
+	if o.SessionTimeout != nil {
+		w.MapKeyString("session_timeout")
+		w.Any(o.SessionTimeout)
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func logStartDistributedWriteSessionOptions(o *yt.StartDistributedWriteSessionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.CookieCount != nil {
+		fields = append(fields, log.Any("cookie_count", o.CookieCount))
+	}
+	if o.SessionTimeout != nil {
+		fields = append(fields, log.Any("session_timeout", o.SessionTimeout))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	return fields
+}
+
+func writePingDistributedWriteSessionOptions(w *yson.Writer, o *yt.PingDistributedWriteSessionOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func logPingDistributedWriteSessionOptions(o *yt.PingDistributedWriteSessionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
+func writeFinishDistributedWriteSessionOptions(w *yson.Writer, o *yt.FinishDistributedWriteSessionOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func logFinishDistributedWriteSessionOptions(o *yt.FinishDistributedWriteSessionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
+func writeTableFragmentWriterOptions(w *yson.Writer, o *yt.TableFragmentWriterOptions) {
+	if o == nil {
+		return
+	}
+	w.MapKeyString("table_writer")
+	w.Any(o.TableWriter)
+	if o.MaxRowBufferSize != nil {
+		w.MapKeyString("max_row_buffer_size")
+		w.Any(o.MaxRowBufferSize)
+	}
+}
+
+func logTableFragmentWriterOptions(o *yt.TableFragmentWriterOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.TableWriter != nil {
+		fields = append(fields, log.Any("table_writer", o.TableWriter))
+	}
+	if o.MaxRowBufferSize != nil {
+		fields = append(fields, log.Any("max_row_buffer_size", o.MaxRowBufferSize))
+	}
 	return fields
 }
 
@@ -3869,6 +4140,10 @@ func (p *PutFileToCacheParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
 }
 
+func (p *PutFileToCacheParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
 type GetFileFromCacheParams struct {
 	verb    Verb
 	md5     string
@@ -4546,6 +4821,47 @@ func (p *GetJobStderrParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("job_id")
 	w.Any(p.jobID)
 	writeGetJobStderrOptions(w, p.options)
+}
+
+type ListOperationEventsParams struct {
+	verb    Verb
+	opID    yt.OperationID
+	options *yt.ListOperationEventsOptions
+}
+
+func NewListOperationEventsParams(
+	opID yt.OperationID,
+	options *yt.ListOperationEventsOptions,
+) *ListOperationEventsParams {
+	if options == nil {
+		options = &yt.ListOperationEventsOptions{}
+	}
+	optionsCopy := *options
+	return &ListOperationEventsParams{
+		Verb("list_operation_events"),
+		opID,
+		&optionsCopy,
+	}
+}
+
+func (p *ListOperationEventsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ListOperationEventsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *ListOperationEventsParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("opID", p.opID),
+	}
+	fields = append(fields, logListOperationEventsOptions(p.options)...)
+	return fields
+}
+
+func (p *ListOperationEventsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("operation_id")
+	w.Any(p.opID)
+	writeListOperationEventsOptions(w, p.options)
 }
 
 type AddMemberParams struct {
@@ -5725,6 +6041,214 @@ func (p *PushQueueProducerParams) MarshalHTTP(w *yson.Writer) {
 
 func (p *PushQueueProducerParams) TransactionOptions() **yt.TransactionOptions {
 	return &p.options.TransactionOptions
+}
+
+type PullQueueConsumerParams struct {
+	verb         Verb
+	consumerPath ypath.Path
+	queuePath    ypath.Path
+	options      *yt.PullQueueConsumerOptions
+}
+
+func NewPullQueueConsumerParams(
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	options *yt.PullQueueConsumerOptions,
+) *PullQueueConsumerParams {
+	if options == nil {
+		options = &yt.PullQueueConsumerOptions{}
+	}
+	optionsCopy := *options
+	return &PullQueueConsumerParams{
+		Verb("pull_queue_consumer"),
+		consumerPath,
+		queuePath,
+		&optionsCopy,
+	}
+}
+
+func (p *PullQueueConsumerParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *PullQueueConsumerParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *PullQueueConsumerParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("consumerPath", p.consumerPath),
+		log.Any("queuePath", p.queuePath),
+	}
+	fields = append(fields, logPullQueueConsumerOptions(p.options)...)
+	return fields
+}
+
+func (p *PullQueueConsumerParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("consumer_path")
+	w.Any(p.consumerPath)
+	w.MapKeyString("queue_path")
+	w.Any(p.queuePath)
+	writePullQueueConsumerOptions(w, p.options)
+}
+
+func (p *PullQueueConsumerParams) TimeoutOptions() **yt.TimeoutOptions {
+	return &p.options.TimeoutOptions
+}
+
+type AdvanceQueueConsumerParams struct {
+	verb         Verb
+	consumerPath ypath.Path
+	queuePath    ypath.Path
+	options      *yt.AdvanceQueueConsumerOptions
+}
+
+func NewAdvanceQueueConsumerParams(
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	options *yt.AdvanceQueueConsumerOptions,
+) *AdvanceQueueConsumerParams {
+	if options == nil {
+		options = &yt.AdvanceQueueConsumerOptions{}
+	}
+	optionsCopy := *options
+	return &AdvanceQueueConsumerParams{
+		Verb("advance_queue_consumer"),
+		consumerPath,
+		queuePath,
+		&optionsCopy,
+	}
+}
+
+func (p *AdvanceQueueConsumerParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *AdvanceQueueConsumerParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *AdvanceQueueConsumerParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("consumerPath", p.consumerPath),
+		log.Any("queuePath", p.queuePath),
+	}
+	fields = append(fields, logAdvanceQueueConsumerOptions(p.options)...)
+	return fields
+}
+
+func (p *AdvanceQueueConsumerParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("consumer_path")
+	w.Any(p.consumerPath)
+	w.MapKeyString("queue_path")
+	w.Any(p.queuePath)
+	writeAdvanceQueueConsumerOptions(w, p.options)
+}
+
+func (p *AdvanceQueueConsumerParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+func (p *AdvanceQueueConsumerParams) TimeoutOptions() **yt.TimeoutOptions {
+	return &p.options.TimeoutOptions
+}
+
+type RegisterQueueConsumerParams struct {
+	verb         Verb
+	queuePath    ypath.Path
+	consumerPath ypath.Path
+	options      *yt.RegisterQueueConsumerOptions
+}
+
+func NewRegisterQueueConsumerParams(
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	options *yt.RegisterQueueConsumerOptions,
+) *RegisterQueueConsumerParams {
+	if options == nil {
+		options = &yt.RegisterQueueConsumerOptions{}
+	}
+	optionsCopy := *options
+	return &RegisterQueueConsumerParams{
+		Verb("register_queue_consumer"),
+		queuePath,
+		consumerPath,
+		&optionsCopy,
+	}
+}
+
+func (p *RegisterQueueConsumerParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *RegisterQueueConsumerParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *RegisterQueueConsumerParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("queuePath", p.queuePath),
+		log.Any("consumerPath", p.consumerPath),
+	}
+	fields = append(fields, logRegisterQueueConsumerOptions(p.options)...)
+	return fields
+}
+
+func (p *RegisterQueueConsumerParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("queue_path")
+	w.Any(p.queuePath)
+	w.MapKeyString("consumer_path")
+	w.Any(p.consumerPath)
+	writeRegisterQueueConsumerOptions(w, p.options)
+}
+
+func (p *RegisterQueueConsumerParams) TimeoutOptions() **yt.TimeoutOptions {
+	return &p.options.TimeoutOptions
+}
+
+type UnregisterQueueConsumerParams struct {
+	verb         Verb
+	queuePath    ypath.Path
+	consumerPath ypath.Path
+	options      *yt.UnregisterQueueConsumerOptions
+}
+
+func NewUnregisterQueueConsumerParams(
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	options *yt.UnregisterQueueConsumerOptions,
+) *UnregisterQueueConsumerParams {
+	if options == nil {
+		options = &yt.UnregisterQueueConsumerOptions{}
+	}
+	optionsCopy := *options
+	return &UnregisterQueueConsumerParams{
+		Verb("unregister_queue_consumer"),
+		queuePath,
+		consumerPath,
+		&optionsCopy,
+	}
+}
+
+func (p *UnregisterQueueConsumerParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *UnregisterQueueConsumerParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *UnregisterQueueConsumerParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("queuePath", p.queuePath),
+		log.Any("consumerPath", p.consumerPath),
+	}
+	fields = append(fields, logUnregisterQueueConsumerOptions(p.options)...)
+	return fields
+}
+
+func (p *UnregisterQueueConsumerParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("queue_path")
+	w.Any(p.queuePath)
+	w.MapKeyString("consumer_path")
+	w.Any(p.consumerPath)
+	writeUnregisterQueueConsumerOptions(w, p.options)
+}
+
+func (p *UnregisterQueueConsumerParams) TimeoutOptions() **yt.TimeoutOptions {
+	return &p.options.TimeoutOptions
 }
 
 type CreateQueueProducerSessionParams struct {
@@ -6999,6 +7523,173 @@ func (p *GetInSyncReplicasParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("timestamp")
 	w.Any(p.ts)
 	writeGetInSyncReplicasOptions(w, p.options)
+}
+
+type StartDistributedWriteSessionParams struct {
+	verb    Verb
+	path    ypath.YPath
+	options *yt.StartDistributedWriteSessionOptions
+}
+
+func NewStartDistributedWriteSessionParams(
+	path ypath.YPath,
+	options *yt.StartDistributedWriteSessionOptions,
+) *StartDistributedWriteSessionParams {
+	if options == nil {
+		options = &yt.StartDistributedWriteSessionOptions{}
+	}
+	optionsCopy := *options
+	return &StartDistributedWriteSessionParams{
+		Verb("start_distributed_write_session"),
+		path,
+		&optionsCopy,
+	}
+}
+
+func (p *StartDistributedWriteSessionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *StartDistributedWriteSessionParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
+func (p *StartDistributedWriteSessionParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("path", p.path),
+	}
+	fields = append(fields, logStartDistributedWriteSessionOptions(p.options)...)
+	return fields
+}
+
+func (p *StartDistributedWriteSessionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeStartDistributedWriteSessionOptions(w, p.options)
+}
+
+func (p *StartDistributedWriteSessionParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+type PingDistributedWriteSessionParams struct {
+	verb    Verb
+	session yt.DistributedWriteSession
+	options *yt.PingDistributedWriteSessionOptions
+}
+
+func NewPingDistributedWriteSessionParams(
+	session yt.DistributedWriteSession,
+	options *yt.PingDistributedWriteSessionOptions,
+) *PingDistributedWriteSessionParams {
+	if options == nil {
+		options = &yt.PingDistributedWriteSessionOptions{}
+	}
+	optionsCopy := *options
+	return &PingDistributedWriteSessionParams{
+		Verb("ping_distributed_write_session"),
+		session,
+		&optionsCopy,
+	}
+}
+
+func (p *PingDistributedWriteSessionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *PingDistributedWriteSessionParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *PingDistributedWriteSessionParams) Log() []log.Field {
+	fields := []log.Field{}
+	fields = append(fields, logPingDistributedWriteSessionOptions(p.options)...)
+	return fields
+}
+
+func (p *PingDistributedWriteSessionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("session")
+	w.Any(p.session)
+	writePingDistributedWriteSessionOptions(w, p.options)
+}
+
+type FinishDistributedWriteSessionParams struct {
+	verb    Verb
+	session yt.DistributedWriteSession
+	results []yt.WriteFragmentResult
+	options *yt.FinishDistributedWriteSessionOptions
+}
+
+func NewFinishDistributedWriteSessionParams(
+	session yt.DistributedWriteSession,
+	results []yt.WriteFragmentResult,
+	options *yt.FinishDistributedWriteSessionOptions,
+) *FinishDistributedWriteSessionParams {
+	if options == nil {
+		options = &yt.FinishDistributedWriteSessionOptions{}
+	}
+	optionsCopy := *options
+	return &FinishDistributedWriteSessionParams{
+		Verb("finish_distributed_write_session"),
+		session,
+		results,
+		&optionsCopy,
+	}
+}
+
+func (p *FinishDistributedWriteSessionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *FinishDistributedWriteSessionParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *FinishDistributedWriteSessionParams) Log() []log.Field {
+	fields := []log.Field{}
+	fields = append(fields, logFinishDistributedWriteSessionOptions(p.options)...)
+	return fields
+}
+
+func (p *FinishDistributedWriteSessionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("session")
+	w.Any(p.session)
+	w.MapKeyString("results")
+	w.Any(p.results)
+	writeFinishDistributedWriteSessionOptions(w, p.options)
+}
+
+type WriteTableFragmentParams struct {
+	verb    Verb
+	cookie  yt.WriteFragmentCookie
+	options *yt.TableFragmentWriterOptions
+}
+
+func NewWriteTableFragmentParams(
+	cookie yt.WriteFragmentCookie,
+	options *yt.TableFragmentWriterOptions,
+) *WriteTableFragmentParams {
+	if options == nil {
+		options = &yt.TableFragmentWriterOptions{}
+	}
+	optionsCopy := *options
+	return &WriteTableFragmentParams{
+		Verb("write_table_fragment"),
+		cookie,
+		&optionsCopy,
+	}
+}
+
+func (p *WriteTableFragmentParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *WriteTableFragmentParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *WriteTableFragmentParams) Log() []log.Field {
+	fields := []log.Field{}
+	fields = append(fields, logTableFragmentWriterOptions(p.options)...)
+	return fields
+}
+
+func (p *WriteTableFragmentParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("cookie")
+	w.Any(p.cookie)
+	writeTableFragmentWriterOptions(w, p.options)
 }
 
 func writeExecuteBatchOptions(w *yson.Writer, o *ExecuteBatchOptions) {

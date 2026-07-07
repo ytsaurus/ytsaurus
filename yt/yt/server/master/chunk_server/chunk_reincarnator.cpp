@@ -254,20 +254,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TEmpty
-{
-    void Load(const auto&)
-    { }
-
-    void Save(const auto&) const
-    { }
-};
-
-template <int Size>
-using TCellTagSet = TCompactFlatMap<TCellTag, TEmpty, Size>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkAncestorTraverser
 {
 private:
@@ -573,7 +559,7 @@ bool TReincarnationJob::FillJobSpec(
     const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
     if (auto* oldChunk = chunkManager->FindChunk(OldChunkId_)) {
         auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(oldChunk);
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK() || !IsObjectAlive(ephemeralChunk)) {
             return false;
         }
@@ -852,8 +838,6 @@ private:
     class TExportedChunkReincarnationCheckRegistry
     {
     public:
-        using TCellTagSet = TCellTagSet<TypicalChunkExportFactor>;
-
         // NB: It's a caller's responsibility to fill cell set. The main reason
         // for that is to avoid code duplication: caller likely needs to
         // traverse all cell tags the chunk is exported to.
@@ -1413,7 +1397,7 @@ private:
         auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(oldChunk);
         TNodePtrWithReplicaAndMediumIndexList sourceReplicas;
         // This is context switch, chunk may die.
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK()) {
             return;
         }
@@ -1929,7 +1913,7 @@ private:
 
                 cellToChunks[cellTag].push_back(chunkId);
                 if (cellTags) {
-                    cellTags->insert({cellTag, {}});
+                    cellTags->insert(cellTag);
                 }
             }
 
@@ -2290,16 +2274,15 @@ private:
             }
         }
 
-        TCellTagList foreignCells;
-        foreignCells.reserve(perCellReincarnationInfo.size());
+        TCellTagSet foreignCellTags;
         for (const auto& [cellTag, reincarnationInfo] : perCellReincarnationInfo) {
-            foreignCells.push_back(cellTag);
+            InsertOrCrash(foreignCellTags, cellTag);
         }
 
         // NB: The only purpose of this transaction is to export chunks.
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->StartSystemTransaction(
-            /*replicatedToCellTags*/ foreignCells,
+            /*replicatedToCellTags*/ foreignCellTags,
             config->MulticellReincarnationTransactionTimeout,
             "Multicell chunk reincarnation",
             EmptyAttributes());

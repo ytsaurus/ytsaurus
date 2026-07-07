@@ -26,6 +26,7 @@ TTabletAction::TTabletAction(
             Kind_ = ETabletActionKind::Reshard;
             TabletIds_ = std::move(descriptor.Tablets);
             TabletCount_ = descriptor.TabletCount;
+            InplaceReshard_ = descriptor.Inplace;
             CorrelationId_ = descriptor.CorrelationId;
         });
 }
@@ -33,6 +34,12 @@ TTabletAction::TTabletAction(
 bool TTabletAction::IsFinished() const
 {
     return Lost_ || IsTabletActionFinished(State_);
+}
+
+bool TTabletAction::IsMove() const
+{
+    return Kind_ == ETabletActionKind::Move ||
+        Kind_ == ETabletActionKind::SmoothMove;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

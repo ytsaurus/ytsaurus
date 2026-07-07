@@ -8,13 +8,15 @@
 
 #include <yt/yt/server/lib/security_server/config.h>
 
-#include <yt/yt/server/lib/signature/config.h>
-
 #include <yt/yt/ytlib/api/native/config.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/security_client/config.h>
 
 #include <yt/yt/library/auth_server/config.h>
+
+#include <yt/yt/library/signature/components/config.h>
 
 #include <yt/yt/client/driver/config.h>
 
@@ -424,7 +426,10 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
-        .Default();
+        .DefaultNew();
+
+    registrar.Parameter("memory_tracker", &TThis::MemoryTracker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

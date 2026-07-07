@@ -4,6 +4,7 @@ PEERDIR(
     yt/odin/checks/lib/check_runner
     yt/python/yt/wrapper
 
+    contrib/python/dacite
     contrib/python/pytz
 )
 

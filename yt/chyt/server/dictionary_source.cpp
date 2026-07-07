@@ -56,10 +56,11 @@ public:
         DB::NamesAndTypesList namesAndTypesList,
         DB::ContextPtr context)
         : Host_(host)
+        , Client_(Host_->GetDictionariesClient())
         , DictionaryStructure_(std::move(dictionaryStructure))
         , Path_(std::move(path))
         , NamesAndTypesList_(std::move(namesAndTypesList))
-        , RevisionTracker_(path.GetPath(), host->GetRootClient())
+        , RevisionTracker_(path.GetPath(), Client_)
         , Logger(ClickHouseYtLogger().WithTag("Path: %v", Path_))
         , Context_(context)
         , QueryBuilder_(std::make_shared<DB::ExternalQueryBuilder>(
@@ -72,9 +73,13 @@ public:
             DB::IdentifierQuotingStyle::Backticks))
         , Session_(std::make_shared<DB::Session>(Host_->GetContext(), DB::ClientInfo::Interface::LOCAL))
     {
+        if (auto user = Client_->GetOptions().User) {
+            ClientUserName_ = *user;
+        }
+
         RegisterNewUser(
             Host_->GetContext()->getAccessControl(),
-            CacheUserName,
+            ClientUserName_,
             Host_->GetUserDefinedDatabaseNames(),
             Host_->HasUserDefinedSqlObjectStorage());
         SupportsSelectiveLoad_ = FetchTable()->IsOrderedDynamic();
@@ -88,17 +93,17 @@ public:
 
         auto table = FetchTable();
 
-        ValidateSchema(*table->Schema);
+        auto readSchema = BuildReadSchema(*table->Schema);
 
         auto tableReadSpec = FetchSingleTableReadSpec(TFetchSingleTableReadSpecOptions{
             .RichPath = Path_,
-            .Client = Host_->GetRootClient(),
+            .Client = Client_,
             .GetUserObjectBasicAttributesOptions = {
                 .OmitInaccessibleRows = true,
             },
         });
 
-        auto chunkReaderHost = New<TChunkReaderHost>(Host_->GetRootClient());
+        auto chunkReaderHost = New<TChunkReaderHost>(Client_);
         auto reader = CreateAppropriateSchemalessMultiChunkReader(
             New<TTableReaderOptions>(),
             New<TTableReaderConfig>(),
@@ -106,12 +111,12 @@ public:
             tableReadSpec,
             TClientChunkReadOptions(),
             true,
-            NTableClient::TNameTable::FromSchema(*table->Schema),
-            NTableClient::TColumnFilter(table->Schema->GetColumnCount()));
+            NTableClient::TNameTable::FromSchema(*readSchema),
+            NTableClient::TColumnFilter(readSchema->GetColumnCount()));
 
         auto source = CreateSecondaryQuerySource(
             reader,
-            BuildSimpleReadPlan(table->Schema->Columns(), /*columnAttributes*/ {}),
+            BuildSimpleReadPlan(readSchema->Columns()),
             /*traceContext*/ nullptr,
             Host_,
             Host_->GetConfig()->QuerySettings,
@@ -124,7 +129,7 @@ public:
 
     DB::QueryPipeline loadIds(const std::vector<UInt64>& ids) override
     {
-        TString query = QueryBuilder_->composeLoadIdsQuery(ids);
+        auto query = QueryBuilder_->composeLoadIdsQuery(ids);
         return DB::executeQuery(query, GetContext(), DB::QueryFlags{.internal = true}).second.pipeline;
     }
 
@@ -137,7 +142,7 @@ public:
         const DB::Columns& keyColumns,
         const std::vector<size_t>& requestedRows) override
     {
-        TString query = QueryBuilder_->composeLoadKeysQuery(keyColumns, requestedRows, DB::ExternalQueryBuilder::AND_OR_CHAIN);
+        auto query = QueryBuilder_->composeLoadKeysQuery(keyColumns, requestedRows, DB::ExternalQueryBuilder::AND_OR_CHAIN);
         return DB::executeQuery(query, GetContext(), DB::QueryFlags{.internal = true}).second.pipeline;
     }
 
@@ -173,8 +178,15 @@ public:
         return false;
     }
 
+    const TYPath& Path() const
+    {
+        return Path_.GetPath();
+    }
+
 private:
     THost* Host_;
+    NApi::NNative::IClientPtr Client_;
+    std::string ClientUserName_ = DictionariesUserName;
     DB::DictionaryStructure DictionaryStructure_;
     TRichYPath Path_;
     DB::NamesAndTypesList NamesAndTypesList_;
@@ -185,18 +197,36 @@ private:
     bool SupportsSelectiveLoad_;
     std::shared_ptr<DB::Session> Session_;
 
-    void ValidateSchema(const TTableSchema& schema)
+    TTableSchemaPtr BuildReadSchema(const TTableSchema& tableSchema)
     {
-        auto namesAndTypesList = ToNamesAndTypesList(schema, /*columnAttributes*/ {}, New<TCompositeSettings>());
+        std::vector<TColumnSchema> columns;
+        columns.reserve(NamesAndTypesList_.size());
+        for (const auto& nameAndType : NamesAndTypesList_) {
+            const auto* column = tableSchema.FindColumn(nameAndType.name);
+            if (!column) {
+                THROW_ERROR_EXCEPTION("Dictionary column %Qv is missing in the source table schema",
+                    nameAndType.name)
+                    << TErrorAttribute("config_schema", NamesAndTypesList_.toString())
+                    << TErrorAttribute("actual_schema",
+                        ToNamesAndTypesList(tableSchema, New<TConversionSettings>()).toString());
+            }
+            columns.emplace_back(*column);
+        }
+
+        auto readSchema = New<TTableSchema>(std::move(columns));
+
+        auto namesAndTypesList = ToNamesAndTypesList(*readSchema, New<TConversionSettings>());
         if (namesAndTypesList != NamesAndTypesList_) {
-            THROW_ERROR_EXCEPTION("Dictionary table schema does not match schema from config")
+            THROW_ERROR_EXCEPTION("Dictionary schema does not match the source table schema")
                 << TErrorAttribute("config_schema", NamesAndTypesList_.toString())
                 << TErrorAttribute("actual_schema", namesAndTypesList.toString());
         }
+
+        return readSchema;
     }
 
     TTablePtr FetchTable() {
-        auto fakeQueryContext = TQueryContext::CreateFake(Host_, Host_->GetRootClient());
+        auto fakeQueryContext = TQueryContext::CreateFake(Host_, Client_);
 
         auto table = FetchTablesSoft(
             fakeQueryContext.Get(),
@@ -211,7 +241,7 @@ private:
     DB::ContextMutablePtr GetContext() {
         auto context =  PrepareContextForQuery(
             Session_,
-            CacheUserName,
+            ClientUserName_,
             TDuration::Seconds(0),
             Host_,
             "ChytDictionarySource");
@@ -245,6 +275,17 @@ void RegisterTableDictionarySource(THost* host)
     };
 
     DB::DictionarySourceFactory::instance().registerSource("yt", creator);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<NYPath::TYPath> TryGetTableDictionarySourcePath(DB::DictionarySourcePtr source)
+{
+    auto ytSource = std::dynamic_pointer_cast<TTableDictionarySource>(source);
+    if (!ytSource) {
+        return std::nullopt;
+    }
+    return ytSource->Path();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,14 +10,11 @@ from yt_type_helpers import make_schema, normalize_schema, list_type
 
 import yt_error_codes
 
-from yt.common import YtError
-
 import pytest
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -176,7 +173,7 @@ class TestConcatenate(YTEnvSetup):
         create("table", "//tmp/union", attributes={"schema": schema})
         sort(in_="//tmp/union", out="//tmp/union", sort_by=["key"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Chunk .* has less key columns than output schema"):
             concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
 
     @authors("ermolovd")
@@ -247,10 +244,10 @@ class TestConcatenate(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Type of .* field is modified in non backward compatible manner"):
             concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Column .* is found in input schema but is missing in output schema"):
             concatenate(["//tmp/t1", "//tmp/t3"], "//tmp/union")
 
     @authors("ermolovd")
@@ -285,7 +282,7 @@ class TestConcatenate(YTEnvSetup):
             attributes={"schema": [{"name": "value", "type": "int64"}]},
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Incompatible strictness: input schema is not strict while output schema is .*"):
             concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
 
     @authors("ermolovd")
@@ -376,7 +373,7 @@ class TestConcatenate(YTEnvSetup):
                 )
             },
         )
-        with raises_yt_error("is missing in strict part of output schema"):
+        with raises_yt_error("Column .* of input schema with complex type .* is missing in strict part of output schema"):
             concatenate(["//tmp/t1"], "//tmp/union")
 
     @authors("gritukan")
@@ -519,7 +516,7 @@ class TestConcatenate(YTEnvSetup):
             attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
         )
 
-        with raises_yt_error(yt_error_codes.SortOrderViolation):
+        with raises_yt_error(code=yt_error_codes.SortOrderViolation):
             concatenate(["//tmp/in1", "//tmp/in2"], "//tmp/out")
 
     @authors("gritukan")
@@ -592,7 +589,7 @@ class TestConcatenate(YTEnvSetup):
             },
         )
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             concatenate(["//tmp/in1"], "//tmp/out2")
 
         create(
@@ -642,7 +639,7 @@ class TestConcatenate(YTEnvSetup):
         )
         write_table("//tmp/out1", make_rows([3, 4]))
 
-        with raises_yt_error(yt_error_codes.SortOrderViolation):
+        with raises_yt_error(code=yt_error_codes.SortOrderViolation):
             concatenate(["//tmp/in1"], "<append=true>//tmp/out1")
 
         concatenate(["//tmp/in2"], "<append=true>//tmp/out1")
@@ -679,7 +676,7 @@ class TestConcatenate(YTEnvSetup):
             },
         )
         write_table("//tmp/in4", make_rows([2]))
-        with raises_yt_error(yt_error_codes.UniqueKeyViolation):
+        with raises_yt_error(code=yt_error_codes.UniqueKeyViolation):
             concatenate(["//tmp/in4", "//tmp/in4"], "<append=true>//tmp/in4")
 
     @authors("gritukan")
@@ -710,11 +707,11 @@ class TestConcatenate(YTEnvSetup):
         create("table", "//tmp/out", attributes={"schema": unique_keys_schema})
 
         # No. Keys are not unique.
-        with raises_yt_error(yt_error_codes.UniqueKeyViolation):
+        with raises_yt_error(code=yt_error_codes.UniqueKeyViolation):
             concatenate(["//tmp/in1", "//tmp/in2"], "//tmp/out")
 
         # No. Schema is too weak.
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             concatenate(["//tmp/in1", "//tmp/in3"], "//tmp/out")
 
     @authors("gritukan")
@@ -726,7 +723,7 @@ class TestConcatenate(YTEnvSetup):
 
         create("table", "//tmp/out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             concatenate(["//tmp/in"], "//tmp/out")
         concatenate(['<transaction_id="{}">//tmp/in'.format(custom_tx)], "//tmp/out")
 
@@ -761,7 +758,7 @@ class TestConcatenate(YTEnvSetup):
         write_table("//tmp/t3", {"a_new": 3})
 
         # Mismatched stable names.
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             concatenate(["//tmp/t1", "//tmp/t3"], "//tmp/union")
 
         schema4 = make_schema([{"name": "a", "type": "int64"}])
@@ -769,7 +766,7 @@ class TestConcatenate(YTEnvSetup):
         write_table("//tmp/t4", {"a": 3})
 
         # Mismatched names.
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             concatenate(["//tmp/t1", "//tmp/t4"], "//tmp/union")
 
     @authors("gritukan")
@@ -792,7 +789,6 @@ class TestConcatenate(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenateMulticell(TestConcatenate):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -846,7 +842,6 @@ class TestConcatenateMulticell(TestConcatenate):
         assert read_table("//tmp/t") == [{"a": "b"}]
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenatePortal(TestConcatenateMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -891,7 +886,6 @@ class TestConcatenatePortal(TestConcatenateMulticell):
         assert read_table("//portals/p/dst") == [{"a": "b"}, {"c": "d"}]
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenateShardedTx(TestConcatenatePortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 5
@@ -905,7 +899,6 @@ class TestConcatenateShardedTx(TestConcatenatePortal):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenateSequoia(TestConcatenateMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -922,7 +915,6 @@ class TestConcatenateSequoia(TestConcatenateMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenateRpcProxy(TestConcatenate):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

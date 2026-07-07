@@ -263,9 +263,9 @@ DEFINE_ENUM(EHunkStoreState,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TRelativeReplicationThrottlerConfig)
-DECLARE_REFCOUNTED_STRUCT(TRowDigestCompactionConfig)
-DECLARE_REFCOUNTED_STRUCT(TMinHashDigestCompactionConfig)
-DECLARE_REFCOUNTED_STRUCT(TAggregateVersionedRowDigestCompactionConfig)
+DECLARE_REFCOUNTED_STRUCT(TRowDigestConfig)
+DECLARE_REFCOUNTED_STRUCT(TMinHashDigestConfig)
+DECLARE_REFCOUNTED_STRUCT(TCompactionHintsConfig)
 DECLARE_REFCOUNTED_STRUCT(TBuiltinTableMountConfig)
 DECLARE_REFCOUNTED_STRUCT(TCustomTableMountConfig)
 DECLARE_REFCOUNTED_STRUCT(TTableMountConfig)

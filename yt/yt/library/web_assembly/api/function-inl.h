@@ -65,7 +65,7 @@ Y_FORCE_INLINE TCompartmentFunction<TResult(TArgs...)>::TCompartmentFunction(
 template <typename TResult, typename... TArgs>
 Y_FORCE_INLINE TCompartmentFunction<TResult(TArgs...)>::TCompartmentFunction(
     IWebAssemblyCompartment* compartment,
-    const TString& name)
+    const std::string& name)
     : Compartment_(compartment)
     , Function_(nullptr)
     , RuntimeType_(

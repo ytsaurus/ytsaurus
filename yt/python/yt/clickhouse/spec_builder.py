@@ -6,11 +6,6 @@ from yt.wrapper.common import YtError, require, update
 
 import yt.logger as logger
 
-try:
-    from yt.packages.six import itervalues
-except ImportError:
-    from six import itervalues
-
 
 # NB: this method is used not only in CLI, but also in CHYT integration tests.
 # Keep that in mind when changing it and do not forget to run both Python API tests
@@ -93,7 +88,7 @@ def get_clique_spec_builder(instance_count,
     spec = update(spec_base, spec)
 
     file_paths = [FilePath(cypress_config_path, file_name=file_name) for cypress_config_path, file_name
-                  in itervalues(cypress_config_paths)]
+                  in cypress_config_paths.values()]
 
     def add_file(cypress_bin_path, host_bin_path, bin_name):
         if host_bin_path is not None:

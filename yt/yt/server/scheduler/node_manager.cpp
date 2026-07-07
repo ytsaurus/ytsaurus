@@ -70,6 +70,7 @@ void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& 
                     BIND(&TNodeShard::UnregisterAndRemoveNodeById, GetNodeShard(oldNodeId), oldNodeId)
                         .AsyncVia(nodeShard->GetInvoker())
                         .Run();
+                it->second = nodeId;
             }
         } else {
             NodeAddressToNodeId_[address] = nodeId;
@@ -135,7 +136,7 @@ void TNodeManager::OnMasterDisconnected()
 
     // XXX(babenko): fiber switch is forbidden here; do we actually need to wait for these results?
     AllSucceeded(asyncResults)
-        .Get();
+        .BlockingGet();
 }
 
 void TNodeManager::RegisterOperation(
@@ -243,7 +244,7 @@ TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodeList)
     std::vector<std::vector<std::string>> nodeAddressesPerShard(NodeShards_.size());
 
     for (const auto& child : nodeList->GetChildren()) {
-        auto address = child->GetValue<TString>();
+        auto address = child->GetValue<std::string>();
         auto objectId = child->Attributes().Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
         auto shardId = GetNodeShardId(nodeId);
@@ -252,7 +253,7 @@ TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodeList)
     }
 
     std::vector<TFuture<void>> removeFutures;
-    for (int i = 0 ; i < std::ssize(NodeShards_); ++i) {
+    for (int i = 0; i < std::ssize(NodeShards_); ++i) {
         auto& nodeShard = NodeShards_[i];
         removeFutures.push_back(
             BIND(&TNodeShard::RemoveMissingNodes, nodeShard)
@@ -263,7 +264,7 @@ TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodeList)
         .ThrowOnError();
 
     std::vector<TFuture<std::vector<TError>>> handleFutures;
-    for (int i = 0 ; i < std::ssize(NodeShards_); ++i) {
+    for (int i = 0; i < std::ssize(NodeShards_); ++i) {
         auto& nodeShard = NodeShards_[i];
         handleFutures.push_back(
             BIND(&TNodeShard::HandleNodesAttributes, nodeShard)

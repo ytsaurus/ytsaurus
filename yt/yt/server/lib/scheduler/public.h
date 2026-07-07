@@ -116,6 +116,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((InaccuratelyEstimatedCompressedDataSize)     (45))
     ((TooManySlicesInJobs)                         (46))
     ((SpecIsTooLarge)                              (47))
+    ((HighJobThreadCount)                          (48))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EOperationAlertType, Unknown);
@@ -136,6 +137,8 @@ DEFINE_ENUM(EAgentToSchedulerOperationEventType,
 DEFINE_ENUM(ESchedulerToAgentOperationEventType,
     ((UpdateGroupedNeededResources) (0))
     ((UnregisterOperation)          (1))
+    ((SuspendOperation)             (2))
+    ((ResumeOperation)              (3))
 );
 
 DEFINE_ENUM(EControlQueue,
@@ -178,10 +181,16 @@ DEFINE_ENUM(EGpuSchedulingModuleType,
     (InfinibandCluster)
 );
 
+DEFINE_ENUM(EPolicyKind,
+    (Classic)
+    (Gpu)
+);
+
 // NB(eshcherbin): Temporary.
 DEFINE_ENUM(EGpuSchedulingPolicyMode,
     (Noop)
     (DryRun)
+    (Allocating)
 );
 
 // TODO(eshcherbin): Scheduling segments algorithm will be deprecated.
@@ -234,6 +243,7 @@ DECLARE_REFCOUNTED_STRUCT(TSchedulerProgramConfig)
 DECLARE_REFCOUNTED_STRUCT(TSchedulerIntegralGuaranteesConfig)
 DECLARE_REFCOUNTED_STRUCT(TStrategySchedulingSegmentsConfig)
 DECLARE_REFCOUNTED_STRUCT(TGpuSchedulingPolicyConfig)
+DECLARE_REFCOUNTED_STRUCT(TGpuSchedulingPolicyTestingOptions)
 DECLARE_REFCOUNTED_STRUCT(TStrategySsdPriorityPreemptionConfig)
 DECLARE_REFCOUNTED_STRUCT(TStrategyDefaultGpuFullHostPreemptionConfig)
 DECLARE_REFCOUNTED_STRUCT(TBatchOperationSchedulingConfig)
@@ -249,6 +259,8 @@ using TExecNodeDescriptorMap = THashMap<NNodeTrackerClient::TNodeId, TExecNodeDe
 DECLARE_REFCOUNTED_STRUCT(TRefCountedExecNodeDescriptorMap)
 
 class TSchedulingTagFilter;
+
+struct TModuleShareAndNetworkPriority;;
 
 DECLARE_REFCOUNTED_STRUCT(TControllerScheduleAllocationResult)
 
@@ -286,18 +298,18 @@ extern const NYPath::TYPath LastMeteringLogTimePath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString ProfilingPoolTreeKey{"tree"};
+inline const std::string ProfilingPoolTreeKey{"tree"};
 
 //! This differs from |ProfilingPoolTreeKey|, because in the context of exe_node
 //! it may not be so obvious what `tree` means. So, we try to clarify it with
 //! a more explicit label name.
-inline const TString ExeNodeProfilingPoolTreeKey{"pool_tree"};
+inline const std::string ExeNodeProfilingPoolTreeKey{"pool_tree"};
 
-inline const TString ExeNodeProfilingUnknownPoolTreeName{"<unknown>"};
+inline const std::string ExeNodeProfilingUnknownPoolTreeName{"<unknown>"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString InfinibandClusterNameKey{"infiniband_cluster_tag"};
+inline const std::string InfinibandClusterNameKey{"infiniband_cluster_tag"};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -55,7 +55,6 @@ extern const int NO_SUCH_COLUMN_IN_TABLE;
 
 } // namespace ErrorCodes
 
-
 } // namespace DB
 
 namespace NYT::NClickHouseServer {
@@ -110,7 +109,8 @@ bool TryGetArray(TStringBuf yson, const NYPath::TYPath& ypath, std::vector<T>* a
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TYTOutputType, bool Strict, class TName>
-class TYPathFunctionBase : public IFunction
+class TYPathFunctionBase
+    : public IFunction
 {
 public:
     static constexpr auto name = TName::Name;
@@ -125,7 +125,7 @@ public:
         return 2;
     }
 
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo& /*arguments*/) const override
     {
         return true;
     }
@@ -191,15 +191,15 @@ public:
 
             const auto& yson = columnYson->getDataAt(i);
             const auto& path = columnPath->getDataAt(i);
-            constexpr bool isFundumental = std::is_fundamental_v<TYTOutputType> || std::is_same_v<TYTOutputType, TString>;
+            constexpr bool isFundamental = std::is_fundamental_v<TYTOutputType> || std::is_same_v<TYTOutputType, TString>;
             bool dataIsFound = TryGetData(TStringBuf(yson.data, yson.size), TYPath(path.data, path.size), &value);
 
             if (dataIsFound) {
-                if constexpr (isFundumental) {
+                if constexpr (isFundamental) {
                     columnTo->insert(toField(value));
                 } else {
                     // TODO(dakovalkov): This looks weird.
-                    // NB: Arrays are only not fundumental types which can be passed as TYTOutputType here.
+                    // NB: Arrays are the only non-fundamental types that can be passed as TYTOutputType here.
                     columnTo->insertData(reinterpret_cast<char*>(value.data()), value.size() * sizeof(value[0]));
                 }
             } else {
@@ -221,8 +221,8 @@ protected:
 private:
     static bool TryGetData(TStringBuf yson, const NYPath::TYPath& ypath, TYTOutputType* data)
     {
-        constexpr bool isFundumental = std::is_fundamental_v<TYTOutputType> || std::is_same_v<TYTOutputType, TString>;
-        if constexpr (isFundumental) {
+        constexpr bool isFundamental = std::is_fundamental_v<TYTOutputType> || std::is_same_v<TYTOutputType, TString>;
+        if constexpr (isFundamental) {
             if (auto maybeValue = TryGetValue<TYTOutputType>(yson, ypath)) {
                 *data = std::move(*maybeValue);
                 return true;
@@ -260,7 +260,7 @@ public:
         this->OutputDataType_ = std::make_shared<DataTypeArray>(std::make_shared<TCHOutputElementDataType>());
     }
 
-    static FunctionPtr create(ContextPtr /* context */)
+    static FunctionPtr create(ContextPtr /*context*/)
     {
         return std::make_shared<TArrayYPathFunction>();
     }
@@ -294,7 +294,6 @@ struct TNameYPathArrayUInt64 { static constexpr auto Name = "YPathArrayUInt64"; 
 struct TNameYPathArrayBoolean { static constexpr auto Name = "YPathArrayBoolean"; };
 struct TNameYPathArrayDouble { static constexpr auto Name = "YPathArrayDouble"; };
 
-
 using TFunctionYPathInt64Strict = TScalarYPathFunction<DataTypeInt64, i64, true, TNameYPathInt64Strict>;
 using TFunctionYPathUInt64Strict = TScalarYPathFunction<DataTypeUInt64, ui64, true, TNameYPathUInt64Strict>;
 using TFunctionYPathBooleanStrict = TScalarYPathFunction<DataTypeUInt8, bool, true, TNameYPathBooleanStrict>;
@@ -320,7 +319,8 @@ using TFunctionYPathArrayDouble = TArrayYPathFunction<DataTypeFloat64, std::vect
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Strict, class TName>
-class TFunctionYPathRawImpl : public IFunction
+class TFunctionYPathRawImpl
+    : public IFunction
 {
 public:
     static constexpr auto name = TName::Name;
@@ -340,7 +340,7 @@ public:
         return 0;
     }
 
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo& /*arguments*/) const override
     {
         return true;
     }
@@ -405,7 +405,7 @@ public:
         return true;
     }
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & resultType, size_t inputRowCount) const override
+    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr& resultType, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = arguments[0].column.get();
         const IColumn* columnYson = columnYsonOrNull;
@@ -457,7 +457,7 @@ public:
             INodePtr subNode;
             if constexpr (Strict) {
                 try {
-                    subNode = GetNodeByYPath(node, TString(path.data, path.size));
+                    subNode = GetNodeByYPath(node, TYPath(path.data, path.size));
                 } catch (const std::exception& ex) {
                     // Rethrow the error with additional context.
                     THROW_ERROR_EXCEPTION("Failed to extract value from yson")
@@ -470,7 +470,7 @@ public:
                 options.NodeCannotHaveChildrenHandler = [] (const INodePtr& /*node*/) {
                     return nullptr;
                 };
-                subNode = WalkNodeByYPath(node, TString(path.data, path.size), options);
+                subNode = WalkNodeByYPath(node, TYPath(path.data, path.size), options);
             }
 
             if (subNode) {
@@ -490,7 +490,8 @@ public:
 // TODO(dakovalkov): Strict version is a fake. It does not detect all possible errors.
 // Support the real strict version when users expose us.
 template <bool Strict, class TName>
-class TFunctionYPathExtractImpl : public IFunction
+class TFunctionYPathExtractImpl
+    : public IFunction
 {
 public:
     static constexpr auto name = TName::Name;
@@ -505,12 +506,12 @@ public:
         return 3;
     }
 
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo& /*arguments*/) const override
     {
         return true;
     }
 
-    static FunctionPtr create(ContextPtr /* context */)
+    static FunctionPtr create(ContextPtr /*context*/)
     {
         return std::make_shared<TFunctionYPathExtractImpl>();
     }
@@ -532,7 +533,7 @@ public:
                 getName());
         }
         const auto& type = arguments[2];
-        auto typeConst = typeid_cast<const ColumnConst *>(type.column.get());
+        auto typeConst = typeid_cast<const ColumnConst*>(type.column.get());
         if (!typeConst || !isString(type.type)) {
             throw Exception(
                 ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
@@ -554,7 +555,7 @@ public:
         return true;
     }
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & returnType, size_t inputRowCount) const override
+    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr& returnType, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = arguments[0].column.get();
         const IColumn* columnYson = columnYsonOrNull;
@@ -587,7 +588,7 @@ public:
             INodePtr subNode;
             if constexpr (Strict) {
                 try {
-                    subNode = GetNodeByYPath(node, TString(path.data, path.size));
+                    subNode = GetNodeByYPath(node, TYPath(path.data, path.size));
                 } catch (const std::exception& ex) {
                     // Rethrow the error with additional context.
                     THROW_ERROR_EXCEPTION("Failed to extract value from yson")
@@ -600,7 +601,7 @@ public:
                 options.NodeCannotHaveChildrenHandler = [] (const INodePtr& /*node*/) {
                     return nullptr;
                 };
-                subNode = WalkNodeByYPath(node, TString(path.data, path.size), options);
+                subNode = WalkNodeByYPath(node, TYPath(path.data, path.size), options);
             }
 
             std::string errorStub;
@@ -616,6 +617,8 @@ public:
                         columnTo->insertDefault();
                     }
                 }
+            } else {
+                columnTo->insertDefault();
             }
         }
 

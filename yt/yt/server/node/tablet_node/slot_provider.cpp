@@ -1,16 +1,14 @@
 #include "slot_provider.h"
 
-#include "config.h"
 #include "private.h"
 #include "tablet_slot.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/lib/cellar_agent/occupier.h>
 
 namespace NYT::NTabletNode {
 
 using namespace NCellarAgent;
+using namespace NCellarNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +23,7 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    ICellarOccupierPtr CreateCellarOccupier(int index) override
+    ICellarOccupierPtr CreateCellarOccupier(int index, const TCreateCellSlotInfo& /*createInfo*/) override
     {
         return CreateTabletSlot(index, Config_, Bootstrap_);
     }

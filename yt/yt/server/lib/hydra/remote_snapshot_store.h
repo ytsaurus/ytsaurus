@@ -26,8 +26,7 @@ using TSnapshotOutThrottlerProvider = std::function<NConcurrency::IThroughputThr
 ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr storeConfig,
     TRemoteSnapshotStoreOptionsPtr storeOptions,
-    NYPath::TYPath primaryPath,
-    NYPath::TYPath secondaryPath,
+    NYPath::TYPath path,
     NApi::IClientPtr client,
     NTransactionClient::TTransactionId prerequisiteTransactionId = {},
     TSnapshotOutThrottlerProvider snapshotOutThrottlerProvider = {});

@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     config.cpp
     authentication_manager.cpp
+    login_authenticator.cpp
     batching_secret_vault_service.cpp
     blackbox_cookie_authenticator.cpp
     caching_secret_vault_service.cpp
@@ -19,6 +20,7 @@ SRCS(
     cypress_cookie_login.cpp
     cypress_cookie_manager.cpp
     cypress_cookie_store.cpp
+    cypress_login_authenticator.cpp
     cypress_token_authenticator.cpp
     cypress_user_manager.cpp
     secret_vault_service.cpp
@@ -29,6 +31,20 @@ SRCS(
     oauth_service.cpp
     yc_authenticator.cpp
 )
+
+IF (OS_WINDOWS)
+    SRCS(
+        ldap_authenticator_unsupported.cpp
+    )
+ELSE()
+    SRCS(
+        ldap_authenticator.cpp
+        ldap_helpers.cpp
+    )
+    PEERDIR(
+        contrib/libs/openldap
+    )
+ENDIF()
 
 PEERDIR(
     # For Cypress token authenticator and Cypress cookie authenticator.

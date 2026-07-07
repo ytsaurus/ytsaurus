@@ -335,6 +335,7 @@ void MaterializeNodeInSequoia(
     TVersionedNodeId nodeId,
     TNodeId parentId,
     TAbsolutePathBuf path,
+    std::optional<TYPathBuf> linkNodeTargetPath,
     bool preserveAcl,
     bool preserveModificationTime,
     const TProgenitorTransactionCache& progenitorTransactionCache,
@@ -345,7 +346,7 @@ void MaterializeNodeInSequoia(
         progenitorTransactionCache,
         nodeId,
         path,
-        std::nullopt);
+        linkNodeTargetPath);
 
     NCypressServer::NProto::TReqFinishNodeMaterialization reqFinishNodeMaterialization;
     ToProto(reqFinishNodeMaterialization.mutable_node_id(), nodeId.ObjectId);
@@ -475,7 +476,7 @@ void DetachChild(
         transaction->DeleteRow(NRecords::TChildNodeKey{
             .ParentId = parentId.ObjectId,
             .TransactionId = parentId.TransactionId,
-            .ChildKey = TString(childKey), // TODO(babenko): migrate to std::string.
+            .ChildKey = childKey,
         });
 
         if (parentId.IsBranched()) {

@@ -6,7 +6,9 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string GetPodIdForInstance(const TCypressAnnotationsPtr& cypressAnnotations, const std::string& name);
+std::string GetPodIdForInstance(
+    const TCypressAnnotationsPtr& cypressAnnotations,
+    const std::string& name);
 
 std::string GetInstancePodIdTemplate(
     const std::string& cluster,

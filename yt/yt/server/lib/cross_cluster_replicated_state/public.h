@@ -15,7 +15,7 @@ DECLARE_REFCOUNTED_CLASS(ISingleClusterClient);
 DECLARE_REFCOUNTED_CLASS(IMultiClusterClient);
 
 DECLARE_REFCOUNTED_CLASS(ICrossClusterReplicaLockWaiter);
-DECLARE_REFCOUNTED_CLASS(ICrossClusterReplicatedState);
+DECLARE_REFCOUNTED_STRUCT(ICrossClusterReplicatedState);
 DECLARE_REFCOUNTED_CLASS(ICrossClusterReplicatedValue);
 
 DECLARE_REFCOUNTED_STRUCT(TCrossClusterReplicatedStateConfig);

@@ -19,10 +19,10 @@ YT_DEFINE_GLOBAL(const NProfiling::TProfiler, LocationProfiler, "/location");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, P2PLogger, "P2P");
 YT_DEFINE_GLOBAL(const NProfiling::TProfiler, P2PProfiler, DataNodeProfiler().WithPrefix("/p2p"));
 
-inline const TString MultiplexedDirectory("multiplexed");
-inline const TString TrashDirectory("trash");
-inline const TString CleanExtension("clean");
-inline const TString SealedFlagExtension("sealed");
+inline const std::string MultiplexedDirectory("multiplexed");
+inline const std::string TrashDirectory("trash");
+inline const std::string CleanExtension("clean");
+inline const std::string SealedFlagExtension("sealed");
 
 ////////////////////////////////////////////////////////////////////////////////
 

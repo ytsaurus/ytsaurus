@@ -117,7 +117,8 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         checkCommand->EnvironmentVariables.emplace("YT_NETWORK_PROJECT_ID", ToString(Context_.Options.NetworkAttributes->ProjectId));
         for (const auto& networkAddress : Context_.Options.NetworkAttributes->Addresses) {
             checkCommand->EnvironmentVariables.emplace(
-                Format("YT_IP_ADDRESS_%v", to_upper(networkAddress->Name)),
+                // TODO(babenko): migrate to std::string
+                Format("YT_IP_ADDRESS_%v", to_upper(TString(networkAddress->Name))),
                 ToString(networkAddress->Address));
         }
     }
@@ -181,11 +182,12 @@ void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std:
                 gpuCheckResult.Stderr);
         }
 
-        if (gpuCheckResult.Stderr) {
+        if (!gpuCheckResult.Stderr.empty()) {
             auto job = checker->Context_.Job;
             job->HandleJobReport(
                 TNodeJobReport()
                     .GpuCheckStderr(gpuCheckResult.Stderr));
+            job->SetHasGpuCheckStderr(true);
         }
     } else {
         error = result;

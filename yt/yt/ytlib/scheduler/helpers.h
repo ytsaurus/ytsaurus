@@ -45,7 +45,7 @@ public:
 
     const std::vector<std::string>& GetOwners();
 
-    const TString& GetSubcontainerName();
+    const std::string& GetSubcontainerName();
 
 private:
     const TJobShellPtr JobShell_;
@@ -65,7 +65,7 @@ NYPath::TYPath GetSecureVaultPath(TOperationId operationId);
 NYPath::TYPath GetFailContextPath(TOperationId operationId, TJobId jobId);
 
 NYPath::TYPath GetSchedulerOrchidOperationPath(TOperationId operationId);
-NYPath::TYPath GetSchedulerOrchidAliasPath(const TString& alias);
+NYPath::TYPath GetSchedulerOrchidAliasPath(const std::string& alias);
 NYPath::TYPath GetControllerAgentOrchidOperationPath(
     TStringBuf controllerAgentAddress,
     TOperationId operationId);
@@ -76,7 +76,7 @@ std::optional<std::string> FindControllerAgentAddressFromCypress(
 NYPath::TYPath GetJobPath(
     TOperationId operationId,
     TJobId jobId,
-    const TString& resourceName);
+    const std::string& resourceName);
 
 // TODO(ignat): move it to proper place.
 const NYPath::TYPath& GetClusterNamePath();
@@ -115,7 +115,7 @@ NYPath::TYPath GetOperationsAcoPrincipalPath(TStringBuf acoName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::TYsonString GetAclFromAcoName(
+NSecurityClient::TSerializableAccessControlList GetAclFromAcoName(
     const NApi::NNative::IClientPtr& client,
     const std::string& acoName);
 
@@ -146,7 +146,9 @@ public:
 
     NSecurityClient::TSerializableAccessControlList GetOrLookupAcl(const NApi::NNative::IClientPtr& client) const;
 
-    TString GetAclString() const;
+    std::string GetAclString() const;
+
+    void Persist(const TStreamPersistenceContext& context);
 
 private:
     std::variant<NSecurityClient::TSerializableAccessControlList, std::string> AccessControlRule_;
@@ -172,8 +174,8 @@ TError CheckOperationAccessByAcl(
     TOperationId operationId,
     TJobId jobId,
     NYTree::EPermissionSet permissionSet,
-    const NSecurityClient::TSerializableAccessControlList& acl,
-    const NApi::IClientPtr& client,
+    NSecurityClient::TSerializableAccessControlList acl,
+    const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& logger);
 
 void ValidateOperationAccess(
@@ -274,10 +276,6 @@ void FromProto(
     TVolume* volume,
     const NControllerAgent::NProto::TVolume& volumeProto);
 
-void ToProto(
-    NControllerAgent::NProto::TVolume* volumeProto,
-    const TVolume& volume);
-
 void FromProto(
     TVolumeMount* volumeMount,
     const NControllerAgent::NProto::TVolumeMount& volumeMountProto);
@@ -361,12 +359,6 @@ template <class TProtoDiskRequest>
 void ToProto(
     TProtoDiskRequest* protoDiskRequestConfig,
     const TStorageRequestBase& diskRequestConfig);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ValidateTmpfsPaths(const std::vector<std::string_view>& tmpfsPaths);
-
-int CountNonTmpfsVolumes(const THashMap<std::string, TVolumePtr>& volumes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

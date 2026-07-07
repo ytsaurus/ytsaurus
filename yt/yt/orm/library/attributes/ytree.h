@@ -12,7 +12,7 @@ namespace NYT::NOrm::NAttributes {
 //! Throws on the try of walking down the non-composite node.
 NYTree::INodePtr GetNodeByPathOrEntity(
     const NYTree::INodePtr& value,
-    const NYPath::TYPath& path);
+    NYPath::TYPathBuf path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

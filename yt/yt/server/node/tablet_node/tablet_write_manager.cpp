@@ -2,6 +2,7 @@
 
 #include "backup_manager.h"
 #include "config.h"
+#include "hunk_lock_manager.h"
 #include "hunks_serialization.h"
 #include "private.h"
 #include "serialize.h"
@@ -119,6 +120,11 @@ public:
             auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
             auto& prelockedRows = transientWriteState->PrelockedRows;
 
+            // Geometric reserve: LockedRows accumulates across write records, so an exact reserve would degrade to O(n^2).
+            auto& lockedRows = *writeContext.LockedRows;
+            if (size_t needed = lockedRows.size() + writeRecord.RowCount; needed > lockedRows.capacity()) {
+                lockedRows.reserve(std::max(needed, lockedRows.capacity() * 2));
+            }
             for (int index = 0; index < writeRecord.RowCount; ++index) {
                 YT_ASSERT(!prelockedRows.empty());
                 auto rowRef = prelockedRows.front();
@@ -511,9 +517,18 @@ public:
             AbortPrelockedRows(transaction);
         }
 
-        // If transaction is transient, it is going to be removed, so we drop its write states.
-        if (transaction->GetTransient()) {
-            EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
+        // COMPAT(ifsmirnov)
+        // If transaction is transient, it is going to be removed, so we drop its write state.
+        // However, transaction may be persistent itself but have not yet had affected the tablet.
+        // In this case we still treat it as transient and drop its write state.
+        if (Host_->GetDynamicConfig()->TabletCellWriteManager->DetectTransientTransactionsPerTablet) {
+            if (!TransactionIdToPersistentWriteState_.contains(transaction->GetId())) {
+                EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
+            }
+        } else {
+            if (transaction->GetTransient()) {
+                EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
+            }
         }
     }
 
@@ -1193,6 +1208,15 @@ private:
             return;
         }
 
+        for (const auto& writeRecord : writeState->LocklessWriteLog) {
+            if (writeRecord.HunkChunksInfo) {
+                const auto& hunkLockManager = Tablet_->GetHunkLockManager();
+                for (auto [hunkStoreId, _] : writeRecord.HunkChunksInfo->HunkChunkRefs) {
+                    hunkLockManager->IncrementPersistentLockCount(hunkStoreId, -1);
+                }
+            }
+        }
+
         // Rows are not prepared - nothing to abort.
         if (!writeState->RowsPrepared) {
             return;
@@ -1699,45 +1723,6 @@ private:
 
             default:
                 YT_ABORT();
-        }
-    }
-
-    void ValidateWriteBarrier(bool replicatorWrite)
-    {
-        if (replicatorWrite) {
-            if (Tablet_->GetInFlightUserMutationCount() > 0) {
-                THROW_ERROR_EXCEPTION(
-                    NTabletClient::EErrorCode::ReplicatorWriteBlockedByUser,
-                    "Tablet cannot accept replicator writes since some user mutations are still in flight")
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("table_path", Tablet_->GetTablePath())
-                    << TErrorAttribute("in_flight_mutation_count", Tablet_->GetInFlightUserMutationCount());
-            }
-            if (Tablet_->GetPendingUserWriteRecordCount() > 0) {
-                THROW_ERROR_EXCEPTION(
-                    NTabletClient::EErrorCode::ReplicatorWriteBlockedByUser,
-                    "Tablet cannot accept replicator writes since some user writes are still pending")
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("table_path", Tablet_->GetTablePath())
-                    << TErrorAttribute("pending_write_record_count", Tablet_->GetPendingUserWriteRecordCount());
-            }
-        } else {
-            if (Tablet_->GetInFlightReplicatorMutationCount() > 0) {
-                THROW_ERROR_EXCEPTION(
-                    NTabletClient::EErrorCode::UserWriteBlockedByReplicator,
-                    "Tablet cannot accept user writes since some replicator mutations are still in flight")
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("table_path", Tablet_->GetTablePath())
-                    << TErrorAttribute("in_flight_mutation_count", Tablet_->GetInFlightReplicatorMutationCount());
-            }
-            if (Tablet_->GetPendingReplicatorWriteRecordCount() > 0) {
-                THROW_ERROR_EXCEPTION(
-                    NTabletClient::EErrorCode::UserWriteBlockedByReplicator,
-                    "Tablet cannot accept user writes since some replicator writes are still pending")
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("table_path", Tablet_->GetTablePath())
-                    << TErrorAttribute("pending_write_record_count", Tablet_->GetPendingReplicatorWriteRecordCount());
-            }
         }
     }
 

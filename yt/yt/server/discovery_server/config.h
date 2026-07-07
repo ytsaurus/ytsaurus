@@ -21,7 +21,7 @@ struct TDiscoveryServerBootstrapConfig
 
     int WorkerThreadPoolSize;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
 
     NDiscoveryServer::TDiscoveryServerConfigPtr DiscoveryServer;
 

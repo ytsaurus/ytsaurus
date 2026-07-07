@@ -21,6 +21,7 @@ import (
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 var _ yt.Client = (*client)(nil)
@@ -57,8 +58,15 @@ func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 		RootCAs: certPool,
 	}
 
+	network := c.GetIPVersion().Network()
+	dialer := &net.Dialer{}
+
 	httpClient := &http.Client{
 		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+				return dialer.DialContext(ctx, network, addr)
+			},
+
 			MaxIdleConns:        0,
 			MaxIdleConnsPerHost: 100,
 			MaxConnsPerHost:     100,
@@ -109,6 +117,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 		clientOpts := []bus.ClientOption{
 			bus.WithLogger(c.log.Logger()),
 			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
+			bus.WithNetwork(conf.GetIPVersion().Network()),
 		}
 		if conf.UseTLS && transport.TLSClientConfig != nil {
 			busTLSConfig := transport.TLSClientConfig.Clone()
@@ -213,6 +222,12 @@ func (c *client) doMultiLookup(
 		reader, err := newTableReader(rows, subresponse.GetRowsetDescriptor())
 		if err != nil {
 			return nil, xerrors.Errorf("unable to create table reader for subresponse %d: %w", i, err)
+		}
+
+		if unavailable := subresponse.GetUnavailableKeyIndexes(); len(unavailable) > 0 {
+			reader.partialErr = &yterrors.PartialResultError{
+				UnavailableKeyIndexes: append([]int32(nil), unavailable...),
+			}
 		}
 
 		readers[i] = reader
@@ -428,9 +443,7 @@ func (c *client) LockRows(
 	}
 	defer tx.Abort()
 
-	opts.TransactionID = tx.ID()
-
-	err = c.Encoder.LockRows(ctx, path, locks, lockType, keys, opts)
+	err = tx.LockRows(ctx, path, locks, lockType, keys, opts)
 	if err != nil {
 		return err
 	}
@@ -543,14 +556,71 @@ func (c *client) PushQueueProducerBatch(
 	}
 	defer tx.Abort()
 
-	opts.TransactionID = tx.ID()
-
 	result, err = tx.PushQueueProducerBatch(ctx, producerPath, queuePath, sessionID, epoch, rowBatch, opts)
 	if err != nil {
 		return result, err
 	}
 
 	return result, tx.Commit()
+}
+
+func (c *client) PullQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	opts *yt.PullQueueConsumerOptions,
+) (r yt.TableReader, result *yt.PullQueueConsumerResult, err error) {
+	return c.Encoder.PullQueueConsumer(ctx, consumerPath, queuePath, opts)
+}
+
+func (c *client) AdvanceQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	opts *yt.AdvanceQueueConsumerOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.AdvanceQueueConsumerOptions{}
+	}
+	if opts.TransactionOptions == nil {
+		opts.TransactionOptions = &yt.TransactionOptions{}
+	}
+
+	var zero yt.TxID
+	if opts.TransactionID != zero {
+		return c.Encoder.AdvanceQueueConsumer(ctx, consumerPath, queuePath, opts)
+	}
+
+	tx, err := c.BeginTabletTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Abort()
+
+	err = tx.AdvanceQueueConsumer(ctx, consumerPath, queuePath, opts)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (c *client) RegisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	opts *yt.RegisterQueueConsumerOptions,
+) error {
+	return c.Encoder.RegisterQueueConsumer(ctx, queuePath, consumerPath, opts)
+}
+
+func (c *client) UnregisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	opts *yt.UnregisterQueueConsumerOptions,
+) error {
+	return c.Encoder.UnregisterQueueConsumer(ctx, queuePath, consumerPath, opts)
 }
 
 // InsertRows wraps encoder's implementation with transaction.
@@ -596,8 +666,6 @@ func (c *client) InsertRowBatch(
 	}
 	defer tx.Abort()
 
-	opts.TransactionID = tx.ID()
-
 	err = tx.InsertRowBatch(ctx, path, rowBatch, opts)
 	if err != nil {
 		return err
@@ -635,9 +703,7 @@ func (c *client) DeleteRows(
 	}
 	defer tx.Abort()
 
-	opts.TransactionID = tx.ID()
-
-	err = c.Encoder.DeleteRows(ctx, path, keys, opts)
+	err = tx.DeleteRows(ctx, path, keys, opts)
 	if err != nil {
 		return err
 	}

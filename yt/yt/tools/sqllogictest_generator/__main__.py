@@ -12,7 +12,6 @@ from yt.yt.tools.sqllogictest_generator.lib.processor import SQLLogicProcessor
 from yt.yt.tools.sqllogictest_generator.lib.executor import SQLiteExecutor
 from yt.yt.tools.sqllogictest_generator.lib.adapter import YTSuiteAdapter
 
-
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger()
 

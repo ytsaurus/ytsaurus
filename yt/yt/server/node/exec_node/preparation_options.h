@@ -1,14 +1,18 @@
 #pragma once
 
 #include "artifact.h"
+#include "volume_helpers.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/nbd/public.h>
 #include <yt/yt/server/lib/nbd/config.h>
+#include <yt/yt/server/lib/nbd/public.h>
+
+#include <yt/yt/ytlib/exec_node/public.h>
 
 #include <yt/yt/core/actions/callback.h>
 
 #include <util/generic/string.h>
+
 #include <util/system/types.h>
 
 namespace NYT::NExecNode {
@@ -17,9 +21,17 @@ namespace NYT::NExecNode {
 
 struct TVirtualSandboxData
 {
-    TString NbdDeviceId;
+    std::string NbdDeviceId;
     TArtifactKey ArtifactKey;
     NNbd::IImageReaderPtr Reader;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOverlayLayerPreparationOptions
+{
+    TArtifactKey ArtifactKey;
+    NNbd::IImageReaderPtr ImageReader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +40,7 @@ struct TVirtualSandboxData
 struct TSandboxNbdRootVolumeData
 {
     //! Identifier of NBD disk within NBD server.
-    TString DeviceId;
+    std::string DeviceId;
 
     //! Volume params.
     i64 Size = 0;
@@ -47,7 +59,14 @@ struct TSandboxNbdRootVolumeData
     TDuration MasterRpcTimeout;
     int MinDataNodeCount;
     int MaxDataNodeCount;
+
+    //! Number of TCP connections to use for NBD RPC requests.
+    int MultiplexingParallelism = DefaultNbdMultiplexingParallelism;
+
+    bool operator==(const TSandboxNbdRootVolumeData&) const = default;
 };
+
+void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeData& data, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,16 +75,14 @@ struct TSandboxNbdRootVolumeData
 // and some of the options is irrelevant for TVolumeManager..
 struct TUserSandboxOptions
 {
-    std::vector<TTmpfsVolumeParams> TmpfsVolumes;
-    std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts;
+    std::vector<TVolumeMountPtr> JobVolumeMounts;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
     bool EnableRootVolumeDiskQuota = false;
     bool EnableDiskQuota = true;
     int UserId = 0;
     std::optional<TVirtualSandboxData> VirtualSandboxData;
-    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
-    std::optional<std::string> SlotPath;
+    std::string SlotPath;
 
     TCallback<void(const TError&)> DiskOverdraftCallback;
 };
@@ -77,6 +94,7 @@ struct TVolumePreparationOptions
     TJobId JobId;
     TUserSandboxOptions UserSandboxOptions;
     TArtifactDownloadOptions ArtifactDownloadOptions;
+    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

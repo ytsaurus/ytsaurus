@@ -54,12 +54,15 @@ static void VerifyLocalMode(TStringBuf proxy, const IClientBasePtr& client)
     try {
         fqdnAttr = client->Get("//sys/@local_mode_fqdn").AsString();
     } catch (const TErrorResponse& error) {
+        if (!error.IsResolveError()) {
+            throw;
+        }
         Y_ABORT("Attribute //sys/@local_mode_fqdn not found; are you trying to run tests on a real cluster?");
     }
     fqdnAttr = to_lower(fqdnAttr);
     auto realFqdn = to_lower(::FQDNHostName());
     Y_ENSURE(
-        fqdnAttr == realFqdn,
+        fqdnAttr == "localhost" || fqdnAttr == realFqdn,
         "FQDN from cluster differs from host name: " << fqdnAttr << ' ' << realFqdn
             << "; are you trying to run tests on a real cluster?");
 }
@@ -142,6 +145,11 @@ bool UseRpcClient()
 {
     auto useRpcClient = GetEnv("YT_TESTS_USE_RPC_CLIENT");
     return !useRpcClient.empty();
+}
+
+bool UseDefaultHttpClient()
+{
+    return !UseRpcClient() && GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -64,6 +64,7 @@ var (
 	GetOperationByAliasResultDecoder        AnyValueResultDecoder       = newValueResultDecoder()
 	ListOperationsResultDecoder             AnyValueResultDecoder       = newValueResultDecoder()
 	ListJobsResultDecoder                   AnyValueResultDecoder       = newValueResultDecoder()
+	ListOperationEventsResultDecoder        AnyValueResultDecoder       = newValueResultDecoder()
 	GetJobResultDecoder                     AnyValueResultDecoder       = newValueResultDecoder()
 	GetJobStderrResultDecoder               valueResultDecoder[*[]byte] = newRawValueResultDecoder()
 	PutFileToCacheResultDecoder             AnyValueResultDecoder       = newValueResultDecoder()
@@ -81,4 +82,7 @@ var (
 	GetQueryResultDecoder                   AnyValueResultDecoder       = newValueResultDecoder()
 	ListQueriesResultDecoder                AnyValueResultDecoder       = newValueResultDecoder()
 	GetQueryResultQueryResultDecoder        AnyValueResultDecoder       = newValueResultDecoder()
+
+	StartDistributedWriteSessionResultDecoder AnyValueResultDecoder = newValueResultDecoder()
+	WriteTableFragmentResultDecoder           AnyValueResultDecoder = newValueResultDecoder()
 )

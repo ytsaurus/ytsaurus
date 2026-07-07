@@ -22,7 +22,7 @@ struct TJobShellDescriptorKey
 {
     std::string User;
     NJobTrackerClient::TJobId JobId;
-    std::optional<TString> ShellName;
+    std::optional<std::string> ShellName;
 
     bool operator==(const TJobShellDescriptorKey& other) const = default;
 
@@ -37,7 +37,7 @@ struct TJobShellDescriptor
 {
     NNodeTrackerClient::TNodeDescriptor NodeDescriptor;
 
-    TString Subcontainer;
+    std::string Subcontainer;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptor& descriptor, TStringBuf spec);

@@ -4,6 +4,8 @@
 #include "chunk_visitor.h"
 #endif
 
+#include "helpers.h"
+
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -13,9 +15,49 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TResult>
+TChunkVisitorBase<TResult>::TChunkVisitorBase(
+    NCellMaster::TBootstrap* bootstrap,
+    const TChunkLists& chunkLists)
+    : Bootstrap_(bootstrap)
+    , ChunkLists_(chunkLists)
+{
+    NObjectServer::VerifyPersistentStateRead();
+}
+
+template <class TResult>
+TFuture<TResult> TChunkVisitorBase<TResult>::Run()
+{
+    NObjectServer::VerifyPersistentStateRead();
+
+    auto context = CreateAsyncChunkTraverserContext(
+        Bootstrap_,
+        NCellMaster::EAutomatonThreadQueue::ChunkStatisticsTraverser);
+    TraverseChunkTree(
+        std::move(context),
+        this,
+        ChunkLists_);
+
+    return Promise_;
+}
+
+template <class TResult>
+void TChunkVisitorBase<TResult>::OnFinish(const TError& error)
+{
+    NObjectServer::VerifyPersistentStateRead();
+
+    if (error.IsOK()) {
+        OnSuccess();
+    } else {
+        Promise_.Set(TError("Error traversing chunk tree") << error);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TKeyExtractor, class TKeyFormatter>
 class TChunkStatisticsVisitor
-    : public TChunkVisitorBase
+    : public TChunkVisitorBase<NYson::TYsonString>
 {
 public:
     TChunkStatisticsVisitor(
@@ -23,7 +65,7 @@ public:
         TChunkLists chunkLists,
         TKeyExtractor keyExtractor,
         TKeyFormatter keyFormatter)
-        : TChunkVisitorBase(bootstrap, chunkLists)
+        : TChunkVisitorBase<NYson::TYsonString>(bootstrap, chunkLists)
         , KeyExtractor_(std::move(keyExtractor))
         , KeyFormatter_(std::move(keyFormatter))
     { }
@@ -42,6 +84,9 @@ private:
     {
         TChunkTreeStatistics ChunkTreeStatistics;
         i64 MaxBlockSize = 0;
+
+        THashSet<TChunkId> HunkChunkIds;
+        THunkChunkTreeStatistics HunkChunkTreeStatistics;
     };
 
     using TStatisticsMap = THashMap<TKey, TStatistics>;
@@ -71,8 +116,12 @@ private:
         }
 
         auto& statistics = StatisticsMap_[key];
-        statistics.ChunkTreeStatistics.Accumulate(chunk->GetStatistics());
-        statistics.MaxBlockSize = std::max(statistics.MaxBlockSize, chunk->GetMaxBlockSize());
+        if (!IsHunkChunkFormat(chunk->GetChunkFormat())) {
+            statistics.ChunkTreeStatistics.Accumulate(chunk->GetStatistics());
+            statistics.MaxBlockSize = std::max(statistics.MaxBlockSize, chunk->GetMaxBlockSize());
+        } else if (statistics.HunkChunkIds.emplace(chunk->GetId()).second) {
+            statistics.HunkChunkTreeStatistics.Accumulate(chunk->GetHunkStatistics());
+        }
 
         return true;
     }
@@ -98,14 +147,25 @@ private:
         auto result = NYTree::BuildYsonStringFluently()
             .DoMapFor(StatisticsMap_, [this] (NYTree::TFluentMap fluent, const typename TStatisticsMap::value_type& pair) {
                 const auto& statistics = pair.second;
+
                 // TODO(panin): maybe use here the same method as in attributes
                 fluent
                     .Item(KeyFormatter_(pair.first)).BeginMap()
-                        .Item("chunk_count").Value(statistics.ChunkTreeStatistics.ChunkCount)
+                        .Item("chunk_count").Value(
+                            statistics.ChunkTreeStatistics.ChunkCount +
+                            statistics.HunkChunkTreeStatistics.ChunkCount)
                         .Item("uncompressed_data_size").Value(statistics.ChunkTreeStatistics.UncompressedDataSize)
                         .Item("compressed_data_size").Value(statistics.ChunkTreeStatistics.CompressedDataSize)
                         .Item("data_weight").Value(statistics.ChunkTreeStatistics.DataWeight)
                         .Item("max_block_size").Value(statistics.MaxBlockSize)
+                        .Item("hunk_data_size").Value(statistics.ChunkTreeStatistics.HunkDataSize)
+                        .Item("hunk_data_weight").Value(statistics.ChunkTreeStatistics.HunkDataWeight)
+                        .Item("hunk_disk_space").Value(
+                            statistics.HunkChunkTreeStatistics.RegularDiskSpace +
+                            statistics.HunkChunkTreeStatistics.ErasureDiskSpace)
+                        .Item("referenced_hunk_disk_space").Value(
+                            statistics.HunkChunkTreeStatistics.ReferencedRegularDiskSpace +
+                            statistics.HunkChunkTreeStatistics.ReferencedErasureDiskSpace)
                     .EndMap();
             });
         Promise_.Set(result);

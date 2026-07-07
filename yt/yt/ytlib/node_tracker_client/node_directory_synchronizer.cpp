@@ -49,9 +49,32 @@ public:
         SyncExecutor_->Start();
     }
 
+    bool IsStarted() const override
+    {
+        return SyncExecutor_->IsStarted();
+    }
+
     TFuture<void> Stop() const override
     {
         return SyncExecutor_->Stop();
+    }
+
+    TFuture<void> SyncOnce(TDuration stalenessThreshold) override
+    {
+        auto guard = Guard(SyncOnceLock_);
+
+        if (SyncOnceFuture_ && !SyncOnceFuture_.IsSet()) {
+            return SyncOnceFuture_;
+        }
+
+        if (LastSuccessfulSyncTime_ != TInstant::Zero() && TInstant::Now() - LastSuccessfulSyncTime_ < stalenessThreshold) {
+            return OKFuture;
+        }
+
+        SyncOnceFuture_ = BIND(&TNodeDirectorySynchronizer::DoSyncOnce, MakeStrong(this))
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run();
+        return SyncOnceFuture_;
     }
 
 private:
@@ -61,6 +84,9 @@ private:
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SyncOnceLock_);
+    TFuture<void> SyncOnceFuture_;
+    TInstant LastSuccessfulSyncTime_ = TInstant::Zero();
 
     void DoSync()
     {
@@ -90,6 +116,11 @@ private:
 
             NodeDirectory_->MergeFrom(*meta.NodeDirectory);
 
+            {
+                auto guard = Guard(SyncOnceLock_);
+                LastSuccessfulSyncTime_ = TInstant::Now();
+            }
+
             YT_LOG_DEBUG("Finished synchronizing node directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing node directory")
@@ -98,6 +129,15 @@ private:
     }
 
     void OnSync()
+    {
+        try {
+            DoSync();
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(TError(ex));
+        }
+    }
+
+    void DoSyncOnce()
     {
         try {
             DoSync();

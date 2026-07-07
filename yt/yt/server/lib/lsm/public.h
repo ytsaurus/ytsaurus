@@ -60,6 +60,8 @@ DEFINE_ENUM(EStoreCompactionReason,
     (DiscardByTtl)
     (TooManyTimestamps)
     (TtlCleanupExpected)
+    (AggregateDeleteTooManyTimestamps)
+    (AggregateTtlCleanupExpected)
     (RemoveDuplicates)
     (ApplyDeletions)
     (NarrowChunkView)

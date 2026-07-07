@@ -1,4 +1,5 @@
 #include "memory_block_device.h"
+#include "block_device_detail.h"
 #include "config.h"
 
 namespace NYT::NNbd {
@@ -6,7 +7,7 @@ namespace NYT::NNbd {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryBlockDevice
-    : public TBaseBlockDevice
+    : public TBlockDeviceBase
 {
 public:
     explicit TMemoryBlockDevice(TMemoryBlockDeviceConfigPtr config)
@@ -24,14 +25,14 @@ public:
         return false;
     }
 
-    TString DebugString() const override
+    std::string DebugString() const override
     {
         return Format("{Memory Size, %v}", GetTotalSize());
     }
 
-    TString GetProfileSensorTag() const override
+    std::string GetProfileSensorTag() const override
     {
-        return TString();
+        return std::string();
     }
 
     TFuture<TReadResponse> Read(

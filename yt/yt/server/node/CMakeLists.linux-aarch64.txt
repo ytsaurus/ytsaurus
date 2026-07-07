@@ -45,6 +45,7 @@ target_compile_options(yt-server-node PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-server-node PUBLIC
@@ -59,6 +60,7 @@ target_link_libraries(yt-server-node PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-core-https
   core-service_discovery-yp
   yt-library-containers
   library-containers-cri
@@ -75,6 +77,7 @@ target_link_libraries(yt-server-node PUBLIC
   yt-library-tcmalloc
   library-tracing-baggage_manager
   library-tracing-jaeger
+  library-query-heavy
   yt-ytlib-distributed_throttler
   server-node-cellar_node
   server-node-chaos_node
@@ -93,6 +96,7 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-nbd
   server-lib-node
   server-lib-rpc
+  server-lib-tablet_balancer
   server-lib-tablet_server
   server-lib-controller_agent
   library-cpp-getopt
@@ -153,6 +157,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/allocation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/artifact.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/artifact_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/artifact_description.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/controller_agent_connector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/cache_location.cpp
@@ -161,6 +166,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/gpu_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_environment.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_fs_secretary.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_directory_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_gpu_checker.cpp
@@ -173,6 +179,9 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_input_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/proxying_data_node_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/orchid.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/pending_downloads_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/preparation_options.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/scheduler_connector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/slot.cpp
@@ -182,6 +191,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/throttler_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_artifact.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_manager.cpp
@@ -245,6 +255,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/ordered_chunk_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/ordered_dynamic_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/ordered_store_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_reporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/partition.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/partition_balancer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/puller_replica_cache.cpp
@@ -254,7 +265,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/revision_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/row_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/row_digest_compaction_hint.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/security_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/row_cache_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/slot_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/slot_manager.cpp
@@ -278,7 +289,6 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/table_puller_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_cell_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_memory_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_cell_write_manager.cpp

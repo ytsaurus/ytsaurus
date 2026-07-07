@@ -2,6 +2,7 @@
 #include <yt/yt/library/gpu/gpu_info_provider.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/rpc/server.h>
 #include <yt/yt/core/rpc/service_detail.h>
@@ -27,6 +28,7 @@ namespace {
 using namespace NYson;
 using namespace NYTree;
 using namespace NRpc;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,7 +171,7 @@ public:
 
     void TearDown() final
     {
-        Server_->Stop().Get().ThrowOnError();
+        WaitForFast(Server_->Stop()).ThrowOnError();
         Server_.Reset();
     }
 

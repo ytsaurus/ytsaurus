@@ -1282,6 +1282,8 @@ private:
         {
             YT_LOG_WARNING(error, "Journal writer failed");
 
+            GracefullyAbortOpeningUpload();
+
             {
                 auto guard = Guard(CurrentBatchSpinLock_);
                 Error_ = error;
@@ -1332,6 +1334,30 @@ private:
             throw TFiberCanceledException();
         }
 
+        void GracefullyAbortOpeningUpload()
+        {
+            if (Opened_ || !UploadTransaction_) {
+                return;
+            }
+
+            auto transactionId = UploadTransaction_->GetId();
+
+            YT_LOG_DEBUG("Aborting upload transaction (UploadTransactionId: %v)",
+                transactionId);
+
+            StopListenTransaction(UploadTransaction_);
+
+            auto rspOrError = WaitFor(UploadTransaction_->Abort());
+
+            if (rspOrError.IsOK()) {
+                YT_LOG_DEBUG("Upload transaction aborted (UploadTransactionId: %v)",
+                    transactionId);
+            } else {
+                YT_LOG_ERROR(rspOrError,
+                    "Upload transaction abort failed (UploadTransactionId: %v)",
+                    transactionId);
+            }
+        }
 
         TFuture<void> AppendToBatch(const TBatchPtr& batch, const TSharedRef& row)
         {
@@ -1807,7 +1833,7 @@ private:
                 return false;
             }
 
-            const auto& preallocatedSessionOrError = AllocatedChunkSessionPromise_.Get();
+            const auto& preallocatedSessionOrError = AllocatedChunkSessionPromise_.GetOrCrash();
             if (!preallocatedSessionOrError.IsOK()) {
                 return false;
             }

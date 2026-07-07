@@ -1,12 +1,12 @@
 #include "task.h"
 
+#include "data_flow_graph.h"
+#include "helpers.h"
 #include "input_manager.h"
 #include "job_info.h"
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "task_host.h"
-#include "helpers.h"
-#include "data_flow_graph.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
 #include <yt/yt/server/controller_agent/config.h>
@@ -16,9 +16,9 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -171,7 +171,7 @@ void TTask::Prepare()
     }
 }
 
-TString TTask::GetTitle() const
+std::string TTask::GetTitle() const
 {
     return ToString(GetJobType());
 }
@@ -237,7 +237,7 @@ bool TTask::HasNoPendingJobs() const
     return GetPendingJobCount().IsZero();
 }
 
-bool TTask::HasNoPendingJobs(const TString& poolTree) const
+bool TTask::HasNoPendingJobs(const std::string& poolTree) const
 {
     return GetPendingJobCount().GetJobCountFor(poolTree) == 0;
 }
@@ -477,7 +477,7 @@ void TTask::PatchUserJobSpec(NControllerAgent::NProto::TUserJobSpec* jobSpec, TJ
     ExperimentJobManager_.PatchUserJobSpec(jobSpec, joblet);
 }
 
-THashMap<TString, TString> TTask::BuildJobEnvironment() const
+THashMap<std::string, std::string> TTask::BuildJobEnvironment() const
 {
     return {};
 }
@@ -545,7 +545,7 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
                 continue;
             }
 
-            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>()) {
+            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>()) {
                 attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
                 attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
                 attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
@@ -803,6 +803,20 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         estimatedResourceUsage,
         *joblet->JobProxyMemoryReserveFactor,
         joblet->UserJobMemoryReserveFactor);
+
+    if (auto cpuLimitMultiplier = TaskHost_->GetSpec()->TestingOperationOptions->ScheduleAllocationCpuMultiplier;
+        cpuLimitMultiplier && *cpuLimitMultiplier != 1.0)
+    {
+        auto originalNeededResources = neededResources;
+        neededResources.SetCpu(neededResources.GetCpu() * *cpuLimitMultiplier);
+
+        YT_LOG_DEBUG(
+            "Adjusted schedule allocation CPU for testing (CpuLimitMultiplier: %v, OriginalNeededResources: %v, AdjustedNeededResources: %v)",
+            *cpuLimitMultiplier,
+            FormatResources(originalNeededResources),
+            FormatResources(neededResources));
+    }
+
     joblet->ResourceLimits = neededResources.ToJobResources();
 
     auto userJobSpec = GetUserJobSpec();
@@ -872,7 +886,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     bool restarted = it != LostJobCookieMap_.end() && it->first.first == joblet->OutputCookie;
 
     auto lostIntermediateChunk = LostIntermediateChunkCookieMap_.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
-    bool lostIntermediateChunkIsKnown = lostIntermediateChunk != LostIntermediateChunkCookieMap_.end() && it->first.first == joblet->OutputCookie;
+    bool lostIntermediateChunkIsKnown = lostIntermediateChunk != LostIntermediateChunkCookieMap_.end() && lostIntermediateChunk->first.first == joblet->OutputCookie;
 
     auto accountBuildingJobSpec = BIND(&ITaskHost::AccountBuildingJobSpecDelta, MakeWeak(TaskHost_));
     accountBuildingJobSpec.Run(+1, +sliceCount);
@@ -940,7 +954,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     for (const auto& streamDescriptor : joblet->OutputStreamDescriptors) {
         int cellTagIndex = RandomNumber<size_t>() % streamDescriptor->CellTags.size();
         auto cellTag = streamDescriptor->CellTags[cellTagIndex];
-        joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(cellTag));
+        joblet->ChunkListIds.push_back(ExtractOutputChunkList(cellTag));
     }
 
     if (TaskHost_->StderrTable() && IsStderrTableEnabled()) {
@@ -1015,7 +1029,7 @@ bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
 
 void TTask::BuildTaskYson(TFluentMap fluent) const
 {
-    static const std::vector<TString> JobManagerNames = {"speculative", "probing", "experiment", "distributed"};
+    static const std::vector<std::string> JobManagerNames = {"speculative", "probing", "experiment", "distributed"};
     YT_VERIFY(JobManagerNames.size() == JobManagers_.size());
 
     fluent
@@ -1069,7 +1083,7 @@ void TTask::SetChunkPoolIndexForOutputStripes(
     }
 }
 
-NChunkPools::IChunkPoolOutput::TCookie  TTask::ExtractCookieForAllocation(
+NChunkPools::IChunkPoolOutput::TCookie TTask::ExtractCookieForAllocation(
     const TAllocation& allocation)
 {
     auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
@@ -1082,6 +1096,16 @@ void TTask::StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& joblet) 
     allocation.LastJobInfo = std::make_unique<TAllocation::TLastJobInfo>();
     allocation.LastJobInfo->JobId = joblet->JobId;
     allocation.LastJobInfo->CompetitionType = joblet->CompetitionType;
+}
+
+const TChunkListPoolPtr& TTask::GetOutputChunkListPool() const
+{
+    return TaskHost_->GetOutputChunkListPool();
+}
+
+NChunkClient::TChunkListId TTask::ExtractOutputChunkList(NObjectClient::TCellTag cellTag)
+{
+    return TaskHost_->ExtractOutputChunkList(cellTag);
 }
 
 std::optional<EAbortReason> TTask::ShouldAbortCompletingJob(const TJobletPtr& joblet)
@@ -1330,7 +1354,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
             auto outputStatistics = VectorAtOr(outputDataStatistics, index);
             if (outputStatistics.chunk_count() == 0) {
                 if (!joblet->Revived) {
-                    TaskHost_->GetOutputChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                    GetOutputChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
                 }
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
@@ -1644,14 +1668,19 @@ IDigest* TTask::GetUserJobMemoryDigest() const
     return UserJobMemoryDigest_.Get();
 }
 
+const TLogDigestConfigPtr& TTask::GetJobProxyMemoryDigestConfig() const
+{
+    const auto& userJobSpec = GetUserJobSpec();
+    if (userJobSpec && userJobSpec->JobProxyMemoryDigest) {
+        return userJobSpec->JobProxyMemoryDigest;
+    }
+    return TaskHost_->GetSpec()->JobProxyMemoryDigest;
+}
+
 IDigest* TTask::GetJobProxyMemoryDigest() const
 {
     if (!JobProxyMemoryDigest_) {
-        if (const auto& userJobSpec = GetUserJobSpec(); userJobSpec && userJobSpec->JobProxyMemoryDigest) {
-            JobProxyMemoryDigest_ = CreateLogDigest(userJobSpec->JobProxyMemoryDigest);
-        } else {
-            JobProxyMemoryDigest_ = CreateLogDigest(TaskHost_->GetSpec()->JobProxyMemoryDigest);
-        }
+        JobProxyMemoryDigest_ = CreateLogDigest(GetJobProxyMemoryDigestConfig());
     }
 
     return JobProxyMemoryDigest_.Get();
@@ -1951,13 +1980,16 @@ void TTask::OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& 
     state.LastJobId = joblet->JobId;
 
     double userJobMemoryReserveUpperBound = 1.0;
-    double jobProxyMemoryReserveUpperBound = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
+    double jobProxyMemoryReserveUpperBound = GetJobProxyMemoryDigestConfig()->UpperBound;
 
     auto jobProxyMaxMemory = FindNumericValue(*jobSummary.Statistics, "/job_proxy/max_memory"_SP).value_or(0);
     auto jobProxyDedicatedMemory = joblet->EstimatedResourceUsage.GetJobProxyMemory() * joblet->JobProxyMemoryReserveFactor.value();
     bool hasJobProxyMemoryOverdraft = jobProxyMaxMemory > jobProxyDedicatedMemory;
 
     i64 userJobMaxMemory = FindNumericValue(*jobSummary.Statistics, "/user_job/max_memory"_SP).value_or(0);
+    // NB(apollo1321): tmpfs is not accounted in max_memory.
+    userJobMaxMemory += FindNumericValue(*jobSummary.Statistics, "/user_job/tmpfs_max_usage"_SP).value_or(0);
+
     bool hasUserJobMemoryOverdraft = userJobSpec
         ? userJobMaxMemory > joblet->UserJobMemoryReserve
         : false;
@@ -2009,7 +2041,8 @@ void TTask::OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& 
     YT_LOG_DEBUG(
         "Job was aborted with resource overdraft "
         "(HasUserJobMemoryOverdraft: %v, HasJobProxyMemoryOverdraft: %v, UserJobOverdraftStatus: %v, JobProxyOverdraftStatus: %v, "
-        "DedicatedUserJobMemoryReserveFactor: %v, DedicatedJobProxyMemoryReserveFactor: %v, UserJobMemoryMultiplier: %v, JobProxyMemoryMultiplier: %v)",
+        "DedicatedUserJobMemoryReserveFactor: %v, DedicatedJobProxyMemoryReserveFactor: %v, UserJobMemoryMultiplier: %v, JobProxyMemoryMultiplier: %v, "
+        "JobProxyMaxMemory: %v, JobProxyDedicatedMemory: %v, UserJobMaxMemory: %v)",
         hasUserJobMemoryOverdraft,
         hasJobProxyMemoryOverdraft,
         state.UserJobStatus,
@@ -2017,7 +2050,10 @@ void TTask::OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& 
         state.DedicatedUserJobMemoryReserveFactor,
         state.DedicatedJobProxyMemoryReserveFactor,
         UserJobMemoryMultiplier_,
-        JobProxyMemoryMultiplier_);
+        JobProxyMemoryMultiplier_,
+        jobProxyMaxMemory,
+        jobProxyDedicatedMemory,
+        userJobMaxMemory);
 }
 
 void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
@@ -2041,6 +2077,7 @@ void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
             continue;
         }
 
+        YT_VERIFY(tmpfsDiskRequest->TmpfsIndex);
         auto maxUsedTmpfsSize = FindNumericValue(
             statistics,
             SlashedStatisticPath(Format("/user_job/tmpfs_volumes/%v/max_size", tmpfsDiskRequest->TmpfsIndex)).ValueOrThrow()); // COMPAT
@@ -2139,7 +2176,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
     auto ioTags = CreateEphemeralAttributes();
     if (joblet->PoolPath) {
         const auto& poolPath = *joblet->PoolPath;
-        AddTagToBaggage(ioTags, EAggregateIOTag::Pool, DirNameAndBaseName(poolPath).second);
+        // TODO(babenko): migrate to std::string
+        AddTagToBaggage(ioTags, EAggregateIOTag::Pool, DirNameAndBaseName(TString(poolPath)).second);
         AddTagToBaggage(ioTags, EAggregateIOTag::PoolPath, poolPath);
     }
     AddTagToBaggage(ioTags, EAggregateIOTag::OperationType, FormatEnum(GetTaskHost()->GetOperationType()));
@@ -2247,7 +2285,7 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
                 continue;
             }
 
-            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>()) {
+            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>()) {
                 resultWithQuota.DiskQuota() = CreateDiskQuota(diskRequest, TaskHost_->GetMediumDirectory());
             }
         }

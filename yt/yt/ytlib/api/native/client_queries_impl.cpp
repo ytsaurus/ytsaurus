@@ -24,7 +24,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const TStartQueryOptions& options)
+TQueryId TClient::DoStartQuery(EQueryEngine engine, const std::string& query, const TStartQueryOptions& options)
 {
     TQueryTrackerServiceProxy proxy(
         Connection_->GetQueryTrackerChannelOrThrow(options.QueryTrackerStage));

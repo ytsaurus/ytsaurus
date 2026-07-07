@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "job.h"
+#include "public.h"
 
 #include <yt/yt/ytlib/controller_agent/public.h>
 

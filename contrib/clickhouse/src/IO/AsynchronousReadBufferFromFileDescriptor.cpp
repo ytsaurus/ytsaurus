@@ -172,7 +172,7 @@ off_t AsynchronousReadBufferFromFileDescriptor::seek(off_t offset, int whence)
     }
     else if (whence == SEEK_CUR)
     {
-        new_pos = file_offset_of_buffer_end - (working_buffer.end() - pos) + offset;
+        new_pos = static_cast<size_t>(getPosition()) + offset;
     }
     else
     {
@@ -180,12 +180,14 @@ off_t AsynchronousReadBufferFromFileDescriptor::seek(off_t offset, int whence)
     }
 
     /// Position is unchanged.
-    if (new_pos + (working_buffer.end() - pos) == file_offset_of_buffer_end)
+    if (new_pos == static_cast<size_t>(getPosition()))
         return new_pos;
 
     while (true)
     {
-        if (file_offset_of_buffer_end - working_buffer.size() <= new_pos && new_pos <= file_offset_of_buffer_end)
+        if (bytes_to_ignore == 0
+            && file_offset_of_buffer_end - working_buffer.size() <= new_pos
+            && new_pos <= file_offset_of_buffer_end)
         {
             /// Position is still inside the buffer.
             /// Probably it is at the end of the buffer - then we will load data on the following 'next' call.
@@ -242,6 +244,7 @@ void AsynchronousReadBufferFromFileDescriptor::rewind()
     working_buffer.resize(0);
     pos = working_buffer.begin();
     file_offset_of_buffer_end = 0;
+    bytes_to_ignore = 0;
 }
 
 std::optional<size_t> AsynchronousReadBufferFromFileDescriptor::tryGetFileSize()

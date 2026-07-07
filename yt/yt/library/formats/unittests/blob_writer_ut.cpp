@@ -8,6 +8,9 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
+#include <library/cpp/yt/string/stream.h>
 
 namespace NYT::NFormats {
 namespace {
@@ -28,7 +31,7 @@ protected:
     TBlobFormatConfigPtr Config_ = New<TBlobFormatConfig>();;
     TControlAttributesConfigPtr ControlAttributesConfig_ = New<TControlAttributesConfig>();
     ISchemalessFormatWriterPtr Writer_;
-    TStringStream OutputStream_;
+    TStdStringStream OutputStream_;
 
     void CreateWriter()
     {
@@ -59,8 +62,7 @@ TEST_F(TSchemalesssBlobWriterTest, Simple)
     std::vector<TUnversionedRow> rows = {row1.Get(), row2.Get()};
 
     EXPECT_TRUE(Writer_->Write(rows));
-    Writer_->Close()
-        .Get()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string expectedOutput = "helloworld";
@@ -82,8 +84,7 @@ TEST_F(TSchemalesssBlobWriterTest, ConfiguredColumnNames)
     });
 
     EXPECT_TRUE(Writer_->Write({row1.Get()}));
-    Writer_->Close()
-        .Get()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string expectedOutput = "hello";
@@ -107,8 +108,7 @@ TEST_F(TSchemalesssBlobWriterTest, PartIndexStartNonZero)
     std::vector<TUnversionedRow> rows = {row1.Get(), row2.Get()};
 
     EXPECT_TRUE(Writer_->Write(rows));
-    Writer_->Close()
-        .Get()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string expectedOutput = "helloworld";
@@ -132,7 +132,7 @@ TEST_F(TSchemalesssBlobWriterTest, PartIndexWrongOrder)
     std::vector<TUnversionedRow> rows = {row1.Get(), row2.Get()};
 
     EXPECT_FALSE(Writer_->Write(rows));
-    EXPECT_THROW(Writer_->Close().Get().ThrowOnError(), TErrorException);
+    EXPECT_THROW(WaitForFast(Writer_->Close()).ThrowOnError(), TErrorException);
 }
 
 TEST_F(TSchemalesssBlobWriterTest, MissingValue)
@@ -151,7 +151,7 @@ TEST_F(TSchemalesssBlobWriterTest, MissingValue)
     std::vector<TUnversionedRow> rows = {row1.Get(), row2.Get()};
 
     EXPECT_FALSE(Writer_->Write(rows));
-    EXPECT_THROW(Writer_->Close().Get().ThrowOnError(), TErrorException);
+    EXPECT_THROW(WaitForFast(Writer_->Close()).ThrowOnError(), TErrorException);
 }
 
 TEST_F(TSchemalesssBlobWriterTest, InvalidColumnType)
@@ -164,7 +164,7 @@ TEST_F(TSchemalesssBlobWriterTest, InvalidColumnType)
     });
 
     EXPECT_FALSE(Writer_->Write({row1.Get()}));
-    EXPECT_THROW(Writer_->Close().Get().ThrowOnError(), TErrorException);
+    EXPECT_THROW(WaitForFast(Writer_->Close()).ThrowOnError(), TErrorException);
 }
 
 TEST_F(TSchemalesssBlobWriterTest, UnsupportedControlAttribute)

@@ -9,6 +9,8 @@
 #include <yt/yt/core/yson/pull_parser_deserialize.h>
 #include <yt/yt/core/yson/token_writer.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <functional>
 
 namespace NYT::NApi::NNative {
@@ -147,7 +149,7 @@ void TListOperationsCountingFilter::MergeFrom(const TListOperationsCountingFilte
 class TConstructingOperationConsumer
 {
 public:
-    TConstructingOperationConsumer(TOperation& operation, const THashSet<TString>& attributes)
+    TConstructingOperationConsumer(TOperation& operation, const THashSet<std::string>& attributes)
         : Operation_(operation)
         , Attributes_(attributes)
     { }
@@ -317,7 +319,7 @@ public:
 
 private:
     TOperation& Operation_;
-    const THashSet<TString>& Attributes_;
+    const THashSet<std::string>& Attributes_;
 
     TYsonString Annotations_;
     TYsonString HeavyRuntimeParameters_;
@@ -329,9 +331,9 @@ private:
             cursor->SkipComplexValue();
             return;
         }
-        TString data;
+        std::string data;
         {
-            TStringOutput output(data);
+            TStdStringOutput output(data);
             TCheckedInDebugYsonTokenWriter writer(&output);
             cursor->TransferComplexValue(&writer);
         }
@@ -605,13 +607,13 @@ public:
                 cursor->Next();
                 cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
                     YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
-                    auto poolTree = ExtractTo<TString>(cursor);
+                    auto poolTree = ExtractTo<std::string>(cursor);
                     cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
                         YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
                         auto innerKey = (*cursor)->UncheckedAsString();
                         if (innerKey == TStringBuf("pool")) {
                             cursor->Next();
-                            auto pool = ExtractTo<TString>(cursor);
+                            auto pool = ExtractTo<std::string>(cursor);
                             CurrentOperation_.FilterAttributes.PoolTreeToPool->emplace(poolTree, pool);
                             SearchSubstring(pool);
                             CurrentOperation_.FilterAttributes.Pools->push_back(std::move(pool));
@@ -710,7 +712,7 @@ private:
     TListOperationsFilter::TLightOperation CurrentOperation_ = {};
     bool HasAcl_ = false;
     TSerializableAccessControlList Acl_;
-    TString Annotations_;
+    std::string Annotations_;
     bool SubstringFound_ = false;
     TStringBuilder TextFactorsBuilder_;
 
@@ -791,8 +793,8 @@ private:
         } else {
             {
                 Annotations_.clear();
-                TStringOutput output(Annotations_);
-                TYsonWriter writer(&output, EYsonFormat::Text); // TODO(egor-gutrov): write binary yson here
+                TStdStringOutput output(Annotations_);
+                TYsonWriter writer(&output, EYsonFormat::Binary);
                 cursor->TransferComplexValue(&writer);
             }
             SearchSubstring(Annotations_);
@@ -814,7 +816,7 @@ TListOperationsFilter::TListOperationsFilter(
     , Logger(logger)
 { }
 
-std::vector<TOperation> TListOperationsFilter::BuildOperations(const THashSet<TString>& attributes) const
+std::vector<TOperation> TListOperationsFilter::BuildOperations(const THashSet<std::string>& attributes) const
 {
     YT_LOG_DEBUG("Building final operations result");
 

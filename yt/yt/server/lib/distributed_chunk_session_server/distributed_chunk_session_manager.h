@@ -16,13 +16,14 @@ namespace NYT::NDistributedChunkSessionServer {
 struct IDistributedChunkSessionManager
     : virtual public TRefCounted
 {
-    virtual IDistributedChunkSessionSequencerPtr FindSequencer(NChunkClient::TSessionId sessionId) const = 0;
-
     virtual IDistributedChunkSessionSequencerPtr GetSequencerOrThrow(NChunkClient::TSessionId sessionId) const = 0;
 
-    virtual IDistributedChunkSessionSequencerPtr StartSession(
+    virtual TFuture<void> StartSession(
         NChunkClient::TSessionId sessionId,
-        std::vector<NNodeTrackerClient::TNodeDescriptor> targets) = 0;
+        TDuration sessionTimeout,
+        NChunkClient::TChunkReplicaWithMediumList targets,
+        NApi::TJournalChunkWriterOptionsPtr options,
+        NApi::TJournalChunkWriterConfigPtr config) = 0;
 
     virtual void RenewSessionLease(NChunkClient::TSessionId sessionId) = 0;
 };
@@ -32,7 +33,6 @@ DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 IDistributedChunkSessionManagerPtr CreateDistributedChunkSessionManager(
-    TDistributedChunkSessionServiceConfigPtr config,
     IInvokerPtr invoker,
     NApi::NNative::IConnectionPtr connection);
 

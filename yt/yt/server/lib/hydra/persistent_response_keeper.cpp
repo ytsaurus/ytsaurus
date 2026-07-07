@@ -97,6 +97,15 @@ public:
         return DoFindRequest(id, isRetry);
     }
 
+    std::optional<i64> GetGroundUpdateQueueSequenceNumber(TMutationId mutationId) override
+    {
+        auto it = GroundUpdateQueueSequenceNumbers_.find(mutationId);
+        if (it != GroundUpdateQueueSequenceNumbers_.end()) {
+            return it->second;
+        }
+        return std::nullopt;
+    }
+
     std::function<void()> EndRequest(
         TMutationId id,
         TSharedRefArray response,
@@ -135,9 +144,17 @@ public:
 
                 ResponseEvictionQueue_.emplace_back(id, mutationContext->GetTimestamp());
 
-                FinishedResponseCount_.fetch_add(1, std::memory_order::relaxed);
-                FinishedResponseSpace_.fetch_add(space, std::memory_order::relaxed);
+                // Technically, memory_order::relaxed would've sufficed here because
+                // every access to these atomics is done from Automaton - except for
+                // profiling, which is fine with relaxed memory order, obviously.
+                // But let's stick with acquire-release for future-proofing.
+                FinishedResponseCount_.fetch_add(1, std::memory_order::acq_rel);
+                FinishedResponseSpace_.fetch_add(space, std::memory_order::acq_rel);
 
+                auto groundUpdateQueueSequenceNumber = mutationContext->GetGroundUpdateQueueSequenceNumber();
+                if (groundUpdateQueueSequenceNumber) {
+                    GroundUpdateQueueSequenceNumbers_.emplace(id, *groundUpdateQueueSequenceNumber);
+                }
                 YT_LOG_DEBUG("Response added to persistent response keeper "
                     "(MutationId: %v, ResponseHash: %v)",
                     id,
@@ -191,7 +208,7 @@ public:
         auto guard = WriterGuard(Lock_);
 
         auto pendingResponses = std::move(PendingResponses_);
-        PendingResponseCount_.store(0, std::memory_order::relaxed);
+        PendingResponseCount_.store(0, std::memory_order::release);
 
         guard.Release();
 
@@ -205,8 +222,9 @@ public:
     void Clear() override
     {
         FinishedResponses_.clear();
-        FinishedResponseCount_.store(0, std::memory_order::relaxed);
-        FinishedResponseSpace_.store(0, std::memory_order::relaxed);
+        GroundUpdateQueueSequenceNumbers_.clear();
+        FinishedResponseCount_.store(0, std::memory_order::release);
+        FinishedResponseSpace_.store(0, std::memory_order::release);
         ResponseEvictionQueue_.clear();
     }
 
@@ -215,22 +233,26 @@ public:
         using NYT::Save;
 
         Save(context, FinishedResponses_);
+        Save(context, GroundUpdateQueueSequenceNumbers_);
         Save(context, FinishedResponseCount_.load(std::memory_order::acquire));
         Save(context, FinishedResponseSpace_.load(std::memory_order::acquire));
         Save(context, ResponseEvictionQueue_);
     }
 
-    void Load(TLoadContext& context) override
+    void Load(TLoadContext& context, bool loadGroundUpdateSequenceNumbers) override
     {
         using NYT::Load;
 
         Load(context, FinishedResponses_);
+        if (loadGroundUpdateSequenceNumbers) {
+            Load(context, GroundUpdateQueueSequenceNumbers_);
+        }
         FinishedResponseCount_.store(
             Load<decltype(FinishedResponseCount_)::value_type>(context),
-            std::memory_order::relaxed);
+            std::memory_order::release);
         FinishedResponseSpace_.store(
             Load<decltype(FinishedResponseSpace_)::value_type>(context),
-            std::memory_order::relaxed);
+            std::memory_order::release);
         Load(context, ResponseEvictionQueue_);
     }
 
@@ -257,8 +279,8 @@ public:
             if (counter > maxResponseCountPerEvictionPass) {
                 YT_LOG_WARNING("Response keeper eviction pass interrupted (ResponseCount: %v, ResponsesLeft: %v, OccupiedSpace: %v)",
                     counter,
-                    FinishedResponseCount_.load(std::memory_order::relaxed),
-                    FinishedResponseSpace_.load(std::memory_order::relaxed));
+                    FinishedResponseCount_.load(std::memory_order::acquire),
+                    FinishedResponseSpace_.load(std::memory_order::acquire));
                 break;
             }
 
@@ -266,11 +288,13 @@ public:
             YT_VERIFY(it != FinishedResponses_.end());
 
             ++counter;
-            FinishedResponseCount_.fetch_sub(1, std::memory_order::relaxed);
+            FinishedResponseCount_.fetch_sub(1, std::memory_order::acq_rel);
             FinishedResponseSpace_.fetch_sub(
-                static_cast<i64>(GetByteSize(it->second)), std::memory_order::relaxed);
+                static_cast<i64>(GetByteSize(it->second)), std::memory_order::acq_rel);
 
             FinishedResponses_.erase(it);
+            GroundUpdateQueueSequenceNumbers_.erase(item.Id);
+
             ResponseEvictionQueue_.pop_front();
         }
 
@@ -290,6 +314,9 @@ private:
     // Persistent.
     using TFinishedResponseMap = THashMap<TMutationId, TSharedRefArray>;
     TFinishedResponseMap FinishedResponses_;
+    // We do not store it with FinishedResponses_ to decrease memory consumption.
+    THashMap<TMutationId, i64> GroundUpdateQueueSequenceNumbers_;
+
     // For profiling only. Saved to snapshot to avoid recomputing after loading.
     std::atomic<int> FinishedResponseCount_ = 0;
     // For limiting memory footprint and profiling. Saved to snapshot to avoid recomputing after loading.
@@ -308,7 +335,7 @@ private:
 
         auto promise = std::move(pendingIt->second);
         PendingResponses_.erase(pendingIt);
-        PendingResponseCount_.fetch_sub(1, std::memory_order::relaxed);
+        PendingResponseCount_.fetch_sub(1, std::memory_order::acq_rel);
 
         return promise;
     }
@@ -322,7 +349,7 @@ private:
         auto result = DoFindRequest(id, isRetry);
         if (!result) {
             EmplaceOrCrash(PendingResponses_, std::pair(id, NewPromise<TSharedRefArray>()));
-            PendingResponseCount_.fetch_add(1, std::memory_order::relaxed);
+            PendingResponseCount_.fetch_add(1, std::memory_order::acq_rel);
         }
         return result;
     }
@@ -356,6 +383,11 @@ private:
     bool IsWarmingUp() const override
     {
         return false;
+    }
+
+    bool IsPersistent() const override
+    {
+        return true;
     }
 
     bool TryReplyFrom(const IServiceContextPtr& context, bool subscribeToResponse) override

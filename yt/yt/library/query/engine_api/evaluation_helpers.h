@@ -1,13 +1,15 @@
 #pragma once
 
+#include "public.h"
+
 #include "expression_context.h"
 #include "position_independent_value.h"
-#include "join_profiler.h"
 
 #include <yt/yt/library/web_assembly/api/data_transfer.h>
 #include <yt/yt/library/web_assembly/api/function.h>
 
 #include <yt/yt/library/query/base/callbacks.h>
+#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/query/misc/allocator.h>
 #include <yt/yt/library/query/misc/objects_holder.h>
@@ -37,9 +39,6 @@ struct TOutputBufferTag
 struct TIntermediateBufferTag
 { };
 
-struct TPermanentBufferTag
-{ };
-
 struct TForeignExecutorBufferTag
 { };
 
@@ -50,6 +49,7 @@ constexpr const size_t InitialGroupOpHashtableCapacity = 1024;
 using THasherFunction = ui64(const TPIValue*);
 using TComparerFunction = char(const TPIValue*, const TPIValue*);
 using TTernaryComparerFunction = i64(const TPIValue*, const TPIValue*);
+using TRowsConsumer = bool(void** closure, TExpressionContext* context, const TPIValue** rows, i64 size);
 
 namespace NDetail {
 
@@ -91,8 +91,7 @@ private:
 using TGroupRows = google::dense_hash_set<
     const TPIValue*,
     NDetail::TGroupHasher,
-    NDetail::TRowComparer,
-    TAllocatorOverChunkProvider<const TPIValue*>>;
+    NDetail::TRowComparer>;
 
 using TGroupVector = std::vector<const TPIValue*, TAllocatorOverChunkProvider<const TPIValue*>>;
 
@@ -151,6 +150,9 @@ struct TMultiJoinParameters
 
 struct TMultiJoinClosure
 {
+    struct TBufferTag
+    { };
+
     using THashJoinLookup = google::dense_hash_set<
         TPIValue*,
         NDetail::TGroupHasher,
@@ -158,6 +160,9 @@ struct TMultiJoinClosure
 
     struct TItem
     {
+        struct TMultiJoinClosureItemBufferTag
+        { };
+
         TExpressionContext Context;
         size_t KeySize;
         NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer;
@@ -184,6 +189,39 @@ struct TMultiJoinClosure
     size_t BatchSize;
     std::function<void(size_t)> ProcessSegment;
     std::function<bool()> ProcessJoinBatch;
+};
+
+struct THierarchicalJoinClosure
+{
+    struct TBufferTag
+    { };
+
+    using TSelfSideDomainBatch = google::dense_hash_set<
+        const TPIValue*,
+        NDetail::TGroupHasher,
+        NDetail::TRowComparer>;
+
+    using TForeignSideLookup = google::dense_hash_map<
+        const TPIValue*,
+        std::vector<TPIValue*>,
+        NDetail::TGroupHasher,
+        NDetail::TRowComparer>;
+
+    TExpressionContext SelfContext;
+    std::vector<const TPIValue*> SelfSideRowBatch;
+    TSelfSideDomainBatch SelfSideDomainBatch;
+
+    TExpressionContext ForeignContext;
+    TForeignSideLookup ForeignSideLookup;
+
+    TExecutionContext* ExecutionContext = nullptr;
+    TSingleJoinParameters* Parameters = nullptr;
+    void** ConsumeJoinedRowsClosure = nullptr;
+    NWebAssembly::TCompartmentFunction<TRowsConsumer> ConsumeJoinedRowsFunction;
+    NWebAssembly::TCompartmentFunction<TComparerFunction> SuffixLessComparer;
+
+    i64 PrimaryRowSize = 0;
+    i64 BatchSize = 0;
 };
 
 class TGroupByClosure;
@@ -231,7 +269,7 @@ struct TExecutionContext
     // Limit from LIMIT clause.
     i64 Limit = std::numeric_limits<i64>::max();
 
-    bool Ordered = false;
+    EScanOrder ScanOrder = EScanOrder::Unordered;
     bool IsMerge = false;
 
     IMemoryChunkProviderPtr MemoryChunkProvider;

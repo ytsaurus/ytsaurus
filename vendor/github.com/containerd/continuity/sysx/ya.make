@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.4.4)
+VERSION(v0.4.5)
 
 IF (OS_LINUX)
     SRCS(
@@ -28,6 +28,13 @@ IF (OS_ANDROID)
     SRCS(
         nodata_linux.go
         xattr.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        nodata_unix.go
+        xattr_unsupported.go
     )
 ENDIF()
 

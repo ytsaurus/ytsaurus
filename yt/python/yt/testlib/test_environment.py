@@ -15,11 +15,6 @@ from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace, MB, YtError
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
 
-try:
-    from yt.packages.six import iteritems, itervalues
-except ImportError:
-    from six import iteritems, itervalues
-
 import yt.wrapper as yt
 
 import os
@@ -57,6 +52,7 @@ class YtTestEnvironment(object):
                  delta_node_config=None,
                  delta_dynamic_node_config=None,
                  delta_proxy_config=None,
+                 default_abort_on_alert=None,
                  modify_configs_func=None,
                  cluster_name="primary",
                  need_suid=False):
@@ -195,20 +191,24 @@ class YtTestEnvironment(object):
             os.environ["HOME"] = tempfile.gettempdir()
             os.environ["YT_TOKEN"] = ""
 
-        yt_config = LocalYtConfig(
-            master_count=1,
-            node_count=3,
-            scheduler_count=1,
-            http_proxy_count=1 if has_http_proxy else 0,
-            rpc_proxy_count=1,
-            fqdn="localhost",
-            allow_chunk_storage_in_tmpfs=True,
-            enable_log_compression=True,
-            log_compression_method="zstd",
-            cluster_name=cluster_name,
-            native_client_supported=native_client_supported,
-            **env_options
-        )
+        base_options = {
+            "master_count": 1,
+            "node_count": 3,
+            "scheduler_count": 1,
+            "http_proxy_count": 1 if has_http_proxy else 0,
+            "rpc_proxy_count": 1,
+            "fqdn": "localhost",
+            "allow_chunk_storage_in_tmpfs": True,
+            "enable_log_compression": True,
+            "log_compression_method": "zstd",
+            "cluster_name": cluster_name,
+            "native_client_supported": native_client_supported,
+            "default_abort_on_alert": default_abort_on_alert,
+        }
+
+        options = {**base_options, **env_options}
+
+        yt_config = LocalYtConfig(**options)
 
         self.env = YTInstance(self.sandbox_dir, yt_config,
                               modify_configs_func=modify_configs,
@@ -263,7 +263,7 @@ class YtTestEnvironment(object):
 
         self.config["pickling"]["python_binary"] = sys.executable
         self.config["user_job_spec_defaults"] = {
-            "environment": dict([(key, value) for key, value in iteritems(os.environ) if "PYTHON" in key])
+            "environment": dict([(key, value) for key, value in os.environ.items() if "PYTHON" in key])
         }
 
         if config["backend"] != "rpc":
@@ -298,7 +298,7 @@ class YtTestEnvironment(object):
         self.env._create_cluster_client().set("//sys/clusters", {cluster_name: cluster_connection})
 
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
-        for module in list(itervalues(sys.modules)):
+        for module in list(sys.modules.values()):
             hasattr(module, "__file__")
 
     def cleanup(self, remove_operations_archive=True):

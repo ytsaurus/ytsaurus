@@ -3,12 +3,16 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
     write_file, write_table, get_job, abort_job, poll_job_shell,
-    raises_yt_error, read_table, run_test_vanilla, map, map_reduce,
-    sort, wait_for_nodes, update_nodes_dynamic_config,
-    wait_breakpoint, with_breakpoint, release_breakpoint, print_debug)
+    raises_yt_error, read_table, run_test_vanilla, vanilla, map, map_reduce,
+    sort, wait_for_nodes, update_nodes_dynamic_config, update_controller_agent_config,
+    wait_breakpoint, with_breakpoint, release_breakpoint, print_debug,
+    make_random_string, sync_create_cells, get_allocation_id_from_job_id,
+    create_domestic_medium,
+)
 
 from yt.common import YtError, YtResponseError, update
 import yt.yson as yson
+import yt.environment.init_operations_archive as init_operations_archive
 
 from yt_helpers import profiler_factory
 
@@ -20,11 +24,25 @@ import gzip
 import re
 import sys
 import time
-import tempfile
 import zstandard as zstd
 
 from builtins import set as Set
 from collections import Counter
+
+
+def _make_random_uds_path() -> str:
+    path = "/tmp"
+
+    # PORTO-1242
+    if os.path.ismount("/tmp"):
+        path = os.path.expanduser('~')
+
+    path = f"{path}/tmp{make_random_string(8)}"
+
+    # Unix Domain Socket paths may not be longer than 108 bytes.
+    assert len(path) < 108
+
+    return path
 
 
 class TestLayersBase(YTEnvSetup):
@@ -122,13 +140,14 @@ class TestLayers(TestPortoLayersBase):
 
     @authors("prime")
     @pytest.mark.timeout(150)
-    def test_corrupted_layer(self):
+    @pytest.mark.parametrize("volume_type", ["root", "local_disk", "tmpfs"])
+    def test_corrupted_layer(self, volume_type):
         self.setup_files()
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Layer unpacking failed"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -137,7 +156,28 @@ class TestLayers(TestPortoLayersBase):
                 spec={
                     "max_failed_job_count": 1,
                     "mapper": {
-                        "layer_paths": ["//tmp/layer1", "//tmp/corrupted_layer"],
+                        "volumes": {
+                            "1": {
+                                "layers": [
+                                    {
+                                        "path": "//tmp/layer1",
+                                    },
+                                    {
+                                        "path": "//tmp/corrupted_layer",
+                                    }
+                                ],
+                                "disk_request": None if volume_type == "root" else {
+                                    "type": volume_type,
+                                    "disk_space": 1024 * 1024
+                                }
+                            }
+                        },
+                        "job_volumes_mounts": [
+                            {
+                                "volume_id": "1",
+                                "mount_path": "/" if volume_type == "root" else "/sandbox"
+                            }
+                        ],
                     },
                 },
             )
@@ -148,7 +188,8 @@ class TestLayers(TestPortoLayersBase):
 
     @authors("psushin")
     @pytest.mark.parametrize("layer_compression", ["", ".gz", ".xz"])
-    def test_one_layer(self, layer_compression):
+    @pytest.mark.parametrize("volume_type", ["root", "local_disk", "tmpfs"])
+    def test_one_layer(self, layer_compression, volume_type):
         self.setup_files()
 
         create("table", "//tmp/t_in")
@@ -163,7 +204,25 @@ class TestLayers(TestPortoLayersBase):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1" + layer_compression],
+                    "volumes": {
+                        "1": {
+                            "layers": [
+                                {
+                                    "path": "//tmp/layer1" + layer_compression
+                                }
+                            ],
+                            "disk_request": None if volume_type == "root" else {
+                                "type": volume_type,
+                                "disk_space": 1024 * 1024
+                            }
+                        }
+                    },
+                    "job_volumes_mounts": [
+                        {
+                            "volume_id": "1",
+                            "mount_path": "/" if volume_type == "root" else "/sandbox"
+                        }
+                    ],
                 },
             },
         )
@@ -174,7 +233,8 @@ class TestLayers(TestPortoLayersBase):
             assert b"static-bin" in op.read_stderr(job_id)
 
     @authors("psushin")
-    def test_two_layers(self):
+    @pytest.mark.parametrize("volume_type", ["root", "local_disk", "tmpfs"])
+    def test_two_layers(self, volume_type):
         self.setup_files()
 
         create("table", "//tmp/t_in")
@@ -189,7 +249,28 @@ class TestLayers(TestPortoLayersBase):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1", "//tmp/layer2"],
+                    "volumes": {
+                        "1": {
+                            "layers": [
+                                {
+                                    "path": "//tmp/layer1"
+                                },
+                                {
+                                    "path": "//tmp/layer2"
+                                }
+                            ],
+                            "disk_request": None if volume_type == "root" else {
+                                "type": volume_type,
+                                "disk_space": 1024 * 1024
+                            }
+                        }
+                    },
+                    "job_volumes_mounts": [
+                        {
+                            "volume_id": "1",
+                            "mount_path": "/" if volume_type == "root" else "/sandbox"
+                        }
+                    ],
                 },
             },
         )
@@ -201,15 +282,144 @@ class TestLayers(TestPortoLayersBase):
             assert b"static-bin" in stderr
             assert b"test" in stderr
 
-    @authors("psushin")
-    def test_bad_layer(self):
+    @authors("krasovav")
+    def test_two_different_volumes_with_layers(self):
         self.setup_files()
 
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-        with pytest.raises(YtError):
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="./static_cat && ls $YT_ROOT_FS 1>&2; cd $YT_ROOT_FS; cd ..; ls tmpfs local_disk 1>&2",
+            file="//tmp/static_cat",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "volumes": {
+                        "1": {
+                            "layers": [
+                                {
+                                    "path": "//tmp/layer1"
+                                },
+                            ],
+                            "disk_request": {
+                                "type": "tmpfs",
+                                "disk_space": 1024 * 1024
+                            }
+                        },
+                        "2": {
+                            "layers": [
+                                {
+                                    "path": "//tmp/layer2"
+                                },
+                            ],
+                            "disk_request": {
+                                "type": "local_disk",
+                                "disk_space": 1024 * 1024
+                            }
+                        }
+                    },
+                    "job_volumes_mounts": [
+                        {
+                            "volume_id": "1",
+                            "mount_path": "/tmpfs"
+                        },
+                        {
+                            "volume_id": "2",
+                            "mount_path": "/local_disk"
+                        }
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            stderr = op.read_stderr(job_id)
+            assert b"static-bin" in stderr
+            assert b"tmpfs" in stderr
+            assert b"local_disk" in stderr
+            assert b"test" in stderr
+
+    @authors("krasovav")
+    @pytest.mark.parametrize("outer", ["local_disk", "tmpfs"])
+    @pytest.mark.parametrize("inner", ["tmpfs", "local_disk"])
+    def test_two_volumes_with_layers_inside_each_other(self, outer, inner):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="./static_cat && ls $YT_ROOT_FS 1>&2 && cd $YT_ROOT_FS && cd .. && ls 1>&2 && cd outer && ls 1>&2 && cd inner && ls 1>&2",
+            file="//tmp/static_cat",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "volumes": {
+                        "1": {
+                            "layers": [
+                                {
+                                    "path": "//tmp/layer1"
+                                },
+                            ],
+                            "disk_request": {
+                                "type": outer,
+                                "disk_space": 1024 * 1024
+                            }
+                        },
+                        "2": {
+                            "layers": [
+                                {
+                                    "path": "//tmp/layer2"
+                                },
+                            ],
+                            "disk_request": {
+                                "type": inner,
+                                "disk_space": 1024 * 1024
+                            }
+                        }
+                    },
+                    "job_volumes_mounts": [
+                        {
+                            "volume_id": "1",
+                            "mount_path": "/outer"
+                        },
+                        {
+                            "volume_id": "2",
+                            "mount_path": "/outer/inner"
+                        }
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            stderr = op.read_stderr(job_id)
+            assert b"static-bin" in stderr
+            assert b"inner" in stderr
+            assert b"outer" in stderr
+            assert b"test" in stderr
+
+    @authors("psushin")
+    @pytest.mark.parametrize("volume_type", ["root", "local_disk", "tmpfs"])
+    def test_bad_layer(self, volume_type):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        with raises_yt_error("Node .* has no child with key .*"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -218,7 +428,28 @@ class TestLayers(TestPortoLayersBase):
                 spec={
                     "max_failed_job_count": 1,
                     "mapper": {
-                        "layer_paths": ["//tmp/layer1", "//tmp/bad_layer"],
+                        "volumes": {
+                            "1": {
+                                "layers": [
+                                    {
+                                        "path": "//tmp/layer1"
+                                    },
+                                    {
+                                        "path": "//tmp/bad_layer"
+                                    }
+                                ],
+                                "disk_request": None if volume_type == "root" else {
+                                    "type": volume_type,
+                                    "disk_space": 1024 * 1024
+                                }
+                            }
+                        },
+                        "job_volumes_mounts": [
+                            {
+                                "volume_id": "1",
+                                "mount_path": "/" if volume_type == "root" else "/sandbox"
+                            }
+                        ],
                     },
                 },
             )
@@ -240,6 +471,11 @@ class TestLayers(TestPortoLayersBase):
             spec={
                 "max_failed_job_count": 1,
                 "default_base_layer_path": "//tmp/layer1",
+                "layer_paths": ["//tmp/layer2"],
+                "mapper": {
+                    "tmpfs_path": ".",
+                    "tmpfs_size": 1024 * 1024,
+                },
             },
         )
 
@@ -825,7 +1061,7 @@ class TestLayerCacheEviction(TestLayerCacheBase):
         cache_missed_counter = profiler.counter("exec_node/layer_cache/missed_count")
         cache_hit_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/layer_cache/hit_count")
 
-        finished_job_counter = profiler.counter("job_controller/job_final_state")
+        finished_job_counter = profiler.with_tags({"origin": "scheduler"}).counter("job_controller/job_final_state")
 
         map(
             in_="//tmp/t_in",
@@ -931,7 +1167,7 @@ class TestLayerCacheResurrection(TestLayerCacheBase):
         cache_missed_counter = profiler.counter("exec_node/layer_cache/missed_count")
         cache_hit_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/layer_cache/hit_count")
 
-        finished_job_counter = profiler.counter("job_controller/job_final_state")
+        finished_job_counter = profiler.with_tags({"origin": "scheduler"}).counter("job_controller/job_final_state")
 
         op1 = map(
             track=False,
@@ -1672,7 +1908,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Porto API error"):
             op.track()
 
         # YT-14186: Corrupted user layer should not disable jobs on node.
@@ -1697,7 +1933,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Porto API error"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -1808,6 +2044,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
     NUM_USER_SLOTS = 2
+    NUM_TEST_PARTITIONS = 3
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
@@ -1846,10 +2083,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
                     "enabled": True,
                     "server": {
                         "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
-                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
-                            "path": tempfile.mkstemp(dir="/tmp" if "USER" not in os.environ else "/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                            "path": _make_random_uds_path(),
                         },
                     },
                 },
@@ -1857,7 +2091,35 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "nbd_media": ["ssd_nbd"],
+        }
+    }
+
     USE_PORTO = True
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        ssd_store_path = os.path.join(cls.fake_ssd_disk_path, "store")
+        ssd_slot_path = os.path.join(cls.fake_ssd_disk_path, "slots")
+        for path in (ssd_store_path, ssd_slot_path):
+            if not os.path.exists(path):
+                os.makedirs(path)
+        config["data_node"]["store_locations"].append({
+            "path": ssd_store_path,
+            "medium_name": "ssd_nbd",
+        })
+        config["exec_node"]["slot_manager"]["locations"].append({
+            "path": ssd_slot_path,
+            "disk_quota": 2 * 1024 * 1024 * 1024,
+            "disk_usage_watermark": 0,
+            "medium_name": "ssd_nbd",
+        })
+
+    @classmethod
+    def on_masters_started(cls):
+        create_domestic_medium("ssd_nbd")
 
     def _get_node_debug_logs(self, filter_string):
         writers = self.Env.configs["node"][0]["logging"]["writers"]
@@ -1932,7 +2194,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             command = "ls $YT_ROOT_FS/dir | tee $YT_ROOT_FS/ls_output.txt 1>&2"
 
             spec["mapper"]["disk_request"] = {
-                "medium_name": "default",
+                "medium_name": "ssd_nbd",
                 "disk_space": 16 * 1024 * 1024,
             }
 
@@ -2009,7 +2271,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Porto API error"):
             op.track()
 
         # YT-14186: Corrupted user layer should not disable jobs on node.
@@ -2038,7 +2300,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Porto API error"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2075,25 +2337,17 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         assert len(nodes) == self.NUM_NODES
         profiler = profiler_factory().at_node(nodes[0])
 
-        # Get counter objects.
+        # Get counter objects. start_value is captured at construction time so
+        # get_delta() always returns the increment relative to that baseline.
         cache_missed_counter = profiler.counter("exec_node/ronbd_volume_cache/missed_count")
         cache_hit_sync_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/ronbd_volume_cache/hit_count")
         cache_hit_async_counter = profiler.with_tags({"hit_type": "async"}).counter("exec_node/ronbd_volume_cache/hit_count")
-
-        # Get initial counter values before the operation.
-        initial_cache_missed_count = cache_missed_counter.get()
-        initial_cache_hit_sync_count = cache_hit_sync_counter.get()
-        initial_cache_hit_async_count = cache_hit_async_counter.get()
-
-        # Get initial log counts before running the operation.
-        initial_logs_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
-        initial_logs_removed_count = len(self._get_node_debug_logs("Removed volume (VolumeType: RO NBD"))
 
         # Run map operation with NUM_USER_SLOTS jobs.
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="sleep 30; cat",
+            command="sleep 10; cat",
             spec={
                 "max_failed_job_count": 1,
                 "job_count": self.NUM_USER_SLOTS,
@@ -2103,33 +2357,13 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             },
         )
 
-        # Get final log counts after operation completes.
-        final_logs_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
-        final_logs_removed_count = len(self._get_node_debug_logs("Removed volume (VolumeType: RO NBD"))
+        # Check that only one job misses cache.
+        wait(lambda: cache_missed_counter.get_delta() >= 1)
+        assert cache_missed_counter.get_delta() == 1
 
-        # Check that all jobs but the first one hit cache.
-        logs_cache_hit_delta = final_logs_cache_hit_count - initial_logs_cache_hit_count
-        assert logs_cache_hit_delta == self.NUM_USER_SLOTS - 1
-
-        # Check that volume was removed only once (proving all jobs shared the same device).
-        removed_delta = final_logs_removed_count - initial_logs_removed_count
-        assert removed_delta == self.NUM_USER_SLOTS - 1
-
-        # Get final counter values after operation completes.
-        final_cache_missed_count = cache_missed_counter.get()
-        final_cache_hit_sync_count = cache_hit_sync_counter.get()
-        final_cache_hit_async_count = cache_hit_async_counter.get()
-
-        # Check that only the first job misses cache.
-        cache_missed_delta = final_cache_missed_count - initial_cache_missed_count
-        assert cache_missed_delta == 1
-
-        # Check that all jobs but the first one hit cache (either sync or async).
-        total_cache_hit_count = (
-            (final_cache_hit_sync_count - initial_cache_hit_sync_count) +
-            (final_cache_hit_async_count - initial_cache_hit_async_count)
-        )
-        assert total_cache_hit_count == self.NUM_USER_SLOTS - 1
+        # Check that all jobs but the one hit cache (either sync or async).
+        wait(lambda: cache_hit_sync_counter.get_delta() + cache_hit_async_counter.get_delta() >= self.NUM_USER_SLOTS - 1)
+        assert cache_hit_sync_counter.get_delta() + cache_hit_async_counter.get_delta() == self.NUM_USER_SLOTS - 1
 
 
 @authors("yuryalekseev")
@@ -2188,10 +2422,7 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                     },
                     "server": {
                         "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
-                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
-                            "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                            "path": _make_random_uds_path(),
                         },
                         "test_options": {
                             "set_error_on_read": True,
@@ -2211,7 +2442,7 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" option is set in operation spec or user job spec"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2260,7 +2491,7 @@ class TestInvalidAttributeValues(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2282,7 +2513,7 @@ class TestInvalidAttributeValues(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2353,17 +2584,12 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
                     "enabled": True,
                     "server": {
                         "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
-                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
-                            "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                            "path": _make_random_uds_path(),
                         },
                     },
                 },
                 "slot_manager": {
                     "volume_manager": {
-                        "abort_on_operation_with_volume_failed": True,
-                        "abort_on_operation_with_layer_failed": True,
                         "throw_on_prepare_volume": True,
                     },
                 }
@@ -2380,7 +2606,7 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation failed due to excessive successive job aborts"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2415,7 +2641,7 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("NBD server is not present"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2617,10 +2843,7 @@ class TestVirtualSandbox(YTEnvSetup):
                     "enabled": True,
                     "server": {
                         "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
-                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
-                            "path": tempfile.mkstemp(dir="/tmp" if "USER" not in os.environ else "/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                            "path": _make_random_uds_path(),
                         },
                     },
                 },
@@ -2711,3 +2934,962 @@ class TestVirtualSandbox(YTEnvSetup):
         )
 
         assert read_table("//tmp/t_out3") == [{"Hello": "World"}]
+
+
+##################################################################
+
+
+class _TestVolumeReuseInAllocationBase(TestPortoLayersBase):
+    NUM_TEST_PARTITIONS = 3
+
+    NUM_NODES = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/layer1", attributes={"replication_factor": 1})
+        write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+
+class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("volume_type", ["tmpfs", "local_disk"])
+    @pytest.mark.parametrize("with_layers", [False, True])
+    def test_tmpfs_volume_reused_with_allow_reusing(self, volume_type, with_layers):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        data_volume_spec = {
+            "disk_request": {
+                "type": volume_type,
+                "disk_space": 1024 * 1024,
+            },
+            "allow_reusing": True,
+        }
+        if with_layers:
+            data_volume_spec["layers"] = [{"path": "//tmp/layer1"}]
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=(
+                "cat; "
+                "if [ -f my_volume/marker ]; then "
+                "  echo 'REUSED' >&2; "
+                "else "
+                "  echo 'FRESH' >&2; "
+                "  echo 'marker_content' > my_volume/marker; "
+                "fi"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                        },
+                        "data": data_volume_spec,
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                        {"volume_id": "data", "mount_path": "/sandbox/my_volume"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        # Verify both jobs ran in the same allocation
+        allocation_ids = [get_allocation_id_from_job_id(job_id) for job_id in job_ids]
+        assert allocation_ids[0] == allocation_ids[1], "Both jobs should run in the same allocation"
+
+        # Sort jobs by job_id lexicographically - first job has smaller job_id
+        sorted_job_ids = sorted(job_ids)
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in sorted_job_ids]
+
+        # First job (lexicographically smaller job_id) should see FRESH,
+        # second job should see REUSED
+        assert stderrs[0] == "FRESH"
+        assert stderrs[1] == "REUSED"
+
+    @authors("pogorelov")
+    def test_tmpfs_volume_not_reused_without_allow_reusing(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=(
+                "cat; "
+                "if [ -f my_volume/marker ]; then "
+                "  echo 'REUSED' >&2; "
+                "else "
+                "  echo 'FRESH' >&2; "
+                "  echo 'marker_content' > my_volume/marker; "
+                "fi"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                        },
+                        "data": {
+                            "disk_request": {
+                                "type": "tmpfs",
+                                "disk_space": 1024 * 1024,
+                            },
+                            # allow_reusing defaults to False
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                        {"volume_id": "data", "mount_path": "/sandbox/my_volume"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in job_ids]
+        # Both jobs should see FRESH since volume is not reused
+        assert stderrs.count("FRESH") == 2
+        assert "REUSED" not in stderrs
+
+    @authors("pogorelov")
+    def test_partial_volume_reuse(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=(
+                "cat; "
+                "REUSABLE='FRESH'; NONREUSABLE='FRESH'; "
+                "if [ -f reusable_vol/marker ]; then REUSABLE='REUSED'; fi; "
+                "if [ -f nonreusable_vol/marker ]; then NONREUSABLE='REUSED'; fi; "
+                "echo \"reusable=$REUSABLE nonreusable=$NONREUSABLE\" >&2; "
+                "echo 'marker' > reusable_vol/marker; "
+                "echo 'marker' > nonreusable_vol/marker"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                        },
+                        "reusable": {
+                            "disk_request": {
+                                "type": "tmpfs",
+                                "disk_space": 1024 * 1024,
+                            },
+                            "allow_reusing": True,
+                        },
+                        "nonreusable": {
+                            "disk_request": {
+                                "type": "tmpfs",
+                                "disk_space": 1024 * 1024,
+                            },
+                            "allow_reusing": False,
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                        {"volume_id": "reusable", "mount_path": "/sandbox/reusable_vol"},
+                        {"volume_id": "nonreusable", "mount_path": "/sandbox/nonreusable_vol"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in job_ids]
+
+        # First job should see both volumes as FRESH
+        # Use space prefix to avoid matching "nonreusable=FRESH" which contains "reusable=FRESH"
+        first_job_stderr = [s for s in stderrs if " reusable=FRESH" in (" " + s) and "nonreusable=FRESH" in s]
+        assert len(first_job_stderr) == 1
+
+        # Second job should see reusable as REUSED, nonreusable as FRESH
+        second_job_stderr = [s for s in stderrs if "reusable=REUSED" in s and "nonreusable=FRESH" in s]
+        assert len(second_job_stderr) == 1
+
+    @authors("pogorelov")
+    def test_root_volume_not_reused_without_allow_reusing(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat; echo $YT_ROOT_FS >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                            # allow_reusing defaults to False
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        allocation_ids = [get_allocation_id_from_job_id(job_id) for job_id in job_ids]
+        assert allocation_ids[0] == allocation_ids[1], "Both jobs should run in the same allocation"
+
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in job_ids]
+
+        assert stderrs[0] != stderrs[1], \
+            f"Both jobs should use different root volume paths when allow_reusing=False, but got: {stderrs[0]}"
+        assert stderrs[0] != "", "Root volume path should not be empty"
+        assert stderrs[1] != "", "Root volume path should not be empty"
+
+
+class TestRootVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
+    # test_root_fs=False is required to exercise real root filesystem code paths
+    # (the root volume is actually used by job_proxy as job's rootfs). This
+    # configuration is intentionally scoped to this suite only: enabling it
+    # globally on _TestVolumeReuseInAllocationBase would affect unrelated
+    # volume-reuse tests that don't need a real rootfs.
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": False,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    def setup_files(self):
+        super().setup_files()
+        create("file", "//tmp/exec.tar.gz", attributes={"replication_factor": 1})
+        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+        create("file", "//tmp/rootfs.tar.gz", attributes={"replication_factor": 1})
+        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+    @authors("pogorelov")
+    def test_root_volume_reused_with_allow_reusing(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        # Test root volume reuse with allow_reusing=True.
+        # The first job writes a marker into the root volume. The second job must
+        # observe it; comparing $YT_ROOT_FS paths alone is insufficient since a
+        # removed volume can be recreated at the same path.
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=(
+                "cat; "
+                "if [ -f /yt_root_reuse_marker ]; then "
+                "  echo REUSED >&2; "
+                "else "
+                "  echo FRESH >&2; "
+                "  echo marker_content > /yt_root_reuse_marker; "
+                "fi"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [
+                                {"path": "//tmp/exec.tar.gz"},
+                                {"path": "//tmp/rootfs.tar.gz"},
+                            ],
+                            "allow_reusing": True,
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        # Verify both jobs ran in the same allocation.
+        allocation_ids = [get_allocation_id_from_job_id(job_id) for job_id in job_ids]
+        assert allocation_ids[0] == allocation_ids[1], "Both jobs should run in the same allocation"
+
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in job_ids]
+        assert stderrs.count("FRESH") == 1, f"Exactly one job should create the root marker, got: {stderrs}"
+        assert stderrs.count("REUSED") == 1, f"Exactly one job should observe the root marker, got: {stderrs}"
+
+
+class TestNestedVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
+    NUM_TEST_PARTITIONS = 3
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("outer_type", ["tmpfs", "local_disk"])
+    @pytest.mark.parametrize("inner_type", ["tmpfs", "local_disk"])
+    @pytest.mark.parametrize("reuse_inner", [False, True])
+    @pytest.mark.parametrize("reuse_outer", [False, True])
+    def test_nested_volume_reuse(self, outer_type, inner_type, reuse_inner, reuse_outer):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=(
+                "cat; "
+                "OUTER='FRESH'; INNER='FRESH'; "
+                "if [ -f outer_vol/marker ]; then OUTER='REUSED'; fi; "
+                "if [ -f outer_vol/inner_vol/marker ]; then INNER='REUSED'; fi; "
+                "echo \"outer=$OUTER inner=$INNER\" >&2; "
+                "echo 'marker' > outer_vol/marker; "
+                "echo 'marker' > outer_vol/inner_vol/marker"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                        },
+                        "outer": {
+                            "disk_request": {
+                                "type": outer_type,
+                                "disk_space": 2 * 1024 * 1024,
+                            },
+                            "allow_reusing": reuse_outer,
+                        },
+                        "inner": {
+                            "disk_request": {
+                                "type": inner_type,
+                                "disk_space": 1024 * 1024,
+                            },
+                            "allow_reusing": reuse_inner,
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                        {"volume_id": "outer", "mount_path": "/sandbox/outer_vol"},
+                        {"volume_id": "inner", "mount_path": "/sandbox/outer_vol/inner_vol"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        sorted_job_ids = sorted(job_ids)
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in sorted_job_ids]
+
+        expected_outer_second = "REUSED" if reuse_outer else "FRESH"
+        expected_inner_second = "REUSED" if reuse_inner else "FRESH"
+
+        assert stderrs[0] == "outer=FRESH inner=FRESH"
+        assert stderrs[1] == f"outer={expected_outer_second} inner={expected_inner_second}"
+
+
+class TestVolumeReuseInGangOperation(TestPortoLayersBase):
+    NUM_NODES = 2
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestVolumeReuseInGangOperation, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    @authors("pogorelov")
+    def test_volume_reused_in_gang_operation(self):
+        self.setup_files()
+
+        op = run_test_vanilla(
+            with_breakpoint(
+                "if [ -f my_volume/marker ]; then "
+                "  echo 'REUSED' >&2; "
+                "else "
+                "  echo 'FRESH' >&2; "
+                "  echo 'marker_content' > my_volume/marker; "
+                "fi; "
+                "BREAKPOINT"
+            ),
+            job_count=2,
+            task_patch={
+                "gang_options": {},
+                "volumes": {
+                    "root": {
+                        "layers": [{"path": "//tmp/layer1"}],
+                    },
+                    "data": {
+                        "disk_request": {
+                            "type": "tmpfs",
+                            "disk_space": 1024 * 1024,
+                        },
+                        "allow_reusing": True,
+                    },
+                },
+                "job_volumes_mounts": [
+                    {"volume_id": "root", "mount_path": "/"},
+                    {"volume_id": "data", "mount_path": "/sandbox/my_volume"},
+                ],
+            },
+            spec={
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+            },
+            track=False,
+        )
+
+        job_ids = wait_breakpoint(job_count=2)
+        first_job_id = job_ids[0]
+
+        first_incarnation_reused_job_id = next(jid for jid in job_ids if jid != first_job_id)
+        reused_allocation_id = get_allocation_id_from_job_id(first_incarnation_reused_job_id)
+
+        current_incarnation = get(op.get_orchid_path() + "/controller/operation_incarnation")
+
+        # Abort one job to trigger incarnation switch
+        abort_job(first_job_id)
+
+        wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
+
+        for job_id in job_ids:
+            release_breakpoint(job_id=job_id)
+
+        new_job_ids = wait_breakpoint(job_count=2)
+        release_breakpoint()
+
+        op.track()
+
+        # Find the job that ran in the reused allocation
+        new_job_ids_in_reused_alloc = [
+            jid for jid in new_job_ids
+            if get_allocation_id_from_job_id(jid) == reused_allocation_id
+        ]
+        assert len(new_job_ids_in_reused_alloc) == 1
+
+        # The job in the reused allocation should see the marker file
+        reused_job_stderr = op.read_stderr(new_job_ids_in_reused_alloc[0]).decode("utf-8")
+        assert "REUSED" in reused_job_stderr
+
+    @authors("pogorelov")
+    def test_gang_jobs_aborted_before_volume_preparation(self):
+        self.setup_files()
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "testing": {
+                            "delay_in_artifacts_caching": 30000,
+                        },
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            with_breakpoint(
+                "if [ -f my_volume/marker ]; then "
+                "  echo 'REUSED' >&2; "
+                "else "
+                "  echo 'FRESH' >&2; "
+                "  echo 'marker_content' > my_volume/marker; "
+                "fi; "
+                "BREAKPOINT"
+            ),
+            job_count=2,
+            task_patch={
+                "gang_options": {},
+                "volumes": {
+                    "root": {
+                        "layers": [{"path": "//tmp/layer1"}],
+                    },
+                    "data": {
+                        "disk_request": {
+                            "type": "tmpfs",
+                            "disk_space": 1024 * 1024,
+                        },
+                        "allow_reusing": True,
+                    },
+                },
+                "job_volumes_mounts": [
+                    {"volume_id": "root", "mount_path": "/"},
+                    {"volume_id": "data", "mount_path": "/sandbox/my_volume"},
+                ],
+            },
+            spec={
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+            },
+            track=False,
+        )
+
+        # Wait for jobs to start but not complete artifact caching
+        wait(lambda: len(op.list_jobs()) == 2)
+        first_incarnation_job_ids = list(op.list_jobs())
+        job_id = first_incarnation_job_ids[0]
+        wait(lambda: op.get_job_phase(job_id) == "caching_artifacts")
+
+        time.sleep(3)
+
+        # Remove the delay
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "testing": {
+                            "delay_in_artifacts_caching": None,
+                        },
+                    },
+                },
+            },
+        })
+
+        first_incarnation_reused_job_id = next(
+            jid for jid in first_incarnation_job_ids if jid != job_id
+        )
+        reused_allocation_id = get_allocation_id_from_job_id(first_incarnation_reused_job_id)
+
+        current_incarnation = get(op.get_orchid_path() + "/controller/operation_incarnation")
+
+        # Abort one job to trigger incarnation switch
+        abort_job(job_id)
+
+        wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
+
+        new_job_ids = wait_breakpoint(job_count=2)
+        release_breakpoint()
+
+        op.track()
+
+        # Find the job that ran in the reused allocation
+        new_job_ids_in_reused_alloc = [
+            jid for jid in new_job_ids
+            if get_allocation_id_from_job_id(jid) == reused_allocation_id
+        ]
+        assert len(new_job_ids_in_reused_alloc) == 1
+
+        # The job in the reused allocation should see FRESH because volumes were not prepared
+        # before the abort (abort happened during artifact caching delay)
+        reused_job_stderr = op.read_stderr(new_job_ids_in_reused_alloc[0]).decode("utf-8")
+        assert "FRESH" in reused_job_stderr
+
+
+class TestLayerReuseInAllocationBase(TestPortoLayersBase):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "data_node": {
+            "volume_manager": {
+                "enable_layers_cache": True,
+                "cache_capacity_fraction": 1.0,
+                "layer_locations": [
+                    {
+                        # Size of unpacked layer layers/static-bin.tar is 3207704 bytes.
+                        # Quota below the layer size forces SLRU eviction after the
+                        # first job; the layer must remain alive via the TLayerPtr
+                        # stored in TJobFSSecretary::PreparedLayers_.
+                        "quota": 1 * 1024 * 1024,
+                    },
+                ],
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+    def setup_files(self):
+        create("file", "//tmp/layer1", attributes={"replication_factor": 1})
+        write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
+
+    def _get_node_debug_logs(self, filter_string, node_index=0):
+        # Inlined copy of TestLayerCacheBase._get_node_debug_logs because we
+        # don't inherit from it directly (TestLayerCacheBase has its own
+        # DELTA_NODE_CONFIG that we override here).
+        writers = self.Env.configs["node"][node_index]["logging"]["writers"]
+        node_debug_logs_filename = None
+        for writer_name in writers:
+            if "debug" in writer_name:
+                node_debug_logs_filename = writers[writer_name]["file_name"]
+                break
+        assert node_debug_logs_filename is not None
+
+        if node_debug_logs_filename.endswith(".zst"):
+            compressed_file = open(node_debug_logs_filename, "rb")
+            decompressor = zstd.ZstdDecompressor()
+            binary_reader = decompressor.stream_reader(compressed_file, read_size=8192)
+            logfile = io.TextIOWrapper(binary_reader, encoding="utf-8", errors="ignore")
+        elif node_debug_logs_filename.endswith(".gz"):
+            logfile = gzip.open(node_debug_logs_filename, "b")
+        else:
+            logfile = open(node_debug_logs_filename, "b")
+
+        def _filter(line):
+            return filter_string in line
+
+        return [line for line in logfile if _filter(line)]
+
+
+class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
+    @authors("pogorelov")
+    def test_layer_not_reimported_on_allocation_reuse(self):
+        self.setup_files()
+
+        # The node debug log is shared with sibling test methods in this
+        # class because YTEnvSetup keeps a single cluster per test class,
+        # so we must measure the delta of "Layer added to cache" entries,
+        # not the absolute count.
+        initial_imports = len(self._get_node_debug_logs("Layer added to cache"))
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "layer_paths": ["//tmp/layer1"],
+                    },
+                },
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+            },
+        )
+
+        job_id1, = wait_breakpoint(job_count=1)
+        release_breakpoint(job_id=job_id1)
+
+        job_id2, = wait_breakpoint(job_count=1)
+
+        assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
+
+        release_breakpoint(job_id=job_id2)
+
+        op.track()
+
+        # The layer must be imported exactly once for the entire allocation:
+        # the second job sees its key already in TJobFSSecretary::PreparedLayers_
+        # and the layer-preparation phase is skipped via the existing
+        # "Layer preparation is not needed" early exit, even though the SLRU
+        # cache evicted the layer due to quota (the TLayerPtr stored in
+        # PreparedLayers_ pins the on-disk layer for the whole allocation).
+        logs = self._get_node_debug_logs("Layer added to cache")
+        new_imports = len(logs) - initial_imports
+        assert new_imports == 1, \
+            "Layer should be imported exactly once for the whole allocation; " \
+            "new imports during this test: {}, all logs: {}".format(new_imports, logs)
+
+    @authors("pogorelov")
+    def test_layer_evicted_when_allocation_not_reused(self):
+        self.setup_files()
+
+        update_controller_agent_config("allocation_job_count_limit", 1)
+
+        # Capture the baseline before this test runs an operation; sibling
+        # test methods in the same class share the node debug log because
+        # YTEnvSetup keeps a single cluster per test class.
+        initial_imports = len(self._get_node_debug_logs("Layer added to cache"))
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "layer_paths": ["//tmp/layer1"],
+                    },
+                },
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+                "testing": {
+                    "settle_job_delay": {
+                        "duration": 2000,
+                        "type": "async",
+                    },
+                },
+            },
+        )
+
+        job_id1, = wait_breakpoint(job_count=1)
+        release_breakpoint(job_id=job_id1)
+
+        job_id2, = wait_breakpoint(job_count=1)
+        release_breakpoint(job_id=job_id2)
+
+        op.track()
+
+        # With allocation_job_count_limit=1 the allocation is not reused.
+        # The first allocation finishes (PreparedLayers_ is released, the
+        # SLRU cache evicts the layer due to small quota), so the second
+        # job in a fresh allocation must re-import the layer from scratch.
+        assert get_allocation_id_from_job_id(job_id1) != get_allocation_id_from_job_id(job_id2)
+
+        logs = self._get_node_debug_logs("Layer added to cache")
+
+        # Each fresh allocation must re-import the layer exactly once: with
+        # job_count=2 and allocation_job_count_limit=1 we get exactly two
+        # fresh allocations (asserted via different allocation ids above),
+        # so the delta of "Layer added to cache" entries must be exactly 2.
+        # We measure delta because the node debug log is shared with other
+        # test methods in this class.
+        new_imports = len(logs) - initial_imports
+        assert new_imports == 2, \
+            "Each fresh allocation should re-import the layer exactly once; " \
+            "expected 2 new imports, got {} (initial: {}, total: {}); all logs: {}".format(
+                new_imports, initial_imports, len(logs), logs)
+
+
+class TestLayerReuseInAllocationOfGangOperation(TestLayerReuseInAllocationBase):
+    NUM_NODES = 2
+
+    @authors("pogorelov")
+    def test_layer_not_reimported_in_gang_operation(self):
+        self.setup_files()
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            task_patch={
+                "gang_options": {},
+                "layer_paths": ["//tmp/layer1"],
+            },
+            spec={
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+            },
+            track=False,
+        )
+
+        job_ids = wait_breakpoint(job_count=2)
+
+        first_job_id = job_ids[0]
+
+        first_incarnation_reused_job_id = next(jid for jid in job_ids if jid != first_job_id)
+        reused_allocation_id = get_allocation_id_from_job_id(first_incarnation_reused_job_id)
+
+        reused_job_address = get_job(op.id, first_incarnation_reused_job_id)["address"]
+        reused_node_index = self.Env.get_node_index_by_address(reused_job_address)
+
+        reused_node_initial_imports = len(
+            self._get_node_debug_logs("Layer added to cache", node_index=reused_node_index)
+        )
+
+        current_incarnation = get(op.get_orchid_path() + "/controller/operation_incarnation")
+
+        abort_job(first_job_id)
+
+        wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
+
+        for jid in job_ids:
+            release_breakpoint(job_id=jid)
+
+        new_job_ids = wait_breakpoint(job_count=2)
+        release_breakpoint()
+
+        op.track()
+
+        new_job_ids_in_reused_alloc = [
+            jid for jid in new_job_ids
+            if get_allocation_id_from_job_id(jid) == reused_allocation_id
+        ]
+        assert len(new_job_ids_in_reused_alloc) == 1
+
+        reused_node_final_imports = len(
+            self._get_node_debug_logs("Layer added to cache", node_index=reused_node_index)
+        )
+
+        delta = reused_node_final_imports - reused_node_initial_imports
+        assert delta == 0, \
+            "the reused allocation's reincarnation job must reuse PreparedLayers_ on the same node " \
+            "and skip layer import; new imports on this node: {}, total: {}".format(
+                delta, reused_node_final_imports)

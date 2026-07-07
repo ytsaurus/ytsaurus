@@ -1,5 +1,6 @@
 #include "changelog_store_helpers.h"
 
+#include "changelog.h"
 #include "serialize.h"
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
@@ -8,11 +9,10 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TChangelogStoreScanResult ScanChangelogStore(
     const std::vector<int>& changelogIds,
-    const std::function<TChangelogScanInfo(int changelogId)> scanInfoGetter,
-    const std::function<TSharedRef(int changelogId, i64 recordId, bool atPrimaryPath)>& recordReader)
+    const std::function<i64(int changelogId)> recordCountGetter,
+    const std::function<TSharedRef(int changelogId, i64 recordId)>& recordReader)
 {
     auto sortedChangelogIds = changelogIds;
     std::sort(sortedChangelogIds.begin(), sortedChangelogIds.end(), std::greater<>());
@@ -27,17 +27,16 @@ TChangelogStoreScanResult ScanChangelogStore(
             break;
         }
 
-        auto scanInfo = scanInfoGetter(id);
+        auto recordCount = recordCountGetter(id);
 
         if (id > result.LatestChangelogId) {
             result.LatestChangelogId = id;
-            result.LatestChangelogRecordCount = scanInfo.RecordCount;
+            result.LatestChangelogRecordCount = recordCount;
         }
 
-        if (scanInfo.RecordCount > 0 && id > result.LatestNonemptyChangelogId) {
+        if (recordCount > 0 && id > result.LatestNonemptyChangelogId) {
             result.LatestNonemptyChangelogId = id;
-            result.LatestNonemptyChangelogRecordCount = scanInfo.RecordCount;
-            result.IsLatestNonemptyChangelogAtPrimaryPath = scanInfo.AtPrimaryPath;
+            result.LatestNonemptyChangelogRecordCount = recordCount;
         }
     }
 
@@ -45,8 +44,7 @@ TChangelogStoreScanResult ScanChangelogStore(
         YT_VERIFY(result.LatestNonemptyChangelogRecordCount > 0);
         auto record = recordReader(
             result.LatestNonemptyChangelogId,
-            result.LatestNonemptyChangelogRecordCount - 1,
-            result.IsLatestNonemptyChangelogAtPrimaryPath);
+            result.LatestNonemptyChangelogRecordCount - 1);
 
         NHydra::NProto::TMutationHeader header;
         TSharedRef requestData;
@@ -59,6 +57,24 @@ TChangelogStoreScanResult ScanChangelogStore(
     }
 
     return result;
+}
+
+TFuture<std::pair<NHydra::NProto::TMutationHeader, TSharedRef>> ReadFirstMutationFromChangelog(
+    const IChangelogPtr& changelog)
+{
+    auto asyncRecordsData = changelog->Read(0, 1, std::numeric_limits<i64>::max());
+    return asyncRecordsData
+        .Apply(BIND([=] (const std::vector<TSharedRef>& recordsData) {
+            if (recordsData.empty()) {
+                THROW_ERROR_EXCEPTION("Read zero records in changelog %v", changelog->GetId());
+            }
+
+            NProto::TMutationHeader header;
+            TSharedRef requestData;
+            DeserializeMutationRecord(recordsData[0], &header, &requestData);
+
+            return std::pair{header, requestData};
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

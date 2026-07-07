@@ -2,7 +2,9 @@
 
 #include "config.h"
 #include "dynamic_config_manager.h"
+#include "group_coordinator.h"
 #include "private.h"
+#include "request_handler.h"
 #include "server.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -45,6 +47,8 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/rpc/caching_channel_factory.h>
@@ -63,6 +67,7 @@ using namespace NAdmin;
 using namespace NApi;
 using namespace NAuth;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NKafka;
 using namespace NMonitoring;
@@ -164,11 +169,13 @@ private:
     NConcurrency::IThreadPoolPollerPtr Poller_;
     NConcurrency::IThreadPoolPollerPtr Acceptor_;
 
+    IRequestHandlerPtr RequestHandler_;
     IServerPtr Server_;
 
     NRpc::IServerPtr RpcServer_;
 
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
 
     IMapNodePtr OrchidRoot_;
     IMonitoringManagerPtr MonitoringManager_;
@@ -185,6 +192,9 @@ private:
     void DoInitialize()
     {
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+        if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+            HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+        }
 
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.CreateQueueConsumerRegistrationManager = true;
@@ -202,7 +212,7 @@ private:
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
         {
             TCypressRegistrarOptions options{
@@ -221,6 +231,7 @@ private:
 
         NMonitoring::Initialize(
             HttpServer_,
+            HttpsServer_,
             ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
@@ -254,12 +265,19 @@ private:
             Poller_,
             NativeRootClient_);
 
-        Server_ = CreateServer(
+        auto groupCoordinatorManager = CreateGroupCoordinatorManager();
+
+        RequestHandler_ = CreateRequestHandler(
             Config_,
             NativeConnection_,
             AuthenticationManager_,
+            groupCoordinatorManager);
+
+        Server_ = CreateServer(
+            Config_,
             Poller_,
-            Acceptor_);
+            Acceptor_,
+            RequestHandler_);
 
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
 
@@ -275,6 +293,10 @@ private:
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
+        if (HttpsServer_) {
+            YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+            HttpsServer_->Start();
+        }
 
         YT_LOG_INFO("Listening for Kafka requests (Port: %v)", Config_->Port);
         Server_->Start();
@@ -297,7 +319,7 @@ private:
         Poller_->SetThreadCount(newConfig->PollerThreadCount);
         Acceptor_->SetThreadCount(newConfig->AcceptorThreadCount);
 
-        Server_->OnDynamicConfigChanged(newConfig);
+        RequestHandler_->OnDynamicConfigChanged(newConfig);
     }
 };
 

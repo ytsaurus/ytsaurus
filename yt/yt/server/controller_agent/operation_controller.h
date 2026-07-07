@@ -2,15 +2,15 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/controller_agent/structs.h>
+
 #include <yt/yt/server/lib/job_agent/public.h>
 
-#include <yt/yt/server/lib/scheduler/structs.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
+#include <yt/yt/server/lib/scheduler/structs.h>
 #include <yt/yt/server/lib/scheduler/transactions.h>
 
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
-
-#include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -24,11 +24,11 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/library/event_log/public.h>
-
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
+
+#include <yt/yt/library/event_log/public.h>
 
 #include <yt/yt/client/security_client/public.h>
 
@@ -90,9 +90,10 @@ struct TOperationControllerReviveResult
         TInstant PreemptibleProgressStartTime;
         TJobResources ResourceLimits;
         NScheduler::TDiskQuota DiskQuota;
-        TString TreeId;
+        std::string TreeId;
         NNodeTrackerClient::TNodeId NodeId;
         std::string NodeAddress;
+        std::string AllocationGroupName;
     };
 
     bool RevivedFromSnapshot = false;
@@ -167,7 +168,9 @@ struct IOperationControllerHost
 
     virtual void RegisterAllocation(TStartedAllocationInfo allocationInfo) = 0;
     virtual void RegisterJob(TStartedJobInfo jobInfo) = 0;
-    virtual void Revive(std::vector<TStartedAllocationInfo> allocations) = 0;
+    virtual void Revive(std::vector<TStartedAllocationInfo> allocations, bool suspended) = 0;
+    virtual void SuspendOperation() = 0;
+    virtual void ResumeOperation() = 0;
     virtual void ReleaseJobs(std::vector<TJobToRelease> jobs) = 0;
     virtual void AbortJob(
         TJobId jobId,
@@ -302,7 +305,7 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: cancelable Controller invoker
      *
      */
-    virtual TOperationControllerReviveResult Revive() = 0;
+    virtual TOperationControllerReviveResult Revive(bool suspended) = 0;
 
     //! Called by a scheduler in operation complete pipeline.
     /*!
@@ -466,7 +469,7 @@ struct IOperationController
      */
     virtual NScheduler::TControllerScheduleAllocationResultPtr ScheduleAllocation(
         const TAllocationSchedulingContext& context,
-        const TString& treeId) = 0;
+        const std::string& treeId) = 0;
 
     //! Called during schedule allocation when failure happens even before calling #IOperationController::ScheduleAllocation().
     //! Used to account such failures in operation progress.
@@ -546,7 +549,7 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Controller invoker
      */
-    //virtual TString GetLoggingProgress() const = 0;
+    //virtual std::string GetLoggingProgress() const = 0;
 
     //! Called to get a cached YSON string representing the current progress.
     /*!
@@ -640,7 +643,7 @@ struct IOperationController
 
     virtual const std::vector<NScheduler::TJobShellPtr>& GetJobShells() const = 0;
 
-    virtual TString WriteCoreDump() const = 0;
+    virtual std::string WriteCoreDump() const = 0;
 
     virtual void RegisterOutputRows(i64 count, int tableIndex) = 0;
 

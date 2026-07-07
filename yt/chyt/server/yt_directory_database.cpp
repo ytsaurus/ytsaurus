@@ -13,6 +13,8 @@
 #include <yt/yt/core/ypath/helpers.h>
 #include <yt/yt/core/ytree/public.h>
 
+#include <library/cpp/yt/string/string.h>
+
 #include <Interpreters/Context.h>
 #include <Parsers/ParserCreateQuery.h>
 #include <Parsers/parseQuery.h>
@@ -49,7 +51,7 @@ public:
 
         auto timerGuard = queryContext->CreateStatisticsTimerGuard(
             SlashedStatisticPath(
-                Format("/%v_database/get_tables_iterator", to_lower(TString(getDatabaseName())))).ValueOrThrow());
+                Format("/%v_database/get_tables_iterator", AsciiStringToLower(getDatabaseName()))).ValueOrThrow());
 
         DB::Tables resultingTargets;
 
@@ -93,7 +95,7 @@ public:
     }
 
 private:
-    TYPath Root_;
+    const TYPath Root_;
 
     std::vector<TTablePtr> FetchTablesFromRootDirectory(TQueryContext* queryContext, const FilterByNameFunction& filterByTableName) const
     {

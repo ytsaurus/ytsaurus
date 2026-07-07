@@ -73,7 +73,7 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
 
 void TCompositeAutomatonPart::RegisterSaver(
     ESyncSerializationPriority priority,
-    const TString& name,
+    const std::string& name,
     TCallback<void(TSaveContext&)> callback)
 {
     // Check for duplicate part names.
@@ -89,7 +89,7 @@ void TCompositeAutomatonPart::RegisterSaver(
 
 void TCompositeAutomatonPart::RegisterSaver(
     EAsyncSerializationPriority priority,
-    const TString& name,
+    const std::string& name,
     TCallback<TCallback<void(TSaveContext&)>()> callback)
 {
     // Check for duplicate part names.
@@ -104,7 +104,7 @@ void TCompositeAutomatonPart::RegisterSaver(
 }
 
 void TCompositeAutomatonPart::RegisterLoader(
-    const TString& name,
+    const std::string& name,
     TCallback<void(TLoadContext&)> callback)
 {
     TCompositeAutomaton::TLoaderDescriptor descriptor;
@@ -142,6 +142,9 @@ void TCompositeAutomatonPart::OnBeforeSnapshotLoaded()
 { }
 
 void TCompositeAutomatonPart::OnAfterSnapshotLoaded()
+{ }
+
+void TCompositeAutomatonPart::OnReignChanged(TReign /*previousReign*/)
 { }
 
 bool TCompositeAutomatonPart::IsLeader() const
@@ -219,13 +222,6 @@ void TCompositeAutomatonPart::StopEpoch()
     EpochAutomatonInvoker_.Reset();
 }
 
-void TCompositeAutomatonPart::LogHandlerError(const TError& error)
-{
-    if (!IsRecovery()) {
-        Automaton_->LogHandlerError(error);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeAutomaton::TCompositeAutomaton(
@@ -237,6 +233,7 @@ TCompositeAutomaton::TCompositeAutomaton(
     , MutationWaitTimer_(Profiler_.Timer("/mutation_wait_time"))
 {
     RegisterMethod(BIND_NO_PROPAGATE(&TCompositeAutomaton::HydraResetStateHash, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TCompositeAutomaton::HydraReportReignChange, Unretained(this)));
 }
 
 void TCompositeAutomaton::SetSerializationDumpMode(ESerializationDumpMode mode)
@@ -274,18 +271,21 @@ void TCompositeAutomaton::SetupLoadContext(TLoadContext* context)
 }
 
 void TCompositeAutomaton::RegisterMethod(
-    const TString& type,
-    TCallback<void(TMutationContext*)> callback)
+    const std::string& type,
+    TCallback<void(TMutationContext*)> callback,
+    bool exceptionsAreNormal)
 {
     auto profiler = Profiler_.WithTag("type", type).WithSparse();
     TCompositeAutomaton::TMethodDescriptor descriptor{
-        callback,
+        std::move(callback),
         profiler.TimeCounter("/cumulative_mutation_time"),
         profiler.TimeCounter("/cumulative_mutation_execute_time"),
         profiler.TimeCounter("/cumulative_mutation_deserialize_time"),
+        profiler.Timer("/mutation_execute_time"),
         profiler.Counter("/mutation_count"),
         profiler.Gauge("/mutation_request_size"),
         New<TProfilerTag>("mutation_type", type),
+        exceptionsAreNormal,
     };
     EmplaceOrCrash(MethodNameToDescriptor_, type, descriptor);
 }
@@ -401,7 +401,7 @@ void TCompositeAutomaton::LoadSnapshot(const TSnapshotLoadContext& context)
             SERIALIZATION_DUMP_WRITE(context, "parts[%v]", partCount);
             SERIALIZATION_DUMP_INDENT(context) {
                 for (int partIndex = 0; partIndex < partCount; ++partIndex) {
-                    auto name = LoadSuspended<TString>(context);
+                    auto name = LoadSuspended<std::string>(context);
                     int version = LoadSuspended<i32>(context);
                     SERIALIZATION_DUMP_WRITE(context, "%v@%v =>", name, version);
 
@@ -490,7 +490,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 
         YT_LOG_DEBUG(
             "Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %x, PrevRandomSeed: %x, "
-            "StateHash: %x, MutationType: %v, MutationId: %v, WaitTime: %v)",
+            "StateHash: %x, MutationType: %v, MutationId: %v, MutationSize: %v, WaitTime: %v)",
             version,
             context->GetSequenceNumber(),
             context->GetRandomSeed(),
@@ -498,6 +498,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
             context->GetStateHash(),
             mutationType,
             mutationId,
+            request.Data.Size(),
             waitTime);
 
         auto* descriptor = GetMethodDescriptor(mutationType);
@@ -508,10 +509,46 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
             cpuProfilerTagGuard = TCpuProfilerTagGuard(descriptor->CpuProfilerTag);
         }
 
-        if (handler) {
-            handler(context);
-        } else {
-            descriptor->Callback(context);
+        try {
+            if (handler) {
+                handler(context);
+            } else {
+                descriptor->Callback(context);
+            }
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+
+            if (error.GetCode() == EErrorCode::ExpectedMutationHandlerException) {
+                int innerErrorCount = error.InnerErrors().size();
+                if (innerErrorCount > 1) {
+                    YT_LOG_ALERT(
+                        error,
+                        "Too many inner errors within expected mutation handler exception (InnerErrorCount: %v)",
+                        innerErrorCount);
+                }
+                error = error.InnerErrors().empty()
+                    ? TError()
+                    : error.InnerErrors()[0];
+
+                // Exceptions should only be wrapped once.
+                if (error.FindMatching(EErrorCode::ExpectedMutationHandlerException)) {
+                    YT_LOG_ALERT(error, "Malformed mutation handler exception");
+                } else {
+                    YT_LOG_DEBUG(error, "Expected mutation handler exception");
+                }
+            } else if (!descriptor->ExceptionsAreAllowed) {
+                auto logLevel = HydraManager_->GetMutationHandlerFailureLogLevel(mutationType);
+                YT_LOG_EVENT(
+                    Logger,
+                    logLevel,
+                    error,
+                    "Error applying mutation (MutationType: %Qv)",
+                    mutationType);
+            } else {
+                YT_LOG_DEBUG(error, "Expected mutation handler exception");
+            }
+
+            context->SetResponseData(error);
         }
 
         if (!isRecovery) {
@@ -581,7 +618,7 @@ void TCompositeAutomaton::OnRecoveryStarted()
 void TCompositeAutomaton::OnRecoveryComplete()
 { }
 
-TCompositeAutomaton::TMethodDescriptor* TCompositeAutomaton::GetMethodDescriptor(const TString& mutationType)
+TCompositeAutomaton::TMethodDescriptor* TCompositeAutomaton::GetMethodDescriptor(const std::string& mutationType)
 {
     auto it = MethodNameToDescriptor_.find(mutationType);
     if (it == MethodNameToDescriptor_.end()) {
@@ -601,11 +638,6 @@ std::vector<TCompositeAutomatonPartPtr> TCompositeAutomaton::GetParts()
         }
     }
     return parts;
-}
-
-void TCompositeAutomaton::LogHandlerError(const TError& error)
-{
-    YT_LOG_DEBUG(error, "Error executing mutation handler");
 }
 
 void TCompositeAutomaton::DeserializeRequestAndProfile(
@@ -688,6 +720,22 @@ void TCompositeAutomaton::HydraResetStateHash(NProto::TReqResetStateHash* reques
         newStateHash);
 
     mutationContext->SetStateHash(newStateHash);
+}
+
+void TCompositeAutomaton::HydraReportReignChange(NProto::TReqReportReignChange* request)
+{
+    auto previousReign = request->previous_reign();
+
+    YT_LOG_INFO(
+        "Reporting reign change (PreviousReign: %v, CurrentReign: %v)",
+        previousReign,
+        GetCurrentMutationContext()->Request().Reign);
+
+    for (const auto& weakPart : Parts_) {
+        if (auto part = weakPart.Lock()) {
+            part->OnReignChanged(previousReign);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

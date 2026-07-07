@@ -8,6 +8,9 @@ import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TableSchemaTest {
     private static final TableSchema KEY_VALUE_SCHEMA = new TableSchema.Builder()
@@ -227,5 +230,24 @@ public class TableSchemaTest {
                 cbSortedSchema.toBuilder().sortBy("b", "c").build(),
                 bcSortedSchema
         );
+    }
+
+    @Test
+    void testTableSchemaIsImmutable() {
+        assertThrows(
+            UnsupportedOperationException.class,
+            () -> KEY_VALUE_SCHEMA.getColumns().add(new ColumnSchema("another_value", TiType.string()))
+        );
+
+        assertThrows(
+            UnsupportedOperationException.class,
+            () -> KEY_VALUE_SCHEMA.getColumnNames().add("another_value")
+        );
+
+        TableSchema enrichedCopy = KEY_VALUE_SCHEMA.toBuilder()
+            .add(new ColumnSchema("another_value", TiType.string()))
+            .build();
+        assertFalse(KEY_VALUE_SCHEMA.getColumnNames().contains("another_value")); // original not changed
+        assertTrue(enrichedCopy.getColumnNames().contains("another_value"));
     }
 }

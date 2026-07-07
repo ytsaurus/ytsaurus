@@ -11,7 +11,7 @@ from yt_odin.logserver import (
 
 from yt.common import update
 
-from cheroot import wsgi as wsgiserver
+from waitress import serve
 from flask import Flask, make_response, request, jsonify, Response
 import dateutil
 
@@ -346,15 +346,7 @@ def main():
     if config["debug"]:
         app.run(port=config["port"], debug=config["debug"], host=config["host"])
     else:
-        dispatcher = wsgiserver.WSGIPathInfoDispatcher({'/': app})
-        server = wsgiserver.WSGIServer(
-            (config["host"], config["port"]),
-            dispatcher,
-            numthreads=config["thread_count"])
-        try:
-            server.start()
-        except KeyboardInterrupt:
-            server.stop()
+        serve(app, listen="{}:{}".format(config["host"], config["port"]), threads=config["thread_count"])
 
 
 if __name__ == "__main__":

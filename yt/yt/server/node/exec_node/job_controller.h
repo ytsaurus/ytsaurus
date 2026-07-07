@@ -1,8 +1,7 @@
 #pragma once
 
-#include "job.h"
-
 #include "controller_agent_connector.h"
+#include "job.h"
 #include "scheduler_connector.h"
 
 #include <yt/yt/server/job_proxy/public.h>

@@ -8,6 +8,8 @@
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
+#include <library/cpp/containers/absl/flat_hash_map.h>
+
 #include <type_traits>
 
 namespace NYT::NHydra {
@@ -72,7 +74,7 @@ class TReadOnlyEntityMap
 protected:
     using TKey = TEntityKey<TValue>;
     using THash = TEntityHash<TValue>;
-    using TMapType = THashMap<TKey, TValue*, THash>;
+    using TMapType = absl::flat_hash_map<TKey, TValue*, THash>;
 
 public:
     class TIterator

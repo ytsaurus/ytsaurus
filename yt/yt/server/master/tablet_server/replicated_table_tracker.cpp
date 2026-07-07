@@ -570,7 +570,7 @@ private:
             auto now = NProfiling::GetInstant();
             auto asyncTabletCellBundleName = AsyncTabletCellBundleName_.Load();
 
-            auto interval = (asyncTabletCellBundleName.IsSet() && !asyncTabletCellBundleName.Get().IsOK())
+            auto interval = (asyncTabletCellBundleName.IsSet() && !asyncTabletCellBundleName.GetOrCrash().IsOK())
                 ? RetryOnFailureInterval_
                 : TabletCellBundleNameTtl_;
 
@@ -867,7 +867,7 @@ private:
         NApi::IClientPtr Client;
     };
 
-    NThreading::TSpinLock ClusterToConnectionLock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ClusterToConnectionLock_);
     THashMap<std::string, TClusterConnectionInfo> ClusterToConnection_;
 
     TPeriodicExecutorPtr UpdaterExecutor_;

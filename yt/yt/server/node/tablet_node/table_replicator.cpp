@@ -150,21 +150,26 @@ public:
     {
         Disable();
 
-        FiberFuture_ = BIND(&TImpl::FiberMain, MakeWeak(this))
-            .AsyncVia(Slot_->GetHydraManager()->GetAutomatonCancelableContext()->CreateInvoker(WorkerInvoker_))
-            .Run();
+        ReplicationExecutor_ = New<TPeriodicExecutor>(
+            Slot_->GetHydraManager()->GetAutomatonCancelableContext()->CreateInvoker(WorkerInvoker_),
+            BIND(&TImpl::OnReplicationTick, MakeWeak(this)),
+            TPeriodicExecutorOptions{
+                .Period = MountConfig_->ReplicationTickPeriod,
+                .DelayMode = EPeriodicExecutorDelayMode::FromPreviousStart,
+            });
+        ReplicationExecutor_->Start();
 
-        YT_LOG_INFO("Replicator fiber started");
+        YT_LOG_INFO("Table replicator enabled");
     }
 
     void Disable()
     {
-        if (FiberFuture_) {
-            FiberFuture_.Cancel(TError("Replicator disabled"));
-            YT_LOG_INFO("Replicator fiber stopped");
+        if (auto executor = std::exchange(ReplicationExecutor_, nullptr)) {
+            YT_UNUSED_FUTURE(executor->Stop());
         }
-        FiberFuture_.Reset();
         HasActiveReplicationIteration_.store(false);
+
+        YT_LOG_INFO("Table replicator disabled");
     }
 
     bool HasActiveReplicationIteration()
@@ -200,22 +205,14 @@ private:
 
     TBackoffStrategy SoftErrorBackoff_;
 
-    TFuture<void> FiberFuture_;
+    TPeriodicExecutorPtr ReplicationExecutor_;
 
     std::atomic<bool> HasActiveReplicationIteration_ = false;
 
-    void FiberMain()
+    void OnReplicationTick()
     {
-        while (true) {
-            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TableReplicator"));
-            NProfiling::TWallTimer timer;
-            FiberIteration();
-            TDelayedExecutor::WaitForDuration(MountConfig_->ReplicationTickPeriod - timer.GetElapsedTime());
-        }
-    }
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TableReplicator"));
 
-    void FiberIteration()
-    {
         TTableReplicaSnapshotPtr replicaSnapshot;
         TTabletSnapshotPtr tabletSnapshot;
         try {
@@ -263,7 +260,7 @@ private:
             {
                 auto throttleFuture = Throttler_->Throttle(1);
                 if (throttleFuture.IsSet()) {
-                    throttleFuture.Get().ThrowOnError();
+                    throttleFuture.GetOrCrash().ThrowOnError();
                 } else {
                     TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
                     YT_LOG_DEBUG("Started waiting for replication throttling");
@@ -277,7 +274,7 @@ private:
             {
                 auto throttleFuture = RelativeThrottler_->Throttle();
                 if (throttleFuture.IsSet()) {
-                    throttleFuture.Get().ThrowOnError();
+                    throttleFuture.GetOrCrash().ThrowOnError();
                 } else {
                     TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
                     YT_LOG_DEBUG("Started waiting for relative replication throttling");
@@ -734,7 +731,24 @@ private:
                 auto rowDataWeight = GetDataWeight(row);
                 dataWeight += rowDataWeight;
                 dataWeightToThrottle += rowDataWeight;
-                replicationRows->push_back({modificationType, replicationRow, TLockMask()});
+                switch (modificationType) {
+                    case ERowModificationType::Write:
+                        replicationRows->push_back(NRowModifications::TWriteRow(TUnversionedRow(replicationRow)));
+                        break;
+
+                    case ERowModificationType::Delete:
+                        replicationRows->push_back(NRowModifications::TDeleteRow(TLegacyKey(replicationRow)));
+                        break;
+
+                    case ERowModificationType::VersionedWrite:
+                        replicationRows->push_back(NRowModifications::TVersionedWriteRow(replicationRow));
+                        break;
+
+                    default:
+                        // ParseLogRow does not produce ERowModificationType::WriteAndLock.
+                        YT_ABORT();
+                }
+
                 prevTimestamp = timestamp;
             }
         }

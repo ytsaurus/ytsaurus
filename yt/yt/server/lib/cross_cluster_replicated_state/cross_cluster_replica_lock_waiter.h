@@ -30,6 +30,8 @@ public:
         NYPath::TYPath nodePath,
         TReplicaVersion targetVersion,
         TDuration timeout) = 0;
+
+    virtual void SetLockCheckPeriod(TDuration period) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICrossClusterReplicaLockWaiter);

@@ -8,10 +8,6 @@ namespace NYT::NLsm {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SubsetContains(ui32 subset, int index);
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EStoreCompactionHintKind, ui8,
     ((None)               (0))
     ((ChunkViewTooNarrow) (1))
@@ -140,13 +136,14 @@ class TStoreCompactionHint
         : public TCompactionHintRecalculationFinalizerBase
     {
     public:
-        explicit TStoreCompactionHintRecalculationFinalizer(TStoreCompactionHint* hint);
+        explicit TStoreCompactionHintRecalculationFinalizer(TStore* store, TStoreCompactionHint* hint);
 
         ~TStoreCompactionHintRecalculationFinalizer();
 
-        using TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation;
+        bool TryApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason);
 
     private:
+        TStore* Store_;
         TStoreCompactionHint* Hint_;
     };
 
@@ -165,7 +162,7 @@ public:
     // Should be called in LSM to isolate logic from tablet node.
     bool RecalculateHint(const std::unique_ptr<TStore>& store);
 
-    TStoreCompactionHintRecalculationFinalizer BuildRecalculationFinalizer();
+    TStoreCompactionHintRecalculationFinalizer BuildRecalculationFinalizer(TStore* store);
 };
 
 // NB(dave11ar): Not virtual function of TStoreCompactionHint to avoid allocations and save memory.
@@ -202,17 +199,24 @@ class TPartitionCompactionHint
     class TPartitionCompactionHintRecalculationFinalizer
         : public TCompactionHintRecalculationFinalizerBase
     {
+        // NB(dave11ar): Compaction hints should use this order of stores for calculating prefixes/subsets or stores.
+        // Sorted by min timestamp.
+        DEFINE_BYREF_RO_PROPERTY(std::vector<TStore*>, Stores);
+
     public:
-        explicit TPartitionCompactionHintRecalculationFinalizer(TPartition* partition, TPartitionCompactionHint* hint);
+        TPartitionCompactionHintRecalculationFinalizer(TPartition* partition, TPartitionCompactionHint* hint);
 
         ~TPartitionCompactionHintRecalculationFinalizer();
 
-        void TryApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason, ui32 storeSubset);
+        void TryApplyRecalculationByPrefix(TInstant timestamp, EStoreCompactionReason reason, int storePrefixLength);
+        void TryApplyRecalculationBySubset(TInstant timestamp, EStoreCompactionReason reason, ui64 storeSubset);
 
     private:
         TPartition* Partition_;
         TPartitionCompactionHint* Hint_;
-        ui32 StoreSubset_ = 0;
+        ui64 StoreSubset_ = 0;
+
+        bool StoreSubsetContains(int index) const;
 
         std::vector<TStoreId> GetStoreIds() const;
     };
@@ -255,9 +259,17 @@ public:
 
     std::pair<EStoreCompactionReason, std::vector<TStoreId>> GetStoresForCompaction(
         TInstant currentTime,
-        TTimestamp edenMajorTimestamp) const;
+        TTimestamp edenMajorTimestamp,
+        const TTableMountConfigPtr& mountConfig) const;
 
     bool RecalculateHints(TPartition* partition);
+
+private:
+    static bool IsCompactionAllowed(
+        const TPartitionCompactionHint& hint,
+        TInstant currentTime,
+        TInstant edenMajorTimestampInstant,
+        const TTableMountConfigPtr& mountConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

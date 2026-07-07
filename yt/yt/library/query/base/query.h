@@ -16,6 +16,12 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EScanOrder,
+    ((Unordered) (0))
+    ((Ordered)   (1))
+    ((Reversed)  (2))
+);
+
 DEFINE_ENUM(EExpressionKind,
     ((None)                    (0))
     ((Literal)                 (1))
@@ -269,6 +275,8 @@ struct TSubqueryExpression
 {
     TNamedItemList FromExpressions;
 
+    std::vector<TConstJoinClausePtr> JoinClauses;
+
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
     TConstProjectClausePtr ProjectClause;
@@ -366,6 +374,8 @@ struct TJoinClause
 
     bool IsLeft = false;
 
+    std::optional<std::pair<int, int>> PrefetchedBlockRange;
+
     //! See #TDataSource::ObjectId.
     NObjectClient::TObjectId ForeignObjectId;
     //! See #TDataSource::CellId.
@@ -376,6 +386,7 @@ struct TJoinClause
     bool RequireSyncReplica = true;
 
     TJoinClause() = default;
+
     TJoinClause(const TJoinClause& other);
 
     TTableSchemaPtr GetRenamedSchema() const;
@@ -390,6 +401,44 @@ struct TJoinClause
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoinClause)
+
+struct THierarchicalJoinClause
+    : public TRefCounted
+{
+    TMappedSchema ForeignTableSchema;
+
+    std::vector<TConstExpressionPtr> ForeignEquations;
+    std::vector<TConstExpressionPtr> SelfEquations;
+
+    bool IsLeft = false;
+
+    //! See #TDataSource::ObjectId.
+    NObjectClient::TObjectId ForeignObjectId;
+    //! See #TDataSource::CellId.
+    NObjectClient::TCellId ForeignCellId;
+
+    THashSet<std::string> ForeignJoinedColumns;
+
+    std::string ResultColumnName;
+
+    TConstSubqueryExpressionPtr SelfSideJoinKeys;
+    TConstSubqueryExpressionPtr JoiningSubquery;
+
+    THierarchicalJoinClause() = default;
+    THierarchicalJoinClause(const THierarchicalJoinClause& other);
+
+    TTableSchemaPtr GetForeignTableRenamedSchema() const;
+
+    TKeyColumns GetForeignTableKeyColumns() const;
+
+    TTableSchemaPtr GetTableSchema(const TTableSchema& source) const;
+
+    std::vector<size_t> GetForeignColumnIndices() const;
+
+    TQueryPtr GetJoinSubquery() const;
+};
+
+DEFINE_REFCOUNTED_TYPE(THierarchicalJoinClause)
 
 std::vector<size_t> GetJoinGroups(
     const std::vector<TConstJoinClausePtr>& joinClauses,
@@ -441,8 +490,9 @@ struct TBaseQuery
 {
     TGuid Id;
 
-    // Merge and Final
     bool IsFinal = true;
+    bool HasExclusiveGroupKeyView = false;
+    bool EnableCombineGroupOpWithOrderOp = true;
 
     TConstGroupClausePtr GroupClause;
     TConstExpressionPtr HavingClause;
@@ -463,11 +513,13 @@ struct TBaseQuery
 
     bool ForceLightRangeInference = false;
 
+    bool IsReverseScan = false;
+
     explicit TBaseQuery(TGuid id = TGuid::Create());
 
     TBaseQuery(const TBaseQuery& other);
 
-    bool IsOrdered(bool allowUnorderedGroupByWithLimit) const;
+    EScanOrder GetScanOrder(bool allowUnorderedGroupByWithLimit) const;
 
     bool IsPrefetching() const;
 
@@ -484,6 +536,9 @@ struct TQuery
 
     // Bottom
     std::vector<TConstJoinClausePtr> JoinClauses;
+    std::vector<TConstHierarchicalJoinClausePtr> HierarchicalJoinsInWhereClause;
+    std::vector<TConstHierarchicalJoinClausePtr> HierarchicalJoinsBeforeGroupBy;
+    std::vector<TConstHierarchicalJoinClausePtr> HierarchicalJoinsAfterGroupBy;
     TConstExpressionPtr WhereClause;
 
     explicit TQuery(TGuid id = TGuid::Create());

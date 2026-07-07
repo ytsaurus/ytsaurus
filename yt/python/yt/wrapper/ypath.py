@@ -60,6 +60,18 @@ def _process_prefix(path, prefix):
         return yson.to_yson_type(prefix + tokens.raw_path if tokens.raw_path else prefix[:-1], path.attributes)
 
 
+def _normalize_attribute_names(attributes):
+    keys_to_replace = []
+    for key in attributes:
+        if "-" in key:
+            keys_to_replace.append(key)
+
+    for key in keys_to_replace:
+        attributes[key.replace("-", "_")] = attributes[key]
+    for key in keys_to_replace:
+        del attributes[key]
+
+
 def ypath_join(*paths):
     """Joins parts of cypress paths."""
     def ends_with_slash(part):
@@ -73,6 +85,7 @@ def ypath_join(*paths):
     for path in paths:
         if isinstance(path, YPath):
             path = str(path)
+
         if path.startswith("//") or path == "/":
             result = []
 
@@ -210,15 +223,7 @@ class YPath(object):
         else:
             if simplify and path:
                 self._path_object = parse_ypath(path, client=client)
-                keys_to_replace = []
-                for key in self._path_object.attributes:
-                    if "-" in key:
-                        keys_to_replace.append(key)
-
-                for key in keys_to_replace:
-                    self._path_object.attributes[key.replace("-", "_")] = self._path_object.attributes[key]
-                for key in keys_to_replace:
-                    del self._path_object.attributes[key]
+                _normalize_attribute_names(self._path_object.attributes)
             else:
                 self._path_object = yson.to_yson_type(path)
 
@@ -248,9 +253,37 @@ class YPath(object):
         else:
             return str(self._path_object)
 
-    def join(self, other):
-        """Joins ypath with other path."""
-        return YPath(ypath_join(str(self), other), simplify=False)
+    def join(self, other, with_attributes=False):
+        """Joins ypath with other path.
+
+        Args:
+            other: Path to join with.
+            with_attributes: If True, merge right path attributes with left ones.
+                           If False (default), keep only left path attributes for compatibility.
+        """
+        attributes = {}
+        if isinstance(self, YPath):
+            attributes = deepcopy(self.attributes)
+
+        if isinstance(other, YPath):
+            other_path = str(other)
+            other_attributes = deepcopy(other.attributes)
+        elif other:
+            other = parse_ypath(other)
+            other_path = str(other)
+            other_attributes = deepcopy(other.attributes)
+            _normalize_attribute_names(other_attributes)
+        else:
+            other_path = other
+            other_attributes = {}
+
+        if other_path == "/" or other_path.startswith("//") or other_path.startswith("#"):
+            attributes = other_attributes
+        else:
+            if with_attributes:
+                attributes.update(other_attributes)
+
+        return YPath(ypath_join(str(self), other_path), simplify=False, attributes=attributes)
 
     def __eq__(self, other):
         # TODO(ignat): Fix it, compare with attributes!

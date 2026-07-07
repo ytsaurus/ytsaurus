@@ -4,7 +4,6 @@
 #include "helpers.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
-#include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
@@ -92,7 +91,7 @@ TOperation::TOperation(
     const std::string& authenticatedUser,
     TInstant startTime,
     IInvokerPtr controlInvoker,
-    const std::optional<TString>& alias,
+    const std::optional<std::string>& alias,
     std::vector<TExperimentAssignmentPtr> experimentAssignments,
     NYson::TYsonString providedSpecString,
     EOperationState state,
@@ -529,9 +528,9 @@ void TOperation::EraseTrees(const std::vector<std::string>& treeIds)
     }
 }
 
-std::vector<TString> TOperation::GetExperimentAssignmentNames() const
+std::vector<std::string> TOperation::GetExperimentAssignmentNames() const
 {
-    std::vector<TString> result;
+    std::vector<std::string> result;
     result.reserve(ExperimentAssignments_.size());
     for (const auto& experimentAssignment : ExperimentAssignments_) {
         result.emplace_back(experimentAssignment->GetName());
@@ -539,7 +538,7 @@ std::vector<TString> TOperation::GetExperimentAssignmentNames() const
     return result;
 }
 
-std::vector<std::string> TOperation::GetJobShellOwners(const TString& jobShellName)
+std::vector<std::string> TOperation::GetJobShellOwners(const std::string& jobShellName)
 {
     TJobShellPtr jobShell;
     for (const auto& shell : Spec_->JobShells) {
@@ -566,10 +565,10 @@ std::vector<std::string> TOperation::GetJobShellOwners(const TString& jobShellNa
 TFuture<void> TOperation::AbortCommonTransactions()
 {
     YT_VERIFY(Transactions_);
-    const auto Logger = SchedulerLogger().WithTag("OperationId", GetId());
+    const auto Logger = SchedulerLogger().WithTag("OperationId: %v", GetId());
     std::vector<TFuture<void>> asyncResults;
     THashSet<ITransactionPtr> abortedTransactions;
-    auto scheduleAbort = [&] (const ITransactionPtr& transaction, TString transactionType) {
+    auto scheduleAbort = [&] (const ITransactionPtr& transaction, std::string transactionType) {
         if (abortedTransactions.contains(transaction)) {
             return;
         }
@@ -602,7 +601,7 @@ TFuture<void> TOperation::AbortCommonTransactions()
         });
 }
 
-bool TOperation::AddSecureVaultEntry(const TString& key, const INodePtr& value)
+bool TOperation::AddSecureVaultEntry(const std::string& key, const INodePtr& value)
 {
     YT_VERIFY(State_ == EOperationState::Starting);
 

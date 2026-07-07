@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -115,6 +117,10 @@ struct TStrategyOperationControllerConfig
 
     //! Backoff time after controller schedule allocation failure.
     TDuration ScheduleAllocationFailBackoffTime;
+
+    //! If |true|, tracks schedule allocation backoff deadline per node shard instead of globally.
+    // TODO(bystrovserg): Remove once the global version is dropped.
+    bool EnablePerNodeShardScheduleAllocationBackoff;
 
     //! Configuration of schedule allocation backoffs in case of throttling from controller.
     TStrategyControllerThrottlingPtr ControllerThrottling;
@@ -224,6 +230,21 @@ DEFINE_REFCOUNTED_TYPE(TStrategySchedulingSegmentsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGpuSchedulingPolicyTestingOptions
+    : public NYTree::TYsonStruct
+{
+    //! Delays the processing of an allocation update batch in the GPU policy.
+    TDelayConfigPtr DelayInsideProcessAllocationUpdates;
+
+    REGISTER_YSON_STRUCT(TGpuSchedulingPolicyTestingOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuSchedulingPolicyTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TGpuSchedulingPolicyConfig
     : public NYTree::TYsonStruct
 {
@@ -245,6 +266,10 @@ struct TGpuSchedulingPolicyConfig
     TDuration MinAssignmentPreemptibleDuration;
 
     TDuration InitializationTimeout;
+
+    std::vector<TModuleShareAndNetworkPriority> ModuleShareToNetworkPriority;
+
+    TGpuSchedulingPolicyTestingOptionsPtr TestingOptions;
 
     REGISTER_YSON_STRUCT(TGpuSchedulingPolicyConfig);
 
@@ -314,6 +339,8 @@ struct TTreeTestingOptions
 
     TDelayConfigPtr DelayInsidePoolPermissionsValidation;
 
+    std::optional<TDuration> SyncDelayInsideProcessAllocationUpdates;
+
     std::optional<TDuration> ResourceTreeInitializeResourceUsageDelay;
     std::optional<TDuration> ResourceTreeReleaseResourcesRandomDelay;
     std::optional<TDuration> ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay;
@@ -354,7 +381,7 @@ struct TStrategyTreeConfig
     bool EnablePoolStarvation;
 
     //! Default parent pool for operations with unknown pool.
-    TString DefaultParentPool;
+    std::string DefaultParentPool;
     //! Forbid immediate operations in root.
     bool ForbidImmediateOperationsInRoot;
 
@@ -448,9 +475,9 @@ struct TStrategyTreeConfig
 
     EJobResourceType MainResource;
 
-    THashMap<TString, TString> MeteringTags;
+    THashMap<std::string, std::string> MeteringTags;
 
-    THashMap<TString, NYTree::INodePtr> PoolConfigPresets;
+    THashMap<std::string, NYTree::INodePtr> PoolConfigPresets;
 
     bool EnableFairShareTruncationInFifoPool;
 
@@ -501,6 +528,7 @@ struct TStrategyTreeConfig
     bool EnableStepFunctionForGangOperations;
     bool EnableImprovedFairShareByFitFactorComputation;
     bool EnableImprovedFairShareByFitFactorComputationDistributionGap;
+    bool EnableFastFifoFairShareByFitFactorComputation;
 
     TJobResourcesConfigPtr MinJobResourceLimits;
     TJobResourcesConfigPtr MaxJobResourceLimits;
@@ -525,6 +553,7 @@ struct TStrategyTreeConfig
     bool UsePrecommitForPreemption;
 
     TGpuSchedulingPolicyConfigPtr GpuSchedulingPolicy;
+    EPolicyKind PolicyKind;
 
     bool EnableAbsoluteFairShareStarvationTolerance;
     bool ConsiderAllocationOnFairShareBoundPreemptible;
@@ -596,7 +625,7 @@ struct TStrategyConfig
     TDuration FairShareUpdatePeriod;
     TDuration FairShareProfilingPeriod;
     TDuration FairShareLogPeriod;
-    TDuration AccumulatedUsageLogPeriod;
+    TDuration AccumulatedResourceDistributionLogPeriod;
 
     //! How often min needed resources for allocations are retrieved from controller.
     TDuration MinNeededResourcesUpdatePeriod;
@@ -638,7 +667,7 @@ struct TStrategyConfig
     // COMPAT(renadeen): remove when optimization proves worthy.
     bool EnableOptimizedOperationOrchid;
 
-    TString EphemeralPoolNameRegex;
+    std::string EphemeralPoolNameRegex;
 
     bool RequireSpecifiedOperationPoolsExistence;
 
@@ -676,6 +705,9 @@ struct TTestingOptions
 
     // Testing option that enables sleeping after node state checking.
     TDelayConfigPtr NodeHeartbeatProcessingDelay;
+
+    // Testing option that enables sleeping before handle nodes attributes.
+    TDelayConfigPtr HandleNodesAttributesDelay;
 
     // Testing option that enables sleeping right before creation of operation node.
     TDelayConfigPtr OperationNodeCreationDelay;
@@ -854,7 +886,7 @@ struct TControllerAgentTrackerConfig
     int MinAgentCount;
 
     // Tag to threshols for alive agents with the tag
-    THashMap<TString, TAliveControllerAgentThresholds> TagToAliveControllerAgentThresholds;
+    THashMap<std::string, TAliveControllerAgentThresholds> TagToAliveControllerAgentThresholds;
 
     i64 MaxMessageAllocationEventCount;
 
@@ -1031,7 +1063,7 @@ struct TSchedulerConfig
 
     //! Path to Cypress root node with pool tree and pool configs.
     //! Can be a path to simple map node or special virtual map node.
-    TString PoolTreesRoot;
+    NYPath::TYPath PoolTreesRoot;
 
     int MaxEventLogNodeBatchSize;
 
@@ -1052,7 +1084,7 @@ struct TSchedulerConfig
     TResourceMeteringConfigPtr ResourceMetering;
 
     //! All registered scheduler experiments keyed by experiment names.
-    THashMap<TString, TExperimentConfigPtr> Experiments;
+    THashMap<std::string, TExperimentConfigPtr> Experiments;
 
     //! How often to check for errors on matching operations against experiment filters.
     TDuration ExperimentAssignmentErrorCheckPeriod;
@@ -1087,6 +1119,8 @@ struct TSchedulerConfig
 
     NRpc::TServerDynamicConfigPtr RpcServer;
 
+    NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
+
     int OperationSpecTreeSizeLimit;
     i64 OperationSpecTooLargeAlertThreshold;
 
@@ -1098,6 +1132,9 @@ struct TSchedulerConfig
     TDuration TemporaryOperationTokenExpirationTimeout;
 
     THashSet<EOperationManagementAction> OperationActionsAllowedForPoolManagers;
+
+    //! Period of updating unutilized resources sensors.
+    TDuration UnutilizedResourcesSensorsUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 

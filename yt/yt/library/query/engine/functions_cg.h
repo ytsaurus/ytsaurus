@@ -10,6 +10,13 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NCodegen::IObjectCodePtr MakeUdfNativeObjectCode(
+    const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
+    const std::string& functionName,
+    const std::vector<std::string>& requiredSymbols);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IFunctionCodegen
     : public TRefCounted
 {
@@ -20,7 +27,7 @@ struct IFunctionCodegen
         const std::vector<TLogicalTypePtr>& argumentTypes,
         const TLogicalTypePtr& type,
         const std::string& name,
-        NCodegen::EExecutionBackend executionBackend,
+        const TQueryFoldingProfilerOptions& options,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
     virtual bool IsNullable(const std::vector<bool>& nullableArgs) const = 0;
@@ -45,7 +52,7 @@ struct IAggregateCodegen
         const TLogicalTypePtr& stateType,
         const TLogicalTypePtr& resultType,
         const std::string& name,
-        NCodegen::EExecutionBackend executionBackend,
+        const TQueryFoldingProfilerOptions& options,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
     virtual bool IsFirst() const = 0;
@@ -137,12 +144,14 @@ public:
         const std::string& functionName,
         const std::string& symbolName,
         const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
+        NCodegen::IObjectCodePtr nativeObjectCode,
         ICallingConventionPtr callingConvention,
         TSharedRef fingerprint,
         bool useFunctionContext = false)
         : FunctionName_(functionName)
         , SymbolName_(symbolName)
         , ImplementationFiles_(implementationFiles)
+        , NativeObjectCode_(std::move(nativeObjectCode))
         , CallingConvention_(callingConvention)
         , Fingerprint_(fingerprint)
         , UseFunctionContext_(useFunctionContext)
@@ -152,6 +161,7 @@ public:
         const std::string& functionName,
         const std::string& symbolName,
         const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
+        NCodegen::IObjectCodePtr nativeObjectCode,
         ECallingConvention callingConvention,
         TType repeatedArgType,
         int repeatedArgIndex,
@@ -161,6 +171,7 @@ public:
             functionName,
             symbolName,
             implementationFiles,
+            std::move(nativeObjectCode),
             GetCallingConvention(callingConvention, repeatedArgIndex, repeatedArgType),
             fingerprint,
             useFunctionContext)
@@ -173,7 +184,7 @@ public:
         const std::vector<TLogicalTypePtr>& argumentTypes,
         const TLogicalTypePtr& type,
         const std::string& name,
-        NCodegen::EExecutionBackend executionBackend,
+        const TQueryFoldingProfilerOptions& options,
         llvm::FoldingSetNodeID* id) const override;
 
     NWebAssembly::TModuleBytecode GetWebAssemblyBytecodeFile() const override;
@@ -182,6 +193,7 @@ private:
     const std::string FunctionName_;
     const std::string SymbolName_;
     const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> ImplementationFiles_;
+    const NCodegen::IObjectCodePtr NativeObjectCode_;
     const ICallingConventionPtr CallingConvention_;
     const TSharedRef Fingerprint_;
     const bool UseFunctionContext_;
@@ -214,7 +226,7 @@ public:
         const TLogicalTypePtr& stateType,
         const TLogicalTypePtr& resultType,
         const std::string& name,
-        NCodegen::EExecutionBackend executionBackend,
+        const TQueryFoldingProfilerOptions& options,
         llvm::FoldingSetNodeID* id) const override;
 
     bool IsFirst() const override;

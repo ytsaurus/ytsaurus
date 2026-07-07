@@ -1,0 +1,282 @@
+package NYql.NProto;
+option java_package = "ru.yandex.yql.proto";
+
+import "yql/essentials/public/issue/protos/issue_message.proto";
+
+enum ESyntax {
+    UNKNOWN_SYNTAX = 0;
+    YQL = 1;
+    SQL = 2;
+    MKQL_DEPRECATED = 3;
+    CLICKHOUSE = 4;
+    UDF_META = 5;
+    SQLv1 = 6;
+    LIBRARY_META = 7;
+    UDF_REGISTRY_SNAPSHOT = 8;
+    YT_QL = 9;
+    YTORM_QL = 10;
+    PG = 11;
+    SPYT = 12;
+}
+
+enum ETaskAction {
+    UNKNOWN_ACTION = 0;
+    PARSE = 1;
+    COMPILE = 2;
+    VALIDATE = 3;
+    OPTIMIZE = 4;
+    RUN = 5;
+    EXTRACT_PARAMS_META = 6;
+    DISCOVER = 7;
+    LINEAGE = 8;
+}
+
+enum ETaskStatus {
+    UNKNOWN_STATUS = 0;
+    IDLE = 1;
+    PENDING = 2;
+    RUNNING = 3;
+    COMPLETED = 4;
+    ABORTED = 5;
+    ERROR = 6;
+}
+
+enum EDataFormat {
+    UNKNOWN_DATA_FORMAT = 0;
+    YSON_BINARY = 1;
+    YSON_TEXT = 2;
+    YSON_PRETTY = 3;
+}
+
+// used as bitmask
+enum ETaskResultChange {
+    // task status changes
+    STATUS_IDLE = 1;
+    STATUS_PENDING = 2;
+    STATUS_RUNNING = 4;
+    STATUS_COMPLETED = 8;
+    STATUS_ABORTED = 16;
+    STATUS_ERROR = 32;
+    // reserved values for new statuseses (64, 128, 256, 512, 1024)
+
+    // task properties changes
+    AST = 2048;
+    PLAN = 4096;
+    RESULTS = 8192;
+    ERRORS = 16384;
+    PROGRESS = 32768;
+    REVISION = 65536;
+    STATISTICS = 131072;
+    COSTS = 262144;
+
+    MAX_VALUE = 2147483647; // 2^31 - 1
+}
+
+enum EStaffAffiliation {
+    YANDEX = 0;
+    YANDEX_MONEY = 1;
+    EXTERNAL = 2;
+}
+
+message TYavSecret {
+    optional string YavSecretId = 1;
+    optional string YavSecretKey = 2;
+}
+
+// Auth tokens for clusters
+message TTaskAuthToken {
+    optional string Alias = 1; // unique ID
+    optional string Category = 2; // cluster type
+    optional string Subcategory = 3; // N/A
+    oneof Token {
+        bytes  Content = 4; // token
+        TYavSecret YavSecret = 5;
+    }
+}
+
+message TTaskAuthTokens {
+    repeated TTaskAuthToken Tokens = 1;
+}
+
+message TTaskFile {
+    enum EType {
+        CONTENT = 1;
+        URL = 2;
+        PATH = 3;
+    }
+
+    optional string Name = 1;
+    optional EType Type = 2;
+    optional string Content = 3;
+    optional string TokenName = 4;
+}
+
+message TUserAuthData {
+    optional string OauthToken = 1;
+    optional string BlackboxSessionIdCookie = 2;
+}
+
+message TProjectData {
+    optional string AbcServiceSlug = 1;
+}
+
+message TGrant {
+    optional string Name = 1;
+}
+
+message TRole {
+    enum EType {
+        UNKNOWN_TYPE = 0;
+        CLUSTER_ROLE = 1;
+    }
+
+    enum EKind {
+        UNKNOWN_KIND = 0;
+        CLUSTER_USE  = 1;
+        CLUSTER_ADMIN = 2;
+    }
+
+    message TClusterFields {
+        optional string ClusterId = 1;
+    }
+
+    optional EType Type = 1;
+    optional EKind Kind = 2;
+    oneof Fields {
+        TClusterFields ClusterFields = 3;
+    }
+}
+
+message TUserRoles {
+    repeated TGrant Grants = 1;
+    repeated TRole  Roles  = 2;
+}
+
+message TTaskData {
+    enum EClusterType {
+        UNKNOWN = 0;
+        YDB = 1;
+        POSTGRESQL = 2;
+        MYSQL = 3;
+        YT = 4;
+        CLICKHOUSE = 5;
+        CHYT = 6;
+        RTMR = 7;
+        STATFACE = 8;
+	    YTORM = 9;
+        SPYT = 10;
+    }
+
+    optional string Id = 1;
+    optional ESyntax Syntax = 2;
+    optional string Program = 3;
+    repeated TTaskFile Files = 4;
+    optional string Username = 5;
+    optional bytes AuthData = 6;            // serialized TTaskAuthTokens
+    optional EDataFormat ResultFormat = 7;
+    optional bytes Attributes = 8;          // binary yson
+    optional string QueryName = 9;
+    optional bool PersistedId = 10;         // is running task is persisted and can
+                                            // be retrieved latter by given id
+    optional string Title = 11;
+    optional bytes Parameters = 12;         // binary yson
+    optional string GatewaysConfig = 13;    // serialized TGatewaysConfig in TextProto format
+    optional string FunctionRegistryData = 14;   // serialized TFunctionRegistryData, todo: remove from task and deliver using another approach
+    optional string SharedId = 15;
+    optional string Url = 16;               // operation url
+    optional string GatewaysConfigPatch = 17;    // serialized TGatewaysConfig  in TextProto format with additional data from YQL-API
+    optional TUserAuthData UserAuthData = 18;
+    optional EStaffAffiliation StaffAffiliation = 19;
+    optional bool DisableNativeUdfSupport = 20;
+    optional EClusterType ClusterType = 21;
+    optional string Cluster = 22;
+    optional string Database = 23;
+    repeated string GroupAllowed = 24;
+    optional bool IsSystemRequest = 25;
+    optional string LangVer = 26;
+    optional string MaxLangVer = 27;
+
+    optional bool UserIsRobot = 28;
+    optional TProjectData Project = 29;
+
+    optional TUserRoles UserRoles = 30;
+    optional string DefaultTranslationCluster = 31;
+    optional string Runner = 32;
+}
+
+message TTaskError {
+    optional uint32 Row = 1;
+    optional uint32 Column = 2;
+    optional string Message = 3;
+}
+
+message TTaskProgress {
+    enum ENodeState {
+        UNKNOWN = 0;
+        STARTED = 1;
+        IN_PROGRESS = 2;
+        FINISHED = 3;
+        FAILED = 4;
+        ABORTED = 5;
+    }
+
+    enum ENodeBlockStatus {
+        NONE = 0;
+        PARTIAL = 1;
+        FULL = 2;
+    }
+
+    message TCounters {
+        optional uint32 Completed = 1;
+        optional uint32 Running = 2;
+        optional uint32 Total = 3;
+        optional uint32 Aborted = 4;
+        optional uint32 Failed = 5;
+        optional uint32 Lost = 6;
+        optional uint32 Pending = 7;
+    }
+
+    message TNodeProgress {
+        optional uint32 Id = 1;
+        optional ENodeState State = 2;
+        optional uint64 StartedAt = 3;
+        optional uint64 FinishedAt = 4;
+        optional uint32 Current = 5; // deprecated
+        optional uint32 Total = 6; // deprecated
+        optional string Category = 7;
+        optional string RemoteId = 8;
+        optional TCounters Counters = 9;
+        map<string,int64> CustomCounters = 13;
+        optional string Stage = 10; // deprecated
+        message TStage {
+            optional string Name = 1;
+            optional uint64 StartedAt = 2;
+        }
+        repeated TStage Stages = 11;
+        optional ENodeBlockStatus BlockStatus = 12;
+        message TAlert {
+            optional string Type = 1;
+            optional string Message = 2;
+        }
+        repeated TAlert Alerts = 14;
+    }
+
+    repeated TNodeProgress Nodes = 1;
+}
+
+message TTaskResult {
+    optional ETaskStatus Status = 1;
+    optional string Ast = 2;
+    optional string Plan = 3;
+    repeated bytes Results = 4;
+    optional uint32 Revision = 5;
+    // used for backward compatibility, use Issues field in new code instead
+    repeated TTaskError Errors = 6;
+    optional TTaskProgress Progress = 7;
+    repeated NYql.NIssue.NProto.IssueMessage Issues = 8;
+    optional string Statistics = 9;
+    optional string Costs = 10;
+    optional bool KeepRunning = 11 [default = false];
+    optional bool RequiresPruning = 12 [default = false];
+}
+

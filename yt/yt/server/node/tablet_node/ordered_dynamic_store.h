@@ -105,7 +105,8 @@ private:
         i64 lowerRowIndex,
         i64 upperRowIndex,
         NTransactionClient::TTimestamp timestamp,
-        const std::optional<NTableClient::TColumnFilter>& columnFilter);
+        const std::optional<NTableClient::TColumnFilter>& columnFilter,
+        NTableClient::EInitialQueryKind initialQueryKind);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedDynamicStore)

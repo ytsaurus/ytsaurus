@@ -97,6 +97,7 @@ namespace NActors {
 
             TString PathInfo() const;
             TCgiParameters Cgi() const;
+            TString GetUserToken() const;
             HTTP_METHOD GetMethod() const;
 
             TString ToStringHeader() const override {
@@ -213,6 +214,9 @@ namespace NActors {
                 return new TEvRemoteBinaryInfoRes(bufs->GetString());
             }
         };
+
+
+        TString BuildActorsLink(const TString& path, const TCgiParameters& currentParams, const std::initializer_list<std::pair<TString, TString>> newParams);
 
     }
 

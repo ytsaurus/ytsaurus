@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: kazoo
-Version: 2.10.0
+Version: 2.11.0
 Summary: "Higher Level Zookeeper Client"
 Home-page: https://kazoo.readthedocs.io
 Author: Kazoo team
@@ -23,6 +23,8 @@ Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Topic :: Communications
@@ -30,35 +32,37 @@ Classifier: Topic :: System :: Distributed Computing
 Classifier: Topic :: System :: Networking
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Provides-Extra: alldeps
-Requires-Dist: flake8 ; extra == 'alldeps'
-Requires-Dist: eventlet >=0.17.1 ; extra == 'alldeps'
-Requires-Dist: gevent >=1.2 ; extra == 'alldeps'
-Requires-Dist: pure-sasl >=0.5.1 ; extra == 'alldeps'
-Requires-Dist: Sphinx >=1.2.2 ; extra == 'alldeps'
-Requires-Dist: sphinx-autodoc-typehints >=1 ; extra == 'alldeps'
-Requires-Dist: mypy >=0.991 ; extra == 'alldeps'
 Provides-Extra: dev
-Requires-Dist: flake8 ; extra == 'dev'
-Provides-Extra: docs
-Requires-Dist: Sphinx >=1.2.2 ; extra == 'docs'
-Requires-Dist: sphinx-autodoc-typehints >=1 ; extra == 'docs'
-Provides-Extra: eventlet
-Requires-Dist: eventlet >=0.17.1 ; extra == 'eventlet'
-Provides-Extra: gevent
-Requires-Dist: gevent >=1.2 ; extra == 'gevent'
-Provides-Extra: sasl
-Requires-Dist: pure-sasl >=0.5.1 ; extra == 'sasl'
+Requires-Dist: flake8; extra == "dev"
 Provides-Extra: test
-Requires-Dist: objgraph ; extra == 'test'
-Requires-Dist: pytest ; extra == 'test'
-Requires-Dist: pytest-cov ; extra == 'test'
-Requires-Dist: pyjks ; extra == 'test'
-Requires-Dist: pyopenssl ; extra == 'test'
-Requires-Dist: gevent >=1.2 ; (implementation_name != "pypy") and extra == 'test'
-Requires-Dist: eventlet >=0.17.1 ; (implementation_name != "pypy") and extra == 'test'
+Requires-Dist: objgraph; extra == "test"
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-cov; extra == "test"
+Requires-Dist: pytest-timeout; extra == "test"
+Requires-Dist: gevent>=1.2; implementation_name != "pypy" and extra == "test"
+Requires-Dist: eventlet>=0.17.1; implementation_name != "pypy" and extra == "test"
+Requires-Dist: pyjks; extra == "test"
+Requires-Dist: pyopenssl; extra == "test"
+Provides-Extra: eventlet
+Requires-Dist: eventlet>=0.17.1; extra == "eventlet"
+Provides-Extra: gevent
+Requires-Dist: gevent>=1.2; extra == "gevent"
+Provides-Extra: sasl
+Requires-Dist: pure_sasl>=0.5.1; extra == "sasl"
+Provides-Extra: docs
+Requires-Dist: Sphinx>=1.2.2; extra == "docs"
+Requires-Dist: sphinx-autodoc-typehints>=1; extra == "docs"
 Provides-Extra: typing
-Requires-Dist: mypy >=0.991 ; extra == 'typing'
+Requires-Dist: mypy>=0.991; extra == "typing"
+Provides-Extra: alldeps
+Requires-Dist: flake8; extra == "alldeps"
+Requires-Dist: eventlet>=0.17.1; extra == "alldeps"
+Requires-Dist: gevent>=1.2; extra == "alldeps"
+Requires-Dist: pure_sasl>=0.5.1; extra == "alldeps"
+Requires-Dist: Sphinx>=1.2.2; extra == "alldeps"
+Requires-Dist: sphinx-autodoc-typehints>=1; extra == "alldeps"
+Requires-Dist: mypy>=0.991; extra == "alldeps"
+Dynamic: license-file
 
 Kazoo
 =====
@@ -68,7 +72,7 @@ Kazoo
 [![Reviewed by Hound](https://img.shields.io/badge/Reviewed_by-Hound-8E64B0.svg)](https://houndci.com)
 
 `kazoo` implements a higher level API to [Apache
-Zookeeper](http://zookeeper.apache.org/) for Python clients.
+ZooKeeper](http://zookeeper.apache.org/) for Python clients.
 
 See [the full docs](http://kazoo.rtfd.org/) for more information.
 
@@ -86,6 +90,32 @@ the open-source community has been merged with code from
 [Mozilla](http://www.mozilla.org/) and the [Zope
 Corporation](http://zope.com/). It has since gathered an active
 community of over one hundred contributors.
+
+<a name="2.11.0"></a>
+## 2.11.0  (2026-03-21)
+
+
+#### Features
+
+* **testing:**
+  *  bump deps for Python > 3.8 ([43e6f068](https://github.com/python-zk/kazoo/commit/43e6f0682d12893e983213db3bb7927f448ae03d))
+  *  add Python 3.13 & 3.14 ([b385289e](https://github.com/python-zk/kazoo/commit/b385289ed68bf791824379733e9dc80bf26ba5a9))
+  *  be a little more verbose about ZK download URL ([4ed8a304](https://github.com/python-zk/kazoo/commit/4ed8a304118c98cfe6594e441bf9fa09b575a186))
+* **core:**
+  *  removing tiny remaining bits of Python2 hybridation ([0751174](https://github.com/python-zk/kazoo/commit/0751174))
+  *  add support for SNI ([273bd56](https://github.com/python-zk/kazoo/commit/273bd56))
+
+#### Bug Fixes
+
+* **core:**
+  *  Proper retry count in KazooRetry ([73309b2d](https://github.com/python-zk/kazoo/commit/73309b2d456c8e64f4ceb079f98903fc9e45f3b6))
+  *  Revert "Fix possible endless wait in stop() after AUTH_FAILED error (#688)" ([2fb93a87](https://github.com/python-zk/kazoo/commit/2fb93a87d3648e2dece5698cb64b059da5134a57))
+  *  prefer use of `time.monotonic` ([b00d88ff](https://github.com/python-zk/kazoo/commit/b00d88ff1485f1cb175565c49955bf5d7ce96fef), closes [#722](https://github.com/python-zk/kazoo/issues/722))
+  *  Add missing Zookeeper exceptions codes ([4c6bad82](https://github.com/python-zk/kazoo/commit/4c6bad82ebe347b9e51abbf33cef443057dc1c45))
+  *  fix spelling ([686d770](https://github.com/python-zk/kazoo/commit/686d770))
+
+* **test:**  avoid racy reader vs writer contender in `test_rw_lock` ([6540c932](https://github.com/python-zk/kazoo/commit/6540c932505a988ccae3c77c023113d4c4c01947))
+* **testing:**  follow redirect when downloading ZK and use https ([b4155ea0](https://github.com/python-zk/kazoo/commit/b4155ea07ba671ce98bb63cebb8dfcd42748efd3))
 
 <a name="2.10.0"></a>
 ## 2.10.0  (2024-01-28)

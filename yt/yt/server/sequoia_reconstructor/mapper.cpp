@@ -74,7 +74,7 @@ public:
 
     void ProcessTransaction(const TTransaction* transaction)
     {
-        YT_VERIFY(transaction->GetIsCypressTransaction());
+        YT_VERIFY(transaction->IsCypressTransaction());
 
         if (transaction->IsNative()) {
             ProcessNativeTransaction(transaction);
@@ -506,7 +506,7 @@ void ReconstructTransactionTables(TBootstrap* bootstrap, TSequoiaReconstructorMa
     const auto& cypressManager = bootstrap->GetTransactionManager();
     for (auto [transactionId, transaction] : cypressManager->Transactions()) {
         if (IsObjectAlive(transaction) &&
-            transaction->GetIsCypressTransaction())
+            transaction->IsCypressTransaction())
         {
             mapper.ProcessTransaction(transaction);
         }

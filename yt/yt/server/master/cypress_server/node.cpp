@@ -292,6 +292,12 @@ TCypressNode* TCypressNode::GetEffectiveExpirationTimeoutNode()
 void TCypressNode::SetNativeContentRevision(NHydra::TRevision revision)
 {
     YT_VERIFY(IsForeign());
+
+    YT_LOG_DEBUG("Setting native content revision (NodeId: %v, OldRevision: %v, NewRevision: %v)",
+        GetVersionedId(),
+        NativeContentRevision_,
+        revision);
+
     NativeContentRevision_ = revision;
 }
 
@@ -507,4 +513,3 @@ TVersionedObjectId GetObjectId(const TCypressNode* object)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
-

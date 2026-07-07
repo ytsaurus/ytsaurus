@@ -39,6 +39,18 @@ struct TChunkTreeStatistics
     //! Disk space occupied on data nodes by erasure chunks (including parity parts).
     i64 ErasureDiskSpace = 0;
 
+    //! Total data weight of referenced hunk values.
+    i64 HunkDataWeight = 0;
+
+    //! Total data size of referenced hunk values.
+    i64 HunkDataSize = 0;
+
+    //! Disk space of referenced hunks occupied on data nodes by regular chunks (without replication).
+    i64 HunkRegularDiskSpace = 0;
+
+    //! Disk space of referenced hunks occupied on data nodes by erasure chunks (including parity parts).
+    i64 HunkErasureDiskSpace = 0;
+
     //! Total number of chunks in the tree.
     int ChunkCount = 0;
 
@@ -62,6 +74,39 @@ struct TChunkTreeStatistics
 void FormatValue(TStringBuilderBase* builder, const TChunkTreeStatistics& statistics, TStringBuf spec);
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct THunkChunkTreeStatistics
+{
+    //! Disk space of referenced hunks occupied on data nodes by regular chunks (without replication).
+    i64 ReferencedRegularDiskSpace = 0;
+
+    //! Disk space of referenced hunks occupied on data nodes by erasure chunks (including parity parts).
+    i64 ReferencedErasureDiskSpace = 0;
+
+    //! Disk space occupied on data nodes by regular chunks (without replication).
+    i64 RegularDiskSpace = 0;
+
+    //! Disk space occupied on data nodes by erasure chunks (including parity parts).
+    i64 ErasureDiskSpace = 0;
+
+    //! Total number of unique chunks in the tree.
+    int ChunkCount = 0;
+
+    void Accumulate(const THunkChunkTreeStatistics& other);
+    void Deaccumulate(const THunkChunkTreeStatistics& other);
+
+    TChunkOwnerDataStatistics ToDataStatistics() const;
+
+    void Persist(const NCellMaster::TPersistenceContext& context);
+
+    bool operator==(const THunkChunkTreeStatistics& other) const;
+};
+
+void FormatValue(TStringBuilderBase* builder, const THunkChunkTreeStatistics& statistics, TStringBuf spec);
+
+void Serialize(const THunkChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -5,9 +5,7 @@
 #include "tablet.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -19,14 +17,13 @@
 
 namespace NYT::NTabletNode {
 
-using namespace NYTree;
-using namespace NYPath;
 using namespace NConcurrency;
-using namespace NClusterNode;
 using namespace NLogging;
+using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NObjectClient;
+using namespace NYPath;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,7 +129,7 @@ public:
             std::nullopt,
             ActionQueue_->GetInvoker()))
     {
-        Reconfigure(Bootstrap_->GetDynamicConfigManager()->GetConfig());
+        Reconfigure(Bootstrap_->GetTabletNodeDynamicConfig());
     }
 
     void Start() override
@@ -140,9 +137,9 @@ public:
         ExpiredErrorsCleanerExecutor_->Start();
     }
 
-    void Reconfigure(const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) override
+    void Reconfigure(const TTabletNodeDynamicConfigPtr& newConfig) override
     {
-        const auto& config = newConfig->TabletNode->ErrorManager;
+        const auto& config = newConfig->ErrorManager;
 
         ErrorExpirationTimeout_.store(config->ErrorExpirationTimeout, std::memory_order::relaxed);
         ExpiredErrorsCleanerExecutor_->SetPeriod(config->ErrorExpirationTimeout);

@@ -12,9 +12,9 @@
 
 #include <yt/yt/server/lib/misc/update_executor.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -43,8 +43,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/record_helpers.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -240,7 +240,7 @@ public:
         return static_cast<bool>(Tags_);
     }
 
-    const std::vector<TString>& GetTags() const
+    const std::vector<std::string>& GetTags() const
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -260,7 +260,7 @@ public:
                 Tags_);
         } else {
             auto rsp = rspOrError.ValueOrThrow();
-            Tags_ = ConvertTo<std::vector<TString>>(TYsonString(rsp->value()));
+            Tags_ = ConvertTo<std::vector<std::string>>(TYsonString(rsp->value()));
             YT_LOG_DEBUG("Tags fetched from Cypress (Tags: %v)",
                 Tags_);
         }
@@ -287,7 +287,7 @@ private:
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
 
-    mutable std::optional<std::vector<TString>> Tags_;
+    mutable std::optional<std::vector<std::string>> Tags_;
 
     struct TLivePreviewRequest
     {
@@ -1447,7 +1447,11 @@ private:
 
         THashMap<TOperationId, std::pair<TTransactionId, std::string>> transactions;
         for (const auto& [operationId, operation] : controllerAgent->GetOperations()) {
-            auto [transaction, medium] = operation->GetController()->GetIntermediateMediumTransaction();
+            auto controller = operation->GetController();
+            if (!controller->IsRunning()) {
+                continue;
+            }
+            auto [transaction, medium] = controller->GetIntermediateMediumTransaction();
             if (transaction) {
                 transactions[operationId] = {transaction->GetId(), medium};
             }
@@ -1534,6 +1538,10 @@ private:
                 if (auto operation = controllerAgent->FindOperation(operationId)) {
                     auto controller = operation->GetController();
                     YT_VERIFY(controller);
+
+                    if (!controller->IsRunning()) {
+                        continue;
+                    }
 
                     controller->UpdateIntermediateMediumUsage(*usage);
                     bool switchedToSlowMedium = controller->GetIntermediateMediumTransaction().first == nullptr;
@@ -1694,7 +1702,7 @@ bool TMasterConnector::TagsLoaded() const
     return Impl_->TagsLoaded();
 }
 
-const std::vector<TString>& TMasterConnector::GetTags() const
+const std::vector<std::string>& TMasterConnector::GetTags() const
 {
     return Impl_->GetTags();
 }
@@ -1707,3 +1715,4 @@ void TMasterConnector::SetControllerAgentAlert(EControllerAgentAlertType alertTy
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
+

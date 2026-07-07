@@ -24,6 +24,18 @@ namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExpectedTransactionSignatureInfo
+{
+    TTransactionSignature Coordinator = FinalTransactionSignature;
+    std::vector<TTransactionSignature> Participants;
+
+    void Persist(const TStreamPersistenceContext& context);
+};
+
+void Serialize(const TExpectedTransactionSignatureInfo& signatureInfo, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ECommitState,
     ((Start)                     (0))
     ((Prepare)                   (1))
@@ -44,6 +56,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
     DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceId, TraceId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
+    DEFINE_BYREF_RO_PROPERTY(TExpectedTransactionSignatureInfo, ExpectedPrepareSignatures);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, PrepareOnlyParticipantCellIds);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, CellIdsToSyncWithBeforePrepare);
     DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
@@ -51,8 +64,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(bool, InheritCommitTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorPrepareMode, CoordinatorPrepareMode);
     DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorCommitMode, CoordinatorCommitMode);
-    DEFINE_BYVAL_RO_PROPERTY(bool, StronglyOrdered);
-    DEFINE_BYVAL_RW_PROPERTY(i64, StronglyOrderedSequenceNumber);
+    DEFINE_BYREF_RO_PROPERTY(TStrongOrderingTagsMap, StrongOrderingTags);
+
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, MaxAllowedCommitTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
     DEFINE_BYREF_RW_PROPERTY(TTimestamp, PrepareTimestamp);
@@ -62,8 +75,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, PersistentState, ECommitState::Start);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCellId>, RespondedCellIds);
     DEFINE_BYREF_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity);
-    // For simple transaction commits only. Transient.
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TTransactionId>, PrerequisiteTransactionIds);
 
 public:
     explicit TCommit(TTransactionId transactionId);
@@ -71,17 +82,17 @@ public:
         TTransactionId transactionId,
         NRpc::TMutationId mutationId,
         std::vector<TCellId> participantCellIds,
-        std::vector<TCellId> prepareOnlyPrticipantCellIds,
+        TExpectedTransactionSignatureInfo expectedPrepareSignatures,
+        std::vector<TCellId> prepareOnlyParticipantCellIds,
         std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool distributed,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         NApi::ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
         NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        bool stronglyOrdered,
+        TStrongOrderingTagsMap strongOrderingTags,
         TTimestamp maxAllowedCommitTimestamp,
-        NRpc::TAuthenticationIdentity identity,
-        std::vector<TTransactionId> prerequisiteTransactionIds = {});
+        NRpc::TAuthenticationIdentity identity);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);
@@ -93,6 +104,9 @@ public:
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer) const;
 
+    bool IsStronglyOrderedForCell(TCellId cellId) const;
+    std::vector<std::string> GetStrongOrderingTagsForCell(TCellId cellId) const;
+
 private:
     TPromise<TSharedRefArray> ResponseMessagePromise_ = NewPromise<TSharedRefArray>();
 };
@@ -100,3 +114,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionSupervisor
+
+#define COMMIT_INL_H_
+#include "commit-inl.h"
+#undef COMMIT_INL_H_

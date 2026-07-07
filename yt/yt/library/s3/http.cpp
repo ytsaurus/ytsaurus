@@ -48,7 +48,7 @@ void PrepareHttpRequest(
 
     // Canonical query string.
     {
-        std::vector<std::pair<TString, TString>> queryParts;
+        std::vector<std::pair<std::string, std::string>> queryParts;
         queryParts.reserve(request->Query.size());
 
         for (const auto& [key, value] : request->Query) {
@@ -85,7 +85,7 @@ void PrepareHttpRequest(
 
     // Canonical headers.
     {
-        std::vector<std::pair<TString, TString>> headers;
+        std::vector<std::pair<std::string, std::string>> headers;
         headers.reserve(request->Headers.size() + 2);
 
         constexpr auto HostHeaderName = "Host";
@@ -97,7 +97,7 @@ void PrepareHttpRequest(
         bool hasContentLengthHeader = false;
         bool hasXAmzDateHeader = false;
         bool hasXAmzContentSha256Header = false;
-        auto addHeader = [&] (const TString& key, const TString& value, bool newHeader = false) {
+        auto addHeader = [&] (const std::string& key, const std::string& value, bool newHeader = false) {
             auto lowerKey = NCrypto::Lowercase(key);
             if (lowerKey == NCrypto::Lowercase(HostHeaderName)) {
                 hasHostHeader = true;
@@ -123,23 +123,23 @@ void PrepareHttpRequest(
             if (auto port = request->Port) {
                 host = Format("%v:%v", request->Host, *port);
             }
-            addHeader(TString(HostHeaderName), host, /*newHeader*/ true);
+            addHeader(std::string(HostHeaderName), host, /*newHeader*/ true);
         }
         if (!hasContentLengthHeader && request->Payload) {
             EmplaceOrCrash(
                 request->Headers,
-                TString(ContentLengthHeaderName),
+                std::string(ContentLengthHeaderName),
                 ToString(request->Payload.size()));
         }
         if (!hasXAmzDateHeader) {
             addHeader(
-                TString(XAmzDateHeaderName),
+                std::string(XAmzDateHeaderName),
                 NCrypto::FormatTimeIso8601(requestTime),
                 /*newHeader*/ true);
         }
         if (!hasXAmzContentSha256Header) {
             addHeader(
-                TString(XAmzContentSha256),
+                std::string(XAmzContentSha256),
                 contentSha256,
                 /*newHeader*/ true);
         }
@@ -195,8 +195,8 @@ void PrepareHttpRequest(
             scope,
             NCrypto::Sha256HashHex(canonicalRequest));
 
-        static const TString Aws4 = "AWS4";
-        static const TString Aws4Request = "aws4_request";
+        static const std::string Aws4 = "AWS4";
+        static const std::string Aws4Request = "aws4_request";
 
         auto dateKey = NCrypto::HmacSha256(Aws4 + credentials.SecretAccessKey, date);
         auto dateRegionKey = NCrypto::HmacSha256(dateKey, request->Region);
@@ -220,11 +220,7 @@ namespace {
 NYT::NCrypto::TSslContextPtr CreateSslContext(const NYT::NCrypto::TSslContextConfigPtr& config, NYT::NCrypto::TCertificatePathResolver pathResolver = nullptr)
 {
     auto sslContext = New<NYT::NCrypto::TSslContext>();
-    if (config) {
-        sslContext->ApplyConfig(config, std::move(pathResolver));
-    } else {
-        sslContext->UseBuiltinOpenSslX509Store();
-    }
+    sslContext->ApplyConfig(config, std::move(pathResolver));
     sslContext->Commit();
     return sslContext;
 }
@@ -310,8 +306,11 @@ private:
             headers,
             request.Payload,
         });
+
+        connection->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
         WaitFor(connection->WriteV(TSharedRefArray(std::move(writeRefs), TSharedRefArray::TMoveParts{})))
             .ThrowOnError();
+        connection->SetWriteDeadline(std::nullopt);
 
         return input;
     }

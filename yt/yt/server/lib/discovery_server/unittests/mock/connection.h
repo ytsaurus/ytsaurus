@@ -175,6 +175,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    const NRpc::IChannelPtr& GetCypressProxyChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NRpc::IChannelPtr& GetSchedulerChannel() override
     {
         YT_UNIMPLEMENTED();
@@ -411,6 +415,16 @@ public:
     }
 
     const NRpc::IChannelPtr& GetBundleControllerChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const NRpc::IChannelPtr& GetOffshoreDataGatewayChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const NRpc::IChannelPtr& GetTabletBalancerChannel() override
     {
         YT_UNIMPLEMENTED();
     }

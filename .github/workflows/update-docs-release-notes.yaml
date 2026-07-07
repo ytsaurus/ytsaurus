@@ -1,14 +1,9 @@
 name: Generate Documentation Release Notes
 
 on:
-  release:
-    types: [created, edited, deleted]
+  schedule:
+    - cron: "0 11 * * *" # every day at 11:00 UTC
   workflow_dispatch:
-    inputs:
-      tag_name:
-        description: 'Tag name or custom string'
-        required: true
-        default: ''
 
 permissions:
   pull-requests: write
@@ -19,15 +14,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Calculate tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" == "release" ]; then
-            echo "TAG_NAME=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          else
-            echo "TAG_NAME=${{ inputs.tag_name }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -47,15 +33,47 @@ jobs:
       - name: Generate release notes
         run: |
           ./ya make -r yt/yt/scripts/generate_documentation_release_notes
-          ./yt/yt/scripts/generate_documentation_release_notes/generate_documentation_release_notes -o "yt/docs/en/_includes/releases" -o "yt/docs/ru/_includes/releases"
+          ./yt/yt/scripts/generate_documentation_release_notes/generate_documentation_release_notes \
+            -o "yt/docs/en/_includes/releases" \
+            -o "yt/docs/ru/_includes/releases"
           rm yt/yt/scripts/generate_documentation_release_notes/generate_documentation_release_notes
 
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check if PR already exists
+        id: pr_exists
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          TITLE="[docs] Update Release Notes"
+          COUNT=$(gh pr list \
+            --state open \
+            --base main \
+            --search "in:title $TITLE" \
+            --json number \
+            --jq 'length')
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create Pull Request
+        if: steps.changes.outputs.has_changes == 'true' && steps.pr_exists.outputs.exists == 'false'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ steps.generate-token.outputs.token }}
           commit-message: Update Documentation Release Notes
-          branch: ci/update-documentation-release-notes/${{ steps.tag.outputs.TAG_NAME }}
+          branch: ci/update-documentation-release-notes/daily
           base: main
           title: "[docs] Update Release Notes"
           labels: |
@@ -63,3 +81,25 @@ jobs:
             release-notes
           body: |
             Update release notes in the documentation.
+
+  send-notifications:
+    name: Send notifications
+    needs:
+      - generate-notes
+    runs-on: ubuntu-latest
+    if: ${{ failure() }}
+    steps:
+      - name: Send telegram message
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          disable_web_page_preview: true
+          format: markdown
+          message: |
+            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
+            Git ${{github.ref_type}}: *${{github.ref_name}}*.
+            Commit:
+            ```
+            ${{github.event.head_commit.message}}
+            ```

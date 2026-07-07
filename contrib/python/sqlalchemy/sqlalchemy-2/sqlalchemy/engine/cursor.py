@@ -8,7 +8,6 @@
 """Define cursor-specific result set constructs including
 :class:`.CursorResult`."""
 
-
 from __future__ import annotations
 
 import collections
@@ -55,7 +54,6 @@ from ..util import compat
 from ..util.typing import Final
 from ..util.typing import Literal
 from ..util.typing import Self
-
 
 if typing.TYPE_CHECKING:
     from .base import Connection
@@ -2218,6 +2216,11 @@ class CursorResult(Result[_T]):
         using the MSSQL / pyodbc dialect a SELECT is emitted inline in
         order to retrieve an inserted primary key value.
 
+        .. seealso::
+
+            :meth:`.Result.close`
+
+            :attr:`.Result.closed`
 
         """
         return self._metadata.returns_rows

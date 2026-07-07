@@ -24,6 +24,7 @@ target_compile_options(server-controller_agent-controllers PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(server-controller_agent-controllers PUBLIC
@@ -62,6 +63,7 @@ target_sources(server-controller_agent-controllers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/live_preview.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/operation_controller_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/ordered_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/probing_job_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/remote_copy_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/sink.cpp

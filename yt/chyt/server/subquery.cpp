@@ -166,7 +166,7 @@ public:
                 table->OperandIndex = operandIndex;
                 InputTables_.emplace_back(std::move(table));
             }
-            KeyColumnDataTypes_.push_back(ToDataTypes(*OperandSchemas_[operandIndex]->ToKeys(), {}, StorageContext_->Settings->Composite));
+            KeyColumnDataTypes_.push_back(ToDataTypes(*OperandSchemas_[operandIndex]->ToKeys(), StorageContext_->Settings->Conversion));
         }
         if (KeyConditions_.empty()) {
             KeyConditions_.resize(OperandCount_, std::nullopt);
@@ -1091,7 +1091,6 @@ std::vector<TSubquery> BuildThreadSubqueries(
                     .MaxTotalSliceCount = std::numeric_limits<int>::max() / 2,
                     .JobSizeTrackerOptions = jobSizeSpec.JobSizeTrackerOptions,
                 },
-                .MinTeleportChunkSize = std::numeric_limits<i64>::max() / 2,
                 .JobSizeConstraints = jobSizeSpec.JobSizeConstraints,
                 .RowBuffer = queryContext->RowBuffer,
                 .Logger = queryContext->Logger.WithTag("Name: Root"),

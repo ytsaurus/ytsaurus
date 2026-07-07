@@ -22,6 +22,7 @@ target_compile_options(cpp-integration-test-native-api PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(cpp-integration-test-native-api PUBLIC
@@ -35,7 +36,7 @@ target_link_libraries(cpp-integration-test-native-api PUBLIC
   yt-yt-ytlib
   yt-core-test_framework
   yt-library-named_value
-  server-lib-signature
+  library-signature-components
 )
 
 target_allocator(cpp-integration-test-native-api

@@ -33,7 +33,7 @@ std::optional<std::string> GatherHeader(const THeadersPtr& headers, const std::s
         return *singleHeader;
     }
 
-    TString buffer;
+    std::string buffer;
     for (int i = 0; ; i++) {
         if (i > 1000) {
             THROW_ERROR_EXCEPTION("Too many header parts")
@@ -136,9 +136,9 @@ void InsertChildAt(const IMapNodePtr& root, const INodePtr& child, const std::ve
             }
 
             auto mapNode = current->AsMap();
-            current = mapNode->FindChild(TString{at[i]});
+            current = mapNode->FindChild(at[i]);
             linkBack = [key = at[i], mapNode] (const INodePtr& node) {
-                mapNode->AddChild(TString{key}, node);
+                mapNode->AddChild(key, node);
             };
         }
     }
@@ -209,9 +209,9 @@ void FixupNodesWithAttributes(const IMapNodePtr& node)
     }
 }
 
-NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMapNodePtr parameters)
+NYTree::IMapNodePtr HideSecretParameters(const std::string& commandName, NYTree::IMapNodePtr parameters)
 {
-    std::vector<TString> secretParameters = {
+    std::vector<std::string> secretParameters = {
         "/spec/secure_vault",
         "/query",
     };
@@ -353,15 +353,15 @@ std::optional<TNetworkStatistics> GetNetworkStatistics()
 
 void ProcessDebugHeaders(const IRequestPtr& /*request*/, const IResponseWriterPtr& response, const TCoordinatorPtr& coordinator)
 {
-    response->GetHeaders()->Add("X-YT-Proxy", coordinator->GetSelf()->GetHost());
+    response->GetHeaders()->Add("X-YT-Proxy", coordinator->GetSelfEntry()->GetHost());
 }
 
 void RedirectToDataProxy(const IRequestPtr& request, const IResponseWriterPtr& response, const TCoordinatorPtr& coordinator)
 {
-    auto target = coordinator->AllocateProxy(coordinator->GetConfig()->DefaultRoleFilter.value_or("data"));
+    auto target = coordinator->AllocateProxyEntry(coordinator->GetConfig()->DefaultRoleFilter.value_or("data"));
     if (target) {
         auto url = request->GetUrl();
-        TString protocol;
+        std::string protocol;
         if (request->IsHttps()) {
             protocol = "https";
         } else {

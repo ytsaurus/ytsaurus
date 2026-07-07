@@ -72,6 +72,17 @@ std::tuple<TTablePerformanceCountersMap, NQueryClient::TTableSchemaPtr> FetchPer
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Flags are set at global/bundle/group/table scope and are tri-state (true/false/unset).
+//! This function checks global, bundle, and group scopes only and returns whether
+//! any true/false is present. Table scope is handled separately.
+std::pair<bool, bool> EvaluateFeatureFlag(
+    std::optional<bool> TFeatureFlagConfig::* field,
+    const TTabletBalancerDynamicConfigPtr& dynamicConfig,
+    const TTabletBalancingGroupConfigPtr& groupConfig,
+    const TBundleTabletBalancerConfigPtr& bundleConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletBalancer
 
 #define HELPERS_INL_H_

@@ -4,19 +4,19 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TControllerJobReport TControllerJobReport::OperationId(TOperationId operationId)
+TControllerJobReport&& TControllerJobReport::OperationId(TOperationId operationId)
 {
     OperationId_ = operationId;
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::JobId(TJobId jobId)
+TControllerJobReport&& TControllerJobReport::JobId(TJobId jobId)
 {
     JobId_ = jobId;
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::HasCompetitors(bool hasCompetitors, EJobCompetitionType competitionType)
+TControllerJobReport&& TControllerJobReport::HasCompetitors(bool hasCompetitors, EJobCompetitionType competitionType)
 {
     switch (competitionType) {
         case EJobCompetitionType::Speculative:
@@ -33,75 +33,83 @@ TControllerJobReport TControllerJobReport::HasCompetitors(bool hasCompetitors, E
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::JobCookie(ui64 jobCookie)
+TControllerJobReport&& TControllerJobReport::JobCookie(ui64 jobCookie)
 {
     JobCookie_ = jobCookie;
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::CollectiveMemberRank(ui64 index)
+TControllerJobReport&& TControllerJobReport::CollectiveMemberRank(ui64 index)
 {
     CollectiveMemberRank_ = index;
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::CollectiveId(TGuid collectiveId)
+TControllerJobReport&& TControllerJobReport::CollectiveId(TGuid collectiveId)
 {
     CollectiveId_ = collectiveId;
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::Address(std::optional<std::string> address)
+TControllerJobReport&& TControllerJobReport::Address(std::optional<std::string> address)
 {
     Address_ = address;
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::Addresses(std::optional<NNodeTrackerClient::TAddressMap> addresses)
+TControllerJobReport&& TControllerJobReport::Addresses(std::optional<NNodeTrackerClient::TAddressMap> addresses)
 {
     Addresses_ = addresses;
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::ControllerState(EJobState controllerState)
+TControllerJobReport&& TControllerJobReport::ControllerState(EJobState controllerState)
 {
     ControllerState_ = FormatEnum(controllerState);
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::Ttl(std::optional<TDuration> ttl)
+TControllerJobReport&& TControllerJobReport::Ttl(std::optional<TDuration> ttl)
 {
     Ttl_ = ttl;
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::OperationIncarnation(std::string incarnation)
+TControllerJobReport&& TControllerJobReport::OperationIncarnation(std::string operationIncarnation)
 {
-    OperationIncarnation_ = std::move(incarnation);
+    OperationIncarnation_ = std::move(operationIncarnation);
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::AllocationId(TAllocationId allocationId)
+TControllerJobReport&& TControllerJobReport::AllocationId(TAllocationId allocationId)
 {
     AllocationId_ = allocationId;
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::StartTime(TInstant startTime)
+TControllerJobReport&& TControllerJobReport::StartTime(TInstant startTime)
 {
     ControllerStartTime_ = startTime.MicroSeconds();
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::FinishTime(TInstant finishTime)
+TControllerJobReport&& TControllerJobReport::FinishTime(TInstant finishTime)
 {
     ControllerFinishTime_ = finishTime.MicroSeconds();
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::GangRank(std::optional<i64> gangRank)
+TControllerJobReport&& TControllerJobReport::GangRank(std::optional<i64> gangRank)
 {
     GangRank_ = gangRank;
+    return std::move(*this);
+}
+
+TControllerJobReport&& TControllerJobReport::Error(const TError& error)
+{
+    if (!error.IsOK()) {
+        ControllerError_ = NYson::ConvertToYsonString(error).ToString();
+    }
     return std::move(*this);
 }
 

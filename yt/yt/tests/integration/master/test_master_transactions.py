@@ -8,7 +8,7 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, read_table, generate_uuid)
+    raises_yt_error, generate_uuid, link, make_ace, multicell_sleep)
 
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
@@ -45,7 +45,6 @@ def with_portals_dir(func):
 
 # NB: CheckInvariants() complexity is at least O(|Cypress nodes|) which is too
 # slow in this case.
-@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsWithoutInvariantChecking(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -66,14 +65,13 @@ class TestMasterTransactionsWithoutInvariantChecking(YTEnvSetup):
             set(f"//tmp/tree1/{i}", subtree, force=True)
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
-        with raises_yt_error("its descendants already have"):
+        with raises_yt_error("Cannot create .* lock for node .* since transaction .* and its descendants already have .* locks associated with them"):
             copy("//tmp/tree1", "//tmp/tree2", tx=tx2)
         abort_transaction(tx1)
         gc_collect()
         assert not exists(f"#{tx1}")
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -91,7 +89,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists(f"//sys/transactions/{tx}")
 
         # cannot commit committed transaction
-        with raises_yt_error("No such transaction"):
+        with raises_yt_error("No such transaction .*"):
             commit_transaction(tx)
 
     @authors("babenko")
@@ -105,7 +103,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists("//sys/transactions/" + tx)
 
         # cannot commit aborted transaction
-        with raises_yt_error("No such transaction"):
+        with raises_yt_error("No such transaction .*"):
             commit_transaction(tx)
 
     @authors("panin", "ignat")
@@ -231,6 +229,18 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists(f"//sys/transactions/{tx2}")
 
     @authors("kvk1920")
+    def test_timeout_after_user_banned(self):
+        create_user("u")
+        tx = start_transaction(timeout=1000, authenticated_user="u")
+        set("//sys/users/u/@banned", True)
+        multicell_sleep()
+        with raises_yt_error() as error:
+            abort_transaction(tx, authenticated_user="u")
+        assert "Access denied" in str(error) or "is banned on" in str(error)
+        sleep(1.5)
+        assert not exists(f"#{tx}")
+
+    @authors("kvk1920")
     def test_deadline(self):
         deadline = datetime_to_string(datetime.utcnow() + timedelta(seconds=2))
         tx1 = start_transaction(timeout=10000, deadline=deadline)
@@ -349,11 +359,6 @@ class TestMasterTransactions(YTEnvSetup):
             assert_items_equal(locked_node_ids["13"], [table_id, portal_exit_id])
             assert locked_node_ids[tx_cell_tag] == []
 
-            staged_node_ids = get("#" + tx + "/@staged_node_ids")
-            assert len(staged_node_ids) == 2
-            assert_items_equal(staged_node_ids["13"], [table_id])
-            assert staged_node_ids[tx_cell_tag] == []
-
             assert len(get("#" + tx + "/@lock_ids/13")) == 2
 
     @authors("babenko")
@@ -437,7 +442,7 @@ class TestMasterTransactions(YTEnvSetup):
         remove("//tmp/file")
         abort_transaction(tx)
 
-    @authors("babenko", "ignat")
+    @authors("kvk1920")
     def test_commit_snapshot_lock(self):
         create("file", "//tmp/file")
         write_file("//tmp/file", b"some_data")
@@ -445,6 +450,7 @@ class TestMasterTransactions(YTEnvSetup):
         tx = start_transaction()
 
         lock("//tmp/file", mode="snapshot", tx=tx)
+
         remove("//tmp/file")
         commit_transaction(tx)
 
@@ -481,9 +487,9 @@ class TestMasterTransactions(YTEnvSetup):
             "inheritance_mode": "object_and_descendants",
         }]})
         create("map_node", "//tmp/wut", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             abort_transaction(tx, authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             commit_transaction(tx, authenticated_user="u")
         commit_transaction(tx)
 
@@ -541,6 +547,10 @@ class TestMasterTransactions(YTEnvSetup):
         with raises_yt_error("Prerequisite check failed: this failure is requested manually via dynamic config"):
             commit_transaction(tx)
 
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            # Mirrored transaction commit failure is handled asynchronously.
+            wait(lambda: not exists(f"#{tx}"))
+
         gc_collect()
 
         assert not exists(f"#{tx}")
@@ -555,11 +565,11 @@ class TestMasterTransactions(YTEnvSetup):
         ls("//tmp/@", prerequisite_transaction_ids=[good_tx])
         exists("//tmp/@id", prerequisite_transaction_ids=[good_tx])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             get("//tmp/@id", prerequisite_transaction_ids=[bad_tx])
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             ls("//tmp/@", prerequisite_transaction_ids=[bad_tx])
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             exists("//tmp/@id", prerequisite_transaction_ids=[bad_tx])
 
     @authors("shakurov")
@@ -571,12 +581,12 @@ class TestMasterTransactions(YTEnvSetup):
         set("//tmp/@some_attr", "some_value", prerequisite_transaction_ids=[good_tx])
         remove("//tmp/t1", prerequisite_transaction_ids=[good_tx])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             create("table", "//tmp/t2", prerequisite_transaction_ids=[bad_tx])
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             set("//tmp/@some_attr", "some_value", prerequisite_transaction_ids=[bad_tx])
         create("table", "//tmp/t3")
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             remove("//tmp/t3", prerequisite_transaction_ids=[bad_tx])
 
     @authors("shakurov")
@@ -605,7 +615,7 @@ class TestMasterTransactions(YTEnvSetup):
         lock("//tmp", tx=tx)
 
         another_tx = start_transaction()
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take \"exclusive\" lock"):
             lock("//tmp", tx=another_tx)
 
     @authors("babenko")
@@ -626,44 +636,44 @@ class TestMasterTransactions(YTEnvSetup):
                 tx = start_transaction()
             else:
                 tx = start_transaction(tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Transaction depth limit reached"):
             start_transaction(tx=tx)
 
     @authors("shakurov")
     def test_zero_tx_id(self):
         assert not exists("//sys/transactions/0-0-0-0")
         assert not exists("//sys/transactions/0-0-0-0/@")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such child .*"):
             get("//sys/transactions/0-0-0-0")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such child .*"):
             get("//sys/transactions/0-0-0-0/@")
 
         # Zero guid is often treated as a null transaction ID and thus
         # should be handled as a special case.
         assert not exists("#0-0-0-0")
         assert not exists("#0-0-0-0/@")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* method is not supported"):
             get("#0-0-0-0")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* method is not supported"):
             get("#0-0-0-0/@")
 
     @authors("shakurov")
     def test_bad_tx_id(self):
         assert not exists("//sys/transactions/a-b-c-d")
         assert not exists("//sys/transactions/a-b-c-d/@")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such child .*"):
             get("//sys/transactions/a-b-c-d")
             get("//sys/transactions/a-b-c-d/@")
 
         # Unlike zero guid above, any random guid is not a valid transaction (or,
         # indeed, any object) ID, and it's not correct to check for its existence.
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown cell tag .*"):
             exists("#a-b-c-d")
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown cell tag .*"):
             exists("#a-b-c-d/@")
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown cell tag .*"):
             get("#a-b-c-d")
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown cell tag .*"):
             get("#a-b-c-d/@")
 
     @authors("kvk1920")
@@ -673,7 +683,7 @@ class TestMasterTransactions(YTEnvSetup):
         tx = start_transaction()
         mutation_id = generate_uuid()
         rsp1 = commit_transaction(tx, mutation_id=mutation_id)
-        with raises_yt_error("Duplicate request is not marked"):
+        with raises_yt_error("Duplicate request is not marked as \"retry\""):
             commit_transaction(tx, mutation_id=mutation_id)
         rsp2 = commit_transaction(tx, mutation_id=mutation_id, retry=True)
         assert rsp1 == rsp2
@@ -688,13 +698,12 @@ class TestMasterTransactions(YTEnvSetup):
             },
             "scan_period": 50,
         })
-        with raises_yt_error("Builtin attribute \"type\" cannot be set"):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             start_transaction(timeout=1000, attributes={"type": "tablet"})
         # Should not crash or alert.
         sleep(3.0)
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -779,7 +788,6 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
         self._assert_native_content_revision_matches("//portals/p/t_copy_tx")
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 5
@@ -793,6 +801,16 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         "14": {"roles": ["transaction_coordinator"]},
         "15": {"roles": ["transaction_coordinator"]},
     }
+
+    @authors("kvk1920")
+    def test_transaction_permission_on_participant(self):
+        create_user("cannot_abort_tx")
+        tx = start_transaction(replicate_to_master_cell_tags=[11], authenticated_user="cannot_abort_tx")
+        set(
+            f"//sys/foreign_transactions/{tx}/@acl",
+            [make_ace("deny", "cannot_abort_tx", "write")],
+            driver=get_driver(1))
+        abort_transaction(tx, authenticated_user="cannot_abort_tx")
 
     @authors("kvk1920")
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
@@ -899,7 +917,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
         # Sometimes this test will succeed trivially. But it must never flap.
         if tx1_cell_tag != tx2_cell_tag:
-            with pytest.raises(YtError):
+            with raises_yt_error("Both parent and prerequisite transactions specified"):
                 start_transaction(tx=tx1, prerequisite_transaction_ids=[tx2])
 
     @authors("shakurov")
@@ -911,7 +929,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
         # Sometimes this test will succeed trivially. But it must never flap.
         if tx1_cell_tag != tx2_cell_tag:
-            with pytest.raises(YtError):
+            with raises_yt_error("Multiple prerequisite transactions from different cells specified"):
                 start_transaction(prerequisite_transaction_ids=[tx1, tx2])
 
     @authors("shakurov")
@@ -980,7 +998,6 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -994,6 +1011,12 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
         "13": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "14": {"roles": ["transaction_coordinator"]},
         "15": {"roles": ["transaction_coordinator"]},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True,
+        },
     }
 
     @authors("kvk1920")
@@ -1042,8 +1065,31 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
         wait(lambda: not exists(f"#{tx}"))
         assert get("//tmp/i") == 321
 
+    @authors("kvk1920")
+    def test_commit_snapshot_lock_with_guqm_pause(self):
+        create("file", "//tmp/file")
+        write_file("//tmp/file", b"some_data")
 
-@pytest.mark.enabled_multidaemon
+        set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": True})
+
+        try:
+            link("//tmp/file", "//tmp/link")
+
+            tx = start_transaction()
+
+            lock("//tmp/file", mode="snapshot", tx=tx)
+            lock("//tmp/link&", mode="snapshot", tx=tx)
+            lock("//tmp", mode="snapshot", tx=tx)
+
+            remove("//tmp/file")
+            commit_transaction(tx)
+        finally:
+            set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": False})
+
+
+##################################################################
+
+
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1053,7 +1099,6 @@ class TestMasterTransactionsRpcProxy(TestMasterTransactions):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressTransactionExternalization(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = False
@@ -1173,34 +1218,8 @@ class TestCypressTransactionExternalization(YTEnvSetup):
         # Shouldn't crash.
         gc_collect()
 
-    @authors("kvk1920")
-    def test_cross_cell_table_copy(self):
-        # The main purpose of this test is to check if
-        # "enable_native_tx_externalization" is properly delivered to tx
-        # participant via Sequoia transactions.
-
-        create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
-        create("table", "//tmp/portal/t")
-
-        assert get("//tmp/portal/t/@external_cell_tag") == 12
-
-        tx = start_transaction()
-
-        content = [{"key": 0, "value": "a"}, {"key": 1, "value": "b"}]
-
-        write_table("//tmp/portal/t", content, tx=tx)
-
-        copy("//tmp/portal/t", "//tmp/t", tx=tx)
-        assert exists("//tmp/t", tx=tx)
-        assert read_table("//tmp/t", tx=tx) == content
-
-        commit_transaction(tx)
-        assert exists("//tmp/t")
-        assert read_table("//tmp/t") == content
-
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestCypressTransactionExternalizationMirroredTx(TestCypressTransactionExternalization):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

@@ -72,7 +72,7 @@ class TProtoVisitor
 
 public:
     // Call VisitAttributeDictionary for TAttributeDictionary. Otherwise call VisitRegularMessage.
-    DEFINE_BYVAL_RW_PROPERTY(bool, ProcessAttributeDictionary, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(ProcessAttributeDictionary);
 
 protected:
     using TTraits = TProtoVisitorTraits<TWrappedMessage>;
@@ -103,7 +103,7 @@ protected:
     void VisitUnrecognizedField(
         TMessageParam message,
         const NProtoBuf::Descriptor* descriptor,
-        TString name,
+        TStringBuf name,
         EVisitReason reason);
     // Called when there is a problem with looking up the message descriptor (e.g., mismatching
     // descriptors in a wrap or an empty wrap). Throws the error by default.
@@ -232,7 +232,7 @@ protected:
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         TMessageParam entryMessage,
-        TString key,
+        TStringBuf key,
         EVisitReason reason);
     // There was an error looking up the entry (key not found or mismatching in the wrap). Throws
     // the error by default. The specific parameters are:
@@ -246,7 +246,7 @@ protected:
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         std::unique_ptr<NProtoBuf::Message> keyMessage,
-        TString key,
+        TStringBuf key,
         EVisitReason reason,
         TError error);
 };

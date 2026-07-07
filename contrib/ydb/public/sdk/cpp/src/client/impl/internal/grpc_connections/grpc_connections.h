@@ -15,8 +15,17 @@
 
 #include <contrib/ydb/public/sdk/cpp/src/library/issue/yql_issue_message.h>
 
+#include <optional>
 
 namespace NYdb::inline Dev {
+
+namespace NMetrics {
+    class IMetricRegistry;
+} // namespace NMetrics
+
+namespace NTrace {
+    class ITraceProvider;
+} // namespace NTrace
 
 constexpr TDeadline::Duration GRPC_KEEP_ALIVE_TIMEOUT_FOR_DISCOVERY = std::chrono::seconds(10);
 constexpr TDeadline::Duration INITIAL_DEFERRED_CALL_DELAY = std::chrono::milliseconds(10); // The delay before first deferred service call
@@ -45,6 +54,7 @@ public:
     ~TGRpcConnectionsImpl();
 
     void AddPeriodicTask(TPeriodicCb&& cb, TDeadline::Duration period) override;
+    void PostToResponseQueue(std::function<void()>&& f) override;
 
     void ScheduleDelayedTask(TSimpleCb&& fn, TDeadline deadline);
     void ScheduleDelayedTask(TSimpleCb&& fn, TDeadline::Duration delay);
@@ -78,6 +88,8 @@ public:
 
     static void SetGrpcKeepAlive(NYdbGrpc::TGRpcClientConfig& config, const TDeadline::Duration& timeout, bool permitWithoutCalls);
 
+    static void SetGrpcCompressionAlgorithm(NYdbGrpc::TGRpcClientConfig& config, EGrpcCompressionAlgorithm algorithm);
+
     template<typename TService>
     std::pair<std::unique_ptr<TServiceConnection<TService>>, TEndpointKey> GetServiceConnection(
         TDbDriverStatePtr dbState, const TEndpointKey& preferredEndpoint,
@@ -100,7 +112,9 @@ public:
             clientConfig.MaxOutboundMessageSize = MaxOutboundMessageSize_;
         }
 
-        clientConfig.LoadBalancingPolicy = "round_robin";
+        clientConfig.LoadBalancingPolicy = GRpcLoadBalancingPolicy_;
+
+        SetGrpcCompressionAlgorithm(clientConfig, GRpcCompressionAlgorithm_);
 
         if (dbState->DiscoveryMode != EDiscoveryMode::Off) {
             if (std::is_same<TService,Ydb::Discovery::V1::DiscoveryService>()
@@ -203,6 +217,11 @@ public:
         using TConnection = std::unique_ptr<TServiceConnection<TService>>;
         Y_ABORT_UNLESS(dbState);
 
+        if (auto tlsValidationStatus = ValidateClientTlsCredentials(dbState)) {
+            userResponseCb(nullptr, std::move(*tlsValidationStatus));
+            return;
+        }
+
         if (!TryCreateContext(context)) {
             TPlainStatus status(EStatus::CLIENT_CANCELLED, "Client is stopped");
             userResponseCb(nullptr, TPlainStatus{status.Status, std::move(status.Issues)});
@@ -213,6 +232,7 @@ public:
             std::weak_ptr<TDbDriverState> weakState = dbState;
             const auto startTime = TInstant::Now();
             userResponseCb = std::move([cb = std::move(userResponseCb), weakState, startTime](TResponse* response, TPlainStatus status) {
+                Y_ABORT_UNLESS(!status.Ok() || response);
                 const auto resultSize = response ? response->ByteSizeLong() : 0;
                 cb(response, status);
 
@@ -233,6 +253,8 @@ public:
                         std::move(status));
                     return;
                 }
+
+                Y_ABORT_UNLESS(serviceConnection != nullptr);
 
                 TCallMeta meta;
 
@@ -322,6 +344,7 @@ public:
         {
             if (response) {
                 Ydb::Operations::Operation* operation = response->mutable_operation();
+                Y_ABORT_UNLESS(operation);
                 if (!operation->ready() && poll) {
                     auto action = MakeIntrusive<TDeferredAction>(
                         operation->id(),
@@ -430,6 +453,11 @@ public:
         using TConnection = std::unique_ptr<TServiceConnection<TService>>;
         using TProcessor = typename NYdbGrpc::IStreamRequestReadProcessor<TResponse>::TPtr;
 
+        if (auto tlsValidationStatus = ValidateClientTlsCredentials(dbState)) {
+            responseCb(std::move(*tlsValidationStatus), nullptr);
+            return;
+        }
+
         if (!TryCreateContext(context)) {
             responseCb(TPlainStatus(EStatus::CLIENT_CANCELLED, "Client is stopped"), nullptr);
             return;
@@ -441,6 +469,8 @@ public:
                     responseCb(std::move(status), nullptr);
                     return;
                 }
+
+                Y_ABORT_UNLESS(serviceConnection != nullptr);
 
                 TCallMeta meta;
                 try {
@@ -503,6 +533,11 @@ public:
         using TConnection = std::unique_ptr<TServiceConnection<TService>>;
         using TProcessor = typename NYdbGrpc::IStreamRequestReadWriteProcessor<TRequest, TResponse>::TPtr;
 
+        if (auto tlsValidationStatus = ValidateClientTlsCredentials(dbState)) {
+            connectedCallback(std::move(*tlsValidationStatus), nullptr);
+            return;
+        }
+
         if (!TryCreateContext(context)) {
             connectedCallback(TPlainStatus(EStatus::CLIENT_CANCELLED, "Client is stopped"), nullptr);
             return;
@@ -515,6 +550,8 @@ public:
                     connectedCallback(std::move(status), nullptr);
                     return;
                 }
+
+                Y_ABORT_UNLESS(serviceConnection != nullptr);
 
                 TCallMeta meta;
                 try {
@@ -565,7 +602,7 @@ public:
     }
 
     TAsyncListEndpointsResult GetEndpoints(TDbDriverStatePtr dbState) override;
-    TListEndpointsResult MutateDiscovery(TListEndpointsResult result, const TDbDriverState& dbDriverState);
+    TListEndpointsResult MutateDiscovery(TListEndpointsResult result, const TDbDriverState* dbDriverState);
 
 #ifndef YDB_GRPC_BYPASS_CHANNEL_POOL
     void DeleteChannels(const std::vector<std::string>& endpoints) override {
@@ -581,10 +618,27 @@ public:
     ::NMonitoring::TMetricRegistry* GetMetricRegistry() override;
     void RegisterExtension(IExtension* extension);
     void RegisterExtensionApi(IExtensionApi* api);
+    std::shared_ptr<NMetrics::IMetricRegistry> GetExternalMetricRegistry() const override;
+    std::shared_ptr<NTrace::ITraceProvider> GetTraceProvider() const;
+
     void SetDiscoveryMutator(IDiscoveryMutatorApi::TMutatorCb&& cb);
     const TLog& GetLog() const override;
 
 private:
+    static std::optional<TPlainStatus> ValidateClientTlsCredentials(const TDbDriverStatePtr& dbState) {
+        Y_ABORT_UNLESS(dbState);
+        if (dbState->AreClientTlsCredentialsValid()) {
+            return std::nullopt;
+        }
+        std::string msg = "Client TLS credentials validation failed";
+        const auto& detail = dbState->GetClientTlsValidationDetail();
+        if (!detail.empty()) {
+            msg += ": ";
+            msg += detail;
+        }
+        return TPlainStatus(EStatus::TRANSPORT_UNAVAILABLE, msg);
+    }
+
     template <typename TService, typename TCallback>
     void WithServiceConnection(TCallback callback, TDbDriverStatePtr dbState,
         const TEndpointKey& preferredEndpoint, TRpcRequestSettings::TEndpointPolicy endpointPolicy)
@@ -698,6 +752,8 @@ private:
     const TBalancingPolicy::TImpl BalancingSettings_;
     const TDeadline::Duration GRpcKeepAliveTimeout_;
     const bool GRpcKeepAlivePermitWithoutCalls_;
+    const std::string GRpcLoadBalancingPolicy_;
+    const EGrpcCompressionAlgorithm GRpcCompressionAlgorithm_;
     const std::uint64_t MemoryQuota_;
     const std::uint64_t MaxInboundMessageSize_;
     const std::uint64_t MaxOutboundMessageSize_;
@@ -715,8 +771,12 @@ private:
 
     std::vector<std::unique_ptr<IExtension>> Extensions_;
     std::vector<std::unique_ptr<IExtensionApi>> ExtensionApis_;
+    std::shared_ptr<NMetrics::IMetricRegistry> MetricRegistry_;
+    std::shared_ptr<NTrace::ITraceProvider> TraceProvider_;
 
     IDiscoveryMutatorApi::TMutatorCb DiscoveryMutatorCb;
+
+    const std::string BuildInfo_;
 
     const std::size_t NetworkThreadsNum_;
     bool UsePerChannelTcpConnection_;

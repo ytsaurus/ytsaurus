@@ -16,9 +16,9 @@ using namespace NTracing;
 ////////////////////////////////////////////////////////////////////////////////
 
 std::atomic<bool> TDriverResponseHolder::ShuttingDown_;
-NThreading::TSpinLock TDriverResponseHolder::DestructionSpinLock_;
+YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TDriverResponseHolder::DestructionSpinLock_);
 
-NThreading::TSpinLock AliveDriverResponseHoldersLock;
+YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AliveDriverResponseHoldersLock);
 THashSet<TDriverResponseHolder*> AliveDriverResponseHolders;
 
 TDriverResponseHolder::TDriverResponseHolder()
@@ -147,7 +147,7 @@ void TDriverResponseHolder::HoldOutputStream(std::unique_ptr<IOutputStream>& out
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TDriverResponse::TypeName_;
+std::string TDriverResponse::TypeName_;
 
 TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TDriverResponse>::PythonClass(self, args, kwargs)
@@ -188,10 +188,7 @@ Py::Object TDriverResponse::Wait(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     {
         TReleaseAcquireGilGuard guard;
-        auto result = WaitForSettingFuture(ResponseFuture_);
-        if (!result) {
-            ResponseFuture_.Cancel(TError(NYT::EErrorCode::Canceled, "Wait canceled"));
-        }
+        Y_UNUSED(SignalFriendlyWaitFor(ResponseFuture_));
         UnregisterFuture(ResponseCookie_);
     }
 
@@ -211,7 +208,7 @@ Py::Object TDriverResponse::IsOk(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
     if (!ResponseFuture_.IsSet()) {
         throw CreateYtError("Response is not set");
     }
-    return Py::Boolean(ResponseFuture_.Get().IsOK());
+    return Py::Boolean(ResponseFuture_.BlockingGet().IsOK());
 }
 
 Py::Object TDriverResponse::Error(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
@@ -221,9 +218,9 @@ Py::Object TDriverResponse::Error(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
     }
     Py::Object object;
 #if PY_MAJOR_VERSION < 3
-    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.Get()), std::nullopt);
+    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.BlockingGet()), std::nullopt);
 #else
-    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.Get()), std::make_optional<TString>("utf-8"));
+    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.BlockingGet()), std::make_optional<TString>("utf-8"));
 #endif
     return object;
 }
@@ -242,7 +239,7 @@ TDriverResponse::~TDriverResponse()
     GetFinalizerInvoker()->Invoke(BIND([holder = Holder_.Release()] { Unref(holder); }));
 }
 
-void TDriverResponse::InitType(const TString& moduleName)
+void TDriverResponse::InitType(const std::string& moduleName)
 {
     static std::once_flag flag;
     std::call_once(flag, [&] {

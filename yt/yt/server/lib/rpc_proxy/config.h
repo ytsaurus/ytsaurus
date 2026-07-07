@@ -44,10 +44,10 @@ struct TStructuredLoggingTopicDynamicConfig
 
     //! [Deprecated] List of methods for which structured logging is not emitted.
     //! Prefer to use `Methods` config.
-    THashSet<TString> SuppressedMethods;
+    THashSet<std::string> SuppressedMethods;
 
     //! Configuration for particular methods.
-    THashMap<TString, TStructuredLoggingMethodDynamicConfigPtr> Methods;
+    THashMap<std::string, TStructuredLoggingMethodDynamicConfigPtr> Methods;
 
     REGISTER_YSON_STRUCT(TStructuredLoggingTopicDynamicConfig);
 
@@ -206,6 +206,8 @@ struct TApiServiceDynamicConfig
     TMultiproxyDynamicConfigPtr Multiproxy;
 
     bool EnableAllocationTags;
+
+    std::optional<int> TruncatedQueryLengthForRequestInfo;
 
     REGISTER_YSON_STRUCT(TApiServiceDynamicConfig);
 

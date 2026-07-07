@@ -6,7 +6,8 @@ namespace NYT::NChunkPools {
 
 Y_WEAK IChunkPoolPtr CreateChunkPool(
     NTableClient::ETablePartitionMode /*partitionMode*/,
-    i64 /*dataWeightPerJob*/,
+    std::optional<i64> /*dataWeightPerJob*/,
+    std::optional<i64> /*compressedDataSizePerJob*/,
     std::optional<int> /*maxPartitionCount*/,
     NLogging::TLogger /*logger*/)
 {

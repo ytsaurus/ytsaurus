@@ -131,11 +131,19 @@ THashMap<std::string, TDataCenterRackInfo> MapZonesToRacks(
 
             for (const auto& tabletNode : dataCenterNodes) {
                 const auto& nodeInfo = GetOrCrash(input.TabletNodes, tabletNode);
-                if (nodeInfo->State != InstanceStateOnline) {
+                if (!nodeInfo->IsOnline()) {
                     continue;
                 }
 
-                if (nodeInfo->BundleControllerAnnotations->AllocatedForBundle == spareBundleName) {
+                bool isSpare = nodeInfo->BundleControllerAnnotations->AllocatedForBundle == spareBundleName;
+
+                if (nodeInfo->Rack.empty()) {
+                    if (isSpare) {
+                        ++dataCenterRacks.SpareNodeCountWithoutRack;
+                    } else {
+                        ++dataCenterRacks.BundleNodeCountWithoutRack;
+                    }
+                } else if (isSpare) {
                     ++dataCenterRacks.RackToSpareInstances[nodeInfo->Rack];
                 } else {
                     ++dataCenterRacks.RackToBundleInstances[nodeInfo->Rack];
@@ -158,11 +166,15 @@ THashMap<std::string, TDataCenterRackInfo> MapZonesToRacks(
                     dataCenterRacks.RequiredSpareNodeCount,
                     bundleNodes + spareNodeCount);
             }
+
+            // Nodes without rack may be in any rack. We should be ready for the pessimistic scenario.
+            dataCenterRacks.RequiredSpareNodeCount +=
+                dataCenterRacks.BundleNodeCountWithoutRack + dataCenterRacks.SpareNodeCountWithoutRack;
         }
     }
 
-    for (auto& [zone, zoneInfo] : input.Zones) {
-        for (auto& [dataCenter, _] : zoneInfo->DataCenters) {
+    for (const auto& [zone, zoneInfo] : input.Zones) {
+        for (const auto& [dataCenter, _] : zoneInfo->DataCenters) {
             auto zoneIt = zoneToRacks.find(zone);
             if (zoneIt == zoneToRacks.end()) {
                 continue;

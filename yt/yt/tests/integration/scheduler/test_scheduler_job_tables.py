@@ -440,7 +440,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_stderr")
         write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(3)])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
@@ -463,7 +463,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_stderr")
         write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(3)])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot write stderr table in append mode"):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
@@ -481,7 +481,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_stderr")
         write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(3)])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Row weight is too large"):
             # We set max_part_size to 10MB and max_row_weight to 5MB and write 20MB of stderr.
             map(
                 in_="//tmp/t_input",
@@ -737,7 +737,7 @@ class TestStderrTable(YTEnvSetup):
             assert len(schema) == 1
             assert schema[0]["name"] == "a"
 
-        with raises_yt_error("specified multiple times"):
+        with raises_yt_error("Output table .* is specified multiple times"):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
@@ -746,7 +746,7 @@ class TestStderrTable(YTEnvSetup):
             )
         _validate_output_table_left_intact()
 
-        with raises_yt_error("specified multiple times"):
+        with raises_yt_error("Output table .* is specified multiple times"):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
@@ -1138,7 +1138,7 @@ class TestCoreTable(YTEnvSetup):
         release_breakpoint()
 
         if fail_job_on_core_dump:
-            with raises_yt_error(yt_error_codes.UserJobProducedCoreFiles):
+            with raises_yt_error(code=yt_error_codes.UserJobProducedCoreFiles):
                 op.track()
         else:
             op.track()
@@ -1303,7 +1303,7 @@ class TestCoreTable(YTEnvSetup):
         t = self._send_core(job_ids[0], "user_process", 42, [b"core_data"], ret_dict)
         t.join()
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         assert self._get_core_infos(op) == {job_ids[0]: [ret_dict["core_info"]]}
@@ -1320,7 +1320,7 @@ class TestCoreTable(YTEnvSetup):
 
         time.sleep(7)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         core_infos = self._get_core_infos(op)
@@ -1453,7 +1453,6 @@ class TestCoreTable(YTEnvSetup):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
-@pytest.mark.enabled_multidaemon
 class TestCoreTablePorto(TestCoreTable):
     ENABLE_MULTIDAEMON = True
     USE_PORTO = True
@@ -1470,7 +1469,7 @@ class TestCoreTablePorto(TestCoreTable):
             enable_cuda_gpu_core_dump=True,
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("User job produced core files"):
             op.track()
 
         core_infos = list(self._get_core_infos(op).values())
@@ -1486,7 +1485,6 @@ class TestCoreTablePorto(TestCoreTable):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
-@pytest.mark.enabled_multidaemon
 class TestCoreTablePortoRootfs(TestCoreTablePorto):
     ENABLE_MULTIDAEMON = True
     USE_CUSTOM_ROOTFS = True
@@ -1504,7 +1502,6 @@ def get_profiles_from_table(operation_id):
     )
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1654,7 +1651,6 @@ class TestJobProfiling(YTEnvSetup):
         )
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobTraceEvents(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1735,7 +1731,7 @@ class TestJobTraceEvents(YTEnvSetup):
 
         def add_events(self, pid, count=1):
             for _ in range(count):
-                profile = f"{{\"event\": \"profile\", \"ts\": {self.current_time:.1f}, \"tid\": 1, \"pid\": {pid}}}"
+                profile = f"{{\"event\": \"profile\", \"ts\": {self.current_time:.1f}, \"tid\": 10000000000, \"pid\": {pid}}}"
                 self._add_command(profile)
             return self
 
@@ -1937,7 +1933,7 @@ class TestJobTraceEvents(YTEnvSetup):
         ]
 
         for profile in profiles:
-            op = self._start_vanilla_operation(profile, should_sleep=False)
+            op = self._start_vanilla_operation(profile, should_sleep=False, write_count=1)
             op.wait_for_state("completed")
 
         events = select_rows(f"* from [{JOB_TRACE_ARCHIVE_PATH}]")
@@ -1945,7 +1941,7 @@ class TestJobTraceEvents(YTEnvSetup):
 
     @authors("ignat")
     def test_get_job_trace_on_missing_operation(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("No such operation .*"):
             # Missing/incorrect op_id
             get_job_trace("1-1-1-1", "2-2-2-2")
 
@@ -2193,7 +2189,6 @@ class TestJobTraceEvents(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobReporterInProgressLimits(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

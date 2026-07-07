@@ -52,16 +52,19 @@ DEFINE_ENUM(ELowCardinalityMode,
     (All)
 );
 
-constexpr std::string_view LowCardinalityAttribute = "low_cardinality";
-
 extern const std::string CacheUserName;
 extern const std::string ChytSqlObjectsUserName;
+extern const std::string DictionariesUserName;
 extern const std::string InternalRemoteUserName;
 
 //! Contains the main attributes of the table that are used in CHYT, with the exception of schema and schema_id.
 extern const std::vector<std::string> TableAttributesToFetch;
 extern const std::string TableSchemaAttribute;
 extern const std::string TableSchemaIdAttribute;
+
+extern const std::string ParamTransactionId;
+
+extern const TString LowCardinalityTag;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,6 +99,7 @@ DECLARE_REFCOUNTED_STRUCT(TPocoOpenSslConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueryCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TUserDefinedSqlObjectsStorageConfig)
 DECLARE_REFCOUNTED_STRUCT(TDictionaryRepositoryConfig)
+DECLARE_REFCOUNTED_STRUCT(TDictionaryAccessControlConfig)
 DECLARE_REFCOUNTED_STRUCT(TSystemLogTableExporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TSystemLogTableExportersConfig)
 DECLARE_REFCOUNTED_STRUCT(TMemoryWatchdogConfig)
@@ -115,6 +119,8 @@ DECLARE_REFCOUNTED_STRUCT(TLauncherConfig)
 DECLARE_REFCOUNTED_STRUCT(TMemoryConfig)
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog)
 DECLARE_REFCOUNTED_CLASS(TCompositeSettings)
+DECLARE_REFCOUNTED_CLASS(TLowCardinalitySettings)
+DECLARE_REFCOUNTED_CLASS(TConversionSettings)
 DECLARE_REFCOUNTED_CLASS(TDynamicTableSettings)
 DECLARE_REFCOUNTED_CLASS(TTestingSettings)
 DECLARE_REFCOUNTED_CLASS(TExecutionSettings)
@@ -137,6 +143,8 @@ DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskIterator)
 DECLARE_REFCOUNTED_CLASS(TCypressDictionaryConfigRepository)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)
 DECLARE_REFCOUNTED_CLASS(TCachedTableSchema)
+DECLARE_REFCOUNTED_STRUCT(IDictionaryAccessControl)
+DECLARE_REFCOUNTED_STRUCT(TExecutionProfilingConfig)
 
 struct TValue;
 struct TSubquerySpec;
@@ -254,9 +262,9 @@ DEFINE_ENUM(ETableReadLockMode,
 );
 
 DEFINE_ENUM(EStorageConflictResolveMode,
-    ((Throw) (0))
-    ((Clique) (1))
-    ((Yt) (2))
+    ((Throw)    (0))
+    ((Clique)   (1))
+    ((YT)       (2) ("yt"))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -348,6 +356,9 @@ using PrewhereInfoPtr = std::shared_ptr<PrewhereInfo>;
 
 class IDatabase;
 using DatabasePtr = std::shared_ptr<IDatabase>;
+
+class IDictionarySource;
+using DictionarySourcePtr = std::shared_ptr<IDictionarySource>;
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory& factory);

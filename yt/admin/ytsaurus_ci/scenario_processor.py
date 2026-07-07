@@ -1,13 +1,8 @@
-import json
 import os
-import re
-from abc import ABC, abstractmethod
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
+from typing import Callable, Dict, List, Optional
 
 import yaml
-from jinja2 import Environment, FileSystemLoader
 
 from library.python import resource
 from yt.admin.ytsaurus_ci import check_registry
@@ -16,235 +11,76 @@ from yt.admin.ytsaurus_ci import component_registry
 from yt.admin.ytsaurus_ci import consts
 from yt.admin.ytsaurus_ci import ghcr
 from yt.admin.ytsaurus_ci import models
-
+from yt.admin.ytsaurus_ci.components import ClusterComponent, OperatorComponent  # noqa: re-exported for tests
+from yt.admin.ytsaurus_ci.task import DefaultTaskCI, TaskCI, UpgradeTaskCI
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_PATH = os.path.join(BASE_DIR, "templates")
-
 SCENARIOS_FILE_PATH = "configs/scenarios.yaml"
 
 
-def parse_iso_to_pg_timestamp(date_str: str) -> str:
-    if date_str.endswith("Z"):
-        date_str = date_str[:-1] + "+00:00"
-    dt = datetime.fromisoformat(date_str)
-
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
+def _make_checks(config: models.Scenario, registry: check_registry.CheckRegistry) -> List[models.Check]:
+    return [registry.get_check(name) for name in config.checks]
 
 
-class Component(ABC):
-    def __init__(
-        self,
-        name: str,
-        source: component_registry.Source,
-        version: str,
-        ghcr_client: ghcr.GitHubPackagesClient,
-    ):
-        self._name = name
-        self._container = source.container
-        self._repo = source.repo
-        self._version = None
-
-        image_template = source.image_tag.replace("{{ version }}", version)
-        self._image_regexp = re.compile(image_template)
-
-        self._image_tag = None
-        self._revision = None
-        self._commit_date = None
-        self._branch = None
-
-        self._ghcr_client = ghcr_client
-
-        self._prepare()
-
-    @property
-    def name(self):
-        return self._name
-
-    def _prepare(self):
-        if not self._image_regexp:
-            raise ValueError("Regexp invalid or not set")
-
-        images = self._ghcr_client.get_package_versions(self._container)
-        if not images:
-            raise Exception(f"Cannot find package {self._container}")
-
-        for image in images:
-            for tag in image["metadata"]["container"]["tags"]:
-                match = self._image_regexp.match(tag)
-                if match:
-                    self._image_tag = tag
-                    extra_info_from_tag = match.groupdict()
-                    if extra_info_from_tag:
-                        self._version = extra_info_from_tag.get("version")
-                        self._revision = extra_info_from_tag.get("commit_hash")
-                        if self._revision:
-                            commit_info = self._ghcr_client.get_commit_info(
-                                self._repo,
-                                self._revision,
-                            )
-                            commit_date = parse_iso_to_pg_timestamp(commit_info["commit"]["author"]["date"])
-                            self._commit_date = commit_date
-
-                    if not self._version:
-                        self._version = match.group()
-
-            if self._image_tag:
-                break
-
-        if not self._image_tag:
-            raise Exception(f"No one tag does not match with {self._image_regexp}")
-
-    @property
-    def image(self):
-        if None in (self._repo, self._name, self._image_tag):
-            raise Exception(f"ClusterComponent {self._name} is not prepared")
-
-        return f"ghcr.io/{self._repo}/{self._container}:{self._image_tag}"
-
-    @abstractmethod
-    def to_dict(self):
-        raise NotImplementedError()
-
-
-class ClusterComponent(Component):
-    def to_dict(self):
-        return {
-            "branch": self._branch,
-            "revision": self._revision,
-            "commitDate": self._commit_date,
-            "name": self._name.upper(),
-            "version": self._version,
-        }
-
-
-class OperatorComponent(ClusterComponent):
-    def __init__(self, source, version, ghcr_client):
-        super().__init__("operator", source, version, ghcr_client)
-
-    @property
-    def image(self):
-        return f"ghcr.io/ytsaurus/{self._container}"
-
-    def to_dict(self):
-        return {
-            "helmUrl": self.image,
-            "operator": super().to_dict(),
-        }
-
-
-class TaskCI:
-    def __init__(
-        self,
-        cluster_components,
-        scenario_config: models.Scenario,
-        component_registry: component_registry.VersionComponentRegistry,
-        ghcr_client: ghcr.GitHubPackagesClient,
-        scenario_name: str,
-        tests: List[models.Check],
-    ):
-        self._scenario_name = scenario_name
-        self._k8s_template_path = scenario_config.k8s_template
-        self._task_ttl = scenario_config.ttl
-
-        operator_version = cluster_components["operator"]
-        self._operator = OperatorComponent(
-            source=component_registry.get_origin("operator", operator_version),
-            version=operator_version,
-            ghcr_client=ghcr_client,
-        )
-
-        self._components = [
-            ClusterComponent(
-                component_name,
-                component_registry.get_origin(component_name, cluster_components[component_name]),
-                cluster_components[component_name],
-                ghcr_client,
-            )
-            for component_name in scenario_config.components
-        ]
-
-        self._tests = tests
-
-    def _render_manifest(self) -> str:
-        template_values = {
-            "images": {},
-            "cluster_name": "ytsaurus-ci",
-        }
-        for component in self._components:
-            template_values["images"][component.name] = component.image
-
-        env = Environment(loader=FileSystemLoader(TEMPLATES_PATH))
-        template = env.get_template(self._k8s_template_path)
-
-        return template.render(**template_values)
-
-    def preview(self):
-        return json.dumps(
-            [comp.to_dict() for comp in self._components] + [self._operator.to_dict()],
-            indent=2,
-            ensure_ascii=False,
-        )
-
-    def to_dict(self):
-        if not self._components:
-            raise Exception("Scenario without at least one component is invalid")
-
-        result = {
-            "checks": self._tests,
-            "components": [component.to_dict() for component in self._components],
-            "k8sSpec": self._render_manifest(),
-            "operator": self._operator.to_dict(),
-            "scenario": self._scenario_name,
-            "ttl": self._task_ttl,
-        }
-
-        return result
-
-
-def _make_task(args):
-    scenario_name = args["scenario_name"]
+def _make_task(args: dict) -> DefaultTaskCI:
     config = args["config"]
-    check_registry = args["check_registry"]
-
-    return TaskCI(
+    return DefaultTaskCI(
         cluster_components=args["cluster_components"],
         scenario_config=config,
-        component_registry=args["registry"],
+        version_registry=args["registry"],
         ghcr_client=args["ghcr_client"],
-        scenario_name=f"{scenario_name}/{config.type}",
-        tests=[check_registry.get_check(test_name).dict() for test_name in config.checks],
+        scenario_name=f"{args['scenario_name']}/{config.type}",
+        tests=_make_checks(config, args["check_registry"]),
+        templates_path=args.get("templates_path", TEMPLATES_PATH),
     )
 
 
-def _make_tasks(
-    config: models.Scenario,
-    ghcr_client: ghcr.GitHubPackagesClient,
-    scenario_name: str,
-    check_registry: check_registry.CheckRegistry,
-    version_filter: dict,
-) -> List[TaskCI]:
+def _make_upgrade_task(args: dict) -> UpgradeTaskCI:
+    return UpgradeTaskCI(
+        cluster_components=args["cluster_components"],
+        scenario_config=args["config"],
+        version_registry=args["registry"],
+        ghcr_client=args["ghcr_client"],
+        scenario_name=f"{args['scenario_name']}/{args['config'].type}",
+        tests=_make_checks(args["config"], args["check_registry"]),
+        upgrade_to=args.get("upgrade_to"),
+        upgrade_config_name=args.get("upgrade_config_name"),
+        templates_path=args.get("templates_path", TEMPLATES_PATH),
+    )
+
+
+def _run_parallel(tasks_kwargs: list, mapper: Callable) -> List[TaskCI]:
+    with ThreadPoolExecutor() as pool:
+        return list(pool.map(mapper, tasks_kwargs))
+
+
+def _build_constraints(config: models.Scenario, version_filter: Dict[str, str]) -> Dict[str, str]:
+    scenario_components = config.components or {}
+    constraints = {
+        name: component.version_filter for name, component in scenario_components.items() if component.version_filter
+    }
+
     for component, constraint in version_filter.items():
         if component == "operator":
             continue
-        if component not in config.components:
+
+        if component not in scenario_components:
             raise ValueError("unexpected component, add it to the scenario", component)
-        if config.components[component].version_filter:
+        if scenario_components[component].version_filter:
             raise ValueError(
                 "it is forbidden to override the filter from the scenario",
                 component,
                 constraint,
-                config.components[component],
+                scenario_components[component],
             )
         if not constraint:
             raise ValueError("filter cannot be empty")
-        config.components[component].version_filter = constraint
 
-    constraints = {
-        name: component.version_filter for name, component in config.components.items() if component.version_filter
-    }
+        constraints[component] = constraint
+
     for constraint in (
-        config.operator.version_filter,
+        config.operator.version_filter if config.operator else None,
         version_filter.get("operator"),
     ):
         if not constraint:
@@ -255,41 +91,96 @@ def _make_tasks(
 
         constraints["operator"] = constraint
 
+    return constraints
+
+
+def _make_tasks(
+    config: models.Scenario,
+    ghcr_client: ghcr.GitHubPackagesClient,
+    scenario_name: str,
+    check_registry: check_registry.CheckRegistry,
+    version_filter: Dict[str, str],
+) -> List[TaskCI]:
+    constraints = _build_constraints(config, version_filter)
+
     registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
     graph = compatibility_graph.CompatibilityGraph(registry)
     paths = graph.find_all_test_suites(constraints)
 
-    tasks_kwargs_for_futures = [
-        {
-            "cluster_components": cluster_components,
-            "config": config,
-            "registry": registry,
-            "ghcr_client": ghcr_client,
-            "scenario_name": scenario_name,
-            "check_registry": check_registry,
-        }
-        for cluster_components in paths
-    ]
-
-    with ThreadPoolExecutor() as pool:
-        return list(pool.map(_make_task, tasks_kwargs_for_futures))
-
-    return []
+    return _run_parallel(
+        [
+            {
+                "cluster_components": cluster_components,
+                "config": config,
+                "registry": registry,
+                "ghcr_client": ghcr_client,
+                "scenario_name": scenario_name,
+                "check_registry": check_registry,
+            }
+            for cluster_components in paths
+        ],
+        _make_task,
+    )
 
 
-def ProcessScenario(scenario_name: str, auth: ghcr.GitHubAuth, version_filter: dict = {}) -> List[TaskCI]:
+def _make_upgrade_tasks(
+    config: models.ScenarioUpgrade,
+    ghcr_client: ghcr.GitHubPackagesClient,
+    scenario_name: str,
+    test_registry: check_registry.CheckRegistry,
+    upgrade_config: Optional[str],
+) -> List[TaskCI]:
+    upgrade_cfg = yaml.safe_load(resource.resfs_read(config.upgrade_config))
+
+    if upgrade_config and upgrade_config not in upgrade_cfg:
+        available = ", ".join(sorted(upgrade_cfg))
+        raise ValueError(f"unknown upgrade config {upgrade_config!r}, available: {available}")
+
+    registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
+    graph = compatibility_graph.CompatibilityGraph(registry)
+
+    tasks_kwargs = []
+    for name, upgrade in upgrade_cfg.items():
+        if upgrade_config and name != upgrade_config:
+            continue
+
+        paths = graph.find_all_test_suites(upgrade.get("version_filter", {}))
+        tasks_kwargs.extend(
+            [
+                {
+                    "cluster_components": cluster_components,
+                    "config": config,
+                    "registry": registry,
+                    "ghcr_client": ghcr_client,
+                    "scenario_name": scenario_name,
+                    "check_registry": test_registry,
+                    "upgrade_to": upgrade.get("upgrade_to", {}),
+                    "upgrade_config_name": name,
+                }
+                for cluster_components in paths
+            ]
+        )
+
+    return _run_parallel(tasks_kwargs, _make_upgrade_task)
+
+
+def ProcessScenario(
+    scenario_name: str,
+    auth: ghcr.GitHubAuth,
+    version_filter: Optional[Dict[str, str]] = None,
+    upgrade_config: Optional[str] = None,
+) -> List[TaskCI]:
+    version_filter = version_filter or {}
     ghcr_client = ghcr.GitHubPackagesClient(auth)
 
     scenario_config = models.ScenarioConfig.from_dict(yaml.safe_load(resource.resfs_read(SCENARIOS_FILE_PATH)))
     if scenario_name not in scenario_config.scenarios:
         raise Exception(f"Scenario {scenario_name} not found")
 
+    scenario = scenario_config.scenarios[scenario_name]
     test_registry = check_registry.CheckRegistry(scenario_config.checks)
 
-    return _make_tasks(
-        scenario_config.scenarios[scenario_name],
-        ghcr_client,
-        scenario_name,
-        test_registry,
-        version_filter,
-    )
+    if scenario.type == "upgrade":
+        return _make_upgrade_tasks(scenario, ghcr_client, scenario_name, test_registry, upgrade_config)
+
+    return _make_tasks(scenario, ghcr_client, scenario_name, test_registry, version_filter)

@@ -99,7 +99,7 @@ void TClusterResources::ClearDiskSpace()
     DiskSpace_.clear();
 }
 
-const NChunkClient::TMediumMap<i64>& TClusterResources::DiskSpace() const
+const NChunkClient::TCompactMediumMap<i64>& TClusterResources::DiskSpace() const
 {
     return DiskSpace_;
 }

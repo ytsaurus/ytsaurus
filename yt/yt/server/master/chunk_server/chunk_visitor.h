@@ -11,17 +11,18 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TResult>
 class TChunkVisitorBase
     : public IChunkVisitor
 {
 public:
-    TFuture<NYson::TYsonString> Run();
+    TFuture<TResult> Run();
 
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     const TChunkLists ChunkLists_;
 
-    TPromise<NYson::TYsonString> Promise_ = NewPromise<NYson::TYsonString>();
+    TPromise<TResult> Promise_ = NewPromise<TResult>();
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -35,8 +36,40 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkReplicasVisitor
+    : public TChunkVisitorBase<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>>
+{
+public:
+
+    using TChunkVisitorBase<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>>::TChunkVisitorBase;
+
+    bool OnChunk(
+        TChunk* chunk,
+        TChunkList* /*parent*/,
+        std::optional<i64> /*rowIndex*/,
+        std::optional<int> /*tabletIndex*/,
+        const NChunkClient::TReadLimit& /*startLimit*/,
+        const NChunkClient::TReadLimit& /*endLimit*/,
+        const TChunkViewModifier* /*modifier*/) override;
+
+    bool OnChunkView(TChunkView* /*chunkView*/) override;
+
+    bool OnDynamicStore(
+        TDynamicStore* /*dynamicStore*/,
+        std::optional<int> /*tabletIndex*/,
+        const NChunkClient::TReadLimit& /*startLimit*/,
+        const NChunkClient::TReadLimit& /*endLimit*/) override;
+
+    void OnSuccess() override;
+
+private:
+    std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>> Chunks_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkIdsAttributeVisitor
-    : public TChunkVisitorBase
+    : public TChunkVisitorBase<NYson::TYsonString>
 {
 public:
     TChunkIdsAttributeVisitor(

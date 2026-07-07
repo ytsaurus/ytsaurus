@@ -37,9 +37,24 @@ DEFINE_ENUM(EChaosReign,
     ((CoordinatorSuspendEnforcment)             (300303)) // gryzlov-ad
     ((ReignInHiveMessages)                      (300304)) // ifsmirnov
     ((AllowChaosLeaseManagerRepeatingDisabling) (300305)) // gryzlov-ad
+    ((RevokeChaosLeaseShortcutsOnMigration)     (300306)) // osidorkin
+    ((ChaosLeaseEnabledValidationDuringGet)     (300307)) // gryzlov-ad
+    ((ChaosLeaseRemoveLeaseOnlyAfterChildren)   (300308)) // gryzlov-ad
+    ((FixParentIdDuringChaosLeaseMigration)     (300309)) // gryzlov-ad
+    ((FixChaosLeasePersist)                     (300310)) // gryzlov-ad
+    // 26.1 starts here.
+    ((Start_26_1)                               (300400)) // atalmenev
+    ((ExpectedPrepareSignature)                 (300401)) // atalmenev
+    ((SecondaryIndices_26_1)                    (300402)) // sabdenovch
+    // 26.2 starts here.
+    ((Start_26_2)                               (300500)) // sabdenovch
+    ((SecondaryIndices)                         (300501)) // sabdenovch
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");
+
+static_assert(static_cast<int>(TEnumTraits<EChaosReign>::GetMinValue()) >= NHydra::MinChaosReign);
+static_assert(static_cast<int>(TEnumTraits<EChaosReign>::GetMaxValue()) <= NHydra::MaxChaosReign);
 
 ////////////////////////////////////////////////////////////////////////////////
 

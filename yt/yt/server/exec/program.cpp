@@ -43,7 +43,7 @@ public:
 
 private:
     TFile ExecutorStderr_;
-    TString JobId_;
+    std::string JobId_;
 
     std::vector<int> GetReservedDescriptors()
     {
@@ -99,7 +99,7 @@ private:
         }
 
         try {
-            if (config->StdoutUnusedAction == NUserJob::EStdoutUnusedAction::RedirrectToDevNull) {
+            if (config->StdoutUnusedAction == NUserJob::EStdoutUnusedAction::RedirectToDevNull) {
                 TFile devNull("/dev/null", EOpenModeFlag::WrOnly);
                 SafeDup2(devNull.GetHandle(), STDOUT_FILENO);
             }
@@ -208,7 +208,7 @@ private:
         std::vector<const char*> args;
         args.push_back("/bin/bash");
 
-        TString command;
+        std::string command;
         if (!config->Command.empty()) {
             // :; is added avoid fork/exec (one-shot) optimization.
             command = ":; " + config->Command;
@@ -238,12 +238,12 @@ private:
         Exit(ToUnderlying(EProgramExitCode::ExecveError));
     }
 
-    void OnError(const TString& message) noexcept
+    void OnError(const std::string& message) noexcept
     {
         LogToStderr(message);
     }
 
-    void LogToStderr(const TString& message)
+    void LogToStderr(const std::string& message)
     {
         auto logRecord = Format("%v (JobId: %v)\n", message, JobId_);
 

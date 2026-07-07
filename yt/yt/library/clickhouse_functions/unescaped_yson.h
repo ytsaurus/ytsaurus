@@ -15,7 +15,7 @@ bool IsUnescapedYsonFormat(EExtendedYsonFormat format);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! YSON-parser with support of CHYT-specific yson formats.
+//! YSON writer with support of CHYT-specific YSON formats.
 class TExtendedYsonWriter
     : public NYson::TYsonWriter
 {

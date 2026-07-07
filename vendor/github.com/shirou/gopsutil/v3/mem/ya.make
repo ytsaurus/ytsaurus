@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v3.24.2)
+VERSION(v3.24.5)
 
 GO_SKIP_TESTS(TestSwapDevices)
 
@@ -32,6 +32,10 @@ IF (OS_DARWIN AND CGO_ENABLED)
     CGO_SRCS(mem_darwin_cgo.go)
 ENDIF()
 
+IF (OS_DARWIN AND NOT CGO_ENABLED)
+    SRCS(mem_darwin_nocgo.go)
+ENDIF()
+
 IF (OS_WINDOWS)
     SRCS(
         mem_windows.go
@@ -44,6 +48,12 @@ IF (OS_ANDROID)
     )
 
     GO_TEST_SRCS(mem_linux_test.go)
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        mem_fallback.go
+    )
 ENDIF()
 
 END()

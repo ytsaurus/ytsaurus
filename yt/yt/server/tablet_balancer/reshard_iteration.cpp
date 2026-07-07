@@ -1,5 +1,6 @@
 #include "bundle_state.h"
 #include "config.h"
+#include "helpers.h"
 #include "private.h"
 #include "table_registry.h"
 #include "reshard_iteration.h"
@@ -8,6 +9,7 @@
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/table.h>
+#include <yt/yt/server/lib/tablet_balancer/tablet_cell.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -34,9 +36,11 @@ public:
     TReshardIterationBase(
         TBundleSnapshotPtr bundleSnapshot,
         TGroupName groupName,
+        TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : BundleName_(bundleSnapshot->Bundle->Name)
         , GroupName_(std::move(groupName))
+        , GroupConfig_(std::move(groupConfig))
         , BundleSnapshot_(std::move(bundleSnapshot))
         , DynamicConfig_(std::move(dynamicConfig))
     { }
@@ -81,9 +85,98 @@ public:
         return BundleSnapshot_->TableRegistry->GetProfilingCounters(table, GroupName_);
     }
 
+    void AnnotateInplaceReshardDescriptors(
+        std::vector<TReshardDescriptor>* descriptors) const override
+    {
+        auto [inplaceSplitHasTrue, inplaceSplitHasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableInplaceSplit,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
+
+        auto [inplaceMergeHasTrue, inplaceMergeHasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableInplaceMerge,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
+
+        if (inplaceMergeHasFalse && inplaceSplitHasFalse) {
+            return;
+        }
+
+        auto [smoothHasTrue, smoothHasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableSmoothMovement,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
+
+        for (auto& descriptor : *descriptors) {
+            const auto& firstTablet = GetOrCrash(BundleSnapshot_->Bundle->Tablets, descriptor.Tablets.front());
+            const auto* table = firstTablet->Table;
+
+            YT_LOG_FATAL_IF(
+                TypeFromId(table->Id) != EObjectType::Table,
+                "Attempted to reshard object that is not a table "
+                "(ActualType: %v, ObjectId: %v, Path: %v, Bundle: %v)",
+                TypeFromId(table->Id),
+                table->Id,
+                table->Path,
+                table->Bundle);
+
+            if (descriptor.Tablets.size() == 1) {
+                descriptor.Inplace = !inplaceSplitHasFalse && table->TableConfig->EnableInplaceSplit.value_or(inplaceSplitHasTrue);
+                continue;
+            }
+
+            // Inplace many-to-many reshard is not supported.
+            if (descriptor.TabletCount != 1) {
+                continue;
+            }
+
+            auto firstCell = firstTablet->Cell.Lock();
+            if (!firstCell) {
+                continue;
+            }
+
+            THashSet<TTabletId> pendingTabletIds;
+            for (auto tabletId : descriptor.Tablets) {
+                const auto& otherTablet = GetOrCrash(BundleSnapshot_->Bundle->Tablets, tabletId);
+                auto otherCell = otherTablet->Cell.Lock();
+
+                YT_LOG_FATAL_UNLESS(
+                    otherCell,
+                    "Failed to annotate reshard descriptor: tablet is not linked to any alive cell "
+                    "(TabletId: %v, TableId: %v, Path: %v, Bundle: %v, TabletState: %v, MountTime: %v)",
+                    tabletId,
+                    table->Id,
+                    table->Path,
+                    table->Bundle,
+                    otherTablet->State,
+                    otherTablet->MountTime);
+
+                if (otherCell->Id != firstCell->Id) {
+                    pendingTabletIds.insert(tabletId);
+                }
+            }
+
+            bool inplaceMerge = !inplaceMergeHasFalse && table->TableConfig->EnableInplaceMerge.value_or(inplaceMergeHasTrue);
+            if (inplaceMerge) {
+                bool preferSmoothMove = !smoothHasFalse && table->TableConfig->EnableSmoothMovement.value_or(smoothHasTrue);
+
+                descriptor.Inplace = true;
+                // TODO(atalmenev): Choose target cell more carefully: check node memory capacity
+                // and prefer the cell with the most tablets from the merge group.
+                descriptor.TargetCellId = firstCell->Id;
+                descriptor.PendingTabletIds = std::move(pendingTabletIds);
+                descriptor.UseSmoothMovementToUniteTablets = preferSmoothMove;
+            }
+        }
+    }
+
 protected:
     const std::string BundleName_;
     const TGroupName GroupName_;
+    const TTabletBalancingGroupConfigPtr GroupConfig_;
     const TBundleSnapshotPtr BundleSnapshot_;
     const TTabletBalancerDynamicConfigPtr DynamicConfig_;
 };
@@ -97,10 +190,12 @@ public:
     TSizeReshardIteration(
         TBundleSnapshotPtr bundleSnapshot,
         TGroupName groupName,
+        TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TReshardIterationBase(
             std::move(bundleSnapshot),
             std::move(groupName),
+            std::move(groupConfig),
             std::move(dynamicConfig))
     { }
 
@@ -217,10 +312,12 @@ public:
     TParameterizedReshardIteration(
         TBundleSnapshotPtr bundleSnapshot,
         TGroupName groupName,
+        TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TReshardIterationBase(
             std::move(bundleSnapshot),
             std::move(groupName),
+            std::move(groupConfig),
             std::move(dynamicConfig))
     { }
 
@@ -325,11 +422,13 @@ public:
     TReplicaReshardIteration(
         TBundleSnapshotPtr bundleSnapshot,
         TGroupName groupName,
+        TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig,
         TClusterName clusterName)
         : TSizeReshardIteration(
             std::move(bundleSnapshot),
             std::move(groupName),
+            std::move(groupConfig),
             std::move(dynamicConfig))
         , SelfClusterName_(std::move(clusterName))
     { }
@@ -562,34 +661,40 @@ private:
 IReshardIterationPtr CreateSizeReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
     TGroupName groupName,
+    TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {
     return New<TSizeReshardIteration>(
         std::move(bundleSnapshot),
         std::move(groupName),
+        std::move(groupConfig),
         std::move(dynamicConfig));
 }
 
 IReshardIterationPtr CreateParameterizedReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
     TGroupName groupName,
+    TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {
     return New<TParameterizedReshardIteration>(
         std::move(bundleSnapshot),
         std::move(groupName),
+        std::move(groupConfig),
         std::move(dynamicConfig));
 }
 
 IReshardIterationPtr CreateReplicaReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
     TGroupName groupName,
+    TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
     TClusterName selfClusterName)
 {
     return New<TReplicaReshardIteration>(
         std::move(bundleSnapshot),
         std::move(groupName),
+        std::move(groupConfig),
         std::move(dynamicConfig),
         std::move(selfClusterName));
 }

@@ -1,5 +1,7 @@
 package NYT.NSequoiaServer.NProto;
 
+import "yt/ytlib/sequoia_client/proto/transaction_client.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqHeartbeat
@@ -26,6 +28,7 @@ message TRspHeartbeat
     optional uint64 master_reign = 1;
     optional TSequoiaRelevantLimits limits = 2;
     optional TSequoiaSupportedInheritableAttributes supported_inheritable_attributes = 3;
+    optional NYT.NSequoiaClient.NProto.TSequoiaTransactionFeatures sequoia_transaction_features = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -126,9 +126,19 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     Attachments().clear();
 }
 
+TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
+    const TReqExecuteSubbatch& other)
+    : TReqExecuteSubbatch(other, std::vector(other.InnerRequestDescriptors_))
+{ }
+
 int TObjectServiceProxy::TReqExecuteSubbatch::GetSize() const
 {
     return std::ssize(InnerRequestDescriptors_);
+}
+
+IClientRequestPtr TObjectServiceProxy::TReqExecuteSubbatch::Clone() const
+{
+    return New<TReqExecuteSubbatch>(*this);
 }
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
@@ -235,6 +245,11 @@ TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
     : TReqExecuteSubbatch(other, std::move(innerRequestDescriptors))
 { }
 
+TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
+    const TReqExecuteBatchBase& other)
+    : TReqExecuteSubbatch(other)
+{ }
+
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecuteBatchBase::Invoke()
 {
     PushDownPrerequisites();
@@ -297,6 +312,11 @@ void TObjectServiceProxy::TReqExecuteBatchBase::AddRequestMessage(
     });
 }
 
+IClientRequestPtr TObjectServiceProxy::TReqExecuteBatchBase::Clone() const
+{
+    return New<TReqExecuteBatchBase>(*this);
+}
+
 void TObjectServiceProxy::TReqExecuteBatchBase::PushDownPrerequisites()
 {
     // Push TPrerequisitesExt down to individual requests.
@@ -351,6 +371,11 @@ void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::SetEnableClientStick
     EnableClientStickiness_ = value;
 }
 
+IClientRequestPtr TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::Clone() const
+{
+    return New<TReqExecuteBatchNoSequoiaRetries>(*this);
+}
+
 TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)
     : TProxyBase(std::move(channel), GetDescriptor())
     , SequoiaRetriesConfig_(New<TReqExecuteBatchRetriesConfig>())
@@ -362,6 +387,11 @@ TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::TReqExecuteBatchNoSequoia
     const TReqExecuteBatchBase& other,
     std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors)
     : TReqExecuteBatchBase(other, std::move(innerRequestDescriptors))
+{ }
+
+TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::TReqExecuteBatchNoSequoiaRetries(
+    const TReqExecuteBatchNoSequoiaRetries& other)
+    : TReqExecuteBatchBase(other)
 { }
 
 TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::TReqExecuteBatchNoSequoiaRetries(
@@ -595,6 +625,18 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     YT_VERIFY(NeedRetry_);
 }
 
+TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
+    const TReqExecuteBatch& other)
+    : TReqExecuteBatchBase(other)
+    , PendingIndexes_(other.PendingIndexes_)
+    , CurrentRetry_(other.CurrentRetry_)
+    , Config_(other.Config_)
+    , NeedRetry_(other.NeedRetry_)
+    , RegenerateMutationIdForRetries_(other.RegenerateMutationIdForRetries_)
+    , StickyGroupSize_(other.StickyGroupSize_)
+    , EnableClientStickiness_(other.EnableClientStickiness_)
+{ }
+
 void TObjectServiceProxy::TReqExecuteBatch::SetStickyGroupSize(int value)
 {
     StickyGroupSize_ = value;
@@ -610,6 +652,11 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecu
     Initialize();
     InvokeNextBatch();
     return FullResponsePromise_;
+}
+
+IClientRequestPtr TObjectServiceProxy::TReqExecuteBatch::Clone() const
+{
+    return New<TReqExecuteBatch>(*this);
 }
 
 void TObjectServiceProxy::TReqExecuteBatch::Initialize()
@@ -878,14 +925,14 @@ void TObjectServiceProxy::TRspExecuteBatch::SetResponseReceived(
     auto& descriptor = InnerResponseDescriptors_[index];
     YT_VERIFY(!descriptor.Meta);
 
-    const auto attachmentCount = std::ssize(Attachments_);
+    const auto attachmentCount = std::ssize(Attachments());
     const auto rangeSize = std::distance(attachments.Begin, attachments.End);
 
     descriptor.Uncertain = false;
     descriptor.Meta = {{attachmentCount, attachmentCount + rangeSize}, revision};
     ++ResponseCount_;
 
-    Attachments_.insert(Attachments_.end(), attachments.Begin, attachments.End);
+    Attachments().insert(Attachments().end(), attachments.Begin, attachments.End);
 
     if (index == FirstUnreceivedResponseIndex_) {
         for (; FirstUnreceivedResponseIndex_ < std::ssize(InnerRequestDescriptors_); ++FirstUnreceivedResponseIndex_) {
@@ -969,8 +1016,8 @@ TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int in
     }
     return TSharedRefArray(
         TRange(
-            Attachments_.data() + beginIndex,
-            Attachments_.data() + endIndex),
+            Attachments().data() + beginIndex,
+            Attachments().data() + endIndex),
         TSharedRefArray::TCopyParts{});
 }
 
@@ -996,8 +1043,8 @@ TObjectServiceProxy::TRspExecuteBatch::TAttachmentRange TObjectServiceProxy::TRs
     const auto& meta = InnerResponseDescriptors_[index].Meta;
     YT_VERIFY(meta);
     return {
-        Attachments_.begin() + meta->PartRange.first,
-        Attachments_.begin() + meta->PartRange.second
+        Attachments().begin() + meta->PartRange.first,
+        Attachments().begin() + meta->PartRange.second
     };
 }
 
@@ -1094,6 +1141,17 @@ TObjectServiceProxy::TReqExecuteBatchInParallel::TReqExecuteBatchInParallel(
         std::move(stickyGroupSizeCache))
     , ParallelReqs_(std::move(parallelReqs))
 { }
+
+TObjectServiceProxy::TReqExecuteBatchInParallel::TReqExecuteBatchInParallel(
+    const TReqExecuteBatchInParallel& other)
+    : TReqExecuteBatchBase(other)
+    , ParallelReqs_(other.ParallelReqs_)
+{ }
+
+IClientRequestPtr TObjectServiceProxy::TReqExecuteBatchInParallel::Clone() const
+{
+    return New<TReqExecuteBatchInParallel>(*this);
+}
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TReqExecuteBatchInParallel::Invoke()

@@ -118,7 +118,7 @@ ODIN_WEBSERVICE_CONFIG_TEMPLATE = {
         "type": "yt"
     },
     "debug": 0,
-    "host": "::",
+    "host": "*",
     "logging": {
         # "filename": "{LOG_FILE}"
     },
@@ -140,6 +140,7 @@ CHECKS_LIST = [
     "controller_agent_count",
     "controller_agent_uptime",
     "controller_agent_operation_memory_consumption",
+    "cypress_commands",
     "destroyed_replicas_size",
     "discovery",
     "dynamic_table_commands",
@@ -166,10 +167,12 @@ CHECKS_LIST = [
     "query_tracker_chyt_liveness",
     "query_tracker_ql_liveness",
     "quorum_health",
+    "read_static_table_commands",
     "register_watcher",
     "scheduler",
     "scheduler_alerts",
     "scheduler_alerts_jobs_archivation",
+    "scheduler_alerts_nodes_with_insufficient_resource_limits",
     "scheduler_alerts_update_fair_share",
     "scheduler_uptime",
     "sort_result",
@@ -181,6 +184,7 @@ CHECKS_LIST = [
     "chaos_cells",
     "unaware_nodes",
     "tmp_node_count",
+    "write_static_table_commands",
 ]
 
 
@@ -209,6 +213,11 @@ def create_odin_checks_config():
                 "options": {
                     "temp_tables_path": "//sys/admin/odin/dynamic_table_commands",
                     "tablet_cell_bundle": "sys",
+                },
+            },
+            "cypress_commands": {
+                "options": {
+                    "temp_path": "//sys/admin/odin/cypress_commands",
                 },
             },
             "suspicious_jobs": {
@@ -308,6 +317,16 @@ def create_odin_checks_config():
                 "check_timeout": 60,
                 "options": {
                     "soft_query_timeout": 30,
+                },
+            },
+            "read_static_table_commands": {
+                "options": {
+                    "table_path": "//sys/admin/odin/read_static_table_commands/table",
+                },
+            },
+            "write_static_table_commands": {
+                "options": {
+                    "temp_tables_path": "//sys/admin/odin/write_static_table_commands",
                 },
             },
         },

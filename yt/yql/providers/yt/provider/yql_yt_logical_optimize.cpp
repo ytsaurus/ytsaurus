@@ -6,6 +6,7 @@
 #include <yt/yql/providers/yt/opt/yql_yt_join.h>
 #include <yt/yql/providers/yt/opt/yql_yt_key_selector.h>
 #include <yt/yql/providers/yt/common/yql_configuration.h>
+#include <yql/essentials/providers/result/expr_nodes/yql_res_expr_nodes.h>
 #include <yql/essentials/providers/common/transform/yql_optimize.h>
 #include <yql/essentials/providers/common/provider/yql_provider.h>
 #include <yql/essentials/providers/common/codec/yql_codec_type_flags.h>
@@ -43,6 +44,7 @@ public:
         AddHandler(0, &TYtMap::Match, HNDL(DirectRow));
         AddHandler(0, Names({TYtReduce::CallableName(), TYtMapReduce::CallableName()}), HNDL(IsKeySwitch));
         AddHandler(0, &TCoLeft::Match, HNDL(TrimReadWorld));
+        AddHandler(1, &TCoRight::Match, HNDL(RightOverPersist));
         AddHandler(0, &TCoCalcOverWindowBase::Match, HNDL(CalcOverWindow));
         AddHandler(0, &TCoCalcOverWindowGroup::Match, HNDL(CalcOverWindow));
         AddHandler(0, &TCoSort::Match, HNDL(SortOverAlreadySorted<false>));
@@ -56,6 +58,8 @@ public:
         AddHandler(0, &TCoAggregate::Match, HNDL(CountAggregate));
         AddHandler(0, &TYtReadTable::Match, HNDL(ZeroSampleToZeroLimit));
         AddHandler(0, &TCoMatchRecognize::Match, HNDL(MatchRecognize));
+        AddHandler(0, &TResPull::Match, HNDL(TrimResPullWorld));
+        AddHandler(0, &TYtPublish::Match, HNDL(TrimPublishWorld));
 
         AddHandler(1, &TCoFilterNullMembers::Match, HNDL(FilterNullMemebers<TCoFilterNullMembers>));
         AddHandler(1, &TCoSkipNullMembers::Match, HNDL(FilterNullMemebers<TCoSkipNullMembers>));
@@ -647,6 +651,17 @@ protected:
         return node;
     }
 
+    TMaybeNode<TExprBase> RightOverPersist(TExprBase node, TExprContext& ctx) const {
+        auto maybePersist = node.Cast<TCoRight>().Input().Maybe<TYtPersist>();
+        if (!maybePersist) {
+            return node;
+        }
+        return Build<TYtOutput>(ctx, node.Pos())
+            .Operation(maybePersist.Cast())
+            .OutIndex().Value(0).Build()
+            .Done();
+    }
+
     TMaybeNode<TExprBase> TrimReadWorld(TExprBase node, TExprContext& ctx) const {
         auto maybeRead = node.Cast<TCoLeft>().Input().Maybe<TYtReadTable>();
         if (!maybeRead) {
@@ -670,14 +685,98 @@ protected:
         return TExprBase(worlds.size() == 1 ? worlds.front() : ctx.NewCallable(node.Pos(), TCoSync::CallableName(), std::move(worlds)));
     }
 
+    TMaybeNode<TExprBase> TrimResPullWorld(TExprBase node, TExprContext& ctx) const {
+        auto pull = node.Cast<TResPull>();
+        if (auto worldOp = pull.World().Maybe<TCoLeft>().Input().Maybe<TYtOutputOpBase>()) {
+            if (auto dataOp = pull.Data().Maybe<TYtOutput>().Operation().Maybe<TYtOutputOpBase>()) {
+                if (worldOp.Raw() == dataOp.Raw()) {
+                    return Build<TResPull>(ctx, pull.Pos())
+                        .InitFrom(pull)
+                        .World(worldOp.Cast().World())
+                        .Done();
+                }
+            }
+        }
+        return node;
+    }
+
+    TMaybeNode<TExprBase> TrimPublishWorld(TExprBase node, TExprContext& ctx) const {
+        auto publish = node.Cast<TYtPublish>();
+        if (auto worldOp = publish.World().Maybe<TCoLeft>().Input().Maybe<TYtOutputOpBase>()) {
+            if (AnyOf(publish.Input(), [op = worldOp.Raw()](const TYtOutput& out) { return out.Operation().Maybe<TYtOutputOpBase>().Raw() == op; })) {
+                return Build<TYtPublish>(ctx, publish.Pos())
+                    .InitFrom(publish)
+                    .World(worldOp.Cast().World())
+                    .Done();
+            }
+        }
+        return node;
+    }
+
+    TMaybeNode<TExprBase> CalcOverWindowFilterAware(TExprBase node, TExprContext& ctx) const {
+        auto input = node.Cast<TCoInputBase>().Input();
+        if (!IsYtProviderInput(input)) {
+            return node;
+        }
+        TVector<TYtTableBaseInfo::TPtr> tableInfos = GetInputTableInfos(input);
+        if (AllOf(tableInfos, [](const TYtTableBaseInfo::TPtr& info) { return !info->Meta->IsDynamic && !info->Meta->HasRLS; })) {
+            TExprNodeList calcs = ExtractCalcsOverWindow(node.Ptr(), ctx);
+            TSet<TStringBuf> rowNumberCols;
+            bool seenWinFilter = false;
+            for (auto& calcNode : calcs) {
+                TCoCalcOverWindowTuple calc(calcNode);
+                if (seenWinFilter || calc.Keys().Size() != 0 || !calc.SessionSpec().Maybe<TCoVoid>() || !calc.SortSpec().Maybe<TCoVoid>()) {
+                    continue;
+                }
+                auto frames = calc.Frames().Ref().ChildrenList();
+                for (auto& win : frames) {
+                    YQL_ENSURE(TCoWinOnBase::Match(win.Get()));
+                    if (TCoWinFilter::Match(win.Get())) {
+                        seenWinFilter = true;
+                        break;
+                    }
+                    auto winOnArgs = win->ChildrenList();
+                    TExprNodeList newWinOnArgs;
+                    newWinOnArgs.push_back(std::move(winOnArgs[0]));
+                    for (size_t i = 1; i < winOnArgs.size(); ++i) {
+                        auto labelAtom = winOnArgs[i]->Child(0);
+                        YQL_ENSURE(labelAtom->IsAtom());
+                        auto trait = winOnArgs[i]->Child(1);
+                        if (trait->IsCallable("RowNumber")) {
+                            rowNumberCols.insert(labelAtom->Content());
+                        } else {
+                            newWinOnArgs.push_back(std::move(winOnArgs[i]));
+                        }
+                    }
+                    win = ctx.ChangeChildren(*win, std::move(newWinOnArgs));
+                }
+                calcNode = Build<TCoCalcOverWindowTuple>(ctx, calc.Pos())
+                    .Keys(calc.Keys())
+                    .SortSpec(calc.SortSpec())
+                    .Frames(ctx.NewList(calc.Frames().Pos(), std::move(frames)))
+                    .SessionSpec(calc.SessionSpec())
+                    .SessionColumns(calc.SessionColumns())
+                    .Done().Ptr();
+            }
+
+            if (rowNumberCols) {
+                return RebuildCalcOverWindowWithYtRowColumns(node.Pos(), input, rowNumberCols, calcs, ctx);
+            }
+        }
+        return ExpandCalcOverWindow(node.Ptr(), ctx, *State_->Types);
+    }
+
     TMaybeNode<TExprBase> CalcOverWindow(TExprBase node, TExprContext& ctx) const {
+        if (CanPushdownFiltersOverWindow(State_->Types)) {
+            return CalcOverWindowFilterAware(node, ctx);
+        }
         auto list = node.Cast<TCoInputBase>().Input();
         if (!IsYtProviderInput(list)) {
             return node;
         }
 
         TVector<TYtTableBaseInfo::TPtr> tableInfos = GetInputTableInfos(list);
-        if (AllOf(tableInfos, [](const TYtTableBaseInfo::TPtr& info) { return !info->Meta->IsDynamic; })) {
+        if (AllOf(tableInfos, [](const TYtTableBaseInfo::TPtr& info) { return !info->Meta->IsDynamic && !info->Meta->HasRLS; })) {
             TExprNodeList calcs = ExtractCalcsOverWindow(node.Ptr(), ctx);
             TSet<TStringBuf> rowNumberCols;
             for (auto& calcNode : calcs) {
@@ -739,84 +838,91 @@ protected:
             }
 
             if (rowNumberCols) {
-                auto rowArg = ctx.NewArgument(node.Pos(), "row");
-                auto body = rowArg;
-
-                const bool useSysColumns = State_->Configuration->UseSystemColumns.Get().GetOrElse(DEFAULT_USE_SYS_COLUMNS);
-                const auto sysColumnNum = TString(YqlSysColumnPrefix).append("num");
-                if (useSysColumns) {
-                    for (auto& col : rowNumberCols) {
-                        body = ctx.Builder(node.Pos())
-                            .Callable("AddMember")
-                                .Add(0, body)
-                                .Atom(1, col)
-                                .Callable(2, "Member")
-                                    .Add(0, rowArg)
-                                    .Atom(1, sysColumnNum)
-                                .Seal()
-                            .Seal()
-                            .Build();
-                    }
-                    body = ctx.Builder(node.Pos())
-                        .Callable("ForceRemoveMember")
-                            .Add(0, body)
-                            .Atom(1, sysColumnNum)
-                        .Seal()
-                        .Build();
-
-                    auto settings = Build<TCoNameValueTupleList>(ctx, list.Pos())
-                        .Add()
-                            .Name()
-                                .Value(ToString(EYtSettingType::SysColumns))
-                            .Build()
-                            .Value(ToAtomList(TVector<TStringBuf>{"num"}, list.Pos(), ctx))
-                        .Build()
-                        .Done();
-
-                    if (auto right = list.Maybe<TCoRight>()) {
-                        list = right.Cast().Input();
-                    }
-
-                    list = Build<TCoRight>(ctx, list.Pos())
-                        .Input(ConvertContentInputToRead(list, settings, ctx))
-                        .Done();
-                } else {
-                    for (auto& col : rowNumberCols) {
-                        body = ctx.Builder(node.Pos())
-                            .Callable("AddMember")
-                                .Add(0, body)
-                                .Atom(1, col)
-                                .Callable(2, "YtRowNumber")
-                                    .Do([&](TExprNodeBuilder& builder) -> TExprNodeBuilder& {
-                                        if (State_->Types->DirectRowDependsOn) {
-                                            return builder
-                                                .Callable(0, "DependsOn")
-                                                    .Add(0, rowArg)
-                                                .Seal();
-                                        } else {
-                                            return builder.Add(0, rowArg);
-                                        }
-                                    })
-                                .Seal()
-                            .Seal()
-                            .Build();
-                    }
-                }
-
-                auto input = ctx.Builder(node.Pos())
-                    .Callable("OrderedMap")
-                        .Add(0, list.Ptr())
-                        .Add(1, ctx.NewLambda(node.Pos(), ctx.NewArguments(node.Pos(), {rowArg}), std::move(body)))
-                    .Seal()
-                    .Build();
-
-                YQL_CLOG(INFO, ProviderYt) << "Replaced " << rowNumberCols.size() << " RowNumber()s with " << (useSysColumns ? sysColumnNum : TString("YtRowNumber()"));
-
-                return RebuildCalcOverWindowGroup(node.Pos(), input, calcs, ctx);
+                return RebuildCalcOverWindowWithYtRowColumns(node.Pos(), list, rowNumberCols, calcs, ctx);
             }
         }
 
         return ExpandCalcOverWindow(node.Ptr(), ctx, *State_->Types);
+    }
+
+    TExprBase RebuildCalcOverWindowWithYtRowColumns(TPositionHandle pos, TExprBase input, const TSet<TStringBuf>& rowNumberCols,
+        const TExprNodeList& calcs, TExprContext& ctx) const
+    {
+        YQL_ENSURE(!rowNumberCols.empty());
+        auto rowArg = ctx.NewArgument(pos, "row");
+        auto body = rowArg;
+
+        const bool useSysColumns = State_->Configuration->UseSystemColumns.Get().GetOrElse(DEFAULT_USE_SYS_COLUMNS);
+        const auto sysColumnNum = TString(YqlSysColumnPrefix).append("num");
+        if (useSysColumns) {
+            for (auto& col : rowNumberCols) {
+                body = ctx.Builder(pos)
+                    .Callable("AddMember")
+                        .Add(0, body)
+                        .Atom(1, col)
+                        .Callable(2, "Member")
+                            .Add(0, rowArg)
+                            .Atom(1, sysColumnNum)
+                        .Seal()
+                    .Seal()
+                    .Build();
+            }
+            body = ctx.Builder(pos)
+                .Callable("ForceRemoveMember")
+                    .Add(0, body)
+                    .Atom(1, sysColumnNum)
+                .Seal()
+                .Build();
+
+            auto settings = Build<TCoNameValueTupleList>(ctx, input.Pos())
+                .Add()
+                    .Name()
+                        .Value(ToString(EYtSettingType::SysColumns))
+                    .Build()
+                    .Value(ToAtomList(TVector<TStringBuf>{"num"}, input.Pos(), ctx))
+                .Build()
+                .Done();
+
+            if (auto right = input.Maybe<TCoRight>()) {
+                input = right.Cast().Input();
+            }
+
+            input = Build<TCoRight>(ctx, input.Pos())
+                .Input(ConvertContentInputToRead(input, settings, ctx))
+                .Done();
+        } else {
+            for (auto& col : rowNumberCols) {
+                body = ctx.Builder(pos)
+                    .Callable("AddMember")
+                        .Add(0, body)
+                        .Atom(1, col)
+                        .Callable(2, "YtRowNumber")
+                            .Do([&](TExprNodeBuilder& builder) -> TExprNodeBuilder& {
+                                if (State_->Types->DirectRowDependsOn) {
+                                    return builder
+                                        .Callable(0, "DependsOn")
+                                            .Add(0, rowArg)
+                                        .Seal();
+                                } else {
+                                    return builder.Add(0, rowArg);
+                                }
+                            })
+                        .Seal()
+                    .Seal()
+                    .Build();
+            }
+        }
+
+        auto processed = ctx.Builder(pos)
+            .Callable("OrderedMap")
+                .Add(0, input.Ptr())
+                .Add(1, ctx.NewLambda(pos, ctx.NewArguments(pos, {rowArg}), std::move(body)))
+            .Seal()
+            .Build();
+
+        YQL_CLOG(INFO, ProviderYt) << "Replaced " << rowNumberCols.size() << " RowNumber()s with " << (useSysColumns ? sysColumnNum : TString("YtRowNumber()"));
+
+        return TExprBase(RebuildCalcOverWindowGroup(pos, processed, calcs, ctx));
     }
 
     template<bool IsTop>
@@ -1436,6 +1542,15 @@ protected:
         }
 
         input = input.Cast<TYtTableContent>().Input();
+        if (const auto& maybeRead = input.Maybe<TYtReadTable>()) {
+            for (const auto& section: maybeRead.Cast().Input()) {
+                for (const auto& path: section.Paths()) {
+                    if (TYtTableBaseInfo::GetMeta(path.Table())->HasRLS) {
+                        return node;
+                    }
+                }
+            }
+        }
 
         TYtDSource dataSource = GetDataSource(input, ctx);
         TString cluster = TString{dataSource.Cluster().Value()};

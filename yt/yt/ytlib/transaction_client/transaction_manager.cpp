@@ -258,7 +258,7 @@ private:
     TAtomicIntrusivePtr<TTransactionManagerConfig> Config_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashSet<TTransaction::TImpl*> AliveTransactions_;
+    THashSet<TWeakPtr<TTransaction::TImpl>, TTransparentWeakPtrHasher, TEqualTo<>> AliveTransactions_;
 
     NThreading::TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
 
@@ -276,8 +276,7 @@ private:
         return BIND_NO_PROPAGATE([id] (const TError& error) {
             return
                 IsRetriableError(error) ||
-                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)||
-                ContainsTransactionSuccessorHasLeasesError(error, id) ;
+                ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
 
@@ -287,7 +286,6 @@ private:
             return
                 IsRetriableError(error) ||
                 error.FindMatching(NTransactionClient::EErrorCode::InvalidTransactionState) ||
-                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError) ||
                 ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
@@ -397,7 +395,7 @@ public:
                     auto syncFuture = connection->GetMasterCellDirectorySynchronizer()->RecentSync();
 
                     if (syncFuture.IsSet()) {
-                        if (!syncFuture.Get().IsOK()) {
+                        if (!syncFuture.GetOrCrash().IsOK()) {
                             return syncFuture;
                         }
                     } else {
@@ -620,6 +618,41 @@ public:
         }
     }
 
+    void UnregisterParticipant(TCellId cellId)
+    {
+        YT_VERIFY(TypeFromId(cellId) == EObjectType::TabletCell);
+
+        YT_VERIFY(!CoordinatorCellId_);
+
+        if (Atomicity_ != EAtomicity::Full) {
+            return;
+        }
+
+        auto guard = Guard(SpinLock_);
+        if (State_ != ETransactionState::Active) {
+            return;
+        }
+
+        if (!RegisteredParticipantIds_.erase(cellId)) {
+            YT_LOG_ALERT(
+                "Attempted to unregister nonexistent transaction participant, ignored (TransactionId: %v, CellId: %v)",
+                Id_,
+                cellId);
+            return;
+        }
+
+        bool prepareOnly = PrepareOnlyRegisteredParticipantIds_.erase(cellId) > 0;
+        YT_LOG_DEBUG("Transaction participant unregistered (TransactionId: %v, CellId: %v, PrepareOnly: %v)",
+            Id_,
+            cellId,
+            prepareOnly);
+    }
+
+    void SetExpectedPrepareSignatures(THashMap<TCellId, TTransactionSignature> participantExpectedPrepareSignatures)
+    {
+        ParticipantExpectedPrepareSignatures_ = std::move(participantExpectedPrepareSignatures);
+    }
+
     void ChooseCoordinator(const TTransactionCommitOptions& options)
     {
         YT_VERIFY(!CoordinatorCellId_);
@@ -629,6 +662,18 @@ public:
         }
 
         CoordinatorCellId_ = DoChooseCoordinator(options);
+    }
+
+    void ChoosePreliminaryCoordinator(const TTransactionCommitOptions& options)
+    {
+        YT_VERIFY(!PreliminaryCoordinatorCellId_);
+        YT_VERIFY(!CoordinatorCellId_);
+
+        if (Atomicity_ != EAtomicity::Full || RegisteredParticipantIds_.empty()) {
+            return;
+        }
+
+        PreliminaryCoordinatorCellId_ = DoChooseCoordinator(options);
     }
 
     TFuture<void> ValidateNoDownedParticipants()
@@ -703,7 +748,11 @@ private:
     THashSet<TCellId> RegisteredParticipantIds_;
     THashSet<TCellId> PrepareOnlyRegisteredParticipantIds_;
 
+    THashMap<TCellId, TTransactionSignature> ParticipantExpectedPrepareSignatures_;
+
     TCellId CoordinatorCellId_;
+    //! Preliminary transaction coordinator to use unless it is removed from the participant list.
+    TCellId PreliminaryCoordinatorCellId_;
 
     TError Error_;
 
@@ -841,7 +890,7 @@ private:
     {
         if (AutoAbort_) {
             auto guard = Guard(Owner_->SpinLock_);
-            YT_VERIFY(Owner_->AliveTransactions_.insert(this).second);
+            InsertOrCrash(Owner_->AliveTransactions_, MakeWeak(this));
         }
     }
 
@@ -851,7 +900,10 @@ private:
             {
                 auto guard = Guard(Owner_->SpinLock_);
                 // NB: Instance is not necessarily registered.
-                Owner_->AliveTransactions_.erase(this);
+                auto it = Owner_->AliveTransactions_.find(this);
+                if (it != Owner_->AliveTransactions_.end()) {
+                    Owner_->AliveTransactions_.erase(it);
+                }
             }
 
             if (State_ == ETransactionState::Active) {
@@ -1190,6 +1242,9 @@ private:
             options.CellIdsToSyncWithBeforePrepare,
             options.AllowAlienCoordinator);
 
+        // Strong ordering cannot be enforced for 1PC transactions.
+        bool shouldForce2PC = options.Force2PC || !options.StrongOrderingTags.empty();
+
         auto coordinatorChannel = options.AllowAlienCoordinator
             ? GetParticipantChannelOrThrow(CoordinatorCellId_)
             : Owner_->CellDirectory_->GetChannelByCellIdOrThrow(CoordinatorCellId_);
@@ -1197,22 +1252,49 @@ private:
         auto req = proxy.CommitTransaction();
         req->SetUser(Owner_->User_);
         // NB: The server side only supports these for simple (non-distributed) commits, but set them anyway.
-        // COMPAT(h0pless): It should be safe to remove prerequisites here when CTxS will be used on masters.
+        // COMPAT(h0pless, tea-mur): It should be safe to remove prerequisites here when CTxS will be used on masters.
         SetPrerequisites(req, options);
+
+        // NB: Cypress transactions are now committed via CypressTransactionService which
+        // handles prerequisites on its own.
+        // Tablet transactions do not use prerequisite transaction ids in commit phase:
+        // 1. Master prerequisite transactions are handled at data sending stage (TReqWrite)
+        // 2. Chaos leases are passed to tx coordinator in transaction action data
+        // Remaining transactions do not use prerequisite transaction ids.
+        YT_VERIFY(options.PrerequisiteTransactionIds.empty());
+
         ToProto(req->mutable_transaction_id(), Id_);
         ToProto(req->mutable_participant_cell_ids(), supervisorParticipantCellIds);
         ToProto(req->mutable_prepare_only_participant_cell_ids(), supervisorPrepareOnlyParticipantCellIds);
         ToProto(req->mutable_cell_ids_to_sync_with_before_prepare(), options.CellIdsToSyncWithBeforePrepare);
-        req->set_force_2pc(options.Force2PC);
+        req->set_force_2pc(shouldForce2PC);
         req->set_generate_prepare_timestamp(options.GeneratePrepareTimestamp);
         req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
         req->set_coordinator_prepare_mode(ToProto(options.CoordinatorPrepareMode));
         req->set_coordinator_commit_mode(ToProto(options.CoordinatorCommitMode));
         req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
         req->set_clock_cluster_tag(ToProto(ClockClusterTag_));
-        req->set_strongly_ordered(options.StronglyOrdered);
+
+        for (const auto& [cellId, tags] : options.StrongOrderingTags) {
+            auto* entry = req->add_strong_ordering_tags_map();
+            ToProto(entry->mutable_cell_id(), cellId);
+            ToProto(entry->mutable_strong_ordering_tags(), tags);
+        }
+
+        // COMPAT(h0pless): Remove strongly_ordered flag in favour in ordering tags after 26.1.
+        if (!options.StrongOrderingTags.empty()) {
+            req->set_strongly_ordered(true);
+        }
+
         req->set_dynamic_tables_locked(dynamicTablesLocked);
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
+
+        for (auto cellId : supervisorParticipantCellIds) {
+            req->add_expected_prepare_signatures(
+                GetOrDefault(ParticipantExpectedPrepareSignatures_, cellId, FinalTransactionSignature));
+        }
+        req->set_coordinator_expected_prepare_signature(
+            GetOrDefault(ParticipantExpectedPrepareSignatures_, CoordinatorCellId_, FinalTransactionSignature));
 
         return req->Invoke().Apply(
             BIND(
@@ -1267,6 +1349,10 @@ private:
             THROW_ERROR_EXCEPTION("No coordinator can be chosen");
         }
 
+        if (std::find(candidateIds.begin(), candidateIds.end(), PreliminaryCoordinatorCellId_) != candidateIds.end()) {
+            return PreliminaryCoordinatorCellId_;
+        }
+
         return candidateIds[RandomNumber(candidateIds.size())];
     }
 
@@ -1283,15 +1369,19 @@ private:
             return OKFuture;
         }
 
-        YT_VERIFY(CoordinatorCellId_);
-        auto coordinatorChannel = GetParticipantChannelOrThrow(CoordinatorCellId_);
+        auto coordinatorCellId = CoordinatorCellId_
+            ? CoordinatorCellId_
+            : PreliminaryCoordinatorCellId_;
+        YT_VERIFY(coordinatorCellId);
+        auto coordinatorChannel = GetParticipantChannelOrThrow(coordinatorCellId);
+
         auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCheckDownedParticipantsRetryChecker());
         auto req = proxy.GetDownedParticipants();
         req->SetUser(Owner_->User_);
         ToProto(req->mutable_cell_ids(), participantIds);
 
         return req->Invoke().Apply(
-            BIND([this, this_ = MakeStrong(this), participantIds = std::move(participantIds)] (
+            BIND([this, this_ = MakeStrong(this), participantIds = std::move(participantIds), coordinatorCellId] (
                 const TTransactionSupervisorServiceProxy::TErrorOrRspGetDownedParticipantsPtr& rspOrError)
             {
                 if (rspOrError.IsOK()) {
@@ -1309,9 +1399,9 @@ private:
                     }
                 } else {
                     YT_LOG_WARNING("Error updating downed participants (CellId: %v)",
-                        CoordinatorCellId_);
+                        coordinatorCellId);
                     return TError("Error updating downed participants at cell %v",
-                        CoordinatorCellId_)
+                        coordinatorCellId)
                         << rspOrError;
                 }
                 return TError();
@@ -1334,6 +1424,7 @@ private:
         auto wrappedError = TError("Error committing transaction %v at cell %v",
             Id_,
             coordinatorCellId)
+            << TErrorAttribute(ShouldBeStrippedErrorAttributeKey, true)
             << std::move(error);
         OnFailure(wrappedError);
         return MakeFuture<TTransactionCommitResult>(std::move(wrappedError));
@@ -1907,10 +1998,9 @@ void TTransactionManager::TImpl::AbortAll()
     std::vector<TIntrusivePtr<TTransaction::TImpl>> transactions;
     {
         auto guard = Guard(SpinLock_);
-        for (auto* rawTransaction : AliveTransactions_) {
-            auto transaction = DangerousGetPtr(rawTransaction);
-            if (transaction) {
-                transactions.push_back(transaction);
+        for (const auto& weakTransaction : AliveTransactions_) {
+            if (auto transaction = weakTransaction.Lock()) {
+                transactions.push_back(std::move(transaction));
             }
         }
     }
@@ -1936,6 +2026,11 @@ TTransaction::~TTransaction() = default;
 TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions& options)
 {
     return Impl_->Commit(options);
+}
+
+void TTransaction::SetExpectedPrepareSignatures(THashMap<TCellId, TTransactionSignature> participantExpectedPrepareSignatures)
+{
+    Impl_->SetExpectedPrepareSignatures(std::move(participantExpectedPrepareSignatures));
 }
 
 TFuture<void> TTransaction::Abort(const TTransactionAbortOptions& options)
@@ -1998,9 +2093,19 @@ void TTransaction::RegisterParticipant(TCellId cellId)
     Impl_->RegisterParticipant(cellId);
 }
 
+void TTransaction::UnregisterParticipant(NObjectClient::TCellId cellId)
+{
+    Impl_->UnregisterParticipant(cellId);
+}
+
 void TTransaction::ChooseCoordinator(const TTransactionCommitOptions& options)
 {
     Impl_->ChooseCoordinator(options);
+}
+
+void TTransaction::ChoosePreliminaryCoordinator(const TTransactionCommitOptions& options)
+{
+    Impl_->ChoosePreliminaryCoordinator(options);
 }
 
 TFuture<void> TTransaction::ValidateNoDownedParticipants()

@@ -47,10 +47,9 @@ public:
         }
 
         auto recordDelta = lastRecordTime - Queue_.front().LogRowRecordTime;
-        double correction = 1.0 * (std::ssize(Queue_) + 1) / std::ssize(Queue_);
         AllowedTime_ = std::max(
             AllowedTime_,
-            Queue_.front().ReplicationTime + recordDelta / Config_->Ratio * correction);
+            Queue_.front().ReplicationTime + recordDelta / GetCorrectedRatio());
 
         Queue_.push({lastRecordTime, now});
 
@@ -82,18 +81,15 @@ public:
         return TDelayedExecutor::MakeDelayed(AllowedTime_ - now);
     }
 
-    TInstant GetMaxAllowedRecordTime(TInstant now) const override
+    TInstant GetMaxAllowedRecordTime(
+        TTimestamp currentTimestamp,
+        TDuration replicationTickPeriod) const override
     {
-        if (Queue_.empty()) {
+        if (!Config_->Enable) {
             return TInstant::Max();
         }
 
-        const auto& entry = Queue_.front();
-        if (now <= entry.ReplicationTime) {
-            return TInstant::Max();
-        }
-
-        return entry.LogRowRecordTime + (now - entry.ReplicationTime) * Config_->Ratio;
+        return GetDefaultMaxAllowedInstant(currentTimestamp, replicationTickPeriod);
     }
 
 private:
@@ -107,6 +103,17 @@ private:
 
     TRingQueue<TEntry> Queue_;
     TInstant AllowedTime_ = TInstant::Zero();
+
+    TInstant GetDefaultMaxAllowedInstant(TTimestamp currentTimestamp, TDuration replicationTickPeriod) const
+    {
+        return TimestampToInstant(currentTimestamp).second + replicationTickPeriod * Config_->Ratio;
+    }
+
+    double GetCorrectedRatio() const
+    {
+        i64 queueSize = std::ssize(Queue_);
+        return Config_->Ratio * (1.0 *  queueSize / (queueSize + 1));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

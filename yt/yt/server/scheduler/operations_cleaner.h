@@ -45,7 +45,7 @@ struct TArchiveOperationRequest
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
     NYson::TYsonString RuntimeParameters;
-    std::optional<TString> Alias;
+    std::optional<std::string> Alias;
     NYson::TYsonString SchedulingAttributesPerPoolTree;
     // COMPAT(omgronny)
     NYson::TYsonString SlotIndexPerPoolTree;

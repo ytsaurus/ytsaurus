@@ -8,7 +8,7 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TControllerFeatures::AddTag(TString name, auto value)
+void TControllerFeatures::AddTag(const std::string& name, auto value)
 {
     Tags_[name] = NYson::ConvertToYsonString(value);
 }

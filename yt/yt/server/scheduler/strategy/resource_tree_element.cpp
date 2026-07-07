@@ -17,7 +17,7 @@ constinit const auto Logger = StrategyLogger;
 
 TResourceTreeElement::TResourceTreeElement(
     TResourceTree* resourceTree,
-    const TString& id,
+    const std::string& id,
     EResourceTreeElementKind elementKind)
     : ResourceTree_(resourceTree)
     , Id_(id)
@@ -90,6 +90,7 @@ void TResourceTreeElement::SetSpecifiedResourceLimits(
 
         if (!SpecifiedResourceLimits_ && Kind_ != EResourceTreeElementKind::Operation) {
             ResourceUsagePrecommit_ = TJobResources();
+            PreemptedResourceUsagePrecommit_ = TJobResources();
             ResourceUsage_ = TJobResources();
         }
 
@@ -203,7 +204,7 @@ bool TResourceTreeElement::IncreaseLocalPreemptedResourceUsagePrecommitUnsafe(co
 
     PreemptedResourceUsagePrecommit_ += delta;
 
-    YT_VERIFY(Dominates(ResourceUsage_, PreemptedResourceUsagePrecommit_));
+    YT_VERIFY(Dominates(PreemptedResourceUsagePrecommit_, TJobResources()));
 
     return true;
 }
@@ -223,8 +224,6 @@ void TResourceTreeElement::ResetLocalPreemptedResourceUsagePrecommit()
     ResourceTree_->IncrementUsageLockWriteCount();
 
     PreemptedResourceUsagePrecommit_ = TJobResources();
-
-    return;
 }
 
 bool TResourceTreeElement::CommitLocalResourceUsage(
@@ -254,13 +253,13 @@ bool TResourceTreeElement::CommitLocalResourceUsage(
     return true;
 }
 
-bool TResourceTreeElement::CommitLocalPreemptedResourceUsage(const TJobResources& delta)
+bool TResourceTreeElement::CommitLocalPreemptedResourceUsageUnsafe(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
 {
     if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
         return true;
     }
-
-    auto guard = WriterGuard(ResourceUsageLock_);
 
     if (!Alive_) {
         return false;
@@ -268,9 +267,10 @@ bool TResourceTreeElement::CommitLocalPreemptedResourceUsage(const TJobResources
 
     ResourceTree_->IncrementUsageLockWriteCount();
 
-    ResourceUsage_ -= delta;
+    // NB(eshcherbin): Delta is negative and precommitted resources are positive.
+    ResourceUsage_ += resourceUsageDelta;
     if (Kind_ == EResourceTreeElementKind::Operation || ResourceLimitsSpecified_) {
-        PreemptedResourceUsagePrecommit_ -= delta;
+        PreemptedResourceUsagePrecommit_ -= precommittedResources;
     }
 
     // Sanity check.

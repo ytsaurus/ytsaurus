@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.protobuf.MessageLite;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.rows.YsonSerializable;
 import tech.ytsaurus.core.tables.TableSchema;
@@ -84,6 +85,7 @@ class TiTypeUtil {
             Map.entry(Boolean.class, TiType.bool()),
             Map.entry(String.class, TiType.utf8()),
             Map.entry(byte[].class, TiType.string()),
+            Map.entry(MessageLite.class, TiType.string()),
             Map.entry(GUID.class, TiType.uuid()),
             Map.entry(Instant.class, TiType.timestamp())
     );
@@ -97,6 +99,9 @@ class TiTypeUtil {
         }
         if (Enum.class.isAssignableFrom(clazz)) {
             return Optional.of(TiType.utf8());
+        }
+        if (MessageLite.class.isAssignableFrom(clazz)) {
+            return Optional.of(TiType.string());
         }
         return Optional.ofNullable(SIMPLE_TYPES_MAP.get(clazz));
     }

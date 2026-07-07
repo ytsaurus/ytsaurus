@@ -1,14 +1,20 @@
+
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
+from yt_dynamic_tables_base import SmoothMovementHelper
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set, create_user, remount_table,
     create_tablet_cell_bundle, remove_tablet_cell, update_nodes_dynamic_config,
     insert_rows, select_rows, lookup_rows, sync_create_cells, pull_queue,
-    sync_mount_table, sync_unmount_table, sync_flush_table, generate_uuid, sync_reshard_table)
+    sync_mount_table, sync_unmount_table, sync_flush_table, generate_uuid, sync_reshard_table,
+    disable_write_sessions_on_node, sync_compact_table, exists, ls, WaitFailed
+)
 
 from yt_helpers import profiler_factory
+from yt_type_helpers import struct_type, optional_type
 
+from yt.common import YtError
 from yt.yson import YsonEntity
 from yt.environment.helpers import assert_items_equal
 
@@ -226,9 +232,21 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
     def test_bundle_solomon_tag(self):
         default_cell = sync_create_cells(1)[0]
 
+        def enable_deduce(arg):
+            update_nodes_dynamic_config({
+                "cellar_node": {
+                    "deduce_profiling_tag_from_bundle_name": arg,
+                }
+            })
+
         def get_solomon_tags(cell_id):
-            node_address = get("#%s/@peers/0/address" % cell_id)
-            return get("//sys/cluster_nodes/%s/orchid/monitoring/solomon/dynamic_tags" % node_address)
+            node_address = get(f"#{cell_id}/@peers/0/address")
+            return get(f"//sys/cluster_nodes/{node_address}/orchid/monitoring/solomon/dynamic_tags")
+
+        def has_alert(cell_id):
+            node_address = get(f"#{cell_id}/@peers/0/address")
+            alerts = get(f"//sys/cluster_nodes/{node_address}/@alerts")
+            return any("Conflicting profiling tags" in str(a) for a in alerts)
 
         wait(lambda: get_solomon_tags(default_cell) == {"tablet_cell_bundle": "default"})
 
@@ -236,6 +254,12 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         bundle_cells = sync_create_cells(20, tablet_cell_bundle="b1")
 
         wait(lambda: get_solomon_tags(default_cell) == {})
+        wait(lambda: has_alert(default_cell))
+
+        enable_deduce(False)
+        wait(lambda: not has_alert(default_cell))
+        enable_deduce(True)
+
         remove_tablet_cell(default_cell)
 
         for cell_id in bundle_cells:
@@ -245,6 +269,10 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         for cell_id in bundle_cells:
             wait(lambda: get_solomon_tags(cell_id) == {"tablet_cell_bundle": "tag1"})
+
+        enable_deduce(False)
+        for cell_id in bundle_cells:
+            wait(lambda: get_solomon_tags(cell_id) == {})
 
     @authors("prime")
     def test_profiling_path_letters(self):
@@ -298,7 +326,8 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
                 total_hunk_length,
                 hunk_chunk_count):
             wait(
-                lambda: profiling.get_counter("tablet/overlapping_store_count") == overlapping_store_count
+                lambda: print(profiling.get_counter("tablet/uncompressed_data_size")) is None
+                and profiling.get_counter("tablet/overlapping_store_count") == overlapping_store_count
                 and profiling.get_counter("tablet/eden_store_count") == eden_store_count
                 and profiling.get_counter("tablet/data_weight") == data_weight
                 and profiling.get_counter("tablet/uncompressed_data_size") == uncompressed_data_size
@@ -329,7 +358,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         insert_rows(table_sorted, [{"key": 0, "value": "a" * 100}])
         sync_flush_table(table_sorted)
         wait_sorted(data_weight=29,
-                    uncompressed_data_size=101,
+                    uncompressed_data_size=277,
                     row_count=1,
                     chunk_count=1,
                     hunk_count=1,
@@ -339,7 +368,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         insert_rows(table_sorted, [{"key": 2, "value": "c" * 100}, {"key": 3, "value": "b" * 100}])
         sync_flush_table(table_sorted)
         wait_sorted(data_weight=87,
-                    uncompressed_data_size=215,
+                    uncompressed_data_size=567,
                     row_count=3,
                     chunk_count=2,
                     hunk_count=3,
@@ -386,36 +415,42 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
     @authors("atalmenev")
     def test_max_block_size(self):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        set("//tmp/t/@enable_compaction_and_partitioning", False)
-        sync_mount_table("//tmp/t")
+        # Use dedicated table name to avoid sensor clash with other tests.
+        table_path = "//tmp/large_blocks"
+        self._create_simple_table(
+            table_path,
+            mount_config={
+                "enable_compaction_and_partitioning": False,
+            })
+        sync_mount_table(table_path)
 
-        profiler = profiler_factory().at_tablet_node("//tmp/t")
+        profiler = profiler_factory().at_tablet_node(table_path)
         max_block_size_summary = profiler.summary("lookup/chunk_reader_statistics/max_block_size")
 
-        insert_rows("//tmp/t", [{"key": 1, "value": "F" * 10}])
-        sync_flush_table("//tmp/t")
+        insert_rows(table_path, [{"key": 1, "value": "F" * 10}])
+        sync_flush_table(table_path)
 
-        insert_rows("//tmp/t", [{"key": 2, "value": "F" * 20}])
-        sync_flush_table("//tmp/t")
+        insert_rows(table_path, [{"key": 2, "value": "F" * 20}])
+        sync_flush_table(table_path)
 
-        insert_rows("//tmp/t", [{"key": 3, "value": "F" * 30}])
-        sync_flush_table("//tmp/t")
+        insert_rows(table_path, [{"key": 3, "value": "F" * 30}])
+        sync_flush_table(table_path)
 
-        lookup_rows("//tmp/t", [{"key": i} for i in range(1, 4)], raw=False)
-        wait(lambda: max_block_size_summary.get_max() == 126.0)
+        lookup_rows(table_path, [{"key": i} for i in range(1, 4)], raw=False)
+        wait(lambda: max_block_size_summary.get_max() == 302.0)
 
-        insert_rows("//tmp/t", [{"key": 4, "value": "F" * 40}])
-        sync_flush_table("//tmp/t")
+        insert_rows(table_path, [{"key": 4, "value": "F" * 40}])
+        sync_flush_table(table_path)
 
-        lookup_rows("//tmp/t", [{"key": i} for i in range(1, 4)], raw=False)
-        wait(lambda: max_block_size_summary.get_max() == 136.0)
+        lookup_rows(table_path, [{"key": i} for i in range(1, 4)], raw=False)
+        wait(lambda: max_block_size_summary.get_max() == 312.0)
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": {"update_period": 100}}}
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
     @authors("nadya73")
     def test_queue_profiling(self):
@@ -453,57 +488,101 @@ class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
             lambda: table_profiling.get_counter("fetch_table_rows/data_weight") == 50
         )
 
+    @authors("nadya73")
+    def test_detailed_pull_queue_profiling(self):
+        sync_create_cells(1)
+        self._create_ordered_table("//tmp/t", enable_detailed_profiling=True)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "one"}]
+        insert_rows("//tmp/t", rows)
+
+        rpc_proxy = ls("//sys/rpc_proxies")[0]
+
+        proxy_pull_queue_duration_histogram = profiler_factory().at_rpc_proxy(rpc_proxy).histogram(
+            name="rpc_proxy/detailed_table_statistics/pull_queue_duration",
+            fixed_tags={"table_path": "//tmp/t", "user": "root"})
+
+        def _remove_system_columns(rows):
+            return [{"key": row["key"], "value": row["value"]} for row in rows]
+
+        def _check():
+            def _check_histogram(histogram):
+                try:
+                    bins = histogram.get_bins(verbose=True)
+                    bin_counters = [bin["count"] for bin in bins]
+                    if sum(bin_counters) != 1:
+                        return False
+                    if len(bin_counters) < 20:
+                        return False
+                    return True
+                except YtError as e:
+                    if "No sensors have been collected so far" not in str(e):
+                        raise e
+                    return False
+
+            assert _remove_system_columns(pull_queue("//tmp/t", offset=0, partition_index=0)) == rows
+
+            try:
+                wait(lambda: _check_histogram(proxy_pull_queue_duration_histogram), iter=5, sleep_backoff=0.5)
+                return True
+            except WaitFailed:
+                return False
+
+        wait(lambda: _check())
+        assert profiler_factory().at_rpc_proxy(rpc_proxy).get(
+            name="rpc_proxy/detailed_table_statistics/pull_queue_mount_cache_wait_time",
+            tags={"table_path": "//tmp/t"},
+            postprocessor=lambda data: data.get('all_time_max'),
+            summary_as_max_for_all_time=True,
+            export_summary_as_max=True,
+            verbose=False,
+            default=0) > 0
+
 
 ##################################################################
 
 
 class TestStatisticsReporterBase:
+    STATISTICS_TABLE_PATH = "//tmp/statistics_reporter_table"
+
     @staticmethod
-    def _create_table_for_statistics_reporter(table_path, driver=None, bundle="default"):
+    def _create_table_for_statistics_reporter(
+        table_path,
+        driver=None,
+        bundle="default"
+    ):
         def make_struct(name):
             return {
                 "name": name,
-                "type_v3": {
-                    "type_name": "struct",
-                    "members": [
-                        {"name": "count", "type": "int64"},
-                        {"name": "rate", "type": "double"},
-                        {"name": "rate_10m", "type": "double"},
-                        {"name": "rate_1h", "type": "double"},
-                    ],
-                }
+                "type_v3": optional_type(struct_type([
+                    ("count", "int64"),
+                    ("rate", "double"),
+                    ("rate_10m", "double"),
+                    ("rate_1h", "double"),
+                ])),
             }
+
+        nodes = ls("//sys/tablet_nodes")
+        node_address = nodes[0]
+        keys = get("//sys/cluster_nodes/" + node_address + "/orchid/performance_counter_names")
+
+        schema = [
+            {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
+            {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
+        ] + [
+            make_struct(name) for name in keys
+        ] + [
+            {"name": "uncompressed_data_size", "type_v3": optional_type("int64")},
+            {"name": "compressed_data_size", "type_v3": optional_type("int64")},
+        ]
 
         create(
             "table",
             table_path,
             attributes={
                 "dynamic": True,
-                "schema": [
-                    {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
-                    {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
-                    make_struct("dynamic_row_read"),
-                    make_struct("dynamic_row_read_data_weight"),
-                    make_struct("dynamic_row_lookup"),
-                    make_struct("dynamic_row_lookup_data_weight"),
-                    make_struct("dynamic_row_write"),
-                    make_struct("dynamic_row_write_data_weight"),
-                    make_struct("dynamic_row_delete"),
-                    make_struct("static_chunk_row_read"),
-                    make_struct("static_chunk_row_read_data_weight"),
-                    make_struct("static_hunk_chunk_row_read_data_weight"),
-                    make_struct("static_chunk_row_lookup"),
-                    make_struct("static_chunk_row_lookup_data_weight"),
-                    make_struct("static_hunk_chunk_row_lookup_data_weight"),
-                    make_struct("compaction_data_weight"),
-                    make_struct("partitioning_data_weight"),
-                    make_struct("lookup_error"),
-                    make_struct("write_error"),
-                    make_struct("lookup_cpu_time"),
-                    make_struct("select_cpu_time"),
-                    {"name": "uncompressed_data_size", "type_v3": "int64"},
-                    {"name": "compressed_data_size", "type_v3": "int64"},
-                ],
+                "schema": schema,
                 "mount_config": {
                     "min_data_ttl": 0,
                     "max_data_ttl": 86400000,
@@ -516,12 +595,20 @@ class TestStatisticsReporterBase:
             driver=driver)
 
     @classmethod
-    def _setup_statistics_reporter(cls, path, driver=None, tablet_cell_bundle="default"):
+    def _setup_statistics_reporter(
+        cls,
+        table_path=None,
+        driver=None,
+        bundle="default"
+    ):
+        if table_path is None:
+            table_path = cls.STATISTICS_TABLE_PATH
+
         update_nodes_dynamic_config({
             "tablet_node" : {
                 "statistics_reporter" : {
                     "enable" : True,
-                    "table_path": path,
+                    "table_path": table_path,
                     "report_backoff_time": 1,
                     "periodic_options": {
                         "period": 1,
@@ -532,43 +619,53 @@ class TestStatisticsReporterBase:
             }
         }, driver=driver)
 
-        if tablet_cell_bundle != "default":
-            create_tablet_cell_bundle(tablet_cell_bundle, driver=driver)
-        sync_create_cells(1, tablet_cell_bundle=tablet_cell_bundle, driver=driver)
+        if not exists(f"//sys/tablet_cell_bundles/{bundle}", driver=driver):
+            create_tablet_cell_bundle(bundle, driver=driver)
+        if get(f"//sys/tablet_cell_bundles/{bundle}/@tablet_cell_count", driver=driver) == 0:
+            sync_create_cells(1, tablet_cell_bundle=bundle, driver=driver)
 
-        cls._create_table_for_statistics_reporter(path, driver=driver, bundle=tablet_cell_bundle)
-        set(f"{path}/@tablet_balancer_config", {
+        cls._create_table_for_statistics_reporter(table_path, driver=driver, bundle=bundle)
+        set(f"{table_path}/@tablet_balancer_config", {
             "enable_auto_reshard": False,
-            "enable_auto_tablet_move": False
+            "enable_auto_tablet_move": False,
         }, driver=driver)
-        sync_mount_table(path, driver=driver)
+        sync_mount_table(table_path, driver=driver)
+
+    def _get_counter(
+        self, table_id, tablet_id, name, counter="count",
+        statistics_table_path=None
+    ):
+        if statistics_table_path is None:
+            statistics_table_path = self.STATISTICS_TABLE_PATH
+
+        response = lookup_rows(
+            statistics_table_path, [{"table_id": table_id, "tablet_id": tablet_id}],
+            verbose=False)
+        value = response[0].get(name) if response else None
+        result = value[counter] if value else None
+        print_debug(f"Got counter {name}.{counter} for table {table_id}, tablet {tablet_id}: {result}")
+        return result
 
 
 class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTablesBase):
-    def _get_counter(self, statistics_path, table_id, tablet_id, name, counter):
-        response = lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])
-        if len(response) == 0:
-            return None
-        return response[0][name][counter]
+    def setup_method(self, method):
+        super().setup_method(method)
+        self._setup_statistics_reporter()
 
     @authors("dave11ar")
     def test_statistics_reporter(self):
-        statistics_path = "//tmp/statistics_reporter_table"
-        self._setup_statistics_reporter(statistics_path)
-
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
         table_id = get("//tmp/t/@id")
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
-        wait(lambda: len(lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])) == 1)
+        wait(lambda: len(lookup_rows(
+            self.STATISTICS_TABLE_PATH,
+            [{"table_id": table_id, "tablet_id": tablet_id}])) == 1)
 
     @authors("atalmenev")
     def test_update_statistics_in_statistics_reporter(self):
-        statistics_path = "//tmp/statistics_reporter_table"
-        self._setup_statistics_reporter(statistics_path)
-
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -583,25 +680,22 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
                 self._create_sorted_table("//tmp/t1")
                 sync_mount_table("//tmp/t1")
                 wait(lambda: self._get_counter(
-                    statistics_path,
                     get("//tmp/t1/@id"),
                     get("//tmp/t1/@tablets/0/tablet_id"),
-                    "dynamic_row_write", "count") == 0)
+                    "dynamic_row_write") == 0)
             else:
                 insert_rows("//tmp/t", rows)
 
             wait(lambda: self._get_counter(
-                statistics_path,
                 table_id,
                 tablet_id,
-                "dynamic_row_write", "count") == expected_value)
+                "dynamic_row_write") == expected_value)
 
         insert_rows("//tmp/t", [{"key": 1, "value": "F"}])
         wait(lambda: self._get_counter(
-            statistics_path,
             table_id,
             tablet_id,
-            "dynamic_row_write", "count") == 1)
+            "dynamic_row_write") == 1)
         _check_dynamic_row_write_counter_after_unmount(expected_value=1)
 
         _check_dynamic_row_write_counter_after_unmount(
@@ -612,11 +706,131 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
             expected_value=9,
             rows=[{"key": i, "value": "F"} for i in range(3, 10)])
 
+    @authors("dave11ar")
+    def test_update_statistics_in_statistics_reporter_after_reshard(self):
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "enable_compaction_and_partitioning": False,
+                "dynamic_store_auto_flush_period": YsonEntity(),
+            })
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        original_tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _write_and_flush(begin, end):
+            insert_rows("//tmp/t", [{"key": i, "value": "v"} for i in range(begin, end)])
+            sync_flush_table("//tmp/t")
+
+        _write_and_flush(0, 50)
+        _write_and_flush(50, 100)
+        _write_and_flush(100, 150)
+        _write_and_flush(150, 200)
+
+        expected_counter = 200
+        threshold = 5
+
+        wait(lambda: self._get_counter(
+            table_id,
+            original_tablet_id,
+            "dynamic_row_write") == expected_counter)
+
+        new_tablet_ids = []
+
+        def _check_sum_counter():
+            sum_counter = sum(filter(
+                None,
+                (self._get_counter(table_id, tablet_id, "dynamic_row_write") for tablet_id in new_tablet_ids)))
+
+            return abs(expected_counter - sum_counter) <= threshold
+
+        def _reshard_and_check(pivots):
+            sync_unmount_table("//tmp/t")
+            sync_reshard_table("//tmp/t", pivots)
+            sync_mount_table("//tmp/t")
+
+            nonlocal new_tablet_ids
+            new_tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+
+            wait(_check_sum_counter)
+
+        _reshard_and_check([[], [50], [100], [150]])
+        _reshard_and_check([[], [50], [150]])
+        _reshard_and_check([[], [100]])
+        _reshard_and_check([[]])
+
+    @authors("dave11ar")
+    def test_statistics_reporter_table_reshard(self):
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "v"}])
+        sync_flush_table("//tmp/t")
+
+        def _set_enable(enable):
+            update_nodes_dynamic_config({
+                "tablet_node" : {
+                    "statistics_reporter" : {
+                        "enable": enable
+                    }
+                }
+            })
+
+        def _wait_counter():
+            wait(lambda: self._get_counter(
+                table_id,
+                tablet_id,
+                "dynamic_row_write") == 1)
+
+        _wait_counter()
+
+        _set_enable(False)
+
+        sync_unmount_table("//tmp/t")
+
+        insert_rows(
+            self.STATISTICS_TABLE_PATH,
+            [{"table_id": table_id, "tablet_id": tablet_id, "dynamic_row_write": None}],
+            update=True)
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "v"}])
+
+        _set_enable(True)
+
+        _wait_counter()
+
+    @authors("atalmenev")
+    def test_performance_counters_after_smooth_move(self):
+        set("//sys/tablet_cell_bundles/default/@cell_balancer_config/enable_tablet_cell_smoothing", False)
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "A"}])
+        wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 1,
+             ignore_exceptions=True)
+
+        with SmoothMovementHelper(tablet_id).forwarding_context():
+            insert_rows("//tmp/t", [{"key": 1, "value": "B"}])
+            wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 2,
+                 ignore_exceptions=True)
+
+        insert_rows("//tmp/t", [{"key": 2, "value": "B"}])
+        wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 3,
+             ignore_exceptions=True)
+
     @authors("sabdenovch")
     def test_select_cpu_performance_counters(self):
-        statistics_path = "//tmp/statistics_reporter_table"
-        self._setup_statistics_reporter(statistics_path)
-
         self._create_simple_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [100], [200]])
 
@@ -632,7 +846,9 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
                 executor.submit(select_rows, "max(value) from [//tmp/t] where value = \"bbb\" group by 1")
 
         def _check_greater_second_tablet_load():
-            response = lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id} for tablet_id in tablet_ids])
+            response = lookup_rows(
+                self.STATISTICS_TABLE_PATH,
+                [{"table_id": table_id, "tablet_id": tablet_id} for tablet_id in tablet_ids])
             if len(response) != len(tablet_ids):
                 return False
 
@@ -644,9 +860,6 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
 
     @authors("akozhikhov")
     def test_hunks_performance_counters_1(self):
-        statistics_path = "//tmp/statistics_reporter_table"
-        self._setup_statistics_reporter(statistics_path)
-
         SCHEMA = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 10},
@@ -669,10 +882,10 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         lookup_rows("//tmp/t", [{"key": i} for i in range(10)])
 
         def _get_lookup_counter():
-            return self._get_counter(statistics_path, table_id, tablet_id, "static_chunk_row_lookup_data_weight", "count")
+            return self._get_counter(table_id, tablet_id, "static_chunk_row_lookup_data_weight")
 
         def _get_hunk_counter(request_type):
-            return self._get_counter(statistics_path, table_id, tablet_id, f"static_hunk_chunk_row_{request_type}_data_weight", "count")
+            return self._get_counter(table_id, tablet_id, f"static_hunk_chunk_row_{request_type}_data_weight")
 
         wait(lambda: _get_lookup_counter() > 0)
         assert _get_hunk_counter("lookup") > 0
@@ -698,9 +911,6 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
 
     @authors("akozhikhov")
     def test_hunks_performance_counters_2(self):
-        statistics_path = "//tmp/statistics_reporter_table"
-        self._setup_statistics_reporter(statistics_path)
-
         SCHEMA = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 10},
@@ -724,7 +934,7 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         select_rows("key, value from [//tmp/t]")
 
         def _get_hunk_counter(request_type):
-            return self._get_counter(statistics_path, table_id, tablet_id, f"static_hunk_chunk_row_{request_type}_data_weight", "count")
+            return self._get_counter(table_id, tablet_id, f"static_hunk_chunk_row_{request_type}_data_weight")
 
         wait(lambda: _get_hunk_counter("lookup") > 0)
         wait(lambda: _get_hunk_counter("read") > 0)
@@ -745,3 +955,237 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         time.sleep(3)
         assert lookup_data_weight_value == _get_hunk_counter("lookup")
         assert select_data_weight_value == _get_hunk_counter("read")
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("lookup_cache", [True, False])
+    def test_data_bytes_transmitted_sorted(self, optimize_for, lookup_cache):
+        SCHEMA = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+        ]
+
+        self._create_simple_table(
+            "//tmp/t",
+            schema=SCHEMA,
+            optimize_for=optimize_for,
+            pivot_keys=[[], [20]],
+            mount_config={
+                "dynamic_store_auto_flush_period": YsonEntity(),
+            })
+        if lookup_cache:
+            set("//tmp/t/@mount_config/lookup_cache_rows_per_tablet", 50)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "block_cache": {
+                    "compressed_data": {
+                        "capacity": 0,
+                    },
+                    "uncompressed_data": {
+                        "capacity": 0,
+                    },
+                    "chunk_fragments_data": {
+                        "capacity": 0,
+                    },
+                }
+            }
+        })
+
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_ids = [t["tablet_id"] for t in get("//tmp/t/@tablets")]
+        leader_address = get("//tmp/t/@tablets/0/cell_leader_address")
+        disable_write_sessions_on_node(leader_address)
+
+        # Insert two chunks into the first tablet and one chunk into the second tablet
+        # to detect any double-counting.
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i)} for i in range(5)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5, 10)])
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i)} for i in range(10, 15)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "y" * 20} for i in range(15, 20)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i)} for i in range(20, 25)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "z" * 20} for i in range(25, 30)])
+        sync_unmount_table("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+
+        profiler = profiler_factory().at_tablet_node("//tmp/t", fixed_tags={
+            "table_path": "//tmp/t",
+        })
+
+        # These values are hard-coded to test collection of data_bytes_transmitted as well.
+        # Feel free to update them if you modify the chunk format.
+        # If it happens that these numbers are modified too frequently then we may rewrite
+        # the code and compare performance counters against profiled values without any
+        # canonical numbers.
+        # Also note that data_bytes_transmitted is not stable between runs.
+        expected = {
+            "lookup": (1660, 1710),
+            # NB: This is strange, the value is always 360 but rarely 440 or 334 or 333. Maybe some miscounting happens.
+            "lookup_hunks": (300, 440),
+            "select": (3320, 3420),
+            "select_hunks": (1000, 1210),
+            "compaction": (1660, 1710),
+            "compaction_hunks": (760, 800),
+        }
+
+        def _in_range(actual, range):
+            if isinstance(range, int):
+                return actual == range
+            else:
+                return range[0] <= actual <= range[1]
+
+        # Check that performance counters match profiled values for lookup and select.
+        tags = {
+            "medium": "default",
+            "user": "root",
+        }
+        time.sleep(1)
+        lookup_transmitted = profiler.counter("lookup/chunk_reader_statistics/data_bytes_transmitted", tags)
+        lookup_transmitted_hunks = profiler.counter("lookup/hunks/chunk_reader_statistics/data_bytes_transmitted", tags)
+        select_transmitted = profiler.counter("select/chunk_reader_statistics/data_bytes_transmitted", tags)
+        select_transmitted_hunks = profiler.counter("select/hunks/chunk_reader_statistics/data_bytes_transmitted", tags)
+
+        select_rows("* from [//tmp/t]")
+        lookup_rows("//tmp/t", [{"key": i} for i in range(0, 30, 5)], use_lookup_cache=True)
+
+        wait(lambda: _in_range(lookup_transmitted.get_delta(), expected["lookup"]))
+        wait(lambda: _in_range(lookup_transmitted_hunks.get_delta(), expected["lookup_hunks"]))
+        wait(lambda: _in_range(select_transmitted.get_delta(), expected["select"]))
+        wait(lambda: _in_range(select_transmitted_hunks.get_delta(), expected["select_hunks"]))
+
+        total = (
+            lookup_transmitted.get_delta() +
+            lookup_transmitted_hunks.get_delta() +
+            select_transmitted.get_delta() +
+            select_transmitted_hunks.get_delta()
+        )
+
+        user_tablet_counters = [
+            self._get_counter(table_id, tablet_id, "user_data_bytes_transmitted")
+            for tablet_id in tablet_ids]
+        assert sum(user_tablet_counters) == total
+
+        # Check that performance counters match profiled values for compaction.
+        tags = {
+            "medium": "default",
+            "account": "tmp",
+            "method": "compaction",
+        }
+        compaction = profiler.counter("chunk_reader_statistics/data_bytes_transmitted", tags)
+        compaction_hunks = profiler.counter("chunk_reader/hunks/chunk_reader_statistics/data_bytes_transmitted", tags)
+
+        sync_compact_table("//tmp/t")
+        wait(lambda: _in_range(compaction.get_delta(), expected["compaction"]))
+        wait(lambda: _in_range(compaction_hunks.get_delta(), expected["compaction_hunks"]))
+
+        total = compaction.get_delta() + compaction_hunks.get_delta()
+
+        system_tablet_counters = [
+            self._get_counter(table_id, tablet_id, "system_data_bytes_transmitted")
+            for tablet_id in tablet_ids]
+        assert sum(system_tablet_counters) == total
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_data_bytes_transmitted_ordered(self, optimize_for):
+        SCHEMA = [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+        ]
+
+        self._create_simple_table(
+            "//tmp/t",
+            schema=SCHEMA,
+            optimize_for=optimize_for,
+            tablet_count=2,
+            mount_config={
+                "dynamic_store_auto_flush_period": YsonEntity(),
+            })
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "block_cache": {
+                    "compressed_data": {
+                        "capacity": 0,
+                    },
+                    "uncompressed_data": {
+                        "capacity": 0,
+                    },
+                    "chunk_fragments_data": {
+                        "capacity": 0,
+                    },
+                }
+            }
+        })
+
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_ids = [t["tablet_id"] for t in get("//tmp/t/@tablets")]
+        leader_address = get("//tmp/t/@tablets/0/cell_leader_address")
+        disable_write_sessions_on_node(leader_address)
+
+        # Insert two chunks into the first tablet and one chunk into the second tablet
+        # to detect any double-counting.
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i), "$tablet_index": 0} for i in range(5)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "x" * 20, "$tablet_index": 0} for i in range(5, 10)])
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i), "$tablet_index": 0} for i in range(10, 15)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "y" * 20, "$tablet_index": 0} for i in range(15, 20)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i), "$tablet_index": 1} for i in range(20, 25)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "z" * 20, "$tablet_index": 1} for i in range(25, 30)])
+        sync_unmount_table("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+
+        profiler = profiler_factory().at_tablet_node("//tmp/t", fixed_tags={
+            "table_path": "//tmp/t",
+        })
+
+        # These values are hard-coded to test collection of data_bytes_transmitted as well.
+        # Feel free to update them if you modify the chunk format.
+        # If it happens that these numbers are modified too frequently then we may rewrite
+        # the code and compare performance counters against profiled values without any
+        # canonical numbers.
+        # Also note that data_bytes_transmitted is not stable between runs.
+        if optimize_for == "scan":
+            expected = {
+                "select": (1100, 1550),
+            }
+        else:
+            expected = {
+                "select": (950, 1050)
+            }
+
+        expected["select_hunks"] = 0
+
+        def _in_range(actual, range):
+            if isinstance(range, int):
+                return actual == range
+            else:
+                return range[0] <= actual <= range[1]
+
+        # Check that performance counters match profiled values for lookup and select.
+        tags = {
+            "medium": "default",
+            "user": "root",
+        }
+        time.sleep(1)
+        select_transmitted = profiler.counter("select/chunk_reader_statistics/data_bytes_transmitted", tags)
+        select_transmitted_hunks = profiler.counter("select/hunks/chunk_reader_statistics/data_bytes_transmitted", tags)
+
+        select_rows("* from [//tmp/t]")
+
+        wait(lambda: _in_range(select_transmitted.get_delta(), expected["select"]))
+        wait(lambda: _in_range(select_transmitted_hunks.get_delta(), expected["select_hunks"]))
+
+        total = select_transmitted.get_delta() + select_transmitted_hunks.get_delta()
+
+        user_tablet_counters = [
+            self._get_counter(table_id, tablet_id, "user_data_bytes_transmitted")
+            for tablet_id in tablet_ids]
+        assert sum(user_tablet_counters) == total

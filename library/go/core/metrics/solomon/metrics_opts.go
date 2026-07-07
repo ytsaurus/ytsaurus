@@ -25,6 +25,12 @@ func WithUseNameTag() func(*MetricsOpts) {
 	}
 }
 
+func WithNameTag(useNameTag bool) func(*MetricsOpts) {
+	return func(m *MetricsOpts) {
+		m.useNameTag = useNameTag
+	}
+}
+
 func WithTimestamp(t time.Time) func(*MetricsOpts) {
 	return func(m *MetricsOpts) {
 		m.timestamp = &t

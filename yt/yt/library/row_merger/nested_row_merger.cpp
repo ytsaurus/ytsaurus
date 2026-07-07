@@ -12,6 +12,8 @@
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NRowMerger {
 
 using namespace NTableClient;
@@ -517,8 +519,8 @@ TUnversionedValue TNestedTableMerger::PackValuesFast(
 
 TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRange<char> discard, EValueType /*type*/, TChunkedMemoryPool* memoryPool)
 {
-    TString resultYson;
-    TStringOutput output(resultYson);
+    std::string resultYson;
+    TStdStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);
 
     YT_ASSERT(values.size() == discard.size());
@@ -969,7 +971,7 @@ void TNestedTableMerger::BuildMergeScript()
 
     while (true) {
         RowIds_.push_back(topId);
-        if (Y_UNLIKELY(advanceStream(topId))) {
+        if (advanceStream(topId)) [[unlikely]] {
             RowIdHeap_.front() = RowIdHeap_.back();
             RowIdHeap_.pop_back();
             if (RowIdHeap_.empty()) {

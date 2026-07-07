@@ -7,6 +7,28 @@ analytics:
       text: "Ок"
       theme: "accent"
       size: "xl"
+navigation:
+  logo:
+    url: "https://ytsaurus.tech/"
+    urlTitle: 'Вернуться на сайт'
+    dark:
+      icon: "https://ytsaurus.tech/assets/logo-dark.svg"
+    light:
+      icon: "https://ytsaurus.tech/assets/logo-light.svg"
+  header:
+    rightItems:
+      - text: "Как всё устроено"
+        type: "link"
+        url: "overview/about"
+      - text: "Telegram"
+        type: "link"
+        url: "https://t.me/ytsaurus_ru"
+        icon: "https://storage.yandexcloud.net/ytsaurus-www/assets/favicon-telegram.svg"
+      - text: "GitHub"
+        type: "link"
+        url: "https://github.com/ytsaurus/ytsaurus"
+        icon: "https://storage.yandexcloud.net/ytsaurus-www/assets/favicon-github.svg"
+      - type: controls
 items:
   - include: { mode: merge, path: yandex-specific/toc-internal.yaml }
     when: audience == "internal"
@@ -234,6 +256,9 @@ items:
         - name: Рекомендации
           when: audience == "public"
           href: user-guide/data-processing/operations/recommendations.md
+        - name: Квотирование межкластерной сетевой полосы
+          when: audience == "public"
+          href: user-guide/data-processing/operations/cluster-throttlers.md
         - name: Образы ФС
           when: audience == "public"
           href: user-guide/data-processing/layers/layer-paths.md
@@ -257,16 +282,38 @@ items:
               href: user-guide/data-processing/chyt/queries/joins.md
           - name: Работа с таблицами {{product-name}}
             href: user-guide/data-processing/chyt/yt-tables.md
-          - name: Клики
+          - name: Интерфейс и настройки клики
             items:
-            - name: Как запустить приватную клику
-              href: user-guide/data-processing/chyt/cliques/start.md
-            - name: Клика в интерфейсе {{product-name}}
+            - name: Обзор
+              href: user-guide/data-processing/chyt/cliques/overview.md
+            - name: Веб-интерфейс клики в {{product-name}}
               href: user-guide/data-processing/chyt/cliques/ui.md
+            - name: Клика как YT‑операция
+              href: user-guide/data-processing/chyt/cliques/yt-operation-ui.md
+            - name: Настройки клики
+              href: user-guide/data-processing/chyt/cliques/configs.md
             - name: Права доступа
               href: user-guide/data-processing/chyt/cliques/access.md
-            - name: Ресурсы и вытеснение
-              href: user-guide/data-processing/chyt/cliques/resources.md
+          - name: Сценарии управления кликами
+            items:
+            - name: Обзор сценариев
+              href: user-guide/data-processing/chyt/how-to-guides/overview.md
+            - name: Создание, запуск и остановка клики
+              href: user-guide/data-processing/chyt/how-to-guides/create-start.md
+            - name: Добавление вычислительных ресурсов
+              href: user-guide/data-processing/chyt/how-to-guides/manage-resources.md
+            - name: Управление правами доступа
+              href: user-guide/data-processing/chyt/how-to-guides/acl.md
+            - name: Получение Query Logs
+              href: user-guide/data-processing/chyt/how-to-guides/query-logs.md
+            - name: Получение версий CHYT и ClickHouse
+              href: user-guide/data-processing/chyt/how-to-guides/versions.md
+            - name: Установка версии CHYT
+              href: user-guide/data-processing/chyt/how-to-guides/custom-chyt-version.md
+            - name: Настройка продвинутых параметров
+              href: user-guide/data-processing/chyt/how-to-guides/manage-advanced-settings.md
+            - name: Проверка упавших джобов
+              href: user-guide/data-processing/chyt/how-to-guides/failed-jobs.md
           - name: CLI и Python API
             href: user-guide/data-processing/chyt/cli-and-api.md
           - name: Справочник
@@ -286,7 +333,9 @@ items:
             - name: Пользовательские функции (UDF)
               href: user-guide/data-processing/chyt/reference/user-defined-functions.md
           - name: Контроллер
-            href: user-guide/data-processing/chyt/cliques/controller.md
+            href: user-guide/data-processing/chyt/controller.md
+          - name: Ресурсы и вытеснение
+            href: user-guide/data-processing/chyt/resources.md
           - name: Производительность и рекомендации
             href: user-guide/data-processing/chyt/reference/performance.md
           - name: FAQ
@@ -298,6 +347,8 @@ items:
               href: user-guide/data-processing/spyt/overview.md
             - name: Запуск Spark задач на выполнение
               href: user-guide/data-processing/spyt/launch.md
+            - name: Определения в SPYT
+              href: user-guide/data-processing/spyt/glossary.md
             - name: Прямой сабмит
               items:
                 - name: Описание
@@ -329,7 +380,17 @@ items:
               - name: Решение проблем
                 href: user-guide/data-processing/spyt/problems.md
             - name: Structured Streaming
-              href: user-guide/data-processing/spyt/structured-streaming.md
+              items:
+                - name: Основное
+                  href: user-guide/data-processing/spyt/structured-streaming/index.md
+                - name: Гарантия exactly-once
+                  items:
+                    - name: Обзор
+                      href: user-guide/data-processing/spyt/structured-streaming/exactly-once/index.md
+                    - name: Транзакционный режим
+                      href: user-guide/data-processing/spyt/structured-streaming/exactly-once/transactional-mode.md
+                    - name: Идемпотентный приёмник
+                      href: user-guide/data-processing/spyt/structured-streaming/exactly-once/idempotent-receiver.md
             - name: Spark SQL
               href: user-guide/data-processing/spyt/spark-sql.md
             - name: Spark UI
@@ -358,10 +419,21 @@ items:
                   href: user-guide/data-processing/spyt/read-transaction.md
                 - name: Опции записи
                   href: user-guide/data-processing/spyt/thesaurus/write-options.md
+                - name: Опции стриминга
+                  href: user-guide/data-processing/spyt/thesaurus/streaming-options.md
                 - name: Использование GPU
                   href: user-guide/data-processing/spyt/thesaurus/gpu-usage.md
             - name: Best practices
               href: user-guide/data-processing/spyt/best-practices.md
+        - name: FLYT
+          when: audience == "public"
+          items:
+            - name: Обзор
+              href: user-guide/data-processing/flyt/overview.md
+            - name: Apache Flink Connector {{product-name}}
+              href: user-guide/data-processing/flyt/flink-connector-ytsaurus.md
+            - name: Apache Flink YSON Formatter
+              href: user-guide/data-processing/flyt/flink-yson.md
         - name: YQL
           when: audience == "public"
           items:
@@ -509,6 +581,8 @@ items:
             href: admin-guide/persistence-uploader.md
           #      - name: Интеграции с внешними системами
           #        href: admin-guide/external-systems.md
+      - name: Настройка внешнего доступа к кластеру
+        include: { mode: link, path: admin-guide/cluster-access-proxy/toc_i.yaml }
       - name: Настройка SSO
         href: admin-guide/oauth.md
         when: audience == "public"
@@ -543,12 +617,27 @@ items:
       - name: Интеграция CHYT с внешними системами
         href: admin-guide/integration-chyt.md
         when: audience == "public"
+      - name: Изоляция запросов в YQL‑агенте
+        when: audience == "public"
+        href: admin-guide/yql-query-isolation.md
+      - name: Шифрование в нативном протоколе
+        href: admin-guide/native-encryption.md
+      - name: Квотирование межкластерной сетевой полосы
+        href: admin-guide/cluster-throttlers.md
       - name: Прочее
         items:
           - name: Чтение с удаленных кластеров через RPC Proxy
             href: admin-guide/multiproxy.md
   - name: Release notes
+    when: audience == "public"
     href: admin-guide/releases.md
+  - name: Release notes
+    restricted-access: yt-team
+    when: audience == "internal"
+    href: admin-guide/releases.md
+  - name: Совместимость компонент кластера
+    when: audience == "public"
+    href: admin-guide/compatibility.md
   - name: FAQ
     href: faq/index.md
   - name: Как сообщить о проблеме

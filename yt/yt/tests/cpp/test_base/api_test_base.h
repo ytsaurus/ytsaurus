@@ -6,10 +6,26 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/yson/string.h>
+
 #include <library/cpp/yt/memory/shared_range.h>
 
 namespace NYT {
 namespace NCppTests {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TWaitUntilOptions
+{
+    TDuration Timeout = TDuration::Seconds(30);
+    TDuration SleepBackoff = TDuration::MilliSeconds(500);
+    bool IgnoreExceptions = false;
+};
+
+void WaitUntil(
+    std::function<bool()> predicate,
+    TStringBuf errorMessage,
+    TWaitUntilOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,10 +45,6 @@ protected:
 
     static void WaitUntilEqual(const NYPath::TYPath& path, TStringBuf expected);
 
-    static void WaitUntil(
-        std::function<bool()> predicate,
-        TStringBuf errorMessage);
-
     static void AbortCypressTransactions();
 };
 
@@ -50,8 +62,8 @@ protected:
     static void SetUpTestCase();
 
     static void CreateTable(
-        const TString& tablePath,
-        const TString& schema,
+        const NYPath::TYPath& tablePath,
+        const NYson::TYsonString& schema,
         bool mount = true);
 
     static void SyncMountTable(const NYPath::TYPath& path);

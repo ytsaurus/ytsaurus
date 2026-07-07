@@ -26,6 +26,8 @@
 
 #include <library/cpp/uri/encode.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NAuth {
 
 using namespace NConcurrency;
@@ -285,10 +287,10 @@ private:
                 for (const auto& fieldNode : valueNode->GetChildren()) {
                     auto fieldMapNode = fieldNode->AsMap();
                     auto encodingNode = fieldMapNode->FindChild("encoding");
-                    TString encoding = encodingNode ? encodingNode->GetValue<TString>() : "";
+                    auto encoding = encodingNode ? encodingNode->GetValue<std::string>() : "";
                     subresponse.Values.emplace_back(TSecretValue{
-                        fieldMapNode->GetChildValueOrThrow<TString>("key"),
-                        fieldMapNode->GetChildValueOrThrow<TString>("value"),
+                        fieldMapNode->GetChildValueOrThrow<std::string>("key"),
+                        fieldMapNode->GetChildValueOrThrow<std::string>("value"),
                         encoding});
                 }
 
@@ -360,8 +362,8 @@ private:
             }
 
             return TDelegationTokenResponse{
-                .Token = response->GetChildValueOrThrow<TString>("token"),
-                .TvmId = tvmService->GetSelfTvmId(),
+                .Token = response->GetChildValueOrThrow<std::string>("token"),
+                .TvmId = tvmService->GetSelfTvmIdOrThrow(),
             };
         } catch (const std::exception& ex) {
             FailedCallCountCounter_.Increment();
@@ -373,7 +375,7 @@ private:
         }
     }
 
-    TString MakeRequestUrl(TStringBuf path, bool addConsumer) const
+    std::string MakeRequestUrl(TStringBuf path, bool addConsumer) const
     {
         auto url = Format("%v://%v:%v%v",
             Config_->Secure ? "https" : "http",
@@ -389,8 +391,8 @@ private:
     TSharedRef MakeGetSecretsRequestBody(
         const std::vector<TSecretSubrequest>& subrequests)
     {
-        TString body;
-        TStringOutput stream(body);
+        std::string body;
+        TStdStringOutput stream(body);
         auto jsonWriter = CreateJsonConsumer(&stream);
         BuildYsonFluently(jsonWriter.get())
             .BeginMap()
@@ -424,8 +426,8 @@ private:
 
     TSharedRef MakeGetDelegationTokenRequestBody(const TDelegationTokenRequest& request)
     {
-        TString body;
-        TStringOutput stream(body);
+        std::string body;
+        TStdStringOutput stream(body);
         auto jsonWriter = CreateJsonConsumer(&stream);
         BuildYsonFluently(jsonWriter.get())
             .BeginMap()
@@ -442,8 +444,8 @@ private:
 
     TSharedRef MakeRevokeDelegationTokenRequestBody(const TRevokeDelegationTokenRequest& request)
     {
-        TString body;
-        TStringOutput stream(body);
+        std::string body;
+        TStdStringOutput stream(body);
         auto jsonWriter = CreateJsonConsumer(&stream);
         const auto& tvmService = GetTvmService(request.TvmId, DefaultTvmIdForExistingTokens_);
         const auto vaultTicket = tvmService->GetServiceTicket(Config_->VaultServiceId);
@@ -499,12 +501,12 @@ private:
         }
     }
 
-    static TString GetStatusStringFromResponse(const IMapNodePtr& node)
+    static std::string GetStatusStringFromResponse(const IMapNodePtr& node)
     {
-        return node->GetChildValueOrThrow<TString>("status");
+        return node->GetChildValueOrThrow<std::string>("status");
     }
 
-    static ESecretVaultResponseStatus ParseStatus(const TString& statusString)
+    static ESecretVaultResponseStatus ParseStatus(const std::string& statusString)
     {
         if (statusString == "ok") {
             return ESecretVaultResponseStatus::OK;
@@ -517,16 +519,16 @@ private:
         }
     }
 
-    static TError GetErrorFromResponse(const IMapNodePtr& node, const TString& statusString)
+    static TError GetErrorFromResponse(const IMapNodePtr& node, const std::string& statusString)
     {
-        auto codeString = node->GetChildValueOrThrow<TString>("code");
+        auto codeString = node->GetChildValueOrThrow<std::string>("code");
         auto code = ParseErrorCode(codeString);
 
         auto messageNode = node->FindChild("message");
         return TError(
             code,
             messageNode
-                ? messageNode->GetValue<TString>()
+                ? messageNode->GetValue<std::string>()
                 : "Vault error",
             TError::DisableFormat)
             << TErrorAttribute("status", statusString)
@@ -547,7 +549,7 @@ private:
         }
     }
 
-    static TError MakeUnexpectedStatusError(const TString& statusString)
+    static TError MakeUnexpectedStatusError(const std::string& statusString)
     {
         return TError(
             ESecretVaultErrorCode::UnexpectedStatus,
@@ -555,17 +557,17 @@ private:
             << TErrorAttribute("status", statusString);
     }
 
-    static TString GetWarningMessageFromResponse(const IMapNodePtr& node)
+    static std::string GetWarningMessageFromResponse(const IMapNodePtr& node)
     {
         auto warningMessageNode = node->FindChild("warning_message");
-        return warningMessageNode ? warningMessageNode->GetValue<TString>() : "Vault warning";
+        return warningMessageNode ? warningMessageNode->GetValue<std::string>() : "Vault warning";
     }
 
     static TTvmServiceMap BuildTvmServiceMap(std::vector<ITvmServicePtr> tvmServices)
     {
         TTvmServiceMap result;
         for (auto& tvmService : tvmServices) {
-            TTvmId id = tvmService->GetSelfTvmId();
+            auto id = tvmService->GetSelfTvmIdOrThrow();
             auto [_, inserted] = result.try_emplace(id, std::move(tvmService));
             THROW_ERROR_EXCEPTION_UNLESS(inserted,
                 "Multiple TVM services binding to same id %v",

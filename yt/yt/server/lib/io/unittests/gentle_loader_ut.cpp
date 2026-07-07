@@ -6,8 +6,10 @@
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/nonblocking_queue.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <util/system/fs.h>
@@ -33,21 +35,21 @@ public:
         auto tmpName = MakeTempName();
         NFs::Remove(tmpName);
         Name_ = tmpName;
-        Y_ENSURE(NFs::MakeDirectory(Name_));
+        Y_ENSURE(NFs::MakeDirectory(TString(Name_)));
     }
 
     ~TTempDirectory()
     {
-        NFs::RemoveRecursive(Name_);
+        NFs::RemoveRecursive(TString(Name_));
     }
 
-    const TString& GetName() const
+    const std::string& GetName() const
     {
         return Name_;
     }
 
 private:
-    TString Name_;
+    std::string Name_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -366,7 +368,7 @@ protected:
         std::vector<i64> result;
 
         for (int index = 0; index < roundsCount; ++index) {
-            auto roundResult = queue->Dequeue().Get()
+            auto roundResult = WaitForFast(queue->Dequeue())
                 .ValueOrThrow();
             result.push_back(roundResult);
             YT_LOG_INFO("Next congested step (Index: %v, IOPS: %v)",

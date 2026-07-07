@@ -43,6 +43,13 @@ IF (OS_ANDROID)
     GO_TEST_SRCS(numcpus_linux_test.go)
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        numcpus_list_unsupported.go
+        numcpus_unsupported.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

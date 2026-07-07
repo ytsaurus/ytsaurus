@@ -160,7 +160,7 @@ public:
 
 protected:
     const TObjectId ObjectId_;
-    const TString Type_;
+    const std::string Type_;
     const TCellTag CellTag_;
 
     const NLogging::TLogger Logger;
@@ -300,7 +300,7 @@ public:
 
     bool IsPresent() const
     {
-        return !IsAbsent() && !IsNonExistent();
+        return !IsAbsent() && !IsNonExistent() && !IsCellUnavailable();
     }
 
     TCellTag GetCellTag() const
@@ -350,7 +350,7 @@ public:
                 ObjectId_,
                 CellTag_,
                 defaultTimeout,
-                std::move(channelFuture.AsUnique().Get()
+                std::move(channelFuture.AsUnique().GetOrCrash()
                     .ValueOrDefault(nullptr)))
             : channelFuture.AsUnique().Apply(BIND(
                 TGetSession::CheckLastSeenResidency,
@@ -392,7 +392,7 @@ private:
             return MakeFuture(InvalidCellTag);
         }
 
-        auto proxy = TChaosNodeServiceProxy(channel);
+        auto proxy = TChaosNodeServiceProxy(std::move(channel));
         proxy.SetDefaultTimeout(timeout);
 
         auto req = proxy.FindChaosObject();
@@ -460,7 +460,7 @@ private:
                         continue;
                     }
 
-                    if (const auto& result = future.Get(); result.IsOK()) {
+                    if (const auto& result = future.GetOrCrash(); result.IsOK()) {
                         return futureCellTags[index];
                     }
                 }
@@ -480,7 +480,7 @@ private:
                 ObjectId_,
                 CellTag_,
                 defaultTimeout,
-                std::move(channelFuture.AsUnique().Get()
+                std::move(channelFuture.AsUnique().GetOrCrash()
                     .ValueOrDefault(nullptr)))
             : channelFuture.AsUnique().Apply(BIND(
                 TGetSession::CheckLastSeenResidencyViaIsChaosObjectExistent,
@@ -579,7 +579,7 @@ private:
                 CheckResidency(std::move(channel), ObjectId_, timeout, cellTag)
                 .AsUnique().Apply(BIND([] (TErrorOr<TChaosObjectLocationResult>&& result) {
                     if (!result.IsOK() || !result.Value().IsAbsent()) {
-                        return result;
+                        return std::move(result);
                     }
 
                     return TErrorOr<TChaosObjectLocationResult>(
@@ -592,18 +592,24 @@ private:
             Type_,
             futureCellTags);
 
+        if (foundFutures.empty()) {
+            // All channels are unavailable.
+            return MakeFuture<TCellTag>(
+                TError(NRpc::EErrorCode::Unavailable, "Unable to locate object: all chaos cells are unavailable"));
+        }
+
         return AnySucceeded(std::move(foundFutures))
             .AsUnique().Apply(BIND(CombinedLookupHandler, ObjectId_, Type_));
     }
 
     static TErrorOr<TCellTag> CombinedLookupHandler(
         TChaosObjectId objectId,
-        const TString& type,
+        const std::string& type,
         TErrorOr<TChaosObjectLocationResult>&& errorOrCellTag)
     {
         if (!errorOrCellTag.IsOK()) {
             return TError(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v", type, objectId)
-                << errorOrCellTag;
+                << std::move(errorOrCellTag);
         }
 
         const auto& locationResult = errorOrCellTag.Value();
@@ -730,15 +736,19 @@ public:
                 type = Type_,
                 objectId = ObjectId_
             ] (TErrorOr<TChaosNodeServiceProxy::TRspGetChaosObjectResidencyPtr>&& resultOrError) {
-            if (!resultOrError.IsOK()) {
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
-                    type,
-                    objectId)
-                    << resultOrError;
-            }
+                if (!resultOrError.IsOK()) {
+                    if (auto resolveError = resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                        THROW_ERROR *resolveError;
+                    }
 
-            return FromProto<TCellTag>(resultOrError.Value()->chaos_object_cell_tag());
-        }));
+                    THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
+                        type,
+                        objectId)
+                        << std::move(resultOrError);
+                }
+
+                return FromProto<TCellTag>(resultOrError.Value()->chaos_object_cell_tag());
+            }));
     }
 
 private:
@@ -755,8 +765,8 @@ TChaosResidencyClientCache::TChaosResidencyClientCache(
     const NLogging::TLogger& logger)
     : TChaosResidencyCacheBase(
         std::move(config),
-        connection,
-        std::move(logger))
+        std::move(connection),
+        logger)
     , ChaosCacheChannel_(std::move(chaosCacheChannel))
 { }
 

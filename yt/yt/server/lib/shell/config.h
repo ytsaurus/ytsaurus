@@ -15,16 +15,16 @@ struct TShellParameters
     std::optional<TShellId> ShellId;
     std::optional<int> ShellIndex;
     EShellOperation Operation;
-    std::optional<TString> Term;
-    TString Keys;
+    std::optional<std::string> Term;
+    std::string Keys;
     std::optional<ui64> InputOffset;
     int Height;
     int Width;
     //! Timeout for inactive shell after failed or completed job.
     TDuration InactivityTimeout;
     //! Environment variables passed to job shell.
-    std::vector<TString> Environment;
-    std::optional<TString> Command;
+    std::vector<std::string> Environment;
+    std::optional<std::string> Command;
 
     REGISTER_YSON_STRUCT_LITE(TShellParameters);
 
@@ -39,7 +39,7 @@ struct TShellResult
     // TODO(gritukan): Deprecate ShellId someday.
     TShellId ShellId;
     int ShellIndex;
-    std::optional<TString> Output;
+    std::optional<std::string> Output;
     std::optional<ui64> ConsumedOffset;
 
     REGISTER_YSON_STRUCT_LITE(TShellResult);

@@ -14,11 +14,13 @@
 
 #include <yt/yt/library/fusion/public.h>
 
+#include <yt/yt/core/http/public.h>
+
+#include <yt/yt/core/https/public.h>
+
 #include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
-
-#include <yt/yt/core/http/public.h>
 
 #include <yt/yt/core/rpc/public.h>
 
@@ -67,6 +69,7 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::IClientPtr Client_;
     TControllerAgentPtr ControllerAgent_;

@@ -306,7 +306,7 @@ private:
 
     void DumpAnalysisResults()
     {
-        auto dumpChunkIds = [&] (const THashSet<TChunkId>& chunkIds, const TString& action) {
+        auto dumpChunkIds = [&] (const THashSet<TChunkId>& chunkIds, const std::string& action) {
             for (auto chunkId : chunkIds) {
                 YT_LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantVersion: %v)",
                     action,
@@ -548,10 +548,10 @@ public:
         return WriteMultiplexedRecords(config, {record});
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize)
+    i64 EstimateWriteSize(i64 payloadSize)
     {
         auto guard = Guard(SpinLock_);
-        return MultiplexedChangelog_->EstimateChangelogSize(payloadSize);
+        return MultiplexedChangelog_->EstimateWriteSize(payloadSize);
     }
 
     TFuture<void> WriteRemoveRecord(TChunkId chunkId)
@@ -1076,10 +1076,19 @@ public:
 
     i64 EstimateMultiplexedChangelogSize(i64 payloadSize) const override
     {
-        return MultiplexedWriter_->EstimateChangelogSize(payloadSize);
+        return MultiplexedWriter_->EstimateWriteSize(payloadSize);
     }
 
-    TFuture<bool> IsChangelogSealed(TChunkId chunkId) override
+    bool IsChangelogSealed(TChunkId chunkId) const override
+    {
+        return Location_->DisableOnError(BIND(
+            &TJournalManager::DoIsChangelogSealed,
+            MakeStrong(this),
+            chunkId))
+            .Run();
+    }
+
+    TFuture<bool> AsyncIsChangelogSealed(TChunkId chunkId)
     {
         return BIND(Location_->DisableOnError(BIND(&TJournalManager::DoIsChangelogSealed, MakeStrong(this), chunkId)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
@@ -1170,19 +1179,24 @@ private:
         chunk->SyncRemove(false);
     }
 
-    bool DoIsChangelogSealed(TChunkId chunkId)
+    bool DoIsChangelogSealed(TChunkId chunkId) const
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         return NFS::Exists(GetSealedFlagFileName(chunkId));
     }
 
-    void DoSealChangelog(const TJournalChunkPtr& chunk)
+    void DoSealChangelog(const TJournalChunkPtr& chunk) const
     {
         TFile file(GetSealedFlagFileName(chunk->GetId()), CreateNew);
     }
 
-    TString GetSealedFlagFileName(TChunkId chunkId)
+    TString GetSealedFlagFileName(TChunkId chunkId) const
     {
-        return Location_->GetChunkPath(chunkId) + "." + SealedFlagExtension;
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        // TODO(babenko): migrate to std::string (result is fed to TFile, which is TString-only).
+        return TString(Location_->GetChunkPath(chunkId) + "." + SealedFlagExtension);
     }
 
 
@@ -1255,6 +1269,10 @@ private:
             auto changelog = WaitFor(changelogFuture)
                 .ValueOrThrow();
 
+            if (journalChunk->IsOpeningDelayed()) {
+                journalChunk->FinishDelayedOpening(changelog);
+            }
+
             EmplaceOrCrash(IdToChangelog_, chunkId, changelog);
 
             return changelog;
@@ -1297,7 +1315,7 @@ private:
 
         bool IsSplitChangelogSealed(TChunkId chunkId) override
         {
-            return WaitFor(Impl_->IsChangelogSealed(chunkId))
+            return WaitFor(Impl_->AsyncIsChangelogSealed(chunkId))
                 .ValueOrThrow();
         }
 

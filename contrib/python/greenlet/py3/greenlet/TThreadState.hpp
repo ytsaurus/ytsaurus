@@ -1,6 +1,7 @@
 #ifndef GREENLET_THREAD_STATE_HPP
 #define GREENLET_THREAD_STATE_HPP
 
+#include <cstdlib>
 #include <ctime>
 #include <stdexcept>
 #include <atomic>
@@ -9,6 +10,7 @@
 #include "greenlet_refs.hpp"
 #include "greenlet_thread_support.hpp"
 
+using greenlet::LockGuard;
 using greenlet::refs::BorrowedObject;
 using greenlet::refs::BorrowedGreenlet;
 using greenlet::refs::BorrowedMainGreenlet;
@@ -22,6 +24,7 @@ using greenlet::refs::ImmortalString;
 using greenlet::refs::CreatedModule;
 using greenlet::refs::PyErrPieces;
 using greenlet::refs::NewReference;
+
 
 namespace greenlet {
 /**
@@ -100,7 +103,13 @@ private:
     /* Strong reference to the trace function, if any. */
     OwnedObject tracefunc;
 
-    typedef std::vector<PyGreenlet*, PythonAllocator<PyGreenlet*> > deleteme_t;
+    // Use std::allocator (malloc/free) instead of PythonAllocator
+    // (PyMem_Malloc) for the deleteme list. During Py_FinalizeEx on
+    // Python < 3.11, the PyObject_Malloc pool that holds ThreadState
+    // can be disrupted, corrupting any PythonAllocator-backed
+    // containers. Using std::allocator makes this vector independent
+    // of Python's allocator lifecycle.
+    typedef std::vector<PyGreenlet*> deleteme_t;
     /* A vector of raw PyGreenlet pointers representing things that need
        deleted when this thread is running. The vector owns the
        references, but you need to manually INCREF/DECREF as you use
@@ -109,6 +118,12 @@ private:
        refcounts are incremented in the copy.
     */
     deleteme_t deleteme;
+#ifdef Py_GIL_DISABLED
+    // On free-threaded builds, we need to protect shared access to
+    // the deleteme list by a mutex. It can be written from one thread
+    // while being read in another
+    Mutex deleteme_lock;
+#endif
 
 #ifdef GREENLET_NEEDS_EXCEPTION_STATE_SAVED
     void* exception_state;
@@ -120,7 +135,6 @@ private:
     static std::clock_t _clocks_used_doing_gc;
 #endif
     static ImmortalString get_referrers_name;
-    static PythonAllocator<ThreadState> allocator;
 
     G_NO_COPIES_OF_CLS(ThreadState);
 
@@ -146,15 +160,23 @@ private:
 
 
 public:
-    static void* operator new(size_t UNUSED(count))
+    // Allocate ThreadState with malloc/free rather than Python's
+    // object allocator. ThreadState outlives many Python objects and
+    // must remain valid throughout Py_FinalizeEx. On Python < 3.11,
+    // PyObject_Malloc pools can be disrupted during early
+    // finalization, corrupting any C++ objects stored in them.
+    static void* operator new(size_t count)
     {
-        return ThreadState::allocator.allocate(1);
+        void* p = std::malloc(count);
+        if (!p) {
+            throw std::bad_alloc();
+        }
+        return p;
     }
 
     static void operator delete(void* ptr)
     {
-        return ThreadState::allocator.deallocate(static_cast<ThreadState*>(ptr),
-                                                 1);
+        std::free(ptr);
     }
 
     static void init()
@@ -227,6 +249,23 @@ public:
     }
 
     /**
+     * If we have a main greenlet, mark it as dead by setting its
+     * thread_state to null (this part is atomic with respect to other
+     * threads looking at the main greenlet's thread_state).
+     */
+    inline bool mark_main_greenlet_dead() noexcept
+    {
+        PyGreenlet* main_greenlet = this->main_greenlet.borrow();
+        if (!main_greenlet) {
+            return false;
+        }
+        assert(main_greenlet->pimpl->thread_state() == this
+               || main_greenlet->pimpl->thread_state() == nullptr);
+        dynamic_cast<MainGreenlet*>(main_greenlet->pimpl)->thread_state(nullptr);
+        return true;
+    }
+
+    /**
      * In addition to returning a new reference to the currunt
      * greenlet, this performs any maintenance needed.
      */
@@ -282,35 +321,74 @@ private:
      */
     inline void clear_deleteme_list(const bool murder=false)
     {
-        if (!this->deleteme.empty()) {
-            // It's possible we could add items to this list while
-            // running Python code if there's a thread switch, so we
-            // need to defensively copy it before that can happen.
-            deleteme_t copy = this->deleteme;
-            this->deleteme.clear(); // in case things come back on the list
-            for(deleteme_t::iterator it = copy.begin(), end = copy.end();
-                it != end;
-                ++it ) {
-                PyGreenlet* to_del = *it;
-                if (murder) {
-                    // Force each greenlet to appear dead; we can't raise an
-                    // exception into it anymore anyway.
-                    to_del->pimpl->murder_in_place();
-                }
+#ifdef Py_GIL_DISABLED
+        LockGuard deleteme_guard(this->deleteme_lock);
+#endif
+        if (this->deleteme.empty()) {
+            return;
+        }
+        // Move the list contents out with swap — a constant-time
+        // pointer exchange that never allocates. The previous
+        // code used a copy (deleteme_t copy = this->deleteme)
+        // which allocated through PythonAllocator / PyMem_Malloc;
+        // that could SIGSEGV during early Py_FinalizeEx on Python
+        // < 3.11 when the allocator is partially torn down.
+        deleteme_t copy;
+        std::swap(copy, this->deleteme);
 
-                // The only reference to these greenlets should be in
-                // this list, decreffing them should let them be
-                // deleted again, triggering calls to green_dealloc()
-                // in the correct thread (if we're not murdering).
-                // This may run arbitrary Python code and switch
-                // threads or greenlets!
-                Py_DECREF(to_del);
-                if (PyErr_Occurred()) {
-                    PyErr_WriteUnraisable(nullptr);
-                    PyErr_Clear();
-                }
+        // During Py_FinalizeEx cleanup, the GC or atexit handlers
+        // may have already collected objects in this list,
+        // leaving dangling pointers. Attempting Py_DECREF on
+        // freed memory causes a SIGSEGV. g_greenlet_shutting_down
+        // covers the early atexit phase; Py_IsFinalizing() covers
+        // later phases. Thus, we deliberately leak.
+        if (greenlet::IsShuttingDown()) {
+            return;
+        }
+
+        // Preserve any pending exception so that cleanup-triggered
+        // errors don't accidentally swallow an unrelated exception
+        // (e.g. one set by throw() before a switch).
+        PyErrPieces incoming_err;
+
+        for(deleteme_t::iterator it = copy.begin(), end = copy.end();
+             it != end;
+             ++it ) {
+            PyGreenlet* to_del = *it;
+            if (murder) {
+                // Force each greenlet to appear dead; we can't raise an
+                // exception into it anymore anyway.
+                to_del->pimpl->murder_in_place();
+            }
+
+            // The only reference to these greenlets should be in
+            // this list, decreffing them should let them be
+            // deleted again, triggering calls to green_dealloc()
+            // in the correct thread (if we're not murdering).
+            // This may run arbitrary Python code and switch
+            // threads or greenlets!
+            Py_DECREF(to_del);
+            if (PyErr_Occurred()) {
+                PyErr_WriteUnraisable(nullptr);
+                PyErr_Clear();
             }
         }
+        // Not worried about C++ exception safety here in terms of
+        // making sure we restore the error. Either we'll catch it
+        // above and establish the error from that exception
+        // (which, yes, might overwrite something from before we
+        // entered, but we're in an undefined situation at that
+        // point) or we won't catch it at all and will crash the
+        // process.
+        //
+        // As for Python exception safety, there's no chance we're
+        // overwriting an exception (from the loop) with no
+        // exception (captured NULLs before we entered the loop),
+        // because there CAN'T BE any exception from the loop ---
+        // we clear them. So we're either restoring a pre-existing
+        // exception, or leaving the exception unset (by restoring
+        // NULL).
+        incoming_err.PyErrRestore();
     }
 
 public:
@@ -343,6 +421,9 @@ public:
     inline void delete_when_thread_running(PyGreenlet* to_del)
     {
         Py_INCREF(to_del);
+#ifdef Py_GIL_DISABLED
+        LockGuard deleteme_guard(this->deleteme_lock);
+#endif
         this->deleteme.push_back(to_del);
     }
 
@@ -376,11 +457,32 @@ public:
 #endif
     }
 
+    // Runs in some arbitrary thread that Python is using to invoke
+    // pending callbacks. This may not be the thread that was
+    // running the greenlets.
     ~ThreadState()
     {
         if (!PyInterpreterState_Head()) {
             // We shouldn't get here (our callers protect us)
             // but if we do, all we can do is bail early.
+            return;
+        }
+
+        // During interpreter finalization, Python APIs like
+        // PyImport_ImportModule are unsafe (the import machinery may
+        // be partially torn down). On Python < 3.11, perform only the
+        // minimal cleanup that is safe: clear our strong references
+        // so we don't leak, but skip the GC-based leak detection.
+        //
+        // Python 3.11+ restructured interpreter finalization so that
+        // these APIs remain safe during shutdown.
+        if (greenlet::IsShuttingDown()) {
+            this->tracefunc.CLEAR();
+            if (this->current_greenlet) {
+                this->current_greenlet->murder_in_place();
+                this->current_greenlet.CLEAR();
+            }
+            this->main_greenlet.CLEAR();
             return;
         }
 
@@ -403,7 +505,10 @@ public:
         // switched to us, leaving a reference to the main greenlet
         // on the stack, somewhere uncollectible. Try to detect that.
         if (this->current_greenlet == this->main_greenlet && this->current_greenlet) {
-            assert(this->current_greenlet->is_currently_running_in_some_thread());
+            assert(
+                this->current_greenlet->is_currently_running_in_some_thread()
+                || this->current_greenlet->was_running_in_dead_thread()
+            );
             // Drop one reference we hold.
             this->current_greenlet.CLEAR();
             assert(!this->current_greenlet);
@@ -507,7 +612,6 @@ public:
 };
 
 ImmortalString ThreadState::get_referrers_name(nullptr);
-PythonAllocator<ThreadState> ThreadState::allocator;
 #ifdef Py_GIL_DISABLED
 std::atomic<std::clock_t> ThreadState::_clocks_used_doing_gc(0);
 #else

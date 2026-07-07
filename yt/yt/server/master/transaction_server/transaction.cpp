@@ -20,6 +20,7 @@ namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NHydra;
 using namespace NObjectClient;
@@ -177,15 +178,10 @@ void TBulkInsertState::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 
-    // COMPAT(dave11ar)
-    if (context.GetVersion() < EMasterReign::AddLockableDynamicTables) {
-        Persist(context, LockedDynamicTables_);
-    } else {
-        Persist(context, LockableDynamicTables_);
-        Persist(context, LockedDynamicTables_);
-        Persist(context, AllTablesLockedByDescendantTransactions_);
-        Persist(context, DescendantTransactionsPresentedInTimestampHolder_);
-    }
+    Persist(context, LockableDynamicTables_);
+    Persist(context, LockedDynamicTables_);
+    Persist(context, AllTablesLockedByDescendantTransactions_);
+    Persist(context, DescendantTransactionsPresentedInTimestampHolder_);
 }
 
 void TBulkInsertState::FindTopmostTransaction()
@@ -224,17 +220,11 @@ void TTransaction::TExportEntry::Persist(const NCellMaster::TPersistenceContext&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(TTransactionId id, bool upload)
+TTransaction::TTransaction(TTransactionId id)
     : TTransactionBase(id)
     , StartTime_(TInstant::Zero())
     , Acd_(this)
-    , Upload_(upload)
 { }
-
-bool TTransaction::IsUpload() const
-{
-    return Upload_;
-}
 
 std::string TTransaction::GetLowercaseObjectName() const
 {
@@ -256,6 +246,16 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     TObject::Save(context);
     TTransactionBase::Save(context);
 
+    // All transactions should have this flag set to true, unless they were started before 24.2
+    // and something went wrong when attempting to abort it.
+    // But let's write a detailed message here anyway.
+    YT_LOG_ALERT_UNLESS(
+        NativeTxExternalizationEnabled_,
+        "A Cypress transaction has NativeTxExternalizationEnabled set to false; This can happen if a transaction "
+        "was started too long ago. New algorithm relies on all transactions being externalized. This issue may lead "
+        "to data corruption! Please abort said transaction (TransactionId: %v)",
+        Id_);
+
     using NYT::Save;
     Save(context, GetPersistentState());
     Save(context, Timeout_);
@@ -271,7 +271,6 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, LockedNodes_);
     Save(context, Locks_);
     Save(context, BranchedNodes_);
-    Save(context, StagedNodes_);
     Save(context, AccountResourceUsage_);
     Save(context, Acd_);
     Save(context, PrerequisiteTransactions_);
@@ -280,10 +279,9 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, BulkInsertState_);
     Save(context, TablesWithBackupCheckpoints_);
     Save(context, Depth_);
-    Save(context, Upload_);
     Save(context, RecursiveLockCount_);
-    Save(context, NativeCommitMutationRevision_);
-    Save(context, IsCypressTransaction_);
+    Save(context, NativeCommitRevision_.Mutation);
+    Save(context, NativeCommitRevision_.Sequoia);
     Save(context, GetTransactionLeasesState());
     Save(context, LeaseCellIds_);
     Save(context, SuccessorTransactionLeaseCount_);
@@ -292,10 +290,14 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, SequoiaWriteSet_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
-
     if (IsCypressTransactionType(GetType())) {
         Save(context, NativeTxExternalizationEnabled_);
     }
+
+    // Cookies are invalidated anyway, so let's save the keys only.
+    auto tags = GetKeys(BarrierTagToCookie_);
+    std::sort(tags.begin(), tags.end());
+    Save(context, tags);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -318,7 +320,11 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, LockedNodes_);
     Load(context, Locks_);
     Load(context, BranchedNodes_);
-    Load(context, StagedNodes_);
+    // COMPAT(theevilbird)
+    if (context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions ||
+        (context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions_26_2)) {
+        Load(context, StagedNodes_);
+    }
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
     Load(context, PrerequisiteTransactions_);
@@ -327,10 +333,26 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, BulkInsertState_);
     Load(context, TablesWithBackupCheckpoints_);
     Load(context, Depth_);
-    Load(context, Upload_);
+    if (context.GetVersion() < EMasterReign::RemoveCompatsAroundStartTransaction) {
+        bool upload;
+        Load(context, upload);
+    }
     Load(context, RecursiveLockCount_);
-    Load(context, NativeCommitMutationRevision_);
-    Load(context, IsCypressTransaction_);
+    Load(context, NativeCommitRevision_.Mutation);
+
+    // Yes, this heavily relies on timestamps being significantly greater than
+    // every possible Hydra revision.
+    if (context.GetVersion() < EMasterReign::SequoiaRevision_26_1 ||
+        (context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::SequoiaRevision_26_2))
+    {
+        NativeCommitRevision_.Sequoia = NativeCommitRevision_.Mutation;
+    } else {
+        Load(context, NativeCommitRevision_.Sequoia);
+    }
+    if (context.GetVersion() < EMasterReign::RemoveCompatsAroundStartTransaction) {
+        bool isCypressTransaction;
+        Load(context, isCypressTransaction);
+    }
 
     auto leasesState = Load<ETransactionLeasesState>(context);
     Load(context, LeaseCellIds_);
@@ -344,8 +366,24 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
 
-    if (IsCypressTransactionType(GetType())) {
-        Load(context, NativeTxExternalizationEnabled_);
+    auto version = context.GetVersion();
+    if (version < EMasterReign::RemoveNativeTxExternalizationEnabledFlag ||
+        (EMasterReign::AbortStuckTransactions <= version && version < EMasterReign::Start_26_2) ||
+        EMasterReign::AbortStuckTransactions_26_2 <= version)
+    {
+        if (IsCypressTransactionType(GetType())) {
+            Load(context, NativeTxExternalizationEnabled_);
+        }
+    }
+
+    if ((EMasterReign::StrongOrderingTags <= context.GetVersion() && context.GetVersion() < EMasterReign::Start_26_2) ||
+        EMasterReign::StrongOrderingTags_26_2 <= context.GetVersion())
+    {
+        auto barrierTags = Load<std::vector<std::string>>(context);
+
+        for (const auto& tag : barrierTags) {
+            RegisterBarrierCookie(tag, InvalidAsyncBarrierCookie);
+        }
     }
 }
 
@@ -365,18 +403,27 @@ TTransaction* TTransaction::GetTopmostTransaction()
 
 bool TTransaction::IsReplicatedToCell(TCellTag cellTag) const
 {
-    return std::find(ReplicatedToCellTags_.begin(), ReplicatedToCellTags_.end(), cellTag) != ReplicatedToCellTags_.end();
+    return ReplicatedToCellTags_.contains(cellTag);
 }
 
 bool TTransaction::IsExternalizedToCell(TCellTag cellTag) const
 {
-    return std::find(ExternalizedToCellTags_.begin(), ExternalizedToCellTags_.end(), cellTag) != ExternalizedToCellTags_.end();
+    return ExternalizedToCellTags_.contains(cellTag);
 }
 
 bool TTransaction::IsExternalized() const
 {
-    return GetType() == EObjectType::ExternalizedTransaction ||
-           GetType() == EObjectType::ExternalizedNestedTransaction;
+    return IsExternalizedTransactionType(GetType());
+}
+
+bool TTransaction::IsCypressTransaction() const
+{
+    return IsCypressTransactionType(GetType());
+}
+
+bool TTransaction::IsUpload() const
+{
+    return IsUploadTransactionType(GetType());
 }
 
 TTransactionId TTransaction::GetOriginalTransactionId() const
@@ -439,12 +486,6 @@ void TTransaction::DetachLock(
     }
 }
 
-void TTransaction::IncreaseRecursiveLockCount(int delta)
-{
-    YT_VERIFY(delta >= 0);
-    RecursiveLockCount_ += delta;
-}
-
 void TTransaction::IncrementRecursiveLockCount()
 {
     ++RecursiveLockCount_;
@@ -497,6 +538,27 @@ void TTransaction::SetSuccessorTransactionLeaseCount(int newLeaseCount)
 int TTransaction::GetSuccessorTransactionLeaseCount() const
 {
     return SuccessorTransactionLeaseCount_;
+}
+
+bool TTransaction::IsNativeTxExternalizationEnabled() const
+{
+    return NativeTxExternalizationEnabled_;
+}
+
+void TTransaction::RegisterBarrierCookie(
+    const std::string& tag,
+    TAsyncBarrierCookie cookie)
+{
+    if (cookie == InvalidAsyncBarrierCookie) {
+        YT_VERIFY(!BarrierTagToCookie_.contains(tag));
+    }
+
+    BarrierTagToCookie_[tag] = cookie;
+}
+
+const THashMap<std::string, TAsyncBarrierCookie>& TTransaction::GetBarrierCookies() const
+{
+    return BarrierTagToCookie_;
 }
 
 auto TTransaction::GetActionStateFactory() -> IActionStateFactory*

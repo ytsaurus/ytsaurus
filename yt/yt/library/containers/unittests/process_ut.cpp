@@ -112,7 +112,7 @@ TEST_F(TPortoProcessTest, InvalidPath)
     auto error = WaitFor(finished);
     EXPECT_FALSE(p->IsFinished());
     EXPECT_FALSE(error.IsOK());
-    WaitFor(portoExecutor->DestroyContainer(launcher->GetName()))
+    WaitFor(portoExecutor->DestroyContainer(TString(launcher->GetName())))
         .ThrowOnError();
 }
 

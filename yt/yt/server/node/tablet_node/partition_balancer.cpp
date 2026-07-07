@@ -4,16 +4,12 @@
 #include "config.h"
 #include "partition.h"
 #include "private.h"
-#include "slot_manager.h"
 #include "sorted_chunk_store.h"
 #include "store.h"
 #include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
@@ -69,7 +65,6 @@ using namespace NProfiling;
 using namespace NTracing;
 
 using NYT::ToProto;
-using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,15 +81,14 @@ class TPartitionBalancer
 public:
     explicit TPartitionBalancer(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Semaphore_(New<TAsyncSemaphore>(Bootstrap_->GetConfig()->TabletNode->PartitionBalancer->MaxConcurrentSamplings))
+        , Semaphore_(New<TAsyncSemaphore>(Bootstrap_->GetTabletNodeConfig()->PartitionBalancer->MaxConcurrentSamplings))
         , ThrottlerManager_(New<TThrottlerManager>(
-            Bootstrap_->GetConfig()->TabletNode->PartitionBalancer->ChunkLocationThrottler,
+            Bootstrap_->GetTabletNodeConfig()->PartitionBalancer->ChunkLocationThrottler,
             Logger()))
     {
-        Config_.Store(Bootstrap_->GetConfig()->TabletNode->PartitionBalancer);
-        Bootstrap_
-            ->GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TPartitionBalancer::OnDynamicConfigChanged, MakeWeak(this)));
+        Config_.Store(Bootstrap_->GetTabletNodeConfig()->PartitionBalancer);
+        Bootstrap_->SubscribeTabletNodeConfigChanged(
+            BIND_NO_PROPAGATE(&TPartitionBalancer::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 private:
@@ -114,16 +108,15 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+        const TTabletNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TTabletNodeDynamicConfigPtr& newNodeConfig)
     {
         Config_.Store(Bootstrap_
-            ->GetConfig()
-            ->TabletNode
+            ->GetTabletNodeConfig()
             ->PartitionBalancer
-            ->ApplyDynamic(newNodeConfig->TabletNode->PartitionBalancer));
+            ->ApplyDynamic(newNodeConfig->PartitionBalancer));
 
-        if (auto maxConcurrentSamplings = newNodeConfig->TabletNode->PartitionBalancer->MaxConcurrentSamplings) {
+        if (auto maxConcurrentSamplings = newNodeConfig->PartitionBalancer->MaxConcurrentSamplings) {
             Semaphore_->SetTotal(*maxConcurrentSamplings);
         }
     }
@@ -137,8 +130,7 @@ private:
 
         TEventTimerGuard guard(ScanTime_);
 
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->PartitionBalancer;
+        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->PartitionBalancer;
         if (!dynamicConfig->Enable) {
             return;
         }
@@ -593,7 +585,7 @@ private:
 
         auto nodeDirectory = Bootstrap_->GetConnection()->GetNodeDirectory();
 
-        const auto& config = Bootstrap_->GetConfig()->TabletNode->PartitionBalancer;
+        const auto& config = Bootstrap_->GetTabletNodeConfig()->PartitionBalancer;
 
         auto chunkScraper = CreateFetcherChunkScraper(
             config->ChunkScraper,

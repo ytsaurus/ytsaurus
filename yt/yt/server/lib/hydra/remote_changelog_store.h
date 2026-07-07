@@ -23,8 +23,7 @@ namespace NYT::NHydra {
 IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreConfigPtr config,
     NTabletClient::TTabletCellOptionsPtr options,
-    NYPath::TYPath primaryPath,
-    NYPath::TYPath secondaryPath,
+    NYPath::TYPath path,
     NApi::IClientPtr client,
     NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
     NTransactionClient::TTransactionId prerequisiteTransactionId =

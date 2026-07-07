@@ -52,6 +52,10 @@ yt.read_table(table_path, table_reader={"window_size": 20971520})
 ...
 ```
 
+### Remote read and inter-cluster network bandwidth throttling { #remote_read }
+
+When reading input tables from other clusters (remote read), the read rate is limited by inter-cluster network bandwidth quotas. For more information, see [Inter-cluster Network Bandwidth Throttling](../../../user-guide/data-processing/operations/cluster-throttlers.md).
+
 ## TableWriter section { #table_writer }
 
 These settings can be included in the `table_writer` section when writing table data or in the `table_writer` section under operation `job_io` settings.

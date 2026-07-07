@@ -269,8 +269,8 @@ protected:
 
         YT_VERIFY(RowsFuture_);
 
-        if (RowsFuture_.IsSet() && RowsFuture_.Get().IsOK()) {
-            const auto& loadedRows = RowsFuture_.Get().Value();
+        if (RowsFuture_.IsSet() && RowsFuture_.GetOrCrash().IsOK()) {
+            const auto& loadedRows = RowsFuture_.GetOrCrash().Value();
             if (loadedRows.Empty()) {
                 YT_LOG_DEBUG("Got empty streaming response, closing reader");
                 return nullptr;
@@ -375,7 +375,7 @@ protected:
                 << TErrorAttribute("tablet_id", tabletId)));
         }
 
-        return ReadyEvent();
+        return InternalGetReadyEvent();
     }
 
 private:
@@ -1198,9 +1198,13 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
         TChunkSpec chunkSpec,
         TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder)
     {
-        return MakeFuture(chunkReaderFactory(
-            std::move(chunkSpec),
-            std::move(readerMemoryManagerHolder)));
+        try {
+            return MakeFuture(chunkReaderFactory(
+                std::move(chunkSpec),
+                std::move(readerMemoryManagerHolder)));
+        } catch (const std::exception& ex) {
+            return MakeFuture<IVersionedReaderPtr>(TError(ex));
+        }
     });
 
     return New<TRetryingRemoteSortedDynamicStoreReader>(

@@ -24,12 +24,12 @@ using namespace NServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 THunkTablet::THunkTablet(
-    IHunkTabletHostPtr host,
+    IHunkTabletHost* host,
     TTabletId tabletId,
     TYPath hunkStoragePath)
     : TObjectBase(tabletId)
     , HunkStoragePath_(std::move(hunkStoragePath))
-    , Host_(std::move(host))
+    , Host_(host)
     , Logger(TabletNodeLogger().WithTag("TabletId: %v, Path: %v", tabletId, HunkStoragePath_))
 {
     RenewPromise();
@@ -121,7 +121,10 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector
         auto future = store->WriteHunks(std::move(payloads));
         future.Subscribe(
             BIND([
-                =, this, writeLockGuard = std::move(writeLockGuard)
+                =,
+                this,
+                writeLockGuard = std::move(writeLockGuard),
+                host = MakeStrong(Host_)
             ] (const TErrorOr<std::vector<TJournalHunkDescriptor>>& descriptorsOrError) mutable
             {
                 store->SetLastWriteTime(TInstant::Now());
@@ -135,7 +138,7 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector
                         RotateActiveStore();
                         Profiler_->GetHunkTabletScannerCounters()->StoreRotationCount.Increment(1);
 
-                        Host_->ScheduleScanTablet(GetId());
+                        host->ScheduleScanTablet(GetId());
                     }
                 } else {
                     YT_LOG_DEBUG("Hunks are written to hunk store (DescriptorCount: %v)",
@@ -174,7 +177,7 @@ void THunkTablet::Reconfigure(const THunkStorageSettings& settings)
 
 void THunkTablet::ConfigureProfiler()
 {
-    Profiler_ = GetTabletProfilerManager()->CreateHunkTabletProfiler(
+    Profiler_ = TTabletProfilerManager::Get()->CreateHunkTabletProfiler(
         Host_->GetTabletCellBundleName(),
         HunkStoragePath_,
         Id_);

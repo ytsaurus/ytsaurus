@@ -74,7 +74,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }
 
-void TNontemplateMultiChunkWriterBase::Init()
+void TNontemplateMultiChunkWriterBase::InitializeRefCounted()
 {
     InitSession();
 }
@@ -82,10 +82,12 @@ void TNontemplateMultiChunkWriterBase::Init()
 TFuture<void> TNontemplateMultiChunkWriterBase::Close()
 {
     YT_VERIFY(!Closing_);
-    YT_VERIFY(ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK());
+    YT_VERIFY(ReadyEvent_.GetOrCrash().IsOK());
 
     Closing_ = true;
-    ReadyEvent_ = BIND(&TNontemplateMultiChunkWriterBase::FinishSession, MakeWeak(this))
+    // ThrowOnDestroyed: fail ReadyEvent_ on teardown instead of a weak no-op's spurious OK, which
+    // would silently drop the last chunk.
+    ReadyEvent_ = BIND(ThrowOnDestroyed(&TNontemplateMultiChunkWriterBase::FinishSession), MakeWeak(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 
@@ -134,8 +136,9 @@ TCodecStatistics TNontemplateMultiChunkWriterBase::GetCompressionStatistics() co
 void TNontemplateMultiChunkWriterBase::SwitchSession()
 {
     YT_VERIFY(!SwitchingSession_.exchange(true));
+    // ThrowOnDestroyed: fail on teardown instead of a spurious OK (see Close()).
     ReadyEvent_ =
-        BIND(&TNontemplateMultiChunkWriterBase::DoSwitchSession, MakeWeak(this))
+        BIND(ThrowOnDestroyed(&TNontemplateMultiChunkWriterBase::DoSwitchSession), MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run();
 }

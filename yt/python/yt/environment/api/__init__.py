@@ -3,6 +3,53 @@ try:
 except ImportError:
     import attr
 
+from enum import Enum
+from functools import total_ordering
+
+
+@total_ordering
+class LogLevel(Enum):
+    TRACE = ("trace", 10)
+    DEBUG = ("debug", 20)
+    INFO = ("info", 30)
+    WARNING = ("warning", 40)
+    ERROR = ("error", 50)
+    CRITICAL = ("critical", 60)
+
+    def __init__(self, label: str, level: int):
+        self.label = label
+        self.level = level
+
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.level < other.level
+        return NotImplemented
+
+    def __eq__(self, other):
+        if self.__class__ is other.__class__:
+            return self.level == other.level
+        return NotImplemented
+
+    def __hash__(self):
+        return hash(self.level)
+
+    @classmethod
+    def from_str(cls, s: str) -> "LogLevel":
+        s = s.lower()
+        for item in cls:
+            if item.label == s:
+                return item
+        raise ValueError(f"Unknown log level: {s}")
+
+    def to_str(self) -> str:
+        return self.label
+
+
+def _parse_log_level(value):
+    if isinstance(value, LogLevel):
+        return value
+    return LogLevel.from_str(value)
+
 
 @attr.s
 class LocalYtConfig(object):
@@ -22,6 +69,7 @@ class LocalYtConfig(object):
     initialize_world = attr.ib(False)
     wait_tablet_cell_initialization = attr.ib(False)
     init_operations_archive = attr.ib(False)
+    queue_agent_state_target_version = attr.ib(None)
     local_cypress_dir = attr.ib(None)
     meta_files_suffix = attr.ib(".meta")
     cluster_name = attr.ib(None)
@@ -45,6 +93,7 @@ class LocalYtConfig(object):
     node_io_engine_type = attr.ib(None)
     node_use_direct_io_for_reads = attr.ib("never")
     node_network_names = attr.ib(factory=lambda: ["default"])
+    job_proxy_log_location_count = attr.ib(1)
     store_location_count = attr.ib(1)
     use_slot_user_id = attr.ib(True)
     cri_endpoint = attr.ib(None)
@@ -93,6 +142,7 @@ class LocalYtConfig(object):
     mock_tvm_id = attr.ib(None)
 
     """Logging configuration"""
+    log_level = attr.ib(default=LogLevel.INFO, converter=_parse_log_level)
     enable_log_compression = attr.ib(False)
     enable_debug_logging = attr.ib(True)
     enable_structured_logging = attr.ib(False)
@@ -132,6 +182,7 @@ class LocalYtConfig(object):
     tablet_balancer_count = attr.ib(0)
     cypress_proxy_count = attr.ib(0)
     replicated_table_tracker_count = attr.ib(0)
+    offshore_data_gateway_count = attr.ib(0)
 
     """Start options"""
     defer_node_start = attr.ib(False)
@@ -154,7 +205,10 @@ class LocalYtConfig(object):
     delta_master_cache_config = attr.ib(None)
     delta_global_cluster_connection_config = attr.ib(None)
 
-    # COMPAT
+    """Logging options"""
+    default_abort_on_alert = attr.ib(None)
+
+    # COMPAT(ignat)
     enable_legacy_logging_scheme = attr.ib(False)
 
     @enable_auth.validator

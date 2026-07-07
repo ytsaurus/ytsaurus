@@ -4,6 +4,7 @@
 #include "helpers.h"
 #include "profiler.h"
 #include "search_index.h"
+#include "spyt_engine.h"
 #include "yql_engine.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -67,15 +68,15 @@ constexpr int MaxAccessControlObjectsPerQuery = 10;
 const NYPath::TYPath QueriesAcoNamespacePath = "//sys/access_control_object_namespaces/queries";
 
 static const TYsonString EmptyMap = TYsonString(TString("{}"));
-static const TString CompressedEmptyMap = Compress(EmptyMap.ToString(), MaxDyntableStringSize);
+static const std::string CompressedEmptyMap = Compress(EmptyMap.ToString(), MaxDyntableStringSize);
 
 //! Lookup one of query tracker state tables by query id.
 template <class TRecordDescriptor>
 TFuture<typename TRecordDescriptor::TRecordPartial> LookupQueryTrackerRecord(
     TQueryId queryId,
     const IClientPtr& client,
-    const TString& tablePath,
-    const TString& tableKind,
+    const NYPath::TYPath& tablePath,
+    const std::string& tableKind,
     const std::optional<std::vector<std::string>>& lookupKeys,
     TTimestamp timestamp)
 {
@@ -129,7 +130,7 @@ ESecurityAction CheckAccessControl(
         return NSecurityClient::ESecurityAction::Allow;
     }
 
-    auto accessControlObjectList = ConvertTo<std::optional<std::vector<TString>>>(accessControlObjects);
+    auto accessControlObjectList = ConvertTo<std::optional<std::vector<std::string>>>(accessControlObjects);
     if (!accessControlObjectList) {
         return NSecurityClient::ESecurityAction::Deny;
     }
@@ -175,7 +176,7 @@ void ThrowAccessDeniedException(
 TQuery LookupQuery(
     TQueryId queryId,
     const IClientPtr& client,
-    const TString& root,
+    const NYPath::TYPath& root,
     const std::optional<std::vector<std::string>>& lookupKeys,
     TTimestamp timestamp,
     const TLogger& logger)
@@ -202,8 +203,8 @@ TQuery LookupQuery(
             queryId)
             << error;
     }
-    bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.Get().IsOK();
-    bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.Get().IsOK();
+    bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.GetOrCrash().IsOK();
+    bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.GetOrCrash().IsOK();
     YT_VERIFY(isActive || isFinished);
     if (isActive && isFinished) {
         const auto& Logger = logger;
@@ -214,15 +215,15 @@ TQuery LookupQuery(
             timestamp);
     }
     if (isActive) {
-        return PartialRecordToQuery(asyncActiveRecord.Get().Value());
+        return PartialRecordToQuery(asyncActiveRecord.GetOrCrash().Value());
     } else {
-        return PartialRecordToQuery(asyncFinishedRecord.Get().Value());
+        return PartialRecordToQuery(asyncFinishedRecord.GetOrCrash().Value());
     }
 }
 
 void ValidateQueryPermissions(
     TQueryId queryId,
-    const TString& root,
+    const NYPath::TYPath& root,
     TTimestamp timestamp,
     const std::string& user,
     const IClientPtr& client,
@@ -337,18 +338,20 @@ TQueryTrackerProxy::TQueryTrackerProxy(
     IClientPtr stateClient,
     TYPath stateRoot,
     TQueryTrackerProxyConfigPtr config,
+    std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders,
     int expectedTablesVersion)
     : StateClient_(std::move(stateClient))
     , StateRoot_(std::move(stateRoot))
     , ProxyConfig_(std::move(config))
+    , EngineProviders_(std::move(engineProviders))
     , ExpectedTablesVersion_(expectedTablesVersion)
     , TimeBasedIndex_(CreateTimeBasedIndex(StateClient_, StateRoot_))
     , TokenBasedIndex_(CreateTokenBasedIndex(StateClient_, StateRoot_))
-{
-    EngineProviders_[EQueryEngine::Yql] = CreateProxyYqlEngineProvider(StateClient_, StateRoot_);
-}
+{ }
 
-void TQueryTrackerProxy::Reconfigure(const TQueryTrackerProxyConfigPtr& config, const TDuration notIndexedQueriesTTL)
+void TQueryTrackerProxy::Reconfigure(
+    const TQueryTrackerProxyConfigPtr& config,
+    const TDuration notIndexedQueriesTTL)
 {
     ProxyConfig_ = config;
     NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
@@ -357,7 +360,7 @@ void TQueryTrackerProxy::Reconfigure(const TQueryTrackerProxyConfigPtr& config, 
 void TQueryTrackerProxy::StartQuery(
     const TQueryId queryId,
     const EQueryEngine engine,
-    const TString& query,
+    const std::string& query,
     const TStartQueryOptions& options,
     const std::string& user)
 {
@@ -381,7 +384,11 @@ void TQueryTrackerProxy::StartQuery(
         }
     }
 
-    auto isIndexed = options.Settings ? options.Settings->AsMap()->GetChildValueOrDefault("is_indexed", true) : true;
+    bool isIndexed = true;
+    if (options.Settings) {
+        isIndexed = options.Settings->AsMap()->GetChildValueOrDefault("is_indexed", true);
+        options.Settings->AsMap()->RemoveChild("is_indexed");
+    }
 
     YT_LOG_DEBUG("Starting query (QueryId: %v, Draft: %v, IsIndexed: %v)",
         queryId,
@@ -408,10 +415,10 @@ void TQueryTrackerProxy::StartQuery(
         if (annotationsMap->GetChildValueOrDefault("is_tutorial", false)) {
             if (!GetUserSubjects(user, StateClient_).contains(SuperusersGroupName)) {
                 YT_LOG_DEBUG("Attempt to create a tutorial failed. User is not a superuser (User: %v)", user);
-                THROW_ERROR_EXCEPTION("Non-superusers can't create tutorial queries. To create one contact your cluster administrator.");
+                THROW_ERROR_EXCEPTION("Non-superusers cannot create tutorial queries. To create one contact your cluster administrator");
             }
             if (!options.Draft) {
-                THROW_ERROR_EXCEPTION("Tutorials should be in draft state.");
+                THROW_ERROR_EXCEPTION("Tutorials should be in draft state");
             }
 
             isTutorial = true;
@@ -419,7 +426,7 @@ void TQueryTrackerProxy::StartQuery(
     }
 
     if (options.Draft) {
-        TString filterFactors;
+        std::string filterFactors;
         {
             static_assert(TFinishedQueryDescriptor::FieldCount == 19);
             TFinishedQueryPartial newRecord{
@@ -668,7 +675,7 @@ IUnversionedRowsetPtr TQueryTrackerProxy::ReadQueryResult(
     auto timestamp = WaitFor(StateClient_->GetTimestampProvider()->GenerateTimestamps())
         .ValueOrThrow();
 
-    TString wireRowset;
+    std::string wireRowset;
     TTableSchemaPtr schema;
     {
         auto rowBuffer = New<TRowBuffer>();
@@ -829,10 +836,10 @@ void TQueryTrackerProxy::AlterQuery(
         auto annotationsMap = options.Annotations->AsMap();
         if (annotationsMap->GetChildValueOrDefault("is_tutorial", false) != isTutorial) {
             if (!GetUserSubjects(user, StateClient_).contains(SuperusersGroupName)) {
-                THROW_ERROR_EXCEPTION("Non-superusers can't change tutorial flag. To change one contact your cluster administrator.");
+                THROW_ERROR_EXCEPTION("Non-superusers cannot change tutorial flag. To change one contact your cluster administrator");
             }
             if (*query.State != EQueryState::Draft) {
-                THROW_ERROR_EXCEPTION("Tutorials should be in draft state.");
+                THROW_ERROR_EXCEPTION("Tutorials should be in draft state");
             }
 
             isTutorialChanged = true;
@@ -1047,11 +1054,16 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
 
     auto enginesInfoMap = ConvertToNode(EmptyMap)->AsMap();
     if (attributes.AdmitsKeySlow("engines_info")) {
-        try {
-            auto yqlEngineInfo = EngineProviders_.contains(EQueryEngine::Yql) ? EngineProviders_[EQueryEngine::Yql]->GetEngineInfo(settingsMap) : EmptyMap;
-            enginesInfoMap->AddChild("yql", ConvertToNode(yqlEngineInfo));
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR("GetEngineInfo call failed with exception. (Exception: %v)", ex);
+        for (const auto& provider : EngineProviders_) {
+            std::string engineName = FormatEnum(provider.first);
+            try {
+                auto engineInfo = provider.second->GetEngineInfo(settingsMap);
+                if (engineInfo) {
+                    enginesInfoMap->AddChild(engineName, ConvertToNode(engineInfo));
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Failed to get engine info (Engine: %v)", engineName);
+            }
         }
     }
 
@@ -1072,7 +1084,15 @@ TGetQueryDeclaredParametersInfoResult TQueryTrackerProxy::GetQueryDeclaredParame
     const TGetQueryDeclaredParametersInfoOptions& options)
 {
     static const TYsonString EmptyMap = TYsonString(TString("{}"));
-    auto parameters = EngineProviders_.contains(options.Engine) ? EngineProviders_[options.Engine]->GetDeclaredParametersInfo(options.Query, options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap) : EmptyMap;
+    auto parameters = EmptyMap;
+    if (EngineProviders_.contains(options.Engine)) {
+        auto engineParameters = EngineProviders_[options.Engine]->GetDeclaredParametersInfo(
+            options.Query,
+            options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap);
+        if (engineParameters) {
+            parameters = engineParameters;
+        }
+    }
     return TGetQueryDeclaredParametersInfoResult{
         .Parameters = parameters,
     };
@@ -1085,12 +1105,14 @@ TQueryTrackerProxyPtr CreateQueryTrackerProxy(
     IClientPtr stateClient,
     TYPath stateRoot,
     TQueryTrackerProxyConfigPtr config,
+    std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders,
     int expectedTablesVersion)
 {
     return New<TQueryTrackerProxy>(
         std::move(stateClient),
         std::move(stateRoot),
         std::move(config),
+        std::move(engineProviders),
         expectedTablesVersion);
 }
 

@@ -9,6 +9,7 @@
 #include "snapshot_load_context.h"
 #include "state_hash_checker.h"
 #include "epoch.h"
+#include "persistent_response_keeper.h"
 
 #include <yt/yt/server/lib/misc/fork_executor.h>
 
@@ -96,7 +97,7 @@ TPendingMutation::TPendingMutation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSystemLockGuard::TSystemLockGuard(TSystemLockGuard&& other)
+TSystemLockGuard::TSystemLockGuard(TSystemLockGuard&& other) noexcept
     : Automaton_(std::move(other.Automaton_))
 { }
 
@@ -105,14 +106,14 @@ TSystemLockGuard::~TSystemLockGuard()
     Release();
 }
 
-TSystemLockGuard& TSystemLockGuard::operator=(TSystemLockGuard&& other)
+TSystemLockGuard& TSystemLockGuard::operator=(TSystemLockGuard&& other) noexcept
 {
     Release();
     Automaton_ = std::move(other.Automaton_);
     return *this;
 }
 
-void TSystemLockGuard::Release()
+void TSystemLockGuard::Release() noexcept
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -122,7 +123,7 @@ void TSystemLockGuard::Release()
     }
 }
 
-TSystemLockGuard::operator bool() const
+TSystemLockGuard::operator bool() const noexcept
 {
     return static_cast<bool>(Automaton_);
 }
@@ -139,7 +140,7 @@ TSystemLockGuard::TSystemLockGuard(TDecoratedAutomatonPtr automaton)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserLockGuard::TUserLockGuard(TUserLockGuard&& other)
+TUserLockGuard::TUserLockGuard(TUserLockGuard&& other) noexcept
     : Automaton_(std::move(other.Automaton_))
 { }
 
@@ -148,7 +149,7 @@ TUserLockGuard::~TUserLockGuard()
     Release();
 }
 
-TUserLockGuard& TUserLockGuard::operator=(TUserLockGuard&& other)
+TUserLockGuard& TUserLockGuard::operator=(TUserLockGuard&& other) noexcept
 {
     Release();
     Automaton_ = std::move(other.Automaton_);
@@ -420,7 +421,7 @@ private:
     public:
         TCommunicationChannel(
             const NLogging::TLogger& Logger,
-            const TString& kind)
+            const std::string& kind)
         {
             Pipe_ = TPipeFactory().Create();
             YT_LOG_INFO("Communication channel created (Kind: %v, Pipe: %v)",
@@ -513,7 +514,7 @@ private:
         YT_LOG_INFO("Child process forked");
 
         Owner_->SaveSnapshot(context)
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         YT_LOG_INFO("Child process is exiting");
@@ -818,6 +819,7 @@ struct TDecoratedAutomaton::TMutationApplicationResult
     TCallback<void(TMutationContext*)> HandlerToReset;
     // May be null if response keeper says so (or if it's disabled, suppressed etc.)
     std::function<void()> ResponseKeeperPromiseSetter;
+    std::optional<i64> GroundUpdateQueueSequenceNumber;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1161,14 +1163,17 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         SanitizedLocalHostName_);
 
     TFiberMinLogLevelGuard minLogLevelGuard(Config_->Get()->RecoveryMinLogLevel);
-    TFiberMessageTagGuard messageTagGuard(Format("PhysicalMutationVersion: %v, Recovery: %v",
-        mutationVersion,
-        true));
+    TFiberMessageTagGuard messageTagGuard(
+        Format("PhysicalMutationVersion: %v, Recovery: %v",
+            mutationVersion,
+            true),
+        TFiberMessageTagGuard::EMode::Replace);
 
     TMutationApplicationResult result;
     DoApplyMutation(&mutationContext, mutationVersion, &result);
     result.MutationId = request.MutationId;
     result.ResponseData = mutationContext.TakeResponseData();
+    result.GroundUpdateQueueSequenceNumber = mutationContext.GetGroundUpdateQueueSequenceNumber();
     // NB: result.LocalCommitPromise is left null.
     return result;
 }
@@ -1183,19 +1188,29 @@ TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutat
         return TFuture<TMutationResponse>();
     }
 
-    if (!request.MutationId) {
+    auto mutationId = request.MutationId;
+    if (!mutationId) {
         return TFuture<TMutationResponse>();
     }
 
-    auto asyncResponseData = Options_.ResponseKeeper->TryBeginRequest(request.MutationId, request.Retry);
+    const auto& responseKeeper = Options_.ResponseKeeper;
+
+    auto asyncResponseData = responseKeeper->TryBeginRequest(mutationId, request.Retry);
     if (!asyncResponseData) {
         return TFuture<TMutationResponse>();
     }
 
-    return asyncResponseData.Apply(BIND([] (const TSharedRefArray& data) {
+    return asyncResponseData.Apply(BIND([responseKeeper, mutationId] (const TSharedRefArray& data) {
+        std::optional<i64> groundUpdateQueueSequenceNumber = std::nullopt;
+        if (responseKeeper->IsPersistent()) {
+            auto persistentResponseKeeper = static_cast<IPersistentResponseKeeper*>(responseKeeper.Get());
+            groundUpdateQueueSequenceNumber = persistentResponseKeeper->GetGroundUpdateQueueSequenceNumber(mutationId);
+        }
+
         return TMutationResponse{
             EMutationResponseOrigin::ResponseKeeper,
-            data
+            data,
+            groundUpdateQueueSequenceNumber
         };
     }));
 }
@@ -1283,6 +1298,7 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
                 promise.TrySet(TMutationResponse{
                     EMutationResponseOrigin::Commit,
                     result.ResponseData,
+                    result.GroundUpdateQueueSequenceNumber,
                 });
             }
         } catch (const std::exception& ex) { // COMPAT(shakurov): Just being paranoid.
@@ -1304,7 +1320,7 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
     if (Options_.EnableLocalHostSanitizing) {
         THashSet<std::string> hosts;
         for (const auto& peer : GetEpochContext()->CellManager->GetClusterPeersAddresses()) {
-            hosts.insert(TString(GetServiceHostName(peer)));
+            hosts.insert(std::string(GetServiceHostName(peer)));
         }
 
         if (auto sanitizedLocalHost = NHydra::SanitizeLocalHostName(hosts, localHost)) {
@@ -1352,7 +1368,9 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         SanitizedLocalHostName_);
 
     TMutationApplicationResult result;
-    TFiberMessageTagGuard messageTagGuard(Format("PhysicalMutationVersion: %v", mutation->Version));
+    TFiberMessageTagGuard messageTagGuard(
+        Format("PhysicalMutationVersion: %v", mutation->Version),
+        TFiberMessageTagGuard::EMode::Replace);
 
     {
         NTracing::TTraceContextGuard traceContextGuard(mutation->Request.TraceContext);
@@ -1376,7 +1394,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
     // Mutation could remain alive for quite a while even after it has been applied at leader,
     // e.g. when some follower is down. The handler could be holding something heavy and needs to be dropped.
     result.HandlerToReset = std::move(mutation->Request.Handler);
-
+    result.GroundUpdateQueueSequenceNumber = mutationContext.GetGroundUpdateQueueSequenceNumber();
     return result;
 }
 
@@ -1415,6 +1433,8 @@ void TDecoratedAutomaton::DoApplyMutation(
             formatter->AppendNumber(logicalMutationVersion.RecordId);
             formatter->AppendString("), SequenceNumber: ");
             formatter->AppendNumber(mutationContext->GetSequenceNumber());
+            formatter->AppendString(", Term: ");
+            formatter->AppendNumber(mutationContext->GetTerm());
             formatter->AppendString(", MutationType: ");
             formatter->AppendString(mutationContext->Request().Type);
             if (mutationId) {
@@ -1709,7 +1729,8 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 
     auto builder =
         // XXX(babenko): ASAN + fork = possible deadlock; cf. https://st.yandex-team.ru/DEVTOOLS-5425
-#ifdef _asan_enabled_
+        // XXX(babenko): TSAN is not compatible with forks; cf. YT-27589
+#if defined(_asan_enabled_) || defined(_tsan_enabled_)
         false
 #else
         Options_.UseFork

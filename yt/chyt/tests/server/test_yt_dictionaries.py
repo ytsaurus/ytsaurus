@@ -1,15 +1,18 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, enable_sequoia_acls
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
-from helpers import get_async_expiring_cache_config, get_breakpoint_node, release_breakpoint, wait_breakpoint
+from helpers import get_async_expiring_cache_config, get_disabled_cache_config, get_breakpoint_node, release_breakpoint, wait_breakpoint
 
 from yt_commands import (authors, write_table, create, remove, raises_yt_error, insert_rows, sync_mount_table,
-                         exists, read_table)
+                         exists, read_table, create_user, set as yt_set, make_ace, wait)
+
+from yt.common import update as config_update
 
 import yt.yson as yson
 
 import time
 import threading
 from flaky import flaky
+import pytest
 
 
 class TestYtDictionaries(ClickHouseTestBase):
@@ -50,17 +53,24 @@ class TestYtDictionaries(ClickHouseTestBase):
                     }
                 },
         ) as clique:
+            expected_result = [
+                {"number": 0, "str": "n/a", "i64": 42},
+                {"number": 1, "str": "str1", "i64": 1},
+                {"number": 2, "str": "n/a", "i64": 42},
+                {"number": 3, "str": "str3", "i64": 9},
+                {"number": 4, "str": "n/a", "i64": 42},
+            ]
             result = clique.make_query(
                 "select number, dictGetString('dict', 'value_str', number) as str, "
                 "dictGetInt64('dict', 'value_i64', number) as i64 from numbers(5)"
             )
-        assert result == [
-            {"number": 0, "str": "n/a", "i64": 42},
-            {"number": 1, "str": "str1", "i64": 1},
-            {"number": 2, "str": "n/a", "i64": 42},
-            {"number": 3, "str": "str3", "i64": 9},
-            {"number": 4, "str": "n/a", "i64": 42},
-        ]
+            assert result == expected_result
+
+            settings = {"chyt.execution.enable_distinct_read_optimization": 1}
+            result = clique.make_query(
+                "select number, dictGetString('dict', 'value_str', number) as str, "
+                "dictGetInt64('dict', 'value_i64', number) as i64 from numbers(5)", settings=settings)
+            assert result == expected_result
 
     @authors("max42")
     def test_composite_key_hashed(self):
@@ -132,6 +142,85 @@ class TestYtDictionaries(ClickHouseTestBase):
                 "select dictGetString('dict', 'value', tuple(key, subkey)) as value from \"//tmp/queries\""
             )
         assert result == [{"value": "a1"}, {"value": "a2"}, {"value": "b1"}, {"value": "n/a"}]
+
+    @authors("buyval01")
+    def test_sparse_table_read(self):
+        create(
+            "table",
+            "//tmp/dict",
+            attributes={
+                "schema": [
+                    {"name": "tmp1", "type": "int64", "required": True},
+                    {"name": "key", "type": "uint64", "required": True},
+                    {"name": "value_i64", "type": "int64", "required": True},
+                    {"name": "tmp2", "type": "int64", "required": True},
+                    {"name": "value_str", "type": "string", "required": True},
+                ]
+            },
+        )
+        write_table(
+            "//tmp/dict",
+            [
+                {
+                    "tmp1": i,
+                    "key": i,
+                    "value_i64": i * i,
+                    "tmp2": i,
+                    "value_str": "str" + str(i),
+                }
+                for i in [1, 3, 5]
+            ],
+        )
+
+        with Clique(
+                1,
+                config_patch={
+                    "clickhouse": {
+                        "dictionaries": [
+                            {
+                                "name": "dict1",
+                                "layout": {"flat": {}},
+                                "structure": {
+                                    "id": {"name": "key"},
+                                    # Attribute order intentionally differs from the table column order.
+                                    "attribute": [
+                                        {"name": "value_str", "type": "String", "null_value": "n/a"},
+                                        {"name": "value_i64", "type": "Int64", "null_value": 42},
+                                    ],
+                                },
+                                "lifetime": 0,
+                                "source": {"yt": {"path": "//tmp/dict"}},
+                            },
+                            {
+                                "name": "dict2",
+                                "layout": {"flat": {}},
+                                "structure": {
+                                    "id": {"name": "key"},
+                                    "attribute": [
+                                        {"name": "value_str", "type": "String", "null_value": "n/a"},
+                                        {"name": "absent", "type": "Int64", "null_value": 0},
+                                    ],
+                                },
+                                "lifetime": 0,
+                                "source": {"yt": {"path": "//tmp/dict"}},
+                            }
+                        ]
+                    }
+                },
+        ) as clique:
+            assert clique.make_query(
+                "select number, dictGetString('dict1', 'value_str', number) as str, "
+                "dictGetInt64('dict1', 'value_i64', number) as i64 from numbers(5)"
+            ) == [
+                {"number": 0, "str": "n/a", "i64": 42},
+                {"number": 1, "str": "str1", "i64": 1},
+                {"number": 2, "str": "n/a", "i64": 42},
+                {"number": 3, "str": "str3", "i64": 9},
+                {"number": 4, "str": "n/a", "i64": 42},
+            ]
+
+            with raises_yt_error(message_pattern="is missing in the source table schema"):
+                clique.make_query("select dictGetInt64('dict2', 'absent', CAST(1 as UInt64))")
 
     @authors("max42")
     @flaky(max_runs=3)
@@ -212,7 +301,7 @@ class TestYtDictionaries(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_dict_does_not_exist(self):
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select dictGetString('this_dict_does_not_exist', 'value', 1)")
 
     @authors("denmogilevec")
@@ -230,6 +319,14 @@ class TestYtDictionaries(ClickHouseTestBase):
             for instance in instances:
                 assert clique.make_direct_query(instance, test_query) == [{"value": 2}]
 
+            system_query = "select database, name from system.dictionaries where name = 't_dict'"
+            for instance in instances:
+                assert clique.make_direct_query(instance, system_query) == [{"database": "YT", "name": "t_dict"}]
+
+        with Clique(1, enable_dictionary_repository=False) as clique:
+            with raises_yt_error(message_pattern="Clique doesn't have configured CypressDictionaryConfigRepository"):
+                clique.make_query("CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
+
     @authors("buyval01")
     def test_name_collision(self):
         schema = [
@@ -246,7 +343,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             create("table", table_path, attributes={"schema": schema})
 
             # Test different resolve modes.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query(f"select * from `{name}`")
 
             assert clique.make_query(f"select * from `{name}` settings chyt.storage_conflict_resolve_mode='yt'") == []
@@ -261,7 +358,7 @@ class TestYtDictionaries(ClickHouseTestBase):
                 assert clique.make_direct_query(inst, f"exists dictionary `{name}`") == [{"result": 1}]
             assert not exists(table_path)
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 # drop TABLE on the remaining DICTIONARY should raises.
                 clique.make_query(f"DROP TABLE `{name}`")
             for inst in instances:
@@ -360,7 +457,7 @@ class TestYtDictionaries(ClickHouseTestBase):
 
             clique.make_direct_query(instances[0], "DROP DICTIONARY t_dict")
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_direct_query(instances[1], test_query)
 
     @authors("denmogilevec")
@@ -384,7 +481,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             assert clique.make_direct_query(instances[1], test_query_1) == [{"value": 2}]
 
             clique.make_direct_query(instances[1], "DROP DICTIONARY t_dict")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_direct_query(instances[0], test_query_1)
 
             clique.make_direct_query(instances[1], "CREATE DICTIONARY t_dict (`a` Int64, `b` String) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t2')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
@@ -394,7 +491,7 @@ class TestYtDictionaries(ClickHouseTestBase):
     @authors("denmogilevec")
     def test_drop_not_existing_dictionary(self):
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("DROP DICTIONARY this_dict_does_not_exist")
 
     @authors("denmogilevec")
@@ -513,8 +610,114 @@ class TestYtDictionaries(ClickHouseTestBase):
                 {"str": "str1"},
             ]
 
+    @authors("buyval01")
+    @pytest.mark.timeout(0)
+    def test_dictionary_source_acl(self):
+        schema = [
+            {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
+            {"name": "b", "type": "int64", "required": True},
+        ]
+        create("table", "//tmp/t", attributes={"schema": schema})
+        write_table("//tmp/t", [{"a": i, "b": 2 * i} for i in range(3)])
+
+        create_user("u1")
+        create_user("u2")
+        yt_set(
+            "//tmp/t/@acl",
+            [
+                make_ace("deny", "u1", "read"),
+                make_ace("deny", "u2", "read"),
+            ],
+        )
+
+        patch = {
+            "yt": {
+                "dictionary_access_control" : {
+                    "cache_config" : {
+                        "refresh_time": 300,
+                    },
+                    "collect_loaded_dictionaries_period": 200,
+                }
+            }
+        }
+        patch = config_update(patch, get_disabled_cache_config())
+
+        with Clique(1, config_patch=patch) as clique:
+            create_query = "CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);"
+            clique.make_query(create_query)
+
+            dict_get_q = ("select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value", [{"value": 2}])
+            select_q = ("select * from t_dict", [{"a": 0, "b": 0}, {"a": 1, "b": 2}, {"a": 2, "b": 4}])
+
+            def success(user, query_and_result):
+                def closure():
+                    result = clique.make_query(query_and_result[0], user=user, full_response=True)
+                    return result.status_code == 200 and result.json()["data"] == query_and_result[1]
+
+                return closure
+
+            def failure(user, query_and_result):
+                def closure():
+                    result = clique.make_query(query_and_result[0], user=user, full_response=True)
+                    return result.status_code != 200 and "Not enough privileges" in result.json().get("exception", "")
+
+                return closure
+
+            # clique.attach_gdb(ex=['b contrib/clickhouse/src/Storages/StorageDictionary.cpp:194', 'set substitute-path /home/buyval01 /home/buyval01/arcadia'], autoresume=False)
+            # Initially both users don't have access.
+            assert failure("u1", dict_get_q)()
+            assert failure("u1", select_q)()
+            assert failure("u2", dict_get_q)()
+            assert failure("u2", select_q)()
+
+            yt_set(
+                "//tmp/t/@acl",
+                [
+                    make_ace("allow", "u1", "read"),
+                    make_ace("deny", "u2", "read"),
+                ],
+            )
+
+            wait(success("u1", dict_get_q))
+            wait(success("u1", select_q))
+            wait(failure("u2", dict_get_q))
+            wait(failure("u2", select_q))
+
+            acl = [
+                make_ace("allow", "u1", "read"),
+                make_ace("allow", "u2", "read"),
+            ]
+            yt_set("//tmp/t/@acl", acl)
+
+            wait(success("u1", dict_get_q))
+            wait(success("u1", select_q))
+            wait(success("u2", dict_get_q))
+            wait(success("u2", select_q))
+
+            acl[0]["row_access_predicate"] = "a = 42"
+            acl[1]["row_access_predicate"] = "a = 42"
+            yt_set("//tmp/t/@acl", acl)
+
+            # If there is rls, user does not have access to the dictionary.
+            wait(failure("u1", dict_get_q))
+            wait(failure("u1", select_q))
+            wait(failure("u2", dict_get_q))
+            wait(failure("u2", select_q))
+
+            yt_set(
+                "//tmp/t/@acl",
+                [
+                    make_ace("deny", "u1", "read"),
+                    make_ace("deny", "u2", "read"),
+                ],
+            )
+
+            wait(failure("u1", dict_get_q))
+            wait(failure("u1", select_q))
+            wait(failure("u2", dict_get_q))
+            wait(failure("u2", select_q))
+
 
 @enable_sequoia
-@enable_sequoia_acls
 class TestYtDictionariesSequoia(TestYtDictionaries):
     pass

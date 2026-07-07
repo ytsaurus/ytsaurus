@@ -8,7 +8,7 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations);
+void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations, const INodeTrackerPtr& nodeTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,9 +18,6 @@ NBundleControllerClient::TCpuLimitsPtr GetBundleEffectiveCpuLimits(
     const TSchedulerInputState& input);
 
 std::string GetSpareBundleName(const TZoneInfoPtr& zoneInfo);
-
-void InitializeZoneToSpareNodes(TSchedulerInputState& input, TSchedulerMutations* mutations);
-void ManageNodeTagFilters(TSchedulerInputState& input, TSpareInstanceAllocator<TSpareNodesInfo>& spareNodesAllocator, TSchedulerMutations* mutations);
 
 void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutations* mutations);
 void ManageRpcProxyRoles(TSchedulerInputState& input, TSpareInstanceAllocator<TSpareProxiesInfo>& spareProxiesAllocator, TSchedulerMutations* mutations);
@@ -42,28 +39,15 @@ THashMap<std::string, THashSet<std::string>> GetAliveProxies(
     const TSchedulerInputState& input,
     EGracePeriodBehaviour gracePeriodBehaviour);
 
-std::string GetInstancePodIdTemplate(
-    const std::string& cluster,
-    const std::string& bundleName,
-    const std::string& instanceType,
-    int index);
-
-int FindNextInstanceId(
-    const std::vector<std::string>& instanceNames,
-    const std::string& cluster,
-    const std::string& instanceType);
-
 TIndexedEntries<TBundleControllerState> MergeBundleStates(
     const TSchedulerInputState& schedulerState,
     const TSchedulerMutations& mutations);
 
-std::string GetPodIdForInstance(const TCypressAnnotationsPtr& cypressAnnotations, const std::string& name);
-
 std::string GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource);
 
 // TODO(capone212): remove after
-THashSet<std::string> FlattenAliveInstances(const THashMap<std::string, THashSet<std::string>>& instancies);
-std::vector<std::string> FlattenBundleInstances(const THashMap<std::string, std::vector<std::string>>& instancies);
+THashSet<std::string> FlattenAliveInstances(const THashMap<std::string, THashSet<std::string>>& instances);
+std::vector<std::string> FlattenBundleInstances(const THashMap<std::string, std::vector<std::string>>& instances);
 
 std::string GetDrillsNodeTagFilter(const TBundleInfoPtr& bundleInfo, const std::string& bundleName);
 std::string GetReleasedProxyRole(const std::string& rpcProxyRole);

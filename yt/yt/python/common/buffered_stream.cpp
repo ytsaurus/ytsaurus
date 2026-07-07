@@ -44,12 +44,8 @@ size_t TBufferedStream::WaitDataToRead(size_t size)
 
     if (wait) {
         // Busy wait.
-        auto future = AllowReadPromise_.ToFuture();
-        auto result = WaitForSettingFuture(future);
-        if (!result) { // Some error occurred.
-            return 0;
-        }
-        if (!future.Get().IsOK()) { // Finalization is in progress.
+        auto result = SignalFriendlyWaitFor(AllowReadPromise_.ToFuture());
+        if (!result.IsOK()) {
             return 0;
         }
         UnregisterFuture(AllowReadCookie_);
@@ -160,7 +156,7 @@ void TBufferedStream::Move(char* dest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TBufferedStreamWrap::TypeName_;
+std::string TBufferedStreamWrap::TypeName_;
 
 TBufferedStreamWrap::TBufferedStreamWrap(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TBufferedStreamWrap>::PythonClass(self, args, kwargs)
@@ -220,7 +216,7 @@ TBufferedStreamPtr TBufferedStreamWrap::GetStream()
 TBufferedStreamWrap::~TBufferedStreamWrap()
 { }
 
-void TBufferedStreamWrap::InitType(const TString& moduleName)
+void TBufferedStreamWrap::InitType(const std::string& moduleName)
 {
     static std::once_flag flag;
     std::call_once(flag, [&] {

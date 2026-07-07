@@ -59,7 +59,10 @@ TPartitionChunkReader::TPartitionChunkReader(
 {
     // NB(gepardo): Real extraChunkTags will be packed later, in InitializeBlockSequence().
     PackBaggageForChunkReader(TraceContext_, dataSource, TExtraChunkTags{});
+}
 
+void TPartitionChunkReader::InitializeRefCounted()
+{
     SetReadyEvent(BIND(&TPartitionChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
         .Run());
@@ -125,12 +128,12 @@ void TPartitionChunkReader::InitFirstBlock()
 {
     TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-    YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
+    YT_VERIFY(CurrentBlock_);
 
     auto schema = GetTableSchema(*ChunkMeta_);
 
     BlockReader_ = new THorizontalBlockReader(
-        CurrentBlock_.Get().ValueOrThrow().Data,
+        CurrentBlock_.GetOrCrash().ValueOrThrow().Data,
         BlockMetaExt_.data_blocks(CurrentBlockIndex_),
         GetCompositeColumnFlags(schema),
         GetHunkColumnFlags(

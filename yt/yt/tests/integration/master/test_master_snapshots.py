@@ -13,10 +13,9 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_freeze_table, sync_reshard_table, get_singular_chunk_id,
     get_account_disk_space, create_dynamic_table, build_snapshot,
     build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move, create_domestic_medium,
-    create_chaos_cell_bundle, sync_create_chaos_cell, generate_chaos_cell_id, select_rows)
-from yt_helpers import master_exit_read_only_sync
+    create_chaos_cell_bundle, sync_create_chaos_cell, generate_chaos_cell_id, select_rows, gc_collect)
+from yt_helpers import master_exit_read_only_sync, account_usage_all_zero
 
-from yt.common import YtError
 from yt_type_helpers import make_schema, normalize_schema
 
 from yt.environment.helpers import assert_items_equal
@@ -110,7 +109,9 @@ def check_removed_account():
 
     for i in range(0, 5):
         remove("//tmp/a1_table" + str(i))
+    gc_collect()
 
+    wait(lambda: account_usage_all_zero(get("//sys/accounts/a1/@recursive_resource_usage")))
     remove_account("a1", sync=False)
 
     yield
@@ -120,7 +121,8 @@ def check_removed_account():
         wait(lambda: len(get("#{0}/@requisition".format(chunk_id))) == 1)
 
 
-def check_hierarchical_accounts():
+# COMPAT(theevilbird): Remove after 25.4.
+def check_hierarchical_accounts_25_4():
     create_account("b1")
     create_account("b2")
     create_account("b11", "b1")
@@ -173,6 +175,73 @@ def check_hierarchical_accounts():
     set("//tmp/b21_table/@account", "b11")
     wait(lambda: not exists("//sys/account_tree/b2"), iter=120, sleep_backoff=0.5)
     assert not exists("//sys/accounts/b2")
+    assert exists("//sys/accounts/b11")
+
+    assert get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default") == b11_disk_usage + b21_disk_usage
+
+
+def check_hierarchical_accounts():
+    set("//sys/@config/security_manager/account_statistics_gossip_period", 100)
+    create_account("b1")
+    create_account("b2")
+    create_account("b11", "b1")
+    create_account("b21", "b2")
+
+    create("table", "//tmp/b11_table", attributes={"account": "b11"})
+    write_table("//tmp/b11_table", {"a": "b"})
+    create("table", "//tmp/b21_table", attributes={"account": "b21"})
+    write_table("//tmp/b21_table", {"a": "b", "c": "d"})
+    wait(
+        lambda: get("//sys/accounts/b2/@recursive_resource_usage/node_count") > 0
+        and get("//sys/accounts/b2/@recursive_resource_usage/chunk_count") > 0
+        and get("//sys/accounts/b2/@recursive_resource_usage/chunk_host_cell_master_memory") > 0
+    )
+    with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
+        remove_account("b2", sync=False)
+
+    # XXX(kiselyovp) this might be flaky
+    wait(lambda: get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default") > 0)
+    wait(lambda: get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default") > 0)
+    b11_disk_usage = get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default")
+    b21_disk_usage = get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default")
+
+    yield
+
+    accounts = ls("//sys/accounts")
+
+    for account in accounts:
+        assert not account.startswith("#")
+
+    topmost_accounts = ls("//sys/account_tree")
+    for account in [
+        "sys",
+        "tmp",
+        "intermediate",
+        "chunk_wise_accounting_migration",
+        "b1",
+        "b2",
+    ]:
+        assert account in accounts
+        assert account in topmost_accounts
+    for account in ["b11", "b21", "root"]:
+        assert account in accounts
+        assert account not in topmost_accounts
+
+    # Check invariants in master will catch /sys/account_tree ref counter mismatch on load.
+
+    assert ls("//sys/account_tree/b1") == ["b11"]
+    assert ls("//sys/account_tree/b2") == ["b21"]
+    assert ls("//sys/account_tree/b1/b11") == []
+    assert ls("//sys/account_tree/b2/b21") == []
+
+    assert get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default") == b21_disk_usage
+    assert get("//sys/accounts/b2/@recursive_resource_usage/disk_space_per_medium/default") == b21_disk_usage
+
+    set("//tmp/b21_table/@account", "b11")
+
+    wait(lambda: account_usage_all_zero(get("//sys/accounts/b2/@recursive_resource_usage")))
+    remove_account("b2", sync=False)
+    wait(lambda: not exists("//sys/accounts/b2"))
     assert exists("//sys/accounts/b11")
 
     assert get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default") == b11_disk_usage + b21_disk_usage
@@ -409,15 +478,15 @@ def check_account_subtree_size_recalculation():
     yield
 
     set("//sys/@config/security_manager/max_account_subtree_size", 3)
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         move("//sys/account_tree/b", "//sys/account_tree/d/dc")
     move("//sys/account_tree/d/db", "//sys/account_tree/c/cb")
     move("//sys/account_tree/b", "//sys/account_tree/d/db")
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         move("//sys/account_tree/c/ca", "//sys/account_tree/d/dc")
     set("//sys/@config/security_manager/max_account_subtree_size", 4)
     move("//sys/account_tree/c/ca", "//sys/account_tree/d/dc")
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         move("//sys/account_tree/c", "//sys/account_tree/d/da/daa")
     set("//sys/@config/security_manager/max_account_subtree_size", 6)
     move("//sys/account_tree/c", "//sys/account_tree/d/da/daa")
@@ -440,17 +509,17 @@ def check_scheduler_pool_subtree_size_recalculation():
     yield
 
     set("//sys/@config/scheduler_pool_manager/max_scheduler_pool_subtree_size", 3)
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         create_pool("aab", pool_tree="tree1", parent_name="aa", wait_for_orchid=False)
     create_pool("bb", pool_tree="tree1", parent_name="b", wait_for_orchid=False)
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         create_pool("bba", pool_tree="tree1", parent_name="bb", wait_for_orchid=False)
     create_pool("ca", pool_tree="tree1", parent_name="c", wait_for_orchid=False)
     create_pool("cb", pool_tree="tree1", parent_name="c", wait_for_orchid=False)
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         create_pool("cd", pool_tree="tree1", parent_name="c", wait_for_orchid=False)
     create_pool("aaa", pool_tree="tree2", parent_name="aa", wait_for_orchid=False)
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         create_pool("aaaa", pool_tree="tree2", parent_name="aaa", wait_for_orchid=False)
     create_pool("a", pool_tree="tree3", wait_for_orchid=False)
 
@@ -687,6 +756,7 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_security_tags,
     check_master_memory,
     check_hierarchical_accounts,
+    check_hierarchical_accounts_25_4,
     check_tablet_balancer_config,
     check_duplicate_attributes,
     check_proxy_roles,
@@ -705,6 +775,11 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
 ]
 
 MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST = deepcopy(MASTER_SNAPSHOT_CHECKER_LIST)
+
+# COMPAT(theevilbird): Remove after 25.4.
+# Validating account removal instead of set Removal Pre-committed stage is a feature from 26.1.
+MASTER_SNAPSHOT_CHECKER_LIST.remove(check_hierarchical_accounts_25_4)
+MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_hierarchical_accounts)
 
 # Master memory is a volatile currency, so we do not run compat tests for it.
 MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_master_memory)
@@ -789,7 +864,6 @@ class TestMasterChangelogsMulticell(TestMasterSnapshotsMulticell):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMastersSnapshotsShardedTx(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
@@ -898,7 +972,6 @@ class TestMastersPersistentReadOnly(YTEnvSetup):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestMastersSnapshotsMirroredTx(TestMastersSnapshotsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

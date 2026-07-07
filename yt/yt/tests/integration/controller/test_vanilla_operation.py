@@ -226,7 +226,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("max42")
     def test_fail_on_failed_job(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" option is set in operation spec or user job spec"):
             vanilla(
                 spec={
                     "tasks": {
@@ -264,7 +264,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
         op.wait_for_state("completed")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" option is set in operation spec or user job spec"):
             op = vanilla(
                 spec={
                     "tasks": {
@@ -387,7 +387,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("max42")
     @pytest.mark.parametrize("action", [abort_job])
     def test_fail_on_manually_stopped_job(self, action):
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" option is set in operation spec or user job spec"):
             op = vanilla(
                 track=False,
                 spec={
@@ -569,7 +569,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("max42")
     def test_attribute_validation_for_duplicated_output_tables(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Output table .* appears twice with different attributes"):
             vanilla(
                 spec={
                     "tasks": {
@@ -590,9 +590,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("max42")
     def test_operation_limits(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Maximum number of tasks exceeded"):
             vanilla(spec={"tasks": {"task_" + str(i): {"job_count": 1, "command": "true"} for i in range(101)}})
-        with pytest.raises(YtError):
+        with raises_yt_error("Maximum total job count exceeded"):
             vanilla(spec={"tasks": {"main": {"job_count": 100 * 1000 + 1, "command": "true"}}})
 
     @authors("dakovalkov", "max42")
@@ -622,7 +622,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert len(jobs) == 1
         job_id = jobs[0]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input context is not supported for vanilla jobs"):
             dump_job_context(job_id, "//tmp/input_context")
 
         release_breakpoint()
@@ -667,7 +667,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("gritukan")
     def test_empty_task_name(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Empty task names are not allowed"):
             op = vanilla(
                 spec={
                     "tasks": {
@@ -783,7 +783,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     def test_no_nul_in_file_name(self):
         skip_if_component_old(self.Env, (25, 2), "controller-agent")
 
-        with raises_yt_error("must not contain"):
+        with raises_yt_error("File name must not contain NUL byte"):
             run_sleeping_vanilla(
                 track=True,
                 task_patch={"file_paths": ['<file_name="with_\0_byte">//some/path']}
@@ -876,7 +876,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "job_volumes_mounts" : [
                                 {
                                     "volume_id": "a",
-                                    "mount_path": "tmpfs",
+                                    "mount_path": "/sandbox/tmpfs",
                                 },
                             ],
                         }
@@ -884,10 +884,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
 
-    # TODO(krasovav): Rewrite to check two different mediums after supporting two non tmpfs volumes.
     @authors("krasovav")
-    def test_two_non_tmpfs_volumes(self):
-        with raises_yt_error('Volume request with two or more different non tmpfs disk request are not currently supported'):
+    def test_non_root_nbd_volumes(self):
+        with raises_yt_error('Non-root nbd are not currently supported'):
             vanilla(
                 spec={
                     "tasks": {
@@ -896,25 +895,16 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "command": "cat",
                             "job_volumes_mounts" : [
                                 {
-                                    "volume_id": "a",
-                                    "mount_path": "first",
-                                },
-                                {
-                                    "volume_id": "b",
-                                    "mount_path": "second",
+                                    "volume_id": "nbd",
+                                    "mount_path": "/sandbox/nbd",
                                 },
                             ],
                             "volumes" : {
-                                "a": {
+                                "nbd": {
                                     "disk_request": {
-                                        "type": "local",
+                                        "type": "nbd",
                                         "disk_space": 1024 * 1024,
-                                    },
-                                },
-                                "b": {
-                                    "disk_request": {
-                                        "type": "local",
-                                        "disk_space": 1024 * 1024,
+                                        "nbd_disk": {},
                                     },
                                 },
                             },
@@ -924,7 +914,6 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             )
 
 
-@pytest.mark.enabled_multidaemon
 class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1128,7 +1117,6 @@ class TestVanillaOperationRevival(YTEnvSetup):
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerVanillaInterrupts(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1201,7 +1189,7 @@ wait $child_pid
         jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
         job_id = jobs[0]
-        with pytest.raises(YtError):
+        with raises_yt_error("Error interrupting job"):
             interrupt_job(job_id)
 
     @authors("ignat")
@@ -1243,7 +1231,7 @@ wait $child_pid
 
     @authors("krasovav")
     def test_incorrect_interrupt_signal(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Unsupported signal name .*"):
             vanilla(
                 spec={
                     "tasks": {
@@ -1258,7 +1246,6 @@ wait $child_pid
             )
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerVanillaInterruptsPorto(TestSchedulerVanillaInterrupts):
     ENABLE_MULTIDAEMON = True
     USE_PORTO = True
@@ -1321,6 +1308,10 @@ class TestGangOperations(YTEnvSetup):
 
     def _verify_job_ids_equal(self, running_jobs, job_ids):
         assert set(running_jobs.keys()) == set(job_ids)
+
+    def _wait_job_aborted_on_node(self, op, job_id):
+        job_path = op.get_job_node_orchid_path(job_id) + "/exec_node/job_controller/active_jobs/{}".format(job_id)
+        wait(lambda: get(job_path + "/job_state", default="aborted") == "aborted")
 
     def _get_jobs_with_no_ranks(self, running_jobs):
         return [job_id for job_id, info in running_jobs.items() if info.get("gang_rank") is None]
@@ -1812,12 +1803,10 @@ class TestGangOperations(YTEnvSetup):
         incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_lack_after_revival"}).counter(
             "controller_agent/gang_operations/incarnation_switch_count")
 
-        # if with_gang_policy:
-        #     release_breakpoint(job_id=job_id_a, breakpoint_name="task_a")
-        # else:
-        #     release_breakpoint(job_id=job_id_b, breakpoint_name="task_b")
-
         if with_gang_policy:
+            # The pre-restart task_a job is aborted by the incarnation switch, but its
+            # breakpoint file persists; release it so the wait below sees only the new job.
+            release_breakpoint(job_id=job_id_a, breakpoint_name="task_a")
             job_id_a, = wait_breakpoint(job_count=1, breakpoint_name="task_a")
         job_id_b, = wait_breakpoint(job_count=1, breakpoint_name="task_b")
 
@@ -2012,9 +2001,14 @@ class TestGangOperations(YTEnvSetup):
 
         wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
 
-        release_breakpoint(job_id=first_job_ids[0])
-        release_breakpoint(job_id=first_job_ids[1])
-        release_breakpoint(job_id=first_job_ids[2])
+        # Release each old job's breakpoint only after the job is aborted on its node.
+        # Otherwise a released job may run to completion before the incarnation-change
+        # abort reaches the node; a completed single-job gang allocation then finishes
+        # instead of being preserved for the replacement job, losing the monitoring
+        # descriptor association the assertion below checks. See YT-28595.
+        for old_job_id in first_job_ids:
+            self._wait_job_aborted_on_node(op, old_job_id)
+            release_breakpoint(job_id=old_job_id)
 
         first_allocation_id_to_monitoring_descriptors.pop(get_allocation_id_from_job_id(first_job_id))
 
@@ -2204,7 +2198,7 @@ class TestGangOperations(YTEnvSetup):
 
     @authors("faucct", "pogorelov")
     def test_gang_operation_with_collective_options(self):
-        with pytest.raises(YtError, match='Operation with "collective_options" can not have tasks with "gang_options"'):
+        with pytest.raises(YtError, match='Operation with "collective_options" cannot have tasks with "gang_options"'):
             vanilla(
                 track=False,
                 spec={
@@ -2221,7 +2215,7 @@ class TestGangOperations(YTEnvSetup):
 
     @authors("pogorelov")
     def test_gang_operation_with_fail_on_job_restart(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" enabled cannot have tasks with \"gang_options\""):
             vanilla(
                 track=False,
                 spec={
@@ -2236,7 +2230,7 @@ class TestGangOperations(YTEnvSetup):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation cannot have both task with \"gang_options\" and task with \"fail_on_job_restart\""):
             vanilla(
                 track=False,
                 spec={
@@ -2251,7 +2245,7 @@ class TestGangOperations(YTEnvSetup):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation cannot have both task with \"gang_options\" and task with \"fail_on_job_restart\""):
             vanilla(
                 track=False,
                 spec={
@@ -2273,7 +2267,7 @@ class TestGangOperations(YTEnvSetup):
     @authors("pogorelov")
     def test_gang_operation_with_output_table(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Gang operations having output tables are not currently supported"):
             vanilla(
                 spec={
                     "tasks": {
@@ -2392,7 +2386,10 @@ class TestGangOperations(YTEnvSetup):
             "controller_agent/gang_operations/incarnation_switch_count")
         abort_job(first_job_ids[0])
 
-        wait(lambda: incarnation_switch_counter.get() == 1)
+        # The abort always triggers one incarnation switch; a second one may follow
+        # if the reincarnated job manages to start before the reincarnation-timeout
+        # abort fires, so tolerate both outcomes instead of requiring exactly one.
+        wait(lambda: incarnation_switch_counter.get() >= 1)
 
         # Resolve life lock from comment above.
         update_controller_agent_config("vanilla_operation_options/gang_manager/job_reincarnation_timeout", 1000000)
@@ -2553,7 +2550,7 @@ class TestGangOperations(YTEnvSetup):
 
     @authors("pogorelov")
     def test_gang_size_greater_than_job_count(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             vanilla(
                 spec={
                     "tasks": {
@@ -2627,6 +2624,96 @@ class TestGangOperations(YTEnvSetup):
                 "max_failed_job_count": 1,
             }
         )
+        op.track()
+
+    @authors("pogorelov")
+    def test_total_gang_size_persisted_after_revival(self):
+        # Wait at breakpoint, then verify YT_GANG_SIZE.
+        # After revival + abort_job, gang policy spawns new joblets — they read TotalGangSize_
+        # from the controller. Without persistence the value is 0 and the check fails.
+        command = with_breakpoint('BREAKPOINT ; [[ "$YT_GANG_SIZE" -eq 2 ]] || exit 42')
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "a": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                    "b": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                },
+                "max_failed_job_count": 1,
+                "fail_on_job_restart": False,
+            },
+        )
+
+        first_job_ids = wait_breakpoint(job_count=2)
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        # Wait until the controller agent re-attaches to the preserved jobs after revival.
+        self._get_running_jobs(op, 2)
+
+        abort_job(first_job_ids[0])
+
+        # Wait until both first-iteration jobs are gone (gang policy aborts the whole gang
+        # and starts a new incarnation).
+        wait(lambda: all(job_id not in op.get_running_jobs() for job_id in first_job_ids))
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("pogorelov")
+    def test_total_target_job_count_persisted_after_revival(self):
+        # Same scenario as test_total_gang_size_persisted_after_revival but for YT_JOB_COUNT,
+        # which is derived from TotalTargetJobCount_ on TVanillaController.
+        command = with_breakpoint('BREAKPOINT ; [[ "$YT_JOB_COUNT" -eq 2 ]] || exit 42')
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "a": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                    "b": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_options": {},
+                    },
+                },
+                "max_failed_job_count": 1,
+                "fail_on_job_restart": False,
+            },
+        )
+
+        first_job_ids = wait_breakpoint(job_count=2)
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        self._get_running_jobs(op, 2)
+
+        abort_job(first_job_ids[0])
+
+        wait(lambda: all(job_id not in op.get_running_jobs() for job_id in first_job_ids))
+
+        release_breakpoint()
+
         op.track()
 
     @authors("pogorelov")
@@ -3046,6 +3133,48 @@ class TestGangOperations(YTEnvSetup):
 
         assert incarnation_switch_counter.get() == 0
 
+    @authors("pogorelov")
+    def test_suspended_gang_operation(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "gang_options": {},
+                    },
+                },
+            },
+        )
+
+        job_ids = wait_breakpoint(job_count=2)
+
+        op.suspend()
+        wait(lambda: get(op.get_path() + "/@suspended"))
+
+        # Abort one job to trigger an incarnation switch.
+        # Since the operation is suspended, no new jobs should be scheduled.
+        abort_job(job_ids[0])
+
+        # Wait for all running jobs to stop.
+        wait(lambda: op.get_job_count("running") == 0)
+
+        # Wait a bit and verify that no new jobs were started.
+        time.sleep(1)
+        assert op.get_job_count("running") == 0
+
+        for job_id in job_ids:
+            release_breakpoint(job_id=job_id)
+
+        op.resume()
+        wait(lambda: not get(op.get_path() + "/@suspended"))
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+
+        op.track()
+
 
 ##################################################################
 
@@ -3312,7 +3441,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
 
         op = self._run_vanilla()
         op.wait_for_state("running")
-        with raises_yt_error("Validation failed at /tasks/task/job_count"):
+        with raises_yt_error("Validation failed at .*"):
             self._set_job_count(op, 0)
 
     @authors("coteeq")

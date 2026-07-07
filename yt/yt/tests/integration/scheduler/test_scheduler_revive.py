@@ -8,7 +8,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, map_reduce, print_debug, update_op_parameters,
+    authors, map_reduce, print_debug, raises_yt_error, update_op_parameters,
     wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
     events_on_fs, create, ls, get, set, remove, exists, create_user,
     create_pool, create_pool_tree, abort_transaction, read_table, write_table,
@@ -505,7 +505,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
         self._wait_for_state(op, "running")
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            with pytest.raises(YtError):
+            with raises_yt_error("Connection refused"):
                 op.complete()
 
         self._wait_for_state(op, "running")
@@ -537,7 +537,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation is in .* state"):
             op.complete()
 
         self._wait_for_state(op, "running")
@@ -572,7 +572,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation is in .* state"):
             op.complete()
 
         self._wait_for_state(op, "running")
@@ -651,7 +651,6 @@ class TestControllerAgentReconnection(YTEnvSetup):
 
 
 @authors("levysotsky")
-@pytest.mark.enabled_multidaemon
 class TestControllerAgentZombieOrchids(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -873,7 +872,7 @@ class OperationReviveBase(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             assert op.get_state() == "aborting"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation .* aborted"):
             op.track()
 
         assert op.get_state() == "aborted"
@@ -1066,7 +1065,7 @@ class OperationReviveBase(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             assert op.get_state() == "failing"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         assert op.get_state() == "failed"
@@ -1718,7 +1717,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
 
         self._kill_and_start("controller_agents")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot revive operation when spec option .* is set"):
             op.track()
 
 

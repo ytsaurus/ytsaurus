@@ -18,6 +18,13 @@ struct TQueueConsumerRegistrationManagerProfilingCounters
     explicit TQueueConsumerRegistrationManagerProfilingCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter ListAllRegistrationsRequestCount;
+
+    //! Counter for resolve replica calls made specifically for actual replicated table replica,
+    //! i.e. "upstream_replica_id" is not null.
+    NProfiling::TCounter ResolveReplicatedTableReplicaRequestCount;
+    //! Counter for failed resolve replica calls made specifically for actual replicated table replica,
+    //! i.e. "upstream_replica_id" is not null.
+    NProfiling::TCounter ResolveReplicatedTableReplicaFailedRequestCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -254,7 +254,7 @@ public:
     const NLogging::TLogger& GetLogger() const override;
     bool AreDetailedLogsEnabled() const override;
 
-    TString GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const;
+    std::string GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const;
 
     TPoolTreeCompositeElement* GetMutableParent();
     const TPoolTreeCompositeElement* GetParent() const;
@@ -340,7 +340,7 @@ public:
     //! Other methods based on tree snapshot.
     virtual void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
-        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        const THashMap<std::string, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const;
 
     bool IsDemandFullySatisfied() const;
@@ -356,7 +356,7 @@ protected:
         IPoolTreeElementHost* treeElementHost,
         TStrategyTreeConfigPtr treeConfig,
         std::string treeId,
-        TString id,
+        std::string id,
         EResourceTreeElementKind elementKind,
         const NLogging::TLogger& logger);
     TPoolTreeElement(
@@ -456,7 +456,7 @@ public:
         IPoolTreeElementHost* treeElementHost,
         TStrategyTreeConfigPtr treeConfig,
         const std::string& treeId,
-        const TString& id,
+        const std::string& id,
         EResourceTreeElementKind elementKind,
         const NLogging::TLogger& logger);
     TPoolTreeCompositeElement(
@@ -540,7 +540,7 @@ public:
     virtual TGuid GetObjectId() const = 0;
 
     //! Other methods.
-    virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
+    virtual THashSet<std::string> GetAllowedProfilingTags() const = 0;
 
     virtual const TOffloadingSettings& GetOffloadingSettings() const = 0;
 
@@ -598,9 +598,9 @@ DEFINE_REFCOUNTED_TYPE(TPoolTreeCompositeElement)
 class TPoolTreePoolElementFixedState
 {
 protected:
-    TPoolTreePoolElementFixedState(TString id, NObjectClient::TObjectId objectId);
+    TPoolTreePoolElementFixedState(std::string id, NObjectClient::TObjectId objectId);
 
-    const TString Id_;
+    const std::string Id_;
 
     // Used only in trunk node.
     bool DefaultConfigured_ = true;
@@ -624,7 +624,7 @@ public:
     TPoolTreePoolElement(
         IStrategyHost* strategyHost,
         IPoolTreeElementHost* treeElementHost,
-        const TString& id,
+        const std::string& id,
         TGuid objectId,
         TPoolConfigPtr config,
         bool defaultConfigured,
@@ -640,7 +640,7 @@ public:
 
     ESchedulerElementType GetType() const override;
 
-    TString GetId() const override;
+    std::string GetId() const override;
 
     void AttachParent(TPoolTreeCompositeElement* newParent);
     void ChangeParent(TPoolTreeCompositeElement* newParent);
@@ -716,10 +716,10 @@ public:
     //! Other methods.
     void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
-        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        const THashMap<std::string, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const override;
 
-    THashSet<TString> GetAllowedProfilingTags() const override;
+    THashSet<std::string> GetAllowedProfilingTags() const override;
 
     TGuid GetObjectId() const override;
 
@@ -762,7 +762,7 @@ class TPoolTreeOperationElementFixedState
 {
 public:
     // Used by trunk node.
-    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<std::string>, PendingByPool);
 
     DEFINE_BYREF_RO_PROPERTY(TAllocationGroupResourcesMap, GroupedNeededResources);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedMinNeededAllocationResources);
@@ -842,7 +842,7 @@ public:
 
     TInstant GetStartTime() const;
 
-    TString GetId() const override;
+    std::string GetId() const override;
     TOperationId GetOperationId() const;
     std::optional<std::string> GetTitle() const;
 
@@ -912,7 +912,7 @@ public:
     bool IsMaxScheduleAllocationCallsViolated() const;
     bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
-    bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
+    bool HasRecentScheduleAllocationFailure(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,
         const std::string& treeId,
@@ -924,9 +924,10 @@ public:
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,
-        const std::string& treeId);
+        const std::string& treeId,
+        std::optional<std::string> allocationGroupName = {});
     void OnScheduleAllocationFailed(
-        NProfiling::TCpuInstant now,
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const std::string& treeId,
         const TControllerScheduleAllocationResultPtr& scheduleAllocationResult);
     void AbortAllocation(
@@ -945,14 +946,14 @@ public:
         TJobResources* availableResourceLimitsOutput = nullptr);
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
     void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
-    void CommitHierarchicalResourceUsage(const TJobResources& resourceUsage, const TJobResources& precommittedResources);
+    void CommitHierarchicalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
     void ReleaseResources(bool markAsNonAlive);
 
     EResourceTreeIncreasePreemptedResult TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(const TJobResources& delta, std::string* violatedIdOutput);
-    bool CommitHierarchicalPreemptedResourceUsage(const TJobResources& delta);
+    bool CommitHierarchicalPreemptedResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
 
     //! Other methods.
-    std::optional<TString> GetCustomProfilingTag() const;
+    std::optional<std::string> GetCustomProfilingTag() const;
 
     bool IsLimitingAncestorCheckEnabled() const;
 
@@ -1026,7 +1027,7 @@ public:
     TPoolTreeRootElement(const TPoolTreeRootElement& other);
 
     //! Common interface.
-    TString GetId() const override;
+    std::string GetId() const override;
 
     TPoolTreeRootElementPtr Clone();
 
@@ -1083,11 +1084,11 @@ public:
     void BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext);
 
     //! Other methods.
-    THashSet<TString> GetAllowedProfilingTags() const override;
+    THashSet<std::string> GetAllowedProfilingTags() const override;
 
     void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
-        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        const THashMap<std::string, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const override;
 
     TResourceDistributionInfo GetResourceDistributionInfo() const;

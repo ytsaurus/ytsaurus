@@ -49,6 +49,8 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -74,6 +76,7 @@ namespace NYT::NQueryTracker {
 using namespace NAdmin;
 using namespace NAlertManager;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NHydra;
 using namespace NMonitoring;
 using namespace NObjectClient;
@@ -129,7 +132,7 @@ public:
         BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(ControlInvoker_)
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -156,6 +159,7 @@ private:
     NYT::NBus::IBusServerPtr BusServer_;
     IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
 
     NComponentStateChecker::IComponentStateCheckerPtr ComponentStateChecker_;
 
@@ -204,13 +208,16 @@ private:
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeClient_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
         BusServer_ = CreateBusServer(Config_->BusServer);
 
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+        if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+            HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+        }
 
         AlertManager_ = CreateAlertManager(QueryTrackerLogger(), TProfiler{}, ControlInvoker_);
 
@@ -229,6 +236,7 @@ private:
         IMapNodePtr orchidRoot;
         NMonitoring::Initialize(
             HttpServer_,
+            HttpsServer_,
             ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &orchidRoot);
@@ -258,12 +266,6 @@ private:
             orchidRoot,
             "query_tracker");
 
-        QueryTrackerProxy_ = CreateQueryTrackerProxy(
-            NativeClient_,
-            Config_->Root,
-            DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig,
-            Config_->MinRequiredStateVersion);
-
         ComponentStateChecker_ = CreateComponentStateChecker(
             ControlInvoker_,
             NativeClient_,
@@ -282,10 +284,6 @@ private:
             orchidRoot,
             ControlInvoker_,
             NativeAuthenticator_));
-        RpcServer_->RegisterService(CreateProxyService(
-            ProxyInvoker_,
-            QueryTrackerProxy_,
-            ComponentStateChecker_));
 
         QueryTracker_ = CreateQueryTracker(
             DynamicConfigManager_->GetConfig()->QueryTracker,
@@ -296,6 +294,19 @@ private:
             ComponentStateChecker_,
             Config_->Root,
             Config_->MinRequiredStateVersion);
+
+        QueryTrackerProxy_ = CreateQueryTrackerProxy(
+            NativeClient_,
+            Config_->Root,
+            DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig,
+            QueryTracker_->GetEngineProviders(),
+            Config_->MinRequiredStateVersion);
+
+        RpcServer_->RegisterService(CreateProxyService(
+            ProxyInvoker_,
+            QueryTrackerProxy_,
+            ComponentStateChecker_));
+
         SetNodeByYPath(
             orchidRoot,
             "/query_tracker",
@@ -310,6 +321,10 @@ private:
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
+        if (HttpsServer_) {
+            YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+            HttpsServer_->Start();
+        }
 
         YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
         RpcServer_->Configure(Config_->RpcServer);
@@ -367,7 +382,9 @@ private:
         }
 
         if (QueryTrackerProxy_) {
-            QueryTrackerProxy_->Reconfigure(newConfig->QueryTracker->ProxyConfig, newConfig->QueryTracker->NotIndexedQueriesTTL);
+            QueryTrackerProxy_->Reconfigure(
+                newConfig->QueryTracker->ProxyConfig,
+                newConfig->QueryTracker->NotIndexedQueriesTTL);
         }
 
         YT_LOG_DEBUG(

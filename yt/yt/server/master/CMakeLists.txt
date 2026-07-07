@@ -40,6 +40,7 @@ target_compile_options(yt-server-master PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-server-master PUBLIC
@@ -50,31 +51,34 @@ target_link_libraries(yt-server-master PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  cpp-containers-absl_flat_hash
+  cpp-containers-absl
   library-cpp-getopt
   cpp-yt-phdr_cache
+  yt-core-https
   yt-library-orchid
   yt-library-server_program
   yt-library-monitoring
+  library-tracing-jaeger
   yt-ytlib-distributed_throttler
   ytserver
   server-lib-cell_server
   server-lib-cellar_agent
   server-lib-chunk_server
+  server-lib-cypress_proxy
   server-lib-discovery_server
   server-lib-hive
-  lib-hydra-dry_run
   server-lib-hydra
+  lib-hydra-dry_run
   server-lib-incumbent_client
   server-lib-node_tracker_server
   server-lib-object_server
   server-lib-security_server
+  server-lib-sequoia
   server-lib-table_server
   server-lib-tablet_balancer
   server-lib-tablet_server
   server-lib-timestamp_server
   server-lib-transaction_supervisor
-  server-lib-sequoia
   server-lib-scheduler
   server-lib-controller_agent
   contrib-libs-protobuf
@@ -119,6 +123,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_tracker_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_tracker_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/leader_smoothing.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_type_handler_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cellar_node_tracker_service.cpp
@@ -194,7 +199,6 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/global_sequoia_chunk_refresher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_registry.cpp
@@ -210,6 +214,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/sequoia_chunk_refresher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/sequoia_replicas_modifier.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/stored_chunk_replica.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_control_object_namespace_type_handler.cpp
@@ -255,7 +260,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/scion_node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/scion_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/scion_type_handler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/sequoia_actions_executor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/sequoia_actions_executor_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/shard_map_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/shard_proxy.cpp
@@ -381,6 +386,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/cypress_proxy_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/ground_update_queue_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/revision.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/config.cpp
@@ -462,6 +468,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/cypress_transaction_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/sequoia_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_finisher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_manager.cpp
@@ -472,6 +479,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/sequoia_actions_executor_dummy.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.pb.h
@@ -540,8 +548,6 @@ target_proto_addincls(yt-server-master
   ${PROJECT_SOURCE_DIR}/yt
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api
-  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/gogoproto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )

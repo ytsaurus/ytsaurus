@@ -4631,7 +4631,7 @@ void rd_kafka_partition_leader_destroy_free(void *ptr) {
 
 const char *rd_kafka_fetch_pos2str(const rd_kafka_fetch_pos_t fetchpos) {
         static RD_TLS char ret[2][64];
-        static int idx;
+        static RD_TLS int idx;
 
         idx = (idx + 1) % 2;
 

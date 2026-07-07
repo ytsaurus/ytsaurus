@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/config.h>
 
+#include <yt/yt/ytlib/offshore_data_gateway/config.h>
+
 #include <yt/yt/ytlib/discovery_client/config.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -25,6 +27,8 @@
 #include <yt/yt/ytlib/query_tracker_client/config.h>
 
 #include <yt/yt/ytlib/yql_client/config.h>
+
+#include <yt/yt/ytlib/tablet_balancer_client/config.h>
 
 #include <yt/yt/ytlib/transaction_client/config.h>
 
@@ -220,6 +224,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("bundle_controller", &TThis::BundleController)
         .DefaultNew();
+    registrar.Parameter("tablet_balancer", &TThis::TabletBalancer)
+        .DefaultNew();
+    registrar.Parameter("offshore_data_gateway", &TThis::OffshoreDataGateway)
+        .DefaultNew();
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();
     registrar.Parameter("query_tracker", &TThis::QueryTracker)
@@ -242,6 +250,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("node_directory_synchronizer", &TThis::NodeDirectorySynchronizer)
         .DefaultNew();
+    registrar.Parameter("enable_node_directory_synchronization_on_table_read", &TThis::EnableNodeDirectorySynchronizationOnTableRead)
+        .Default(false);
+    registrar.Parameter("node_directory_synchronization_on_table_read_staleness_threshold", &TThis::NodeDirectorySynchronizationOnTableReadStalenessThreshold)
+        .Default(TDuration::Minutes(15));
     registrar.Parameter("chunk_slice_fetcher", &TThis::ChunkSliceFetcher)
         .DefaultNew();
     registrar.Parameter("discovery_connection", &TThis::DiscoveryConnection)
@@ -253,6 +265,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         // COMPAT(babenko)
         .Alias("query_timeout")
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("cumulative_select_rows_failed_response_wait_time", &TThis::CumulativeSelectRowsFailedResponseWaitTime)
+        .Default(TDuration::MilliSeconds(500));
     registrar.Parameter("select_rows_response_codec", &TThis::SelectRowsResponseCodec)
         // COMPAT(babenko)
         .Alias("query_response_codec")
@@ -395,6 +409,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_abort_job_timeout",
         &TThis::DefaultAbortJobTimeout)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("default_ban_request_timeout",
+        &TThis::DefaultBanRequestTimeout)
+        .Default(TDuration::Seconds(60));
 
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
         .Default(TDuration::Seconds(15));
@@ -525,6 +542,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Default(3);
 
+    registrar.Parameter("local_tablet_write_retry_count", &TThis::LocalTabletWriteRetryCount)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+
     registrar.Parameter("disable_new_range_inference", &TThis::DisableNewRangeInference)
         .Default(false);
 
@@ -537,11 +558,11 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
         .Default(true);
 
-    registrar.Parameter("allow_unaliased_secondary_index", &TThis::AllowUnaliasedSecondaryIndex)
-        .Default(false);
-
     registrar.Parameter("flow_pipeline_controller_rpc_timeout", &TThis::FlowPipelineControllerRpcTimeout)
         .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("flow_proxy_signature_enabled", &TThis::FlowProxySignatureEnabled)
+        .Default(false);
 
     registrar.Parameter("enable_distributed_replication_collocation_attachment", &TThis::EnableDistributedReplicationCollocationAttachment)
         .Default(true);
@@ -567,6 +588,16 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("get_job_trace_batch_size", &TThis::GetJobTraceBatchSize)
         .Default(2'500)
         .GreaterThan(0);
+
+    registrar.Parameter("check_operation_base_aco", &TThis::CheckOperationBaseAco)
+        .Default(false);
+
+    registrar.Parameter("operation_base_aco_name", &TThis::OperationBaseAcoName)
+        .Default("base_aco");
+
+    // COMPAT(atalmenev)
+    registrar.Parameter("use_uniform_prepare_signatures", &TThis::UseUniformPrepareSignatures)
+        .Default(false);
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {

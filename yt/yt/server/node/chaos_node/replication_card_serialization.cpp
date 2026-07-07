@@ -90,6 +90,10 @@ void ToProto(
     if (fetchOptions.IncludeReplicatedTableOptions) {
         protoReplicationCard->set_replicated_table_options(ToProto(ConvertToYsonString(replicationCard.GetReplicatedTableOptions())));
     }
+
+    for (const auto& secondaryIndex : replicationCard.SecondaryIndices()) {
+        ToProto(protoReplicationCard->add_secondary_indices(), secondaryIndex);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

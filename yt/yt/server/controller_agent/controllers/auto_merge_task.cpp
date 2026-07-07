@@ -241,7 +241,7 @@ void TAutoMergeTask::UpdateOutputEdgesForTeleport(const NChunkClient::NProto::TD
         dataStatistics);
 }
 
-TString TAutoMergeTask::GetTitle() const
+std::string TAutoMergeTask::GetTitle() const
 {
     return Format("AutoMerge");
 }

@@ -139,8 +139,7 @@ private:
 
     NNative::IClientPtr GetGroundClientOrThrow()
     {
-        YT_VERIFY(GroundClientFuture_.IsSet());
-        return GroundClientFuture_.Get().ValueOrThrow();
+        return GroundClientFuture_.GetOrCrash().ValueOrThrow();
     }
 
     NYPath::TYPath GetSequoiaTablePath(const TSequoiaTablePathDescriptor& tablePathDescriptor)
@@ -168,7 +167,13 @@ private:
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
             options)
-            .AsUnique().Apply(BIND(MaybeWrapSequoiaRetriableError<TUnversionedLookupRowsResult>));
+        .Apply(BIND([] (const TErrorOr<TUnversionedLookupRowsResult>& result) {
+            static NProfiling::TCounter LookupsSucceeded = SequoiaClientProfiler().Counter("/sequoia_lookups_succeeded");
+            static NProfiling::TCounter LookupsFailed = SequoiaClientProfiler().Counter("/sequoia_lookups_failed");
+
+            (result.IsOK() ? LookupsSucceeded : LookupsFailed).Increment();
+            return result;
+        }));
     }
 
     TFuture<TSelectRowsResult> DoSelectRows(
@@ -179,7 +184,14 @@ private:
         TSequoiaTablePathDescriptor descriptor{
             .Table = table,
         };
-        return DoSelectRows(descriptor, query, timestamp);
+        return DoSelectRows(descriptor, query, timestamp)
+        .Apply(BIND([] (const TErrorOr<TSelectRowsResult>& result) {
+            static NProfiling::TCounter SelectsSucceeded = SequoiaClientProfiler().Counter("/sequoia_selects_succeeded");
+            static NProfiling::TCounter SelectsFailed = SequoiaClientProfiler().Counter("/sequoia_selects_failed");
+
+            (result.IsOK() ? SelectsSucceeded : SelectsFailed).Increment();
+            return result;
+        }));
     }
 
     TFuture<TSelectRowsResult> DoSelectRows(
@@ -202,7 +214,7 @@ private:
         } else if (!query.OrderBy.empty()) {
             // TODO(h0pless): This is an arbitrary value. Remove it once ORDER BY will work with an unspecified limit.
             // For details see YT-16489.
-            builder.SetLimit(100'000);
+            builder.SetLimit(100'000'000);
         }
 
         NApi::TSelectRowsOptions options;
@@ -211,8 +223,7 @@ private:
         options.Timestamp = timestamp;
 
         return GetGroundClientOrThrow()
-            ->SelectRows(builder.Build(), options)
-            .AsUnique().Apply(BIND(MaybeWrapSequoiaRetriableError<TSelectRowsResult>));
+            ->SelectRows(builder.Build(), options);
     }
 
     TFuture<void> DoTrimTable(

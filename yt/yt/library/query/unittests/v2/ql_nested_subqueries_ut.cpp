@@ -11,7 +11,7 @@ TEST_F(TQueryEvaluateTest, NestedSubquery)
     std::vector<std::vector<std::string>> sources;
 
     auto schema = MakeSplit({
-        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
         {"b", SimpleLogicalType(ESimpleLogicalValueType::String)},
         {"k", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
         {"s", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
@@ -121,7 +121,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
     std::vector<std::vector<std::string>> sources;
 
     auto schema = MakeSplit({
-        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
         {"b", SimpleLogicalType(ESimpleLogicalValueType::String)},
         {"k", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
         {"s", SimpleLogicalType(ESimpleLogicalValueType::Int32)}
@@ -150,7 +150,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             "select t.k % 2 as a, (select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested from `//t` as t group by a",
             splits,
             {},
-            2);
+            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
 
         const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
 
@@ -164,7 +164,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             "select t.k % 2 as a, (select li + sum(t.s) as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
             splits,
             {},
-            2);
+            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
 
         const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
 
@@ -180,7 +180,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             "select t.k % 2 as a, sum(2) as b, (select b, sum(1) as z from (array_agg(t.a, true) as li) group by li) as nested from `//t` as t group by a",
             splits,
             {},
-            2);
+            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
 
         const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
 
@@ -196,7 +196,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             "select t.k % 2 as a, sum(2) as b, (select li + b as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
             splits,
             {},
-            2);
+            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
 
         const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
 

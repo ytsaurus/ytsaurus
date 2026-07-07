@@ -113,6 +113,17 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ValidateRootFS)                        (302206))
     ((FixOutputChunkPoolIndexSerialization)  (302207))
     ((FixPartitionsDispatchStatistics)       (302208))
+    ((FixInputStreamDirectory)               (302209))
+    ((AccessControlRule)                     (302210))
+    ((LinkVolumes)                           (302211))
+    ((HighThreadCountJobPerTask)             (302212))
+    ((PrepareLayersDuration)                 (302213))
+    ((HunkStatistics)                        (302214))
+    // 26.2 starts here
+    ((BumpTo_26_2)                           (302300))
+    ((PersistVanillaJobCounts)               (302301))
+    ((DropLegacySortedPool)                  (302302))
+    ((HighThreadCountJobThreshold)           (302303))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

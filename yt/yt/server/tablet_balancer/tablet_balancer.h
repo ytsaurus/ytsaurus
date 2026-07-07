@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/tablet_balancer_client/public.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -18,11 +20,16 @@ struct ITabletBalancer
     virtual void Start() = 0;
     virtual void Stop() = 0;
 
+    virtual void ExecuteBalancerIteration(TDryRunConfigPtr dryRunConfig, TTabletBalancerDynamicConfigPtr dynamicConfig) = 0;
+
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     virtual void OnDynamicConfigChanged(
         const TTabletBalancerDynamicConfigPtr& oldConfig,
         const TTabletBalancerDynamicConfigPtr& newConfig) = 0;
+
+    virtual void RequestBalancing(
+        const NTabletBalancerClient::TBalancingRequest& balancingRequest) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletBalancer)

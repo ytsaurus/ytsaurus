@@ -46,6 +46,7 @@ target_compile_options(yt-yt-core PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-yt-core PUBLIC
@@ -108,6 +109,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/actions/invoker_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/actions/invoker_util.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/connection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/dispatcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/dispatcher_impl.cpp
@@ -138,7 +140,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/coroutine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/delayed_executor.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/execution_stack.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_share_action_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_share_invoker_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_share_invoker_queue.cpp
@@ -150,6 +151,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fiber.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fiber_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fls.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/invoker_alarm.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/invoker_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/lease_manager.cpp
@@ -157,9 +159,9 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/notify_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/periodic_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/periodic_yielder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/pooled_execution_stack.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/pollable_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/prioritized_invoker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/profiling_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/propagating_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/quantized_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/scheduler_thread.cpp
@@ -193,6 +195,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/system_log_event_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/random_access_gzip.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/zstd_log_codec.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/absolute_normalized_path.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/arithmetic_formula.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/backtrace.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/backoff_strategy.cpp
@@ -261,6 +264,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/phoenix/type_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/authentication_identity.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/authenticator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/backend.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/balancing_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/caching_channel_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/channel_detail.cpp
@@ -268,6 +272,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/dispatcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/dynamic_channel_pool.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/endpoint_address.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/hedging_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/local_channel.cpp
@@ -294,6 +299,8 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/throttling_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/viable_peer_registry.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/multi_protocol_channel_factory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/multi_protocol_server.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/bus/server.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/bus/channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/service_discovery/service_discovery.cpp
@@ -351,6 +358,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/node_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/permission.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/precise_time.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/request_complexity_limiter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/request_complexity_limits.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/serialize.cpp
@@ -388,6 +396,7 @@ target_compile_options(yt-yt-core.global PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-yt-core.global PUBLIC
@@ -451,6 +460,8 @@ target_sources(yt-yt-core.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/ref_tracked.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/net/configure_address_resolver.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/configure_dispatcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/bus/tcp_backend.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/bus/uds_backend.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/trace_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/configure_protobuf_interop.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/allocation_tags_hooks.cpp

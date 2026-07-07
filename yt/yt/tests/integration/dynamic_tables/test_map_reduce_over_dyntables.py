@@ -18,7 +18,6 @@ from yt_type_helpers import (
 from yt_dynamic_tables_base import map_in_parallel
 
 from yt.test_helpers import assert_items_equal
-from yt.common import YtError
 import yt.yson as yson
 
 import pytest
@@ -30,7 +29,6 @@ import time
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMapOnDynamicTables(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -220,7 +218,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"a": "b"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Dynamic store read is not supported for user files but it is enabled for user file"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -252,7 +250,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Requested timestamp is out of range for table"):
             map(
                 in_="<timestamp=%s>//tmp/t" % MinTimestamp,
                 out="//tmp/t_out",
@@ -261,7 +259,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         insert_rows("//tmp/t", rows)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Requested timestamp is out of range for table"):
             map(
                 in_="<timestamp=%s>//tmp/t" % generate_timestamp(),
                 out="//tmp/t_out",
@@ -1067,7 +1065,6 @@ class TestMapOnDynamicTables(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMapOnDynamicTablesMulticell(TestMapOnDynamicTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1078,7 +1075,6 @@ class TestMapOnDynamicTablesMulticell(TestMapOnDynamicTables):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestMapOnDynamicTablesPortal(TestMapOnDynamicTablesMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -1089,7 +1085,6 @@ class TestMapOnDynamicTablesPortal(TestMapOnDynamicTablesMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestMapOnDynamicTablesSequoia(TestMapOnDynamicTablesMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1211,7 +1206,6 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
         write_file(b"//tmp/script.py", str.encode(script))
 
 
-@pytest.mark.enabled_multidaemon
 class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -1230,7 +1224,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
         self._insert_chunk(first_value=0, tablet_index=0)
         self._insert_chunk(first_value=4, tablet_index=1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("In ordered dynamic tables row index selector can only be .*"):
             self._run_map_operation("<ranges=[{exact={row_index=0}}]>")
 
         self._run_map_operation(
@@ -1278,7 +1272,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
         sync_mount_table("//tmp/sorted_t")
         insert_rows("//tmp/sorted_t", [{"key": 1, "value": str(2)}])
         sync_unmount_table("//tmp/sorted_t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Tablet index selectors are only supported for ordered"):
             self._run_map_operation("<ranges=[{exact={tablet_index=0}}]>", input_table_name="//tmp/sorted_t")
 
     @authors("akozhikhov")
@@ -1517,7 +1511,6 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestInputOutputForOrderedWithTabletIndexMulticell(TestInputOutputForOrderedWithTabletIndex):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1528,7 +1521,6 @@ class TestInputOutputForOrderedWithTabletIndexMulticell(TestInputOutputForOrdere
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestInputOutputForOrderedWithTabletIndexPortal(TestInputOutputForOrderedWithTabletIndexMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -1539,7 +1531,6 @@ class TestInputOutputForOrderedWithTabletIndexPortal(TestInputOutputForOrderedWi
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestInputOutputForOrderedWithTabletIndexSequoia(TestInputOutputForOrderedWithTabletIndexMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1556,7 +1547,6 @@ class TestInputOutputForOrderedWithTabletIndexSequoia(TestInputOutputForOrderedW
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1774,7 +1764,6 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceDynamicMulticell(TestSchedulerMapReduceDynamic):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1785,7 +1774,6 @@ class TestSchedulerMapReduceDynamicMulticell(TestSchedulerMapReduceDynamic):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceDynamicPortal(TestSchedulerMapReduceDynamicMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -1796,7 +1784,6 @@ class TestSchedulerMapReduceDynamicPortal(TestSchedulerMapReduceDynamicMulticell
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceDynamicSequoia(TestSchedulerMapReduceDynamicMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

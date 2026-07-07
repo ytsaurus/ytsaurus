@@ -19,6 +19,8 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/location_indexes.pb.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>
 
@@ -92,7 +94,9 @@ public:
      *  with the session finishes. Finally, when such a chunk is sealed it gets re-registered again
      *  (with "sealed" replica type).
      */
-    void UpdateExistingChunk(const IChunkPtr& chunk);
+    void UpdateExistingChunk(
+        const IChunkPtr& chunk,
+        const NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>&);
 
     //! Unregisters the chunk but does not remove any of its files.
     void UnregisterChunk(const IChunkPtr& chunk);
@@ -166,7 +170,7 @@ public:
 
     // Same as above, but the caller must hold lock.
     TPerLocationChunkMap GetPerLocationChunksUnsafe(
-        NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> guard);
+        const NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock>& guard);
 
     //! Iterates over all registered chunks and checks that their cell tags are from existing master cell tags.
     /*!
@@ -217,6 +221,7 @@ public:
     bool ShouldPublishDisabledLocations();
 
     NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> AcquireChunkMapReaderLock();
+    NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock> AcquireChunkMapWriterLock();
 
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TStoreLocationPtr>, Locations);
@@ -241,7 +246,7 @@ private:
     const IChunkStoreHostPtr ChunkStoreHost_;
     const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
-    TDataNodeDynamicConfigPtr DynamicConfig_;
+    TAtomicIntrusivePtr<TDataNodeDynamicConfig> DynamicConfig_;
 
     struct TChunkEntry
     {

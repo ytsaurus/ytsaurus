@@ -137,7 +137,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(bool, Suspended);
 
-    DEFINE_BYVAL_RW_PROPERTY(TError, OrhanedOperationAbortionError);
+    DEFINE_BYVAL_RW_PROPERTY(TError, OrphanedOperationAbortionError);
 
 public:
     // By default, all new operations are not activated.
@@ -199,7 +199,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobs);
 
     //! Alias for the operation.
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Alias);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, Alias);
 
     //! ACEs that are always included in operation ACL
     //! regardless any ACL specification and any ACL changes made by user.
@@ -348,9 +348,9 @@ public:
 
     //! Returns vector of experiment assignment names with each
     //! name being of form "<experiment name>.<group name>".
-    std::vector<TString> GetExperimentAssignmentNames() const;
+    std::vector<std::string> GetExperimentAssignmentNames() const;
 
-    std::vector<std::string> GetJobShellOwners(const TString& jobShellName);
+    std::vector<std::string> GetJobShellOwners(const std::string& jobShellName);
 
     // Aborts all transactions except user and "completion" transactions.
     TFuture<void> AbortCommonTransactions();
@@ -381,7 +381,7 @@ public:
         const std::string& authenticatedUser,
         TInstant startTime,
         IInvokerPtr controlInvoker,
-        const std::optional<TString>& alias,
+        const std::optional<std::string>& alias,
         std::vector<TExperimentAssignmentPtr> experimentAssignments,
         NYson::TYsonString providedSpecString,
         EOperationState state = EOperationState::None,
@@ -430,7 +430,7 @@ private:
     //! Adds key-value pair to secure vault. Returns true if the entry was added.
     //! May only be called while operation is in `Starting` state.
     //! NB: Be careful with this method with respect to secure vault persistence in Cypress.
-    bool AddSecureVaultEntry(const TString& key, const NYTree::INodePtr& value);
+    bool AddSecureVaultEntry(const std::string& key, const NYTree::INodePtr& value);
 };
 
 #undef DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH

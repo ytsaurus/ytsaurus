@@ -3,8 +3,8 @@
 #include "automaton.h"
 #include "chaos_manager.h"
 #include "chaos_slot.h"
-#include "private.h"
-#include "replication_card.h"
+#include "helpers.h"
+#include "chaos_object_base.h"
 #include "shortcut_snapshot_store.h"
 #include "transaction.h"
 #include "transaction_manager.h"
@@ -74,6 +74,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqResume, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqGrantShortcuts, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqRevokeShortcuts, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqForsakeShortcut, Unretained(this)));
     }
 
     void Initialize() override
@@ -102,6 +103,12 @@ public:
     {
         auto mutation = CreateMutation(HydraManager_, context);
         mutation->SetAllowLeaderForwarding(true);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    void ForsakeShortcut(TForsakeShortcutContextPtr context) override
+    {
+        auto mutation = CreateMutation(HydraManager_, context);
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
@@ -329,7 +336,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(chaosCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
 
         YT_LOG_DEBUG("Shortcuts granted (Shortcuts: %v)",
@@ -395,6 +402,42 @@ private:
             }));
     }
 
+    void HydraReqForsakeShortcut(
+        const TForsakeShortcutContextPtr& /*context*/,
+        NChaosClient::NProto::TReqForsakeShortcut* request,
+        NChaosClient::NProto::TRspForsakeShortcut* response)
+    {
+        auto chaosObjectId = FromProto<TCellId>(request->chaos_object_id());
+
+        if (!Shortcuts_.contains(chaosObjectId)) {
+            YT_LOG_DEBUG("Trying to forsake unknown shortcut (ChaosObjectId: %v, Type: %v)",
+                chaosObjectId,
+                TypeFromId(chaosObjectId));
+
+            response->set_success(false);
+        }
+
+        auto& shortcut = Shortcuts_[chaosObjectId];
+
+        if (!shortcut.AliveTransactions.empty()) {
+            YT_LOG_DEBUG("Trying to forsake shortcut with alive transactions "
+                "(ChaosObjectId: %v, Type: %v, TransactionCount: %v)",
+                chaosObjectId,
+                TypeFromId(chaosObjectId),
+                shortcut.AliveTransactions.size());
+
+            response->set_success(false);
+        } else {
+            EraseShortcut(chaosObjectId);
+
+            YT_LOG_DEBUG("Shortcut was forsaken (ChaosObjectId: %v, Type: %v)",
+                chaosObjectId,
+                TypeFromId(chaosObjectId));
+
+            response->set_success(true);
+        }
+    }
+
     void HydraPrepareReplicatedCommit(
         TTransaction* transaction,
         NChaosClient::NProto::TReqReplicatedCommit* request,
@@ -410,20 +453,23 @@ private:
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutNotFound,
                 "Shortcut for replication card is not found")
-                << TErrorAttribute("replication_card_id", replicationCardId);
+                << TErrorAttribute("chaos_object_type", TypeFromId(replicationCardId))
+                << TErrorAttribute("chaos_object_id", replicationCardId);
         }
         if (it->second.State != EShortcutState::Granted) {
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutRevoked,
                 "Shortcut for replication card has been revoked")
-                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("chaos_object_type", TypeFromId(replicationCardId))
+                << TErrorAttribute("chaos_object_id", replicationCardId)
                 << TErrorAttribute("shortcut_state", it->second.State);
         }
         if (it->second.Era != era) {
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutHasDifferentEra,
                 "Shortcut for replication card has different era")
-                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("chaos_object_type", TypeFromId(replicationCardId))
+                << TErrorAttribute("chaos_object_id", replicationCardId)
                 << TErrorAttribute("shortcut_era", it->second.Era)
                 << TErrorAttribute("replication_card_era", era);
         }
@@ -432,12 +478,18 @@ private:
         for (const auto& chaosLeaseId : chaosLeaseIds) {
             auto it = Shortcuts_.find(chaosLeaseId);
             if (it == Shortcuts_.end()) {
-                THROW_ERROR_EXCEPTION("Shortcut for chaos lease is not found")
-                    << TErrorAttribute("chaos_lease_id", chaosLeaseId);
+                THROW_ERROR_EXCEPTION(
+                    NChaosClient::EErrorCode::ShortcutNotFound,
+                    "Shortcut for chaos lease is not found")
+                    << TErrorAttribute("chaos_object_type", TypeFromId(chaosLeaseId))
+                    << TErrorAttribute("chaos_object_id", chaosLeaseId);
             }
             if (it->second.State != EShortcutState::Granted) {
-                THROW_ERROR_EXCEPTION("Shortcut is not in 'Granted' state")
-                    << TErrorAttribute("chaos_lease_id", chaosLeaseId)
+                THROW_ERROR_EXCEPTION(
+                    NChaosClient::EErrorCode::ShortcutRevoked,
+                    "Shortcut for chaos lease has been revoked")
+                    << TErrorAttribute("chaos_object_type", TypeFromId(chaosLeaseId))
+                    << TErrorAttribute("chaos_object_id", chaosLeaseId)
                     << TErrorAttribute("shortcut_state", it->second.State);
             }
         }
@@ -543,7 +595,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(chaosCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
     }
 
@@ -571,14 +623,19 @@ private:
                 &TCoordinatorManager::BuildInternalOrchid,
                 MakeWeak(this))
                 ->Via(Slot_->GetAutomatonInvoker()))
-            ->AddChild("shortcuts", TShortcutOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()));
+            ->AddChild("shortcuts", TShortcutOrchidService::Create(
+                MakeWeak(this),
+                Slot_->GetGuardedAutomatonInvoker()));
     }
 
     void BuildInternalOrchid(IYsonConsumer* consumer) const
     {
+        bool completelySuspended = Suspended_ && Shortcuts_.empty();
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("suspended").Value(Suspended_)
+                .Item("suspended").Value(
+                    completelySuspended)
+                .Item("suspension_status").Value(GetSuspensionStatus(Suspended_, completelySuspended))
             .EndMap();
     }
 

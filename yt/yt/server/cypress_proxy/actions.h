@@ -74,6 +74,7 @@ void MaterializeNodeInSequoia(
     NCypressClient::TVersionedNodeId nodeId,
     NCypressClient::TNodeId parentId,
     NSequoiaClient::TAbsolutePathBuf path,
+    std::optional<NYPath::TYPathBuf> linkNodeTargetPath,
     bool preserveAcl,
     bool preserveModificationTime,
     const TProgenitorTransactionCache& progenitorTransactionCache,

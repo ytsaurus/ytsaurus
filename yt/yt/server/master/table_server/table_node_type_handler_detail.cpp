@@ -120,9 +120,13 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         ValidateErasureCodec(eraseCodecValue, chunkManagerConfig->ForbiddenErasureCodecs);
     }
 
+    auto dynamicConfig = GetBootstrap()->GetConfigManager()->GetConfig()->TableManager;
+
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
     bool dynamic = combinedAttributes->GetAndRemove<bool>("dynamic", false);
-    auto optionalTabletCellBundleName = context.ExplicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::TabletCellBundle.Unintern());
+
+    std::optional<std::string> optionalTabletCellBundleName;
+    optionalTabletCellBundleName = combinedAttributes->FindAndRemove<std::string>(EInternedAttributeKey::TabletCellBundle.Unintern());
     bool optimizeForIsExplicit = context.ExplicitAttributes->Contains("optimize_for");
     auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>(
         "optimize_for",
@@ -139,6 +143,8 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto trimmedRowCounts = combinedAttributes->GetAndRemove<std::vector<i64>>("trimmed_row_counts", {});
     auto hunkStorageId = combinedAttributes->FindAndRemove<TObjectId>("hunk_storage_id");
     auto hasHunkChunkList = combinedAttributes->Find<bool>("has_hunk_chunk_list");
+    bool commitOrderingIsExplicit = context.ExplicitAttributes->Contains(EInternedAttributeKey::CommitOrdering.Unintern());
+    auto commitOrdering = combinedAttributes->FindAndRemove<NTransactionClient::ECommitOrdering>(EInternedAttributeKey::CommitOrdering.Unintern());
 
     ValidateReplicationFactor(replicationFactor);
 
@@ -178,7 +184,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto constraints = combinedAttributes->FindAndRemove<TColumnNameToConstraintMap>("constraints");
     auto schemaMode = combinedAttributes->GetAndRemove<ETableSchemaMode>("schema_mode", ETableSchemaMode::Weak);
 
-    auto dynamicConfig = GetBootstrap()->GetConfigManager()->GetConfig()->TableManager;
     if ((constrainedSchema || constraints) && !dynamicConfig->EnableColumnConstraintsForTables) {
         THROW_ERROR_EXCEPTION("Creation of tables with column constraints is prohibited by system administrator");
     }
@@ -269,6 +274,15 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         enableStripedErasure);
     auto* node = nodeHolder.get();
 
+    // NB: This is done before the try-catch above because in case of its failure
+    // the destruction signal will be send to Rtt during zombification of the node.
+    if (replicated && !id.IsBranched() && !node->IsExternal()) {
+        tabletManager->GetReplicatedTableCreatedSignal()->Fire(TReplicatedTableData{
+            .Id = id.ObjectId,
+            .Options = New<TReplicatedTableOptions>(),
+        });
+    }
+
     try {
         node->SetOptimizeFor(optimizeFor);
         if (optionalChunkFormat) {
@@ -276,15 +290,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
         node->SetHunkErasureCodec(hunkErasureCodec);
 
-        if (node->IsPhysicallyLog()) {
-            // NB: This setting may be not visible in attributes but crucial for replication
-            // to work properly.
-            node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
-        }
-
+        auto hasEffectiveTableSchema = effectiveTableSchema != nullptr;
         if (node->IsNative()) {
-            if (effectiveTableSchema) {
-                tableManager->GetOrCreateNativeMasterTableSchema(effectiveTableSchema, node);
+            if (hasEffectiveTableSchema) {
+                tableManager->GetOrCreateNativeMasterTableSchema(std::move(effectiveTableSchema), node);
             } else {
                 auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
                 tableManager->SetTableSchema(node, emptySchema);
@@ -297,8 +306,27 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             tableManager->SetTableSchema(node, schemaById);
         }
 
-        if ((node->IsNative() && effectiveTableSchema) || schemaMode == ETableSchemaMode::Strong) {
+        if ((node->IsNative() && hasEffectiveTableSchema) || schemaMode == ETableSchemaMode::Strong) {
             node->SetSchemaMode(ETableSchemaMode::Strong);
+        }
+
+        if (node->IsPhysicallyLog()) {
+            // NB: This setting may be not visible in attributes but crucial for replication
+            // to work properly.
+            THROW_ERROR_EXCEPTION_IF(commitOrderingIsExplicit && *commitOrdering != NTransactionClient::ECommitOrdering::Strong,
+                "Tables of type %Qlv only support %Qlv commit ordering, cannot set it to %Qlv",
+                    node->GetType(),
+                    NTransactionClient::ECommitOrdering::Strong,
+                    *commitOrdering);
+            node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
+        } else if (node->IsSorted()) {
+            THROW_ERROR_EXCEPTION_IF(commitOrderingIsExplicit && *commitOrdering != NTransactionClient::ECommitOrdering::Weak,
+                "Sorted tables only support %Qlv commit ordering, cannot set it to %Qlv",
+                    NTransactionClient::ECommitOrdering::Weak,
+                    *commitOrdering);
+            node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Weak);
+        } else if (commitOrdering.has_value()) {
+            node->SetCommitOrdering(*commitOrdering);
         }
 
         // NB: Dynamic table should have a bundle during creation for accounting to work properly.
@@ -403,13 +431,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         this->Zombify(node);
         this->Destroy(node);
         throw;
-    }
-
-    if (replicated && !id.IsBranched() && !node->IsExternal()) {
-        tabletManager->GetReplicatedTableCreatedSignal()->Fire(TReplicatedTableData{
-            .Id = id.ObjectId,
-            .Options = New<TReplicatedTableOptions>(),
-        });
     }
 
     return nodeHolder;
@@ -595,6 +616,16 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     if (clonedTrunkNode->IsTrackedQueueObject()) {
         tableManager->RegisterQueue(clonedTrunkNode);
     }
+
+    if (clonedTrunkNode->IsForeign()) {
+        tableManager->ScheduleStatisticsUpdate(
+            clonedTrunkNode,
+            TStatisticsUpdateRequest{
+                .UpdateDataStatistics = true,
+                .UpdateTabletResourceUsage = true,
+                .UseNativeContentRevisionCas = true,
+            });
+    }
 }
 
 template <class TImpl>
@@ -606,17 +637,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoSerializeNode(
     TSchemafulNodeTypeHandler::DoSerializeNode(node, context);
 
     if (node->IsDynamic()) {
-        // This is just a precaution. Copying dynamic tables should be fine: yes,
-        // there's a potential for a race between externalization request arriving
-        // to an external cell via Hive and a mount request arriving there via RPC
-        // (as part of 2PC). This race, however, is prevented by both mounting and
-        // externalization taking exclusive lock beforehand.
-        const auto& configManager = this->GetBootstrap()->GetConfigManager();
-        const auto& config = configManager->GetConfig()->CypressManager;
-        if (!config->AllowCrossShardDynamicTableCopying) {
-            THROW_ERROR_EXCEPTION("Dynamic tables do not support cross-cell copying");
-        }
-
         if (!node->GetTrunkNode()->SecondaryIndices().empty() || node->GetTrunkNode()->GetIndexTo()) {
             THROW_ERROR_EXCEPTION("Cannot cross-cell copy neither a table with a secondary index nor an index table itself");
         }
@@ -647,8 +667,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
 {
     TTabletOwnerTypeHandler::DoMaterializeNode(node, context);
     TSchemafulNodeTypeHandler::DoMaterializeNode(node, context);
-
-    // TODO(babenko): support copying dynamic tables
 
     using NYT::Load;
 

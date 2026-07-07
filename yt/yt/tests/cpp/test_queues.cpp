@@ -21,6 +21,8 @@
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <yt/yt/ytlib/queue_client/records/consumer_registration.record.h>
+
 #include <library/cpp/yt/string/format.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,9 +63,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeValueRow(const std::vector<TString>& values)
+std::string MakeValueRow(const std::vector<std::string>& values)
 {
-    TString result;
+    std::string result;
     for (int i = 0; i < std::ssize(values); ++i) {
         result += Format("%v<id=%v> %v;", (i == 0 ? "" : " "), i, values[i]);
     }
@@ -84,12 +86,13 @@ public:
 
         // TODO(achulkov2): Separate useful teardown methods from TDynamicTablesTestBase and stop inheriting from it altogether.
         CreateTable(
-            "//tmp/fake", // tablePath
-            "[" // schema
-            "{name=key;type=uint64;sort_order=ascending};"
-            "{name=value;type=uint64}]");
+            /*tablePath*/ "//tmp/fake",
+            /*schema*/ TYsonString(R"([
+                {name=key;type=uint64;sort_order=ascending};
+                {name=value;type=uint64}
+            ])"_sb));
 
-        CreateTableOnce(RegistrationTablePath, GetQueueAgentRegistrationTableSchema());
+        CreateTableOnce(RegistrationTablePath, NQueueClient::NRecords::TConsumerRegistrationDescriptor::Get()->GetSchema());
     }
 
     class TDynamicTable final
@@ -173,7 +176,7 @@ public:
             .ThrowOnError();
     }
 
-    static void WriteSingleRow(const TYPath& path, const TNameTablePtr& nameTable, const std::vector<TString>& values)
+    static void WriteSingleRow(const TYPath& path, const TNameTablePtr& nameTable, const std::vector<std::string>& values)
     {
         auto owningRow = YsonToSchemalessRow(MakeValueRow(values));
         WriteSingleRow(path, nameTable, owningRow);
@@ -190,7 +193,7 @@ public:
         Format("%v rows were expected", rowCount));
     }
 
-    auto CreateQueueAndConsumer(const TString& testName, std::optional<bool> useNativeTabletNodeApi = {}, int queueTabletCount = 1) const
+    auto CreateQueueAndConsumer(const std::string& testName, std::optional<bool> useNativeTabletNodeApi = {}, int queueTabletCount = 1) const
     {
         auto queueAttributes = CreateEphemeralAttributes();
         queueAttributes->Set("tablet_count", queueTabletCount);
@@ -229,7 +232,7 @@ public:
     }
 
     // NB: Only creates user once per test YT instance.
-    IClientPtr CreateUser(const TString& name) const
+    IClientPtr CreateUser(const std::string& name) const
     {
         if (!WaitFor(Client_->NodeExists("//sys/users/" + name)).ValueOrThrow()) {
             TCreateObjectOptions options;
@@ -258,20 +261,6 @@ public:
     void AssertPermissionDenied(const std::string& user, const TYPath& path, EPermission permission) const
     {
         AssertPermission(user, path, permission, ESecurityAction::Deny);
-    }
-
-    static const TTableSchemaPtr& GetQueueAgentRegistrationTableSchema()
-    {
-        static const TTableSchemaPtr RegistrationTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
-            TColumnSchema("queue_cluster", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("queue_path", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("consumer_cluster", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("consumer_path", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("vital", EValueType::Boolean),
-            TColumnSchema("partitions", EValueType::Any),
-        });
-
-        return RegistrationTableSchema;
     }
 
     static void CreateTableOnce(const TYPath& path, const TTableSchemaPtr& schema)
@@ -517,6 +506,7 @@ TEST_W(TListRegistrationsTest, ListQueueConsumerRegistrations)
 
 class TConsumerApiTest
     : public TQueueTestBase
+    , public ::testing::WithParamInterface<std::tuple<bool, NYPath::TYPath, NYPath::TYPath>>
 {
 public:
     static void TearDownTestCase();
@@ -524,13 +514,17 @@ public:
     static void SetUpTestCase();
 
 protected:
-    void CreateConsumer(const TRichYPath& path)
+    void CreateConsumer(const TRichYPath& path, bool isMultiConsumer = false)
     {
         TCreateNodeOptions options;
         options.Force = true;
         options.Attributes = CreateEphemeralAttributes();
         options.Attributes->Set("dynamic", true);
-        options.Attributes->Set("schema", GetConsumerSchema());
+        if (isMultiConsumer) {
+            options.Attributes->Set("schema", GetMultiConsumerSchema());
+        } else {
+            options.Attributes->Set("schema", GetConsumerSchema());
+        }
 
         WaitFor(Client_->CreateNode(path.GetPath(), EObjectType::Table, options))
             .ThrowOnError();
@@ -581,24 +575,29 @@ void TConsumerApiTest::SetUpTestCase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TConsumerApiTest, TestAdvanceQueueConsumerViaProxy)
+TEST_P(TConsumerApiTest, TestAdvanceQueueConsumerViaProxy)
 {
+    auto [isMultiConsumer, consumerName, queueName] = GetParam();
+
     TRichYPath consumerPath;
-    consumerPath.SetPath("//tmp/test_consumer");
+    consumerPath.SetPath(consumerName);
+    if (isMultiConsumer) {
+        consumerPath.SetQueueConsumerName("consumer_name_1");
+    }
 
     TRichYPath queuePath;
-    queuePath.SetPath("//tmp/test_queue");
+    queuePath.SetPath(queueName);
 
-    CreateConsumer(consumerPath);
+    CreateConsumer(consumerPath, isMultiConsumer);
     CreateQueue(queuePath);
 
     TRichYPath queueLinkPath;
-    queueLinkPath.SetPath("//tmp/test_queue_link");
+    queueLinkPath.SetPath(Format("%v_link", queueName));
 
     WaitFor(Client_->LinkNode(queuePath.GetPath(), queueLinkPath.GetPath()))
         .ValueOrThrow();
 
-    auto consumerClient = NQueueClient::CreateSubConsumerClient(Client_, Client_, consumerPath.GetPath(), queuePath);
+    auto consumerClient = NQueueClient::CreateSubConsumerClient(Client_, Client_, consumerPath, queuePath);
 
     auto partitions = WaitFor(consumerClient->CollectPartitions(1))
         .ValueOrThrow();
@@ -638,6 +637,13 @@ TEST_F(TConsumerApiTest, TestAdvanceQueueConsumerViaProxy)
     EXPECT_EQ(partitions[0].PartitionIndex, 0);
     EXPECT_EQ(partitions[0].NextRowIndex, 10);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    TConsumerApiTest,
+    TConsumerApiTest,
+    ::testing::Values(
+        std::tuple(true, "//tmp/test_multi_consumer", "//tmp/test_queue_with_multi_consumer"),
+        std::tuple(false, "//tmp/test_consumer", "//tmp/test_queue")));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -688,7 +694,7 @@ TEST_F(TProducerApiTest, TestApi)
 
         rowBuilder.AddValue(MakeUnversionedUint64Value(rowIndex, 0));
 
-        TString value = ToString(rowIndex * rowIndex);
+        auto value = ToString(rowIndex * rowIndex);
         rowBuilder.AddValue(MakeUnversionedStringValue(value, 1));
 
         rowsBuilder.AddRow(rowBuilder.GetRow());
@@ -770,7 +776,7 @@ TEST_F(TProducerApiTest, TestProducerClient)
 
             rowBuilder.AddValue(MakeUnversionedUint64Value(rowIndex, 0));
 
-            TString value = ToString(rowIndex * rowIndex);
+            auto value = ToString(rowIndex * rowIndex);
             rowBuilder.AddValue(MakeUnversionedStringValue(value, 1));
 
             if (startSequenceNumber) {

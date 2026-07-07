@@ -177,7 +177,7 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
         MakeFormattableView(
             TableMountInfo_->Indices,
             [] (auto* builder, const auto& indexInfo) {
-                builder->AppendFormat("(%v: %Qlv)", indexInfo.TableId, indexInfo.Kind);
+                builder->AppendFormat("(%v: %Qlv)", indexInfo.IndexObjectId, indexInfo.Kind);
             }));
 
     const auto& tableSchema = TableMountInfo_->Schemas[ETableSchemaKind::Primary];
@@ -402,31 +402,40 @@ void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<TUnversion
         auto key = TKey(modification.Row.FirstNElements(keyColumnCount));
         auto& alteredRow = GetOrCrash(ResultingRowMap_, key);
 
+        auto fillRowIfNotInitialized = [&] (TMutableUnversionedRow& row) {
+            if (!row) {
+                row = RowBuffer_->AllocateUnversioned(columnCount);
+                for (int index = 0; index < columnCount; ++index) {
+                    row[index] = MakeUnversionedSentinelValue(
+                        EValueType::Null,
+                        PositionToIdMapping_[index]);
+                }
+            }
+
+            for (auto value : modification.Row) {
+                if (auto index = ResultingRowMapping_[value.Id]; index >= 0) {
+                    row[index] = RowBuffer_->CaptureValue(value);
+                }
+            }
+
+            for (int position = FirstEvaluatedColumnPosition_; position < columnCount; ++position) {
+                evaluator->EvaluateKey(row, RowBuffer_, position, /*preserveColumnId*/ true);
+            }
+        };
+
         switch (modification.Command) {
             case EWireProtocolCommand::WriteAndLockRow:
             case EWireProtocolCommand::WriteRow:
-                if (!alteredRow) {
-                    alteredRow = RowBuffer_->AllocateUnversioned(columnCount);
-                    for (int index = 0; index < columnCount; ++index) {
-                        alteredRow[index] = MakeUnversionedSentinelValue(
-                            EValueType::Null,
-                            PositionToIdMapping_[index]);
-                    }
-                }
-
-                for (auto value : modification.Row) {
-                    if (auto index = ResultingRowMapping_[value.Id]; index >= 0) {
-                        alteredRow[index] = RowBuffer_->CaptureValue(value);
-                    }
-                }
-
-                for (int position = FirstEvaluatedColumnPosition_; position < columnCount; ++position) {
-                    evaluator->EvaluateKey(alteredRow, RowBuffer_, position, /*preserveColumnId*/ true);
-                }
+                fillRowIfNotInitialized(alteredRow);
 
                 break;
 
             case EWireProtocolCommand::DeleteRow:
+                if (CanSkipLookup_) {
+                    auto& initialRow = GetOrCrash(InitialRowMap_, key);
+
+                    fillRowIfNotInitialized(initialRow);
+                }
                 alteredRow = {};
                 break;
 
@@ -533,11 +542,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceFullSync
                 /*validateDuplicateAndRequiredValueColumns*/ false,
                 /*preserveIds*/ true);
 
-            secondaryModifications.push_back(TRowModification{
-                .Type = ERowModificationType::Delete,
-                .Row = rowToDelete.ToTypeErasedRow(),
-                .Locks = TLockMask(),
-            });
+            secondaryModifications.push_back(NRowModifications::TDeleteRow(rowToDelete));
         }
     }
 
@@ -552,11 +557,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceFullSync
                 /*preserveIds*/ true,
                 empty);
 
-            secondaryModifications.push_back(TRowModification{
-                .Type = ERowModificationType::Write,
-                .Row = rowToWrite.ToTypeErasedRow(),
-                .Locks = TLockMask(),
-            });
+            secondaryModifications.push_back(NRowModifications::TWriteRow(rowToWrite));
         }
     }
 
@@ -643,11 +644,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
                 /*preserveIds*/ true);
 
             unfoldValue(permuttedRow, [&] (TUnversionedRow rowToDelete) {
-                secondaryModifications.push_back(TRowModification{
-                    .Type = ERowModificationType::Delete,
-                    .Row = rowToDelete.ToTypeErasedRow(),
-                    .Locks = TLockMask(),
-                });
+                secondaryModifications.push_back(NRowModifications::TDeleteRow(rowToDelete));
             });
         }
     }
@@ -672,11 +669,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
             }
 
             unfoldValue(permuttedRow, [&] (TUnversionedRow rowToWrite) {
-                secondaryModifications.push_back(TRowModification{
-                    .Type = ERowModificationType::Write,
-                    .Row = rowToWrite.ToTypeErasedRow(),
-                    .Locks = TLockMask(),
-                });
+                secondaryModifications.push_back(NRowModifications::TWriteRow(rowToWrite));
             });
         }
     }

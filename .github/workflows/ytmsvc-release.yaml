@@ -59,16 +59,12 @@ jobs:
         id: tag
         run: |
           echo "RELEASE_VERSION=$(echo ${GITHUB_REF#refs/*/docker/ytmsvc/})" >> $GITHUB_OUTPUT
-      - name: Package And Push Helm Chart
+      - name: Build And Push Docker Image And Helm Chart
         run: |
-          sed -i 's/tag: .*/tag: "${{ steps.tag.outputs.RELEASE_VERSION }}"/' yt/docker/charts/ytmsvc-chart/values.yaml
-          helm package yt/docker/charts/ytmsvc-chart --version ${{ steps.tag.outputs.RELEASE_VERSION }}
-          helm push ytmsvc-chart-${{ steps.tag.outputs.RELEASE_VERSION }}.tgz oci://ghcr.io/ytsaurus
-      - name: Build And Push Docker Image
-        run: |
-          cd yt/docker/ytmsvc
-          make docker-build IMAGE_TAG=${{ steps.tag.outputs.RELEASE_VERSION }}
-          make docker-push IMAGE_TAG=${{ steps.tag.outputs.RELEASE_VERSION }}
+          make -C yt/docker/ytmsvc release-all \
+            VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} \
+            DOCKER_REPOSITORY=ytmsvc \
+            CHART_REPOSITORY=ytmsvc-chart
 
   stop-vm:
     name: Stop VM

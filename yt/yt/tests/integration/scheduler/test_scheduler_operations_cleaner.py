@@ -9,11 +9,10 @@ from yt_commands import (
 
 import yt.environment.init_operations_archive as init_operations_archive
 
-from yt.common import uuid_to_parts, YT_DATETIME_FORMAT_STRING, YtError, YtResponseError
+from yt.common import uuid_to_parts, YT_DATETIME_FORMAT_STRING, YtError
 
 from yt_helpers import profiler_factory
 
-import pytest
 from flaky import flaky
 
 from datetime import datetime, timedelta
@@ -28,15 +27,22 @@ CLEANER_CONFIG = "//sys/scheduler/config/operations_cleaner"
 
 
 def _try_track(op, expect_fail=False):
-    if expect_fail:
-        with pytest.raises(YtError):
-            op.track()
-    else:
-        try:
-            op.track()
-        except YtResponseError as e:
-            if not e.is_resolve_error():
-                raise
+    try:
+        op.track()
+        if expect_fail:
+            raise AssertionError("Operation was expected to fail but completed successfully")
+    except YtError as e:
+        # The operations cleaner may remove the finished operation from Cypress before
+        # we manage to read its result (max_operation_count_per_user is small and the
+        # cleaner runs aggressively). The operation has certainly finished in this case,
+        # so there is nothing left to verify.
+        if e.is_resolve_error():
+            return
+        if expect_fail:
+            assert "Failed jobs limit exceeded" in str(e), \
+                'Raised error does not match "Failed jobs limit exceeded": {}'.format(e)
+        else:
+            raise
 
 
 def _run_maps_parallel(count, command, expect_fail=False, max_failed_job_count=1):

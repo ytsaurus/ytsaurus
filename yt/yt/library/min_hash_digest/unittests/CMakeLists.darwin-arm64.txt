@@ -12,22 +12,24 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(yt-yt-library-min_hash_digest-unittests)
+add_executable(unittester-library-min-hash-digest)
 
 
-target_link_libraries(yt-yt-library-min_hash_digest-unittests PUBLIC
+target_link_libraries(unittester-library-min-hash-digest PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
+  yt-yt-client
+  yt-library-min_hash_digest
 )
 
-target_allocator(yt-yt-library-min_hash_digest-unittests
+target_allocator(unittester-library-min-hash-digest
   system_allocator
 )
 
-target_link_options(yt-yt-library-min_hash_digest-unittests PRIVATE
+target_link_options(unittester-library-min-hash-digest PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -35,21 +37,21 @@ target_link_options(yt-yt-library-min_hash_digest-unittests PRIVATE
   CoreFoundation
 )
 
-target_sources(yt-yt-library-min_hash_digest-unittests PRIVATE
+target_sources(unittester-library-min-hash-digest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/min_hash_digest/unittests/min_hash_digest_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-library-min_hash_digest-unittests
+  unittester-library-min-hash-digest
   COMMAND
-  yt-yt-library-min_hash_digest-unittests
+  unittester-library-min-hash-digest
 )
 
 set_property(
   TEST
-  yt-yt-library-min_hash_digest-unittests
+  unittester-library-min-hash-digest
   PROPERTY
   LABELS
   SMALL
@@ -57,16 +59,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-library-min_hash_digest-unittests
+  unittester-library-min-hash-digest
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-library-min_hash_digest-unittests)
+vcs_info(unittester-library-min-hash-digest)
 
 set_property(
   TEST
-  yt-yt-library-min_hash_digest-unittests
+  unittester-library-min-hash-digest
   PROPERTY
   PROCESSORS
   1

@@ -2,29 +2,47 @@
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/config.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_controller.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_pool.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_reader.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_writer.h>
 
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/config.h>
-#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_allowing_repair.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
-#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/journal_client/chunk_reader.h>
+
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/transaction.h>
 
-#include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/row_batch.h>
-
-#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/suspendable_action_queue.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yt/core/rpc/helpers.h>
+
+#include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/log_manager.h>
+
+#include <library/cpp/yt/misc/range_helpers.h>
+
+#include <thread>
 
 namespace NYT {
 namespace NCppTests {
@@ -34,12 +52,23 @@ using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
+using namespace NErasure;
+using namespace NJournalClient;
+using namespace NLogging;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
 
 using testing::HasSubstr;
 using testing::UnorderedElementsAreArray;
+using testing::Combine;
+using testing::ValuesIn;
+
+using NChunkClient::NProto::TMiscExt;
+
+using NJournalClient::TChunkReaderConfig;
+using NJournalClient::CreateChunkReader;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,348 +84,1526 @@ std::string MakeRandomString(size_t stringSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDistributedChunkSessionReaderConfigPtr MakeReaderConfig()
+{
+    auto config = New<TDistributedChunkSessionReaderConfig>();
+    config->MaxReadAttempts = 5;
+    config->PollInterval = TDuration::MilliSeconds(50);
+    config->ProbeTimeout = TDuration::Seconds(2);
+    config->ErrorBackoff = TExponentialBackoffOptions{
+        .InvocationCount = std::numeric_limits<int>::max(),
+        .MinBackoff = TDuration::MilliSeconds(10),
+        .MaxBackoff = TDuration::MilliSeconds(50),
+        .BackoffMultiplier = 1.5,
+        .BackoffJitter = 0.1,
+    };
+    return config;
+}
+
+TDistributedChunkSessionReaderConfigPtr MakePrefetchReaderConfig(
+    int windowCount,
+    i64 sequentialReadSize,
+    int depth)
+{
+    auto config = MakeReaderConfig();
+    config->PrefetchWindowCount = windowCount;
+    config->SequentialReadSize = sequentialReadSize;
+    config->PrefetchDepth = depth;
+    return config;
+}
+
+std::vector<std::string> ReadAllSorted(const IDistributedChunkSessionReaderPtr& reader)
+{
+    std::vector<std::string> records;
+    while (true) {
+        auto result = WaitFor(reader->Read())
+            .ValueOrThrow();
+        for (const auto& record : result.Records) {
+            records.push_back(std::string(record.ToStringBuf()));
+        }
+        if (result.Finished) {
+            break;
+        }
+    }
+    std::sort(records.begin(), records.end());
+    return records;
+}
+
+std::vector<std::string> SortedPayloads(const std::vector<std::string>& payloads)
+{
+    std::vector<std::string> result(payloads.begin(), payloads.end());
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDistributedChunkSessionTest
     : public TApiTestBase
 {
 protected:
     NNative::IClientPtr NativeClient_;
     NNative::IConnectionPtr NativeConnection_;
-    TNameTablePtr ChunkNameTable_;
     ISuspendableActionQueuePtr ActionQueue_;
-    TUnversionedOwningRowBuilder RowBuilder_;
     ITransactionPtr Transaction_;
     TDistributedChunkSessionControllerConfigPtr ControllerConfig_;
+    TJournalChunkWriterConfigPtr WriterConfig_;
+    TJournalChunkWriterOptionsPtr WriterOptions_;
+
+    static constexpr bool EnableDebugOutput = false;
 
     void SetUp() override
     {
+        if (EnableDebugOutput) {
+            auto config = TLogManagerConfig::CreateStderrLogger(ELogLevel::Debug);
+            config->AbortOnAlert = true;
+            TLogManager::Get()->Configure(config, /*sync*/ true);
+        }
+
         NativeClient_ = DynamicPointerCast<NNative::IClient>(Client_);
         NativeConnection_ = NativeClient_->GetNativeConnection();
-        ChunkNameTable_ = New<TNameTable>();
+
         ActionQueue_ = CreateSuspendableActionQueue("TestSession");
+
         Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master))
             .ValueOrThrow();
+
         ControllerConfig_ = New<TDistributedChunkSessionControllerConfig>();
         ControllerConfig_->Account = "intermediate";
-        ControllerConfig_->WriteSessionPingPeriod = TDuration::MilliSeconds(100);
+        ControllerConfig_->SessionPingPeriod = TDuration::MilliSeconds(100);
+        ControllerConfig_->SessionTimeout = TDuration::Seconds(1);
+
+        WriterConfig_ = New<TJournalChunkWriterConfig>();
+        WriterOptions_ = New<TJournalChunkWriterOptions>();
+
+        WriterOptions_->ReplicationFactor = 3;
     }
 
-    static std::vector<TUnversionedOwningRow> ReadAllChunkRows(TChunkId chunkId)
+    IChunkReaderPtr CreateQuorumReader(TChunkId chunkId)
     {
-        auto dataSourceDirectory = New<TDataSourceDirectory>();
-        dataSourceDirectory->DataSources().emplace_back(New<TDataSource>(
-            EDataSourceType::UnversionedTable,
-            /*path*/ "",
-            New<TTableSchema>(),
-            /*virtualKeyPrefixLength*/ 0,
-            /*columns*/ std::nullopt,
-            /*omittedInaccessibleColumns*/ std::vector<std::string>{},
-            /*timestamp*/ NullTimestamp,
-            /*retentionTimestamp*/ NullTimestamp,
-            /*columnRenameDescriptors*/ TColumnRenameDescriptors{}));
+        auto replicaStrings = ConvertTo<std::vector<std::string>>(
+            WaitFor(NativeClient_->GetNode(Format("#%v/@stored_replicas", chunkId)))
+                .ValueOrThrow());
 
-        NChunkClient::NProto::TChunkSpec chunkSpec;
-        chunkSpec.set_row_count_override(0);
-        chunkSpec.set_data_weight_override(0);
-        ToProto(chunkSpec.mutable_chunk_id(), chunkId);
+        YT_VERIFY(!replicaStrings.empty());
 
-        std::vector<TDataSliceDescriptor> dataSlices;
-        dataSlices.emplace_back(std::move(chunkSpec));
+        auto channelFactory = NativeConnection_->GetChannelFactory();
 
-        auto tableReaderOptions = New<NTableClient::TTableReaderOptions>();
-        auto tableReaderConfig = New<TTableReaderConfig>();
+        std::string bestAddress;
+        std::optional<i64> bestRowCount;
 
-        auto reader = CreateSchemalessSequentialMultiReader(
-            New<TTableReaderConfig>(),
-            New<NTableClient::TTableReaderOptions>(),
-            New<TMultiChunkReaderHost>(
-                New<NChunkClient::TChunkReaderHost>(DynamicPointerCast<NNative::IClient>(Client_))),
-            dataSourceDirectory,
-            dataSlices,
-            /*hintKeyPrefixes*/ std::nullopt,
-            New<TNameTable>(),
-            TClientChunkReadOptions(),
-            TReaderInterruptionOptions::InterruptibleWithEmptyKey());
+        for (const auto& address : replicaStrings) {
+            auto channel = channelFactory->CreateChannel(address);
+            TDataNodeServiceProxy proxy(channel);
 
-        std::vector<TUnversionedOwningRow> rows;
-        while (auto batch = reader->Read()) {
-            if (batch->IsEmpty()) {
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
+            auto req = proxy.GetChunkMeta();
+            ToProto(req->mutable_chunk_id(), chunkId);
+            req->set_all_extension_tags(true);
+
+            auto rspOrError = WaitFor(req->Invoke());
+            if (!rspOrError.IsOK()) {
                 continue;
             }
-            for (const auto& row : batch->MaterializeRows()) {
-                rows.emplace_back(row);
+
+            const auto& meta = rspOrError.Value()->chunk_meta();
+            auto miscExt = GetProtoExtension<TMiscExt>(
+                meta.extensions());
+
+            if (!bestRowCount || miscExt.row_count() > *bestRowCount) {
+                bestRowCount = miscExt.row_count();
+                bestAddress = address;
             }
         }
 
-        return rows;
+        YT_VERIFY(!bestAddress.empty());
+
+        auto nodeDirectory = NativeConnection_->GetNodeDirectory();
+
+        TNodeId bestNodeId;
+        for (const auto& [nodeId, descriptor] : nodeDirectory->GetAllDescriptors()) {
+            if (descriptor.GetDefaultAddress() == bestAddress) {
+                bestNodeId = nodeId;
+                break;
+            }
+        }
+        YT_VERIFY(bestNodeId != TNodeId{});
+
+        TChunkReplicaWithMedium replica(
+            bestNodeId,
+            /*replicaIndex*/ 0,
+            /*mediumIndex*/ GenericMediumIndex);
+
+        return CreateChunkReader(
+            New<NJournalClient::TChunkReaderConfig>(),
+            New<TRemoteReaderOptions>(),
+            New<TChunkReaderHost>(NativeClient_),
+            chunkId,
+            ECodec::None,
+            /*replicas*/ {replica});
     }
 
-    int GetColumnId(std::string_view columnName)
+    void WaitForChunkSealed(TChunkId chunkId)
     {
-        return ChunkNameTable_->GetIdOrRegisterName(columnName);
+        WaitUntil(
+            [&] {
+                return ConvertTo<bool>(
+                    WaitFor(Client_->GetNode(Format("#%v/@sealed", chunkId)))
+                        .ValueOrThrow());
+            },
+            Format("Chunk %v is not sealed", chunkId));
     }
 
-    static void EnsureControllerIsDestroyed(IDistributedChunkSessionControllerPtr controller)
+    void EnsureControllerIsDestroyed(IDistributedChunkSessionControllerPtr controller)
+    {
+        EnsureControllerIsDestroyed(std::move(controller), ActionQueue_);
+    }
+
+    void EnsureControllerIsDestroyed(
+        IDistributedChunkSessionControllerPtr controller,
+        const ISuspendableActionQueuePtr& actionQueue)
     {
         auto controllerWeakPtr = TWeakPtr(controller);
         controller.Reset();
-        EXPECT_TRUE(controllerWeakPtr.IsExpired());
+
+        // The invoker thread may still be inside a callback that holds
+        // MakeStrong(this). Shut down the action queue to join the
+        // thread and let the current callback finish. Non-graceful
+        // shutdown discards pending callbacks to verify they use
+        // MakeWeak(this).
+        actionQueue->Shutdown(/*graceful*/ false);
+
+        // The StartSession()/CloseSession() future chains capture
+        // MakeStrong(this) inside BIND callbacks attached via Apply().
+        // Those callbacks (and their strong refs) are destroyed when
+        // the upstream future's subscriber list is cleared, which can
+        // happen on RPC threads outside Invoker_. Poll for expiration
+        // instead of asserting synchronously.
+        WaitUntil(
+            [&] { return controllerWeakPtr.IsExpired(); },
+            "Controller was not destroyed");
+    }
+
+    static std::vector<std::string> GetChunkReplicaNodes(TChunkId chunkId)
+    {
+        return ConvertTo<std::vector<std::string>>(
+            WaitFor(Client_->GetNode(Format("#%v/@stored_replicas", chunkId)))
+                .ValueOrThrow());
+    }
+
+    static void WaitForDataNodeOnline(const std::string& dataNode)
+    {
+        WaitUntil(
+            [&] {
+                return ConvertTo<ENodeState>(
+                    WaitFor(Client_->GetNode(Format("//sys/cluster_nodes/%v/@state", dataNode)))
+                        .ValueOrThrow()) == ENodeState::Online;
+            },
+            "Node is offline");
+    }
+
+    static void UnbanDataNode(const std::string& dataNode)
+    {
+        WaitFor(Client_->RemoveMaintenance(EMaintenanceComponent::ClusterNode, dataNode, {}))
+            .ThrowOnError();
+        WaitForDataNodeOnline(dataNode);
+    }
+
+    static std::vector<std::string> GetDataNodes()
+    {
+        return ConvertTo<std::vector<std::string>>(
+            WaitFor(Client_->ListNode(Format("//sys/data_nodes")))
+                .ValueOrThrow());
+    }
+
+    [[nodiscard]] static auto BanDataNode(const std::string& dataNode)
+    {
+        WaitFor(Client_->AddMaintenance(EMaintenanceComponent::ClusterNode, dataNode, EMaintenanceType::Ban, "test"))
+            .ThrowOnError();
+        WaitUntil(
+            [&] {
+                return ConvertTo<ENodeState>(
+                    WaitFor(Client_->GetNode(Format("//sys/cluster_nodes/%v/@state", dataNode)))
+                        .ValueOrThrow()) == ENodeState::Offline;
+            },
+            "Node is online");
+        return Finally([dataNode] {
+            UnbanDataNode(dataNode);
+        });
+    }
+
+    [[nodiscard]] static auto BanDataNodes(const std::vector<std::string>& dataNodes)
+    {
+        return TransformRangeTo<std::vector<decltype(BanDataNode(std::declval<std::string>()))>>(
+            dataNodes,
+            &BanDataNode);
+    }
+
+    struct TSealedChunkInfo
+    {
+        TChunkId ChunkId;
+        TChunkReplicaList Replicas;
+        int ReadQuorum;
+        std::vector<std::string> Payloads;
+        i64 CompressedDataSize;
+    };
+
+    struct TActiveSession
+    {
+        IDistributedChunkSessionControllerPtr Controller;
+        IDistributedChunkWriterPtr Writer;
+        TChunkId ChunkId;
+        TChunkReplicaList Replicas;
+        int ReadQuorum;
+    };
+
+    TActiveSession StartChunkSession()
+    {
+        auto controller = CreateDistributedChunkSessionController(
+            NativeClient_,
+            ControllerConfig_,
+            Transaction_->GetId(),
+            WriterOptions_,
+            WriterConfig_,
+            ActionQueue_->GetInvoker());
+
+        auto started = WaitFor(controller->StartSession())
+            .ValueOrThrow();
+
+        auto writer = CreateDistributedChunkWriter(
+            started.SequencerNode,
+            started.SessionId,
+            NativeConnection_,
+            New<TDistributedChunkWriterConfig>());
+
+        return TActiveSession{
+            .Controller = std::move(controller),
+            .Writer = std::move(writer),
+            .ChunkId = started.SessionId.ChunkId,
+            .Replicas = TChunkReplicaWithMedium::ToChunkReplicas(started.Replicas),
+            .ReadQuorum = WriterOptions_->ReadQuorum,
+        };
+    }
+
+    void SealChunk(TChunkId chunkId)
+    {
+        auto channel = NativeClient_->GetMasterChannelOrThrow(
+            NApi::EMasterChannelKind::Leader,
+            CellTagFromId(chunkId));
+        TChunkServiceProxy proxy(channel);
+        auto sealReq = proxy.ScheduleChunkSeal();
+        NRpc::GenerateMutationId(sealReq);
+        ToProto(sealReq->mutable_chunk_id(), chunkId);
+        WaitFor(sealReq->Invoke())
+            .ThrowOnError();
+        WaitForChunkSealed(chunkId);
+    }
+
+    TSealedChunkInfo WriteRecordsAndSealChunk(int recordCount)
+    {
+        auto controllerActionQueue = CreateSuspendableActionQueue("TestSessionCtl");
+        auto controller = CreateDistributedChunkSessionController(
+            NativeClient_,
+            ControllerConfig_,
+            Transaction_->GetId(),
+            WriterOptions_,
+            WriterConfig_,
+            controllerActionQueue->GetInvoker());
+
+        auto startedSession = WaitFor(controller->StartSession())
+            .ValueOrThrow();
+
+        auto writer = CreateDistributedChunkWriter(
+            startedSession.SequencerNode,
+            startedSession.SessionId,
+            NativeConnection_,
+            New<TDistributedChunkWriterConfig>());
+
+        std::vector<std::string> payloads;
+        payloads.reserve(recordCount);
+        for (int i = 0; i < recordCount; ++i) {
+            payloads.push_back(MakeRandomString(100));
+            WaitFor(writer->WriteRecord(TSharedRef::FromString(payloads.back())))
+                .ThrowOnError();
+        }
+
+        WaitFor(controller->Close())
+            .ThrowOnError();
+
+        auto chunkId = startedSession.SessionId.ChunkId;
+
+        auto channel = NativeClient_->GetMasterChannelOrThrow(
+            NApi::EMasterChannelKind::Leader,
+            CellTagFromId(chunkId));
+        TChunkServiceProxy proxy(channel);
+        auto sealReq = proxy.ScheduleChunkSeal();
+        NRpc::GenerateMutationId(sealReq);
+        ToProto(sealReq->mutable_chunk_id(), chunkId);
+        WaitFor(sealReq->Invoke())
+            .ThrowOnError();
+
+        WaitForChunkSealed(chunkId);
+
+        EnsureControllerIsDestroyed(std::move(controller), controllerActionQueue);
+
+        i64 compressedDataSize = 0;
+        for (const auto& payload : payloads) {
+            compressedDataSize += std::ssize(payload);
+        }
+
+        return {
+            .ChunkId = chunkId,
+            .Replicas = TChunkReplicaWithMedium::ToChunkReplicas(startedSession.Replicas),
+            .ReadQuorum = WriterOptions_->ReadQuorum,
+            .Payloads = std::move(payloads),
+            .CompressedDataSize = compressedDataSize,
+        };
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TDistributedChunkSessionTest, SingleWriter)
+static int GetPidByPort(int port)
+{
+    // TODO(apollo1321): This implementation is a hacky workaround.
+    // Ideally, the test environment (Python recipe) should expose node pids
+    // directly, e.g. via a file or environment variable, so that tests can
+    // interact with node processes without resorting to parsing ss output.
+    // This should be reworked once proper test environment integration is
+    // available.
+
+    // Use ss to find pid listening on the given port.
+    // -t: TCP, -l: listening, -n: numeric, -p: show process
+    auto command = Format("ss -tlnp 'sport = :%v'", port);
+    FILE* pipe = popen(command.c_str(), "r");
+    YT_VERIFY(pipe);
+
+    char buffer[256];
+    std::string output;
+    while (fgets(buffer, sizeof(buffer), pipe)) {
+        output += buffer;
+    }
+    pclose(pipe);
+
+    // Output looks like:
+    // State  Recv-Q  Send-Q  Local Address:Port  Peer Address:Port  Process
+    // LISTEN 0       128     *:9012             *:*                users:(("ytserver-node",pid=12345,fd=10))
+    auto pidPos = output.find("pid=");
+    YT_VERIFY(pidPos != std::string::npos);
+
+    auto pidStart = pidPos + 4;
+    auto pidEnd = output.find(',', pidStart);
+    YT_VERIFY(pidEnd != std::string::npos);
+
+    return std::stoi(output.substr(pidStart, pidEnd - pidStart));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+[[nodiscard]] static auto PauseProcess(const std::string& dataNode)
+{
+    auto colonPos = dataNode.rfind(':');
+    int port = std::stoi(dataNode.substr(colonPos + 1));
+    int pid = GetPidByPort(port);
+
+    YT_VERIFY(kill(pid, SIGSTOP) == 0);
+
+    return Finally([pid] {
+        YT_VERIFY(kill(pid, SIGCONT) == 0);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TDistributedChunkSessionTest, StartSessionReturnsStartedSessionInfo)
 {
     auto controller = CreateDistributedChunkSessionController(
         NativeClient_,
         ControllerConfig_,
         Transaction_->GetId(),
-        ChunkNameTable_,
+        WriterOptions_,
+        WriterConfig_,
         ActionQueue_->GetInvoker());
 
-    auto coordinatorNode = WaitFor(controller->StartSession())
+    auto startedSession = WaitFor(controller->StartSession())
         .ValueOrThrow();
 
-    // Ensure that controller sends pings to coordinator.
-    Sleep(TDuration::Seconds(2));
-
-    std::vector<TUnversionedOwningRow> rows;
-
-    RowBuilder_.AddValue(MakeUnversionedUint64Value(/*value*/ 1, GetColumnId("a")));
-    RowBuilder_.AddValue(MakeUnversionedInt64Value(/*value*/ 2, GetColumnId("b")));
-    RowBuilder_.AddValue(MakeUnversionedStringValue(/*value*/ "First row string", GetColumnId("c")));
-    rows.push_back(RowBuilder_.FinishRow());
-
-    RowBuilder_.AddValue(MakeUnversionedUint64Value(/*value*/ 3, GetColumnId("a")));
-    RowBuilder_.AddValue(MakeUnversionedInt64Value(/*value*/ 4, GetColumnId("b")));
-    RowBuilder_.AddValue(MakeUnversionedStringValue(/*value*/ "Second row string", GetColumnId("c")));
-    rows.push_back(RowBuilder_.FinishRow());
-
-    auto writer = CreateDistributedChunkWriter(
-        coordinatorNode,
-        controller->GetSessionId(),
-        NativeConnection_,
-        New<TDistributedChunkWriterConfig>(),
-        ActionQueue_->GetInvoker());
-
-    WaitFor(writer->Write(MakeSharedRange(std::vector<TUnversionedRow>(rows.begin(), rows.end()))))
-        .ThrowOnError();
-
-    WaitFor(controller->Close())
-        .ThrowOnError();
-
-    EXPECT_EQ(ReadAllChunkRows(controller->GetSessionId().ChunkId), rows);
+    EXPECT_EQ(startedSession.SessionId, controller->GetSessionId());
+    EXPECT_EQ(std::ssize(startedSession.Replicas), WriterOptions_->ReplicationFactor);
+    EXPECT_FALSE(startedSession.SequencerNode.GetDefaultAddress().empty());
 
     EnsureControllerIsDestroyed(std::move(controller));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TDistributedChunkSessionTest, SingleWriter)
+{
+    WriterOptions_->WriteQuorum = 2;
+    WriterOptions_->ReplicationFactor = 3;
+
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    auto startedSession = WaitFor(controller->StartSession())
+        .ValueOrThrow();
+
+    // Ensure that controller sends pings to sequencer and session stays alive.
+    Sleep(TDuration::Seconds(2));
+
+    auto writer = CreateDistributedChunkWriter(
+        startedSession.SequencerNode,
+        startedSession.SessionId,
+        NativeConnection_,
+        New<TDistributedChunkWriterConfig>());
+
+    auto record = MakeRandomString(100);
+
+    WaitFor(writer->WriteRecord(TSharedRef::FromString(record)))
+        .ThrowOnError();
+
+    auto reader = CreateQuorumReader(startedSession.SessionId.ChunkId);
+
+    auto blocks = WaitFor(reader->ReadBlocks(IChunkReader::TReadBlocksOptions{}, {0}))
+        .ValueOrThrow();
+
+    ASSERT_EQ(std::ssize(blocks), 1);
+    EXPECT_EQ(blocks[0].Data.ToStringBuf(), record);
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
 
 TEST_F(TDistributedChunkSessionTest, MultipleWriters)
 {
+    WriterOptions_->WriteQuorum = 2;
+    WriterOptions_->ReplicationFactor = 3;
+
     auto controller = CreateDistributedChunkSessionController(
         NativeClient_,
         ControllerConfig_,
         Transaction_->GetId(),
-        ChunkNameTable_,
+        WriterOptions_,
+        WriterConfig_,
         ActionQueue_->GetInvoker());
 
-    auto coordinatorNode = WaitFor(controller->StartSession())
+    auto startedSession = WaitFor(controller->StartSession())
         .ValueOrThrow();
 
-    std::vector<TUnversionedOwningRow> rows;
-    std::vector<IDistributedChunkWriterPtr> writers;
+    Sleep(TDuration::Seconds(2));
 
-    for (int writerIndex = 0; writerIndex < 4; ++writerIndex) {
-        writers.push_back(CreateDistributedChunkWriter(
-            coordinatorNode,
-            controller->GetSessionId(),
+    constexpr int WriterCount = 3;
+    constexpr int RecordsPerWriter = 5;
+    const int totalRecords = WriterCount * RecordsPerWriter;
+
+    // Each writer sends all its records concurrently and we collect
+    // the futures to wait on all of them at once.
+    std::vector<std::string> expectedRecords(totalRecords);
+    std::vector<TFuture<void>> writeFutures(totalRecords);
+
+    for (int writerIdx = 0; writerIdx < WriterCount; ++writerIdx) {
+        auto writer = CreateDistributedChunkWriter(
+            startedSession.SequencerNode,
+            startedSession.SessionId,
             NativeConnection_,
-            New<TDistributedChunkWriterConfig>(),
-            ActionQueue_->GetInvoker()));
+            New<TDistributedChunkWriterConfig>());
+
+        for (int recordIdx = 0; recordIdx < RecordsPerWriter; ++recordIdx) {
+            int idx = writerIdx * RecordsPerWriter + recordIdx;
+            expectedRecords[idx] = MakeRandomString(100);
+            writeFutures[idx] = writer->WriteRecord(TSharedRef::FromString(expectedRecords[idx]));
+        }
     }
 
-    for (int index = 0; index < 5; ++index) {
-        std::vector<TFuture<void>> writeFutures;
+    WaitFor(AllSucceeded(writeFutures))
+        .ThrowOnError();
 
-        for (int writerIndex = 0; writerIndex < std::ssize(writers); ++writerIndex) {
-            RowBuilder_.AddValue(MakeUnversionedUint64Value(index * std::size(writers) + writerIndex, GetColumnId("intColumn")));
-            RowBuilder_.AddValue(MakeUnversionedBooleanValue(false, GetColumnId("boolColumn")));
-            RowBuilder_.AddValue(MakeUnversionedStringValue(MakeRandomString(10), GetColumnId("stringColumn")));
-            rows.push_back(RowBuilder_.FinishRow());
+    auto reader = CreateQuorumReader(startedSession.SessionId.ChunkId);
 
-            RowBuilder_.AddValue(MakeUnversionedUint64Value(index * std::size(writers) + writerIndex, GetColumnId("intColumn")));
-            RowBuilder_.AddValue(MakeUnversionedBooleanValue(true, GetColumnId("boolColumn")));
-            RowBuilder_.AddValue(MakeUnversionedStringValue(MakeRandomString(10), GetColumnId("stringColumn")));
-            rows.push_back(RowBuilder_.FinishRow());
+    auto blocks = WaitFor(reader->ReadBlocks(IChunkReader::TReadBlocksOptions{}, 0, totalRecords))
+        .ValueOrThrow();
 
-            auto range = MakeSharedRange(std::vector<TUnversionedRow>{rows[std::ssize(rows) - 2], rows[std::ssize(rows) - 1]});
+    ASSERT_EQ(std::ssize(blocks), totalRecords);
 
-            writeFutures.push_back(writers[writerIndex]->Write(std::move(range)));
+    // Records may arrive in any order since writers are concurrent —
+    // verify the set of records matches rather than exact ordering.
+    std::vector<std::string> recordsRecords;
+    recordsRecords.reserve(totalRecords);
+    for (const auto& block : blocks) {
+        recordsRecords.push_back(std::string(block.Data.ToStringBuf()));
+    }
+
+    EXPECT_THAT(recordsRecords, UnorderedElementsAreArray(expectedRecords));
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, SessionTimeout)
+{
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    auto startedSession = WaitFor(controller->StartSession())
+        .ValueOrThrow();
+
+    WaitFor(ActionQueue_->Suspend(true))
+        .ThrowOnError();
+
+    Sleep(TDuration::Seconds(2));
+
+    auto writer = CreateDistributedChunkWriter(
+        startedSession.SequencerNode,
+        startedSession.SessionId,
+        NativeConnection_,
+        New<TDistributedChunkWriterConfig>());
+
+    auto writeError = WaitFor(writer->WriteRecord(TSharedRef::FromString(MakeRandomString(100))));
+    EXPECT_FALSE(writeError.IsOK());
+    EXPECT_EQ(writeError.GetCode(), NChunkClient::EErrorCode::NoSuchSession);
+    EXPECT_THAT(writeError.GetMessage(), HasSubstr("invalid or expired"));
+
+    ActionQueue_->Resume();
+
+    // After resuming, the controller detects the expired session via ping and closes.
+    auto closedError = WaitFor(controller->GetClosedFuture());
+    EXPECT_FALSE(closedError.IsOK());
+    EXPECT_EQ(closedError.GetCode(), NChunkClient::EErrorCode::NoSuchSession);
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, NotEnoughNodesToWrite)
+{
+    WriterOptions_->WriteQuorum = 2;
+    WriterOptions_->ReplicationFactor = 3;
+
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    auto startedSession = WaitFor(controller->StartSession())
+        .ValueOrThrow();
+
+    auto nodes = GetDataNodes();
+
+    auto it = std::find(nodes.begin(), nodes.end(), startedSession.SequencerNode.GetDefaultAddress());
+    ASSERT_TRUE(it != nodes.end());
+    nodes.erase(it);
+    ASSERT_EQ(std::ssize(nodes), 2);
+
+    auto banGuard = BanDataNodes(nodes);
+
+    auto writer = CreateDistributedChunkWriter(
+        startedSession.SequencerNode,
+        startedSession.SessionId,
+        NativeConnection_,
+        New<TDistributedChunkWriterConfig>());
+
+    auto writeError = WaitFor(writer->WriteRecord(TSharedRef::FromString(MakeRandomString(100))));
+    EXPECT_FALSE(writeError.IsOK());
+    EXPECT_THAT(writeError.GetMessage(), HasSubstr("Journal chunk writer failed"));
+}
+
+TEST_F(TDistributedChunkSessionTest, DoubleClose)
+{
+    WriterOptions_->WriteQuorum = 2;
+    WriterOptions_->ReplicationFactor = 3;
+
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    WaitFor(controller->StartSession())
+        .ThrowOnError();
+
+    auto firstClose  = controller->Close();
+    auto secondClose = controller->Close();
+
+    WaitFor(firstClose)
+        .ThrowOnError();
+    WaitFor(secondClose)
+        .ThrowOnError();
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, StartSessionWithNotEnoughNodes)
+{
+    WriterOptions_->WriteQuorum = 2;
+    WriterOptions_->ReplicationFactor = 3;
+
+    auto nodes = GetDataNodes();
+    ASSERT_GE(std::ssize(nodes), 2);
+
+    // Ban all nodes except one so AllocateWriteTargets cannot
+    // satisfy minTargetCount == ReplicationFactor.
+    auto banGuard = BanDataNodes(
+        std::vector<std::string>(nodes.begin() + 1, nodes.end()));
+
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    auto startError = WaitFor(controller->StartSession());
+    EXPECT_FALSE(startError.IsOK());
+    EXPECT_THAT(startError.GetMessage(), HasSubstr("Not enough"));
+
+    // GetClosedFuture must already be resolved with the same error
+    // since DoStartSession set ClosedPromise_ on failure.
+    auto closedError = WaitFor(controller->GetClosedFuture());
+    EXPECT_FALSE(closedError.IsOK());
+    EXPECT_EQ(closedError.GetCode(), startError.GetCode());
+
+    // Close() on a failed-to-start controller must not hang or crash.
+    auto closeError = WaitFor(controller->Close());
+    EXPECT_FALSE(closeError.IsOK());
+    EXPECT_EQ(closeError.GetCode(), startError.GetCode());
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, GetClosedFutureResolvedOnSessionExpiry)
+{
+    ControllerConfig_->SessionTimeout = TDuration::Seconds(1);
+    ControllerConfig_->SessionPingPeriod = TDuration::MilliSeconds(200);
+
+    WriterOptions_->WriteQuorum = 2;
+    WriterOptions_->ReplicationFactor = 3;
+
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    WaitFor(controller->StartSession())
+        .ThrowOnError();
+
+    // Suspend pings so the session expires on the server side.
+    WaitFor(ActionQueue_->Suspend(/*immediately*/ true))
+        .ThrowOnError();
+
+    // Wait for server-side lease to expire.
+    Sleep(TDuration::Seconds(2));
+
+    // Resume so the ping executor can fire and detect the expired session,
+    // which sets ClosedPromise_ with an error.
+    ActionQueue_->Resume();
+
+    auto error = WaitFor(controller->GetClosedFuture());
+    EXPECT_FALSE(error.IsOK());
+    EXPECT_EQ(error.GetCode(), NChunkClient::EErrorCode::NoSuchSession);
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, SequencerNodeDiesAfterWrite)
+{
+    ControllerConfig_->SessionPingPeriod = TDuration::MilliSeconds(200);
+    ControllerConfig_->MaxConsecutivePingFailures = 3;
+
+    WriterOptions_->WriteQuorum = 2;
+    WriterOptions_->ReplicationFactor = 3;
+
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    auto startedSession = WaitFor(controller->StartSession())
+        .ValueOrThrow();
+
+    auto writer = CreateDistributedChunkWriter(
+        startedSession.SequencerNode,
+        startedSession.SessionId,
+        NativeConnection_,
+        New<TDistributedChunkWriterConfig>());
+
+    auto record = MakeRandomString(100);
+
+    WaitFor(writer->WriteRecord(TSharedRef::FromString(record)))
+        .ThrowOnError();
+
+    auto chunkId = startedSession.SessionId.ChunkId;
+
+    {
+        // Pause the sequencer process via SIGSTOP — pings will time out
+        // since the process is frozen. After MaxConsecutivePingFailures
+        // the controller closes with an error.
+        auto resumeGuard = PauseProcess(startedSession.SequencerNode.GetDefaultAddress());
+
+        auto error = WaitFor(controller->GetClosedFuture());
+        EXPECT_FALSE(error.IsOK());
+        EXPECT_THAT(error.GetMessage(), HasSubstr("Too many consecutive ping failures"));
+    }
+
+    // SIGCONT returns before the resumed node is accepted by the master again.
+    // Wait for node tracker recovery so following tests do not race RF=3 allocation.
+    WaitForDataNodeOnline(startedSession.SequencerNode.GetDefaultAddress());
+
+    // The record was written with WriteQuorum=2 so it must be
+    // available on the surviving replicas despite the sequencer being paused.
+    auto reader = CreateQuorumReader(chunkId);
+
+    auto blocks = WaitFor(reader->ReadBlocks(IChunkReader::TReadBlocksOptions{}, {0}))
+        .ValueOrThrow();
+
+    ASSERT_EQ(std::ssize(blocks), 1);
+    EXPECT_EQ(blocks[0].Data.ToStringBuf(), record);
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, PoolRetryCreatesSeveralChunksForOneSlot)
+{
+    WriterOptions_->WriteQuorum = 2;
+    WriterOptions_->ReplicationFactor = 3;
+
+    auto poolConfig = New<TDistributedChunkSessionPoolConfig>();
+    poolConfig->SetDefaults();
+    poolConfig->MaxActiveSessionsPerSlot = 3;
+
+    auto pool = CreateDistributedChunkSessionPool(
+        NativeClient_,
+        poolConfig,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    auto first = WaitFor(pool->GetSession(0)).ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(0, first.SessionId)).ValueOrThrow();
+
+    EXPECT_NE(first.SessionId, second.SessionId);
+    auto chunks = WaitFor(pool->GetSlotChunks(0))
+        .ValueOrThrow();
+
+    EXPECT_EQ(chunks.size(), 2u);
+}
+
+TEST_F(TDistributedChunkSessionTest, FinalizeSlotEventuallySealsAllChunks)
+{
+    WriterOptions_->WriteQuorum = 2;
+    WriterOptions_->ReplicationFactor = 3;
+
+    auto poolConfig = New<TDistributedChunkSessionPoolConfig>();
+    poolConfig->SetDefaults();
+    poolConfig->MaxActiveSessionsPerSlot = 3;
+
+    auto pool = CreateDistributedChunkSessionPool(
+        NativeClient_,
+        poolConfig,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    auto first = WaitFor(pool->GetSession(0)).ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(0, first.SessionId)).ValueOrThrow();
+
+    auto firstWriter = CreateDistributedChunkWriter(
+        first.SequencerNode,
+        first.SessionId,
+        NativeConnection_,
+        New<TDistributedChunkWriterConfig>());
+    auto secondWriter = CreateDistributedChunkWriter(
+        second.SequencerNode,
+        second.SessionId,
+        NativeConnection_,
+        New<TDistributedChunkWriterConfig>());
+
+    WaitFor(firstWriter->WriteRecord(TSharedRef::FromString("row-1"))).ThrowOnError();
+    WaitFor(secondWriter->WriteRecord(TSharedRef::FromString("row-2"))).ThrowOnError();
+    pool->FinalizeSlot(0);
+
+    auto chunks = WaitFor(pool->GetSlotChunks(0))
+        .ValueOrThrow();
+
+    for (const auto& chunk : chunks) {
+        WaitForChunkSealed(chunk.ChunkId);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TDistributedChunkSessionTest, ReadAllRecordsFromSealedChunk)
+{
+    constexpr int RecordCount = 30;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakeReaderConfig(),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
+
+    std::vector<TSharedRef> records;
+    while (true) {
+        auto result = WaitFor(reader->Read())
+            .ValueOrThrow();
+        records.insert(records.end(), result.Records.begin(), result.Records.end());
+        if (result.Finished) {
+            break;
         }
+    }
 
-        WaitFor(AllSucceeded(std::move(writeFutures)))
+    ASSERT_EQ(std::ssize(records), RecordCount);
+
+    std::vector<std::string> got;
+    got.reserve(records.size());
+    for (const auto& record : records) {
+        got.push_back(std::string(record.ToStringBuf()));
+    }
+    std::vector<std::string> expected(chunkInfo.Payloads.begin(), chunkInfo.Payloads.end());
+    std::sort(got.begin(), got.end());
+    std::sort(expected.begin(), expected.end());
+    EXPECT_EQ(got, expected);
+}
+
+TEST_F(TDistributedChunkSessionTest, ReadInterleavedWithWriter)
+{
+    WriterOptions_->WriteQuorum = 2;
+
+    auto session = StartChunkSession();
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakeReaderConfig(),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        session.ChunkId,
+        session.Replicas,
+        session.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+
+    constexpr int Total = 20;
+    constexpr int Batch = 5;
+    std::vector<std::string> expected(Total);
+    for (int i = 0; i < Total; ++i) {
+        expected[i] = MakeRandomString(80);
+    }
+
+    std::thread writerThread([&] {
+        for (int i = 0; i < Total; ++i) {
+            WaitFor(session.Writer->WriteRecord(TSharedRef::FromString(expected[i])))
+                .ThrowOnError();
+            if ((i + 1) % Batch == 0) {
+                Sleep(TDuration::MilliSeconds(50));
+            }
+        }
+        WaitFor(session.Controller->Close())
+            .ThrowOnError();
+        reader->SetAllWritersFinished(Total, Total * 80);
+    });
+
+    std::vector<TSharedRef> records;
+    while (true) {
+        auto result = WaitFor(reader->Read())
+            .ValueOrThrow();
+        records.insert(records.end(), result.Records.begin(), result.Records.end());
+        if (result.Finished) {
+            break;
+        }
+    }
+    writerThread.join();
+
+    ASSERT_EQ(std::ssize(records), Total);
+    for (int i = 0; i < Total; ++i) {
+        EXPECT_EQ(records[i].ToStringBuf(), expected[i]);
+    }
+
+    EnsureControllerIsDestroyed(std::move(session.Controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, SealedDetectedViaProbe)
+{
+    constexpr int RecordCount = 8;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakeReaderConfig(),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+
+    std::vector<TSharedRef> records;
+    while (true) {
+        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
+        if (readResult.Finished) {
+            break;
+        }
+    }
+
+    ASSERT_EQ(std::ssize(records), RecordCount);
+
+    std::vector<std::string> got;
+    got.reserve(records.size());
+    for (const auto& record : records) {
+        got.push_back(std::string(record.ToStringBuf()));
+    }
+    std::vector<std::string> expected(chunkInfo.Payloads.begin(), chunkInfo.Payloads.end());
+    std::sort(got.begin(), got.end());
+    std::sort(expected.begin(), expected.end());
+    EXPECT_EQ(got, expected);
+
+    auto stats = reader->GetStatistics();
+    EXPECT_GE(stats->SealedDetectedCount.load(), 1);
+    EXPECT_EQ(stats->MasterRefreshCount.load(), 0);
+}
+
+TEST_F(TDistributedChunkSessionTest, SetAllWritersFinishedNoCount)
+{
+    constexpr int RecordCount = 12;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakeReaderConfig(),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+
+    reader->SetAllWritersFinished();
+
+    std::vector<TSharedRef> records;
+    while (true) {
+        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
+        if (readResult.Finished) {
+            break;
+        }
+    }
+
+    ASSERT_EQ(std::ssize(records), RecordCount);
+
+    std::vector<std::string> got;
+    got.reserve(records.size());
+    for (const auto& record : records) {
+        got.push_back(std::string(record.ToStringBuf()));
+    }
+    std::vector<std::string> expected(chunkInfo.Payloads.begin(), chunkInfo.Payloads.end());
+    std::sort(got.begin(), got.end());
+    std::sort(expected.begin(), expected.end());
+    EXPECT_EQ(got, expected);
+
+    auto stats = reader->GetStatistics();
+    EXPECT_EQ(stats->ComputeQuorumInfoSuccessCount.load(), 1);
+}
+
+TEST_F(TDistributedChunkSessionTest, BoundedReaderRespectsRangeEnd)
+{
+    constexpr int RecordCount = 10;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakeReaderConfig(),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 2,
+        /*rangeEndRecordIndex*/ 7,
+        ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
+
+    std::vector<TSharedRef> records;
+    while (true) {
+        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
+        if (readResult.Finished) {
+            break;
+        }
+    }
+
+    ASSERT_EQ(std::ssize(records), 5);
+
+    std::vector<std::string> got;
+    got.reserve(records.size());
+    for (const auto& record : records) {
+        got.push_back(std::string(record.ToStringBuf()));
+    }
+    std::vector<std::string> expected(chunkInfo.Payloads.begin() + 2, chunkInfo.Payloads.begin() + 7);
+    std::sort(got.begin(), got.end());
+    std::sort(expected.begin(), expected.end());
+    EXPECT_EQ(got, expected);
+}
+
+TEST_F(TDistributedChunkSessionTest, ChunkShorterThanRange)
+{
+    constexpr int RecordCount = 7;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakeReaderConfig(),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ 10,
+        ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
+
+    std::vector<TSharedRef> records;
+    while (true) {
+        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
+        if (readResult.Finished) {
+            break;
+        }
+    }
+    EXPECT_EQ(std::ssize(records), RecordCount);
+}
+
+TEST_F(TDistributedChunkSessionTest, EmptyRange)
+{
+    auto chunkInfo = WriteRecordsAndSealChunk(5);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakeReaderConfig(),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 3,
+        /*rangeEndRecordIndex*/ 3,
+        ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(5, chunkInfo.CompressedDataSize);
+
+    auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+    EXPECT_TRUE(readResult.Records.empty());
+    EXPECT_TRUE(readResult.Finished);
+}
+
+TEST_F(TDistributedChunkSessionTest, EmptyChunk)
+{
+    WriterOptions_->WriteQuorum = 2;
+
+    auto session = StartChunkSession();
+    WaitFor(session.Controller->Close()).ThrowOnError();
+    SealChunk(session.ChunkId);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakeReaderConfig(),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        session.ChunkId,
+        session.Replicas,
+        session.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(0, 0);
+
+    auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+    EXPECT_TRUE(readResult.Records.empty());
+    EXPECT_TRUE(readResult.Finished);
+
+    EnsureControllerIsDestroyed(std::move(session.Controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, Phase2DoesNotProbe)
+{
+    constexpr int RecordCount = 20;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakeReaderConfig(),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
+
+    auto stats = reader->GetStatistics();
+    auto replicaProgressQueriesBefore = stats->ActiveReplicaProgressQueryCount.load();
+
+    while (true) {
+        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        if (readResult.Finished) {
+            break;
+        }
+    }
+    EXPECT_EQ(stats->ActiveReplicaProgressQueryCount.load(), replicaProgressQueriesBefore);
+}
+
+TEST_F(TDistributedChunkSessionTest, NoQuorumInfoWhenCountProvided)
+{
+    constexpr int RecordCount = 8;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakeReaderConfig(),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
+
+    while (true) {
+        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        if (readResult.Finished) {
+            break;
+        }
+    }
+    auto stats = reader->GetStatistics();
+    EXPECT_EQ(stats->ComputeQuorumInfoCount.load(), 0);
+    EXPECT_EQ(stats->ComputeQuorumInfoSuccessCount.load(), 0);
+}
+
+TEST_F(TDistributedChunkSessionTest, SlowWriterDoesNotExhaustBudget)
+{
+    WriterOptions_->WriteQuorum = 2;
+
+    auto config = MakeReaderConfig();
+    config->MaxReadAttempts = 3;
+    config->PollInterval = TDuration::MilliSeconds(20);
+
+    auto session = StartChunkSession();
+    auto reader = CreateDistributedChunkSessionReader(
+        config,
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        session.ChunkId,
+        session.Replicas,
+        session.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+
+    constexpr int RecordCount = 8;
+    std::vector<std::string> expected(RecordCount);
+    for (int i = 0; i < RecordCount; ++i) {
+        expected[i] = MakeRandomString(40);
+    }
+
+    std::thread writerThread([&] {
+        for (int i = 0; i < RecordCount; ++i) {
+            Sleep(TDuration::MilliSeconds(80));
+            WaitFor(session.Writer->WriteRecord(TSharedRef::FromString(expected[i])))
+                .ThrowOnError();
+        }
+        WaitFor(session.Controller->Close())
+            .ThrowOnError();
+        reader->SetAllWritersFinished(RecordCount, RecordCount * 40);
+    });
+
+    std::vector<TSharedRef> records;
+    while (true) {
+        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
+        if (readResult.Finished) {
+            break;
+        }
+    }
+    writerThread.join();
+
+    EXPECT_EQ(std::ssize(records), RecordCount);
+
+    auto stats = reader->GetStatistics();
+    EXPECT_GT(stats->PollIterationCount.load(), 0);
+    EXPECT_EQ(stats->ErrorAttemptCount.load(), 0);
+
+    EnsureControllerIsDestroyed(std::move(session.Controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, SetAllWritersFinishedMidRead)
+{
+    WriterOptions_->WriteQuorum = 2;
+
+    auto config = MakeReaderConfig();
+    config->PollInterval = TDuration::MilliSeconds(20);
+
+    auto session = StartChunkSession();
+    constexpr int RecordCount = 5;
+    std::vector<std::string> expected(RecordCount);
+    for (int i = 0; i < RecordCount; ++i) {
+        expected[i] = MakeRandomString(40);
+        WaitFor(session.Writer->WriteRecord(TSharedRef::FromString(expected[i])))
             .ThrowOnError();
     }
 
-    WaitFor(controller->Close())
-        .ThrowOnError();
+    auto reader = CreateDistributedChunkSessionReader(
+        config,
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        session.ChunkId,
+        session.Replicas,
+        session.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
 
-    auto resultRows = ReadAllChunkRows(controller->GetSessionId().ChunkId);
+    std::thread closer([&] {
+        Sleep(TDuration::MilliSeconds(200));
+        WaitFor(session.Controller->Close())
+            .ThrowOnError();
+        reader->SetAllWritersFinished(RecordCount, RecordCount * 40);
+    });
 
-    EXPECT_THAT(
-        resultRows,
-        UnorderedElementsAreArray(rows));
+    std::vector<TSharedRef> records;
+    while (true) {
+        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
+        if (readResult.Finished) {
+            break;
+        }
+    }
+    closer.join();
 
-    EnsureControllerIsDestroyed(std::move(controller));
+    ASSERT_EQ(std::ssize(records), RecordCount);
+    for (int i = 0; i < RecordCount; ++i) {
+        EXPECT_EQ(records[i].ToStringBuf(), expected[i]);
+    }
+
+    EnsureControllerIsDestroyed(std::move(session.Controller));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TDistributedChunkSessionTest, CoordinatorLeaseExpired)
+TEST_F(TDistributedChunkSessionTest, PrefetchMultipleWindowsDeliversAllRecords)
 {
-    auto controller = CreateDistributedChunkSessionController(
+    constexpr int RecordCount = 50;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakePrefetchReaderConfig(/*windowCount*/ 4, /*sequentialReadSize*/ 300, /*depth*/ 2),
         NativeClient_,
-        ControllerConfig_,
-        Transaction_->GetId(),
-        ChunkNameTable_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
         ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
 
-    auto coordinatorNode = WaitFor(controller->StartSession())
-        .ValueOrThrow();
-
-    WaitFor(ActionQueue_->Suspend(/*immediately*/ true))
-        .ThrowOnError();
-
-    Sleep(TDuration::Seconds(2));
-
-    ActionQueue_->Resume();
-
-    RowBuilder_.AddValue(MakeUnversionedUint64Value(/*value*/ 1, GetColumnId("a")));
-    auto row = RowBuilder_.FinishRow();
-
-    auto writer = CreateDistributedChunkWriter(
-        coordinatorNode,
-        controller->GetSessionId(),
-        NativeConnection_,
-        New<TDistributedChunkWriterConfig>(),
-        ActionQueue_->GetInvoker());
-
-    EXPECT_THROW_THAT(
-        WaitFor(writer->Write(MakeSharedRange(std::vector<TUnversionedRow>{row})))
-            .ThrowOnError(),
-        HasSubstr("invalid or expired"));
-
-    // Close should succeed, because data node session lease has not expired yet.
-    WaitFor(controller->Close())
-        .ThrowOnError();
-
-    EXPECT_EQ(std::ssize(ReadAllChunkRows(controller->GetSessionId().ChunkId)), 0);
-
-    EnsureControllerIsDestroyed(std::move(controller));
+    EXPECT_EQ(ReadAllSorted(reader), SortedPayloads(chunkInfo.Payloads));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_F(TDistributedChunkSessionTest, CoordinatorLeaseExpiredWithDataOnNodes)
+TEST_F(TDistributedChunkSessionTest, PrefetchDepthOneReadsAllRecords)
 {
-    auto controller = CreateDistributedChunkSessionController(
+    constexpr int RecordCount = 23;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakePrefetchReaderConfig(/*windowCount*/ 1, /*sequentialReadSize*/ 200, /*depth*/ 1),
         NativeClient_,
-        ControllerConfig_,
-        Transaction_->GetId(),
-        ChunkNameTable_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
         ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
 
-    auto coordinatorNode = WaitFor(controller->StartSession())
-        .ValueOrThrow();
+    EXPECT_EQ(ReadAllSorted(reader), SortedPayloads(chunkInfo.Payloads));
 
-    auto writer = CreateDistributedChunkWriter(
-        coordinatorNode,
-        controller->GetSessionId(),
-        NativeConnection_,
-        New<TDistributedChunkWriterConfig>(),
-        ActionQueue_->GetInvoker());
-
-    RowBuilder_.AddValue(MakeUnversionedUint64Value(/*value*/ 1, GetColumnId("a")));
-    RowBuilder_.AddValue(MakeUnversionedInt64Value(/*value*/ 2, GetColumnId("b")));
-    RowBuilder_.AddValue(MakeUnversionedStringValue(/*value*/ "First row string", GetColumnId("c")));
-    auto row = RowBuilder_.FinishRow();
-
-    WaitFor(writer->Write(MakeSharedRange(std::vector<TUnversionedRow>{row})))
-        .ThrowOnError();
-
-    WaitFor(ActionQueue_->Suspend(/*immediately*/ true))
-        .ThrowOnError();
-
-    Sleep(TDuration::Seconds(2));
-
-    ActionQueue_->Resume();
-
-    RowBuilder_.AddValue(MakeUnversionedUint64Value(/*value*/ 2, GetColumnId("a")));
-
-    EXPECT_THROW_THAT(
-        WaitFor(writer->Write(MakeSharedRange(std::vector<TUnversionedRow>{RowBuilder_.FinishRow()})))
-            .ThrowOnError(),
-        HasSubstr("invalid or expired"));
-
-    // Close should succeed, because data node session lease has not expired yet.
-    WaitFor(controller->Close())
-        .ThrowOnError();
-
-    auto resultRows = ReadAllChunkRows(controller->GetSessionId().ChunkId);
-    EXPECT_EQ(resultRows, std::vector{row});
-
-    EnsureControllerIsDestroyed(std::move(controller));
+    auto stats = reader->GetStatistics();
+    EXPECT_GT(stats->PrefetchWindowCount.load(), 0);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_F(TDistributedChunkSessionTest, WritersCannotFinishWithoutControllerConfirmation)
+TEST_F(TDistributedChunkSessionTest, PrefetchSingleRecordWindows)
 {
-    auto controller = CreateDistributedChunkSessionController(
-        NativeClient_,
-        ControllerConfig_,
-        Transaction_->GetId(),
-        ChunkNameTable_,
-        ActionQueue_->GetInvoker());
+    constexpr int RecordCount = 16;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
 
-    auto controllerNode = WaitFor(controller->StartSession())
+    auto reader = CreateDistributedChunkSessionReader(
+        MakePrefetchReaderConfig(/*windowCount*/ 3, /*sequentialReadSize*/ 100, /*depth*/ 2),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
+
+    EXPECT_EQ(ReadAllSorted(reader), SortedPayloads(chunkInfo.Payloads));
+}
+
+TEST_F(TDistributedChunkSessionTest, PrefetchWindowLargerThanChunk)
+{
+    constexpr int RecordCount = 12;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakePrefetchReaderConfig(/*windowCount*/ 4, /*sequentialReadSize*/ 1'000'000, /*depth*/ 2),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
+
+    EXPECT_EQ(ReadAllSorted(reader), SortedPayloads(chunkInfo.Payloads));
+}
+
+TEST_F(TDistributedChunkSessionTest, PrefetchRespectsRangeEnd)
+{
+    constexpr int RecordCount = 40;
+    constexpr int RangeEnd = 25;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakePrefetchReaderConfig(/*windowCount*/ 3, /*sequentialReadSize*/ 300, /*depth*/ 2),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ RangeEnd,
+        ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
+
+    auto got = ReadAllSorted(reader);
+    ASSERT_EQ(std::ssize(got), RangeEnd);
+    std::vector<std::string> expected(
+        chunkInfo.Payloads.begin(),
+        chunkInfo.Payloads.begin() + RangeEnd);
+    std::sort(expected.begin(), expected.end());
+    EXPECT_EQ(got, expected);
+}
+
+TEST_F(TDistributedChunkSessionTest, PrefetchAdvancesWithoutRead)
+{
+    constexpr int RecordCount = 200;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto reader = CreateDistributedChunkSessionReader(
+        // Small reads with depth leave plenty to prefetch beyond the first batch.
+        MakePrefetchReaderConfig(/*windowCount*/ 4, /*sequentialReadSize*/ 100, /*depth*/ 4),
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
+
+    // The first read starts the reader.
+    WaitFor(reader->Read())
         .ValueOrThrow();
 
-    auto writerActionQueue = New<TActionQueue>();
-    auto writer = CreateDistributedChunkWriter(
-        controllerNode,
-        controller->GetSessionId(),
-        NativeConnection_,
-        New<TDistributedChunkWriterConfig>(),
-        writerActionQueue->GetInvoker());
+    auto stats = reader->GetStatistics();
+    i64 readCountAfterFirstRead = stats->ReadBlocksCount.load();
 
-    RowBuilder_.AddValue(MakeUnversionedUint64Value(/*value*/ 1, GetColumnId("a")));
-    auto row = RowBuilder_.FinishRow();
-    WaitFor(writer->Write(MakeSharedRange(std::vector<TUnversionedRow>({row}))))
-        .ThrowOnError();
+    // Without issuing another Read(), the pump must keep prefetching on its own.
+    Sleep(TDuration::Seconds(1));
 
-    WaitFor(ActionQueue_->Suspend(/*immediately*/ true))
-        .ThrowOnError();
+    EXPECT_GT(stats->ReadBlocksCount.load(), readCountAfterFirstRead);
+}
 
-    RowBuilder_.AddValue(MakeUnversionedUint64Value(/*value*/ 2, GetColumnId("a")));
-    // Wait for session expiration, as controller does not send any pings now.
-    EXPECT_THROW_THAT(
-        WaitFor(writer->Write(MakeSharedRange(std::vector<TUnversionedRow>{RowBuilder_.FinishRow()})))
-            .ThrowOnError(),
-        HasSubstr("session was closed"));
+TEST_F(TDistributedChunkSessionTest, Phase2PerWindowBudgetTerminatesUnreadableWindow)
+{
+    // Tell the reader the sealed chunk holds more records than were actually written. The
+    // window covering the phantom tail can never read those records: every read of that
+    // range returns an empty, retryable response. Its per-window error budget must
+    // terminate the prefetch after MaxReadAttempts even though sibling windows keep
+    // delivering real records and resolving Read()s. A shared budget reset on every Read()
+    // (the bug this guards) would never let the failing window exhaust.
+    constexpr int WrittenCount = 40;
+    // With three windows over [0, PhantomCount) the last window, [40, 60), is entirely
+    // past the real data.
+    constexpr int PhantomCount = 60;
+    auto chunkInfo = WriteRecordsAndSealChunk(WrittenCount);
 
-    ActionQueue_->Resume();
+    auto config = MakePrefetchReaderConfig(/*windowCount*/ 3, /*sequentialReadSize*/ 100, /*depth*/ 2);
+    config->MaxReadAttempts = 2;
 
-    WaitFor(controller->Close())
-        .ThrowOnError();
+    auto reader = CreateDistributedChunkSessionReader(
+        config,
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
 
-    auto resultRows = ReadAllChunkRows(controller->GetSessionId().ChunkId);
-    EXPECT_EQ(resultRows, std::vector{row});
+    reader->SetAllWritersFinished(PhantomCount, chunkInfo.CompressedDataSize);
 
-    EnsureControllerIsDestroyed(std::move(controller));
+    // Drain until the reader fails. The bound turns a regression (the failing window's
+    // budget reset by sibling Read()s, so it never exhausts) into a clean failure rather
+    // than an infinite loop.
+    TError readError;
+    for (int i = 0; i < 1000; ++i) {
+        auto resultOrError = WaitFor(reader->Read());
+        if (!resultOrError.IsOK()) {
+            readError = resultOrError;
+            break;
+        }
+        // The phantom records do not exist, so the stream can never legitimately finish.
+        ASSERT_FALSE(resultOrError.Value().Finished);
+    }
+
+    ASSERT_FALSE(readError.IsOK());
+    EXPECT_THAT(readError.GetMessage(), ::testing::HasSubstr("attempts exhausted"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

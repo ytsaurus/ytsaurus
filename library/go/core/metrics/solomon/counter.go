@@ -1,8 +1,7 @@
 package solomon
 
 import (
-	"encoding/json"
-	"time"
+	"io"
 
 	"go.uber.org/atomic"
 
@@ -16,14 +15,9 @@ var (
 
 // Counter tracks monotonically increasing value.
 type Counter struct {
-	name       string
-	metricType metricType
-	tags       map[string]string
-	value      atomic.Int64
-	timestamp  *time.Time
+	baseMetric
 
-	useNameTag bool
-	memOnly    bool
+	value atomic.Int64
 }
 
 func NewCounter(name string, value int64, opts ...MetricOpt) Counter {
@@ -31,19 +25,15 @@ func NewCounter(name string, value int64, opts ...MetricOpt) Counter {
 	for _, op := range opts {
 		op(&mOpts)
 	}
+
 	mType := typeCounter
 	if mOpts.rated {
 		mType = typeRated
 	}
-	return Counter{
-		name:       name,
-		metricType: mType,
-		tags:       mOpts.tags,
-		value:      *atomic.NewInt64(value),
-		timestamp:  mOpts.timestamp,
 
-		useNameTag: mOpts.useNameTag,
-		memOnly:    mOpts.memOnly,
+	return Counter{
+		baseMetric: newBaseMetric(name, mType, opts...),
+		value:      *atomic.NewInt64(value),
 	}
 }
 
@@ -57,83 +47,23 @@ func (c *Counter) Add(delta int64) {
 	c.value.Add(delta)
 }
 
-func (c *Counter) getID() string {
-	if c.timestamp != nil {
-		return c.name + "(" + c.timestamp.Format(time.RFC3339) + ")"
-	}
-	return c.name
-}
-
-func (c *Counter) Name() string {
-	return c.name
-}
-
-func (c *Counter) getType() metricType {
-	return c.metricType
-}
-
-func (c *Counter) Labels() map[string]string {
-	return c.tags
-}
-
-func (c *Counter) Value() interface{} {
+func (c *Counter) Value() any {
 	return c.value.Load()
 }
 
-func (c *Counter) getTimestamp() *time.Time {
-	return c.timestamp
-}
-
-func (c *Counter) getNameTag() string {
-	if c.useNameTag {
-		return "name"
-	} else {
-		return "sensor"
-	}
-}
-
-func (c *Counter) isMemOnly() bool {
-	return c.memOnly
-}
-
-func (c *Counter) setMemOnly() {
-	c.memOnly = true
+func (c *Counter) writeSpackValue(w io.Writer) error {
+	return writeUint64LE(w, uint64(c.value.Load()))
 }
 
 // MarshalJSON implements json.Marshaler.
 func (c *Counter) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type      string            `json:"type"`
-		Labels    map[string]string `json:"labels"`
-		Value     int64             `json:"value"`
-		Timestamp *int64            `json:"ts,omitempty"`
-		MemOnly   bool              `json:"memOnly,omitempty"`
-	}{
-		Type:  c.metricType.String(),
-		Value: c.value.Load(),
-		Labels: func() map[string]string {
-			labels := make(map[string]string, len(c.tags)+1)
-			labels[c.getNameTag()] = c.name
-			for k, v := range c.tags {
-				labels[k] = v
-			}
-			return labels
-		}(),
-		Timestamp: tsAsRef(c.timestamp),
-		MemOnly:   c.memOnly,
-	})
+	return marshalScalarMetric(&c.baseMetric, c.value.Load())
 }
 
 // Snapshot returns independent copy on metric.
 func (c *Counter) Snapshot() Metric {
 	return &Counter{
-		name:       c.name,
-		metricType: c.metricType,
-		tags:       c.tags,
+		baseMetric: c.copy(),
 		value:      *atomic.NewInt64(c.value.Load()),
-		timestamp:  c.timestamp,
-
-		useNameTag: c.useNameTag,
-		memOnly:    c.memOnly,
 	}
 }

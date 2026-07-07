@@ -51,7 +51,7 @@ TStateSchemaPtr BuildYsonStateSchema(std::function<TYsonStructPtr()> ctor)
 {
     auto schema = New<TStateSchema>();
     schema->MakeYsonStruct = ctor;
-    schema->IsEmpty = [empty = schema->MakeYsonStruct()](const TYsonStructPtr& value) {
+    schema->IsEmpty = [empty = schema->MakeYsonStruct()] (const TYsonStructPtr& value) {
         return empty->IsEqual(*value);
     };
 
@@ -244,7 +244,8 @@ TFormatPtr TState::GetFormat() const
     return Format_;
 }
 
-void TState::ParseTableRow() {
+void TState::ParseTableRow()
+{
     YT_VERIFY(Format_);
     YT_VERIFY(TableRow_);
     YT_VERIFY(std::ssize(*TableRow_) == Schema_->TableSchema->GetColumnCount());
@@ -265,7 +266,7 @@ void TState::ParseTableRow() {
             builder.AddValue(value);
         };
 
-        const auto extractString = [](const TUnversionedOwningValue& value) -> std::optional<TSharedRef> {
+        const auto extractString = [] (const TUnversionedOwningValue& value) -> std::optional<TSharedRef> {
             if (value.Type() == EValueType::Null) {
                 return std::nullopt;
             }
@@ -292,8 +293,7 @@ void TState::ParseTableRow() {
             if (value) {
                 auto deltaState = NDeltaCodecs::TState{
                     .Base = Decompress(codec, *value),
-                    .Patch = Decompress(patchCodec, patch)
-                };
+                    .Patch = Decompress(patchCodec, patch)};
                 auto merged = deltaCodec->ApplyPatch(deltaState.Base, deltaState.Patch);
                 addValue(MakeUnversionedStringValue(merged.ToStringBuf()));
                 UncompressedPackableTableColumns_[index] = std::move(deltaState);
@@ -321,7 +321,6 @@ void TState::ExtractValue(const NYTree::TYsonStructPtr& ysonStruct) const
 {
     NYsonSerializer::Deserialize(ysonStruct, YsonRow_, Schema_->YsonSchema);
 }
-
 
 void TState::SetValue(TYsonStructPtr ysonStruct)
 {
@@ -402,7 +401,7 @@ TStateMutation TState::FlushMutation()
     NCompression::ICodec* patchCodec = NCompression::GetCodec(Format_->PatchCompression);
 
     if (Rewrite_ && Schema_->FormatColumn) {
-        auto serializedFormat = ConvertToYsonString(Format_, EYsonFormat::Text);
+        auto serializedFormat = ConvertToYsonString(Format_, EYsonFormat::Binary);
         auto value = MakeUnversionedAnyValue(serializedFormat.AsStringBuf(), *Schema_->FormatColumn);
         (*TableRow_)[*Schema_->FormatColumn] = TUnversionedOwningValue(value);
         updateBuilder.AddValue((*TableRow_)[*Schema_->FormatColumn]);
@@ -452,8 +451,7 @@ TStateMutation TState::FlushMutation()
                 if (!tableState) {
                     tableState = NDeltaCodecs::TState{
                         .Base = TSharedRef::MakeEmpty(),
-                        .Patch = TSharedRef::MakeEmpty()
-                    };
+                        .Patch = TSharedRef::MakeEmpty()};
                 }
 
                 NDeltaCodecs::EAlgorithm algo = Rewrite_ ? NDeltaCodecs::EAlgorithm::ZeroPatch : NDeltaCodecs::EAlgorithm::SizeHeuristics;

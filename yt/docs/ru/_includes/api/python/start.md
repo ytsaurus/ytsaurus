@@ -98,6 +98,8 @@ pip install ytsaurus-client
     - [Подготовка операции из джоба](../../../api/python/userdoc.md#prepare_operation)
     - [Декораторы](../../../api/python/userdoc.md#python_decorators)
     - [Pickling функции и окружения](../../../api/python/userdoc.md#pickling)
+      - [Запуск Python-нагрузок в open-source окружении](../../../api/python/userdoc.md#python_open_source_environment)
+      - [Запуск локального скрипта внутри Docker с помощью `respawn_in_docker`](../../../api/python/userdoc.md#respawn_in_docker)
       - [Общее устройство](../../../api/python/userdoc.md#pickling_description)
       - [Ссылка на пост с советами](../../../api/python/userdoc.md#pickling_advises)
     - [Porto-слои](../../../api/python/userdoc.md#porto_layers)

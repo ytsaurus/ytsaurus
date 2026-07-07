@@ -1,5 +1,9 @@
 #include "helpers.h"
 
+#include <yt/yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/controllers/helpers.h>
+#include <yt/yt/server/controller_agent/operation_controller.h>
+
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -15,6 +19,8 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 
 // #include <yt/yt/client/transaction_client/public.h>
+
+#include <yt/yt/core/misc/absolute_normalized_path.h>
 
 #include <yt/yt/core/ytree/helpers.h>
 
@@ -37,11 +43,11 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TrimCommandForBriefSpec(const TString& command)
+std::string TrimCommandForBriefSpec(const std::string& command)
 {
     const int MaxBriefSpecCommandLength = 256;
     return
-        command.length() <= MaxBriefSpecCommandLength
+        std::ssize(command) <= MaxBriefSpecCommandLength
         ? command
         : command.substr(0, MaxBriefSpecCommandLength) + "...";
 }
@@ -177,17 +183,7 @@ void BuildFileSpecs(
         if (file.GpuCheck) {
             descriptor = jobSpec->add_gpu_check_volume_layers();
         } else if (file.Layer) {
-            // COMPAT (krasovav)
-            descriptor = jobSpec->add_root_volume_layers();
-            for (const auto& [name, volume] : config->Volumes) {
-                for (const auto& layer : volume->Layers) {
-                    if (layer->Path == file.Path) {
-                        auto* volumeDescriptor = (*jobSpec->mutable_volumes())[name].add_layers();
-                        BuildFileSpec(volumeDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
-                        break;
-                    }
-                }
-            }
+            continue;
         } else {
             descriptor = jobSpec->add_files();
         }
@@ -198,7 +194,7 @@ void BuildFileSpecs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetIntermediatePath(int streamIndex)
+NYPath::TYPath GetIntermediatePath(int streamIndex)
 {
     return Format("<intermediate-%v>", streamIndex);
 }
@@ -498,6 +494,580 @@ TDiskQuota CreateDiskQuota(
 ////////////////////////////////////////////////////////////////////////////////
 
 PHOENIX_DEFINE_TEMPLATE_TYPE(TAvgSummary, int);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnrichLayers(
+    const TControllerAgentConfigPtr& config,
+    const TOperationSpecBasePtr& operationSpec,
+    const IOperationControllerHostPtr& host,
+    TNonNullPtr<TUserJobSpec> spec)
+{
+    auto makeLayersFromRichYPaths = [] (const std::vector<NYPath::TRichYPath>& paths) {
+        std::vector<TLayerPtr> layers;
+        layers.reserve(paths.size());
+        for (const auto& path : paths) {
+            auto newLayer = New<TLayer>();
+            newLayer->Path = path;
+            layers.push_back(std::move(newLayer));
+        }
+        return layers;
+    };
+
+    auto enrichRootVolumeLayers = [&] (TVolumePtr& rootVolume, bool isSidecar) {
+        if (!config->TestingOptions->RootfsTestLayers.empty()) {
+            rootVolume->Layers = makeLayersFromRichYPaths(config->TestingOptions->RootfsTestLayers);
+            return;
+        }
+
+        if (!isSidecar && spec->DockerImage) {
+            NYT::NControllerAgent::NControllers::TDockerImageSpec dockerImage(*spec->DockerImage, config->DockerRegistry);
+
+            // External docker images are not compatible with any additional layers.
+            if (!dockerImage.IsInternal || !config->DockerRegistry->TranslateInternalImagesIntoLayers) {
+                return rootVolume->Layers.clear();
+            }
+
+            // Resolve internal docker image into base layers.
+            auto layersFromDocker = makeLayersFromRichYPaths(GetLayerPathsFromDockerImage(host->GetClient(), dockerImage));
+            rootVolume->Layers.insert(rootVolume->Layers.end(), layersFromDocker.begin(), layersFromDocker.end());
+        }
+        if (rootVolume->Layers.empty() && operationSpec->DefaultBaseLayerPath) {
+            auto newLayer = New<TLayer>();
+            newLayer->Path = *operationSpec->DefaultBaseLayerPath;
+            rootVolume->Layers.push_back(std::move(newLayer));
+        }
+
+        if (config->DefaultLayerPath && rootVolume->Layers.empty()) {
+            // If no layers were specified, we insert the default one.
+            auto newLayer = New<TLayer>();
+            newLayer->Path = *config->DefaultLayerPath;
+            rootVolume->Layers.push_back(std::move(newLayer));
+        }
+
+        if (config->CudaToolkitLayerDirectoryPath &&
+            !rootVolume->Layers.empty() &&
+            spec->CudaToolkitVersion &&
+            spec->EnableGpuLayers)
+        {
+            // If cuda toolkit is requested, add the layer as the topmost user layer.
+            auto newLayer = New<TLayer>();
+            newLayer->Path = *config->CudaToolkitLayerDirectoryPath + "/" + *spec->CudaToolkitVersion;
+            rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
+        }
+
+        if (!isSidecar && spec->Profilers) {
+            for (const auto& profilerSpec : *spec->Profilers) {
+                auto cudaProfilerLayerPath = operationSpec->CudaProfilerLayerPath
+                    ? operationSpec->CudaProfilerLayerPath
+                    : config->CudaProfilerLayerPath;
+
+                if (cudaProfilerLayerPath && profilerSpec->Type == EProfilerType::Cuda) {
+                    auto newLayer = New<TLayer>();
+                    newLayer->Path = *cudaProfilerLayerPath;
+                    rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
+                    break;
+                }
+            }
+        }
+
+        if (!rootVolume->Layers.empty()) {
+            auto systemLayerPath = spec->SystemLayerPath
+                ? spec->SystemLayerPath
+                : config->SystemLayerPath;
+            if (systemLayerPath) {
+                // This must be the top layer, so insert in the beginning.
+                auto newLayer = New<TLayer>();
+                newLayer->Path = *systemLayerPath;
+                rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
+            }
+        }
+    };
+
+    THashSet<std::string_view> volumesWasEnriched;
+    auto getRootVolumeId = [] (const std::vector<TVolumeMountPtr>& volumeMounts) ->std::optional<std::string_view> {
+        auto it = std::find_if(volumeMounts.begin(), volumeMounts.end(), [] (const TVolumeMountPtr& volumeMount) {
+            return volumeMount->MountPath == "/";
+        });
+        if (it == volumeMounts.end()) {
+            return std::nullopt;
+        }
+        return (*it)->VolumeId;
+    };
+
+    auto jobRootVolumeId = getRootVolumeId(spec->JobVolumeMounts);
+    YT_VERIFY(jobRootVolumeId);
+    auto& jobRootVolume = GetOrCrash(spec->Volumes, *jobRootVolumeId);
+    enrichRootVolumeLayers(jobRootVolume, /*isSidecar*/ false);
+    volumesWasEnriched.insert(*jobRootVolumeId);
+
+    for (auto& [_, sidecar] : spec->Sidecars) {
+        auto sidecarRootVolumeId = getRootVolumeId(sidecar->SidecarVolumeMounts);
+        if (!sidecarRootVolumeId) {
+            continue;
+        }
+        if (volumesWasEnriched.contains(*sidecarRootVolumeId)) {
+            continue;
+        }
+
+        auto& sidecarRootVolume = GetOrCrash(spec->Volumes, *sidecarRootVolumeId);
+        enrichRootVolumeLayers(sidecarRootVolume, /*isSidecar*/ true);
+        volumesWasEnriched.insert(*sidecarRootVolumeId);
+    }
+}
+
+void ValidateVolumeMountPaths(TNonNullPtr<TUserJobSpec>& providedUserSpec) {
+    auto throwErrorIfPathIncorrect = [] (const std::filesystem::path& path) {
+        try {
+            TAbsoluteNormalizedPath tmp(path);
+            if (tmp.Path().string() != path) {
+                THROW_ERROR_EXCEPTION("Option \"mount_path\" must be normalized and absolute path")
+                    << TErrorAttribute("mount_path", path);
+            }
+        } catch (...) {
+            THROW_ERROR_EXCEPTION("Option \"mount_path\" must be absolute path")
+                << TErrorAttribute("mount_path", path);
+        }
+    };
+
+    for (const auto& volumeMount : providedUserSpec->JobVolumeMounts) {
+        throwErrorIfPathIncorrect(volumeMount->MountPath);
+    }
+
+    for (const auto& [_, sidecar] : providedUserSpec->Sidecars) {
+        for (const auto& volumeMount : sidecar->SidecarVolumeMounts) {
+            throwErrorIfPathIncorrect(volumeMount->MountPath);
+        }
+    }
+}
+
+void ValidateSharedVolumes(TNonNullPtr<TUserJobSpec>& providedUserSpec) {
+    struct TVolumeInfo {
+        bool IsRootVolume = false;
+        bool HasNestedVolumeMounts = false;
+    };
+
+    THashMap<std::string_view, TVolumeInfo> volumeInfos;
+    auto validateVolumeMounts = [&] (const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) {
+        for (i64 i = 0; i < std::ssize(volumeMounts); ++i) {
+            TVolumeInfo currentVolumeInfo;
+            TAbsoluteNormalizedPath currentPath(volumeMounts[i]->MountPath);
+            for (i64 j = i + 1; j < std::ssize(volumeMounts); ++j) {
+                if (currentPath.IsAncestorOf(volumeMounts[j]->MountPath)) {
+                    currentVolumeInfo.HasNestedVolumeMounts = true;
+                    break;
+                }
+            }
+            if (volumeMounts[i]->MountPath == "/") {
+                currentVolumeInfo.IsRootVolume = true;
+            }
+
+            auto it = volumeInfos.find(volumeMounts[i]->VolumeId);
+            if (it != volumeInfos.end()) {
+                if (currentVolumeInfo.HasNestedVolumeMounts || it->second.HasNestedVolumeMounts) {
+                    THROW_ERROR_EXCEPTION(
+                        "Shared volume %v cannot have nested volumes",
+                        volumeMounts[i]->VolumeId);
+                }
+
+                if (currentVolumeInfo.IsRootVolume != it->second.IsRootVolume) {
+                    THROW_ERROR_EXCEPTION(
+                        "Root volume %v cannot be shared as non-root volumes",
+                        volumeMounts[i]->VolumeId);
+                }
+            } else {
+                volumeInfos[volumeMounts[i]->VolumeId] = currentVolumeInfo;
+            }
+        }
+    };
+
+    std::sort(providedUserSpec->JobVolumeMounts.begin(), providedUserSpec->JobVolumeMounts.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs->MountPath < rhs->MountPath;
+    });
+    validateVolumeMounts(providedUserSpec->JobVolumeMounts);
+
+    for (auto& [_, sidecar] : providedUserSpec->Sidecars) {
+        std::sort(sidecar->SidecarVolumeMounts.begin(), sidecar->SidecarVolumeMounts.end(), [] (const auto& lhs, const auto& rhs) {
+            return lhs->MountPath < rhs->MountPath;
+        });
+        validateVolumeMounts(sidecar->SidecarVolumeMounts);
+    }
+}
+
+void ValidateProvidedVolumeMountsSpec(TNonNullPtr<TUserJobSpec>& providedUserSpec)
+{
+    ValidateVolumeMountPaths(providedUserSpec);
+    ValidateSharedVolumes(providedUserSpec);
+}
+
+void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
+{
+    if (!spec->DeprecatedTmpfsVolumes.empty() && !spec->Volumes.empty()) {
+        THROW_ERROR_EXCEPTION(
+            "Option \"tmpfs_volumes\" cannot be specified simultaneously with \"volumes\"")
+            << TErrorAttribute("tmpfs_volumes", spec->DeprecatedTmpfsVolumes)
+            << TErrorAttribute("volumes", spec->Volumes);
+    }
+
+    if (spec->DiskSpaceLimit && !spec->Volumes.empty()) {
+        THROW_ERROR_EXCEPTION(
+            "Options \"disk_space_limit\" cannot be specified "
+            "together with \"volumes\" which contains not only tmpfs volumes")
+            << TErrorAttribute("disk_space_limit", spec->DiskSpaceLimit)
+            << TErrorAttribute("inode_limit", spec->InodeLimit)
+            << TErrorAttribute("volumes", spec->Volumes);
+    }
+
+    if (spec->DeprecatedDiskRequest && !spec->Volumes.empty()) {
+        THROW_ERROR_EXCEPTION(
+            "Option \"disk_request\" cannot be specified simultaneously with \"volumes\"")
+            << TErrorAttribute("disk_request", spec->DeprecatedDiskRequest)
+            << TErrorAttribute("volumes", spec->Volumes);
+    }
+
+    if (!spec->DeprecatedLayerPaths.empty() && !spec->Volumes.empty()) {
+        THROW_ERROR_EXCEPTION(
+            "Option \"layer_paths\" cannot be specified simultaneously with \"volumes\"")
+            << TErrorAttribute("layer_paths", spec->DeprecatedDiskRequest)
+            << TErrorAttribute("volumes", spec->Volumes);
+    }
+
+    auto forEachForVolumeMounts = [&] (const auto& f) {
+        f(spec->JobVolumeMounts);
+        for (const auto& [_, sidecar] : spec->Sidecars) {
+            f(sidecar->SidecarVolumeMounts);
+        }
+    };
+
+    {
+        THashSet<std::string> requestedVolumeIds;
+
+        auto addRequestedVolumeIdsFromVolumeMounts = [&] (const std::vector<TVolumeMountPtr>& volumeMounts) {
+            for (const auto& volumeMount : volumeMounts) {
+                requestedVolumeIds.insert(volumeMount->VolumeId);
+                if (!spec->Volumes.contains(volumeMount->VolumeId)) {
+                    THROW_ERROR_EXCEPTION("Volume was requested but not described")
+                        << TErrorAttribute("volume_id", volumeMount->VolumeId);
+                }
+            }
+        };
+
+        forEachForVolumeMounts(addRequestedVolumeIdsFromVolumeMounts);
+
+        for (const auto& [id, volume] : spec->Volumes) {
+            if (!requestedVolumeIds.contains(id)) {
+                THROW_ERROR_EXCEPTION("Volume was described but not used")
+                    << TErrorAttribute("volume_id", id);
+            }
+        }
+    }
+
+    auto makeNewNameForVolume = [index = 0, &spec] () mutable {
+        while (spec->Volumes.contains(ToString(index))) {
+            ++index;
+        }
+        return ToString(index++);
+    };
+
+    for (auto& [_, sidecar] : spec->Sidecars) {
+        std::optional<std::string_view> sidecarRootVolume;
+        if (sidecar->DockerImage && !sidecar->SidecarVolumeMounts.empty()) {
+            THROW_ERROR_EXCEPTION("Using both volumes and a Docker image in a sidecar is not allowed")
+                << TErrorAttribute("sidecar", sidecar);
+        }
+
+        if (sidecar->DockerImage) {
+            continue;
+        }
+
+        for (const auto& volumeMount : sidecar->SidecarVolumeMounts) {
+            if (volumeMount->MountPath == "/") {
+                sidecarRootVolume = volumeMount->VolumeId;
+                auto& volume = spec->Volumes[volumeMount->VolumeId];
+                if (!volume->DiskRequest) {
+                    THROW_ERROR_EXCEPTION("Sidecar root volume must have \"disk_request\"")
+                        << TErrorAttribute("volume_id", volumeMount->VolumeId)
+                        << TErrorAttribute("volume", volume);
+                }
+                break;
+            }
+        }
+        if (!sidecarRootVolume) {
+            THROW_ERROR_EXCEPTION("Options \"SidecarVolumeMounts\" must have root volume")
+                << TErrorAttribute("sidecar_volume_mounts", sidecar->SidecarVolumeMounts);
+        }
+    }
+
+    TVolumePtr newRootVolume;
+    TVolumeMountPtr newVolumeMount;
+    auto newNameForNewVolume = makeNewNameForVolume();
+
+    bool hasRootFSInJobVolumeMounts = [&] () {
+        auto it = std::find_if(spec->JobVolumeMounts.begin(), spec->JobVolumeMounts.end(), [] (const auto& volumeMount) {
+            return volumeMount->MountPath == "/";
+        });
+        return it != spec->JobVolumeMounts.end();
+    }();
+    if (!hasRootFSInJobVolumeMounts) {
+        newRootVolume = New<TVolume>();
+
+        newVolumeMount = New<TVolumeMount>();
+        newVolumeMount->MountPath = "/";
+        newVolumeMount->VolumeId = newNameForNewVolume;
+        newVolumeMount->ReadOnly = false;
+    }
+
+    if (spec->DeprecatedDiskRequest) {
+        if (spec->DeprecatedDiskRequest->NbdDisk) {
+            newRootVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
+            const auto& diskRequest = newRootVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Nbd>();
+            *diskRequest = spec->DeprecatedDiskRequest;
+        } else {
+            newRootVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
+            const auto& diskRequest = newRootVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
+            *diskRequest = spec->DeprecatedDiskRequest;
+        }
+    }
+
+    for (const auto& volumeFromOldSpec : spec->DeprecatedTmpfsVolumes) {
+        auto nameForNewVolume = makeNewNameForVolume();
+
+        if (!NFS::IsPathRelativeAndInvolvesNoTraversal(volumeFromOldSpec->Path)) {
+            THROW_ERROR_EXCEPTION(
+                "Tmpfs path %v does not point inside the sandbox directory",
+                volumeFromOldSpec->Path);
+        }
+
+        auto volumeMount = New<TVolumeMount>();
+        volumeMount->MountPath = std::filesystem::path(std::string(volumeFromOldSpec->Path));
+        volumeMount->VolumeId = nameForNewVolume;
+        volumeMount->ReadOnly = false;
+        spec->JobVolumeMounts.push_back(std::move(volumeMount));
+
+        auto newVolume = New<TVolume>();
+        newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Tmpfs);
+        (*newVolume->DiskRequest)->DiskSpace = volumeFromOldSpec->Size;
+        spec->Volumes[std::move(nameForNewVolume)] = std::move(newVolume);
+    }
+
+    i64 totalTmpfsSize = 0;
+    for (const auto& [_, volume] : spec->Volumes) {
+        if (!IsDiskRequestTmpfs(volume->DiskRequest)) {
+            continue;
+        }
+
+        totalTmpfsSize += (*volume->DiskRequest)->DiskSpace;
+    }
+
+    // Memory reserve should be greater than or equal to tmpfs_size (see YT-5518 for more details).
+    if (totalTmpfsSize > spec->MemoryLimit) {
+        THROW_ERROR_EXCEPTION("Total size of tmpfs volumes must be less than or equal to memory limit")
+            << TErrorAttribute("tmpfs_size", totalTmpfsSize)
+            << TErrorAttribute("memory_limit", spec->MemoryLimit);
+    }
+
+    if (spec->MemoryReserveFactor &&
+        (*spec->MemoryReserveFactor == 1.0 || !spec->IgnoreMemoryReserveFactorLessThanOne))
+    {
+        spec->UserJobMemoryDigestLowerBound = spec->UserJobMemoryDigestDefaultValue = *spec->MemoryReserveFactor;
+    }
+
+    auto memoryDigestLowerLimit = static_cast<double>(totalTmpfsSize) / spec->MemoryLimit;
+    spec->UserJobMemoryDigestDefaultValue = std::min(
+        1.0,
+        std::max(spec->UserJobMemoryDigestDefaultValue, memoryDigestLowerLimit));
+    spec->UserJobMemoryDigestLowerBound = std::min(
+        1.0,
+        std::max(spec->UserJobMemoryDigestLowerBound, memoryDigestLowerLimit));
+    spec->UserJobMemoryDigestDefaultValue = std::max(spec->UserJobMemoryDigestLowerBound, spec->UserJobMemoryDigestDefaultValue);
+
+    if (!spec->DiskSpaceLimit && spec->InodeLimit) {
+        THROW_ERROR_EXCEPTION("Option \"inode_limit\" can be specified only with \"disk_space_limit\"");
+    }
+
+    if (spec->DiskSpaceLimit) {
+        newRootVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
+        const auto& diskRequest = newRootVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
+
+        diskRequest->DiskSpace = *spec->DiskSpaceLimit;
+        diskRequest->InodeCount = spec->InodeLimit;
+
+        spec->DiskSpaceLimit = std::nullopt;
+        spec->InodeLimit = std::nullopt;
+    }
+
+    auto copyLayersToVolume = [] (TVolumePtr volume, const std::vector<NYPath::TRichYPath>& layerPaths) {
+        volume->Layers.reserve(layerPaths.size());
+        for (const auto& layerPath : layerPaths) {
+            auto newLayer = New<TLayer>();
+            newLayer->Path = layerPath;
+            volume->Layers.push_back(std::move(newLayer));
+        }
+    };
+
+    if (!spec->DeprecatedLayerPaths.empty()) {
+        copyLayersToVolume(newRootVolume, spec->DeprecatedLayerPaths);
+    }
+
+    if (newRootVolume) {
+        spec->Volumes[newNameForNewVolume] = std::move(newRootVolume);
+        spec->JobVolumeMounts.push_back(std::move(newVolumeMount));
+    }
+
+    {
+        THashSet<std::string_view> allUniqueVolumeMountPaths;
+        for (const auto& volumeMount : spec->JobVolumeMounts) {
+            if (!allUniqueVolumeMountPaths.insert(volumeMount->MountPath.native()).second) {
+                THROW_ERROR_EXCEPTION("Options \"job_volume_mounts\" must contains only unique mount path")
+                    << TErrorAttribute("job_volume_mounts", spec->JobVolumeMounts)
+                    << TErrorAttribute("volume_id", volumeMount->VolumeId);
+            }
+        }
+    }
+    for (const auto& [_, sidecar] : spec->Sidecars) {
+        THashSet<std::string_view> allUniqueSidecarVolumeMountPaths;
+        for (const auto& volumeMount : sidecar->SidecarVolumeMounts) {
+            if (!allUniqueSidecarVolumeMountPaths.insert(volumeMount->MountPath.native()).second) {
+                THROW_ERROR_EXCEPTION("Options \"sidecar_volume_mounts\" must contains only unique mount path")
+                    << TErrorAttribute("sidecar_volume_mounts", sidecar->SidecarVolumeMounts)
+                    << TErrorAttribute("volume_id", volumeMount->VolumeId);
+            }
+        }
+    }
+
+    THashSet<std::string> allVolumesMediums;
+    bool hasNonRootNbdVolume = false;
+    auto rootVolumeIds = [&] () -> THashSet<std::string_view> {
+        THashSet<std::string_view> result;
+
+        auto addRootVolumeIdByVolumeMount = [&] (const std::vector<TVolumeMountPtr>& volumeMounts) {
+            for (const auto& volumeMount : volumeMounts) {
+                if (volumeMount->MountPath == "/") {
+                    result.insert(volumeMount->VolumeId);
+                }
+            }
+        };
+
+        forEachForVolumeMounts(addRootVolumeIdByVolumeMount);
+        return result;
+    }();
+
+    for (const auto& [volumeId, volume] : spec->Volumes) {
+        if (!volume->DiskRequest) {
+            continue;
+        }
+
+        if (const auto& diskRequest = volume->DiskRequest->TryGetConcrete<NScheduler::TDiskRequestConfig>()) {
+            if (diskRequest->MediumName) {
+                allVolumesMediums.insert(*diskRequest->MediumName);
+            }
+        }
+
+        if (rootVolumeIds.contains(volumeId)) {
+            if (volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+                THROW_ERROR_EXCEPTION("Root tmpfs are not supported")
+                    << TErrorAttribute("volumes", spec->Volumes);
+            }
+            continue;
+        }
+
+        if (auto volumeType = volume->DiskRequest->GetCurrentType(); volumeType == NExecNode::EVolumeType::Nbd) {
+            hasNonRootNbdVolume = true;
+        }
+    }
+
+    int tmpfsVolumeIndex = 0;
+    for (const auto& jobVolumeMount : spec->JobVolumeMounts) {
+        auto& volume = GetOrCrash(spec->Volumes, jobVolumeMount->VolumeId);
+        if (!IsDiskRequestTmpfs(volume->DiskRequest)) {
+            continue;
+        }
+        // COMPAT (krasovav)
+        volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()->TmpfsIndex = tmpfsVolumeIndex++;
+    }
+
+    std::vector<std::string> sidecarNames;
+    sidecarNames.reserve(spec->Sidecars.size());
+    for (const auto& [name, _] : spec->Sidecars) {
+        sidecarNames.push_back(name);
+    }
+
+    std::sort(sidecarNames.begin(), sidecarNames.end());
+    for (const auto& sidecarName : sidecarNames) {
+        const auto& sidecar = GetOrCrash(spec->Sidecars, sidecarName);
+        for (const auto& volumeMount : sidecar->SidecarVolumeMounts) {
+            auto& volume = GetOrCrash(spec->Volumes, volumeMount->VolumeId);
+            if (!IsDiskRequestTmpfs(volume->DiskRequest) || volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()->TmpfsIndex) {
+                continue;
+            }
+            // COMPAT (krasovav)
+            volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()->TmpfsIndex = tmpfsVolumeIndex++;
+        }
+    }
+
+    for (const auto& [volumeId, volume] : spec->Volumes) {
+        if (rootVolumeIds.contains(volumeId)) {
+            continue;
+        }
+        if (!volume->DiskRequest) {
+            THROW_ERROR_EXCEPTION("Options \"volumes\" must contains disk_request for non-root volume")
+                << TErrorAttribute("volume_id", volumeId);
+        }
+    }
+
+    // TODO(krasovav): Delete after supporting multiple medium.
+    if (allVolumesMediums.size() > 1) {
+        THROW_ERROR_EXCEPTION("Disk requests with two or more different medium are not currently supported")
+            << TErrorAttribute("volumes", spec->Volumes);
+    }
+
+    if (hasNonRootNbdVolume) {
+        THROW_ERROR_EXCEPTION("Non-root nbd are not currently supported")
+            << TErrorAttribute("volumes", spec->Volumes);
+    }
+}
+
+void ValidateAndEnrichVolumeSpec(
+    const TControllerAgentConfigPtr& config,
+    const TOperationSpecBasePtr& operationSpec,
+    const IOperationControllerHostPtr& host,
+    TNonNullPtr<NScheduler::TUserJobSpec> spec,
+    TNonNullPtr<NScheduler::TUserJobSpec> providedSpec)
+{
+    ValidateProvidedVolumeMountsSpec(providedSpec);
+    ValidateAndEnrichVolumeSpec(spec);
+    EnrichLayers(config, operationSpec, host, spec);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NControllerAgent::NProto::TVolume* volumeProto,
+    const NScheduler::TVolume& volume,
+    const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile)
+{
+    if (volume.DiskRequest) {
+        if (auto nbdDiskRequest = volume.DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
+            auto protoDiskRequest = volumeProto->mutable_nbd_disk_request();
+            ToProto(protoDiskRequest, *nbdDiskRequest);
+        } else if (auto localDiskRequest = volume.DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
+            auto protoDiskRequest = volumeProto->mutable_local_disk_request();
+            ToProto(protoDiskRequest, *localDiskRequest);
+        } else if (auto tmpfsDiskRequest = volume.DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()) {
+            ToProto(volumeProto->mutable_tmpfs_storage_request(), *tmpfsDiskRequest);
+        } else {
+            YT_ABORT();
+        }
+    }
+
+    volumeProto->set_allow_reusing(volume.AllowReusing);
+    for (const auto& layer : volume.Layers) {
+        auto* file = GetOrCrash(layerPathToUserFile, layer->Path.GetPath());
+
+        auto* descriptor = volumeProto->add_layers();
+        BuildFileSpec(descriptor, *file, /*copyFiles*/ false, /*enableBypassArtifactCache*/ false);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

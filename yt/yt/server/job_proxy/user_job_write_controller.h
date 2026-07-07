@@ -2,14 +2,16 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <library/cpp/yt/cpu_clock/public.h>
 
 namespace NYT::NJobProxy {
 
@@ -21,7 +23,7 @@ public:
     explicit TUserJobWriteController(IJobHostPtr host);
     ~TUserJobWriteController();
 
-    void Init(TInstant ioStartTime);
+    void Init(TCpuInstant ioStartTime);
 
     std::vector<IProfilingMultiChunkWriterPtr> GetWriters() const;
     int GetOutputStreamCount() const;

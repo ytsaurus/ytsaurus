@@ -130,7 +130,7 @@ void TTentativeTreeEligibility::LogTentativeTreeStatistics() const
         return;
     }
 
-    THashMap<TString, TDuration> treeAverageJobDurations;
+    THashMap<std::string, TDuration> treeAverageJobDurations;
     for (const auto& [treeId, jobs] : TreeIdToStartedJobs_) {
         treeAverageJobDurations.emplace(treeId, GetTentativeTreeAverageJobDuration(treeId));
     }
@@ -171,6 +171,9 @@ TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const st
 
     if (tentativeCount < SampleJobCount_) {
         auto it = TreeIdToLastStartJobTime_.find(treeId);
+        if (it == TreeIdToLastStartJobTime_.end()) {
+            return tentativeCount > 0 ? tentativeDurationSum / tentativeCount : TDuration::Zero();
+        }
         tentativeCount += 1;
         tentativeDurationSum += TInstant::Now() - it->second;
         return tentativeDurationSum / tentativeCount;

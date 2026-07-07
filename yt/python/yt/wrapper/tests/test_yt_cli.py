@@ -1,8 +1,9 @@
 import stat
 
 from .conftest import authors
-from .helpers import get_tests_sandbox, wait, get_environment_for_binary_test
+from .helpers import get_tests_sandbox, wait, get_environment_for_binary_test, set_cypress_attribute
 from .helpers_cli import YtCli
+
 
 from yt import yson
 
@@ -19,6 +20,7 @@ import os
 import json
 import pytest
 import random
+import subprocess
 import string
 import time
 import uuid
@@ -691,37 +693,38 @@ class TestYtBinary(object):
         in_table = "//home/wrapper_test/in_table_to_sort"
         out_table = "//home/wrapper_test/out_table_to_sort"
 
-        yt_cli.check_output(["yt", "create", "table", in_table, "--attributes", "{schema=[{name=a;type=int64;};{name=b;type=int64;};{name=c;type=int64;}];}"])
-        values = "a=2\tb=1\tc=3\n" \
-                 "a=1\tb=2\tc=2\n" \
-                 "a=2\tb=2\tc=4\n" \
-                 "a=1\tb=1\tc=1\n"
-        yt_cli.check_output(["yt", "write-table", in_table, "--format", "<enable_string_to_all_conversion=%true>dsv"], stdin=values)
+        with set_cypress_attribute("//sys/@config/enable_descending_sort_order", True):
+            yt_cli.check_output(["yt", "create", "table", in_table, "--attributes", "{schema=[{name=a;type=int64;};{name=b;type=int64;};{name=c;type=int64;}];}"])
+            values = "a=2\tb=1\tc=3\n" \
+                     "a=1\tb=2\tc=2\n" \
+                     "a=2\tb=2\tc=4\n" \
+                     "a=1\tb=1\tc=1\n"
+            yt_cli.check_output(["yt", "write-table", in_table, "--format", "<enable_string_to_all_conversion=%true>dsv"], stdin=values)
 
-        yt_cli.check_output(["yt", "sort", "--src", in_table, "--dst", out_table, "--sort-by", "c"])
-        stdout = yt_cli.check_output(["yt", "read-table", out_table, "--format", "dsv"])
-        c_values = list(map(lambda x: x.split()[0], stdout.decode("utf-8").strip().split("\n")))
-        assert c_values == ["c=1", "c=2", "c=3", "c=4"]
+            yt_cli.check_output(["yt", "sort", "--src", in_table, "--dst", out_table, "--sort-by", "c"])
+            stdout = yt_cli.check_output(["yt", "read-table", out_table, "--format", "dsv"])
+            c_values = list(map(lambda x: x.split()[0], stdout.decode("utf-8").strip().split("\n")))
+            assert c_values == ["c=1", "c=2", "c=3", "c=4"]
 
-        yt_cli.check_output(["yt", "sort", "--src", in_table, "--dst", out_table, "--sort-by", "{name=c; sort_order=descending;}"])
-        stdout = yt_cli.check_output(["yt", "read-table", out_table, "--format", "dsv"])
-        c_values = list(map(lambda x: x.split()[0], stdout.decode("utf-8").strip().split("\n")))
-        assert c_values == ["c=4", "c=3", "c=2", "c=1"]
+            yt_cli.check_output(["yt", "sort", "--src", in_table, "--dst", out_table, "--sort-by", "{name=c; sort_order=descending;}"])
+            stdout = yt_cli.check_output(["yt", "read-table", out_table, "--format", "dsv"])
+            c_values = list(map(lambda x: x.split()[0], stdout.decode("utf-8").strip().split("\n")))
+            assert c_values == ["c=4", "c=3", "c=2", "c=1"]
 
-        yt_cli.check_output(["yt", "sort", "--src", in_table, "--dst", out_table, "--sort-by", "{name=a; sort_order=descending;}", "--sort-by", "b"])
-        stdout = yt_cli.check_output(["yt", "read-table", out_table, "--format", "dsv"])
-        c_values = list(map(lambda x: x.split()[2], stdout.decode("utf-8").strip().split("\n")))
-        assert c_values == ["c=3", "c=4", "c=1", "c=2"]
+            yt_cli.check_output(["yt", "sort", "--src", in_table, "--dst", out_table, "--sort-by", "{name=a; sort_order=descending;}", "--sort-by", "b"])
+            stdout = yt_cli.check_output(["yt", "read-table", out_table, "--format", "dsv"])
+            c_values = list(map(lambda x: x.split()[2], stdout.decode("utf-8").strip().split("\n")))
+            assert c_values == ["c=3", "c=4", "c=1", "c=2"]
 
-        yt_cli.check_output(["yt", "sort", "--src", in_table, "--dst", out_table, "--sort-by", "b", "--sort-by", "a"])
-        stdout = yt_cli.check_output(["yt", "read-table", out_table, "--format", "dsv"])
-        c_values = list(map(lambda x: x.split()[2], stdout.decode("utf-8").strip().split("\n")))
-        assert c_values == ["c=1", "c=3", "c=2", "c=4"]
+            yt_cli.check_output(["yt", "sort", "--src", in_table, "--dst", out_table, "--sort-by", "b", "--sort-by", "a"])
+            stdout = yt_cli.check_output(["yt", "read-table", out_table, "--format", "dsv"])
+            c_values = list(map(lambda x: x.split()[2], stdout.decode("utf-8").strip().split("\n")))
+            assert c_values == ["c=1", "c=3", "c=2", "c=4"]
 
-        yt_cli.check_output(["yt", "sort", "--src", in_table, "--dst", out_table, "--sort-by", "b", "--sort-by", "{name=a; sort_order=descending;}"])
-        stdout = yt_cli.check_output(["yt", "read-table", out_table, "--format", "dsv"])
-        c_values = list(map(lambda x: x.split()[2], stdout.decode("utf-8").strip().split("\n")))
-        assert c_values == ["c=3", "c=1", "c=4", "c=2"]
+            yt_cli.check_output(["yt", "sort", "--src", in_table, "--dst", out_table, "--sort-by", "b", "--sort-by", "{name=a; sort_order=descending;}"])
+            stdout = yt_cli.check_output(["yt", "read-table", out_table, "--format", "dsv"])
+            c_values = list(map(lambda x: x.split()[2], stdout.decode("utf-8").strip().split("\n")))
+            assert c_values == ["c=3", "c=1", "c=4", "c=2"]
 
     def write_random_file(self, path: str, shape_x: int, shape_y: int):
         symbols = string.ascii_lowercase
@@ -785,3 +788,10 @@ class TestYtBinary(object):
         assert push_result["last_sequence_number"] == 3
 
         yt_cli.check_output(["yt", "remove-queue-producer-session", "--producer-path", producer_path, "--queue-path", queue_path, "--session-id", session_id])
+
+    @authors("denvr")
+    def test_cli_bad_conditions(self, yt_cli: YtCli):
+        with pytest.raises(subprocess.CalledProcessError) as ex:
+            yt_cli.check_output(["yt", "execute", "foo", "{}"])
+            assert "yt.common.YtError: Command \"foo\" is not supported by cluster" in ex.stderr
+            assert ex.returncode == 1

@@ -58,7 +58,7 @@ public:
         auto sessionId = GetOrCrash(cookies, BlackboxSessionIdCookieName);
 
         std::vector<TErrorAttribute> errorAttributes;
-        std::optional<TString> sslSessionId;
+        std::optional<std::string> sslSessionId;
         auto cookieIt = cookies.find(BlackboxSslSessionIdCookieName);
         if (cookieIt != cookies.end()) {
             sslSessionId = cookieIt->second;
@@ -66,15 +66,15 @@ public:
 
         auto sessionIdMD5 = GetMD5HexDigestUpperCase(sessionId);
         errorAttributes.emplace_back("sessionid_md5", sessionIdMD5);
-        TString sslSessionIdMD5 = "<empty>";
+        std::string sslSessionIdMD5 = "<empty>";
         if (sslSessionId) {
             sslSessionIdMD5 = GetMD5HexDigestUpperCase(*sslSessionId);
             errorAttributes.emplace_back("sslsessionid_md5", sslSessionIdMD5);
         }
         auto userIP = FormatUserIP(credentials.UserIP);
 
-        std::optional<TString> sessguard;
-        TString sessguardMD5 = "<empty>";
+        std::optional<std::string> sessguard;
+        std::string sessguardMD5 = "<empty>";
         std::string origin = Config_->Domain;
         auto sessguardIt = cookies.find(BlackboxSessguardCookieName);
         if (Config_->EnableSessguard && sessguardIt != cookies.end()) {
@@ -92,7 +92,7 @@ public:
         YT_LOG_DEBUG("Authenticating user via session cookie (%v)",
             authArgs);
 
-        THashMap<TString, TString> params{
+        THashMap<std::string, std::string> params{
             {"sessionid", sessionId},
             {"host", Config_->Domain},
             {"userip", userIP},
@@ -124,7 +124,7 @@ private:
 
 private:
     TFuture<TAuthenticationResult> OnCallResult(
-        const TString& authArgs,
+        const std::string& authArgs,
         const std::vector<TErrorAttribute>& errorAttributes,
         const INodePtr& data)
     {
@@ -152,7 +152,7 @@ private:
 
         auto status = TryCheckedEnumCast<EBlackboxStatus>(statusId.Value());
         if (status != EBlackboxStatus::Valid && status != EBlackboxStatus::NeedReset) {
-            auto error = GetByYPath<TString>(data, "/error");
+            auto error = GetByYPath<std::string>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
             auto statusString = status.has_value() ? Format("%lv", *status) : "unknown";
             return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected session cookie")
@@ -171,7 +171,7 @@ private:
         TAuthenticationResult result;
         result.Login = login.Value();
         result.Realm = "blackbox:cookie";
-        auto userTicket = GetByYPath<TString>(data, "/user_ticket");
+        auto userTicket = GetByYPath<std::string>(data, "/user_ticket");
         if (userTicket.IsOK()) {
             result.UserTicket = userTicket.Value();
         } else if (Config_->GetUserTicket) {

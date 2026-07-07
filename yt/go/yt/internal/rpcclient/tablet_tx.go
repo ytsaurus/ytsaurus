@@ -63,10 +63,11 @@ func (c *client) BeginTabletTx(
 	}
 
 	startOptions := &yt.StartTabletTxOptions{
-		Type:      yt.TxTypeTablet,
-		Sticky:    true,
-		Atomicity: opts.Atomicity,
-		Timeout:   &txTimeout,
+		Type:                       yt.TxTypeTablet,
+		Sticky:                     true,
+		Atomicity:                  opts.Atomicity,
+		Timeout:                    &txTimeout,
+		PrerequisiteTransactionIDs: opts.PrerequisiteTransactionIDs,
 	}
 
 	tx.txID, tx.txStartTimestamp, err = tx.startTabletTx(ctx, startOptions)
@@ -106,6 +107,11 @@ func (tx *tabletTx) do(ctx context.Context, call *Call, rsp proto.Message, opts 
 	default:
 		if err = tx.pinger.CheckAlive(); err != nil {
 			return
+		}
+		if _, ok := call.Req.(TransactionalRequest); ok {
+			if err := tx.setTxID(call); err != nil {
+				return err
+			}
 		}
 		return tx.c.Invoke(ctx, call, rsp, opts...)
 	}

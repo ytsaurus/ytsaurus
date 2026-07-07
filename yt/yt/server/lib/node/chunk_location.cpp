@@ -63,7 +63,7 @@ TLocationFairShareSlot::~TLocationFairShareSlot()
 
 TChunkLocationBase::TChunkLocationBase(
     ELocationType type,
-    TString id,
+    std::string id,
     TChunkLocationConfigBasePtr config,
     TCallback<TBriefChunkLocationConfig()> getBriefConfigCallback,
     TCellId cellId,
@@ -78,6 +78,8 @@ TChunkLocationBase::TChunkLocationBase(
     , CellId_(cellId)
     , Type_(type)
     , StaticConfig_(std::move(config))
+    , Path_(StaticConfig_->Path)
+    , DiskFamily_(StaticConfig_->DiskFamily)
     , RuntimeConfig_(StaticConfig_)
     , GetBriefConfigCallback_(std::move(getBriefConfigCallback))
 {
@@ -95,6 +97,8 @@ TChunkLocationBase::TChunkLocationBase(
     Profiler_ = profiler
         .WithSparse()
         .WithTags(tagSet);
+
+    InitializeDiskLocationProfiling(Profiler_);
 
     IOFairShareQueue_ = CreateFairShareHierarchicalSlotQueue<std::string>(
         fairShareHierarchicalScheduler,
@@ -118,7 +122,8 @@ TChunkLocationBase::TChunkLocationBase(
 
     HealthChecker_ = New<TDiskHealthChecker>(
         StaticConfig_->DiskHealthChecker,
-        GetPath(),
+        // TODO(babenko): migrate to std::string (TDiskHealthChecker takes const TString& path).
+        TString(GetPath()),
         GetAuxPoolInvoker(),
         Logger,
         Profiler_);
@@ -195,7 +200,7 @@ TChunkLocationUuid TChunkLocationBase::GetUuid() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Uuid_;
+    return Uuid_.Load();
 }
 
 TChunkLocationIndex TChunkLocationBase::GetIndex() const
@@ -208,23 +213,23 @@ void TChunkLocationBase::SetIndex(TChunkLocationIndex index)
     if (Index_ != NNodeTrackerClient::InvalidChunkLocationIndex && Index_ != index) {
         YT_LOG_ALERT(
             "Attempted to change chunk location index (LocationUuid: %v, OldIndex: %v, NewIndex: %v)",
-            Uuid_,
+            Uuid_.Load(),
             Index_,
             index);
 
         THROW_ERROR_EXCEPTION("Attempted to change chunk location index")
-            << TErrorAttribute("location_uuid", Uuid_)
+            << TErrorAttribute("location_uuid", Uuid_.Load())
             << TErrorAttribute("old_index", Index_)
             << TErrorAttribute("new_index", index);
     }
     Index_ = index;
 }
 
-const TString& TChunkLocationBase::GetDiskFamily() const
+const std::string& TChunkLocationBase::GetDiskFamily() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return StaticConfig_->DiskFamily;
+    return DiskFamily_;
 }
 
 const NProfiling::TProfiler& TChunkLocationBase::GetProfiler() const
@@ -234,11 +239,11 @@ const NProfiling::TProfiler& TChunkLocationBase::GetProfiler() const
     return Profiler_;
 }
 
-const TString& TChunkLocationBase::GetPath() const
+const std::string& TChunkLocationBase::GetPath() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return StaticConfig_->Path;
+    return Path_;
 }
 
 i64 TChunkLocationBase::GetQuota() const
@@ -400,7 +405,7 @@ int TChunkLocationBase::GetChunkCount() const
     return ChunkCount_;
 }
 
-TString TChunkLocationBase::GetChunkPath(TChunkId chunkId) const
+std::string TChunkLocationBase::GetChunkPath(TChunkId chunkId) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -444,13 +449,13 @@ void TChunkLocationBase::RemoveChunkFiles(TChunkId chunkId, bool /*force*/)
     RemoveChunkFilesPermanently(chunkId);
 }
 
-TString TChunkLocationBase::GetRelativeChunkPath(TChunkId chunkId)
+std::string TChunkLocationBase::GetRelativeChunkPath(TChunkId chunkId)
 {
     int hashByte = chunkId.Parts32[0] & 0xff;
     return NFS::CombinePaths(Format("%02x", hashByte), ToString(chunkId));
 }
 
-void TChunkLocationBase::ForceHashDirectories(const TString& rootPath)
+void TChunkLocationBase::ForceHashDirectories(const std::string& rootPath)
 {
     for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
         auto hashDirectory = Format("%02x", hashByte);
@@ -508,25 +513,29 @@ void TChunkLocationBase::InitializeUuid()
         }
     }
 
+    TChunkLocationUuid uuid;
+
     if (Exists(uuidPath)) {
         TUnbufferedFileInput file(uuidPath);
         auto uuidString = file.ReadAll();
-        if (!TCellId::FromString(uuidString, &Uuid_)) {
+        if (!TCellId::FromString(uuidString, &uuid)) {
             THROW_ERROR_EXCEPTION(
                 "Failed to parse chunk location uuid %Qv",
                 uuidString);
         }
     } else {
         do {
-            Uuid_ = TChunkLocationUuid::Create();
-        } while (Uuid_ == EmptyChunkLocationUuid || Uuid_ == InvalidChunkLocationUuid);
+            uuid = TChunkLocationUuid::Create();
+        } while (uuid == EmptyChunkLocationUuid || uuid == InvalidChunkLocationUuid);
         YT_LOG_INFO(
             "Chunk location uuid file is not found, creating (LocationUuid: %v)",
-            Uuid_);
+            uuid);
         TFile file(uuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
         TUnbufferedFileOutput output(file);
-        output.Write(ToString(Uuid_));
+        output.Write(ToString(uuid));
     }
+
+    Uuid_.Store(uuid);
 }
 
 bool TChunkLocationBase::IsSick() const
@@ -648,7 +657,7 @@ void TChunkLocationBase::MarkUninitializedLocationDisabled(const TError& error)
     }
     ChunkCount_.store(0);
 
-    ChangeState(ELocationState::Disabled, ELocationState::Disabling);
+    ChangeState(ELocationState::Disabled, ELocationState::Disabling, error);
 }
 
 i64 TChunkLocationBase::GetAdditionalSpace() const
@@ -881,7 +890,7 @@ bool TChunkLocationBase::FinishDestroy(
             GetIndex(),
             StaticConfig_->DeviceName);
     } else {
-        if (!ChangeState(ELocationState::Disabled, ELocationState::Destroying)) {
+        if (!ChangeState(ELocationState::Disabled, ELocationState::Destroying, reason)) {
             return false;
         }
 

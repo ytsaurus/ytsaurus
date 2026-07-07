@@ -24,6 +24,7 @@ target_compile_options(library-web_assembly-engine PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(library-web_assembly-engine PRIVATE
@@ -56,6 +57,7 @@ target_compile_options(library-web_assembly-engine.global PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(library-web_assembly-engine.global PRIVATE

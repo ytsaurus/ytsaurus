@@ -24,18 +24,18 @@ void ToProto(NProto::TScheduleAllocationRequest* protoRequest, const TScheduleAl
     ToProto(protoRequest->mutable_allocation_resource_limits(), request.AllocationResourceLimits);
     protoRequest->set_pool_path(request.PoolPath);
     ToProto(protoRequest->mutable_node_disk_resources(), request.NodeDiskResources);
+    YT_OPTIONAL_SET_PROTO(protoRequest, allocation_group_name, request.AllocationGroupName);
+
     auto* spec = protoRequest->mutable_spec();
-    if (request.Spec.WaitingForResourcesOnNodeTimeout) {
-        spec->set_waiting_for_resources_on_node_timeout(ToProto(*request.Spec.WaitingForResourcesOnNodeTimeout));
-    }
+    YT_OPTIONAL_SET_PROTO(spec, waiting_for_resources_on_node_timeout, request.Spec.WaitingForResourcesOnNodeTimeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TControllerAgent::TControllerAgent(
-    const TString& id,
+    const TAgentId& id,
     const NNodeTrackerClient::TAddressMap& agentAddresses,
-    THashSet<TString> tags,
+    THashSet<std::string> tags,
     NRpc::IChannelPtr channel,
     const IInvokerPtr& invoker,
     const IInvokerPtr& heartbeatInvoker,
@@ -67,7 +67,7 @@ const NNodeTrackerClient::TAddressMap& TControllerAgent::GetAgentAddresses() con
     return AgentAddresses_;
 }
 
-const THashSet<TString>& TControllerAgent::GetTags() const
+const THashSet<std::string>& TControllerAgent::GetTags() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

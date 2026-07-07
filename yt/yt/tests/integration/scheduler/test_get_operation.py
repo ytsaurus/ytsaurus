@@ -18,7 +18,7 @@ from yt_helpers import profiler_factory
 
 import yt.environment.init_operations_archive as init_operations_archive
 
-from yt.common import uuid_to_parts, YtError
+from yt.common import uuid_to_parts
 
 import pytest
 
@@ -52,7 +52,6 @@ def get_running_job_count(op_id):
     return result["brief_progress"]["jobs"]["running"]
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetOperation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 4
@@ -197,7 +196,7 @@ class TestGetOperation(YTEnvSetup):
         op.track()
 
         remove(op.get_path(), force=True)
-        with raises_yt_error(yt_error_codes.NoSuchOperation):
+        with raises_yt_error(code=yt_error_codes.NoSuchOperation):
             get_operation(op.id)
 
     @authors("ilpauzner")
@@ -285,7 +284,7 @@ class TestGetOperation(YTEnvSetup):
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
         assert list(get_operation(op.id, attributes=["progress"])) == ["progress"]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation attribute .* is not supported"):
             get_operation(op.id, attributes=["PYSCH"])
 
         for read_from in ("cache", "follower"):
@@ -305,7 +304,7 @@ class TestGetOperation(YTEnvSetup):
             if "alerts" in res_get_operation and "alerts" in res_cypress:
                 assert res_get_operation["alerts"] == res_cypress["alerts"]
 
-        with raises_yt_error(yt_error_codes.NoSuchAttribute):
+        with raises_yt_error(code=yt_error_codes.NoSuchAttribute):
             get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
 
         assert get_operation(op.id, attributes=["runtime_parameters"])["runtime_parameters"]["annotations"] == annotations
@@ -335,7 +334,7 @@ class TestGetOperation(YTEnvSetup):
         assert res_get_operations_archive["slot_index_per_pool_tree"]["default"] == 0
         assert res_get_operations_archive["scheduling_attributes_per_pool_tree"]["default"]["slot_index"] == 0
 
-        with raises_yt_error(yt_error_codes.NoSuchAttribute):
+        with raises_yt_error(code=yt_error_codes.NoSuchAttribute):
             get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
 
     @authors("gritukan")
@@ -393,7 +392,7 @@ class TestGetOperation(YTEnvSetup):
 
     @authors("kiselyovp", "ilpauzner")
     def test_not_existing_operation(self):
-        with raises_yt_error(yt_error_codes.NoSuchOperation):
+        with raises_yt_error(code=yt_error_codes.NoSuchOperation):
             get_operation("00000000-00000000-0000000-00000001")
 
     @authors("omgronny")
@@ -472,7 +471,7 @@ class TestGetOperation(YTEnvSetup):
 
         sync_unmount_table("//sys/operations_archive/ordered_by_id")
 
-        with raises_yt_error(yt_error_codes.RetriableArchiveError):
+        with raises_yt_error(code=yt_error_codes.RetriableArchiveError):
             get_operation(op.id, maximum_cypress_progress_age=0)
 
         if self.ENABLE_RPC_PROXY:
@@ -483,7 +482,7 @@ class TestGetOperation(YTEnvSetup):
             get_operation_from_archive_timeout_counter = profiler.counter("native_client/get_operation_from_archive_timeout_count")
             get_operation_from_archive_failure_counter = profiler.counter("native_client/get_operation_from_archive_failure_count")
 
-            with raises_yt_error(yt_error_codes.RetriableArchiveError):
+            with raises_yt_error(code=yt_error_codes.RetriableArchiveError):
                 get_operation(op.id, maximum_cypress_progress_age=0)
 
             assert get_operation_from_archive_success_counter.get_delta() == 0
@@ -502,7 +501,7 @@ class TestGetOperation(YTEnvSetup):
 
         # Unmount table again and check that error is _not_ "No such operation".
         sync_unmount_table("//sys/operations_archive/ordered_by_id")
-        with raises_yt_error(yt_error_codes.TabletNotMounted):
+        with raises_yt_error(code=yt_error_codes.TabletNotMounted):
             get_operation(op.id)
 
     @authors("omgronny")
@@ -615,7 +614,6 @@ class TestGetOperation(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetOperationRpcProxy(TestGetOperation):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -631,7 +629,6 @@ class TestGetOperationRpcProxy(TestGetOperation):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetOperationHeavyRuntimeParameters(TestGetOperation):
     ENABLE_MULTIDAEMON = True
     DELTA_SCHEDULER_CONFIG = {
@@ -655,7 +652,6 @@ class TestGetOperationHeavyRuntimeParameters(TestGetOperation):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOperationAliases(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -692,7 +688,7 @@ class TestOperationAliases(YTEnvSetup):
 
     @authors("max42")
     def test_aliases(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation alias should start with .*"):
             # Alias should start with *.
             vanilla(
                 spec={
@@ -724,7 +720,7 @@ class TestOperationAliases(YTEnvSetup):
         assert list_operations()["operations"][0]["brief_spec"]["alias"] == "*my_op"
 
         # It is not allowed to use alias of already running operation.
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation alias is already used by an operation"):
             vanilla(
                 spec={
                     "tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
@@ -740,10 +736,10 @@ class TestOperationAliases(YTEnvSetup):
         abort_op("*my_op")
         assert get(op.get_path() + "/@state") == "aborted"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No such operation .*"):
             complete_op("*my_another_op")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing GUID"):
             complete_op("my_op")
 
         # Now using alias *my_op is ok.
@@ -767,7 +763,7 @@ class TestOperationAliases(YTEnvSetup):
         )
 
         # When no operation is assigned to an alias, get_operation should return an error.
-        with pytest.raises(YtError):
+        with raises_yt_error("No such operation .*"):
             get_operation("*my_op", include_runtime=True)
 
         op = vanilla(
@@ -779,7 +775,7 @@ class TestOperationAliases(YTEnvSetup):
         )
         wait(lambda: get(op.get_path() + "/@state") == "running")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation alias cannot be resolved without using runtime .*"):
             # It is impossible to resolve aliases without including runtime.
             get_operation("*my_op", include_runtime=False)
 
@@ -807,7 +803,6 @@ class TestOperationAliases(YTEnvSetup):
         assert info["type"] == "vanilla"
 
 
-@pytest.mark.enabled_multidaemon
 class TestOperationAliasesRpcProxy(TestOperationAliases):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

@@ -16,6 +16,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/public.h>
 
+#include <yt/yt/ytlib/offshore_data_gateway/public.h>
+
 #include <yt/yt/ytlib/discovery_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/public.h>
@@ -25,6 +27,8 @@
 #include <yt/yt/ytlib/query_tracker_client/public.h>
 
 #include <yt/yt/ytlib/yql_client/public.h>
+
+#include <yt/yt/ytlib/tablet_balancer_client/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 
@@ -212,7 +216,7 @@ struct TConnectionStaticConfig
     NChaosClient::TChaosResidencyCacheConfigPtr ChaosResidencyCache;
 
     //! Visible in profiling as tag `connection_name`.
-    TString ConnectionName;
+    std::string ConnectionName;
 
     //! Region defines geographical location, largest tier in cloud hierarchy.
     std::optional<std::string> Region;
@@ -258,6 +262,8 @@ struct TConnectionDynamicConfig
     NYqlClient::TYqlAgentConnectionConfigPtr YqlAgent;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NBundleController::TBundleControllerChannelConfigPtr BundleController;
+    NTabletBalancerClient::TTabletBalancerChannelConfigPtr TabletBalancer;
+    NOffshoreDataGateway::TOffshoreDataGatewayChannelConfigPtr OffshoreDataGateway;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
@@ -268,10 +274,17 @@ struct TConnectionDynamicConfig
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
     NChunkClient::TChunkSliceFetcherConfigPtr ChunkSliceFetcher;
 
+    //! If set, every CreateTableReader / CreateTablePartitionReader call
+    //! runs a one-off NodeDirectory sync via INodeDirectorySynchronizer::SyncOnce if periodic synchronizer is not active.
+    bool EnableNodeDirectorySynchronizationOnTableRead;
+    //! Minimum interval between successful one-off syncs triggered by EnableNodeDirectorySynchronizationOnTableRead.
+    TDuration NodeDirectorySynchronizationOnTableReadStalenessThreshold;
+
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
     NQueryClient::TExpressionEvaluatorCacheConfigPtr ExpressionEvaluatorCache;
     TDuration DefaultSelectRowsTimeout;
+    TDuration CumulativeSelectRowsFailedResponseWaitTime;
     NCompression::ECodec SelectRowsResponseCodec;
     i64 DefaultInputRowLimit;
     i64 DefaultOutputRowLimit;
@@ -305,7 +318,7 @@ struct TConnectionDynamicConfig
 
     int ThreadPoolSize;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
     TDuration IdleChannelTtl;
 
     TDuration DefaultGetInSyncReplicasTimeout;
@@ -335,6 +348,7 @@ struct TConnectionDynamicConfig
     TDuration DefaultWriteOperationControllerCoreDumpTimeout;
     TDuration DefaultAbandonJobTimeout;
     TDuration DefaultAbortJobTimeout;
+    TDuration DefaultBanRequestTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 
@@ -396,6 +410,8 @@ struct TConnectionDynamicConfig
 
     int ReplicaFallbackRetryCount;
 
+    int LocalTabletWriteRetryCount;
+
     bool DisableNewRangeInference;
 
     bool DisableAdaptiveOrderedSchemafulReader;
@@ -405,10 +421,10 @@ struct TConnectionDynamicConfig
     // COMPAT(sabdenovch)
     bool GroupByWithLimitIsUnordered;
 
-    // COMPAT(sabdenovch)
-    bool AllowUnaliasedSecondaryIndex;
-
     TDuration FlowPipelineControllerRpcTimeout;
+
+    //! If true, every RPC request to Flow Controller is signed with proxy signature.
+    bool FlowProxySignatureEnabled;
 
     EMasterChannelKind ReadOperationsArchiveStateFrom;
 
@@ -428,6 +444,13 @@ struct TConnectionDynamicConfig
     bool EnableReshardWithSlicingByDefault;
 
     i64 GetJobTraceBatchSize;
+
+    //! Enable base ACO check when validating operation access.
+    bool CheckOperationBaseAco;
+    std::string OperationBaseAcoName;
+
+    // COMPAT(atalmenev)
+    bool UseUniformPrepareSignatures;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 

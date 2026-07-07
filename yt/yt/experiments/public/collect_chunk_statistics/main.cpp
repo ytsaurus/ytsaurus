@@ -1,6 +1,7 @@
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/io_engine.h>
 #include <yt/yt/server/lib/io/public.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -28,6 +29,7 @@
 #include <iostream>
 #include <iomanip>
 
+using namespace NYT::NConcurrency;
 
 auto YsonWriter = NYT::NYson::TYsonWriter(&Cout, NYT::NYson::EYsonFormat::Text, NYT::NYson::EYsonType::ListFragment);
 auto YsonList = NYT::NYTree::BuildYsonListFragmentFluently(&YsonWriter);
@@ -65,7 +67,7 @@ void ProcessChunkMeta(const TFsPath& pathToMeta)
         NYT::NChunkClient::NullChunkId,
         pathToMeta.Dirname() + "/" + chunkId);
 
-    auto chunkMetaOrError = chunkReader->GetMeta(/*options*/ {}).Get();
+    auto chunkMetaOrError = WaitFor(chunkReader->GetMeta(/*options*/ {}));
     if (!chunkMetaOrError.IsOK()) {
         std::cerr << chunkMetaOrError.GetMessage() << "\n";
         return;
@@ -242,9 +244,10 @@ void TraverseDisks(const TFsPath& currentPath)
     std::cerr << "Started traversing node\n\n";
     ProgressState.StartTime = TInstant::Now();
 
+    // TODO(babenko): drop TVector<TString> once TFsPath::ListNames accepts std::vector<std::string>.
     TVector<TString> children;
     currentPath.ListNames(children);
-    std::vector<TString> disks;
+    std::vector<std::string> disks;
     for (const auto& child : children) {
         if (child.StartsWith("disk")) {
             disks.emplace_back(child);
@@ -264,9 +267,10 @@ void TraverseSuffixes(const TFsPath& currentPath)
 {
     ProgressState.CurrentPartCount = 0;
     ProgressState.CurrentlyProcessedPartCount = 0;
+    // TODO(babenko): drop TVector<TString> once TFsPath::ListNames accepts std::vector<std::string>.
     TVector<TString> children;
     currentPath.ListNames(children);
-    std::vector<TString> suffixes;
+    std::vector<std::string> suffixes;
     for (const auto& child : children) {
         if (child.length() == 2) {
             suffixes.emplace_back(child);
@@ -286,9 +290,10 @@ void TraverseChunkMetas(const TFsPath& currentPath)
 {
     ProgressState.CurrentChunkCount = 0;
     ProgressState.CurrentlyProcessedChunkCount = 0;
+    // TODO(babenko): drop TVector<TString> once TFsPath::ListNames accepts std::vector<std::string>.
     TVector<TString> children;
     currentPath.ListNames(children);
-    std::vector<TString> chunkMetas;
+    std::vector<std::string> chunkMetas;
     for (const auto& child : children) {
         if (child.EndsWith(".meta")) {
             chunkMetas.emplace_back(child);

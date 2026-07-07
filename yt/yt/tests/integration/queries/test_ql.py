@@ -22,7 +22,6 @@ from yt.wrapper import yson
 import pytest
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueriesQL(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -73,7 +72,7 @@ class TestQueriesQL(YTEnvSetup):
     def test_query_error(self, query_tracker):
         settings = {"cluster": "primary"}
         q = start_query("ql", "* from [//tmp/t]", settings=settings)
-        with raises_yt_error("failed"):
+        with raises_yt_error("Query .* failed"):
             q.track()
         assert q.get_state() == "failed"
 
@@ -177,7 +176,6 @@ class TestQueriesQL(YTEnvSetup):
 
 
 @authors("apollo1321")
-@pytest.mark.enabled_multidaemon
 class TestQueriesQLRpcProxy(TestQueriesQL):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

@@ -100,6 +100,10 @@ struct IChaosManager
         NChaosClient::NProto::TReqForsakeCoordinator,
         NChaosClient::NProto::TRspForsakeCoordinator
     >>;
+    using TCtxRemoveCellMailboxPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqRemoveCellMailbox,
+        NChaosClient::NProto::TRspRemoveCellMailbox
+    >>;
 
     virtual void GenerateReplicationCardId(const TCtxGenerateReplicationCardIdPtr& context) = 0;
     virtual void CreateReplicationCard(const TCtxCreateReplicationCardPtr& context) = 0;
@@ -117,6 +121,7 @@ struct IChaosManager
     virtual void CreateReplicationCardCollocation(const TCtxCreateReplicationCardCollocationPtr& context) = 0;
 
     virtual void ForsakeCoordinator(const TCtxForsakeCoordinatorPtr& context) = 0;
+    virtual void RemoveCellMailbox(const TCtxRemoveCellMailboxPtr& context) = 0;
 
     virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() const = 0;
     virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) const = 0;

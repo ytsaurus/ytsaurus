@@ -3,9 +3,9 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, get, exists, set, create, move, remove, read_file, write_file,
     get_file_from_cache, put_file_to_cache, start_transaction, abort_transaction,
-    make_ace, create_user)
+    make_ace, create_user, raises_yt_error)
 
-from yt.common import date_string_to_datetime, YtError
+from yt.common import date_string_to_datetime
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
@@ -16,7 +16,6 @@ import time
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestFileCache(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -65,7 +64,7 @@ class TestFileCache(YTEnvSetup):
         create("file", "//tmp/file")
         write_file("//tmp/file", b"abacaba")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* is not found"):
             put_file_to_cache(
                 "//tmp/file",
                 hashlib.md5(b"abacaba").hexdigest(),
@@ -74,10 +73,10 @@ class TestFileCache(YTEnvSetup):
 
         write_file("//tmp/file", b"abacaba", compute_md5=True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("MD5 mismatch"):
             put_file_to_cache("//tmp/file", "invalid_hash", cache_path="//tmp/cache")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             put_file_to_cache("//tmp/file", hashlib.md5(b"abacaba").hexdigest())
 
         path = put_file_to_cache("//tmp/file", hashlib.md5(b"abacaba").hexdigest(), cache_path="//tmp/cache")
@@ -116,7 +115,7 @@ class TestFileCache(YTEnvSetup):
             attributes={"inherit_acl": False, "acl": [make_ace("deny", "u", "use")]},
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             put_file_to_cache(
                 "//tmp/file",
                 hashlib.md5(b"aba").hexdigest(),
@@ -188,6 +187,7 @@ class TestFileCache(YTEnvSetup):
         assert not exists(path)
 
     @authors("egor-gutrov")
+    @pytest.mark.flaky(max_runs=3)
     def test_dont_preserve_expiration_timeout(self):
         content = b"abacaba"
         content_md5 = hashlib.md5(content).hexdigest()
@@ -195,12 +195,13 @@ class TestFileCache(YTEnvSetup):
         create("map_node", "//tmp/cache")
         create("file", "//tmp/file")
         write_file("//tmp/file", content, compute_md5=True)
-        set("//tmp/file/@expiration_timeout", 1000)
+        set("//tmp/file/@expiration_timeout", 2000)
         path = put_file_to_cache("//tmp/file", content_md5, cache_path="//tmp/cache")
         assert exists("//tmp/file/@expiration_timeout")
         assert not exists(path + "/@expiration_timeout")
 
     @authors("egor-gutrov")
+    @pytest.mark.flaky(max_runs=3)
     def test_preserve_expiration_timeout(self):
         content = b"abacaba"
         content_md5 = hashlib.md5(content).hexdigest()
@@ -208,7 +209,7 @@ class TestFileCache(YTEnvSetup):
         create("map_node", "//tmp/cache")
         create("file", "//tmp/file")
         write_file("//tmp/file", content, compute_md5=True)
-        set("//tmp/file/@expiration_timeout", 1000)
+        set("//tmp/file/@expiration_timeout", 2000)
         path = put_file_to_cache(
             "//tmp/file",
             content_md5,
@@ -217,7 +218,7 @@ class TestFileCache(YTEnvSetup):
         )
         assert exists("//tmp/file/@expiration_timeout")
         assert exists(path + "/@expiration_timeout")
-        time.sleep(2)
+        time.sleep(3)
         assert not exists("//tmp/file")
         assert not exists(path)
 

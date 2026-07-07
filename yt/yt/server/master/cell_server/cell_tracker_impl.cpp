@@ -1,6 +1,7 @@
 #include "area.h"
 #include "bundle_node_tracker.h"
 #include "config.h"
+#include "leader_smoothing.h"
 #include "private.h"
 #include "cell_base.h"
 #include "cell_bundle.h"
@@ -118,8 +119,7 @@ public:
 
     bool IsVerboseLoggingEnabled() override
     {
-        return Bootstrap_->GetConfigManager()->GetConfig()
-            ->TabletManager->TabletCellBalancer->EnableVerboseLogging;
+        return GetConfig()->EnableVerboseLogging;
     }
 
     bool IsBalancingRequired() override
@@ -136,6 +136,11 @@ public:
         }
 
         return false;
+    }
+
+    bool IsTabletCellSmoothingEnabled() override
+    {
+        return GetConfig()->EnableTabletCellSmoothing;
     }
 
 private:
@@ -248,6 +253,10 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
         }
 
         ScheduleLeaderReassignment(cell, peerId);
+    }
+
+    if (GetDynamicConfig()->TabletCellBalancer->EnableLeaderSmoothing) {
+        ScheduleLeaderSmoothing(cellarType);
     }
 
     auto moveDescriptors = balancer->GetCellMoveDescriptors();
@@ -403,6 +412,151 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, int newLeadin
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger()));
+}
+
+void TCellTrackerImpl::ScheduleLeaderSmoothing(ECellarType cellarType)
+{
+    YT_LOG_DEBUG("Leader smoothing started (CellarType: %v)", cellarType);
+
+    const auto& cellManager = Bootstrap_->GetTamedCellManager();
+
+    // Group cells by area for per-area leader distribution analysis.
+    THashMap<const TArea*, std::vector<TCellBase*>> areaToCells;
+    for (auto* cell : cellManager->Cells(cellarType)) {
+        if (!IsObjectAlive(cell)) {
+            continue;
+        }
+
+        // Leader smoothing only applies to dependent (non-independent) multipeer cells.
+        if (cell->CellBundle()->GetOptions()->IndependentPeers) {
+            continue;
+        }
+
+        if (cell->CellBundle()->GetOptions()->PeerCount <= 1) {
+            continue;
+        }
+
+        areaToCells[cell->GetArea()].push_back(cell);
+    }
+
+    YT_LOG_DEBUG("Leader smoothing: grouped cells by area (AreaCount: %v)", areaToCells.size());
+
+    for (auto& [area, cells] : areaToCells) {
+        YT_LOG_DEBUG("Leader smoothing: processing area (AreaName: %v, CellCount: %v)",
+            area->GetName(),
+            cells.size());
+
+        bool allCellsHealthy = true;
+        std::vector<TCellPeerInfo> cellPeerInfos;
+        cellPeerInfos.reserve(cells.size());
+
+        for (int cellIndex = 0; cellIndex < std::ssize(cells); ++cellIndex) {
+            const auto* cell = cells[cellIndex];
+
+            if (cell->GetHealth() != ECellHealth::Good) {
+                allCellsHealthy = false;
+                break;
+            }
+
+            int leadingPeerId = cell->GetLeadingPeerId();
+            if (leadingPeerId == InvalidPeerId) {
+                allCellsHealthy = false;
+                break;
+            }
+
+            const auto& leadingPeer = cell->Peers()[leadingPeerId];
+            const auto* leaderNode = leadingPeer.Node.Get();
+            if (!leaderNode || !CheckIfNodeCanHostCells(leaderNode)) {
+                allCellsHealthy = false;
+                break;
+            }
+
+            TCellPeerInfo info{
+                .CellIndex = cellIndex,
+                .LeaderNodeId = static_cast<int>(leaderNode->GetId().Underlying()),
+                .LeadingPeerId = leadingPeerId,
+            };
+
+            for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                if (cell->IsAlienPeer(peerId)) {
+                    continue;
+                }
+                if (peerId == leadingPeerId) {
+                    continue;
+                }
+                const auto& peer = cell->Peers()[peerId];
+                if (!CheckIfNodeCanHostCells(peer.Node)) {
+                    continue;
+                }
+                if (cell->GetPeerState(peerId) != EPeerState::Following) {
+                    continue;
+                }
+                info.FollowerPeers.emplace_back(peerId, peer.Node->GetId().Underlying());
+            }
+
+            cellPeerInfos.push_back(std::move(info));
+        }
+
+        if (!allCellsHealthy) {
+            continue;
+        }
+
+        if (cellPeerInfos.empty()) {
+            continue;
+        }
+
+        // Collect eligible nodes for this area.
+        const auto& bundleNodeTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
+        const auto& areaNodes = bundleNodeTracker->GetAreaNodes(area);
+
+        std::vector<int> eligibleNodeIds;
+        THashMap<int, const TNode*> nodeIdToNode;
+
+        for (const auto* node : areaNodes) {
+            if (CheckIfNodeCanHostCells(node)) {
+                int nodeId = node->GetId().Underlying();
+                eligibleNodeIds.push_back(nodeId);
+                nodeIdToNode[nodeId] = node;
+            }
+        }
+
+        if (eligibleNodeIds.empty()) {
+            continue;
+        }
+
+        // Run the multi-hop smoothing algorithm.
+        auto reassignments = ComputeLeaderSmoothing(cellPeerInfos, eligibleNodeIds);
+
+        if (reassignments.empty()) {
+            continue;
+        }
+
+        YT_LOG_DEBUG(
+            "Leader smoothing: applying reassignments (AreaName: %v, ReassignmentCount: %v)",
+            area->GetName(),
+            reassignments.size());
+
+        // Apply each reassignment.
+        for (const auto& reassignment : reassignments) {
+            auto* cell = cells[reassignment.CellIndex];
+            int newLeadingPeerId = reassignment.NewLeadingPeerId;
+
+            YT_LOG_DEBUG(
+                "Scheduling leader reassignment for smoothing "
+                "(CellId: %v, OldLeadingPeerId: %v, NewLeadingPeerId: %v)",
+                cell->GetId(),
+                cell->GetLeadingPeerId(),
+                newLeadingPeerId);
+
+            ScheduleLeaderReassignment(cell, newLeadingPeerId);
+
+            cell->CellBundle()
+                ->ProfilingCounters()
+                .LeaderSmoothings.Increment();
+        }
+    }
+
+    YT_LOG_DEBUG("Leader smoothing finished");
 }
 
 void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer)

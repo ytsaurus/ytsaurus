@@ -400,6 +400,8 @@ private:
         auto readerOptions = New<TRemoteReaderOptions>();
 
         i64 offset = 0;
+        std::vector<TFuture<void>> blocksExtFutures;
+        blocksExtFutures.reserve(ChunkSpecs_.size());
         for (auto& chunkSpec : ChunkSpecs_) {
             int chunkIndex = std::ssize(Chunks_);
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
@@ -421,11 +423,11 @@ private:
                 .Size = miscExt.uncompressed_data_size(),
                 .Offset = offset,
                 .Reader = CreateReplicationReader(
-                    std::move(readerConfig),
+                    readerConfig,
                     readerOptions,
                     ChunkReaderHost_,
                     chunkId,
-                    /*seedReplicas*/ {}),
+                    TChunkReplicaList{}),
                 .ReadBlocksOptions = {
                     .ClientOptions = {
                         .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
@@ -438,9 +440,18 @@ private:
                 .Spec = std::move(chunkSpec),
             });
 
+            blocksExtFutures.push_back(
+                GetBlockExt(Chunks_.back()).AsVoid());
+
             offset += miscExt.uncompressed_data_size();
             Size_ += miscExt.uncompressed_data_size();
         }
+
+        WaitFor(AllSucceeded(std::move(blocksExtFutures)))
+            .ThrowOnError();
+
+        YT_LOG_INFO("Initialized chunks (Count: %v)",
+            Chunks_.size());
     }
 };
 

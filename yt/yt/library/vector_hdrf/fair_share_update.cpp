@@ -435,11 +435,9 @@ void TCompositeElement::PrepareFifoPool()
     std::sort(
         begin(SortedChildren_),
         end(SortedChildren_),
-        std::bind(
+        std::bind_front(
             &TCompositeElement::HasHigherPriorityInFifoMode,
-            this,
-            std::placeholders::_1,
-            std::placeholders::_2));
+            this));
 
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         SortedChildren_[childIndex]->Attributes().FifoIndex = childIndex;
@@ -447,11 +445,10 @@ void TCompositeElement::PrepareFifoPool()
 }
 
 //! Element's strong guarantee can be split into several priority tiers which impact the guarantee adjustment process.
-//! Currently, there are three tiers: operations, regular pools and priority pools.
+//! Currently, there are two tiers: regular pools and priority pools. Operations never receive a strong guarantee.
 //!
-//! The two pools tiers are regulated by two pool config options: any pool can be marked as a priority pool and as a donor pool.
+//! Both tiers are regulated by two pool config options: any pool can be marked as a priority pool and as a donor pool.
 //! Semantics are as follows:
-//! - Each operation's guarantee fully belongs to the operations tier.
 //! - Each priority pool's guarantee fully belongs to the priority pools tier.
 //! - For each priority pool, we propagate its guarantee to all ancestor up to the nearest donor pool (excluding this donor).
 //!   This propagated guarantee is added to the priority tier of these ancestors.
@@ -699,6 +696,11 @@ void TCompositeElement::PrepareFairShareByFitFactorFifo(TFairShareUpdateContext*
         return;
     }
 
+    if (context->Options.EnableFastFifoFairShareByFitFactorComputation) {
+        ComputeFastFifoFairShareByFitFactor();
+        return;
+    }
+
     double rightFunctionBound = GetChildCount();
     std::vector<TVectorPiecewiseLinearFunction> childrenFunctions;
 
@@ -721,6 +723,38 @@ void TCompositeElement::PrepareFairShareByFitFactorFifo(TFairShareUpdateContext*
     YT_VERIFY(currentRightBound == rightFunctionBound);
 
     FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
+}
+
+// The children of a FIFO pool occupy disjoint unit intervals of the fit factor: child |k| ramps
+// on |[k, k + 1]| and is constant elsewhere. Hence their sum is the concatenation of the children's
+// |FairShareBySuggestion| shifted in argument by |k| and in value by the running prefix sum of the
+// full shares of already-satisfied children. This is linear in the total function size, unlike the
+// generic |Sum|, which is quadratic in the number of children.
+void TCompositeElement::ComputeFastFifoFairShareByFitFactor()
+{
+    TVectorPiecewiseLinearFunction::TBuilder builder;
+    auto prefixSum = TResourceVector::Zero();
+    double shift = 0.0;
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+        const auto* child = SortedChildren_[childIndex];
+        const auto& childFSBS = *child->FairShareBySuggestion_;
+
+        // NB(eshcherbin): Children of FIFO pools don't have guaranteed resources. See the function comment.
+        YT_VERIFY(childFSBS.IsTrimmedLeft() && childFSBS.IsTrimmedRight());
+        YT_VERIFY(childFSBS.LeftFunctionValue() == TResourceVector::Zero());
+        // The concatenation relies on each child's |FairShareBySuggestion| spanning exactly |[0, 1]|
+        // so that |shift += 1.0| tiles the fit factor domain contiguously.
+        YT_VERIFY(childFSBS.LeftFunctionBound() == 0.0 && childFSBS.RightFunctionBound() == 1.0);
+
+        for (const auto& segment : childFSBS.Segments()) {
+            builder.PushSegment(segment.Shift(/*deltaBound*/ shift, /*deltaValue*/ prefixSum));
+        }
+
+        prefixSum += childFSBS.RightFunctionValue();
+        shift += 1.0;
+    }
+
+    FairShareByFitFactor_ = builder.Finish();
 }
 
 void TCompositeElement::PrepareFairShareByFitFactorNormal(TFairShareUpdateContext* context)
@@ -938,8 +972,8 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, EFairShareType
     }
 
     auto getEnabledChildSuggestions = (GetMode() == ESchedulingMode::Fifo)
-        ? std::bind(&TCompositeElement::GetChildSuggestionsFifo, this, std::placeholders::_1)
-        : std::bind(&TCompositeElement::GetChildSuggestionsNormal, this, std::placeholders::_1);
+        ? std::bind_front(&TCompositeElement::GetChildSuggestionsFifo, this)
+        : std::bind_front(&TCompositeElement::GetChildSuggestionsNormal, this);
 
     auto getChildrenSuggestedFairShare = [&] (double fitFactor) {
         auto childSuggestions = getEnabledChildSuggestions(fitFactor);
@@ -1046,8 +1080,8 @@ void TCompositeElement::ComputeAndSetFairShare(TResourceVector suggestedFairShar
     }
 
     auto getEnabledChildSuggestedFairShares = (GetMode() == ESchedulingMode::Fifo)
-        ? std::bind(&TCompositeElement::GetChildSuggestionSharesFifo, this, std::placeholders::_1)
-        : std::bind(&TCompositeElement::GetChildSuggestionSharesNormal, this, std::placeholders::_1);
+        ? std::bind_front(&TCompositeElement::GetChildSuggestionSharesFifo, this)
+        : std::bind_front(&TCompositeElement::GetChildSuggestionSharesNormal, this);
 
     auto getChildrenSuggestedFairShare = [&] (double fitFactor) {
         auto childSuggestedFairShares = getEnabledChildSuggestedFairShares(fitFactor);
@@ -1417,7 +1451,7 @@ void TRootElement::ValidatePoolConfigs(TFairShareUpdateContext* context)
     TCompositeElement::ValidatePoolConfigs(context);
 
     auto collectPoolIds = [] (const auto& poolCollection) {
-        std::vector<TString> poolIds;
+        std::vector<std::string> poolIds;
         poolIds.reserve(std::ssize(poolCollection));
         for (auto* pool : poolCollection) {
             poolIds.push_back(pool->GetId());
@@ -1616,7 +1650,7 @@ TResourceVector TOperationElement::ComputeLimitsShare(const TFairShareUpdateCont
 
 void TOperationElement::ComputeStrongGuaranteeShareByTier(const TFairShareUpdateContext* /*context*/)
 {
-    Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::Operations] = Attributes().StrongGuaranteeShare;
+    // Operations never receive a strong guarantee, so they don't contribute to any tier.
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1775,6 +1809,8 @@ void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
         auto usedShare = TResourceVector::Min(child->Attributes().GetGuaranteeShare(), child->Attributes().DemandShare);
         availableShare -= usedShare;
     }
+    // Clamp to zero to handle guarantee overcommitment cases.
+    availableShare = TResourceVector::Max(availableShare, TResourceVector::Zero());
 
     std::vector<TPool*> relaxedPools;
     std::vector<double> weights;

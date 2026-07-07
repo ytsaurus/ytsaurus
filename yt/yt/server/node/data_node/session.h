@@ -168,8 +168,7 @@ struct ISession
     //! Finishes the session.
     virtual TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount,
-        bool truncateExtraBlocks) = 0;
+        std::optional<int> blockCount) = 0;
 
     //! Checks is probe put blocks should be used.
     virtual bool ShouldUseProbePutBlocks() const = 0;

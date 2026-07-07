@@ -8,11 +8,11 @@ from yt_commands import (
     read_file, write_file, read_table, write_table, map, sync_create_cells,
     create_dynamic_table, insert_rows, lookup_rows, sync_mount_table, sync_unmount_table,
     sync_freeze_table, get_singular_chunk_id, cluster_resources_equal, get_driver,
-    generate_uuid, abort_all_transactions)
+    generate_uuid, abort_all_transactions, gc_collect)
 
 import yt_error_codes
 
-from yt_helpers import get_current_time
+from yt_helpers import get_current_time, account_usage_all_zero
 
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
@@ -91,14 +91,14 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     def test_validate_cypress_node_host_cell_role1(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {"12": {"roles": ["chunk_host"]}})
-        with raises_yt_error("cannot host Cypress nodes"):
+        with raises_yt_error("Cell with tag .* cannot host Cypress nodes"):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
 
     @authors("aleksandra-zh")
     def test_validate_cypress_node_host_cell_role2(self):
         set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", False)
         set("//sys/@config/multicell_manager/cell_descriptors", {})
-        with raises_yt_error("cannot host Cypress nodes"):
+        with raises_yt_error("Cell with tag .* cannot host Cypress nodes"):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
@@ -106,7 +106,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_need_exit_cell_tag_on_create(self):
-        with raises_yt_error("Attribute \"exit_cell_tag\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             create("portal_entrance", "//tmp/p")
 
     @authors("babenko")
@@ -131,7 +131,7 @@ class TestPortals(YTEnvSetup):
     def test_cannot_enable_acl_inheritance(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         get("//tmp/p&/@exit_node_id")
-        with raises_yt_error("Node //tmp has no child with key \"p\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             set("//tmp/p/@inherit_acl", True, driver=get_driver(1))
 
     @authors("babenko")
@@ -282,7 +282,7 @@ class TestPortals(YTEnvSetup):
         chunk_id = get_singular_chunk_id("//tmp/p/m/f")
         assert get("#{}/@owning_nodes".format(chunk_id)) == ["//tmp/p/m/f"]
 
-    @authors("babenko")
+    @authors("babenko", "theevilbird")
     def test_account_lifetime(self):
         create_account("a")
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
@@ -297,14 +297,17 @@ class TestPortals(YTEnvSetup):
             "//tmp/p2/t",
             attributes={"account": "a", "external": True, "external_cell_tag": 12},
         )
-        remove("//sys/accounts/a")
-        assert get("//sys/accounts/a/@life_stage") == "removal_pre_committed"
-        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "removal_started")
-        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(2)) == "removal_started")
+        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") > 0)
+        with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
+            remove("//sys/accounts/a")
+        assert get("//sys/accounts/a/@life_stage") == "creation_committed"
+        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "creation_committed")
+        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(2)) == "creation_committed")
         remove("//tmp/p1/t")
-        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "removal_pre_committed")
-        assert get("//sys/accounts/a/@life_stage", driver=get_driver(2)) == "removal_started"
         remove("//tmp/p2/t")
+        gc_collect()
+        wait(lambda: account_usage_all_zero(get("//sys/accounts/a/@recursive_resource_usage")))
+        remove("//sys/accounts/a")
         wait(lambda: not exists("//sys/accounts/a"))
 
     @authors("babenko")
@@ -606,7 +609,7 @@ class TestPortals(YTEnvSetup):
         remove_tablet_cell_bundle("b")
         wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") == "removal_pre_committed")
 
-        with raises_yt_error("Tablet cell bundle \"b\" cannot be used"):
+        with raises_yt_error("Tablet cell bundle .* cannot be used"):
             copy("//tmp/p1/t", "//tmp/p2/t")
 
         remove("//tmp/p1/t")
@@ -699,7 +702,7 @@ class TestPortals(YTEnvSetup):
         link("//tmp/p/l", target_link)
 
         if not target_on_primary:
-            with raises_yt_error("link is cyclic"):
+            with raises_yt_error("Failed to create link: link is cyclic"):
                 link(target_link, "//tmp/p/l", force=True)
             return
 
@@ -708,7 +711,7 @@ class TestPortals(YTEnvSetup):
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
         _maybe_purge_resolve_cache(purge_resolve_cache, target_link + '&')
 
-        with raises_yt_error("exceeds resolve depth limit"):
+        with raises_yt_error("Path .* exceeds resolve depth limit"):
             ls("//tmp/p/l")
 
     @authors("koloshmet")
@@ -1233,7 +1236,7 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("map_node", "//tmp/p", ignore_existing=True)
         create("table", "//tmp/t")
-        with raises_yt_error("//tmp/t already exists and has type \"table\" while node of \"map_node\" type is about to be created"):
+        with raises_yt_error(".* already exists and has type \"table\" while node of \"map_node\" type is about to be created"):
             create("map_node", "//tmp/t", ignore_existing=True)
 
     @authors("kvk1920")
@@ -1329,6 +1332,14 @@ class TestPortals(YTEnvSetup):
         assert "allow" == check_permission("cat", "write", table)["action"]
         assert "deny" == check_permission("rat", "read", table)["action"]
 
+        node = portal_exit + "/n"
+        set(node, 42)
+        set(portal_entrance + "/@acl", [make_ace("allow", "dog", "write", "immediate_descendants_only")])
+        set(portal_entrance + "/@inherit_acl", False)
+        wait(lambda: not get(f"{portal_exit}/@inherit_acl"))
+        assert "allow" == check_permission("dog", "write", node)["action"]
+        assert "deny" == check_permission("cat", "write", node)["action"]
+
     @authors("kvk1920")
     def test_empty_annotation(self):
         remove("//sys/@config/cypress_manager/graft_synchronization_period")
@@ -1365,14 +1376,14 @@ class TestPortals(YTEnvSetup):
     @authors("h0pless")
     def test_internalize_deprication(self):
         create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
-        with raises_yt_error("Node internalization is deprecated and is no longer possible."):
+        with raises_yt_error("Node internalization is deprecated and is no longer possible"):
             internalize("//tmp/m")
         remove("//tmp/portal")
 
     @authors("cherepashka")
     def test_revoke_cypress_node_host_role_validation(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        with raises_yt_error("it still hosts Cypress nodes"):
+        with raises_yt_error("Role .* cannot be removed from master cell .*, because it still hosts Cypress nodes"):
             set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
 
 
@@ -1627,7 +1638,7 @@ class TestCrossCellCopy(YTEnvSetup):
         attributes = get(f"{path}/@", tx=tx)
         if attributes["type"] == "table":
             attributes["schema"] = get(f"{path}/@schema", tx=tx)
-
+        attributes.pop("sequoia_acl", None)
         return attributes
 
     def _validate_attribute_consistency_for_node(self, src_path, dst_path, tx):
@@ -2018,9 +2029,7 @@ class TestCrossCellCopy(YTEnvSetup):
                 administer_permission,
             ])
 
-            # ACLs are not supported in Sequoia yet.
-            if not self.USE_SEQUOIA:
-                wait(lambda: administer_permission in get(f"{self.DST}/@acl"))
+            wait(lambda: administer_permission in get(f"{self.DST}/@acl"))
 
             # In order to preserve account user has to have "use" permission for the account.
             for account in self.AVAILABLE_ACCOUNTS:
@@ -2346,25 +2355,29 @@ class TestCrossCellCopy(YTEnvSetup):
             sleep_backoff=0.5,
             timeout=5)
 
-    @authors("babenko")
+    @authors("babenko", "theevilbird")
     def test_removed_account(self):
         src_path = f"{self.SRC}/file"
-        dst_parent_path = self.DST
         dst_path = f"{self.DST}/file"
 
         self.create_file(src_path)
         account = get(f"{src_path}/@account")
+        wait(lambda: get(f"//sys/accounts/{account}/@resource_usage/master_memory/total") > 0)
+        with raises_yt_error(f"Cannot remove an account \"{account}\" because its usage is not zero"):
+            remove(f"//sys/accounts/{account}")
+        assert get(f"//sys/accounts/{account}/@life_stage") == "creation_committed"
 
-        remove(f"//sys/accounts/{account}")
-        wait(lambda: get(f"//sys/accounts/{account}/@life_stage") in ["removal_started", "removal_pre_committed"])
-
-        with raises_yt_error("cannot be used since it is in \"removal_pre_committed\" life stage"):
-            self.execute_command(src_path, dst_path, preserve_account=True)
-
-        self.execute_command(src_path, dst_path)
-        assert get(f"{dst_parent_path}/@account") == get(f"{dst_path}/@account")
+        self.execute_command(src_path, dst_path, preserve_account=True)
+        assert get(f"{dst_path}/@account") == account
 
         remove(src_path, force=True)
+        remove(dst_path, force=True)
+        gc_collect()
+        wait(lambda: not exists(src_path))
+        wait(lambda: not exists(dst_path))
+        wait(lambda: account_usage_all_zero(get(f"//sys/accounts/{account}/@recursive_resource_usage")))
+        get(f"//sys/accounts/{account}/@resource_usage")
+        remove(f"//sys/accounts/{account}")
         wait(lambda: not exists(f"//sys/accounts/{account}"))
 
     # SYMLINK SHENANIGANS
@@ -2491,7 +2504,7 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("h0pless")
     def test_cant_copy_subtree_with_portal(self):
-        with raises_yt_error("Cannot clone a"):
+        with raises_yt_error("Cannot clone a (portal|rootstock)"):
             self.execute_command("//tmp", "//home/other")
 
     @authors("h0pless")
@@ -2502,7 +2515,7 @@ class TestCrossCellCopy(YTEnvSetup):
         self.create_table(src_path)
 
         if self.COMMAND == "copy":
-            with raises_yt_error("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously"):
+            with raises_yt_error("Cannot specify"):
                 self.execute_command(src_path, dst_path, ignore_existing=True, force=True)
         else:
             self.execute_command(src_path, dst_path, lock_existing=True)
@@ -2515,7 +2528,7 @@ class TestCrossCellCopy(YTEnvSetup):
         self.create_table(src_path)
 
         if self.COMMAND == "copy":
-            with raises_yt_error("Cannot specify \"lock_existing\" without \"ignore_existing\""):
+            with raises_yt_error("Cannot specify"):
                 self.execute_command(src_path, dst_path, lock_existing=True)
         else:
             self.execute_command(src_path, dst_path, lock_existing=True)

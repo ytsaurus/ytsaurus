@@ -5,6 +5,7 @@
 #include <yt/yt/core/bus/tcp/client.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>
@@ -34,7 +35,7 @@ struct TConfig
     i64 Size;
     int MediumIndex;
     EFilesystemType FsType;
-    TString Address;
+    std::string Address;
     TDuration DataNodeNbdServiceRpcTimeout;
     TDuration DataNodeNbdServiceMakeTimeout;
     i64 NumIters;
@@ -78,9 +79,10 @@ protected:
     {
         //NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateStderrLogger(NLogging::ELogLevel::Debug));
 
-        auto config = NYTree::ConvertTo<TConfigPtr>(NYson::TYsonString(TFileInput(ConfigPath_).ReadAll()));
+        // TODO(babenko): drop TString cast once TFileInput accepts std::string.
+        auto config = NYTree::ConvertTo<TConfigPtr>(NYson::TYsonString(TFileInput(TString(ConfigPath_)).ReadAll()));
 
-        auto client = NYT::NBus::CreateBusClient(NYT::NBus::TBusClientConfig::CreateTcp(config->Address));
+        auto client = NYT::NBus::NTcp::CreateBusClient(NYT::NBus::NTcp::TBusClientConfig::CreateTcp(config->Address));
         auto channel = NRpc::NBus::CreateBusChannel(client);
         auto queue = New<TActionQueue>("RPC");
 
@@ -99,7 +101,7 @@ protected:
             /*sessionId*/ NChunkClient::TSessionId(),
             Logger());
 
-        handler->Initialize().Get().ThrowOnError();
+        WaitFor(handler->Initialize()).ThrowOnError();
 
         NHPTimer::STime t;
         NHPTimer::GetTime(&t);
@@ -107,21 +109,21 @@ protected:
         for (int i = 0; i < config->NumIters; ++i) {
             auto data = Format("data_%v", i);
             auto offset = RandomNumber<ui64>(config->Size - data.size());
-            handler->Write(offset, TSharedRef::FromString(data), {.Cookie = RandomNumber<ui64>()}).Get().ThrowOnError();
-            auto response = handler->Read(offset, data.length(), {.Cookie = RandomNumber<ui64>()}).Get().ValueOrThrow();
+            WaitFor(handler->Write(offset, TSharedRef::FromString(data), {.Cookie = RandomNumber<ui64>()})).ThrowOnError();
+            auto response = WaitFor(handler->Read(offset, data.length(), {.Cookie = RandomNumber<ui64>()})).ValueOrThrow();
             assert(ToString(response.Data.ToStringBuf()) == data);
         }
 
         NHPTimer::STime tcur = t;
         double seconds = NHPTimer::GetTimePassed(&tcur);
 
-        handler->Finalize().Get().ThrowOnError();
+        WaitFor(handler->Finalize()).ThrowOnError();
 
         Cout << "Rps test complete in " << seconds << " seconds. RPS = " << (double) config->NumIters / seconds << Endl;
     }
 
 private:
-    TString ConfigPath_;
+    std::string ConfigPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

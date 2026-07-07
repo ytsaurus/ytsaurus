@@ -39,9 +39,14 @@ public:
     TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
-        const auto& token = credentials.Token;
+        if (!credentials.Token && !credentials.TokenSha256) {
+            return MakeFuture<TAuthenticationResult>(TError("Token or token sha256 must be provided to authenticate"));
+        }
+
         const auto& userIP = credentials.UserIP;
-        auto tokenHash = GetSha256HexDigestLowerCase(token);
+        auto tokenHash = credentials.Token
+            ? GetSha256HexDigestLowerCase(*credentials.Token)
+            : std::move(*credentials.TokenSha256);
         YT_LOG_DEBUG("Authenticating user with Cypress token (TokenHash: %v, UserIP: %v)",
             tokenHash,
             userIP);
@@ -51,11 +56,21 @@ public:
         auto path = Format("%v/%v",
             Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
             ToYPathLiteral(tokenHash));
-        auto options = TGetNodeOptions{
-            .Attributes = TAttributeFilter({"user", "user_id"}),
-        };
+
+        auto userAttributePath = Format("%v/@user", path);
+        auto userIdAttributePath = Format("%v/@user_id", path);
+
+        TGetNodeOptions options;
         options.ReadFrom = EMasterChannelKind::Cache;
-        return Client_->GetNode(path, options)
+
+        // For compatability with cypress tokens created as document
+        // we request attributes explicitly.
+        auto getAttributeFutures = std::vector{
+            Client_->GetNode(userAttributePath, options),
+            Client_->GetNode(userIdAttributePath, options),
+        };
+
+        return AllSet(getAttributeFutures)
             .AsUnique().Apply(BIND(
                 &TCypressTokenAuthenticator::OnCallTokenResult,
                 MakeStrong(this)))
@@ -85,38 +100,53 @@ private:
         }
     }
 
-    TFuture<TAuthenticationResult> OnCallTokenResult(TErrorOr<TYsonString>&& rspOrError)
+    TFuture<TAuthenticationResult> OnCallTokenResult(std::vector<TErrorOr<TYsonString>>&& responsesOrErrors)
     {
-        if (!rspOrError.IsOK() && rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
-                "Token is missing in Cypress")
-                << rspOrError;
-        }
-        auto tokenNode = ConvertTo<INodePtr>(rspOrError.ValueOrThrow());
-        const auto& tokenAttributes = tokenNode->Attributes();
+        YT_VERIFY(responsesOrErrors.size() == 2);
+        auto userAttributeRspOrError = responsesOrErrors[0];
+        auto userIdAttributeRspOrError = responsesOrErrors[1];
 
-        auto userIdAttribute = tokenAttributes.Find<TObjectId>("user_id");
-        if (userIdAttribute) {
+        auto isMissingAttribute = [] (const auto& rspOrError) {
+            return !rspOrError.IsOK() && rspOrError.FindMatching(NYTree::EErrorCode::ResolveError);
+        };
+
+        auto isMissingUserAttribute = isMissingAttribute(userAttributeRspOrError);
+        auto isMissingUserIdAttribute = isMissingAttribute(userIdAttributeRspOrError);
+
+        if (isMissingUserAttribute && isMissingUserIdAttribute) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
+                "Token is missing in Cypress or missing attributes \"user_id\" and \"user\" on token Cypress node")
+                << userAttributeRspOrError
+                << userIdAttributeRspOrError;
+        }
+
+        if (!userAttributeRspOrError.IsOK() && !isMissingUserAttribute) {
+            THROW_ERROR_EXCEPTION(userAttributeRspOrError);
+        }
+
+        if (!userIdAttributeRspOrError.IsOK() && !isMissingUserIdAttribute) {
+            THROW_ERROR_EXCEPTION(userIdAttributeRspOrError);
+        }
+
+        if (userIdAttributeRspOrError.IsOK()) {
+            auto userIdAttribute = ConvertTo<TObjectId>(userIdAttributeRspOrError.Value());
             // New authentication schema: now we need to get the username given the user ID which we received.
-            auto path = Format("%v/@name", FromObjectId(*userIdAttribute));
+            auto path = Format("%v/@name", FromObjectId(userIdAttribute));
             TGetNodeOptions options;
             options.ReadFrom = EMasterChannelKind::Cache;
             return Client_->GetNode(path, options)
                 .AsUnique().Apply(BIND(
                     &TCypressTokenAuthenticator::OnCallUsernameResult,
                     MakeStrong(this),
-                    std::move(*userIdAttribute)));
+                    std::move(userIdAttribute)));
         }
 
-        auto userAttribute = tokenAttributes.Find<std::string>("user");
-        if (userAttribute) {
-            // Old authentication schema: we already retrieved the username.
-            return MakeFuture(TAuthenticationResult{
-                .Login = std::move(*userAttribute),
-            });
-        }
-
-        THROW_ERROR_EXCEPTION("Missing attributes \"user_id\" and \"user\" on token Cypress node");
+        // Old authentication schema: we already retrieved the username.
+        YT_VERIFY(userAttributeRspOrError.IsOK());
+        auto userAttribute = ConvertTo<std::string>(userAttributeRspOrError.Value());
+        return MakeFuture(TAuthenticationResult{
+            .Login = std::move(userAttribute),
+        });
     }
 
     TAuthenticationResult OnCallUsernameResult(

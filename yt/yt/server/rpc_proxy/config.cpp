@@ -2,7 +2,9 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
-#include <yt/yt/server/lib/signature/config.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/library/signature/components/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 
@@ -208,10 +210,17 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("worker_pool_weight_overrides", &TThis::WorkerPoolWeightOverrides)
         .Optional();
+
+    registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
+        .GreaterThan(0)
+        .Optional();
+
+    registrar.Parameter("memory_tracker", &TThis::MemoryTracker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

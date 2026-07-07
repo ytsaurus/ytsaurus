@@ -267,6 +267,9 @@ public:
         Underlying_->Reconfigure(config);
     }
 
+    void Start() override
+    { }
+
 private:
     const INodeMemoryTrackerPtr Underlying_;
 };

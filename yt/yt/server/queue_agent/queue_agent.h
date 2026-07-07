@@ -3,7 +3,7 @@
 #include "object.h"
 #include "pass_profiler.h"
 
-#include <yt/yt/server/lib/cypress_election/public.h>
+#include <yt/yt/library/cypress_election/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -19,14 +19,25 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TConsumerInfo
+{
+    NQueueClient::TConsumerReference Ref;
+    NQueueClient::TConsumerTableRowConstPtr Row;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTaggedProfilingCounters
 {
     NProfiling::TGauge Queues;
     NProfiling::TGauge Consumers;
+    NProfiling::TGauge MultiConsumers;
+    NProfiling::TGauge MultiConsumerNames;
     NProfiling::TGauge Partitions;
     NProfiling::TGauge TrimmedQueues;
     NProfiling::TGauge ErroneousQueues;
     NProfiling::TGauge ErroneousConsumers;
+    NProfiling::TGauge ErroneousMultiConsumers;
 
     explicit TTaggedProfilingCounters(NProfiling::TProfiler profiler);
 };
@@ -40,11 +51,12 @@ public:
         TQueueAgentConfigPtr config,
         NApi::NNative::IConnectionPtr nativeConnection,
         NHiveClient::TClientDirectoryPtr clientDirectory,
+        std::string queueAgentUser,
         IInvokerPtr controlInvoker,
         NQueueClient::TDynamicStatePtr dynamicState,
         NCypressElection::ICypressElectionManagerPtr electionManager,
         NAlertManager::IAlertCollectorPtr alertCollector,
-        TString agentId);
+        std::string agentId);
 
     void Start();
 
@@ -55,12 +67,12 @@ public:
         const TQueueAgentDynamicConfigPtr& newConfig);
 
     // IObjectStore implementation.
-
-    TRefCountedPtr FindSnapshot(NQueueClient::TCrossClusterReference objectRef) const override;
+    TQueueSnapshotConstPtr FindQueueSnapshot(const NQueueClient::TTablePath& path) const override;
+    TConsumerSnapshotConstPtr FindConsumerSnapshot(const NQueueClient::TConsumerReference& ref) const override;
     NYTree::IYPathServicePtr GetObjectService(EObjectKind objectKind) const override;
 
     std::vector<NQueueClient::TConsumerRegistrationTableRow> GetRegistrations(
-        NQueueClient::TCrossClusterReference objectRef,
+        const NQueueClient::TGenericObjectReference& ref,
         EObjectKind objectKind) const override;
 
 private:
@@ -78,7 +90,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr PassExecutor_;
     const TPassProfiler PassProfiler_;
 
-    const TString AgentId_;
+    const std::string AgentId_;
 
     THashMap<NQueueClient::TProfilingTags, TTaggedProfilingCounters> TaggedProfilingCounters_;
 
@@ -89,19 +101,19 @@ private:
         IObjectControllerPtr Controller;
         std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
     };
-    using TObjectMap = THashMap<NQueueClient::TCrossClusterReference, TObject>;
+    using TObjectMap = THashMap<NQueueClient::TGenericObjectReference, TObject>;
 
-    mutable NThreading::TReaderWriterSpinLock ObjectLock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ObjectLock_);
     //! Objects available in this queue agent.
     //! NB: Holds objects with both leading and following controllers.
     TEnumIndexedArray<EObjectKind, TObjectMap> Objects_;
     //! All objects with the queue agent stage corresponding to the stage of this queue agent.
-    TEnumIndexedArray<EObjectKind, THashSet<NQueueClient::TCrossClusterReference>> ObjectsWithOurStage_;
+    TEnumIndexedArray<EObjectKind, THashSet<NQueueClient::TGenericObjectReference>> ObjectsWithOurStage_;
     //! The number of objects (per object type) with leading controllers.
     //! In other words, this map accounts for the number of objects that are actually served by this queue agent.
     TEnumIndexedArray<EObjectKind, i64> LeadingObjectCount_;
     //! Mapping of objects to their corresponding queue agent host.
-    THashMap<NQueueClient::TCrossClusterReference, TString> ObjectToHost_;
+    THashMap<NQueueClient::TGenericObjectReference, std::string> ObjectToHost_;
 
     //! Current pass error if any.
     TError PassError_;
@@ -117,12 +129,31 @@ private:
 
     IQueueExportManagerPtr QueueExportManager_;
 
-    NYTree::IYPathServicePtr RedirectYPathRequest(const TString& host, TStringBuf remoteRoot) const;
+    NYTree::IYPathServicePtr RedirectYPathRequest(const std::string& host, TStringBuf remoteRoot) const;
 
     NYTree::INodePtr GetControllerInfoNode() const;
 
     //! One iteration of state polling and object store updating.
     void Pass();
+    void GuardedPass(const NLogging::TLogger& Logger);
+
+    bool UpdateConsumerController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const TConsumerInfo& info,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
+
+    bool UpdateMultiConsumerController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const NQueueClient::TConsumerTableRowConstPtr& row,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
+
+    bool UpdateQueueController(
+        IObjectControllerPtr& controller,
+        bool leading,
+        const NQueueClient::TQueueTableRow& row,
+        const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow);
 
     TTaggedProfilingCounters& GetOrCreateTaggedProfilingCounters(const NQueueClient::TProfilingTags& profilingTags);
 

@@ -36,7 +36,6 @@ target_link_libraries(restricted-boost-variant INTERFACE
   restricted-boost-integer
   restricted-boost-mpl
   restricted-boost-preprocessor
-  restricted-boost-static_assert
   restricted-boost-throw_exception
   restricted-boost-type_index
   restricted-boost-type_traits

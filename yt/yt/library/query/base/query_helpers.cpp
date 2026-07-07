@@ -29,6 +29,12 @@ bool IsTrue(TConstExpressionPtr expr)
 
 TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
 {
+    if (!lhs) {
+        return rhs;
+    } else if (!rhs) {
+        return lhs;
+    }
+
     if (auto literalExpr = lhs->As<TLiteralExpression>()) {
         TValue value = literalExpr->Value;
         if (value.Type == EValueType::Boolean) {
@@ -526,25 +532,40 @@ void CollectOperands(std::vector<TConstExpressionPtr>* operands, TConstExpressio
     }
 }
 
+TConstExpressionPtr BuildBalancedConjunction(TRange<TConstExpressionPtr> predicates)
+{
+    if (predicates.empty()) {
+        return New<TLiteralExpression>(
+            EValueType::Boolean,
+            MakeUnversionedBooleanValue(true));
+    }
+    if (predicates.size() == 1) {
+        return predicates[0];
+    }
+    auto middle = predicates.begin() + predicates.size() / 2;
+    return MakeAndExpression(
+        BuildBalancedConjunction(TRange<TConstExpressionPtr>{predicates.begin(), middle}),
+        BuildBalancedConjunction(TRange<TConstExpressionPtr>{middle, predicates.end()}));
+
+}
+
 std::pair<TConstExpressionPtr, TConstExpressionPtr> SplitPredicateByColumnSubset(
     TConstExpressionPtr root,
     const TTableSchema& tableSchema)
 {
-    // collect AND operands
+    // Collect AND operands.
     std::vector<TConstExpressionPtr> operands;
-
     CollectOperands(&operands, root);
-    TConstExpressionPtr projected = New<TLiteralExpression>(
-        EValueType::Boolean,
-        MakeUnversionedBooleanValue(true));
-    TConstExpressionPtr remaining = New<TLiteralExpression>(
-        EValueType::Boolean,
-        MakeUnversionedBooleanValue(true));
 
-    for (auto expr : operands) {
-        auto& target = AreAllReferencesInSchema(expr, tableSchema) ? projected : remaining;
-        target = MakeAndExpression(target, expr);
-    }
+    auto remainingBegin = std::stable_partition(
+        operands.begin(),
+        operands.end(),
+        [&] (const TConstExpressionPtr& expr) {
+            return AreAllReferencesInSchema(expr, tableSchema);
+        });
+
+    auto projected = BuildBalancedConjunction({operands.begin(), remainingBegin});
+    auto remaining = BuildBalancedConjunction({remainingBegin, operands.end()});
 
     return std::pair(projected, remaining);
 }

@@ -61,7 +61,7 @@ struct TOperationStatistics
     TDuration FinishTime;
     TDuration RealDuration;
     NScheduler::EOperationType OperationType;
-    TString OperationState;
+    std::string OperationState;
     bool InTimeframe = false;
 };
 
@@ -181,7 +181,7 @@ class TSharedOperationStatisticsOutput
     : public IOperationStatisticsOutput
 {
 public:
-    explicit TSharedOperationStatisticsOutput(const TString& filename);
+    explicit TSharedOperationStatisticsOutput(const std::string& filename);
 
     void PrintEntry(NScheduler::TOperationId id, TOperationStatistics stats) override;
 

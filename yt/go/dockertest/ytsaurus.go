@@ -12,6 +12,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 const ytsaurusPath = "/home/yt"
@@ -32,11 +33,30 @@ func RunContainer(ctx context.Context, opts ...testcontainers.ContainerCustomize
 
 	cluster := guid.New().String()
 
+	proxyConfig := map[string]any{
+		"address_resolver": map[string]any{
+			"enable_ipv4": true,
+			"enable_ipv6": false,
+		},
+		"coordinator": map[string]any{
+			"public_fqdn": fmt.Sprintf("localhost:%d", httpProxyPort),
+		},
+	}
+	for _, opt := range opts {
+		if patch, ok := opt.(proxyConfigPatch); ok {
+			patchMap(proxyConfig, patch)
+		}
+	}
+	proxyConfigYSON, err := yson.Marshal(proxyConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	req := testcontainers.ContainerRequest{
 		Image: "ghcr.io/ytsaurus/local:dev",
 		Cmd: []string{
 			"--fqdn", "localhost",
-			"--proxy-config", fmt.Sprintf("{address_resolver={enable_ipv4=%%true;enable_ipv6=%%false;};coordinator={public_fqdn=\"localhost:%d\"}}", httpProxyPort),
+			"--proxy-config", string(proxyConfigYSON),
 			"--path", ytsaurusPath,
 			"--proxy-port", strconv.Itoa(httpProxyPort),
 			"--id", cluster,
@@ -154,6 +174,35 @@ func WithVolumeMount(volume string) testcontainers.CustomizeRequestOption {
 		req.Mounts = append(req.Mounts, testcontainers.VolumeMount(volume, ytsaurusPath))
 
 		return nil
+	}
+}
+
+func WithOperationsArchive() testcontainers.CustomizeRequestOption {
+	return func(req *testcontainers.GenericContainerRequest) error {
+		req.Cmd = append(req.Cmd, "--init-operations-archive")
+
+		return nil
+	}
+}
+
+type proxyConfigPatch map[string]any
+
+func (proxyConfigPatch) Customize(*testcontainers.GenericContainerRequest) error { return nil }
+
+// WithProxyConfigPatch deep-merges patch into the HTTP proxy --proxy-config.
+func WithProxyConfigPatch(patch map[string]any) testcontainers.ContainerCustomizer {
+	return proxyConfigPatch(patch)
+}
+
+func patchMap(dst, src map[string]any) {
+	for k, v := range src {
+		if sv, ok := v.(map[string]any); ok {
+			if dv, ok := dst[k].(map[string]any); ok {
+				patchMap(dv, sv)
+				continue
+			}
+		}
+		dst[k] = v
 	}
 }
 

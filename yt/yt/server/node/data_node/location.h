@@ -124,10 +124,10 @@ class TLocationMemoryGuard
 {
 public:
     TLocationMemoryGuard() = default;
-    TLocationMemoryGuard(TLocationMemoryGuard&& other);
+    TLocationMemoryGuard(TLocationMemoryGuard&& other) noexcept;
     ~TLocationMemoryGuard();
 
-    void Release();
+    void Release() noexcept;
 
     i64 GetSize() const;
     bool GetUseLegacyUsedMemory() const;
@@ -136,7 +136,7 @@ public:
     void IncreaseSize(i64 delta);
     void DecreaseSize(i64 delta);
 
-    TLocationMemoryGuard& operator=(TLocationMemoryGuard&& other);
+    TLocationMemoryGuard& operator=(TLocationMemoryGuard&& other) noexcept;
 
     explicit operator bool() const;
 
@@ -152,7 +152,7 @@ private:
         i64 size,
         TChunkLocationPtr owner);
 
-    void MoveFrom(TLocationMemoryGuard&& other);
+    void MoveFrom(TLocationMemoryGuard&& other) noexcept;
 
     TMemoryUsageTrackerGuard MemoryGuard_;
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
@@ -171,7 +171,7 @@ class TChunkLocation
 public:
     TChunkLocation(
         NNode::ELocationType type,
-        TString id,
+        std::string id,
         TChunkLocationConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
@@ -199,9 +199,6 @@ public:
 
     //! Returns various performance counters.
     TLocationPerformanceCounters& GetPerformanceCounters();
-
-    //! Returns the IO weight of the location.
-    double GetIOWeight() const;
 
     //! Does the node need to tell the master about this location.
     bool CanPublish() const;
@@ -309,7 +306,11 @@ public:
     //! This method returns memory limit fraction.
     double GetMemoryLimitFractionForStartingNewSessions() const;
 
+    bool ShouldUseUncategorizedThrottler() const;
+
     const TChunkStorePtr& GetChunkStore() const;
+
+    std::optional<TDuration> GetDelayBeforeBlobChunkRead() const;
 
     std::optional<TDuration> GetDelayBeforeBlobSessionBlockFree() const;
 
@@ -343,8 +344,6 @@ private:
 
     TAtomicPtr<TChunkLocationConfig, /*EnableAcquireHazard*/ true> RuntimeConfig_;
 
-    TAtomicIntrusivePtr<NOrm::NQuery::IExpressionEvaluator> IOWeightEvaluator_;
-
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
     // TODO(vvshlyaga): Change to fair share queue.
@@ -366,7 +365,6 @@ private:
     NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 
-    bool EnableUncategorizedThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr ReconfigurableUncategorizedThrottler_;
     NConcurrency::IThroughputThrottlerPtr UncategorizedThrottler_;
 
@@ -388,9 +386,6 @@ private:
     void DecreaseUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     void UpdateUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
-
-    void UpdateIOWeightEvaluator(const std::optional<std::string>& formula);
-    TErrorOr<double> EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const;
 
     void UpdateMediumTag();
 
@@ -417,7 +412,7 @@ public:
     };
 
     TStoreLocation(
-        TString id,
+        std::string id,
         TStoreLocationConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
@@ -428,6 +423,9 @@ public:
 
     //! Returns the static config.
     const TStoreLocationConfigPtr& GetStaticConfig() const;
+
+    //! Returns the IO weight of the location.
+    double GetIOWeight() const;
 
     //! Returns the runtime config.
     TStoreLocationConfigPtr GetRuntimeConfig() const;
@@ -474,6 +472,8 @@ public:
 private:
     const TStoreLocationConfigPtr StaticConfig_;
 
+    TAtomicIntrusivePtr<NOrm::NQuery::IExpressionEvaluator> IOWeightEvaluator_;
+
     const IJournalManagerPtr JournalManager_;
     const NConcurrency::TActionQueuePtr TrashCheckQueue_;
 
@@ -496,7 +496,8 @@ private:
     class TIOStatisticsProvider;
     const TIntrusivePtr<TIOStatisticsProvider> IOStatisticsProvider_;
 
-    TAtomicPtr<TStoreLocationConfig> RuntimeConfig_;
+    // NB: Shadows TChunkLocation::RuntimeConfig_ which has a narrower type.
+    TAtomicPtr<TStoreLocationConfig, /*AcquireHazard*/ true> RuntimeConfig_;
 
     static TJournalManagerConfigPtr BuildJournalManagerConfig(
         const TDataNodeConfigPtr& dataNodeConfig,
@@ -504,8 +505,8 @@ private:
 
     void UpdateTrashChunkCount(int delta);
     void UpdateTrashSpace(i64 size);
-    TString GetTrashPath() const;
-    TString GetTrashChunkPath(TChunkId chunkId) const;
+    std::string GetTrashPath() const;
+    std::string GetTrashChunkPath(TChunkId chunkId) const;
     void RegisterTrashChunk(TChunkId chunkId);
     void OnCheckTrash();
     void CheckTrashTtl();
@@ -525,13 +526,16 @@ private:
     std::optional<NNode::TChunkDescriptor> RepairJournalChunk(TChunkId chunkId);
     std::optional<NNode::TChunkDescriptor> RepairChunk(TChunkId chunkId) override;
 
-    std::vector<TString> GetChunkPartNames(TChunkId chunkId) const override;
+    std::vector<std::string> GetChunkPartNames(TChunkId chunkId) const override;
     bool ShouldSkipFileName(const std::string& fileName) const override;
 
     void DoStart() override;
     std::vector<NNode::TChunkDescriptor> DoScan() override;
     void DoScanTrash();
     void DoAsyncScanTrash();
+
+    void UpdateIOWeightEvaluator(const std::optional<std::string>& formula);
+    TErrorOr<double> EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocation)

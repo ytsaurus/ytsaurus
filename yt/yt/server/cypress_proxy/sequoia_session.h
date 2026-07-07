@@ -2,13 +2,16 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/cypress_proxy/public.h>
+
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
+#include <library/cpp/containers/absl/flat_hash_map.h>
 
 namespace NYT::NCypressProxy {
 
@@ -85,6 +88,28 @@ public:
         std::vector<TCypressNodeDescriptor> Nodes;
     };
 
+    //! Same as #TSubtree, but fetched sequentially in batches due to
+    //! potentially unlimited size.
+    class TPagedSubtreeFetcher
+    {
+    public:
+        TPagedSubtreeFetcher(
+            NSequoiaClient::TAbsolutePathBuf rootPath,
+            int pageSize,
+            TSequoiaSession* owner);
+
+        TSubtree FetchNextPage();
+
+        DEFINE_BYREF_RO_PROPERTY(bool, ShouldContinue, true);
+
+    private:
+        const NSequoiaClient::TAbsolutePathBuf RootPath_;
+        const int PageSize_;
+        TSequoiaSession* const Owner_;
+
+        std::optional<NSequoiaClient::TAbsolutePath> CursorPath_;
+    };
+
     // Start and finish.
 
     //! Initializes Sequoia session and starts Sequoia tx.
@@ -106,6 +131,10 @@ public:
 
     //! Selects subtree from "path_to_node_id" Sequoia table.
     TSubtree FetchSubtree(NSequoiaClient::TAbsolutePathBuf path);
+
+    //! Same as #FetchSubtree, but the resulting subtree size is unlimited.
+    //! See #TPagedSubtreeFetcher.
+    TPagedSubtreeFetcher FetchPagedSubtree(NSequoiaClient::TAbsolutePathBuf path);
 
     //! Removes the whole subtree (including its root) from all resolve tables.
     //! If subtree root is not a scion then it is detached from its parent and
@@ -229,10 +258,11 @@ public:
     void AssembleTreeCopy(
         NCypressClient::TNodeId nodeId,
         NCypressClient::TNodeId parentId,
-        NSequoiaClient::TAbsolutePath path,
+        NSequoiaClient::TAbsolutePathBuf path,
         bool preserveAcl,
         bool preserveModificationTime,
-        THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildInfo);
+        const TNodeIdToChildDescriptors& nodeIdToChildInfo,
+        const TNodeIdToConstAttributes& linkNodeIdToAttributes);
 
     // Map-node's children accessors.
 
@@ -327,7 +357,16 @@ public:
         std::initializer_list<TRange<TCypressNodeDescriptor>> nodeRanges,
         bool duringCopy);
 
+    TFuture<TNodeIdToConstAttributes> FetchNodeAttributesFromMaster(
+        TRange<NCypressClient::TNodeId> nodeIds,
+        const NYTree::TAttributeFilter& attributeFilter) const;
+
     const NApi::NNative::IClientPtr& GetNativeAuthenticatedClient() const;
+
+    NObjectClient::TMasterYPathProxy::TVectorizedGetBatcher CreateGetBatcher(
+        const NYTree::TYPathProxy::TReqGetPtr& requestTemplate,
+        TRange<NObjectClient::TObjectId> objectIds,
+        std::optional<ETreeScope> scope = {}) const;
 
 private:
     IBootstrap* const Bootstrap_;

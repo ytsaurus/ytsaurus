@@ -23,6 +23,7 @@ To generate user-defined SQL strings, see
 :doc:`/ext/compiler`.
 
 """
+
 from __future__ import annotations
 
 import collections
@@ -589,6 +590,19 @@ class _InsertManyValues(NamedTuple):
     correlation with the incoming parameter list.
 
     .. versionadded:: 2.0.10
+
+    """
+
+    has_upsert_bound_parameters: bool = False
+    """if True, the upsert SET clause contains bound parameters that will
+    receive their values from the parameters dict (i.e., parametrized
+    bindparams where value is None and callable is None).
+
+    This means we can't batch multiple rows in a single statement, since
+    each row would need different values in the SET clause but there's only
+    one SET clause per statement. See issue #13130.
+
+    .. versionadded:: 2.0.37
 
     """
 
@@ -2116,7 +2130,7 @@ class SQLCompiler(Compiled):
                     leep_res = self._literal_execute_expanding_parameter(
                         escaped_name, parameter, values
                     )
-                    (to_update, replacement_expr) = leep_res
+                    to_update, replacement_expr = leep_res
 
                     to_update_sets[escaped_name] = to_update
                     replacement_expressions[escaped_name] = replacement_expr
@@ -3156,6 +3170,7 @@ class SQLCompiler(Compiled):
         if (
             self.dialect.div_is_floordiv
             and binary.right.type._type_affinity is sqltypes.Integer
+            and binary.left.type._type_affinity is sqltypes.Integer
         ):
             return (
                 self.process(binary.left, **kw)
@@ -3675,8 +3690,19 @@ class SQLCompiler(Compiled):
         skip_bind_expression=False,
         literal_execute=False,
         render_postcompile=False,
+        is_upsert_set=False,
         **kwargs,
     ):
+        # Detect parametrized bindparams in upsert SET clause for issue #13130
+        if (
+            is_upsert_set
+            and bindparam.value is None
+            and bindparam.callable is None
+            and self._insertmanyvalues is not None
+        ):
+            self._insertmanyvalues = self._insertmanyvalues._replace(
+                has_upsert_bound_parameters=True
+            )
 
         if not skip_bind_expression:
             impl = bindparam.type.dialect_impl(self.dialect)
@@ -4545,6 +4571,8 @@ class SQLCompiler(Compiled):
             "_label_select_column is only relevant within "
             "the columns clause of a SELECT or RETURNING"
         )
+        result_expr: Union[elements.Label[Any], _CompileLabel]
+
         if isinstance(column, elements.Label):
             if col_expr is not column:
                 result_expr = _CompileLabel(
@@ -5540,11 +5568,32 @@ class SQLCompiler(Compiled):
         elif not self.dialect.supports_multivalues_insert or (
             sort_by_parameter_order
             and self._result_columns
-            and (imv.sentinel_columns is None or imv.includes_upsert_behaviors)
+            and (
+                imv.sentinel_columns is None
+                or (
+                    imv.includes_upsert_behaviors
+                    and not imv.embed_values_counter
+                )
+            )
         ):
             # deterministic order was requested and the compiler could
             # not organize sentinel columns for this dialect/statement.
-            # use row at a time
+            # use row at a time.  Note: if embed_values_counter is True,
+            # the counter itself provides the ordering capability we need,
+            # so we can use batch mode even with upsert behaviors.
+            use_row_at_a_time = True
+            downgraded = True
+        elif (
+            imv.has_upsert_bound_parameters
+            and not imv.embed_values_counter
+            and self._result_columns
+        ):
+            # For upsert behaviors (ON CONFLICT DO UPDATE, etc.) with RETURNING
+            # and parametrized bindparams in the SET clause, we must use
+            # row-at-a-time. Batching multiple rows in a single statement
+            # doesn't work when the SET clause contains bound parameters that
+            # will receive different values per row, as there's only one SET
+            # clause per statement. See issue #13130.
             use_row_at_a_time = True
             downgraded = True
         else:
@@ -5671,6 +5720,7 @@ class SQLCompiler(Compiled):
                 key: parameters[0][key]
                 for key in all_keys.difference(keys_to_replace)
             }
+
             executemany_values_w_comma = ""
         else:
             formatted_values_clause = ""

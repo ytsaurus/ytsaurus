@@ -1,0 +1,14 @@
+RECURSE(
+    interface
+    impl
+    impl/base
+    impl/upload
+    impl/download
+    impl/merge
+    impl/sorted_merge
+    impl/map
+    impl/pull
+    impl/reduce
+    impl/sorted_upload
+    impl/sort
+)

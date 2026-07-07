@@ -4,7 +4,7 @@
 #include <yt/yt/library/query/base/ast.h>
 #include <yt/yt/library/query/base/functions.h>
 
-namespace NYT::NOrm::NServer::NObjects {
+namespace NYT::NOrm::NQuery {
 
 using namespace NQueryClient::NAst;
 
@@ -64,9 +64,10 @@ NQueryClient::NAst::TExpressionPtr EnforceAggregate(
     TObjectsHolder* objectsHolder,
     NQueryClient::NAst::TExpressionPtr expr)
 {
-    return TUnaggregatedRewriter(objectsHolder, NQueryClient::GetBuiltinTypeInferrers()).Visit(expr);
+    return TUnaggregatedRewriter(objectsHolder, NQueryClient::GetBuiltinTypeInferrers())
+        .Visit(expr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOrm::NServer::NObjects
+} // namespace NYT::NOrm::NQuery

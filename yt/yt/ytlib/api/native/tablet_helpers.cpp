@@ -167,24 +167,28 @@ void ValidateTabletMounted(const TTableMountInfoPtr& tableInfo, const TTabletInf
     if (state != ETabletState::Mounted) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::TabletNotMounted,
-            "Tablet %v of table %v is in %Qlv state",
+            "Tablet %v of table %v is in %Qlv state while %Qlv expected",
             tabletInfo->TabletId,
             tableInfo->Path,
-            tabletInfo->State)
+            state,
+            ETabletState::Mounted)
             << TErrorAttribute("tablet_id", tabletInfo->TabletId)
             << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 
-void ValidateTabletMounted(
-    const TTableMountInfoPtr& tableInfo,
-    const TTabletInfoPtr& tabletInfo,
-    bool validateWrite)
+void ValidateTabletNotUnmounted(const TTableMountInfoPtr& tableInfo, const TTabletInfoPtr& tabletInfo)
 {
-    if (validateWrite) {
-        ValidateTabletMounted(tableInfo, tabletInfo);
-    } else {
-        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+    auto state = tabletInfo->State;
+    if (state == ETabletState::Unmounted) {
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::TabletNotMounted,
+            "Cannot read from tablet %v of table %v while it is in %Qlv state",
+            tabletInfo->TabletId,
+            tableInfo->Path,
+            state)
+            << TErrorAttribute("tablet_id", tabletInfo->TabletId)
+            << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 
@@ -262,7 +266,12 @@ TTabletInfoPtr GetSortedTabletForRowImpl(
     YT_ASSERT(tableInfo->IsSorted());
 
     auto tabletInfo = tableInfo->GetTabletForRow(row);
-    ValidateTabletMounted(tableInfo, tabletInfo, validateWrite);
+    if (validateWrite) {
+        ValidateTabletMounted(tableInfo, tabletInfo);
+    } else {
+        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+    }
+
     return tabletInfo;
 }
 
@@ -294,20 +303,23 @@ TTabletInfoPtr GetOrderedTabletForRow(
     YT_ASSERT(!tableInfo->IsSorted());
 
     i64 tabletIndex = -1;
-    for (const auto& value : row) {
-        if (tabletIndexColumnId && value.Id == *tabletIndexColumnId && value.Type != EValueType::Null) {
-            try {
-                FromUnversionedValue(&tabletIndex, value);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing tablet index from row")
-                    << ex;
+    TTabletInfoPtr tabletInfo;
+    if (tabletIndexColumnId) {
+        for (const auto& value : row) {
+            if (value.Id == *tabletIndexColumnId && value.Type != EValueType::Null) {
+                try {
+                    FromUnversionedValue(&tabletIndex, value);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error parsing tablet index from row")
+                        << ex;
+                }
+
+                tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
             }
-            // Just checking.
-            tableInfo->GetTabletByIndexOrThrow(tabletIndex);
         }
     }
 
-    if (tabletIndex < 0) {
+    if (!tabletInfo) {
         if (tableInfo->ReplicationCardId) {
             THROW_ERROR_EXCEPTION("Invalid input row for chaos ordered table %v: %Qlv column is not provided",
                 tableInfo->Path,
@@ -317,8 +329,12 @@ TTabletInfoPtr GetOrderedTabletForRow(
         return randomTabletInfo;
     }
 
-    auto tabletInfo = tableInfo->Tablets[tabletIndex];
-    ValidateTabletMounted(tableInfo, tabletInfo, validateWrite);
+    if (validateWrite) {
+        ValidateTabletMounted(tableInfo, tabletInfo);
+    } else {
+        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+    }
+
     return tabletInfo;
 }
 
@@ -519,6 +535,7 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
         auto tabletId = tabletInfo->TabletId;
         if (tabletIds.insert(tabletId).second) {
+            ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
             cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
         }
     }
@@ -537,6 +554,7 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
 {
     THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
     for (const auto& tabletInfo : tableInfo->Tablets) {
+        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
         cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
     }
 

@@ -14,6 +14,21 @@ enum EEnum
     MaxInt32 = 2147483647;
 }
 
+message TValue {
+    optional string value = 1;
+}
+
+message TNoEmbeddedKeyValue {
+    optional string key = 1;
+    optional string value = 2;
+}
+
+message TEmbeddedKeyValue {
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
+    optional string key = 1;
+    optional TValue embedded_value = 2 [(NYT.flags) = EMBEDDED];
+}
+
 message TEmbeddedStruct {
     optional float float1 = 1;
     optional string string1 = 2;

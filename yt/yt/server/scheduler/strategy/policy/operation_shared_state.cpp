@@ -97,48 +97,58 @@ bool TOperationSharedState::CheckPacking(
         packingConfig);
 }
 
-bool TOperationSharedState::ProcessAllocationUpdate(
+EAllocationUpdateStatus TOperationSharedState::ProcessAllocationUpdate(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId,
-    const TJobResources& resources,
+    const std::optional<TJobResources>& resources,
     bool resetPreemptibleProgress)
 {
-    if (!IsEnabled()) {
-        return false;
+    {
+        auto guard = ReaderGuard(AllocationPropertiesMapLock_);
+        if (auto status = CheckAllocationValidForUpdateUnsafe(operationElement, allocationId)) {
+            return *status;
+        }
     }
 
-    auto delta = [&] {
+    TJobResources delta;
+    if (resources || resetPreemptibleProgress) {
         auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
-        return SetAllocationResourceUsage(
-            GetAllocationProperties(allocationId),
-            resources);
-    }();
+        if (auto status = CheckAllocationValidForUpdateUnsafe(operationElement, allocationId)) {
+            return *status;
+        }
+
+        if (resources) {
+            auto* allocationProperties = GetAllocationProperties(allocationId);
+            delta = SetAllocationResourceUsage(allocationProperties, *resources);
+        }
+
+        if (resetPreemptibleProgress) {
+            ResetAllocationPreemptibleProgressUnsafe(operationElement, allocationId);
+        }
+    }
 
     if (delta != TJobResources()) {
         operationElement->IncreaseHierarchicalResourceUsage(delta);
-    }
-
-    if (resetPreemptibleProgress) {
-        ResetAllocationPreemptibleProgress(operationElement, allocationId);
     }
 
     if (delta != TJobResources() || resetPreemptibleProgress) {
         UpdatePreemptibleAllocationsList(operationElement);
     }
 
-    return true;
+    return EAllocationUpdateStatus::Updated;
 }
 
 bool TOperationSharedState::ProcessAllocationPreemption(
     TPoolTreeOperationElement* operationElement,
-    TAllocationId allocationId)
+    TAllocationId allocationId,
+    const TJobResources& precommittedResources)
 {
     if (!IsEnabled()) {
         return false;
     }
 
-    auto delta = [&] {
+    auto resourceUsageDelta = [&] {
         auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
         return SetAllocationResourceUsage(
@@ -146,14 +156,18 @@ bool TOperationSharedState::ProcessAllocationPreemption(
             TJobResources());
     }();
 
-    if (delta != TJobResources()) {
-        if (!operationElement->CommitHierarchicalPreemptedResourceUsage(-delta)) {
-            YT_LOG_DEBUG("Failed to commit preempted resource usage, decreasing resource usage instead, "
-                        "(OperationId: %v, Delta: %v)", operationElement->GetId(), delta);
-            operationElement->IncreaseHierarchicalResourceUsage(delta);
-        }
-        UpdatePreemptibleAllocationsList(operationElement);
+    // NB(eshcherbin): Delta is negative and precommitted resources are positive.
+    if (!operationElement->CommitHierarchicalPreemptedResourceUsage(resourceUsageDelta, precommittedResources)) {
+        YT_LOG_DEBUG(
+            "Failed to commit preempted resource usage, decreasing resource usage instead "
+            "(OperationId: %v, ResourceUsageDelta: %v, PrecommittedResources: %v)",
+            operationElement->GetId(),
+            resourceUsageDelta,
+            precommittedResources);
+        operationElement->IncreaseHierarchicalResourceUsage(resourceUsageDelta);
     }
+
+    UpdatePreemptibleAllocationsList(operationElement);
 
     return true;
 }
@@ -191,28 +205,45 @@ bool TOperationSharedState::OnAllocationStarted(
     return true;
 }
 
-bool TOperationSharedState::OnAllocationFinished(
+EAllocationUpdateStatus TOperationSharedState::OnAllocationFinished(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId)
 {
     YT_ELEMENT_LOG_DETAILED(operationElement, "Removing allocation from strategy (AllocationId: %v)", allocationId);
 
-    if (auto delta = RemoveAllocation(allocationId)) {
-        operationElement->IncreaseHierarchicalResourceUsage(-(*delta));
-        UpdatePreemptibleAllocationsList(operationElement);
-        return true;
+    {
+        auto guard = ReaderGuard(AllocationPropertiesMapLock_);
+        if (auto status = CheckAllocationValidForUpdateUnsafe(operationElement, allocationId)) {
+            return *status;
+        }
     }
 
-    return false;
+    std::optional<TJobResources> resourceUsage;
+    {
+        auto guard = WriterGuard(AllocationPropertiesMapLock_);
+
+        if (auto status = CheckAllocationValidForUpdateUnsafe(operationElement, allocationId)) {
+            return *status;
+        }
+
+        resourceUsage = RemoveAllocationUnsafe(allocationId);
+    }
+
+    if (resourceUsage) {
+        operationElement->IncreaseHierarchicalResourceUsage(-*resourceUsage);
+        UpdatePreemptibleAllocationsList(operationElement);
+    }
+
+    return EAllocationUpdateStatus::Updated;
 }
 
-void TOperationSharedState::ResetAllocationPreemptibleProgress(
+void TOperationSharedState::ResetAllocationPreemptibleProgressUnsafe(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId)
 {
-    YT_ELEMENT_LOG_DETAILED(operationElement, "Resetting preemptible allocation progress (AllocationId: %v)", allocationId);
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(AllocationPropertiesMapLock_);
 
-    auto guard = WriterGuard(AllocationPropertiesMapLock_);
+    YT_ELEMENT_LOG_DETAILED(operationElement, "Resetting preemptible allocation progress (AllocationId: %v)", allocationId);
 
     auto* properties = GetAllocationProperties(allocationId);
     auto& listToInsert = AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible];
@@ -530,13 +561,9 @@ void TOperationSharedState::AddAllocation(
     TotalDiskQuota_ += resourceUsage.DiskQuota();
 }
 
-std::optional<TJobResources> TOperationSharedState::RemoveAllocation(TAllocationId allocationId)
+std::optional<TJobResources> TOperationSharedState::RemoveAllocationUnsafe(TAllocationId allocationId)
 {
-    auto guard = WriterGuard(AllocationPropertiesMapLock_);
-
-    if (!Enabled_) {
-        return std::nullopt;
-    }
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(AllocationPropertiesMapLock_);
 
     auto it = GetIteratorOrCrash(AllocationPropertiesMap_, allocationId);
 
@@ -551,6 +578,10 @@ std::optional<TJobResources> TOperationSharedState::RemoveAllocation(TAllocation
     TotalDiskQuota_ -= properties->DiskQuota;
 
     AllocationPropertiesMap_.erase(it);
+
+    if (resourceUsage == TJobResources()) {
+        return std::nullopt;
+    }
 
     return resourceUsage;
 }
@@ -599,6 +630,7 @@ TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> TOperationSharedState::Get
 {
     UpdateDiagnosticCounters();
 
+    auto guard = ReaderGuard(DiagnosticCountersLock_);
     return MinNeededResourcesWithDiskQuotaUnsatisfiedCount_;
 }
 
@@ -613,6 +645,7 @@ TEnumIndexedArray<EDeactivationReason, int> TOperationSharedState::GetDeactivati
 {
     UpdateDiagnosticCounters();
 
+    auto guard = ReaderGuard(DiagnosticCountersLock_);
     return DeactivationReasons_;
 }
 
@@ -620,6 +653,7 @@ TEnumIndexedArray<EDeactivationReason, int> TOperationSharedState::GetDeactivati
 {
     UpdateDiagnosticCounters();
 
+    auto guard = ReaderGuard(DiagnosticCountersLock_);
     return DeactivationReasonsFromLastNonStarvingTime_;
 }
 
@@ -640,7 +674,10 @@ int TOperationSharedState::GetOperationScheduleAllocationAttemptCount()
 void TOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus status)
 {
     if (StarvationStatusAtLastUpdate_ == EStarvationStatus::NonStarving && status != EStarvationStatus::NonStarving) {
-        std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
+        {
+            auto guard = WriterGuard(DiagnosticCountersLock_);
+            std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
+        }
 
         int shardId = 0;
         for (const auto& invoker : StrategyHost_->GetNodeShardInvokers()) {
@@ -661,7 +698,14 @@ void TOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus sta
 void TOperationSharedState::UpdateDiagnosticCounters()
 {
     auto now = TInstant::Now();
-    if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order_relaxed) + UpdateStateShardsBackoff_) {
+    if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order::relaxed) + UpdateStateShardsBackoff_) {
+        return;
+    }
+
+    auto guard = WriterGuard(DiagnosticCountersLock_);
+
+    now = TInstant::Now();
+    if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order::relaxed) + UpdateStateShardsBackoff_) {
         return;
     }
 
@@ -685,7 +729,7 @@ void TOperationSharedState::UpdateDiagnosticCounters()
     }
 
     ScheduleAllocationAttemptCount_ = scheduleAllocationAttemptCount;
-    LastDiagnosticCountersUpdateTime_.store(now, std::memory_order_relaxed);
+    LastDiagnosticCountersUpdateTime_.store(now, std::memory_order::relaxed);
 }
 
 TInstant TOperationSharedState::GetLastScheduleAllocationSuccessTime() const
@@ -711,17 +755,37 @@ TJobResources TOperationSharedState::SetAllocationResourceUsage(
 TOperationSharedState::TAllocationProperties*
 TOperationSharedState::GetAllocationProperties(TAllocationId allocationId)
 {
-    auto it = AllocationPropertiesMap_.find(allocationId);
-    YT_ASSERT(it != AllocationPropertiesMap_.end());
-    return &it->second;
+    return &GetIteratorOrCrash(AllocationPropertiesMap_, allocationId)->second;
 }
 
 const TOperationSharedState::TAllocationProperties*
 TOperationSharedState::GetAllocationProperties(TAllocationId allocationId) const
 {
-    auto it = AllocationPropertiesMap_.find(allocationId);
-    YT_ASSERT(it != AllocationPropertiesMap_.end());
-    return &it->second;
+    return &GetIteratorOrCrash(AllocationPropertiesMap_, allocationId)->second;
+}
+
+std::optional<EAllocationUpdateStatus> TOperationSharedState::CheckAllocationValidForUpdateUnsafe(
+    const TPoolTreeOperationElement* operationElement,
+    TAllocationId allocationId) const
+{
+    YT_ASSERT_SPINLOCK_AFFINITY(AllocationPropertiesMapLock_);
+
+    if (!Enabled_) {
+        return EAllocationUpdateStatus::Disabled;
+    }
+
+    // The allocation may be unknown: a stale update or finish can outlive the allocation it
+    // targets when the operation is revived. The caller drops it rather than resubmitting forever.
+    if (!AllocationPropertiesMap_.contains(allocationId)) {
+        YT_LOG_WARNING(
+            "Skipping allocation update for an allocation unknown to the operation shared state "
+            "(OperationId: %v, AllocationId: %v)",
+            operationElement->GetOperationId(),
+            allocationId);
+        return EAllocationUpdateStatus::Unexpected;
+    }
+
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

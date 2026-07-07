@@ -17,7 +17,6 @@
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/chunk_pool_outputs_merger.h>
-#include <yt/yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/ordered_chunk_pool.h>
@@ -336,21 +335,76 @@ public:
 
     std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction() override
     {
-        if (GetFastIntermediateMediumLimit() > 0 && !SwitchedToSlowIntermediateMedium_) {
-            auto medium = GetIntermediateStreamDescriptorTemplate()->TableWriterOptions->MediumName;
-            return {OutputTransaction_, medium};
-        } else {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (GetFastIntermediateMediumLimit() == 0) {
             return {nullptr, {}};
         }
+
+        NApi::ITransactionPtr transaction;
+        {
+            auto guard = Guard(OutputTransactionLock_);
+            if (SwitchedToSlowIntermediateMedium_ || SwitchIntermediateMediumScheduled_) {
+                return {nullptr, {}};
+            }
+            transaction = OutputTransaction_;
+        }
+
+        if (!transaction) {
+            return {nullptr, {}};
+        }
+
+        auto medium = GetIntermediateStreamDescriptorTemplate()->TableWriterOptions->MediumName;
+        return {transaction, medium};
     }
 
     void UpdateIntermediateMediumUsage(i64 usage) override
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         auto fastIntermediateMediumLimit = GetFastIntermediateMediumLimit();
 
-        if (!GetIntermediateMediumTransaction().first || usage < fastIntermediateMediumLimit) {
+        NApi::ITransactionPtr outputTransaction;
+        {
+            auto guard = Guard(OutputTransactionLock_);
+            if (SwitchedToSlowIntermediateMedium_ ||
+                SwitchIntermediateMediumScheduled_ ||
+                fastIntermediateMediumLimit == 0 ||
+                !OutputTransaction_ ||
+                usage < fastIntermediateMediumLimit)
+            {
+                return;
+            }
+            SwitchIntermediateMediumScheduled_ = true;
+            outputTransaction = OutputTransaction_;
+        }
+
+        // Dispatch the actual task mutation to the controller invoker so it does not
+        // race with SetStreamDescriptors running on JobSpecBuildInvoker. The flag is
+        // set inside DoSwitchIntermediateMedium after the mutation completes, ensuring
+        // snapshot consistency.
+        GetCancelableInvoker()->Invoke(
+            BIND(&TSortControllerBase::DoSwitchIntermediateMedium,
+                MakeWeak(this),
+                usage,
+                fastIntermediateMediumLimit,
+                outputTransaction->GetId()));
+    }
+
+private:
+    TSortOperationSpecBasePtr Spec_;
+
+    void DoSwitchIntermediateMedium(i64 usage, i64 fastIntermediateMediumLimit, TTransactionId transactionId)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+        // Multiple dispatches may be queued if UpdateIntermediateMediumUsage fires
+        // repeatedly before this callback completes. Skip if the first one already finished.
+        if (SwitchedToSlowIntermediateMedium_) {
             return;
         }
+
+        TForbidContextSwitchGuard contextSwitchGuard;
 
         for (const auto& partitionTask : PartitionTasks_) {
             partitionTask->SwitchIntermediateMedium();
@@ -362,18 +416,18 @@ public:
             IntermediateSortTask_->SwitchIntermediateMedium();
         }
 
-        YT_LOG_DEBUG("Switching from the fast intermediate medium to the slow one "
+        YT_LOG_DEBUG("Switched from the fast intermediate medium to the slow one "
             "(FastMediumUsage: %v, FastMediumLimit: %v, UsageToLimitRatio: %v, TransactionId: %v)",
             usage,
             fastIntermediateMediumLimit,
             static_cast<double>(usage) / fastIntermediateMediumLimit,
-            OutputTransaction_->GetId());
+            transactionId);
 
-        SwitchedToSlowIntermediateMedium_ = true;
+        // Set the flag only after all task descriptors are updated so that a snapshot
+        // taken with this flag true is guaranteed to have consistent task state.
+        auto guard = Guard(OutputTransactionLock_);
+        YT_VERIFY(!std::exchange(SwitchedToSlowIntermediateMedium_, true));
     }
-
-private:
-    TSortOperationSpecBasePtr Spec_;
 
 protected:
     TSortOperationOptionsBasePtr Options_;
@@ -484,8 +538,18 @@ protected:
 
     TSortedMergeTaskPtr SortedMergeTask_;
 
-    //! True if the operation has switched to the slow intermediate medium (HDD) after producing
-    //! more intermediate data than the limit for the fast intermediate medium (SSD).
+    //! True once DoSwitchIntermediateMedium has been dispatched to the controller invoker.
+    //! Protected by OutputTransactionLock_. Prevents unbounded growth of the callback
+    //! queue when UpdateIntermediateMediumUsage fires repeatedly before the dispatch runs.
+    //! NB: not persisted — resets to false on revive, so UpdateIntermediateMediumUsage
+    //! will naturally re-dispatch if the switch did not complete before the snapshot.
+    bool SwitchIntermediateMediumScheduled_ = false;
+
+    //! True once DoSwitchIntermediateMedium has completed and all task MediumName fields
+    //! have been updated to the slow intermediate medium. Protected by OutputTransactionLock_.
+    //! Persisted: if set in a snapshot, tasks are already consistent with the slow medium.
+    //! NB: set only inside DoSwitchIntermediateMedium (controller invoker), so a snapshot
+    //! with this flag true is guaranteed to have consistent task descriptors.
     bool SwitchedToSlowIntermediateMedium_ = false;
 
     TEnumIndexedArray<EPartitionDispatchDecision, int> PartitionsDispatchStatistics_;
@@ -513,7 +577,7 @@ protected:
             GetChunkPoolOutput()->GetJobCounter()->AddParent(Controller_->PartitionJobCounter_);
         }
 
-        TString GetTitle() const override
+        std::string GetTitle() const override
         {
             return Format("Partition(%v)", Level_);
         }
@@ -943,6 +1007,7 @@ protected:
             if (IsFinal()) {
                 // Somehow we failed resuming a lost stripe in a sink. No comments.
                 TTask::OnStripeRegistrationFailed(error, cookie, stripe, descriptor);
+                return;
             }
             Controller_->SortedMergeTask_->AbortAllActiveJoblets(error, *stripe->GetInputChunkPoolIndex());
             // TODO(max42): maybe moving chunk mapping outside of the pool was not that great idea.
@@ -1028,10 +1093,6 @@ protected:
                     // NB: Intermediate sort uses sort_by as a prefix, while pool expects reduce_by as a prefix.
                     auto keyColumnCount = Controller_->GetSortedMergeSortColumns().size();
                     SetLimitsFromShortenedBoundaryKeys(dataSlice, keyColumnCount, Controller_->RowBuffer_);
-                    // Transform data slice to legacy if legacy sorted pool is used in sorted merge.
-                    if (!Controller_->Spec_->UseNewSortedPool) {
-                        dataSlice->TransformToLegacy(Controller_->RowBuffer_);
-                    }
                     dataSlice->SetInputStreamIndex(inputStreamIndex);
                 }
 
@@ -1313,7 +1374,7 @@ protected:
                 : TDuration::Zero();
         }
 
-        TString GetTitle() const override
+        std::string GetTitle() const override
         {
             return Format("SimpleSort");
         }
@@ -1336,6 +1397,10 @@ protected:
             Controller_->SortedMergeTask_->Finalize();
             if (IsFinal()) {
                 ++Controller_->CompletedPartitionCount_;
+            } else {
+                // NB(pogorelov): In some cases (e.g. dynamic tables), simple sort jobs may produce no output.
+                // So, we should check if SortedMergeTask_ completed.
+                Controller_->SortedMergeTask_->CheckCompleted();
             }
         }
 
@@ -1816,10 +1881,18 @@ protected:
     {
         YT_VERIFY(!SimpleSortTask_);
 
-        if (Spec_->PartitionCount.has_value()) {
+        if (!Spec_->EnableFinalPartitionsMerging.value_or(Options_->EnableFinalPartitionsMergingByDefault)) {
+            return std::nullopt;
+        }
+
+        // Explicit pivot keys define exact partition boundaries that must be
+        // preserved, so final partitions merging must not collapse them.
+        if (Spec_->PartitionCount.has_value() || !Spec_->PivotKeys.empty()) {
             return std::nullopt;
         } else if (Spec_->PartitionDataWeightForMerging.has_value()) {
             return Spec_->PartitionDataWeightForMerging;
+        } else if (Spec_->PartitionDataWeight.has_value()) {
+            return Spec_->PartitionDataWeight;
         } else {
             return std::min(Options_->DefaultPartitionDataWeightForMerging, Spec_->DataWeightPerShuffleJob);
         }
@@ -1849,9 +1922,10 @@ protected:
             return MergeChunkPoolOutputs(
                 std::move(physicalPartitionsToMerge),
                 Logger().WithTag(
-                    "Name: PartitionsMerger[%v][%v]",
+                    "Name: PartitionsMerger[%v][%v][%v]",
                     intermediatePartition->GetLevel(),
-                    intermediatePartition->GetIndex()));
+                    intermediatePartition->GetIndex(),
+                    physicalPartitionIndices[0]));
         }();
 
         bool isManiac = std::ssize(physicalPartitionIndices) == 1 &&
@@ -1984,7 +2058,7 @@ protected:
             i64 dataSliceCount = chunkPoolOutput->GetDataSliceCounter()->GetTotal();
             i64 rowCount = chunkPoolOutput->GetRowCounter()->GetTotal();
 
-            if (!Spec_->EnableFinalPartitionsMerging ||
+            if (!partitionDataWeightForMerging.has_value() ||
                 !isAllDataCollected ||
                 IsPartitionOversized(
                     accumulatedDataWeight + dataWeight,
@@ -2695,7 +2769,7 @@ protected:
         return streamDescriptor;
     }
 
-    IPersistentChunkPoolPtr CreateSortedMergeChunkPool(TString name)
+    IPersistentChunkPoolPtr CreateSortedMergeChunkPool(std::string name)
     {
         TSortedChunkPoolOptions chunkPoolOptions;
         TSortedJobOptions jobOptions;
@@ -2720,13 +2794,7 @@ protected:
             chunkPoolOptions.JobSizeAdjusterConfig = Options_->SortedMergeJobSizeAdjuster;
         }
 
-        if (Spec_->UseNewSortedPool) {
-            YT_LOG_DEBUG("Creating new sorted pool");
-            return CreateNewSortedChunkPool(chunkPoolOptions, nullptr /*chunkSliceFetcher*/, IntermediateInputStreamDirectory);
-        } else {
-            YT_LOG_DEBUG("Creating legacy sorted pool");
-            return CreateLegacySortedChunkPool(chunkPoolOptions, nullptr /*chunkSliceFetcher*/, IntermediateInputStreamDirectory);
-        }
+        return CreateNewSortedChunkPool(chunkPoolOptions, nullptr /*chunkSliceFetcher*/, IntermediateInputStreamDirectory);
     }
 
     i64 AccountRows(const TCompletedJobSummary& jobSummary)
@@ -3063,11 +3131,8 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(34, ShuffleMultiChunkPoolInputs_);
     PHOENIX_REGISTER_FIELD(35, ShuffleMultiInputChunkMappings_);
 
-    registrar.template VirtualField<36>("IntermediateChunkSchema_", [] (TThis* this_, auto& context) {
-        NYT::Load(context, *this_->IntermediateChunkSchema_);
-    }, [] (const TThis* this_, auto& context) {
-        NYT::Save(context, *this_->IntermediateChunkSchema_);
-    })();
+    PHOENIX_REGISTER_FIELD(36, IntermediateChunkSchema_,
+        .template Serializer<TDerefSerializer<>>());
     PHOENIX_REGISTER_FIELD(37, IntermediateStreamSchemas_,
         .template Serializer<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>());
 
@@ -3270,7 +3335,7 @@ private:
         if ((table->Dynamic || table->TableUploadOptions.UpdateMode == EUpdateMode::Append) &&
             table->TableUploadOptions.TableSchema->GetSortColumns() != Spec_->SortBy)
         {
-            THROW_ERROR_EXCEPTION("sort_by is different from output table key columns")
+            THROW_ERROR_EXCEPTION("\"sort_by\" is different from output table key columns")
                 << TErrorAttribute("output_table_path", Spec_->OutputTablePath)
                 << TErrorAttribute("output_table_sort_columns", table->TableUploadOptions.TableSchema->GetSortColumns())
                 << TErrorAttribute("sort_by", Spec_->SortBy);
@@ -3317,6 +3382,8 @@ private:
             default:
                 YT_ABORT();
         }
+
+        ValidateNoHunkKeyColumns();
     }
 
     void InitIntermediateSchemas() override
@@ -3849,7 +3916,7 @@ private:
 
     // Progress reporting.
 
-    TString GetLoggingProgress() const override
+    std::string GetLoggingProgress() const override
     {
         return Format(
             "{"
@@ -4430,7 +4497,7 @@ private:
         PartitionJobIOConfig_ = CloneYsonStruct(Spec_->PartitionJobIO);
         PartitionJobIOConfig_->TableReader->SamplingRate = std::nullopt;
 
-        IntermediateSortJobIOConfig_ = Spec_->SortJobIO;
+        IntermediateSortJobIOConfig_ = CloneYsonStruct(Spec_->SortJobIO);
 
         // Partition reduce: writer like in merge and reader like in sort.
         FinalSortJobIOConfig_ = CloneYsonStruct(Spec_->MergeJobIO);
@@ -4817,7 +4884,7 @@ private:
 
     // Progress reporting.
 
-    TString GetLoggingProgress() const override
+    std::string GetLoggingProgress() const override
     {
         return Format(
             "{"
@@ -4949,6 +5016,15 @@ IOperationControllerPtr CreateMapReduceController(
 {
     auto options = CreateOperationOptions(config->MapReduceOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    auto providedSpec = ParseOperationSpec<TMapReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetProvidedSpec()));
+
+    ValidateAndEnrichVolumeSpec(config, spec, host, spec->Reducer.Get(), providedSpec->Reducer.Get());
+    if (spec->Mapper) {
+        ValidateAndEnrichVolumeSpec(config, spec, host, spec->Mapper.Get(), providedSpec->Reducer.Get());
+    }
+    if (spec->ReduceCombiner) {
+        ValidateAndEnrichVolumeSpec(config, spec, host, spec->ReduceCombiner.Get(),  providedSpec->Reducer.Get());
+    }
     AdjustSamplingFromConfig(spec, config);
     return New<TMapReduceController>(spec, config, options, host, operation);
 }

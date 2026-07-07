@@ -48,7 +48,6 @@ HUNK_COMPATIBLE_CHUNK_FORMATS = [
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
@@ -159,7 +158,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             attributes={"schema": [{"name": "b", "type": "string"}]},
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot make remote copy into table with \"strong\" schema"):
             # To do remote copy into table with "strong" schema mode schemas must be identical.
             remote_copy(
                 in_="//tmp/t1",
@@ -167,7 +166,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot make remote copy into table with \"strong\" schema"):
             # To do remote copy into table with "strong" schema mode schemas must be identical.
             # Even if we force scheduler to infer schema from output.
             remote_copy(
@@ -217,7 +216,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         # We check that yson representation of types are compatible with each other
         write_table("//tmp/output", read_table("//tmp/input", driver=self.remote_driver))
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot make remote copy into table with \"strong\" schema since input table schema differs from output table schema"):
             remote_copy(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -374,7 +373,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         create("table", "//tmp/t2")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Erasure codec .* is forbidden"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -542,10 +541,10 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         create("table", "//tmp/t2")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot find cluster with name"):
             remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "unexisting"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot find any of .* addresses"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -555,7 +554,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/unexisting",
@@ -563,7 +562,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             )
 
         write_table("//tmp/t1", [{"a": "b"}, {"c": "d"}], driver=self.remote_driver)
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             remote_copy(
                 in_="//tmp/t1[:#1]",
                 out="//tmp/unexisting",
@@ -593,7 +592,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             make_ace("deny", "u", "read"),
             driver=self.remote_driver,
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -607,7 +606,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             make_ace("deny", "u", "create"),
             driver=self.remote_driver,
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -703,7 +702,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         assert get("//tmp/t3/@custom_attr2") == "attr_value2"
         assert get("//tmp/t3/@custom_attr3\\/1") == "attr_value3"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Multiple tables in remote copy are not supported"):
             remote_copy(
                 in_=["//tmp/t1", "//tmp/t1"],
                 out="//tmp/t2",
@@ -855,7 +854,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         create("table", "//tmp/output")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Multiple tables in remote copy are not supported"):
             remote_copy(
                 in_=["//tmp/t1", "//tmp/t2"],
                 out="//tmp/output",
@@ -867,7 +866,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -888,7 +887,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         assert not get("//tmp/t2/@sorted")
 
         create("map_node", "//tmp/t3")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists and has type"):
             remote_copy(
                 in_="//tmp/t1",
                 out="<create=true>//tmp/t3",
@@ -1165,7 +1164,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         ]
 
         for path in strange_paths:
-            with raises_yt_error("Input file path must not contain"):
+            with raises_yt_error("Input file path must not contain .* selectors"):
                 remote_copy(
                     in_=path,
                     out="//tmp/out.txt",
@@ -1459,7 +1458,6 @@ class TestSchedulerRemoteCopyCommandsSequoia(TestSchedulerRemoteCopyCommands):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1507,7 +1505,7 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
 
         create("table", "//tmp/t2")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot find any of .* addresses"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1517,7 +1515,7 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Options .* cannot be specified simultaneously"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1566,7 +1564,7 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
 
         create("table", "//tmp/t2")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot find any of .* addresses"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1613,7 +1611,6 @@ class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTablesBase(TestSchedulerRemoteCopyCommandsBase):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1655,7 +1652,6 @@ class TestSchedulerRemoteCopyDynamicTablesBase(TestSchedulerRemoteCopyCommandsBa
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1796,7 +1792,7 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
 
         # Chunk crosses tablet boundaries and is under nontrivial chunk view.
         sync_reshard_table("//tmp/t1", [[], [1]], driver=self.remote_driver)
-        with raises_yt_error(yt_error_codes.InvalidInputChunk):
+        with raises_yt_error(code=yt_error_codes.InvalidInputChunk):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1810,7 +1806,7 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
         sync_freeze_table("//tmp/t3")
         merge(in_="//tmp/t3", out="//tmp/t3", mode="ordered")
         sync_unmount_table("//tmp/t3")
-        with raises_yt_error(yt_error_codes.InvalidInputChunk):
+        with raises_yt_error(code=yt_error_codes.InvalidInputChunk):
             remote_copy(
                 in_="//tmp/t3",
                 out="//tmp/t2",
@@ -1940,7 +1936,6 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -2023,8 +2018,8 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
             {"name": "key", "type": "string", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 10},
         ]
-        self._create_sorted_table("//tmp/t1", schema=schema, driver=self.remote_driver)
-        self._create_sorted_table("//tmp/t2", schema=schema)
+        self._create_sorted_table("//tmp/t1", schema=schema, driver=self.remote_driver, optimize_for="lookup")
+        self._create_sorted_table("//tmp/t2", schema=schema, optimize_for="lookup")
 
         row_count = 5
         rows = [{"key": "a" * 19 + str(i), "value": "a" * 20} for i in range(row_count)]
@@ -2081,14 +2076,15 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
                 spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
             )
 
-    @authors("alexelexa")
-    @pytest.mark.parametrize("max_inline_hunk_size", [1, 5, 10])
-    def test_remote_copy_hunks_after_reshard(self, max_inline_hunk_size):
+    @authors("alexelexa", "akozhikhov")
+    def test_remote_copy_hunks_after_reshard(self):
+        max_inline_hunk_size = 1
+
         for path, driver in [("//tmp/t1", self.remote_driver), ("//tmp/t2", None)]:
             sync_create_cells(1, driver=driver)
             self._create_sorted_table(
                 path,
-                max_inline_hunk_size=1,
+                max_inline_hunk_size=max_inline_hunk_size,
                 pivot_keys=[[], [3]],
                 enable_compaction_and_partitioning=False,
                 max_hunk_compaction_size=5,
@@ -2161,7 +2157,23 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
         delete_rows("//tmp/t2", [{"key": i} for i in range(1, 8, 2)])
         assert_items_equal(select_rows("* from [//tmp/t2]"), [{"key": i, "value": hunk_value(i)} for i in range(0, 8, 2)])
 
-    @authors("alexelexa")
+        root_chunk_list_id = get("//tmp/t2/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t2/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["row_count"] == 8
+        assert statistics["chunk_count"] == 6
+        assert statistics["data_weight"] == 232
+        assert statistics["hunk_data_weight"] == 160
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 8
+        assert statistics["referenced_regular_disk_space"] == 224
+        assert statistics["regular_disk_space"] > 1000
+        snapshot_statistics = get("//tmp/t2/@snapshot_statistics")
+        assert snapshot_statistics["row_count"] == 8
+        assert snapshot_statistics["chunk_count"] == 14
+        assert snapshot_statistics["data_weight"] == 392
+
+    @authors("alexelexa", "akozhikhov")
     @pytest.mark.parametrize("max_inline_hunk_size", [15, 1000000000])
     def test_remote_copy_hunks_with_compression_dictionaries(self, max_inline_hunk_size):
         SCHEMA_WITH_MULTIPLE_COLUMNS = [
@@ -2258,11 +2270,22 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
         _check_hunk_count("//tmp/t2", usual_hunk_count=2, attached_cd_count=2, unattached_cd_count=1)
         assert_items_equal(select_rows("* from [//tmp/t2]"), rows + rows2)
 
+        root_chunk_list_id = get("//tmp/t2/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t2/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["hunk_data_weight"] == (12586 if max_inline_hunk_size == 15 else 0)
+        assert statistics["hunk_data_size"] == (14186 if max_inline_hunk_size == 15 else 0)
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["referenced_regular_disk_space"] == (14186 if max_inline_hunk_size == 15 else 0)
+        assert statistics["regular_disk_space"] > 1000
+        assert statistics["chunk_count"] == (5 if max_inline_hunk_size == 15 else 3)
+        snapshot_statistics = get("//tmp/t2/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == (7 if max_inline_hunk_size == 15 else 5)
+
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 12
@@ -2394,7 +2417,6 @@ class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamic
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynamicTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -2432,7 +2454,6 @@ class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynam
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTablesWithHunksMulticell(TestSchedulerRemoteCopyDynamicTablesWithHunks):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

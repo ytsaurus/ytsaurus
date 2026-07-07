@@ -20,7 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk"
 	"go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 )
 
 var (
@@ -31,6 +31,8 @@ var (
 	kv41 = attribute.String("k4", "v41")
 	kv42 = attribute.String("k4", "")
 )
+
+const v121 = "https://opentelemetry.io/schemas/1.21.0"
 
 func TestNewWithAttributes(t *testing.T) {
 	cases := []struct {
@@ -155,22 +157,22 @@ func TestMerge(t *testing.T) {
 		},
 		{
 			name:      "Merge with first resource with schema",
-			a:         resource.NewWithAttributes("https://opentelemetry.io/schemas/1.4.0", kv41),
+			a:         resource.NewWithAttributes(v121, kv41),
 			b:         resource.NewSchemaless(kv42),
 			want:      []attribute.KeyValue{kv42},
-			schemaURL: "https://opentelemetry.io/schemas/1.4.0",
+			schemaURL: v121,
 		},
 		{
 			name:      "Merge with second resource with schema",
 			a:         resource.NewSchemaless(kv41),
-			b:         resource.NewWithAttributes("https://opentelemetry.io/schemas/1.4.0", kv42),
+			b:         resource.NewWithAttributes(v121, kv42),
 			want:      []attribute.KeyValue{kv42},
-			schemaURL: "https://opentelemetry.io/schemas/1.4.0",
+			schemaURL: v121,
 		},
 		{
 			name:  "Merge with different schemas",
-			a:     resource.NewWithAttributes("https://opentelemetry.io/schemas/1.4.0", kv41),
-			b:     resource.NewWithAttributes("https://opentelemetry.io/schemas/1.3.0", kv42),
+			a:     resource.NewWithAttributes(v121, kv41),
+			b:     resource.NewWithAttributes("https://opentelemetry.io/schemas/1.20.0", kv42),
 			want:  []attribute.KeyValue{kv42},
 			isErr: true,
 		},
@@ -192,6 +194,33 @@ func TestMerge(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMergeIdempotent(t *testing.T) {
+	r := resource.NewSchemaless(
+		attribute.String("k1", "v1"),
+		attribute.String("k2", "v2"),
+	)
+
+	merged, err := resource.Merge(r, r)
+	require.NoError(t, err)
+
+	require.True(t, r.Equal(merged))
+	require.Equal(t, r.SchemaURL(), merged.SchemaURL())
+}
+
+func TestMergeIdempotentWithSchema(t *testing.T) {
+	r := resource.NewWithAttributes(
+		v121,
+		attribute.String("k1", "v1"),
+		attribute.String("k2", "v2"),
+	)
+
+	merged, err := resource.Merge(r, r)
+	require.NoError(t, err)
+
+	require.True(t, r.Equal(merged))
+	require.Equal(t, r.SchemaURL(), merged.SchemaURL())
 }
 
 func TestEmpty(t *testing.T) {
@@ -218,6 +247,35 @@ func TestDefault(t *testing.T) {
 	require.Contains(t, res.Attributes(), semconv.TelemetrySDKLanguageGo)
 	require.Contains(t, res.Attributes(), semconv.TelemetrySDKVersion(sdk.Version()))
 	require.Contains(t, res.Attributes(), semconv.TelemetrySDKName("opentelemetry"))
+}
+
+func TestDefaultWithContext(t *testing.T) {
+	ctx := t.Context()
+	res1 := resource.DefaultWithContext(ctx)
+	res2 := resource.DefaultWithContext(ctx)
+	assert.Same(t, res1, res2)
+}
+
+func TestEnvironmentWithContext(t *testing.T) {
+	t.Setenv(envVar, "key=value")
+	ctx := t.Context()
+	res := resource.EnvironmentWithContext(ctx)
+	assert.Equal(t, map[string]string{"key": "value"}, toMap(res))
+}
+
+func TestEquivalentStability(t *testing.T) {
+	r1 := resource.NewSchemaless(
+		attribute.String("a", "1"),
+		attribute.String("b", "2"),
+	)
+
+	r2 := resource.NewSchemaless(
+		attribute.String("b", "2"),
+		attribute.String("a", "1"),
+	)
+
+	require.Equal(t, r1.Equivalent(), r2.Equivalent())
+	require.True(t, r1.Equal(r2))
 }
 
 func TestString(t *testing.T) {
@@ -378,21 +436,25 @@ func TestNew(t *testing.T) {
 			envars: "",
 			options: []resource.Option{
 				resource.WithAttributes(attribute.String("A", "B")),
-				resource.WithSchemaURL("https://opentelemetry.io/schemas/1.0.0"),
+				resource.WithSchemaURL(v121),
 			},
 			resourceValues: map[string]string{
 				"A": "B",
 			},
-			schemaURL: "https://opentelemetry.io/schemas/1.0.0",
+			schemaURL: v121,
 		},
 		{
 			name:   "With conflicting schema urls",
 			envars: "",
 			options: []resource.Option{
 				resource.WithDetectors(
-					resource.StringDetector("https://opentelemetry.io/schemas/1.0.0", semconv.HostNameKey, os.Hostname),
+					resource.StringDetector(
+						"https://opentelemetry.io/schemas/1.20.0",
+						semconv.HostNameKey,
+						os.Hostname,
+					),
 				),
-				resource.WithSchemaURL("https://opentelemetry.io/schemas/1.1.0"),
+				resource.WithSchemaURL(v121),
 			},
 			resourceValues: map[string]string{
 				string(semconv.HostNameKey): func() (hostname string) {
@@ -408,14 +470,18 @@ func TestNew(t *testing.T) {
 			envars: "",
 			options: []resource.Option{
 				resource.WithDetectors(
-					resource.StringDetector("https://opentelemetry.io/schemas/1.0.0", semconv.HostNameKey, os.Hostname),
 					resource.StringDetector(
-						"https://opentelemetry.io/schemas/1.1.0",
+						"https://opentelemetry.io/schemas/1.19.0",
+						semconv.HostNameKey,
+						os.Hostname,
+					),
+					resource.StringDetector(
+						"https://opentelemetry.io/schemas/1.20.0",
 						semconv.HostNameKey,
 						func() (string, error) { return "", errors.New("fail") },
 					),
 				),
-				resource.WithSchemaURL("https://opentelemetry.io/schemas/1.2.0"),
+				resource.WithSchemaURL(v121),
 			},
 			resourceValues: map[string]string{
 				string(semconv.HostNameKey): func() (hostname string) {
@@ -430,7 +496,7 @@ func TestNew(t *testing.T) {
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(envVar, tt.envars)
-			ctx := context.Background()
+			ctx := t.Context()
 			res, err := resource.New(ctx, tt.options...)
 
 			if tt.wantErr != nil {
@@ -453,7 +519,7 @@ func TestNew(t *testing.T) {
 func TestNewWrappedError(t *testing.T) {
 	localErr := errors.New("local error")
 	_, err := resource.New(
-		context.Background(),
+		t.Context(),
 		resource.WithDetectors(
 			resource.StringDetector("", "", func() (string, error) {
 				return "", localErr
@@ -473,7 +539,7 @@ func TestWithHostID(t *testing.T) {
 	mockHostIDProvider()
 	t.Cleanup(restoreHostIDProvider)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithHostID(),
@@ -489,7 +555,7 @@ func TestWithHostIDError(t *testing.T) {
 	mockHostIDProviderWithError()
 	t.Cleanup(restoreHostIDProvider)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithHostID(),
@@ -503,7 +569,7 @@ func TestWithOSType(t *testing.T) {
 	mockRuntimeProviders()
 	t.Cleanup(restoreAttributesProviders)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithOSType(),
@@ -519,7 +585,7 @@ func TestWithOSDescription(t *testing.T) {
 	mockRuntimeProviders()
 	t.Cleanup(restoreAttributesProviders)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithOSDescription(),
@@ -535,7 +601,7 @@ func TestWithOS(t *testing.T) {
 	mockRuntimeProviders()
 	t.Cleanup(restoreAttributesProviders)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithOS(),
@@ -550,7 +616,7 @@ func TestWithOS(t *testing.T) {
 
 func TestWithProcessPID(t *testing.T) {
 	mockProcessAttributesProvidersWithErrors()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithProcessPID(),
@@ -564,7 +630,7 @@ func TestWithProcessPID(t *testing.T) {
 
 func TestWithProcessExecutableName(t *testing.T) {
 	mockProcessAttributesProvidersWithErrors()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithProcessExecutableName(),
@@ -578,7 +644,7 @@ func TestWithProcessExecutableName(t *testing.T) {
 
 func TestWithProcessExecutablePath(t *testing.T) {
 	mockProcessAttributesProviders()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithProcessExecutablePath(),
@@ -592,7 +658,7 @@ func TestWithProcessExecutablePath(t *testing.T) {
 
 func TestWithProcessCommandArgs(t *testing.T) {
 	mockProcessAttributesProvidersWithErrors()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithProcessCommandArgs(),
@@ -607,7 +673,7 @@ func TestWithProcessCommandArgs(t *testing.T) {
 
 func TestWithProcessOwner(t *testing.T) {
 	mockProcessAttributesProviders()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithProcessOwner(),
@@ -621,7 +687,7 @@ func TestWithProcessOwner(t *testing.T) {
 
 func TestWithProcessRuntimeName(t *testing.T) {
 	mockProcessAttributesProvidersWithErrors()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithProcessRuntimeName(),
@@ -635,7 +701,7 @@ func TestWithProcessRuntimeName(t *testing.T) {
 
 func TestWithProcessRuntimeVersion(t *testing.T) {
 	mockProcessAttributesProvidersWithErrors()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithProcessRuntimeVersion(),
@@ -649,7 +715,7 @@ func TestWithProcessRuntimeVersion(t *testing.T) {
 
 func TestWithProcessRuntimeDescription(t *testing.T) {
 	mockProcessAttributesProvidersWithErrors()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithProcessRuntimeDescription(),
@@ -663,7 +729,7 @@ func TestWithProcessRuntimeDescription(t *testing.T) {
 
 func TestWithProcess(t *testing.T) {
 	mockProcessAttributesProviders()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := resource.New(ctx,
 		resource.WithProcess(),
@@ -740,7 +806,7 @@ func TestWithContainerID(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			resource.SetContainerProviders(tc.containerIDProvider)
 
-			res, err := resource.New(context.Background(),
+			res, err := resource.New(t.Context(),
 				resource.WithContainerID(),
 			)
 
@@ -760,7 +826,7 @@ func TestWithContainer(t *testing.T) {
 		return fakeContainerID, nil
 	})
 
-	res, err := resource.New(context.Background(),
+	res, err := resource.New(t.Context(),
 		resource.WithContainer(),
 	)
 
@@ -770,28 +836,44 @@ func TestWithContainer(t *testing.T) {
 	}, toMap(res))
 }
 
+func TestWithService(t *testing.T) {
+	res, err := resource.New(t.Context(),
+		resource.WithService(),
+	)
+
+	assert.NoError(t, err)
+
+	resMap := toMap(res)
+
+	// Verify service.name exists
+	_, ok := resMap[string(semconv.ServiceNameKey)]
+	require.True(t, ok, "service.name should be present")
+
+	// Verify service.instance.id exists
+	_, ok = resMap[string(semconv.ServiceInstanceIDKey)]
+	require.True(t, ok, "service.instance.id should be present")
+}
+
 func TestResourceConcurrentSafe(t *testing.T) {
 	// Creating Resources should also be free of any data races,
 	// because Resources are immutable.
 	var wg sync.WaitGroup
-	for i := 0; i < 2; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 2 {
+		wg.Go(func() {
 			d := &fakeDetector{}
-			_, err := resource.Detect(context.Background(), d)
+			_, err := resource.Detect(t.Context(), d)
 			assert.NoError(t, err)
-		}()
+		})
 	}
 	wg.Wait()
 }
 
 type fakeDetector struct{}
 
-func (f fakeDetector) Detect(_ context.Context) (*resource.Resource, error) {
+func (fakeDetector) Detect(context.Context) (*resource.Resource, error) {
 	// A bit pedantic, but resource.NewWithAttributes returns an empty Resource when
 	// no attributes specified. We want to make sure that this is concurrent-safe.
-	return resource.NewWithAttributes("https://opentelemetry.io/schemas/1.3.0"), nil
+	return resource.NewWithAttributes(v121), nil
 }
 
 var _ resource.Detector = &fakeDetector{}

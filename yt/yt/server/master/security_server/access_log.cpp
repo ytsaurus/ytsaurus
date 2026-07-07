@@ -101,7 +101,7 @@ void LogAccess(
     // it checks for the same conditions YT_LOG_ACCESS does.) Wrong. Setting the
     // "enable_access_log" flag changes those conditions in between. Let's skip
     // logging such a request, it's no great loss.
-    if (Y_UNLIKELY(!path)) {
+    if (!path) [[unlikely]] {
         return;
     }
 

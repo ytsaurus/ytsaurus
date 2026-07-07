@@ -171,7 +171,7 @@ class Lock(object):
         retry.deadline = timeout
 
         # Ensure we are locked so that we avoid multiple threads in
-        # this acquistion routine at the same time...
+        # this acquisition routine at the same time...
         method_locked = self._acquire_method_lock.acquire(
             blocking=blocking, timeout=timeout if timeout is not None else -1
         )

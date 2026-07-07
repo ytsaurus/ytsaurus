@@ -98,6 +98,8 @@ private:
         //! Returns the current number of individual requests in the batch.
         int GetSize() const;
 
+        NRpc::IClientRequestPtr Clone() const override;
+
     protected:
         const NApi::NNative::TStickyGroupSizeCachePtr StickyGroupSizeCache_;
         const int SubbatchSize_;
@@ -115,6 +117,7 @@ private:
         TReqExecuteSubbatch(
             const TReqExecuteSubbatch& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
+        TReqExecuteSubbatch(const TReqExecuteSubbatch& other);
 
         TFuture<TRspExecuteBatchPtr> DoInvoke();
 
@@ -173,6 +176,8 @@ public:
         //! uncertain indexes. Instead, consider using TReqExecuteBatch.
         TFuture<TRspExecuteBatchPtr> Invoke();
 
+        NRpc::IClientRequestPtr Clone() const override;
+
     protected:
         TReqExecuteBatchBase(
             NRpc::IChannelPtr channel,
@@ -181,6 +186,7 @@ public:
         TReqExecuteBatchBase(
             const TReqExecuteBatchBase& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
+        TReqExecuteBatchBase(const TReqExecuteBatchBase& other);
 
         DECLARE_NEW_FRIEND()
 
@@ -208,6 +214,8 @@ public:
         void SetStickyGroupSize(int value);
         void SetEnableClientStickiness(bool value);
 
+        NRpc::IClientRequestPtr Clone() const override;
+
     protected:
         TReqExecuteBatchNoSequoiaRetries(
             NRpc::IChannelPtr channel,
@@ -216,6 +224,7 @@ public:
         TReqExecuteBatchNoSequoiaRetries(
             const TReqExecuteBatchBase& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
+        TReqExecuteBatchNoSequoiaRetries(const TReqExecuteBatchNoSequoiaRetries& other);
 
     private:
         TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> CurrentReqFuture_;
@@ -258,6 +267,8 @@ public:
         void SetStickyGroupSize(int value);
         void SetEnableClientStickiness(bool value);
 
+        NRpc::IClientRequestPtr Clone() const override;
+
     private:
         std::vector<int> PendingIndexes_;
         int CurrentRetry_ = 0;
@@ -280,6 +291,8 @@ public:
             int subbatchSize,
             bool regenerateMutationIdForRetries);
 
+        TReqExecuteBatch(const TReqExecuteBatch& other);
+
         DECLARE_NEW_FRIEND()
 
         void InvokeNextBatch();
@@ -300,6 +313,8 @@ public:
         : public TReqExecuteBatchBase
     {
     public:
+        TReqExecuteBatchInParallel(const TReqExecuteBatchInParallel&);
+
         TReqExecuteBatchInParallel(
             NRpc::IChannelPtr channel,
             int subbatchSize,
@@ -308,6 +323,8 @@ public:
 
         //! Starts the asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
+
+        NRpc::IClientRequestPtr Clone() const override;
 
     private:
         TRspExecuteBatchPtr OnParallelResponses(const TErrorOr<std::vector<TRspExecuteBatchPtr>>& parallelRsps);

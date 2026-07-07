@@ -1,11 +1,13 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
+from yt_env_setup import is_sanitizer_build
+
 from yt_helpers import profiler_factory
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from yt_commands import (
-    authors, print_debug, wait, create, ls, get, set, remove, exists, copy, insert_rows,
+    authors, print_debug, select_rows, wait, create, ls, get, set, remove, exists, copy, insert_rows,
     lookup_rows, delete_rows, create_dynamic_table, generate_uuid,
     alter_table, read_table, write_table, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
@@ -34,7 +36,6 @@ import time
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestLookup(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -579,9 +580,9 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         assert list(lookup_rows("//tmp/t", [{"key": 1}])) == []
-        with pytest.raises(YtError):
+        with raises_yt_error("Ranges cannot be specified"):
             lookup_rows("//tmp/t[1:2]", [{"key": 1}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Columns cannot be specified with table path"):
             lookup_rows("//tmp/t{key}", [{"key": 1}])
 
     @authors("ifsmirnov")
@@ -611,6 +612,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t", chunk_reader={
             "hedging_manager": {
                 "secondary_request_ratio": 0.5,
+                "max_hedging_delay": 0,
             },
             "prefer_local_replicas": False,
             "use_block_cache": False,
@@ -761,7 +763,7 @@ class TestLookup(TestSortedDynamicTablesBase):
             }
         }
         self._update_specific_nodes_dynamic_config([str(replicas[0])], node_dyn_config)
-        with raises_yt_error(yt_error_codes.Timeout):
+        with raises_yt_error(code=yt_error_codes.Timeout):
             assert lookup_rows("//tmp/t", [{"key": 1}], timeout=5000) == row
 
         set("//tmp/t/@chunk_reader/partial_peer_probing_timeouts", [(2, 1000)])
@@ -777,7 +779,7 @@ class TestLookup(TestSortedDynamicTablesBase):
             }
         }
         self._update_specific_nodes_dynamic_config([str(replicas[0]), str(replicas[1])], node_dyn_config)
-        with raises_yt_error(yt_error_codes.Timeout):
+        with raises_yt_error(code=yt_error_codes.Timeout):
             assert lookup_rows("//tmp/t", [{"key": 1}], timeout=5000) == row
 
         set("//tmp/t/@chunk_reader/partial_peer_probing_timeouts", [(2, 1000), (1, 1100)])
@@ -1228,7 +1230,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         acl[-1]["row_access_predicate"] = "key = 1"
         set("//tmp/t/@acl", acl)
 
-        with raises_yt_error("row-level ACL is present, but is not supported"):
+        with raises_yt_error("Access denied .*: row-level ACL is present, but is not supported"):
             lookup_rows("//tmp/t", [{"key": 15}], authenticated_user="u")
 
     @authors("dtorilov")
@@ -1268,9 +1270,9 @@ class TestLookup(TestSortedDynamicTablesBase):
         res = ", ".join([f'{i}#{f'"{key[i]}"' if type(key[i]) is str else str(key[i])}' for i in range(len(key))])
         return ''.join(["[", res, "]"])
 
-    @authors("tem-shett")
-    @pytest.mark.parametrize("is_versioned", [False, True])
-    def test_heavy_hitters_simple(self, is_versioned):
+    @authors("tem-shett", "navasardianna")
+    @pytest.mark.parametrize("query_type", ["lookup", "versioned_lookup", "select"])
+    def test_heavy_hitters_simple(self, query_type):
         sync_create_cells(1)
 
         create_dynamic_table(
@@ -1287,10 +1289,19 @@ class TestLookup(TestSortedDynamicTablesBase):
         rows = [{"key1": i, "key2": str(i), "value": "a" * (1 + 10 * i)} for i in range(10)]
         insert_rows("//tmp/t", rows)
 
+        lookup_keys = [{"key1": row["key1"], "key2": row["key2"]} for row in rows]
+
         for _ in range(100):
-            lookup_keys = [{"key1": row["key1"], "key2": row["key2"]} for row in rows]
             random.shuffle(lookup_keys)
-            lookup_rows("//tmp/t", lookup_keys, versioned=is_versioned, verbose=False)
+
+            if query_type == "select":
+                in_clause = ", ".join(f'({row["key1"]}, "{row["key2"]}")' for row in lookup_keys)
+
+                select_rows(
+                    f"key1, key2, value from [//tmp/t] WHERE (key1, key2) IN ({in_clause})",
+                    verbose=False)
+            else:
+                lookup_rows("//tmp/t", lookup_keys, versioned=(query_type == "versioned_lookup"))
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         heavy_hitters = get(f"//sys/tablets/{tablet_id}/orchid/lookup_heavy_hitters")
@@ -1380,7 +1391,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         wait(lambda: _check([[KEY_COUNT + 1]], is_weighted=False))
 
 
-@pytest.mark.enabled_multidaemon
 class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 4
@@ -1733,7 +1743,10 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
 
             return time.time() - start_time
 
-        assert _get_lookup_time(lookup_count=5) < 1
+        if is_sanitizer_build():
+            assert _get_lookup_time(lookup_count=5) < 1.5
+        else:
+            assert _get_lookup_time(lookup_count=5) < 1
 
         if throttler_type == "disk":
             update_nodes_dynamic_config({
@@ -1772,10 +1785,10 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
             self._enable_data_node_lookup("//tmp/t")
         if enable_hash_chunk_index:
             self._enable_hash_chunk_index("//tmp/t")
-        if exists("//tmp/t/@chunk_reader"):
-            set("//tmp/t/@chunk_reader/lookup_rpc_hedging_delay", 0)
-        else:
-            set("//tmp/t/@chunk_reader", {"lookup_rpc_hedging_delay": 0})
+        if not exists("//tmp/t/@chunk_reader"):
+            set("//tmp/t/@chunk_reader", {})
+        set("//tmp/t/@chunk_reader/lookup_rpc_hedging_delay", 0)
+        set("//tmp/t/@chunk_reader/enable_local_throttling", True)
         sync_mount_table("//tmp/t")
 
         keys = [{"key": i} for i in range(1)]
@@ -1864,8 +1877,17 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
         remount_table("//tmp/t")
         assert lookup_rows("//tmp/t", [{"key": i} for i in range(0, 100)]) == rows
 
+    @authors("akozhikhov")
+    def test_indexed_format_and_hunk_erasure_incompatibility(self):
+        sync_create_cells(1)
 
-@pytest.mark.enabled_multidaemon
+        self._create_simple_table("//tmp/t")
+        self._enable_hash_chunk_index("//tmp/t")
+        set("//tmp/t/@erasure_codec", "isa_reed_solomon_6_3")
+        with raises_yt_error('only for tables with null "erasure_codec"'):
+            sync_mount_table("//tmp/t")
+
+
 class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 2
@@ -1882,7 +1904,7 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
             "use_block_cache": False,
             "use_uncompressed_block_cache": False,
             "prefer_local_replicas": False
-        })
+        }, optimize_for="lookup")
 
         sync_mount_table("//tmp/t")
 
@@ -1916,7 +1938,6 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestLookupCache(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -1993,10 +2014,17 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
         sync_flush_table("//tmp/t")
 
-        for step in range(1, 5):
-            expected = [{"key": i, "value": _make_value(i)} for i in range(100, 200, 2 * step)]
-            actual = self._read("//tmp/t", range(100, 200, 2 * step), use_lookup_cache=True)
+        cache_hits = [0, 25, 42, 55]
+        for index in range(4):
+            step = 2 * (index + 1)
+            expected = [{"key": i, "value": _make_value(i)} for i in range(100, 200, step)]
+            actual = self._read("//tmp/t", range(100, 200, step), use_lookup_cache=True)
             assert_items_equal(actual, expected)
+
+            if peer_count == 1 and cache_hits[index] > 0:
+                path = f"//tmp/t/@tablets/0/performance_counters/dynamic_row_{self._performance_counter_type()}_count"
+                wait(lambda: get(path) > cache_hits[index - 1])
+                assert get(path) == cache_hits[index]
 
         # Lookup key without polluting cache to increment static_chunk_row_{lookup/read}_count.
         self._read("//tmp/t", [2])
@@ -2113,6 +2141,13 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
 
+        def _check_performance_counter(dynamic, old_value, expected):
+            if peer_count == 1:
+                counter_name = f"{'dynamic' if dynamic else 'static_chunk'}_row_{self._performance_counter_type()}"
+                path = f"//tmp/t/@tablets/0/performance_counters/{counter_name}_count"
+                wait(lambda: get(path) > old_value)
+                assert get(path) == expected
+
         self._create_simple_table(
             "//tmp/t",
             hunks,
@@ -2129,6 +2164,8 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         actual = self._read("//tmp/t", range(100, 200, 2), use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
+        _check_performance_counter(dynamic=True, old_value=0, expected=50)
+
         # Insert rows again to increase last store timestamp.
         rows = [{"key": i, "value": _make_value(2 * i)} for i in range(0, 300, 4)]
         insert_rows("//tmp/t", rows)
@@ -2140,13 +2177,12 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         actual = self._read("//tmp/t", range(100, 200, 2), use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
+        _check_performance_counter(dynamic=True, old_value=50, expected=100)
+
         # Lookup key without cache.
         self._read("//tmp/t", [2])
 
-        if peer_count == 1:
-            path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
-            wait(lambda: get(path) > 0)
-            assert get(path) == 1
+        _check_performance_counter(dynamic=False, old_value=0, expected=1)
 
     @authors("lukyan")
     @pytest.mark.timeout(200)
@@ -2455,7 +2491,6 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestLookupMulticell(TestLookup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -2466,7 +2501,6 @@ class TestLookupMulticell(TestLookup):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestLookupRpcProxy(TestLookup):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -2562,7 +2596,6 @@ class TestLookupRpcProxy(TestLookup):
         assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True,) == []
 
 
-@pytest.mark.enabled_multidaemon
 class TestLookupSequoia(TestLookup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -2604,7 +2637,6 @@ class TestLookupSequoia(TestLookup):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestLookupOutThrottlingLegacyThrottler(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {
@@ -2639,7 +2671,6 @@ class TestLookupOutThrottlingLegacyThrottler(TestSortedDynamicTablesBase):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestLookupOutThrottlingFairThrottler(TestLookupOutThrottlingLegacyThrottler):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {

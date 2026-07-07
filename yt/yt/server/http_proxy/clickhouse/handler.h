@@ -32,7 +32,7 @@ public:
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 
-    NScheduler::TOperationId GetOperationId(const TString& alias) const;
+    NScheduler::TOperationId GetOperationId(const std::string& alias) const;
 
 private:
     TBootstrap* const Bootstrap_;
@@ -43,7 +43,7 @@ private:
 
     IInvokerPtr ControlInvoker_;
 
-    NConcurrency::TSyncMap<TString, std::pair<int, NProfiling::TGauge>> UserToRunningQueryCount_;
+    NConcurrency::TSyncMap<std::string, std::pair<int, NProfiling::TGauge>> UserToRunningQueryCount_;
 
     //! Used for alias resolving and ACL fetching.
     NScheduler::TOperationCachePtr OperationCache_;
@@ -58,7 +58,7 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr OperationIdUpdateExecutor_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, OperationIdLock_);
-    THashMap<TString, NScheduler::TOperationId> AliasToOperationId_;
+    THashMap<std::string, NScheduler::TOperationId> AliasToOperationId_;
     std::atomic<bool> AliasToOperationIdInitialized_ = false;
 
     void AdjustQueryCount(const std::string& user, int delta);

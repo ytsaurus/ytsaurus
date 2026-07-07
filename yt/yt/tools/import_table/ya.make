@@ -17,6 +17,8 @@ SRCS(
 
 END()
 
-RECURSE_FOR_TESTS(
-    unittests
-)
+IF (NOT SANITIZER_TYPE)
+    RECURSE_FOR_TESTS(
+        unittests
+    )
+ENDIF()

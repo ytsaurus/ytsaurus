@@ -16,15 +16,14 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
-#include <yt/yt/core/ytree/ephemeral_node_factory.h>
-
-#include <yt/yt/core/concurrency/config.h>
-
-#include <yt/yt/core/ytree/fluent.h>
-
 #include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/library/program/config.h>
+
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/concurrency/config.h>
 
 namespace NYT::NControllerAgent {
 
@@ -327,10 +326,8 @@ void TDataBalancerOptions::Register(TRegistrar registrar)
 
 void TUserJobOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("thread_limit_multiplier", &TThis::ThreadLimitMultiplier)
-        .Default(10'000);
-    registrar.Parameter("initial_thread_limit", &TThis::InitialThreadLimit)
-        .Default(10'000);
+    registrar.Parameter("thread_limit_formula", &TThis::ThreadLimitFormula)
+        .DefaultCtor([] { return MakeArithmeticFormula("250000"); });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -581,8 +578,11 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("default_partition_data_weight_for_merging", &TThis::DefaultPartitionDataWeightForMerging)
-        .Default(50_MBs)
+        .Default(128_MBs)
         .GreaterThanOrEqual(1);
+
+    registrar.Parameter("enable_final_partitions_merging_by_default", &TThis::EnableFinalPartitionsMergingByDefault)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1094,9 +1094,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("udf_registry_path", &TThis::UdfRegistryPath)
         .Default();
 
-    registrar.Parameter("enable_tmpfs", &TThis::EnableTmpfs)
-        .Default(true);
     registrar.Parameter("enable_map_job_size_adjustment", &TThis::EnableMapJobSizeAdjustment)
+        .Default(true);
+    registrar.Parameter("enable_ordered_map_job_size_adjustment", &TThis::EnableOrderedMapJobSizeAdjustment)
         .Default(true);
     registrar.Parameter("enable_job_splitting", &TThis::EnableJobSplitting)
         .Default(true);
@@ -1160,6 +1160,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("alert_manager", &TThis::AlertManager)
         .Alias("operation_alerts")
         .DefaultNew();
+
+    registrar.Parameter("max_job_thread_count_formula", &TThis::MaxJobThreadCountFormula)
+        .Default();
 
     registrar.Parameter("controller_row_buffer_chunk_size", &TThis::ControllerRowBufferChunkSize)
         .Default(64_KB)
@@ -1309,7 +1312,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     // COMPAT(gritukan): This default is quite dangerous, change it when all controller agents will have fresh configs.
     registrar.Parameter("tags", &TThis::Tags)
-        .Default(std::vector<TString>({"default"}));
+        .Default(std::vector<std::string>({"default"}));
 
     registrar.Parameter("user_job_monitoring", &TThis::UserJobMonitoring)
         .DefaultNew();
@@ -1320,6 +1323,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("deprecated_media", &TThis::DeprecatedMedia)
         .Alias("deprecated_mediums")
+        .Default();
+
+    registrar.Parameter("nbd_media", &TThis::NbdMedia)
+        .Alias("nbd_mediums")
         .Default();
 
     registrar.Parameter("enable_master_resource_usage_accounting", &TThis::EnableMasterResourceUsageAccounting)
@@ -1381,6 +1388,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();
 
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
+        .DefaultNew();
+
     registrar.Parameter("max_job_aborts_until_operation_failure", &TThis::MaxJobAbortsUntilOperationFailure)
         .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}, {EAbortReason::NbdError, 10}}));
 
@@ -1426,6 +1436,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("fail_operations_in_empty_trees", &TThis::FailOperationsInEmptyTrees)
         .Default(true);
 
+    registrar.Parameter("forbid_operations_on_offshore_media", &TThis::ForbidOperationsOnOffshoreMedia)
+        .Default(true);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 
@@ -1453,7 +1466,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         BuildOptions(&config->RemoteCopyOperationOptions, config->RemoteCopyOperationOptionsNode, config->OperationOptions);
         BuildOptions(&config->VanillaOperationOptions, config->VanillaOperationOptionsNode, config->OperationOptions);
 
-        THashSet<TString> customJobMetricsProfilingNames;
+        THashSet<std::string> customJobMetricsProfilingNames;
         for (const auto& customJobMetricDescription : config->CustomJobMetrics) {
             const auto& profilingName = customJobMetricDescription.ProfilingName;
 
@@ -1484,6 +1497,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
                 config->CudaProfilerEnvironment->PathEnvironmentVariableName,
                 config->CudaProfilerEnvironment->PathEnvironmentVariableValue);
         }
+
+#if defined(_tsan_enabled_)
+        // TODO(pogorelov): Implement building snapshots without fork to improve compatibility with tsan (YT-27927).
+        config->EnableSnapshotBuilding = false;
+        config->EnableSnapshotBuildingDisabledAlert = false;
+#endif
     });
 }
 

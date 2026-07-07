@@ -41,6 +41,13 @@ IF (OS_ANDROID)
     GO_TEST_SRCS(signal_linux_test.go)
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        signal_unix.go
+        signal_unsupported.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

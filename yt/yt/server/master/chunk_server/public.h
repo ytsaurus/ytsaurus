@@ -87,6 +87,7 @@ using NChunkClient::TChunkReplicaWithLocationList;
 using NChunkClient::ChunkShardCount;
 using NChunkClient::TypicalChunkLocationCount;
 using NChunkClient::EChunkListContentType;
+using NChunkClient::EChunkReplicaState;
 
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
@@ -116,6 +117,8 @@ DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TChunkLocation)
 DECLARE_MASTER_OBJECT_TYPE(TChunk)
+DECLARE_MASTER_OBJECT_TYPE(TMainTreeChunkList)
+DECLARE_MASTER_OBJECT_TYPE(THunkTreeChunkList)
 DECLARE_MASTER_OBJECT_TYPE(TChunkList)
 DECLARE_MASTER_OBJECT_TYPE(TChunkTree)
 DECLARE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
@@ -134,6 +137,7 @@ class TChunkRequisition;
 class TChunkRequisitionRegistry;
 
 struct TChunkTreeStatistics;
+struct THunkChunkTreeStatistics;
 struct TAggregatedNodeStatistics;
 
 struct TChunkOwnerDataStatistics;
@@ -174,6 +178,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicChunkServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicAllyReplicaManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicConsistentReplicaPlacementConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicSequoiaChunkReplicasConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicSequoiaChunkReplicasStoreConfig)
 DECLARE_REFCOUNTED_STRUCT(TDomesticMediumConfig)
 DECLARE_REFCOUNTED_STRUCT(TS3MediumConfig)
 
@@ -242,17 +247,10 @@ DEFINE_ENUM(EChunkListKind,
     ((HunkTablet)            (10))
 );
 
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,
-    ((Generic)               (0))
-    ((Active)                (1))
-    ((Unsealed)              (2))
-    ((Sealed)                (3))
-);
-
 DEFINE_ENUM(EChunkLocationState,
     // Belongs to a node that is not online.
     ((Offline)   (0))
-    // Belongs to a node that is online and reports presence of this location.
+    // Belongs to a node that has alive local state and reports presence of this location.
     ((Online)    (1))
     // Belongs to a node that is online but does not report presence of this location.
     ((Dangling)  (2))

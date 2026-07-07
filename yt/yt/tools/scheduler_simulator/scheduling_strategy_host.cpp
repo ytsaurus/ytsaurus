@@ -163,7 +163,7 @@ const std::string& TStrategyHost::GetMediumNameByIndex(int /*mediumIndex*/) cons
     return defaultMediumName;
 }
 
-TString TStrategyHost::FormatResources(const TJobResourcesWithQuota& resources) const
+std::string TStrategyHost::FormatResources(const TJobResourcesWithQuota& resources) const
 {
     return NScheduler::FormatResources(resources);
 }
@@ -181,7 +181,7 @@ void TStrategyHost::SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYson
 void TStrategyHost::ValidatePoolPermission(
     const std::string& /*treeId*/,
     TGuid /*poolObjectId*/,
-    const TString& /*poolName*/,
+    const std::string& /*poolName*/,
     const std::string& /*user*/,
     NYTree::EPermission /*permission*/) const
 { }
@@ -241,7 +241,7 @@ TFuture<void> TStrategyHost::SetOperationAlert(
 void TStrategyHost::LogResourceMetering(
     const TMeteringKey& /*key*/,
     const TMeteringStatistics& /*statistics*/,
-    const THashMap<TString, TString>& /*otherTags*/,
+    const THashMap<std::string, std::string>& /*otherTags*/,
     TInstant /*connectionTime*/,
     TInstant /*previousLogTime*/,
     TInstant /*currentTime*/)
@@ -270,9 +270,9 @@ void TStrategyHost::CloseEventLogger()
     }
 }
 
-const THashMap<std::string, TString>& TStrategyHost::GetUserDefaultParentPoolMap() const
+const THashMap<std::string, std::string>& TStrategyHost::GetUserDefaultParentPoolMap() const
 {
-    static const THashMap<std::string, TString> stub;
+    static const THashMap<std::string, std::string> stub;
     return stub;
 }
 

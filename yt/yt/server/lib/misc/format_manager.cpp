@@ -100,7 +100,7 @@ void TFormatManager::ValidateAndPatchOperationSpec(
     }
 }
 
-void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TString origin) const
+void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, std::string origin) const
 {
     EFormatType formatType;
     try {
@@ -123,7 +123,7 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TStr
     }
 
     if (AuthenticatedUser_ != NSecurityClient::RootUserName && !formatConfig->Enable) {
-        TString errorMessage;
+        std::string errorMessage;
         if (userOverride) {
             errorMessage = Format("Format %Qlv is disabled for user %Qv", formatType, AuthenticatedUser_);
         } else {
@@ -147,7 +147,7 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TStr
     }
 }
 
-TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, TString origin) const
+TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, std::string origin) const
 {
     ValidateAndPatchFormatNode(formatNode, origin);
     try {

@@ -46,7 +46,6 @@ def parse_arrow_stream(data):
 
 @authors("nadya02")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-@pytest.mark.enabled_multidaemon
 class TestArrowFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -550,10 +549,29 @@ class TestArrowFormat(YTEnvSetup):
         write_table("//tmp/tt", [{"a": None}] * 10)
         read_table("//tmp/tt", output_format=ARROW_FORMAT)
 
+    @authors("nadya73")
+    def test_optional_yson_null(self, optimize_for):
+        schema_null = [
+            {"name": "a", "required": False, "type_v3": "null"},
+        ]
+        create("table", "//tmp/t_null", attributes={"schema": schema_null, "optimize_for": optimize_for})
+        write_table("//tmp/t_null", [{"a": None}])
+
+        schema_any = [
+            {"name": "a", "required": False, "type_v3": {"type_name": "optional", "item": "yson"}},
+        ]
+        create("table", "//tmp/t_any", attributes={"schema": schema_any, "optimize_for": optimize_for})
+        merge(in_="//tmp/t_null", out="<append=%true>//tmp/t_any")
+
+        result = parse_arrow_stream(read_table("//tmp/t_any", output_format=ARROW_FORMAT))
+
+        assert result.column_names == ["a"]
+        assert result.schema.field("a").type == pa.binary()
+        assert result["a"].to_pylist() == [None]
+
 
 @authors("nadya02")
 @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-@pytest.mark.enabled_multidaemon
 class TestMapArrowFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1003,7 +1021,6 @@ class TestMapArrowFormat(YTEnvSetup):
 
 
 @authors("nadya73")
-@pytest.mark.enabled_multidaemon
 class TestArrowIntegerColumn_YTADMINREQ_34427(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1047,7 +1064,6 @@ class TestArrowIntegerColumn_YTADMINREQ_34427(YTEnvSetup):
 
 @authors("rp-1")
 @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-@pytest.mark.enabled_multidaemon
 class TestComplexTypesArrowFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3

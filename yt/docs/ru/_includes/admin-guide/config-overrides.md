@@ -74,3 +74,6 @@ spec:
 - `ytserver-scheduler.yson` &mdash; планировщик
 - `ytserver-controller-agent.yson` &mdash; контроллер-агенты
 - `ytserver-discovery.yson` &mdash; сервис обнаружения прокси
+{%if audience == "public" %}
+- `ytserver-yql-agent.yson` &mdash; YQL-агент
+{% endif %}

@@ -27,6 +27,8 @@
 
 #include <yt/yt/core/compression/public.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -243,7 +245,7 @@ protected:
         InitNameTable(WriteNameTable_);
 
         Y_UNUSED(chunkWriter->Write(Rows_));
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         MemoryReader_ = CreateMemoryReader(
             memoryWriter->GetChunkMeta(),
@@ -425,7 +427,7 @@ protected:
             /*dataSink*/ std::nullopt);
 
         Y_UNUSED(chunkWriter->Write(Rows_));
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         ChunkMeta_ = memoryWriter->GetChunkMeta();
 
@@ -551,7 +553,7 @@ protected:
         Rows_ = builder.Build();
 
         Y_UNUSED(chunkWriter->Write(Rows_));
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         MemoryReader_ = CreateMemoryReader(
             memoryWriter->GetChunkMeta(),
@@ -638,6 +640,34 @@ TEST_F(TColumnarReadTest, ReadAll)
     }
     auto statistics = reader->GetDataStatistics();
     EXPECT_EQ(N, statistics.row_count());
+}
+
+TEST_F(TColumnarReadTest, EmptyKeyRange)
+{
+    // c1 = i % 10.
+    // c1 >= 10000 is past all data in the chunk,
+    // so InitLowerRowIndex sets LowerRowIndex_ == HardUpperRowIndex_.
+    TUnversionedOwningRowBuilder rowBuilder;
+    rowBuilder.AddValue(MakeUnversionedInt64Value(10000, /*id*/ 0));
+    auto keyRow = rowBuilder.FinishRow();
+    auto lowerBound = TOwningKeyBound::FromRow(keyRow, /*inclusive*/ true, /*upper*/ false);
+
+    auto reader = CreateSchemalessRangeChunkReader(
+        CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
+        ChunkState_,
+        ChunkMeta_,
+        TChunkReaderConfig::GetDefault(),
+        TChunkReaderOptions::GetDefault(),
+        MemoryReader_,
+        TNameTable::FromSchema(*Schema_),
+        /*chunkReadOptions*/ {},
+        Schema_->GetSortColumns(),
+        /*omittedInaccessibleColumns*/ {},
+        TColumnFilter(),
+        TReadRange(TReadLimit(lowerBound), TReadLimit()));
+
+    EXPECT_FALSE(ReadRowBatch(reader));
+    EXPECT_EQ(0, reader->GetDataStatistics().row_count());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -865,7 +895,7 @@ protected:
     void InitChunk()
     {
         Y_UNUSED(ChunkWriter_->Write(Rows_));
-        EXPECT_TRUE(ChunkWriter_->Close().Get().IsOK());
+        EXPECT_TRUE(WaitForFast(ChunkWriter_->Close()).IsOK());
 
         MemoryReader_ = CreateMemoryReader(
             MemoryWriter_->GetChunkMeta(),

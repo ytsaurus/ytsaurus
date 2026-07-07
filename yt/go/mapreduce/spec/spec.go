@@ -61,6 +61,7 @@ type UserScript struct {
 	UsePortoMemoryTracking *bool          `yson:"use_porto_memory_tracking,omitempty"`
 	UseSmapsMemoryTracker  *bool          `yson:"use_smaps_memory_tracker,omitempty"`
 	Monitoring             map[string]any `yson:"monitoring,omitempty"`
+	EnableGpuCheck         *bool          `yson:"enable_gpu_check,omitempty"`
 
 	// Following fields are used only in vanilla operations.
 	JobCount         int           `yson:"job_count,omitempty"`
@@ -113,6 +114,10 @@ type AutoMerge struct {
 	MaxIntermediateChunkCount int `yson:"max_intermediate_chunk_count,omitempty"`
 	ChunkCountPerMergeJob     int `yson:"chunk_count_per_merge_job,omitempty"`
 	ChunkSizeThreshold        int `yson:"chunk_size_threshold,omitempty"`
+}
+
+type JobSplitter struct {
+	EnableJobSplitting *bool `yson:"enable_job_splitting,omitempty"`
 }
 
 const (
@@ -190,6 +195,8 @@ type Spec struct {
 
 	JobCPUMonitor *JobCPUMonitor `yson:"job_cpu_monitor,omitempty"`
 
+	EnableRootVolumeDiskQuota bool `yson:"enable_root_volume_disk_quota,omitempty"`
+
 	Mapper         *UserScript            `yson:"mapper,omitempty"`
 	Reducer        *UserScript            `yson:"reducer,omitempty"`
 	ReduceCombiner *UserScript            `yson:"reduce_combiner,omitempty"`
@@ -203,6 +210,7 @@ type Spec struct {
 	SortJobIO      *JobIO `yson:"sort_job_io,omitempty"`
 
 	AutoMerge                    *AutoMerge          `yson:"auto_merge,omitempty"`
+	JobSplitter                  *JobSplitter        `yson:"job_splitter,omitempty"`
 	InputTableColumnarStatistics *ColumnarStatistics `yson:"input_table_columnar_statistics,omitempty"`
 	UserFileColumnarStatistics   *ColumnarStatistics `yson:"user_file_columnar_statistics,omitempty"`
 

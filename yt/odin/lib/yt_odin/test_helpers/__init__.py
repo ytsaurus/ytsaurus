@@ -107,10 +107,9 @@ def configure_odin(yt_cluster_url, checks_path):
     storage_file = tempfile.mkstemp()[1]
     storage_factory = lambda: FileStorage(storage_file)  # noqa
 
-    socket_path = os.path.join(
-        tempfile.gettempdir(),
-        "{}.sock".format(generate_unique_id("configure_checks"))
-    )
+    # Short dir: sandbox tempdir overflows the ~108-byte AF_UNIX limit.
+    socket_dir = tempfile.mkdtemp(prefix="odin_", dir="/tmp")
+    socket_path = os.path.join(socket_dir, "checks.sock")
 
     odin_module.RELOAD_CHECKS = True
     odin = Odin(
@@ -128,6 +127,7 @@ def configure_odin(yt_cluster_url, checks_path):
         yield odin
     finally:
         odin.terminate()
+        shutil.rmtree(socket_dir, ignore_errors=True)
 
 
 def configure_and_run_checks(yt_cluster_url, checks_path):

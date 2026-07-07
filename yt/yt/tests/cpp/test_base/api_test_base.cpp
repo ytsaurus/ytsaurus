@@ -87,8 +87,10 @@ void TApiTestBase::SetUpTestCase()
         config->GetChildOrThrow("writers")->AsMap()->AddChild("stderr", ConvertToNode(stderrConfig));
 
         auto ruleConfig = New<NLogging::TRuleConfig>();
-        ruleConfig->IncludeCategories = {"CppTests"};
         ruleConfig->Writers = {"stderr"};
+        // NB: the only reason to use min_level=debug is to suppress useless
+        // "Concurrency" and "Bus" categories in stderr.
+        ruleConfig->MinLevel = NLogging::ELogLevel::Debug;
         config
             ->GetChildOrThrow("rules")
             ->AsList()
@@ -99,19 +101,20 @@ void TApiTestBase::SetUpTestCase()
 
     {
         const auto* testSuite = ::testing::UnitTest::GetInstance()->current_test_suite();
-        YT_LOG_INFO("Set Up Test (SuiteName: %v)",
+        YT_LOG_INFO("Testcase setup (SuiteName: %v)",
             testSuite->name());
     }
 
     Client_ = CreateClient(NRpc::RootUserName);
-    ClusterName_ = ConvertTo<std::string>(WaitFor(Client_->GetNode("//sys/@cluster_name")).ValueOrThrow());
+    ClusterName_ = ConvertTo<std::string>(WaitFor(Client_->GetNode("//sys/@cluster_name"))
+        .ValueOrThrow());
 }
 
 void TApiTestBase::TearDownTestCase()
 {
     {
         const auto* testSuite = ::testing::UnitTest::GetInstance()->current_test_suite();
-        YT_LOG_INFO("Tear Down Test (SuiteName: %v)",
+        YT_LOG_INFO("Testcase teardown (SuiteName: %v)",
             testSuite->name());
     }
 
@@ -127,25 +130,42 @@ IClientPtr TApiTestBase::CreateClient(const std::string& userName)
     return Connection_->CreateClient(clientOptions);
 }
 
-void TApiTestBase::WaitUntil(
+void WaitUntil(
     std::function<bool()> predicate,
-    TStringBuf errorMessage)
+    TStringBuf errorMessage,
+    TWaitUntilOptions options)
 {
     auto start = Now();
-    bool reached = false;
-    for (int attempt = 0; attempt < 2*30; ++attempt) {
-        if (predicate()) {
-            reached = true;
-            break;
+    std::exception_ptr lastException;
+
+    while (Now() - start < options.Timeout) {
+        try {
+            if (predicate()) {
+                return;
+            }
+        } catch (...) {
+            if (!options.IgnoreExceptions) {
+                throw;
+            }
+            lastException = std::current_exception();
         }
-        Sleep(TDuration::MilliSeconds(500));
+        Sleep(options.SleepBackoff);
     }
 
-    if (!reached) {
-        THROW_ERROR_EXCEPTION("%v after %v seconds",
-            errorMessage,
-            (Now() - start).Seconds());
+    TStringBuilder message;
+    message.AppendFormat("%v (Timeout: %v", errorMessage, options.Timeout);
+    if (lastException) {
+        try {
+            std::rethrow_exception(lastException);
+        } catch (const std::exception& ex) {
+            message.AppendFormat(", LastException: %v", ex.what());
+        } catch (...) {
+            message.AppendString(", LastException: <unknown>");
+        }
     }
+    message.AppendChar(')');
+
+    THROW_ERROR_EXCEPTION("%v", message.Flush());
 }
 
 void TApiTestBase::WaitUntilEqual(const TYPath& path, TStringBuf expected)
@@ -248,14 +268,14 @@ void TDynamicTablesTestBase::SetUpTestCase()
 }
 
 void TDynamicTablesTestBase::CreateTable(
-    const TString& tablePath,
-    const TString& schema,
+    const NYPath::TYPath& tablePath,
+    const NYson::TYsonString& schema,
     bool mount)
 {
     Table_ = tablePath;
     ASSERT_TRUE(tablePath.StartsWith("//tmp"));
 
-    auto attributes = TYsonString("{dynamic=%true;schema=" + schema + "}");
+    auto attributes = TYsonString(std::string("{dynamic=%true;schema=") + std::string(schema.AsStringBuf()) + "}");
     TCreateNodeOptions options;
     options.Attributes = ConvertToAttributes(attributes);
 
@@ -285,8 +305,8 @@ void TDynamicTablesTestBase::SyncUnfreezeTable(const TYPath& path)
 {
     auto currentTabletStateYson = WaitFor(Client_->GetNode(path + "/@tablet_state"))
         .ValueOrThrow();
-    auto currentTabletState = ConvertTo<TString>(currentTabletStateYson);
-    YT_VERIFY(currentTabletState == "frozen");
+    auto currentTabletState = ConvertTo<ETabletState>(currentTabletStateYson);
+    YT_VERIFY(currentTabletState == ETabletState::Frozen);
 
     WaitFor(Client_->UnfreezeTable(path))
         .ThrowOnError();

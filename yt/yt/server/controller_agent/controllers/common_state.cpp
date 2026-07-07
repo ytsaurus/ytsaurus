@@ -3,8 +3,6 @@
 #include "common_profilers.h"
 #include "vanilla_controller.h"
 
-#include <yt/yt/core/concurrency/action_queue.h>
-
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NProfiling;
@@ -12,8 +10,6 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-NConcurrency::TActionQueuePtr ProfilerQueue;
 
 TJobProfilerPtr JobProfilerInstance;
 TScheduleJobProfilerPtr ScheduleJobProfilerInstance;
@@ -30,21 +26,15 @@ void InitCommonState(const NProfiling::TProfiler& profiler)
     // initialization of profilers and usage of it.
     auto guard = Guard(lock);
 
-    if (ProfilerQueue) {
+    if (JobProfilerInstance) {
         return;
     }
 
     InitVanillaProfilers(profiler);
 
-    ProfilerQueue = New<NConcurrency::TActionQueue>("ControllerProfilers");
-
     // NB(pogorelov): We have tests with multidaemon mode, so several CAs may run in the same process.
-    if (!JobProfilerInstance) {
-        JobProfilerInstance = New<TJobProfiler>(ProfilerQueue->GetInvoker());
-    }
-    if (!ScheduleJobProfilerInstance) {
-        ScheduleJobProfilerInstance = New<TScheduleJobProfiler>(ProfilerQueue->GetInvoker());
-    }
+    JobProfilerInstance = New<TJobProfiler>();
+    ScheduleJobProfilerInstance = New<TScheduleJobProfiler>();
 }
 
 const TJobProfilerPtr& GetJobProfiler()

@@ -15,6 +15,20 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const std::string DefaultParameterizedMetricFormula;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const std::vector<NYPath::TYPath> ParameterizedBalancingAttributes;
+
+double ExtractMetricValue(
+    const NTableClient::TUnversionedValue& value,
+    const std::string& metric,
+    TTabletId tabletId,
+    TTableId tableId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! The ultimate goal of this class is to evenly distribute tablets between cells.
 //!
 //! A metric is calculated for each tablet based on its statistics and performance counters.
@@ -65,7 +79,7 @@ struct TParameterizedReassignSolverConfig
     double NodeDeviationThreshold = 0;
     double CellDeviationThreshold = 0;
     double MinRelativeMetricImprovement = 0;
-    TString Metric;
+    std::string Metric;
     TComponentFactorConfigPtr Factors = TComponentFactorConfig::MakeDefaultIdentity();
 
     TParameterizedReassignSolverConfig MergeWith(
@@ -76,7 +90,7 @@ struct TParameterizedReassignSolverConfig
 struct TParameterizedResharderConfig
 {
     bool EnableReshardByDefault = false;
-    TString Metric;
+    std::string Metric;
 
     TParameterizedResharderConfig MergeWith(const TParameterizedBalancingConfigPtr& groupConfig) const;
 };
@@ -90,7 +104,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<std::string> performanceCountersKeys,
     TParameterizedReassignSolverConfig config,
-    TString groupName,
+    TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
     const NLogging::TLogger& logger);
 
@@ -109,7 +123,7 @@ IParameterizedResharderPtr CreateParameterizedResharder(
     TTabletCellBundlePtr bundle,
     std::vector<std::string> performanceCountersKeys,
     TParameterizedResharderConfig config,
-    TString groupName,
+    TGroupName groupName,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

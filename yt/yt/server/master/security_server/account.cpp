@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/yt/core/ypath/tokenizer.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -30,6 +32,7 @@ using namespace NServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = SecurityServerLogger;
+constinit const auto Profiler = AccountProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +71,17 @@ void Serialize(const TAccountStatistics& statistics, IYsonConsumer* consumer, co
     fluent
         .EndMap();
 }
+
+void FormatValue(TStringBuilderBase* builder, const TAccountStatistics& statistics, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{ResourceUsage: %v, CommittedResourceUsage: %v}",
+        statistics.ResourceUsage,
+        statistics.CommittedResourceUsage);
+}
+
+const TAccountStatistics TAccountStatistics::Empty = TAccountStatistics();
+
+////////////////////////////////////////////////////////////////////////////////
 
 TAccountStatistics& operator+=(TAccountStatistics& lhs, const TAccountStatistics& rhs)
 {
@@ -226,13 +240,111 @@ void Deserialize(TChunkMergerCriteria& criteria, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateCorrectPath(const TYPath& path)
+{
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Slash);
+    tokenizer.Advance();
+    while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        tokenizer.Advance();
+    }
+}
+
+void TAccountBackupConfig::Validate(const TBootstrap* bootstrap) const
+{
+    const auto& securityManager = bootstrap->GetSecurityManager();
+
+    auto* backupAccount = securityManager->FindAccount(BackupAccountId);
+    if (!backupAccount) {
+        THROW_ERROR_EXCEPTION("Invalid backup config: backup account %v not found", BackupAccountId);
+    }
+    if (!IsObjectActive(backupAccount)) {
+        THROW_ERROR_EXCEPTION("Invalid backup config: backup account %v is removed", BackupAccountId);
+    }
+
+    ValidateCorrectPath(BackupPath);
+    if (!TrimPathPrefix.empty()) {
+        ValidateCorrectPath(TrimPathPrefix);
+    }
+}
+
+void TAccountBackupConfig::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, BackupAccountId);
+    Save(context, BackupPath);
+    Save(context, TrimPathPrefix);
+}
+
+void TAccountBackupConfig::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, BackupAccountId);
+    Load(context, BackupPath);
+    Load(context, TrimPathPrefix);
+}
+
+void SerializeAccountBackupConfig(
+    const TAccountBackupConfig& config,
+    NYson::IYsonConsumer* consumer,
+    const TBootstrap* bootstrap)
+{
+    try {
+        config.Validate(bootstrap);
+    } catch (const std::exception& e) {
+        YT_LOG_ALERT_AND_THROW(e, "Failed to validate account during backup config serialization");
+    }
+
+    const auto& securityManager = bootstrap->GetSecurityManager();
+    const auto* backupAccount = securityManager->GetAccount(config.BackupAccountId);
+
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("backup_account").Value(backupAccount->GetName())
+            .Item("backup_path").Value(config.BackupPath)
+            .Item("trim_path_prefix").Value(config.TrimPathPrefix)
+        .EndMap();
+}
+
+TAccountBackupConfig DeserializeAccountBackupConfig(
+    INodePtr node,
+    const TBootstrap* bootstrap)
+{
+    const auto& securityManager = bootstrap->GetSecurityManager();
+
+    auto map = node->AsMap();
+    auto backupAccountName = map->FindChild("backup_account")->AsString()->GetValue();
+
+    const auto* backupAccount = securityManager->FindAccountByName(backupAccountName, /*activeLifeStageOnly*/ true);
+    if (!backupAccount) {
+        THROW_ERROR_EXCEPTION("Invalid backup config: backup account %Qv not found", backupAccountName);
+    }
+    TAccountBackupConfig config;
+
+    config.BackupAccountId = backupAccount->GetId();
+    config.BackupPath = map->FindChild("backup_path")->AsString()->GetValue();
+    config.TrimPathPrefix = map->FindChild("trim_path_prefix")->AsString()->GetValue();
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAccount::TAccount(TAccountId id, bool isRoot)
     : TNonversionedMapObjectBase<TAccount>(id, isRoot)
-    , MergeJobThrottler_(CreateReconfigurableThroughputThrottler(TThroughputThrottlerConfig::Create(0)))
+    , MergeJobThrottler_(CreateReconfigurableThroughputThrottler(
+        TThroughputThrottlerConfig::Create(0),
+        Logger(),
+        Profiler().WithPrefix("/merge_job_throttler")))
     , ShardIndex_(GetAccountShardIndex(id))
     , ProfilingBucketIndex_(GetAccountProfilingBucketIndex(id))
     , ChunkMergerNodeTraversals_(id)
-{ }
+{
+    MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
+}
 
 std::string TAccount::GetLowercaseObjectName() const
 {
@@ -271,6 +383,7 @@ void TAccount::Save(NCellMaster::TSaveContext& context) const
     Save(context, AllowUsingChunkMerger_);
     Save(context, ChunkMergerCriteria_);
     Save(context, EnableChunkReincarnation_);
+    Save(context, BackupConfig_);
 }
 
 void TAccount::Load(NCellMaster::TLoadContext& context)
@@ -300,21 +413,24 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkMergerCriteria_);
     Load(context, EnableChunkReincarnation_);
 
+    // COMPAT(grphil)
+    if ((context.GetVersion() >= EMasterReign::TableBackupAttributes && context.GetVersion() < EMasterReign::Start_26_2) ||
+        context.GetVersion() >= EMasterReign::TableBackupAttributes_26_2)
+    {
+        Load(context, BackupConfig_);
+    }
+
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
 }
 
-void TAccount::SetLocalStatisticsPtr(TAccountStatistics *value) {
+void TAccount::SetLocalStatisticsPtr(TAccountStatistics *value)
+{
     LocalStatisticsPtr_ = value;
 }
 
 const TAccountStatistics& TAccount::LocalStatistics()
 {
     return *LocalStatisticsPtr_;
-}
-
-void TAccount::IncreaseLocalStatistics(const TAccountStatistics& delta)
-{
-    *LocalStatisticsPtr_ += delta;
 }
 
 void TAccount::SetLocalStatistics(const TAccountStatistics& statistics)
@@ -425,14 +541,14 @@ void TAccount::AttachChild(const std::string& key, TAccount* child) noexcept
     TNonversionedMapObjectBase<TAccount>::AttachChild(key, child);
 
     const auto& childLocalStatistics = child->LocalStatistics();
-    const auto& childClusterStatistics = child->ClusterStatistics();
     const auto& childMasterMemoryUsage = child->DetailedMasterMemoryUsage();
+
+    const auto& securityManager = GetBootstrap()->GetSecurityManager();
 
     for (auto* account = this; account; account = account->GetParent()) {
         auto& masterMemoryUsage = account->DetailedMasterMemoryUsage();
 
-        account->IncreaseLocalStatistics(childLocalStatistics);
-        account->IncreaseClusterStatistics(childClusterStatistics);
+        securityManager->IncreaseLocalAndClusterAccountStatistics(account, childLocalStatistics);
 
         masterMemoryUsage += childMasterMemoryUsage;
     }
@@ -443,14 +559,14 @@ void TAccount::DetachChild(TAccount* child) noexcept
     TNonversionedMapObjectBase<TAccount>::DetachChild(child);
 
     const auto& childLocalStatistics = child->LocalStatistics();
-    const auto& childClusterStatistics = child->ClusterStatistics();
     const auto& childMasterMemoryUsage = child->DetailedMasterMemoryUsage();
+
+    const auto& securityManager = GetBootstrap()->GetSecurityManager();
 
     for (auto* account = this; account; account = account->GetParent()) {
         auto& masterMemoryUsage = account->DetailedMasterMemoryUsage();
 
-        account->IncreaseLocalStatistics(-childLocalStatistics);
-        account->IncreaseClusterStatistics(-childClusterStatistics);
+        securityManager->IncreaseLocalAndClusterAccountStatistics(account, -childLocalStatistics);
 
         masterMemoryUsage -= childMasterMemoryUsage;
     }

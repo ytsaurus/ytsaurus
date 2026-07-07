@@ -44,6 +44,8 @@ public class SelectRowsRequest
     @Nullable
     private final ReplicaConsistency replicaConsistency;
     @Nullable
+    private final Integer expressionBuilderVersion;
+    @Nullable
     private final YTreeMapNode placeholderValues;
 
     public SelectRowsRequest(BuilderBase<?> builder) {
@@ -62,6 +64,7 @@ public class SelectRowsRequest
         this.rangeExpansionLimit = builder.rangeExpansionLimit;
         this.useCanonicalNullRelations = builder.useCanonicalNullRelations;
         this.replicaConsistency = builder.replicaConsistency;
+        this.expressionBuilderVersion = builder.expressionBuilderVersion;
         this.placeholderValues = builder.placeholderValues;
     }
 
@@ -133,6 +136,10 @@ public class SelectRowsRequest
         return Optional.ofNullable(replicaConsistency);
     }
 
+    public OptionalInt getExpressionBuilderVersion() {
+        return expressionBuilderVersion == null ? OptionalInt.empty() : OptionalInt.of(expressionBuilderVersion);
+    }
+
     public Optional<YTreeMapNode> getPlaceholderValues() {
         return Optional.ofNullable(placeholderValues);
     }
@@ -181,6 +188,9 @@ public class SelectRowsRequest
         }
         if (getReplicaConsistency().isPresent()) {
             builder.body().setReplicaConsistency(getReplicaConsistency().get().getProtoValue());
+        }
+        if (getExpressionBuilderVersion().isPresent()) {
+            builder.body().setExpressionBuilderVersion(getExpressionBuilderVersion().getAsInt());
         }
         if (getPlaceholderValues().isPresent()) {
             builder.body().setPlaceholderValues(ByteString.copyFrom(getPlaceholderValues().get().toBinary()));
@@ -241,6 +251,9 @@ public class SelectRowsRequest
         if (replicaConsistency != null) {
             builder.setReplicaConsistency(replicaConsistency);
         }
+        if (expressionBuilderVersion != null) {
+            builder.setExpressionBuilderVersion(expressionBuilderVersion);
+        }
         if (placeholderValues != null) {
             builder.setPlaceholderValues(placeholderValues);
         }
@@ -285,6 +298,8 @@ public class SelectRowsRequest
         private Boolean useCanonicalNullRelations;
         @Nullable
         private ReplicaConsistency replicaConsistency;
+        @Nullable
+        private Integer expressionBuilderVersion;
         @Nullable YTreeMapNode placeholderValues;
 
         public BuilderBase() {
@@ -306,6 +321,7 @@ public class SelectRowsRequest
             rangeExpansionLimit = builder.rangeExpansionLimit;
             useCanonicalNullRelations = builder.useCanonicalNullRelations;
             replicaConsistency = builder.replicaConsistency;
+            expressionBuilderVersion = builder.expressionBuilderVersion;
             placeholderValues = builder.placeholderValues;
         }
 
@@ -379,6 +395,11 @@ public class SelectRowsRequest
             return self();
         }
 
+        public TBuilder setExpressionBuilderVersion(int expressionBuilderVersion) {
+            this.expressionBuilderVersion = expressionBuilderVersion;
+            return self();
+        }
+
         public TBuilder setPlaceholderValues(YTreeMapNode placeholderValues) {
             this.placeholderValues = placeholderValues;
             return self();
@@ -438,6 +459,10 @@ public class SelectRowsRequest
 
         public Optional<ReplicaConsistency> getReplicaConsistency() {
             return Optional.ofNullable(replicaConsistency);
+        }
+
+        public OptionalInt getExpressionBuilderVersion() {
+            return expressionBuilderVersion == null ? OptionalInt.empty() : OptionalInt.of(expressionBuilderVersion);
         }
 
         public Optional<YTreeMapNode> getPlaceholderValues() {

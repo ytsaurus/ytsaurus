@@ -35,6 +35,20 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTestConfig
+    : public NYTree::TYsonStruct
+{
+    bool DuplicateDirectoryUpdate;
+
+    REGISTER_YSON_STRUCT(TTestConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCellDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
@@ -49,8 +63,8 @@ struct TCellDirectorySynchronizerConfig
     TDuration ExpireAfterSuccessfulUpdateTime;
     TDuration ExpireAfterFailedUpdateTime;
 
-    //! For tests only.
-    bool DuplicateDirectoryUpdate;
+    // NB: Section for testing purposes.
+    TTestConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TCellDirectorySynchronizerConfig);
 
@@ -58,6 +72,32 @@ struct TCellDirectorySynchronizerConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCellDirectorySynchronizerOverrideDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    //! Interval between subsequent directory updates.
+    std::optional<TDuration> SyncPeriod;
+
+    //! Delay before the next directory update in case the last one was unsuccessful.
+    //! Usually should be (significantly) less than #SyncPeriod.
+    //! If null, #SyncPeriod is used instead.
+    std::optional<TDuration> RetryPeriod;
+
+    std::optional<TDuration> ExpireAfterSuccessfulUpdateTime;
+    std::optional<TDuration> ExpireAfterFailedUpdateTime;
+
+    // NB: Section for testing purposes.
+    std::optional<TTestConfigPtr> Testing;
+
+    REGISTER_YSON_STRUCT(TCellDirectorySynchronizerOverrideDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerOverrideDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

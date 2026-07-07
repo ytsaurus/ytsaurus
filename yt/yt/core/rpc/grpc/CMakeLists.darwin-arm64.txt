@@ -26,6 +26,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+add_subdirectory(unittests)
+
 add_library(core-rpc-grpc)
 
 
@@ -36,6 +38,7 @@ target_compile_options(core-rpc-grpc PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(core-rpc-grpc PUBLIC
@@ -98,6 +101,7 @@ target_compile_options(core-rpc-grpc.global PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(core-rpc-grpc.global PUBLIC
@@ -119,5 +123,6 @@ target_link_libraries(core-rpc-grpc.global PUBLIC
 
 target_sources(core-rpc-grpc.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/grpc/configure_dispatcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/grpc/backend.cpp
 )
 

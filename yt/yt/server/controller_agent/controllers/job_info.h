@@ -1,20 +1,19 @@
 #pragma once
 
-#include "private.h"
-
 #include "data_flow_graph.h"
 #include "extended_job_resources.h"
+#include "private.h"
 
 #include <yt/yt/server/controller_agent/controller_agent.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
-#include <yt/yt/server/lib/scheduler/job_metrics.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
-
-#include <yt/yt/client/job_tracker_client/public.h>
+#include <yt/yt/server/lib/scheduler/job_metrics.h>
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>
+
+#include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/core/misc/statistics.h>
 
@@ -46,8 +45,8 @@ struct TAllocation
     TJobletPtr Joblet;
 
     NScheduler::TJobResourcesWithQuota Resources;
-    TString TreeId;
-    std::optional<TString> PoolPath;
+    std::string TreeId;
+    std::optional<std::string> PoolPath;
     TJobNodeDescriptor NodeDescriptor;
 
     TTask* Task = nullptr;
@@ -118,7 +117,7 @@ struct TJoblet
     EJobPhase Phase = EJobPhase::Missing;
     TEnumIndexedArray<EJobCompetitionType, TJobId> CompetitionIds;
     TEnumIndexedArray<EJobCompetitionType, bool> HasCompetitors;
-    TString TaskName;
+    std::string TaskName;
 
     struct TCollectiveInfo
     {
@@ -144,7 +143,7 @@ struct TJoblet
 
     // It is necessary to store tree id here since it is required to
     // create job metrics updater after revive.
-    TString TreeId;
+    std::string TreeId;
     // Is the tree marked as tentative in the spec?
     bool TreeIsTentative = false;
 
@@ -188,7 +187,7 @@ struct TJoblet
     std::optional<TJobMonitoringDescriptor> UserJobMonitoringDescriptor;
 
     // These fields are used only to build job spec and thus transient.
-    std::optional<TString> PoolPath;
+    std::optional<std::string> PoolPath;
 
     NScheduler::TJobProfilerSpecPtr EnabledJobProfiler;
 
@@ -201,7 +200,7 @@ struct TJoblet
         TTask* task,
         int jobIndex,
         int taskJobIndex,
-        const TString& treeId,
+        const std::string& treeId,
         bool treeIsTentative);
 
     NScheduler::TJobMetrics UpdateJobMetrics(
@@ -245,7 +244,7 @@ struct TCompletedJob
 
     TJobNodeDescriptor NodeDescriptor;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TCompletedJob, 0xfe37a192);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompletedJob)

@@ -117,18 +117,18 @@ int TAutoMergeDirector::GetTaskPendingJobCountLimit()
     return std::max(0, MaxIntermediateChunkCount_ - CurrentIntermediateChunkCount_);
 }
 
-void TAutoMergeDirector::Persist(const TPersistenceContext& context)
+void TAutoMergeDirector::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, MaxIntermediateChunkCount_);
-    Persist(context, ChunkCountPerMergeJob_);
-    Persist(context, RunningMergeJobCount_);
-    Persist(context, ForceScheduleMergeJob_);
-    Persist(context, TaskCompleted_);
-    Persist(context, RunningTaskJobCount_);
-    Persist(context, Logger);
+    PHOENIX_REGISTER_FIELD(1, MaxIntermediateChunkCount_);
+    PHOENIX_REGISTER_FIELD(2, ChunkCountPerMergeJob_);
+    PHOENIX_REGISTER_FIELD(3, RunningMergeJobCount_);
+    PHOENIX_REGISTER_FIELD(4, ForceScheduleMergeJob_);
+    PHOENIX_REGISTER_FIELD(5, TaskCompleted_);
+    PHOENIX_REGISTER_FIELD(6, RunningTaskJobCount_);
+    PHOENIX_REGISTER_FIELD(7, Logger);
 }
+
+PHOENIX_DEFINE_TYPE(TAutoMergeDirector);
 
 ////////////////////////////////////////////////////////////////////////////////
 

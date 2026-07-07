@@ -75,12 +75,12 @@ TTestAllocationGuard::TTestAllocationGuard(
     ConstructCallback_();
 }
 
-TTestAllocationGuard::TTestAllocationGuard(TTestAllocationGuard&& other)
+TTestAllocationGuard::TTestAllocationGuard(TTestAllocationGuard&& other) noexcept
 {
     *this = std::move(other);
 }
 
-TTestAllocationGuard& TTestAllocationGuard::operator=(TTestAllocationGuard&& other)
+TTestAllocationGuard& TTestAllocationGuard::operator=(TTestAllocationGuard&& other) noexcept
 {
     Raw_ = std::move(other.Raw_);
     Active_ = other.Active_;

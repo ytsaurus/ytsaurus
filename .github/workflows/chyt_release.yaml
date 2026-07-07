@@ -55,8 +55,8 @@ jobs:
     needs:
       - start-vm
     outputs:
-      test-image-tag: stable-${{ steps.tag.outputs.TEST_IMAGE_TAG }}
-      prod-image-tag: stable-${{ steps.tag.outputs.PROD_IMAGE_TAG }}
+      test-image-tag: ${{ steps.tag.outputs.TEST_IMAGE_TAG }}
+      prod-image-tag: ${{ steps.tag.outputs.PROD_IMAGE_TAG }}
       release-type: ${{ steps.tag.outputs.RELEASE_TYPE }}
       build-types: ${{ steps.tag.outputs.BUILD_TYPES }}
     runs-on: ${{ needs.start-vm.outputs.label }}

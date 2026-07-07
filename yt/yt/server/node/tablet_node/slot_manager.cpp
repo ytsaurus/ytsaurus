@@ -7,8 +7,6 @@
 #include "structured_logger.h"
 #include "tablet_slot.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
@@ -33,7 +31,6 @@ namespace NYT::NTabletNode {
 using namespace NConcurrency;
 using namespace NCellarAgent;
 using namespace NCellarClient;
-using namespace NClusterNode;
 using namespace NYTree;
 using namespace NYson;
 
@@ -49,7 +46,7 @@ class TSlotManager
 public:
     explicit TSlotManager(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Config_(Bootstrap_->GetConfig()->TabletNode)
+        , Config_(Bootstrap_->GetTabletNodeConfig())
         , SlotScanExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TSlotManager::OnScanSlots, Unretained(this)),
@@ -125,7 +122,7 @@ private:
     const TPeriodicExecutorPtr SlotScanExecutor_;
     const IYPathServicePtr OrchidService_;
 
-    using TBundlesMemoryPoolWeights = THashMap<TString, int>;
+    using TBundlesMemoryPoolWeights = THashMap<std::string, int>;
     TBundlesMemoryPoolWeights BundlesMemoryPoolWeights_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -278,7 +275,7 @@ private:
     {
         auto buildMemoryStatistics = BIND(&TSlotManager::BuildMemoryStatisticsYson, Unretained(this));
 
-        auto bundleByTable = [&] (const TString& tablePath) {
+        auto bundleByTable = [&] (const NYPath::TYPath& tablePath) {
             auto it = summary.TablePathToBundleName.find(tablePath);
             YT_ASSERT(it != summary.TablePathToBundleName.end());
             return it != summary.TablePathToBundleName.end()

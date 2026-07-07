@@ -5,8 +5,6 @@ IF (PYTHON2)
 ELSE()
     PEERDIR(
         yt/python/yt/yson
-
-        contrib/python/six
     )
 
     PY_SRCS(

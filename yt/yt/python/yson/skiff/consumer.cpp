@@ -15,7 +15,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Object LoadYsonFromStringBuf(TStringBuf string, const std::optional<TString>& encoding)
+Py::Object LoadYsonFromStringBuf(TStringBuf string, const std::optional<std::string>& encoding)
 {
     auto input = TMemoryInput(string.data(), string.size());
     TYsonPullParser parser(&input, EYsonType::Node);
@@ -27,7 +27,7 @@ Py::Object LoadYsonFromStringBuf(TStringBuf string, const std::optional<TString>
 
 TPythonSkiffRecordBuilder::TPythonSkiffRecordBuilder(
     const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& schemas,
-    const std::optional<TString>& encoding)
+    const std::optional<std::string>& encoding)
     : Schemas_(schemas)
     , Encoding_(encoding)
 { }

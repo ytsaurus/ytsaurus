@@ -90,7 +90,7 @@ class TestYsonFunctions(ClickHouseTestBase):
             for i in range(4):
                 query = "select YPathInt64Strict(v, '/i64') from \"//tmp/t\" where i = {}".format(i)
                 if i != 0:
-                    with raises_yt_error(QueryFailedError):
+                    with raises_yt_error(code=QueryFailedError):
                         clique.make_query(query)
                 else:
                     result = clique.make_query(query)
@@ -174,7 +174,7 @@ class TestYsonFunctions(ClickHouseTestBase):
     @authors("gudqeit")
     def test_parse_unexpected_type(self):
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select YPathArrayInt64Strict('[[6];[7];[8]]', '')")
 
             result = clique.make_query("select YPathArrayInt64('[[6];[7];[8]]', '') as value")
@@ -229,7 +229,7 @@ class TestYsonFunctions(ClickHouseTestBase):
             assert result == [{"i": yson.dumps(object, "text").decode()}]
             result = clique.make_query("select YPathRaw(a, '/b') as i from \"//tmp/s1\"")
             assert result == [{"i": None}]
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select YPathRawStrict(a, '/b') as i from \"//tmp/s1\"")
 
     @authors("dakovalkov")
@@ -245,13 +245,15 @@ class TestYsonFunctions(ClickHouseTestBase):
             assert result == [{"i": object["a"][2]}]
             result = clique.make_query("select YPathExtract(a, '/a', 'Array(Array(UInt64))') as i from \"//tmp/s1\"")
             assert result == [{"i": object["a"]}]
+            result = clique.make_query("select YPathExtract(a, '/b', 'String') as i from \"//tmp/s1\"")
+            assert result == [{"i": ""}]
 
     # CHYT-370.
     @authors("max42")
     def test_const_arguments(self):
         with Clique(1) as clique:
             assert clique.make_query("select YPathRaw('[foo; bar]', '', 'text') as a")[0] == {"a": '["foo";"bar";]'}
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select YPathRaw('[invalid_yson', '', 'text') as a")
                 clique.make_query("select YPathRawStrict('[invalid_yson', '', 'text') as a")
 

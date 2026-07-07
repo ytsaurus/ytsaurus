@@ -25,8 +25,12 @@ using NElection::TCellId;
 using NTransactionClient::TTransactionId;
 using NTransactionClient::TTimestamp;
 using NTransactionClient::TTransactionActionData;
+using NTransactionClient::TTransactionSignature;
+using NTransactionClient::FinalTransactionSignature;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using TStrongOrderingTagsMap = NApi::TStrongOrderingTagsMap;
 
 struct TTransactionPrepareOptions;
 struct TTransactionCommitOptions;
@@ -62,7 +66,6 @@ DECLARE_REFCOUNTED_STRUCT(ITransactionParticipantProvider)
 DECLARE_REFCOUNTED_STRUCT(ITransactionLeaseTrackerThreadPool)
 DECLARE_REFCOUNTED_STRUCT(ITransactionLeaseTracker)
 
-DECLARE_REFCOUNTED_STRUCT(TTransactionSupervisorTestingConfig)
 DECLARE_REFCOUNTED_STRUCT(TTransactionSupervisorConfig)
 DECLARE_REFCOUNTED_STRUCT(TTransactionLeaseTrackerConfig)
 
@@ -74,7 +77,7 @@ DEFINE_ENUM(ETransactionState,
     ((PersistentCommitPrepared)   (2))
     ((CommitPending)              (7))
     ((Committed)                  (3))
-    // If some serialization is needed than transaction will go through Serialized.
+    // If some serialization is needed then transaction will go through Serialized.
     // Transaction in Serialized state will not finish until all serializations are completed.
     // Finish of a coarse serialization will always trigger transition to Serialized.
     //

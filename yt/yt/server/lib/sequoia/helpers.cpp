@@ -1,5 +1,8 @@
 #include "helpers.h"
 
+#include <yt/yt/client/sequoia_client/public.h>
+#include <yt/yt/client/transaction_client/public.h>
+
 #include <yt/yt/core/misc/error.h>
 
 namespace NYT::NSequoiaServer {

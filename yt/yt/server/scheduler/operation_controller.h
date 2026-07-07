@@ -131,7 +131,7 @@ struct IOperationController
     virtual TFuture<TOperationControllerMaterializeResult> Materialize() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Revive asynchronously.
-    virtual TFuture<TOperationControllerReviveResult> Revive() = 0;
+    virtual TFuture<TOperationControllerReviveResult> Revive(bool suspended) = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Commit asynchronously.
     virtual TFuture<TOperationControllerCommitResult> Commit() = 0;
@@ -155,6 +155,12 @@ struct IOperationController
     virtual TFuture<void> PatchSpec(
         const NYTree::INodePtr& newCumulativeSpecPatch,
         bool dryRun) = 0;
+
+    //! Notifies the controller agent that the operation has been suspended.
+    virtual void Suspend() = 0;
+
+    //! Notifies the controller agent that the operation has been resumed.
+    virtual void Resume() = 0;
 
     // These methods can be called even without agent being assigned.
 

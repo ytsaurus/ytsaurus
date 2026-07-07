@@ -3,13 +3,13 @@
 namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
-TMemoryHolderBase::TMemoryHolderBase(TMemoryHolderBase&& other)
+TMemoryHolderBase::TMemoryHolderBase(TMemoryHolderBase&& other) noexcept
     : Ptr_(other.Ptr_)
 {
     other.Ptr_ = nullptr;
 }
 
-void TMemoryHolderBase::operator=(TMemoryHolderBase&& other)
+void TMemoryHolderBase::operator=(TMemoryHolderBase&& other) noexcept
 {
     Reset();
     Ptr_ = other.Ptr_;

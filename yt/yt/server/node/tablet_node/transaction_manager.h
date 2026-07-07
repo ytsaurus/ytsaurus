@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/lib/transaction_supervisor/transaction_action.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
@@ -161,7 +159,8 @@ struct ITransactionManager
         TTransactionId transactionId,
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
-        TTransactionSignature signature,
+        TTransactionSignature prepareSignature,
+        TTransactionSignature commitSignature,
         ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions) = 0;
 
     virtual void RegisterTransactionActionHandlers(

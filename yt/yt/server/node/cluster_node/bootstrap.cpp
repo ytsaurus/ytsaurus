@@ -43,20 +43,8 @@
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 #include <yt/yt/server/node/exec_node/supervisor_service.h>
 
-#include <yt/yt/server/node/tablet_node/backing_store_cleaner.h>
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
-#include <yt/yt/server/node/tablet_node/hint_manager.h>
-#include <yt/yt/server/node/tablet_node/master_connector.h>
-#include <yt/yt/server/node/tablet_node/partition_balancer.h>
-#include <yt/yt/server/node/tablet_node/slot_manager.h>
-#include <yt/yt/server/node/tablet_node/store_compactor.h>
-#include <yt/yt/server/node/tablet_node/store_flusher.h>
-#include <yt/yt/server/node/tablet_node/store_trimmer.h>
-#include <yt/yt/server/node/tablet_node/hunk_chunk_sweeper.h>
-#include <yt/yt/server/node/tablet_node/lsm_interop.h>
-#include <yt/yt/server/node/tablet_node/structured_logger.h>
-#include <yt/yt/server/node/tablet_node/tablet_cell_service.h>
-#include <yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
@@ -171,6 +159,8 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -205,6 +195,7 @@ using namespace NAdmin;
 using namespace NApi;
 using namespace NAuth;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NCellarAgent;
 using namespace NCellarClient;
 using namespace NCellMasterClient;
@@ -288,7 +279,7 @@ public:
         BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -704,9 +695,10 @@ private:
 
     IMonitoringManagerPtr MonitoringManager_;
 
-    NYT::NBus::IBusServerPtr BusServer_;
+    NYT::NBus::NTcp::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
 
     IMapNodePtr OrchidRoot_;
 
@@ -837,7 +829,8 @@ private:
             New<TNodeMemoryTrackerConfig>(),
             /*limits*/ {},
             Logger(),
-            ClusterNodeProfiler().WithPrefix("/memory_usage"));
+            ClusterNodeProfiler().WithPrefix("/memory_usage"),
+            GetControlInvoker());
 
         // NB: Connection thread pool is required for dynamic config manager
         // initialization, so it is created before other thread pools.
@@ -985,11 +978,11 @@ private:
 
         DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
         // Cycles are fine for bootstrap.
-        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         BundleDynamicConfigManager_ = New<NCellarNode::TBundleDynamicConfigManager>(this);
         // Cycles are fine for bootstrap.
-        BundleDynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
+        BundleDynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
         IOTracker_ = CreateIOTracker(DynamicConfigManager_->GetConfig()->IOTracker);
 
@@ -1176,9 +1169,13 @@ private:
         auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+        if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+            HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+        }
 
         NMonitoring::Initialize(
             HttpServer_,
+            HttpsServer_,
             ServiceLocator_->GetServiceOrThrow<TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
@@ -1210,6 +1207,8 @@ private:
         }
 
         NodeResourceManager_->Start();
+
+        NodeMemoryUsageTracker_->Start();
 
         JobResourceManager_->Start();
 
@@ -1304,6 +1303,10 @@ private:
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
+        if (HttpsServer_) {
+            YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+            HttpsServer_->Start();
+        }
 
 #ifdef __linux__
         if (ContainerDevicesChecker_) {
@@ -1350,13 +1353,13 @@ private:
         }
     }
 
-    NConcurrency::IThroughputThrottlerPtr CreateInThrottler(const TString& bucket) override
+    NConcurrency::IThroughputThrottlerPtr CreateInThrottler(const std::string& bucket) override
     {
         EnabledInThrottlers_.insert(bucket);
         return InThrottler_->CreateBucketThrottler(bucket, Config_->InThrottlers[bucket]);
     }
 
-    NConcurrency::IThroughputThrottlerPtr CreateOutThrottler(const TString& bucket) override
+    NConcurrency::IThroughputThrottlerPtr CreateOutThrottler(const std::string& bucket) override
     {
         EnabledOutThrottlers_.insert(bucket);
         return OutThrottler_->CreateBucketThrottler(bucket, Config_->OutThrottlers[bucket]);
@@ -1502,7 +1505,7 @@ private:
             fairShareScheduler->Reconfigure(newConfig->FairShareHierarchicalScheduler);
         }
 
-        BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
+        BusServer_->Reconfigure(newConfig->BusServer);
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
@@ -1564,7 +1567,7 @@ private:
             Connection_->GetReplicationCardCache()->Reconfigure(std::move(newReplicationCardCacheConfig));
         }
 
-        Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(newConfig->MasterCellDirectorySynchronizer);
+        Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)
@@ -1735,10 +1738,8 @@ private:
             if (GetDynamicConfigManager()->GetConfig()->DataNode->MasterConnector->CheckChunksCellTagsAfterReceivingNewMasterCellConfigs) {
                 YT_UNUSED_FUTURE(
                     // NB: Master cell tags were updated during firing the above signals.
-                    BIND([weakThis = MakeWeak(this), dataNodeBootstrap, masterCellTags = GetMasterConnector()->GetMasterCellTags()] {
-                        if (auto this_ = weakThis.Lock()) {
-                            dataNodeBootstrap->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
-                        }
+                    BIND([this_ = MakeStrong(this), dataNodeBootstrap, masterCellTags = GetMasterConnector()->GetMasterCellTags()] {
+                        dataNodeBootstrap->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
                     }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
                     .Run());
             }

@@ -1,5 +1,5 @@
 from .conftest import authors
-from .helpers import TEST_DIR, set_config_option
+from .helpers import TEST_DIR, set_config_option, inject_http_error
 
 from yt.common import YtError
 
@@ -11,8 +11,10 @@ import yt.wrapper as yt
 import pytest
 import time
 import tempfile
+import socket
 import requests_mock
 from copy import deepcopy
+from unittest.mock import patch
 from urllib.parse import urlparse
 
 
@@ -503,3 +505,32 @@ class TestClient(object):
         client = yt.YtClient(config={"proxy": {"url": "secured_tvm_cluster", "tvm_only": True, "prefer_https": False}})
         assert http.get_proxy_address_url(client=client) == "http://tvm.secured_tvm_cluster.yt.yandex.net:9026"
         assert http.get_proxy_address_url(client=client, replace_host="heavy.proxy.full.fqdn") == "http://heavy.proxy.full.fqdn:9026"
+
+    @authors("asklit")
+    def test_short_alias_without_suffix_warning_and_error(self):
+        import yt.packages.requests as yt_requests
+        http.lazy_import_requests()
+
+        with patch("yt.wrapper.http_helpers.logger") as mock_logger:
+            client = yt.YtClient(config={"proxy": {"url": "mycluster", "default_suffix": ""}})
+            assert http.get_proxy_address_url(client=client) == "http://mycluster"
+            mock_logger.tip.assert_called_once_with(
+                "Proxy 'mycluster' looks like a short cluster alias, but 'proxy/default_suffix' is not configured. "
+                "Use full proxy hostname (e.g. 'mycluster.cluster.example.com') or set 'proxy/default_suffix' in config."
+            )
+
+        with patch("yt.wrapper.http_helpers.logger") as mock_logger:
+            client = yt.YtClient(config={"proxy": {"url": "mycluster", "default_suffix": ".yt.yandex.net"}})
+            assert http.get_proxy_address_url(client=client) == "http://mycluster.yt.yandex.net"
+            mock_logger.tip.assert_not_called()
+
+        dns_error = socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+        conn_error = yt_requests.ConnectionError("connection failed")
+        conn_error.__cause__ = dns_error
+
+        client = yt.YtClient(config={"proxy": {"url": "mycluster", "default_suffix": ""}})
+
+        with pytest.raises(YtError, match="DNS resolution failed") as exc_info:
+            with inject_http_error(client, "/", 0, 99, 1, raise_custom_exception=conn_error):
+                client.list("/")
+        assert "proxy/default_suffix" in str(exc_info.value)

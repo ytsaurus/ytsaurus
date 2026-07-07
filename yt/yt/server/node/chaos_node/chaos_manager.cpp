@@ -7,6 +7,7 @@
 #include "chaos_lease_manager.h"
 #include "chaos_slot.h"
 #include "foreign_migrated_replication_card_remover.h"
+#include "helpers.h"
 #include "migrated_replication_card_remover.h"
 #include "replication_card.h"
 #include "replication_card_batcher.h"
@@ -16,7 +17,7 @@
 #include "transaction.h"
 #include "transaction_manager.h"
 
-#include <yt/server/node/chaos_node/chaos_manager.pb.h>
+#include <yt/yt/server/node/chaos_node/chaos_manager.pb.h>
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
@@ -139,15 +140,30 @@ public:
 
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraGenerateReplicationCardId, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCard, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveReplicationCard, Unretained(this)));
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveReplicationCard, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraAlterReplicationCard, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeRemoveReplicationCard, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateCoordinatorCells, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateTableReplica, Unretained(this)));
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TChaosManager::HydraCreateTableReplica, Unretained(this)),
+            /*alases*/ {},
+            /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveTableReplica, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraAlterTableReplica, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateTableReplicaProgress, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateTableProgress, Unretained(this)));
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TChaosManager::HydraAlterTableReplica, Unretained(this)),
+            /*alases*/ {},
+            /*exceptionsAreNormal*/ true);
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateTableReplicaProgress, Unretained(this)),
+            /*alases*/ {},
+            /*exceptionsAreNormal*/ true);
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateTableProgress, Unretained(this)),
+            /*alases*/ {},
+            /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateMultipleTableProgresses, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCommenceNewReplicationEra, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraPropagateCurrentTimestamps, Unretained(this)));
@@ -156,13 +172,22 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraSuspendCoordinator, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraResumeCoordinator, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveExpiredReplicaHistory, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraMigrateReplicationCards, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraMigrateReplicationCards, Unretained(this)),
+            /*alases*/ {},
+            /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraResumeChaosCell, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeMigrateReplicationCards, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeConfirmReplicationCardMigration, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)));
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)),
+            /*alases*/ {},
+            /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeRemoveMigratedReplicationCards, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraForsakeCoordinator, Unretained(this)));
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TChaosManager::HydraForsakeCoordinator, Unretained(this)),
+            /*alases*/ {},
+            /*exceptionsAreNormal*/ true);
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveCellMailbox, Unretained(this)));
     }
 
     void Initialize() override
@@ -333,6 +358,16 @@ public:
             HydraManager_,
             context,
             &TChaosManager::HydraForsakeCoordinator,
+            this);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    void RemoveCellMailbox(const TCtxRemoveCellMailboxPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraRemoveCellMailbox,
             this);
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
@@ -699,7 +734,7 @@ private:
                 newChaosLease->SetRootId(getRootId(chaosLease));
                 newChaosLease->SetTimeout(chaosLease->GetTimeout());
                 newChaosLease->SetState(chaosLease->GetState());
-                for (const auto& nestedLeaseId : chaosLease->NestedLeaseIds()) {
+                for (auto nestedLeaseId : chaosLease->NestedLeaseIds()) {
                     newChaosLease->NestedLeaseIds().push_back(nestedLeaseId);
                 }
 
@@ -852,6 +887,15 @@ private:
         auto collocationOptions = request->has_collocation_options()
             ? std::make_optional(ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(request->collocation_options())))
             : std::nullopt;
+        auto createSecondaryIndex = request->has_create_secondary_index()
+            ? ConvertTo<NApi::TCreateSecondaryIndexPtr>(TYsonString(request->create_secondary_index()))
+            : NApi::TCreateSecondaryIndexPtr();
+        auto destroySecondaryIndex = request->has_destroy_secondary_index()
+            ? FromProto<TReplicationCardId>(request->destroy_secondary_index())
+            : TReplicationCardId();
+        auto progressSecondaryIndexCorrespondence = request->has_progress_secondary_index_correspondence()
+            ? ConvertTo<NApi::TProgressSecondaryIndexCorrespondencePtr>(TYsonString(request->progress_secondary_index_correspondence()))
+            : NApi::TProgressSecondaryIndexCorrespondencePtr();
 
         if (options && enableTracker) {
             THROW_ERROR_EXCEPTION(
@@ -859,6 +903,18 @@ private:
                 "and \"enable_replicated_table_tracker\" could be specified",
                 replicationCardId);
         }
+
+        int secondaryIndexAlterationCount =
+            (createSecondaryIndex ? 1 : 0) +
+            (destroySecondaryIndex ? 1 : 0) +
+            (progressSecondaryIndexCorrespondence ? 1 : 0);
+
+        THROW_ERROR_EXCEPTION_UNLESS(secondaryIndexAlterationCount <= 1,
+            "Not more than one alteration to secondary indices is allowed at a time, got %v",
+            secondaryIndexAlterationCount);
+
+        THROW_ERROR_EXCEPTION_IF(collocationId.has_value() && secondaryIndexAlterationCount > 0,
+            "Cannot simultaneously alter collocation and secondary indices");
 
         auto replicationCard = GetReplicationCardOrThrow(replicationCardId);
         replicationCard->ValidateCollocationNotMigrating();
@@ -877,13 +933,14 @@ private:
         }
 
         YT_LOG_DEBUG(
-            "Alter replication card "
-            "(ReplicationCardId: %v, ReplicatedTableOptions: %v, EnableReplicatedTableTracker: %v)",
+            "Alter replication card (ReplicationCardId: %v, ReplicatedTableOptions: %v, "
+            "EnableReplicatedTableTracker: %v, HasSecondaryIndexAlteration: %v)",
             replicationCardId,
             options
                 ? TStringBuf("null")
                 : ConvertToYsonString(options, EYsonFormat::Text).AsStringBuf(),
-            enableTracker);
+            enableTracker,
+            secondaryIndexAlterationCount > 0);
 
         if (options) {
             replicationCard->SetReplicatedTableOptions(options);
@@ -911,6 +968,15 @@ private:
 
             collocation->Options() = std::move(*collocationOptions);
             FireReplicationCardCollocationUpdated(collocation);
+        }
+        if (createSecondaryIndex) {
+            CreateSecondaryIndex(replicationCard, createSecondaryIndex.Get());
+        }
+        if (destroySecondaryIndex) {
+            RemoveSecondaryIndex(replicationCard, destroySecondaryIndex);
+        }
+        if (progressSecondaryIndexCorrespondence) {
+            ProgressSecondaryIndexCorrespondence(replicationCard, progressSecondaryIndexCorrespondence.Get());
         }
     }
 
@@ -1054,7 +1120,7 @@ private:
             NChaosNode::NProto::TReqRemoveReplicationCard req;
             ToProto(req.mutable_replication_card_id(), replicationCard->GetId());
 
-            auto mailbox = hiveManager->GetMailbox(replicationCard->Migration().OriginCellId);
+            auto mailbox = hiveManager->GetOrCreateCellMailbox(replicationCard->Migration().OriginCellId);
             hiveManager->PostMessage(mailbox, req);
 
             YT_LOG_DEBUG("Removing migrated replication card at origin cell (ReplicationCardId: %v, OriginCellId: %v)",
@@ -1673,7 +1739,7 @@ private:
         const auto& hiveManager = Slot_->GetHiveManager();
 
         for (const auto& [coordinatorCellId, request] : revokeShortcutsRequests) {
-            auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
+            auto mailbox = hiveManager->GetOrCreateCellMailbox(coordinatorCellId);
             hiveManager->PostMessage(mailbox, request);
         }
 
@@ -1807,6 +1873,18 @@ private:
                     TypeFromId(chaosObject->GetId()));
             }
         }
+    }
+
+    void HydraRemoveCellMailbox(
+        const TCtxRemoveCellMailboxPtr& /*context*/,
+        NChaosClient::NProto::TReqRemoveCellMailbox* request,
+        NChaosClient::NProto::TRspRemoveCellMailbox* response)
+    {
+        auto destinationCellId = FromProto<TCellId>(request->destination_cell_id());
+        const auto& hiveManager = Slot_->GetHiveManager();
+        bool success = hiveManager->TryRemoveCellMailbox(destinationCellId);
+
+        response->set_success(success);
     }
 
     void HydraMigrateReplicationCards(
@@ -1986,6 +2064,13 @@ private:
                 EmplaceOrCrash(replicationCard->Replicas(), replicaId, replicaInfo);
             }
 
+            replicationCard->SecondaryIndices().clear();
+            for (const auto& protoSecondaryIndex : protoReplicationCard.secondary_indices()) {
+                TIndexInfo indexInfo;
+                FromProto(&indexInfo, protoSecondaryIndex);
+                replicationCard->SecondaryIndices().emplace_back(std::move(indexInfo));
+            }
+
             auto& migration = replicationCard->Migration();
             if (IsDomesticReplicationCard(replicationCardId)) {
                 migration.ImmigratedToCellId = TCellId();
@@ -2067,7 +2152,6 @@ private:
 
         ReplicationCardWatcher_->OnReplicationCardMigrated(replicationCardIds);
     }
-
 
     void MigrateReplicationCard(TReplicationCard* replicationCard)
     {
@@ -2508,7 +2592,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(coordinatorCellId);
         hiveManager->PostMessage(mailbox, req);
     }
 
@@ -2548,7 +2632,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(coordinatorCellId);
         hiveManager->PostMessage(mailbox, req);
     }
 
@@ -2864,6 +2948,140 @@ private:
         }
     }
 
+    static void ValidateInNormalState(const TReplicationCard* replicationCard)
+    {
+        THROW_ERROR_EXCEPTION_IF(replicationCard->GetState() != EReplicationCardState::Normal,
+            "Replication card %v is not in %Qlv state",
+            replicationCard->GetId(),
+            EReplicationCardState::Normal);
+    }
+
+    void CreateSecondaryIndex(
+        TReplicationCard* replicationCard,
+        NApi::TCreateSecondaryIndex* alteration)
+    {
+        THROW_ERROR_EXCEPTION_IF(alteration->IndexReplicationCardId == replicationCard->GetId(),
+            "Cannot create index to itself");
+
+        auto* indexTableReplicationCard = GetReplicationCardOrThrow(alteration->IndexReplicationCardId);
+
+        const auto* tableCollocation = replicationCard->GetCollocation();
+        const auto* indexTableCollocation = indexTableReplicationCard->GetCollocation();
+        THROW_ERROR_EXCEPTION_UNLESS(tableCollocation == indexTableCollocation && tableCollocation,
+            "Table and index table must belong to the same non-null collocation, found %v and %v",
+            tableCollocation ? tableCollocation->GetId() : NullObjectId,
+            indexTableCollocation ? indexTableCollocation->GetId() : NullObjectId);
+
+        tableCollocation->ValidateNotMigrating();
+        ValidateInNormalState(replicationCard);
+        ValidateInNormalState(indexTableReplicationCard);
+
+        THROW_ERROR_EXCEPTION_UNLESS(indexTableReplicationCard->SecondaryIndices().empty(),
+            "Cannot use a table with indices as an index");
+        THROW_ERROR_EXCEPTION_IF(indexTableReplicationCard->IndexTo(),
+            "Index cannot have multiple primary tables");
+        THROW_ERROR_EXCEPTION_IF(replicationCard->IndexTo(),
+            "Cannot create secondary index for a secondary index");
+
+        // NB(sabdenovch): No schemas => no schema validation.
+
+        auto it = replicationCard->FindSecondaryIndex(alteration->IndexReplicationCardId);
+        THROW_ERROR_EXCEPTION_UNLESS(it == replicationCard->SecondaryIndices().end(),
+            "Replication card %v is already indexed by replication card %v",
+            replicationCard->GetId(),
+            alteration->IndexReplicationCardId);
+
+        TIndexInfo secondaryIndexInfo;
+        secondaryIndexInfo.Kind = alteration->Kind;
+        secondaryIndexInfo.IndexObjectId = alteration->IndexReplicationCardId;
+        secondaryIndexInfo.Correspondence = alteration->Correspondence;
+        secondaryIndexInfo.Predicate = std::move(alteration->Predicate);
+        secondaryIndexInfo.UnfoldedColumns = std::move(alteration->UnfoldedColumns);
+        secondaryIndexInfo.EvaluatedColumnsSchema = std::move(alteration->EvaluatedColumnsSchema);
+
+        YT_LOG_DEBUG("Creating secondary index (ReplicationCardId: %v, Index: %v)",
+            replicationCard->GetId(),
+            ConvertToYsonString(secondaryIndexInfo, EYsonFormat::Text).AsStringBuf());
+
+        replicationCard->SecondaryIndices().emplace_back(std::move(secondaryIndexInfo));
+
+        indexTableReplicationCard->IndexTo() = replicationCard->GetId();
+    }
+
+    void ProgressSecondaryIndexCorrespondence(
+        TReplicationCard* replicationCard,
+        NApi::TProgressSecondaryIndexCorrespondence* alteration)
+    {
+        replicationCard->ValidateCollocationNotMigrating();
+        ValidateInNormalState(replicationCard);
+
+        auto secondaryIndexIt = replicationCard->FindSecondaryIndex(alteration->IndexReplicationCardId);
+
+        THROW_ERROR_EXCEPTION_IF(secondaryIndexIt == replicationCard->SecondaryIndices().end(),
+            "Replication card %v has no secondary index to %v",
+            replicationCard->GetId(),
+            alteration->IndexReplicationCardId);
+
+        YT_LOG_DEBUG("Progressing secondary index (ReplicationCardId: %v, IndexReplicationCardId: %v, "
+            "OldCorrespondence: %Qlv, NewCorrespondence: %Qlv)",
+            replicationCard->GetId(),
+            alteration->IndexReplicationCardId,
+            secondaryIndexIt->Correspondence,
+            alteration->NewCorrespondence);
+
+        secondaryIndexIt->Correspondence = alteration->NewCorrespondence;
+    }
+
+    void RemoveSecondaryIndex(
+        TReplicationCard* replicationCard,
+        TReplicationCardId indexReplicationCardId)
+    {
+        replicationCard->ValidateCollocationNotMigrating();
+
+        auto secondaryIndexIt = replicationCard->FindSecondaryIndex(indexReplicationCardId);
+
+        THROW_ERROR_EXCEPTION_IF(secondaryIndexIt == replicationCard->SecondaryIndices().end(),
+            "Replication card %v has no secondary index to %v",
+            replicationCard->GetId(),
+            indexReplicationCardId);
+
+        ValidateInNormalState(replicationCard);
+
+        auto* indexTableReplicationCard = FindReplicationCard(indexReplicationCardId);
+        if (!indexTableReplicationCard) {
+            // This state MUST be unreachable.
+            YT_LOG_ALERT("Index replication card is missing during secondary index removal, proceeding "
+                "(ReplicationCardId: %v, IndexReplicationCardId: %v)",
+                replicationCard->GetId(),
+                indexReplicationCardId);
+
+            replicationCard->SecondaryIndices().erase(secondaryIndexIt);
+
+            return;
+        }
+
+        indexTableReplicationCard->ValidateCollocationNotMigrating();
+        ValidateInNormalState(indexTableReplicationCard);
+
+        YT_LOG_DEBUG("Removing secondary index (ReplicationCardId: %v, IndexReplicationCardId: %v)",
+            replicationCard->GetId(),
+            indexReplicationCardId);
+
+        replicationCard->SecondaryIndices().erase(secondaryIndexIt);
+
+        auto& indexTo = indexTableReplicationCard->IndexTo();
+
+        if (indexTo == replicationCard->GetId()) {
+            indexTo = NullObjectId;
+        } else {
+            YT_LOG_ALERT("Encountered broken index replication card state during secondary index removal "
+                "(ReplicationCardId: %v, ExpectedIndexReplicationCardId: %v, EncounteredReplicationCardId: %v)",
+                replicationCard->GetId(),
+                indexReplicationCardId,
+                indexTo);
+        }
+    }
+
     void UpdateReplicationCardCollocation(
         TReplicationCard* replicationCard,
         TReplicationCardCollocation* collocation,
@@ -2872,6 +3090,13 @@ private:
         if (collocation == replicationCard->GetCollocation()) {
             return;
         }
+
+        THROW_ERROR_EXCEPTION_IF(replicationCard->IndexTo() || !replicationCard->SecondaryIndices().empty(),
+            "Cannot update replication card collocation, because replication card has secondary indices "
+            "(ReplicationCardId: %v, CollocationId: %v, Migration: %v)",
+            replicationCard->GetId(),
+            collocation ? collocation->GetId() : NullObjectId,
+            migration);
 
         auto* oldCollocation = replicationCard->GetCollocation();
 
@@ -3079,12 +3304,15 @@ private:
         auto replicationCardStateCounts = CountReplicationCardStates();
         auto collocationStateCounts = CountReplicationCardCollocationStates();
 
+        bool completelySuspended = Suspended_
+            && replicationCardStateCounts[EReplicationCardState::Migrated] == ReplicationCardMap_.GetSize()
+            && transactionManager->Transactions().empty()
+            && CollocationMap_.empty();
+
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("suspended").Value(Suspended_
-                    && replicationCardStateCounts[EReplicationCardState::Migrated] == ReplicationCardMap_.GetSize()
-                    && transactionManager->Transactions().empty()
-                    && CollocationMap_.empty())
+                .Item("suspended").Value(completelySuspended)
+                .Item("suspension_status").Value(GetSuspensionStatus(Suspended_, completelySuspended))
                 .Item("replication_card_states").DoMapFor(
                     TEnumTraits<EReplicationCardState>::GetDomainValues(),
                     [&] (TFluentMap fluent, const auto& state) {
@@ -3164,6 +3392,15 @@ private:
                     ? card->GetCollocation()->GetId()
                     : TReplicationCardCollocationId())
                 .Item("awaiting_replication_card_collocation_id").Value(card->GetAwaitingCollocationId())
+                .DoIf(!card->SecondaryIndices().empty(), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("secondary_indices").DoMapFor(
+                            card->SecondaryIndices(),
+                            [&] (TFluentMap fluent, const TIndexInfo& secondaryIndex) {
+                                fluent
+                                    .Item(ToString(secondaryIndex.IndexObjectId)).Value(secondaryIndex);
+                            });
+                })
             .EndMap();
     }
 
@@ -3268,7 +3505,7 @@ private:
 
             auto cardTimestamp = std::max(timestamp, replicationCard->GetCurrentTimestamp());
             auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
-            ReplicationCardWatcher_->OnReplcationCardUpdated(replicationCardId, clientReplicationCard, cardTimestamp);
+            ReplicationCardWatcher_->OnReplicationCardUpdated(replicationCardId, clientReplicationCard, cardTimestamp);
         }
     }
 

@@ -119,6 +119,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NTableServer::TMasterTableSchemaPtr, Schema);
 
     //! Some TMiscExt fields extracted for effective access.
+    // NB: For hunk chunks UncompressedDataSize and DataWeight are updated via regular chunks
+    // that are referencing it and correspond to currently referenced part of data stored in hunks.
     DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
     DEFINE_BYVAL_RO_PROPERTY(i64, CompressedDataSize);
     DEFINE_BYVAL_RO_PROPERTY(i64, UncompressedDataSize);
@@ -146,7 +148,9 @@ public:
 
     TChunkDynamicData* GetDynamicData() const;
 
-    TChunkTreeStatistics GetStatistics() const;
+    TChunkTreeStatistics GetStatistics(bool includeReferencedHunkData = true) const;
+
+    THunkChunkTreeStatistics GetHunkStatistics() const;
 
     //! Get disk size of a single part of the chunk.
     /*!
@@ -378,6 +382,8 @@ public:
     int CapTotalReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
     int CapPerRackReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
 
+    void AccumulateNewlyReferencedHunkStatistics(i64 dataWeightDelta, i64 dataSizeDelta);
+
 private:
     //! -1 stands for std::nullopt for non-overlayed chunks.
     i64 FirstOverlayedRowIndex_ = -1;
@@ -425,7 +431,7 @@ private:
         virtual void Save(NCellMaster::TSaveContext& context) const = 0;
     };
 
-    template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+    template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
     struct TReplicasData
         : public TReplicasDataBase
     {
@@ -455,12 +461,18 @@ private:
 
     static constexpr int RegularChunkTypicalReplicaCount = 5;
     static constexpr int RegularChunkLastSeenReplicaCount = 5;
-    using TRegularChunkReplicasData = TReplicasData<RegularChunkTypicalReplicaCount, RegularChunkLastSeenReplicaCount>;
+    using TRegularChunkReplicasData = TReplicasData<
+        RegularChunkTypicalReplicaCount,
+        RegularChunkLastSeenReplicaCount,
+        /*IsErasure*/ false>;
 
     static constexpr int ErasureChunkTypicalReplicaCount = 24;
     static constexpr int ErasureChunkLastSeenReplicaCount = 16;
     static_assert(ErasureChunkLastSeenReplicaCount >= ::NErasure::MaxTotalPartCount, "ErasureChunkLastSeenReplicaCount < NErasure::MaxTotalPartCount");
-    using TErasureChunkReplicasData = TReplicasData<ErasureChunkTypicalReplicaCount, ErasureChunkLastSeenReplicaCount>;
+    using TErasureChunkReplicasData = TReplicasData<
+        ErasureChunkTypicalReplicaCount,
+        ErasureChunkLastSeenReplicaCount,
+        /*IsErasure*/ true>;
 
     //! This additional indirection helps to save up some space since
     //! no replicas are being maintained for foreign chunks.
@@ -481,7 +493,7 @@ private:
 
     void OnMiscExtUpdated(const NChunkClient::NProto::TMiscExt& miscExt);
 
-    using TEmptyChunkReplicasData = TReplicasData<0, 0>;
+    using TEmptyChunkReplicasData = TReplicasData<0, 0, false>;
     static const TEmptyChunkReplicasData EmptyChunkReplicasData;
 };
 

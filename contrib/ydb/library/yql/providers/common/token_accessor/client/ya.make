@@ -8,9 +8,12 @@ SRCS(
 )
 
 PEERDIR(
-    library/cpp/deprecated/atomic_bool
     library/cpp/threading/future
+    contrib/ydb/core/base
+    contrib/ydb/core/protos
     contrib/ydb/library/yql/providers/common/token_accessor/grpc
+    contrib/ydb/public/sdk/cpp/src/client/iam
+    contrib/ydb/public/sdk/cpp/src/client/iam_private
     contrib/ydb/public/sdk/cpp/src/client/types/credentials
     contrib/ydb/public/sdk/cpp/src/client/types/credentials/login
     contrib/ydb/public/sdk/cpp/src/library/grpc/client

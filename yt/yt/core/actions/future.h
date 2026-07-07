@@ -6,7 +6,11 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <library/cpp/yt/misc/strong_typedef.h>
+
+#include <limits>
 #include <optional>
+#include <type_traits>
 
 namespace NYT {
 
@@ -158,8 +162,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! An opaque future callback id.
-using TFutureCallbackCookie = int;
-constexpr TFutureCallbackCookie NullFutureCallbackCookie = -1;
+YT_DEFINE_STRONG_TYPEDEF(TFutureCallbackCookie, ui32);
+constexpr auto NullFutureCallbackCookie = TFutureCallbackCookie(-1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,12 +204,6 @@ public:
     //! Checks if the value is set.
     bool IsSet() const;
 
-    //! The same as #BlockingGet.
-    /*!
-     *  \deprecated Use #BlockingGet instead.
-     */
-    const TErrorOr<T>& Get() const;
-
     //! Gets the value, blocking until it's set.
     /*!
      *  \note Consider using NConcurrency::WaitFor(future) instead to avoid blocking and potential deadlocks when using fibers.
@@ -222,13 +220,13 @@ public:
     /*!
      *  This call blocks until either the value is set or #timeout (if given) expires.
      */
-    bool Wait(TDuration timeout = TDuration::Max()) const;
+    bool BlockingWait(TDuration timeout = TDuration::Max()) const;
 
     //! Waits for the value to become set.
     /*!
      *  This call blocks until either the value is set or #deadline is reached.
      */
-    bool Wait(TInstant deadline) const;
+    bool BlockingWait(TInstant deadline) const;
 
     //! Gets the value; returns null if the value is not set yet.
     /*!
@@ -419,12 +417,6 @@ class TUniqueFutureBase
 public:
     using TFutureBase<T>::TFutureBase;
 
-    //! The same as #BlockingGet.
-    /*!
-     *  \deprecated Use #BlockingGet instead.
-     */
-    TErrorOr<T> Get() const;
-
     //! Gets the value by moving it out of the future state, blocking until it's set.
     /*!
      *  \note Consider using NConcurrency::WaitFor(future) instead to avoid blocking and potential deadlocks when using fibers.
@@ -549,12 +541,6 @@ public:
     //! Similar to #SetFrom but calls #TrySet instead of #Set.
     template <class U>
     void TrySetFrom(const TFuture<U>& another) const;
-
-    //! The same as #BlockingGet.
-    /*!
-     *  \deprecated Use #BlockingGet instead.
-     */
-    const TErrorOr<T>& Get() const;
 
     //! Gets the value, blocking until it's set.
     /*!
@@ -697,10 +683,10 @@ public:
     ~TFutureHolder();
 
     TFutureHolder(const TFutureHolder<T>& other) = delete;
-    TFutureHolder(TFutureHolder<T>&& other) = default;
+    TFutureHolder(TFutureHolder<T>&& other) noexcept = default;
 
     TFutureHolder& operator=(const TFutureHolder<T>& other) = delete;
-    TFutureHolder& operator=(TFutureHolder<T>&& other) = default;
+    TFutureHolder& operator=(TFutureHolder<T>&& other) noexcept = default;
 
     //! Returns |true| if the holder has an underlying future.
     explicit operator bool() const;
@@ -754,6 +740,25 @@ struct TFutureCombinerOptions
     bool CancelInputOnShortcut = true;
 };
 
+//! Result type returned by #AnySetMatching.
+template <class T>
+struct TAnySetMatchingResult
+{
+    //! Index of the input future that satisfied the predicate, or
+    //! #std::nullopt if all futures completed without a match.
+    std::optional<int> MatchingIndex;
+
+    //! Per-future results. #Results[i] holds the result of #futures[i] if it
+    //! has completed; otherwise #std::nullopt. When #MatchingIndex is set,
+    //! some entries may remain #std::nullopt because the corresponding
+    //! futures were cancelled by the shortcut.
+    std::vector<std::optional<TErrorOr<T>>> Results;
+};
+
+template <class TPredicate, class T>
+concept CAnySetMatchingPredicate =
+    std::is_nothrow_invocable_r_v<bool, const TPredicate&, const TErrorOr<T>&>;
+
 //! Returns the future that gets set when any of #futures is set.
 //! The value of the returned future is set to the value of that first-set
 //! future among #futures.
@@ -769,6 +774,23 @@ TFuture<T> AnySucceeded(
 template <class T>
 TFuture<T> AnySet(
     std::vector<TFuture<T>> futures,
+    TFutureCombinerOptions options = {});
+
+//! Returns a future that gets set when any of #futures produces a result
+//! accepted by #isMatching, or when all futures have completed without a
+//! match. In the former case the returned #TAnySetMatchingResult has
+//! #MatchingIndex set to the index of the matched future; in the latter
+//! case #MatchingIndex is #std::nullopt and #Results contains every
+//! completed result.
+//!
+//! NB: #isMatching may be invoked concurrently from arbitrary threads and
+//! must therefore be thread-safe. It may also be invoked even when its
+//! result is ultimately discarded (because another future has already won
+//! the race), so it must be free of observable side effects.
+template <class T, CAnySetMatchingPredicate<T> TPredicate>
+TFuture<TAnySetMatchingResult<T>> AnySetMatching(
+    std::vector<TFuture<T>> futures,
+    TPredicate isMatching,
     TFutureCombinerOptions options = {});
 
 //! Returns the future that gets set when all of #futures are set.

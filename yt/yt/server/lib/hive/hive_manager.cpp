@@ -16,6 +16,7 @@
 #include <yt/yt/server/lib/hydra/hydra_service.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra/serialize.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
@@ -961,7 +962,7 @@ private:
 
         ApplyReliableIncomingMessages(mailbox, request);
 
-        for (const auto& subrequest : request->avenue_subrequests()) {
+        for (auto& subrequest : *request->mutable_avenue_subrequests()) {
             auto srcId = FromProto<TAvenueEndpointId>(subrequest.src_endpoint_id());
             auto* mailbox = AsTyped(FindMailbox(srcId));
             if (!mailbox) {
@@ -1052,13 +1053,11 @@ private:
 
             // COMPAT(ifsmirnov): ReignInHiveMessages.
             reign = mutationContext->Request().Reign;
-            constexpr TReign ChaosReignBase = 300000;
             constexpr TReign ChaosReignReignInHiveMessages = 300304;
-            constexpr TReign TabletReignBase = 100000;
             constexpr TReign TabletReignReignInHiveMessages = 101408;
-            if (ChaosReignBase < reign && reign < ChaosReignReignInHiveMessages) {
+            if (IsChaosReign(reign) && reign < ChaosReignReignInHiveMessages) {
                 reign = 0;
-            } else if (TabletReignBase < reign && reign < TabletReignReignInHiveMessages) {
+            } else if (IsTabletReign(reign) && reign < TabletReignReignInHiveMessages) {
                 reign = 0;
             }
         }
@@ -1831,7 +1830,7 @@ private:
             // confirmed by the receipient (see |next_persistent_incoming_message_id|),
             // we must still send empty ("idle") PostMessage periodically.
             cellRuntimeData->IdlePostCookie = TDelayedExecutor::Submit(
-                BIND_NO_PROPAGATE(&THiveManager::PostOutcomingMessagesThunk, MakeStrong(this), MakeWeak(cellRuntimeData), /*allowidle*/ true)
+                BIND_NO_PROPAGATE(&THiveManager::PostOutcomingMessagesThunk, MakeWeak(this), MakeWeak(cellRuntimeData), /*allowidle*/ true)
                     .Via(BackgroundInvoker_),
                 Config_->IdlePostPeriod);
             return;
@@ -1865,7 +1864,7 @@ private:
                 .FirstMessageId = *runtimeData->FirstInFlightOutcomingMessageId,
             };
             runtimeData->PersistentState->IterateOutcomingMessages(
-                envelope.FirstMessageId,
+                &envelope.FirstMessageId,
                 [&] (const TOutcomingMessage& message) {
                     if (isOverflown()) {
                         return false;
@@ -2235,7 +2234,7 @@ private:
         return true;
     }
 
-    void ApplyReliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqPostMessages* req)
+    void ApplyReliableIncomingMessages(TMailbox* mailbox, NHiveClient::NProto::TReqPostMessages* req)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -2245,7 +2244,7 @@ private:
             }
 
             auto messageId = req->first_message_id() + index;
-            ApplyReliableIncomingMessage(mailbox, messageId, req->messages(index));
+            ApplyReliableIncomingMessage(mailbox, messageId, std::move(*req->mutable_messages(index)));
 
             // Avenue endpoint was unregistered within current mutation,
             // now the time has come to destroy it.
@@ -2255,7 +2254,7 @@ private:
         }
     }
 
-    void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& message)
+    void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, TEncapsulatedMessage&& message)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -2289,7 +2288,7 @@ private:
             logicalTime,
             mutationContext->GetSequenceNumber());
 
-        ApplyMessage(message, mailbox->GetEndpointId());
+        ApplyMessage(std::move(message), mailbox->GetEndpointId());
 
         mailbox->GetPersistentState()->SetNextPersistentIncomingMessageId(messageId + 1);
 
@@ -2299,16 +2298,16 @@ private:
         }
     }
 
-    void ApplyUnreliableIncomingMessages(TCellMailbox* mailbox, const NHiveClient::NProto::TReqSendMessages* req)
+    void ApplyUnreliableIncomingMessages(TCellMailbox* mailbox, NHiveClient::NProto::TReqSendMessages* req)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        for (const auto& message : req->messages()) {
-            ApplyUnreliableIncomingMessage(mailbox, message);
+        for (auto& message : *req->mutable_messages()) {
+            ApplyUnreliableIncomingMessage(mailbox, std::move(message));
         }
     }
 
-    void ApplyUnreliableIncomingMessage(TCellMailbox* mailbox, const TEncapsulatedMessage& message)
+    void ApplyUnreliableIncomingMessage(TCellMailbox* mailbox, TEncapsulatedMessage&& message)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -2316,18 +2315,18 @@ private:
             mailbox->GetCellId(),
             SelfCellId_,
             message.type());
-        ApplyMessage(message, mailbox->GetCellId());
+        ApplyMessage(std::move(message), mailbox->GetCellId());
     }
 
-    void ApplyMessage(const TEncapsulatedMessage& message, TEndpointId endpointId)
+    void ApplyMessage(TEncapsulatedMessage&& message, TEndpointId endpointId)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMutationRequest request{
             .Reign = GetCurrentMutationContext()->Request().Reign,
-            .Type = message.type(),
-            .Data = TSharedRef::FromString(message.data())
-         };
+            .Type = std::move(*message.mutable_type()),
+            .Data = TSharedRef::FromString(std::move(*message.mutable_data())),
+        };
 
         TMutationContext mutationContext(GetCurrentMutationContext(), &request);
         TMutationContextGuard mutationContextGuard(&mutationContext);
@@ -2434,21 +2433,21 @@ private:
         }
     }
 
-    TString FormatIncomingMailboxEndpoints(TEndpointId endpointId) const
+    std::string FormatIncomingMailboxEndpoints(TEndpointId endpointId) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return FormatMailboxEndpoints(endpointId, /*outgoing*/ false);
     }
 
-    TString FormatOutgoingMailboxEndpoints(TEndpointId endpointId) const
+    std::string FormatOutgoingMailboxEndpoints(TEndpointId endpointId) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return FormatMailboxEndpoints(endpointId, /*outgoing*/ true);
     }
 
-    TString FormatMailboxEndpoints(TEndpointId endpointId, bool outgoing) const
+    std::string FormatMailboxEndpoints(TEndpointId endpointId, bool outgoing) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 

@@ -132,6 +132,8 @@ struct TTabletManagerDynamicConfig
     //! snapshots with redirection hint may be evicted.
     std::optional<TDuration> ExtendedSnapshotEvictionTimeout;
 
+    bool YieldBeforeBuildingLsmActions;
+
     REGISTER_YSON_STRUCT(TTabletManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -144,11 +146,14 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerDynamicConfig)
 struct TTabletCellWriteManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-    //! Testing option.
-    //! If set, write request will fail with this probability.
-    //! In case of failure write request will be equiprobably
-    //! applied or not applied.
-    std::optional<double> WriteFailureProbability;
+    //! Testing options.
+    //! If set, the write fails with this probability and is not applied.
+    std::optional<double> FailureProbabilityBeforeWrite;
+    //! If set, the write fails with this probability and is applied.
+    std::optional<double> FailureProbabilityAfterWrite;
+
+    //! Compat. See comment in TTabletWriteManager::OnTransactionTransientReset.
+    bool DetectTransientTransactionsPerTablet;
 
     REGISTER_YSON_STRUCT(TTabletCellWriteManagerDynamicConfig);
 
@@ -508,15 +513,51 @@ struct TStatisticsReporterConfig
     bool Enable;
     int MaxTabletsPerTransaction;
     TDuration ReportBackoffTime;
+    TDuration WriteTimeout;
     NYPath::TYPath TablePath;
 
     NConcurrency::TPeriodicExecutorOptions PeriodicOptions;
 
     REGISTER_YSON_STRUCT(TStatisticsReporterConfig);
+
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStatisticsReporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOverloadReporterConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+    i64 MaxEvaluatorCacheSize;
+    NConcurrency::TPeriodicExecutorOptions PeriodicExecutor;
+
+    REGISTER_YSON_STRUCT(TOverloadReporterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOverloadReporterConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRowCacheControllerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enabled;
+    TDuration Period;
+    i64 MemoryLimitGapInBytes;
+    double MemoryLimitGapFraction;
+    double RotationMemoryThreshold;
+
+    REGISTER_YSON_STRUCT(TRowCacheControllerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRowCacheControllerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -638,6 +679,19 @@ DEFINE_REFCOUNTED_TYPE(TUserBanDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTestingTabletNodeDynamicConfig
+    : public NYTree::TYsonStructLite
+{
+    // Overrides tablet reign. Should only be used in tests.
+    NHydra::TReign ReignOverride;
+
+    REGISTER_YSON_STRUCT_LITE(TTestingTabletNodeDynamicConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTabletNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -683,8 +737,11 @@ struct TTabletNodeDynamicConfig
     NRpc::TOverloadControllerConfigPtr OverloadController;
 
     TStatisticsReporterConfigPtr StatisticsReporter;
+    TOverloadReporterConfigPtr OverloadReporter;
 
     TErrorManagerConfigPtr ErrorManager;
+
+    TRowCacheControllerDynamicConfigPtr RowCacheController;
 
     bool EnableChunkFragmentReaderThrottling;
 
@@ -697,6 +754,8 @@ struct TTabletNodeDynamicConfig
     bool EnableSnapshotNetworkThrottling;
 
     NChaosClient::TChaosReplicationCardUpdatesBatcherDynamicConfigPtr ChaosReplicationCardUpdatesBatcher;
+
+    TTestingTabletNodeDynamicConfig Testing;
 
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 

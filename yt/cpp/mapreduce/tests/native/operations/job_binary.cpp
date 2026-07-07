@@ -121,7 +121,7 @@ void JobBinaryLocalPath(bool enableLocalModeOptimization)
 
     TConfig::Get()->EnableLocalModeOptimization = enableLocalModeOptimization;
     if (!enableLocalModeOptimization) {
-        TConfig::Get()->FileCacheReplicationFactor = 1;
+        TConfig::Get()->FileCacheReplicationFactor.Set(1);
     }
 
     WriteTestTable(client, workingDir);

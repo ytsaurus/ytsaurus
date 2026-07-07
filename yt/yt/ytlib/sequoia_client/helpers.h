@@ -14,8 +14,8 @@ namespace NYT::NSequoiaClient {
 
 struct TSelectRowsQuery
 {
-    std::vector<TString> WhereConjuncts;
-    std::vector<TString> OrderBy;
+    std::vector<std::string> WhereConjuncts;
+    std::vector<std::string> OrderBy;
     std::optional<int> Limit;
 };
 
@@ -32,7 +32,7 @@ TMangledSequoiaPath MangleSequoiaPath(const TRealPath& realPath);
 TRealPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
 
 //! Unescapes special characters.
-TString ToStringLiteral(NYPath::TYPathBuf key);
+std::string ToStringLiteral(NYPath::TYPathBuf key);
 
 // TODO(danilalexeev): YT-20675. This method is for the time being until the validation
 // is global across all components.
@@ -56,10 +56,13 @@ void ThrowOnSequoiaReplicasError(const TError& error, const std::vector<TErrorCo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Does two things: wraps the error into SequoiaRetriableError if the error is,
+//! in fact, retriable and strips certain internal errors to hide extraneous
+//! implementation details from the user in order to avoid confusing them.
 // NB: We want to use AsUnique().Apply() almost everywhere but TFuture<void> doesn't
 // have this method. So |void| is a special case.
 template <class T>
-TErrorOr<T> MaybeWrapSequoiaRetriableError(
+TErrorOr<T> TransformSequoiaTransactionCommitError(
     std::conditional_t<std::is_void_v<T>, const TError&, TErrorOr<T>&&> result);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +72,7 @@ struct TParsedChunkReplica
     NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
     int ReplicaIndex = NChunkClient::GenericChunkReplicaIndex;
     NNodeTrackerClient::TChunkLocationIndex LocationIndex = NNodeTrackerClient::InvalidChunkLocationIndex;
+    NChunkClient::EChunkReplicaState ReplicaState = NChunkClient::EChunkReplicaState::Generic;
 };
 
 template <class TOnReplica>

@@ -111,6 +111,56 @@ REGISTER_MAPPER(TMapperThatChecksFile)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMapperThatChecksJobstate
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    TMapperThatChecksJobstate() = default;
+    explicit TMapperThatChecksJobstate(bool stateViaEnv)
+        : State_(ExpectedState_)
+        , StateViaEnv_(stateViaEnv)
+    { }
+
+    void Do(TReader*, TWriter*) override
+    {
+        if (State_ != ExpectedState_) {
+            Cerr << "Unexpected state: got " << State_.Quote() << ", expecting " << TString(ExpectedState_).Quote() << Endl;
+            exit(1);
+        }
+        const bool fileExists = TFsPath("jobstate").Exists();
+        const bool envExists = TryGetEnv("YT_JOB_STATE").Defined();
+        if (StateViaEnv_) {
+            if (fileExists) {
+                Cerr << "jobstate file exists, but should not" << Endl;
+                exit(1);
+            }
+            if (!envExists) {
+                Cerr << "Missing job state env" << Endl;
+                exit(1);
+            }
+        } else {
+            if (!fileExists) {
+                Cerr << "jobstate file missing" << Endl;
+                exit(1);
+            }
+            if (envExists) {
+                Cerr << "jobstate env exists, but should not" << Endl;
+                exit(1);
+            }
+        }
+    }
+
+    Y_SAVELOAD_JOB(State_, StateViaEnv_);
+
+private:
+    static constexpr TStringBuf ExpectedState_ = "State with null \0 byte";
+    TString State_;
+    bool StateViaEnv_ = false;
+};
+REGISTER_MAPPER(TMapperThatChecksJobstate)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TIdAndKvSwapMapper
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
@@ -1031,6 +1081,42 @@ TEST(Operations, TestFetchTable)
         .AddOutput<TNode>(workingDir + "/output")
         .MapperSpec(TUserJobSpec().AddFile(TRichYPath(workingDir + "/input").Format("yson"))),
         new TMapperThatChecksFile("input"));
+}
+
+void TestPassJobstate(bool viaEnv)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    {
+        auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
+        writer->AddRow(TNode()("foo", "bar"));
+        writer->Finish();
+    }
+
+    TOperationOptions opts;
+    if (viaEnv) {
+        opts.MinJobStateSizeToPassViaFile(100500);
+    }
+
+    // Expect operation to complete successfully
+    client->Map(
+        TMapOperationSpec()
+        .AddInput<TNode>(workingDir + "/input")
+        .AddOutput<TNode>(workingDir + "/output"),
+        new TMapperThatChecksJobstate(viaEnv),
+        opts);
+}
+
+TEST(Operations, TestPassingJobstateViaFile)
+{
+    TestPassJobstate(/* viaEnv = */ false);
+}
+
+TEST(Operations, TestPassingJobstateViaEnv)
+{
+    TestPassJobstate(/* viaEnv = */ true);
 }
 
 TEST(Operations, TestFetchTableRange)

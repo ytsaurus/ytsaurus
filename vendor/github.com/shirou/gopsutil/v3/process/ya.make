@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v3.24.2)
+VERSION(v3.24.5)
 
 GO_SKIP_TESTS(
     Test_Process_Environ
@@ -40,6 +40,10 @@ IF (OS_DARWIN AND CGO_ENABLED)
     CGO_SRCS(process_darwin_cgo.go)
 ENDIF()
 
+IF (OS_DARWIN AND NOT CGO_ENABLED)
+    SRCS(process_darwin_nocgo.go)
+ENDIF()
+
 IF (OS_DARWIN AND ARCH_X86_64)
     SRCS(
         process_darwin_amd64.go
@@ -68,6 +72,12 @@ IF (OS_ANDROID)
     GO_TEST_SRCS(
         process_linux_test.go
         process_posix_test.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        process_fallback.go
     )
 ENDIF()
 

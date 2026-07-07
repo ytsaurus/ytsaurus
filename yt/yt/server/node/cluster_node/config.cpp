@@ -355,7 +355,7 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         .InRange(0.0, 1.0)
         .Default(0.1);
     registrar.Parameter("enable_fair_throttler", &TThis::EnableFairThrottler)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("in_throttler", &TThis::InThrottler)
         .DefaultNew();
     registrar.Parameter("out_throttler", &TThis::OutThrottler)
@@ -364,6 +364,9 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
+
+    registrar.Parameter("aux_poller_thread_count", &TThis::AuxPollerThreadCount)
+        .Default(1);
 
     registrar.Parameter("huge_page_manager", &TThis::HugePageManager)
         .DefaultNew();
@@ -477,12 +480,12 @@ NHttp::TServerConfigPtr TClusterNodeBootstrapConfig::CreateSkynetHttpServerConfi
 void TClusterNodeProgramConfig::Register(TRegistrar registrar)
 {
     registrar.Postprocessor([] (TThis* config) {
-        auto dispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
+        auto dispatcherConfig = config->GetSingletonConfig<NBus::NTcp::TDispatcherConfig>();
         if (!dispatcherConfig->NetworkBandwidth) {
             dispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
         }
 
-        auto tcpDispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
+        auto tcpDispatcherConfig = config->GetSingletonConfig<NBus::NTcp::TDispatcherConfig>();
         if (!tcpDispatcherConfig->NetworkBandwidth) {
             tcpDispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
         }
@@ -556,7 +559,7 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
-        if (!config->JobResourceManager->CheckUserJobsCategoryLimitOnResourcesUpdating) {
+        if (!config->JobResourceManager->CheckUserJobsCategoryLimitOnResourceUpdate) {
             config->NodeMemoryTracker->CheckPerCategoryLimitOvercommit = false;
         }
     });

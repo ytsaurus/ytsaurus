@@ -12,3 +12,9 @@ SRCS(
 )
 
 END()
+
+IF (NOT OPENSOURCE)
+    RECURSE_FOR_TESTS(
+        tests
+    )
+ENDIF()

@@ -25,6 +25,7 @@ size_t THash<TTokenCredentials>::operator()(const NYT::NAuth::TTokenCredentials&
     size_t result = 0;
 
     HashCombine(result, credentials.Token);
+    HashCombine(result, credentials.TokenSha256);
     HashCombine(result, credentials.UserIP);
 
     return result;
@@ -34,7 +35,7 @@ size_t THash<TCookieCredentials>::operator()(const NYT::NAuth::TCookieCredential
 {
     size_t result = 0;
 
-    std::vector<std::pair<TString, TString>> cookies(
+    std::vector<std::pair<std::string, std::string>> cookies(
         credentials.Cookies.begin(),
         credentials.Cookies.end());
     std::sort(cookies.begin(), cookies.end());

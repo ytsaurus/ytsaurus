@@ -53,6 +53,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((FetchTableRows)             (36))
     ((HugePage)                   (37))
     ((TabletFootprint)            (38))
+    ((TabletRowMerger)            (39))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EMemoryCategory, Unrecognized);

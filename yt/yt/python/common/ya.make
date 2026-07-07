@@ -8,7 +8,7 @@ CXXFLAGS(
 
 SRCS(
     buffered_stream.cpp
-    cache.cpp
+    string_cache.cpp
     dynamic_ring_buffer.cpp
     error.cpp
     helpers.cpp

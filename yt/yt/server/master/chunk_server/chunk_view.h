@@ -82,6 +82,7 @@ public:
     void RemoveParent(TChunkList* parent);
 
     TChunkTreeStatistics GetStatistics() const;
+    THunkChunkTreeStatistics GetHunkStatistics() const;
 
     //! Compares two chunk views not considering read range.
     //! Returns -1, 0 or 1.

@@ -3,16 +3,16 @@
 #include "block_device.h"
 #include "config.h"
 
-#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/client/api/public.h>
 
 namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateDynamicTableBlockDevice(
-    TString deviceId,
+    std::string deviceId,
     TDynamicTableBlockDeviceConfigPtr deviceConfig,
-    NApi::NNative::IClientPtr client,
+    NApi::IClientPtr client,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

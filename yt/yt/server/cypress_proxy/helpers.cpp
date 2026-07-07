@@ -487,7 +487,7 @@ void ThrowAlreadyExists(const TAbsolutePath& path)
 
 void ThrowCannotHaveChildren(const TAbsolutePath& path)
 {
-    THROW_ERROR_EXCEPTION("%v cannot have children", path);
+    THROW_ERROR_EXCEPTION("Node %v cannot have children", path);
 }
 
 void ThrowCannotReplaceNode(const TAbsolutePath& path)
@@ -575,41 +575,23 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<INodePtr> FetchSingleObject(
-    const NNative::IClientPtr& client,
-    TVersionedObjectId objectId,
-    const TAttributeFilter& attributeFilter)
-{
-    // Form a template.
-    auto requestTemplate = TYPathProxy::Get();
-    if (attributeFilter) {
-        ToProto(requestTemplate->mutable_attributes(), attributeFilter);
-    }
-    SetSuppressAccessTracking(requestTemplate, true);
-    SetSuppressExpirationTimeoutRenewal(requestTemplate, true);
-
-    auto batcher = TMasterYPathProxy::CreateGetBatcher(client, requestTemplate, {objectId.ObjectId}, objectId.TransactionId);
-
-    return batcher.Invoke().Apply(BIND([=] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& rsp) {
-        return ConvertToNode(NYson::TYsonString(rsp.at(objectId.ObjectId).ValueOrThrow()->value()));
-    }));
-}
-
 TFuture<IAttributeDictionaryPtr> FetchSingleObjectAttributes(
    const NNative::IClientPtr& client,
    NCypressClient::TVersionedObjectId objectId,
    const TAttributeFilter& attributeFilter)
 {
-   // Form a template.
    auto requestTemplate = TYPathProxy::Get("&/@");
    if (attributeFilter) {
        ToProto(requestTemplate->mutable_attributes(), attributeFilter);
    }
+
    SetSuppressAccessTracking(requestTemplate, true);
    SetSuppressExpirationTimeoutRenewal(requestTemplate, true);
+
    auto batcher = TMasterYPathProxy::CreateGetBatcher(client, requestTemplate, {objectId.ObjectId}, objectId.TransactionId);
    return batcher.Invoke().Apply(BIND([=] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& rsp) {
-       return ConvertToAttributes(NYson::TYsonString(rsp.at(objectId.ObjectId).ValueOrThrow()->value()));
+        const auto& value = GetOrCrash(rsp, objectId.ObjectId).ValueOrThrow();
+        return ConvertToAttributes(NYson::TYsonString(value->value()));
    }));
 }
 
@@ -655,7 +637,7 @@ std::string BuildMultipleTransactionSelectCondition(TRange<TTransactionId> trans
 
 bool IsAncestorPath(const TAbsolutePath& ancestor, const TAbsolutePath& descendant)
 {
-    return descendant.Underlying().StartsWith(ancestor.Underlying() + TAbsolutePath::Separator);
+    return descendant.Underlying().starts_with(ancestor.Underlying() + TAbsolutePath::Separator);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

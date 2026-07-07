@@ -259,7 +259,7 @@ struct ICypressManager
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction) = 0;
 
-    virtual i64 GetGroundUpdateQueueManagerSequenceNumber(TCypressNode* node) const = 0;
+    virtual i64 GetGroundUpdateQueueManagerSequenceNumber(const TCypressNode* node) const = 0;
 
     virtual void UpdateGroundUpdateQueueManagerSequenceNumber(
         TCypressNode* node,
@@ -291,7 +291,9 @@ struct ICypressManager
 
     virtual NYPath::TYPath ComputeEffectiveLinkNodeTargetPath(const TLinkNode* linkNode) const = 0;
 
-    virtual void ValidateNoExternalizedNodesOnRemovedMasters(const THashSet<NObjectClient::TCellTag>& removedMasterCellTags) const = 0;
+    virtual void ValidateNoExternalizedNodesOnRemovedMasters(const NObjectClient::TCellTagSet& removedMasterCellTags) const = 0;
+
+    virtual void DestroyNodeBeingCreated(TVersionedNodeId versionedNodeId) = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(TCypressNode*), NodeCreated);
 };

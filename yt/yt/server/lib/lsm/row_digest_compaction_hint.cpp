@@ -1,147 +1,207 @@
 #include "tablet.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
-#include <yt/yt/server/lib/tablet_node/private.h>
 
-#include <yt/yt/ytlib/table_client/versioned_row_digest.h>
+#include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/library/quantile_digest/quantile_digest.h>
+#include <yt/yt/library/quantile_digest/config.h>
 
 namespace NYT::NLsm {
 
 using namespace NTableClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constinit const auto Logger = NTabletNode::TabletNodeLogger;
+TTDigestConfigPtr GetNonCompressableDigestConfig()
+{
+    auto digestConfig = New<TTDigestConfig>();
+    digestConfig->Delta = 0.;
+
+    return digestConfig;
+}
+
+double GetAbsoluteRank(const IQuantileDigestPtr& digest, TInstant timestamp)
+{
+    return digest->GetRank(timestamp.Seconds()) * digest->GetCount();
+};
+
+const TVersionedRowDigestPtr& GetDigest(TStore* store)
+{
+    return std::get<TVersionedRowDigestPtr>(
+        store->CompactionHints().Payloads()[EStoreCompactionHintKind::VersionedRowDigest]);
+}
+
+// NB(dave11ar): FirstTimestampDigest was added later, should keep this line
+// because old chunks may lack FirstTimestampDigest.
+bool HaveAllNeededDigests(TRange<TStore*> stores, const TTableMountConfigPtr& mountConfig)
+{
+    if (mountConfig->MinDataVersions == 0) {
+        return true;
+    }
+
+    for (auto* store : stores) {
+        if (!GetDigest(store)->FirstTimestampDigest) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool IsTtlCleanupExpected(
+    const TVersionedRowDigestPtr& digest,
+    const TTableMountConfigPtr& mountConfig,
+    TInstant timestamp)
+{
+    i64 totalValueCount = digest->LastTimestampDigest->GetCount() + digest->AllButLastTimestampDigest->GetCount();
+    double compactedValueCount = 0;
+
+    if (mountConfig->MinDataVersions == 0) {
+        auto lastDataTtl = mountConfig->MaxDataVersions == 0
+            ? mountConfig->MinDataTtl
+            : mountConfig->MaxDataTtl;
+
+        compactedValueCount = GetAbsoluteRank(digest->LastTimestampDigest, timestamp - lastDataTtl) +
+            GetAbsoluteRank(digest->AllButLastTimestampDigest, timestamp - mountConfig->MinDataTtl);
+    } else {
+        YT_VERIFY(digest->FirstTimestampDigest);
+
+        // During compaction, all versions older than timestamp - minDataTtl will be deleted,
+        // except for one version per row.
+        compactedValueCount = GetAbsoluteRank(digest->LastTimestampDigest, timestamp - mountConfig->MinDataTtl) +
+            GetAbsoluteRank(digest->AllButLastTimestampDigest, timestamp - mountConfig->MinDataTtl) -
+            GetAbsoluteRank(digest->FirstTimestampDigest, timestamp - mountConfig->MinDataTtl);
+    }
+
+    return compactedValueCount / totalValueCount > mountConfig->CompactionHints->RowDigest->MaxObsoleteTimestampRatio;
+}
+
+TInstant CalculateTtlCleanupExpected(
+    const TVersionedRowDigestPtr& digest,
+    const TTableMountConfigPtr& mountConfig,
+    TInstant minStoresTimestamp,
+    TInstant maxStoresTimestamp,
+    TInstant majorTimestamp = TInstant::Max())
+{
+    auto leftTimestampBound = minStoresTimestamp + mountConfig->MinDataTtl;
+    auto rightTimestampBound = std::min(
+        maxStoresTimestamp + mountConfig->MaxDataTtl,
+        majorTimestamp - TDuration::MicroSeconds(1));
+
+    if (leftTimestampBound > rightTimestampBound) {
+        return {};
+    }
+
+    static constexpr auto CompactionTimestampAccuracy = TDuration::Seconds(1);
+    while (rightTimestampBound - leftTimestampBound > CompactionTimestampAccuracy) {
+        auto midTimestamp = leftTimestampBound + (rightTimestampBound - leftTimestampBound) / 2;
+
+        if (IsTtlCleanupExpected(digest, mountConfig, midTimestamp)) {
+            rightTimestampBound = midTimestamp;
+        } else {
+            leftTimestampBound = midTimestamp;
+        }
+    }
+
+    if (IsTtlCleanupExpected(digest, mountConfig, rightTimestampBound)) {
+        return rightTimestampBound;
+    }
+
+    return {};
+}
+
+TInstant CalculateTooManyTimestamps(
+    const std::vector<i64>& earliestNthTimestamp,
+    const TTableMountConfigPtr& mountConfig,
+    TInstant majorTimestamp = TInstant::Max())
+{
+    ui32 timestampIndex = std::countr_zero<ui32>(mountConfig->CompactionHints->RowDigest->MaxTimestampsPerValue);
+
+    if (timestampIndex < ssize(earliestNthTimestamp)) {
+        auto compactionTimestamp =
+            TInstant::Seconds(earliestNthTimestamp[timestampIndex]) + mountConfig->MinDataTtl;
+
+        if (compactionTimestamp < majorTimestamp) {
+            return compactionTimestamp;
+        }
+    }
+
+    return {};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
 void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDigest>(TStore* store)
 {
-    static constexpr auto CompactionTimestampAccuracy = TDuration::Seconds(1);
-
     auto recalculationFinalizer = store->CompactionHints().Hints()[EStoreCompactionHintKind::VersionedRowDigest]
-        .BuildRecalculationFinalizer();
-
-    const auto& digest = std::get<TStoreCompactionHint::TVersionedRowDigestPayload>(
-        store->CompactionHints().Payloads()[EStoreCompactionHintKind::VersionedRowDigest]);
-    const auto& allButLastDigest = digest->AllButLastTimestampDigest;
-    const auto& lastDigest = digest->LastTimestampDigest;
-    const auto& firstDigest = digest->FirstTimestampDigest;
-    const auto& earliestNthTimestamp = digest->EarliestNthTimestamp;
+        .BuildRecalculationFinalizer(store);
 
     auto mountConfig = store->GetTablet()->GetMountConfig();
-    auto minDataTtl = mountConfig->MinDataTtl;
-    auto maxDataTtl = mountConfig->MaxDataTtl;
-    int minDataVersions = mountConfig->MinDataVersions;
-    int maxDataVersions = mountConfig->MaxDataVersions;
-    int maxTimestampsPerValue = mountConfig->RowDigestCompaction->MaxTimestampsPerValue;
-    double maxObsoleteTimestampRatio = mountConfig->RowDigestCompaction->MaxObsoleteTimestampRatio;
 
-    i64 totalCount = allButLastDigest->GetCount() + lastDigest->GetCount();
+    const auto& digest = GetDigest(store);
 
-    auto getAbsoluteRank = [] (const IQuantileDigestPtr& digest, TInstant time) {
-        return digest->GetRank(time.Seconds()) * digest->GetCount();
-    };
+    auto minStoreTimestamp = TimestampToInstant(store->GetMinTimestamp()).first;
+    auto maxStoreTimestamp = TimestampToInstant(store->GetMaxTimestamp()).second;
 
-    // Check if there is timestamp when a certain ratio of data will be compacted.
-    if ((minDataVersions != 1 || firstDigest) && totalCount > 0) {
-        auto computeResult = [&] (TInstant right, std::function<double(TInstant)> getCurrentRatio) {
-            auto left = TInstant::Seconds(std::min(
-                allButLastDigest->GetQuantile(0),
-                lastDigest->GetQuantile(0)));
-
-            while (right - left > CompactionTimestampAccuracy) {
-                auto mid = left + (right - left) / 2;
-
-                if (getCurrentRatio(mid) >= maxObsoleteTimestampRatio) {
-                    right = mid;
-                } else {
-                    left = mid;
-                }
-            }
-
-            YT_LOG_DEBUG("Found upcoming compaction timestamp (StoreId: %v, Timestamp: %v, Reason: %v)",
-                store->GetId(),
-                right,
-                EStoreCompactionReason::TtlCleanupExpected);
-
-            recalculationFinalizer.TryApplyRecalculation(right, EStoreCompactionReason::TtlCleanupExpected);
-        };
-
-        if (minDataVersions == 1) {
-            if (1 - firstDigest->GetCount() / static_cast<double>(totalCount) >= maxObsoleteTimestampRatio) {
-                auto right = TInstant::Seconds(std::max(
-                    allButLastDigest->GetQuantile(1),
-                    lastDigest->GetQuantile(1))) + minDataTtl;
-
-                auto getCurrentRatio = [&] (TInstant time) {
-                    // During compaction, all versions older than mid-minDataTtl will be deleted,
-                    // except for one version per row.
-                    return (getAbsoluteRank(allButLastDigest, time - minDataTtl) +
-                        getAbsoluteRank(lastDigest, time - minDataTtl) -
-                        getAbsoluteRank(firstDigest, time - minDataTtl)) / totalCount;
-                };
-
-                computeResult(right, getCurrentRatio);
-            }
-        } else {
-            auto lastTtl = maxDataVersions == 0
-                ? minDataTtl
-                : maxDataTtl;
-
-            auto right = TInstant::Seconds(std::max(
-                allButLastDigest->GetQuantile(maxObsoleteTimestampRatio),
-                lastDigest->GetQuantile(maxObsoleteTimestampRatio))) + lastTtl;
-
-            auto getCurrentRatio = [&] (TInstant time) {
-                return (getAbsoluteRank(allButLastDigest, time - minDataTtl) +
-                    getAbsoluteRank(lastDigest, time - lastTtl)) / totalCount;
-            };
-
-            computeResult(right, getCurrentRatio);
-        }
-    } else if (minDataVersions == 1 && !firstDigest) {
-        // Once there was no first timestamp digest and the algorithm was incorrect.
-        // However, it's still here for compatibility reasons.
-        if (allButLastDigest->GetCount() > 0) {
-            if (double sufficientQuantile = (totalCount * maxObsoleteTimestampRatio) / allButLastDigest->GetCount();
-                sufficientQuantile <= 1)
-            {
-                TInstant compactionTimestamp = TInstant::Seconds(allButLastDigest->GetQuantile(
-                    sufficientQuantile)) + minDataTtl;
-                YT_LOG_DEBUG("Found upcoming compaction timestamp only using AllButLastTimestampDigest "
-                    "(StoreId: %v, Timestamp: %v, Reason: %v)",
-                    store->GetId(),
-                    compactionTimestamp,
-                    EStoreCompactionReason::TtlCleanupExpected);
-
-                recalculationFinalizer.TryApplyRecalculation(compactionTimestamp, EStoreCompactionReason::TtlCleanupExpected);
-            }
+    if (HaveAllNeededDigests({store}, mountConfig)) {
+        if (auto timestamp = CalculateTtlCleanupExpected(digest, mountConfig, minStoreTimestamp, maxStoreTimestamp)) {
+            recalculationFinalizer.TryApplyRecalculation(timestamp, EStoreCompactionReason::TtlCleanupExpected);
         }
     }
+    if (auto timestamp = CalculateTooManyTimestamps(digest->EarliestNthTimestamp, mountConfig)) {
+        recalculationFinalizer.TryApplyRecalculation(timestamp, EStoreCompactionReason::TooManyTimestamps);
+    }
+}
 
-    // Check if there is a value with many old timestamps.
-    if (int index = 32 - std::countl_zero(std::max<ui32>(maxTimestampsPerValue - 1, 1));
-        index < ssize(earliestNthTimestamp))
-    {
-        auto compactionTimestamp = TInstant::Seconds(earliestNthTimestamp[index]) + minDataTtl;
-        YT_LOG_DEBUG("Found upcoming compaction timestamp "
-            "(StoreId: %v, TimestampIndex: %v, EarliestNthTimestamp: %v, Timestamp: %v, Reason: %v)",
-            store->GetId(),
-            index,
-            earliestNthTimestamp[index],
-            compactionTimestamp,
-            EStoreCompactionReason::TooManyTimestamps);
+template <>
+void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::AggregateVersionedRowDigest>(TPartition* partition)
+{
+    YT_VERIFY(!partition->IsEden());
 
-        recalculationFinalizer.TryApplyRecalculation(compactionTimestamp, EStoreCompactionReason::TooManyTimestamps);
+    auto recalculationFinalizer = partition->CompactionHints().Hints()[EPartitionCompactionHintKind::AggregateVersionedRowDigest]
+        .BuildRecalculationFinalizer(partition);
+
+    auto mountConfig = partition->GetTablet()->GetMountConfig();
+
+    const auto& stores = recalculationFinalizer.Stores();
+    if (stores.empty() || ssize(stores) > mountConfig->CompactionHints->RowDigest->MaxStoreCount) {
+        return;
     }
 
-    YT_LOG_DEBUG_IF(recalculationFinalizer.GetReason() == EStoreCompactionReason::None,
-        "No timestamp for upcoming compaction (StoreId: %v)",
-        store->GetId());
+    bool haveAllNeededDigests = HaveAllNeededDigests(stores, mountConfig);
+
+    auto minStoresTimestamp = TimestampToInstant(stores.front()->GetMinTimestamp()).first;
+    auto maxStoresTimestamp = TInstant::Zero();
+
+    static auto NonCompressableDigestConfig = GetNonCompressableDigestConfig();
+    auto cumulativeDigest = New<TVersionedRowDigest>(NonCompressableDigestConfig);
+
+    for (int prefixLength = 1; prefixLength <= ssize(stores); ++prefixLength) {
+        auto* store = stores[prefixLength - 1];
+        maxStoresTimestamp = std::max(maxStoresTimestamp, TimestampToInstant(store->GetMaxTimestamp()).second);
+
+        auto majorTimestamp = prefixLength < ssize(stores)
+            ? TimestampToInstant(stores[prefixLength]->GetMinTimestamp()).first
+            : TInstant::Max();
+
+        cumulativeDigest->MergeWith(GetDigest(store));
+
+        if (haveAllNeededDigests) {
+            if (auto timestamp = CalculateTtlCleanupExpected(cumulativeDigest, mountConfig, minStoresTimestamp, maxStoresTimestamp, majorTimestamp)) {
+                recalculationFinalizer.TryApplyRecalculationByPrefix(timestamp, EStoreCompactionReason::AggregateTtlCleanupExpected, prefixLength);
+            }
+        }
+        if (auto timestamp = CalculateTooManyTimestamps(
+            cumulativeDigest->EarliestAggregateOrDeleteNthTimestamp,
+            mountConfig,
+            majorTimestamp))
+        {
+            recalculationFinalizer.TryApplyRecalculationByPrefix(timestamp, EStoreCompactionReason::AggregateDeleteTooManyTimestamps, prefixLength);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

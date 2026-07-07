@@ -2,13 +2,12 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/job_proxy/config.h>
-
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/yt/server/node/data_node/public.h>
+
+#include <yt/yt/server/lib/job_proxy/config.h>
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
@@ -208,6 +207,8 @@ public:
 
     bool IsJobEnvironmentResurrectionEnabled();
 
+    IVolumeManagerPtr GetVolumeManager() const;
+
     void OnContainerDevicesCheckFinished(const TError& error);
 
 private:
@@ -216,7 +217,7 @@ private:
     TAtomicIntrusivePtr<TSlotManagerDynamicConfig> DynamicConfig_;
 
     const int SlotCount_;
-    const TString NodeTag_;
+    const std::string NodeTag_;
     const NContainers::TPortoHealthCheckerPtr PortoHealthChecker_;
 
     TBackoffStrategy DisableJobsBackoffStrategy_;
@@ -323,6 +324,13 @@ private:
 
     int DefaultMediumIndex_ = NChunkClient::DefaultSlotsMediumIndex;
 
+    struct TSlotLocationInfo
+    {
+        std::string Path;
+        bool Enabled;
+        TError DisableError;
+    };
+
     struct TSlotManagerInfo
     {
         int SlotCount;
@@ -334,6 +342,8 @@ private:
         std::vector<TNumaNodeState> NumaNodeStates;
 
         TEnumIndexedArray<ESlotManagerAlertType, TError> Alerts;
+
+        std::vector<TSlotLocationInfo> Locations;
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
@@ -379,7 +389,7 @@ private:
         int slotIndex,
         NClusterNode::TCpu requestedCpu,
         const std::optional<i64>& numaNodeIdAffinity);
-    std::vector<int> SortedFreeSlots();
+    std::vector<int> GetSortedFreeSlots();
 
     /*!
      *  \note

@@ -151,6 +151,11 @@ public:
             BIND_NO_PROPAGATE(&TImpl::OnProfiling, MakeWeak(this)),
             dynamicConfig->ProfilingPeriod);
 
+        ResourceAvailabilityCheckExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetJobInvoker(),
+            BIND_NO_PROPAGATE(&TImpl::OnResourceAvailabilityCheck, MakeWeak(this)),
+            dynamicConfig->ResourceAvailabilityCheckPeriod);
+
         ReservedMappedMemoryChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TImpl::CheckReservedMappedMemory, MakeWeak(this)),
@@ -168,6 +173,7 @@ public:
         ReservedMappedMemoryChecker_->Start();
 
         if (Bootstrap_->IsExecNode()) {
+            ResourceAvailabilityCheckExecutor_->Start();
             MemoryPressureDetector_->Start();
         }
     }
@@ -180,6 +186,8 @@ public:
 
         ProfilingExecutor_->SetPeriod(
             newConfig->JobResourceManager->ProfilingPeriod);
+        ResourceAvailabilityCheckExecutor_->SetPeriod(
+            newConfig->JobResourceManager->ResourceAvailabilityCheckPeriod);
 
         MemoryPressureDetector_->SetPeriod(newConfig->JobResourceManager->MemoryPressureDetector->CheckPeriod);
 
@@ -226,18 +234,49 @@ public:
             ProfileResources(writer, resourceLimits);
         });
 
-        FreeUserJobMemoryWatermarkGauge_.Update(resourceLimits.UserMemory * (1.0 - GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier));
+        auto dynamicConfig = GetDynamicConfig();
+        FreeUserJobMemoryWatermarkGauge_.Update(resourceLimits.UserMemory * (1.0 - dynamicConfig->FreeUserJobMemoryWatermarkMultiplier));
 
         if (Bootstrap_->IsExecNode()) {
             MajorPageFaultsGauge_.Update(LastMajorPageFaultCount_);
 
-            auto dynamicConfig = GetDynamicConfig();
             if (FreeMemoryWatermarkMultiplier_ != 1.0 && dynamicConfig->MemoryPressureDetector->Enabled) {
                 FreeMemoryWatermarkMultiplierGauge_.Update(FreeMemoryWatermarkMultiplier_);
                 FreeMemoryWatermarkAddedMemoryGauge_.Update(GetFreeMemoryWatermark() - dynamicConfig->FreeMemoryWatermark);
                 FreeMemoryWatermarkIsIncreasedGauge_.Update(1);
             }
         }
+    }
+
+    void OnResourceAvailabilityCheck()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        if (!ResourceLimitsWhenLastAcquisitionFailed_) {
+            return;
+        }
+
+        auto resourceLimits = GetResourceLimitsForAcquisition();
+        if (Dominates(*ResourceLimitsWhenLastAcquisitionFailed_, resourceLimits)) {
+            return;
+        }
+
+        YT_LOG_DEBUG(
+            "Resource limits increased since last failed acquisition, notifying resource consumers "
+            "(OldResourceLimits: %v, NewResourceLimits: %v)",
+            *ResourceLimitsWhenLastAcquisitionFailed_,
+            resourceLimits);
+
+        ResourceLimitsWhenLastAcquisitionFailed_ = resourceLimits;
+        NotifyResourcesReleased();
+    }
+
+    TJobResources GetResourceLimitsForAcquisition() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto dynamicConfig = GetDynamicConfig();
+        return GetResourceLimits(dynamicConfig->ConsiderUserJobFreeMemoryWatermarkInResourceAcquisition);
     }
 
     TJobResourceManagerDynamicConfigPtr GetDynamicConfig() const
@@ -438,18 +477,20 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        auto currentResourceLimitsOverride = ResourceLimitsOverrides_.Load();
         ResourceLimitsOverrides_.Store(resourceLimits);
 
-        auto currentRescourceLimitsOverride = ResourceLimitsOverrides_.Load();
-        if (!google::protobuf::util::MessageDifferencer::Equivalent(currentRescourceLimitsOverride, resourceLimits)) {
+        if (!google::protobuf::util::MessageDifferencer::Equivalent(currentResourceLimitsOverride, resourceLimits)) {
             YT_LOG_DEBUG("Resource limits overrides has been changed");
             Bootstrap_->GetJobInvoker()->Invoke(BIND(&TJobResourceManager::TImpl::NotifyResourcesReleased, MakeStrong(this)));
         }
     }
 
-    void OnNewSlotsAvailable() final
+    void OnResourceAvailabilityChanged() final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        YT_LOG_DEBUG("Job resource availability changed, notifying resource consumers");
 
         NotifyResourcesReleased();
     }
@@ -588,6 +629,18 @@ public:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(std::exchange(HasActiveResourceAcquiring_, false));
+
+        if (auto pendingResourceHolderCount = GetPendingResourceHolderCount(); pendingResourceHolderCount > 0) {
+            ResourceLimitsWhenLastAcquisitionFailed_ = GetResourceLimitsForAcquisition();
+            YT_LOG_DEBUG(
+                "Some resource holders are still waiting after resource acquisition; "
+                "recording resource limits to retry them on availability increase "
+                "(PendingResourceHolderCount: %v, ResourceLimits: %v)",
+                pendingResourceHolderCount,
+                *ResourceLimitsWhenLastAcquisitionFailed_);
+        } else {
+            ResourceLimitsWhenLastAcquisitionFailed_.reset();
+        }
 
         if (ShouldNotifyResourcesUpdated_) {
             ResourcesAcquired_.Fire();
@@ -1066,7 +1119,7 @@ public:
 
         auto resourceLimits = GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
 
-        if (GetDynamicConfig()->CheckUserJobsCategoryLimitOnResourcesUpdating) {
+        if (GetDynamicConfig()->CheckUserJobsCategoryLimitOnResourceUpdate) {
             auto error = CheckResourceOverdraft(
                 acquiredResources + releasingResources,
                 resourceLimits);
@@ -1201,6 +1254,7 @@ private:
 
     TProfiler Profiler_;
     TPeriodicExecutorPtr ProfilingExecutor_;
+    TPeriodicExecutorPtr ResourceAvailabilityCheckExecutor_;
     TBufferedProducerPtr ResourceLimitsBuffer_ = New<TBufferedProducer>();
     TBufferedProducerPtr ResourceUsageBuffer_ = New<TBufferedProducer>();
 
@@ -1222,6 +1276,8 @@ private:
 
     i64 LastMajorPageFaultCount_ = 0;
     double FreeMemoryWatermarkMultiplier_ = 1.0;
+
+    std::optional<TJobResources> ResourceLimitsWhenLastAcquisitionFailed_;
 
     bool ShouldNotifyResourcesUpdated_ = false;
 

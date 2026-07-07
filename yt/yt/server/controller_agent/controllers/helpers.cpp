@@ -1,16 +1,16 @@
-#include "helpers.h"
 #include "aggregated_job_statistics.h"
-#include "table.h"
+#include "helpers.h"
 #include "job_info.h"
-
-#include <yt/yt/server/controller_agent/controllers/task_host.h>
+#include "table.h"
 
 #include <yt/yt/server/controller_agent/config.h>
 
+#include <yt/yt/server/controller_agent/controllers/task_host.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -23,11 +23,11 @@
 
 #include <yt/yt/client/formats/config.h>
 
+#include <yt/yt/library/query/base/query.h>
+
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
-
-#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/re2/re2.h>
 
@@ -173,10 +173,10 @@ std::vector<TInputStreamDescriptorPtr> BuildInputStreamDescriptorsFromOutputStre
 
 void TControllerFeatures::AddSingular(TStringBuf name, double value)
 {
-    Features_[name] += value;
+    Features_[std::string(name)] += value;
 }
 
-void TControllerFeatures::AddSingular(const TString& name, const INodePtr& node)
+void TControllerFeatures::AddSingular(const std::string& name, const INodePtr& node)
 {
     switch (node->GetType()) {
         case ENodeType::Map:
@@ -205,23 +205,19 @@ void TControllerFeatures::AddSingular(const TString& name, const INodePtr& node)
 
 void TControllerFeatures::AddCounted(TStringBuf name, double value)
 {
-    TString sumFeature{name};
-    sumFeature += ".sum";
-    Features_[sumFeature] += value;
-    TString countFeature{name};
-    countFeature += ".count";
-    Features_[countFeature] += 1;
+    Features_[std::string(name) + ".sum"] += value;
+    Features_[std::string(name) + ".count"] += 1;
 }
 
 void TControllerFeatures::CalculateJobStatisticsAverage()
 {
-    static const TString SumSuffix = ".sum";
-    static const TString CountSuffix = ".count";
-    static const TString AvgSuffix = ".avg";
-    static const TString JobStatisticsPrefix = "job_statistics.";
-    TVector<std::pair<TString, double>> newAvgValues;
+    static const std::string SumSuffix = ".sum";
+    static const std::string CountSuffix = ".count";
+    static const std::string AvgSuffix = ".avg";
+    static const std::string JobStatisticsPrefix = "job_statistics.";
+    std::vector<std::pair<std::string, double>> newAvgValues;
     for (const auto& [sumFeature, sum] : Features_) {
-        if (sumFeature.StartsWith(JobStatisticsPrefix) && sumFeature.EndsWith(SumSuffix)) {
+        if (sumFeature.starts_with(JobStatisticsPrefix) && sumFeature.ends_with(SumSuffix)) {
             auto feature = sumFeature;
             feature.resize(std::ssize(feature) - std::ssize(SumSuffix));
             auto countFeature = feature + CountSuffix;
@@ -307,7 +303,7 @@ void SafeUpdateAggregatedJobStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config)
+TDockerImageSpec::TDockerImageSpec(const std::string& dockerImage, const TDockerRegistryConfigPtr& config)
 {
     const auto& internalRegistries = config->InternalRegistryAlternativeAddresses;
     TStringBuf imageRef;
@@ -316,7 +312,7 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
     // Format: [REGISTRY/]IMAGE[:TAG][@DIGEST], where REGISTRY is FQDN[:PORT].
     // Registry FQDN must has at least one "." or PORT.
     if (!StringSplitter(dockerImage).Split('/').Limit(2).TryCollectInto(&Registry, &imageRef) ||
-        Registry.find_first_of(".:") == TString::npos)
+        Registry.find_first_of(".:") == std::string::npos)
     {
         // Use main internal registry address.
         Registry = config->InternalRegistryAddress.value_or("");
@@ -341,7 +337,7 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
     }
 }
 
-TString TDockerImageSpec::GetDockerImage() const
+std::string TDockerImageSpec::GetDockerImage() const
 {
     TStringBuilder reference;
 
@@ -532,7 +528,8 @@ bool IsBulkInsertAllowedForUser(
     options.ReadFrom = EMasterChannelKind::Cache;
     options.Attributes = {"enable_bulk_insert"};
 
-    auto path = "//sys/users/" + ToYPathLiteral(authenticatedUser);
+    // TODO(dgolear): Switch to std::string.
+    TString path = "//sys/users/" + ToYPathLiteral(authenticatedUser);
     auto rspOrError = WaitFor(client->GetNode(path, options));
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to check if bulk insert is enabled");
     auto rsp = ConvertTo<INodePtr>(rspOrError.Value());
@@ -544,7 +541,7 @@ bool IsBulkInsertAllowedForUser(
 bool HasCompressionDictionaries(
     const IAttributeDictionaryPtr& tableAttributes)
 {
-    // TODO(alexelexa, YT-20044): Support compression dicrionaries remote copy.
+    // TODO(alexelexa, YT-20044): Support compression dictionaries remote copy.
     auto dictionaryCompressionNode =
         tableAttributes->Get<IMapNodePtr>("mount_config")->FindChild("value_dictionary_compression");
     if (dictionaryCompressionNode) {
@@ -610,6 +607,7 @@ TYsonString MakeIntermediateTableWriterConfig(
                 fluent.Item("node_rpc_timeout").Value(TDuration::Seconds(120));
             })
             .OptionalItem("direct_upload_node_count", directUploadNodeCount)
+            .Item("enable_large_columnar_statistics").Value(false)
         .EndMap();
 }
 

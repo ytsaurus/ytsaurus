@@ -5,6 +5,7 @@
 # This module is part of SQLAlchemy and is released under
 # the MIT License: https://www.opensource.org/licenses/mit-license.php
 """Defines :class:`_engine.Connection` and :class:`_engine.Engine`."""
+
 from __future__ import annotations
 
 import contextlib
@@ -951,7 +952,8 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
         :meth:`~.TwoPhaseTransaction.prepare` method.
 
         :param xid: the two phase transaction id.  If not supplied, a
-          random id will be generated.
+          random id will be generated. The accepted type and value depends on
+          the driver in use.
 
         .. seealso::
 
@@ -3180,6 +3182,12 @@ class Engine(
         connections. The latter strategy is more appropriate for an initializer
         in a forked Python process.
 
+        Event listeners associated with the old pool via :class:`.PoolEvents`
+        are **transferred to the new pool**; this is to support the pattern
+        by which :class:`.PoolEvents` are set up in terms of the owning
+        :class:`.Engine` without the need to refer to the :class:`.Pool`
+        directly.
+
         :param close: if left at its default of ``True``, has the
          effect of fully closing all **currently checked in**
          database connections.  Connections that are still checked out
@@ -3204,6 +3212,8 @@ class Engine(
             :ref:`engine_disposal`
 
             :ref:`pooling_multiprocessing`
+
+            :meth:`.ConnectionEvents.engine_disposed`
 
         """
         if close:

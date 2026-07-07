@@ -1,8 +1,7 @@
 #pragma once
 
-#include "private.h"
-
 #include "job_info.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>
 
@@ -27,8 +26,6 @@ public:
         const NScheduler::TExecNodeDescriptorMap& execNodes,
         const NLogging::TLogger& logger);
 
-    void Persist(const TPersistenceContext& context);
-
     //! Account given data weight delta at the given node.
     void UpdateNodeDataWeight(const TJobNodeDescriptor& descriptor, i64 delta);
 
@@ -42,21 +39,21 @@ public:
     //! weight distribution and indicating currently active nodes.
     void LogStatistics() const;
 
-private:
-    TDataBalancerOptionsPtr Options_;
-
     struct TNode
     {
         i64 DataWeight = 0;
-        //! Nodes is active if it was online during the whole operation.
+        //! Node is active while it is online and has positive IO weight.
         //! The total IO weight of such nodes is considered as what we have in a worst-case
         //! scenario, i.e. the data weight allowed for a node `x` is calculated
         //! as a `(x.IOWeight() / ActiveNodeTotalIOWeight_) * TotalDataWeight_ * Options_->Tolerance`.
         bool Active = false;
         TJobNodeDescriptor Descriptor;
 
-        void Persist(const TPersistenceContext& context);
+        PHOENIX_DECLARE_TYPE(TNode, 0x8b52e9a4);
     };
+
+private:
+    TDataBalancerOptionsPtr Options_;
 
     //! All nodes known to data balancer.
     THashMap<NNodeTrackerClient::TNodeId, TNode> IdToNode_;
@@ -71,6 +68,9 @@ private:
     int ConsecutiveViolationCount_ = 0;
 
     NLogging::TSerializableLogger Logger;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_TYPE(TDataBalancer, 0x6f1d3e7b);
 
     TNode& GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId);
     TNode& GetOrRegisterNode(const TJobNodeDescriptor& descriptor);

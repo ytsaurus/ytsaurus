@@ -151,7 +151,6 @@ public:
         using NYT::Load;
 
         Load(context, Bounds_);
-        // COMPAT(gritukan): EMasterReign::FixChunkCreationTimeHistograms
         YT_VERIFY(!Bounds_.empty());
 
         InitializeHistogram();

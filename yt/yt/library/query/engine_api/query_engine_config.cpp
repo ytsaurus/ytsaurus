@@ -1,0 +1,98 @@
+#include "query_engine_config.h"
+
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
+namespace NYT::NQueryClient {
+
+using namespace NYson;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueryEngineConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("codegen_cache", &TThis::CodegenCache)
+        .DefaultNew();
+}
+
+void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("codegen_cache", &TThis::CodegenCache)
+        .DefaultNew();
+
+    registrar.Parameter("statistics_aggregation", &TThis::StatisticsAggregation)
+        .Optional();
+
+    registrar.Parameter("use_order_by_in_join_subqueries", &TThis::UseOrderByInJoinSubqueries)
+        .Optional();
+
+    registrar.Parameter("enable_parallelize_unordered_group_by", &TThis::EnableParallelizeUnorderedGroupBy)
+        .Optional();
+
+    registrar.Parameter("expression_builder_version", &TThis::ExpressionBuilderVersion)
+        .Optional();
+
+    registrar.Parameter("codegen_optimization_level", &TThis::OptimizationLevel)
+        .Optional();
+
+    registrar.Parameter("allow_udf_object_code_cache", &TThis::AllowUdfObjectCodeCache)
+        .Optional();
+
+    registrar.Parameter("rewrite_cardinality_into_hyper_log_log_with_precision", &TThis::RewriteCardinalityIntoHyperLogLogWithPrecision)
+        .Optional();
+
+    registrar.Parameter("allow_join_with_async_last_committed_timestamp_if_require_sync_replica_is_false", &TThis::AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse)
+        .Optional();
+
+    registrar.Parameter("truncated_query_length_for_tracing", &TThis::TruncatedQueryLengthForTracing)
+        .GreaterThan(0)
+        .Optional();
+
+    registrar.Parameter("allow_reverse_scan_for_order_by", &TThis::AllowReverseScanForOrderBy)
+        .Optional();
+
+    registrar.Parameter("allow_heavy_range_inference_in_joins", &TThis::AllowHeavyRangeInferenceInJoins)
+        .Optional();
+
+    registrar.Parameter("prefetch_join_tables", &TThis::PrefetchJoinTables)
+        .Optional();
+
+    registrar.Parameter("join_cache_size", &TThis::JoinCacheSize)
+        .GreaterThan(0)
+        .Optional();
+}
+
+//////////////////////////////////////////////////////////////////////
+
+void SetupSingletonConfigParameter(TYsonStructParameter<TQueryEngineConfigPtr>& parameter)
+{
+    parameter.DefaultNew();
+}
+
+void SetupSingletonConfigParameter(TYsonStructParameter<TQueryEngineDynamicConfigPtr>& parameter)
+{
+    parameter.DefaultNew();
+}
+
+void ConfigureSingleton(const TQueryEngineConfigPtr& config)
+{
+#ifdef YT_VERBOSE_CHANGING_QUERY_ENGINE_CONFIG
+    YT_LOG_INFO("Configure QueryEngine (Config: %v)", ConvertToYsonString(config, EYsonFormat::Text));
+#else
+    Y_UNUSED(config);
+#endif
+}
+
+Y_WEAK void ReconfigureSingleton(
+    const TQueryEngineConfigPtr& /*config*/,
+    const TQueryEngineDynamicConfigPtr& /*dynamicConfig*/)
+{ }
+
+YT_DEFINE_RECONFIGURABLE_SINGLETON(
+    "query_engine_config",
+    TQueryEngineConfig,
+    TQueryEngineDynamicConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NQueryClient

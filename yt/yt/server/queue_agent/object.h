@@ -20,12 +20,13 @@ struct IObjectStore
     : public TRefCounted
 {
     //! Returns null if requested object not found.
-    virtual TRefCountedPtr FindSnapshot(NQueueClient::TCrossClusterReference objectRef) const = 0;
+    virtual TQueueSnapshotConstPtr FindQueueSnapshot(const NQueueClient::TTablePath& path) const = 0;
+    virtual TConsumerSnapshotConstPtr FindConsumerSnapshot(const NQueueClient::TConsumerReference& ref) const = 0;
     virtual NYTree::IYPathServicePtr GetObjectService(EObjectKind objectKind) const = 0;
 
     //! Returns empty vector if requested object not found.
     virtual std::vector<NQueueClient::TConsumerRegistrationTableRow> GetRegistrations(
-        NQueueClient::TCrossClusterReference objectRef,
+        const NQueueClient::TGenericObjectReference& ref,
         EObjectKind objectKind) const = 0;
 };
 
@@ -57,15 +58,14 @@ struct IObjectController
     virtual bool IsLeading() const = 0;
 };
 
-template <typename TRow, typename TSnapshot>
+template <typename TSnapshot>
 class TErrorController
     : public IObjectController
 {
 public:
-    TErrorController(
-        TRow row,
-        std::optional<NQueueClient::TReplicatedTableMappingTableRow> replicatedTableMappingRow,
-        TError error);
+    using TSnapshotPtr = TIntrusivePtr<TSnapshot>;
+
+    explicit TErrorController(TSnapshotPtr snapshot);
 
     void OnDynamicConfigChanged(
         const TQueueControllerDynamicConfigPtr& oldConfig,
@@ -84,10 +84,7 @@ public:
     bool IsLeading() const override;
 
 private:
-    const TRow Row_;
-    const std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
-    const TError Error_;
-    const TIntrusivePtr<TSnapshot> Snapshot_;
+    const TSnapshotPtr Snapshot_;
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectController)

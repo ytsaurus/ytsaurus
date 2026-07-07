@@ -65,15 +65,6 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         self._fds = {}  # type: Dict[int, int]
         self._timeout = None  # type: Optional[object]
 
-        # libcurl has bugs that sometimes cause it to not report all
-        # relevant file descriptors and timeouts to TIMERFUNCTION/
-        # SOCKETFUNCTION.  Mitigate the effects of such bugs by
-        # forcing a periodic scan of all active requests.
-        self._force_timeout_callback = ioloop.PeriodicCallback(
-            self._handle_force_timeout, 1000
-        )
-        self._force_timeout_callback.start()
-
         # Work around a bug in libcurl 7.29.0: Some fields in the curl
         # multi object are initialized lazily, and its destructor will
         # segfault if it is destroyed without having been used.  Add
@@ -84,7 +75,6 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         self._multi.remove_handle(dummy_curl_handle)
 
     def close(self) -> None:
-        self._force_timeout_callback.stop()
         if self._timeout is not None:
             self.io_loop.remove_timeout(self._timeout)
         for curl in self._curls:
@@ -95,7 +85,6 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         # Set below properties to None to reduce the reference count of current
         # instance, because those properties hold some methods of current
         # instance that will case circular reference.
-        self._force_timeout_callback = None  # type: ignore
         self._multi = None
 
     def fetch_impl(
@@ -189,19 +178,6 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         if new_timeout >= 0:
             self._set_timeout(new_timeout)
 
-    def _handle_force_timeout(self) -> None:
-        """Called by IOLoop periodically to ask libcurl to process any
-        events it may have forgotten about.
-        """
-        while True:
-            try:
-                ret, num_handles = self._multi.socket_all()
-            except pycurl.error as e:
-                ret = e.args[0]
-            if ret != pycurl.E_CALL_MULTI_PERFORM:
-                break
-        self._finish_pending_requests()
-
     def _finish_pending_requests(self) -> None:
         """Process any requests that were completed by the last
         call to multi.socket_action.
@@ -249,6 +225,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
                     # _process_queue() is called from
                     # _finish_pending_requests the exceptions have
                     # nowhere to go.
+                    curl.reset()
                     self._free_list.append(curl)
                     callback(HTTPResponse(request=request, code=599, error=e))
                 else:
@@ -266,7 +243,6 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         info = curl.info  # type: ignore
         curl.info = None  # type: ignore
         self._multi.remove_handle(curl)
-        self._free_list.append(curl)
         buffer = info["buffer"]
         if curl_error:
             assert curl_message is not None
@@ -310,21 +286,14 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             )
         except Exception:
             self.handle_callback_exception(info["callback"])
+        curl.reset()
+        self._free_list.append(curl)
 
     def handle_callback_exception(self, callback: Any) -> None:
         app_log.error("Exception in callback %r", callback, exc_info=True)
 
     def _curl_create(self) -> pycurl.Curl:
-        curl = pycurl.Curl()
-        if curl_log.isEnabledFor(logging.DEBUG):
-            curl.setopt(pycurl.VERBOSE, 1)
-            curl.setopt(pycurl.DEBUGFUNCTION, self._curl_debug)
-        if hasattr(
-            pycurl, "PROTOCOLS"
-        ):  # PROTOCOLS first appeared in pycurl 7.19.5 (2014-07-12)
-            curl.setopt(pycurl.PROTOCOLS, pycurl.PROTO_HTTP | pycurl.PROTO_HTTPS)
-            curl.setopt(pycurl.REDIR_PROTOCOLS, pycurl.PROTO_HTTP | pycurl.PROTO_HTTPS)
-        return curl
+        return pycurl.Curl()
 
     def _curl_setup_request(
         self,
@@ -333,6 +302,15 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         buffer: BytesIO,
         headers: httputil.HTTPHeaders,
     ) -> None:
+        if curl_log.isEnabledFor(logging.DEBUG):
+            curl.setopt(pycurl.VERBOSE, 1)
+            curl.setopt(pycurl.DEBUGFUNCTION, self._curl_debug)
+        if hasattr(
+            pycurl, "PROTOCOLS"
+        ):  # PROTOCOLS first appeared in pycurl 7.19.5 (2014-07-12)
+            curl.setopt(pycurl.PROTOCOLS, pycurl.PROTO_HTTP | pycurl.PROTO_HTTPS)
+            curl.setopt(pycurl.REDIR_PROTOCOLS, pycurl.PROTO_HTTP | pycurl.PROTO_HTTPS)
+
         curl.setopt(pycurl.URL, native_str(request.url))
 
         # libcurl's magic "Expect: 100-continue" behavior causes delays
@@ -458,7 +436,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             "PUT": pycurl.UPLOAD,
             "HEAD": pycurl.NOBODY,
         }
-        custom_methods = set(["DELETE", "OPTIONS", "PATCH"])
+        custom_methods = {"DELETE", "OPTIONS", "PATCH"}
         for o in curl_options.values():
             curl.setopt(o, False)
         if request.method in curl_options:
@@ -494,12 +472,12 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
                 raise ValueError("Body must be None for GET request")
             request_buffer = BytesIO(utf8(request.body or ""))
 
-            def ioctl(cmd: int) -> None:
-                if cmd == curl.IOCMD_RESTARTREAD:  # type: ignore
-                    request_buffer.seek(0)
+            def seek(offset: int, origin: int) -> int:
+                request_buffer.seek(offset, origin)
+                return pycurl.SEEKFUNC_OK
 
             curl.setopt(pycurl.READFUNCTION, request_buffer.read)
-            curl.setopt(pycurl.IOCTLFUNCTION, ioctl)
+            curl.setopt(pycurl.SEEKFUNCTION, seek)
             if request.method == "POST":
                 curl.setopt(pycurl.POSTFIELDSIZE, len(request.body or ""))
             else:
@@ -566,7 +544,9 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         if header_line.startswith("HTTP/"):
             headers.clear()
             try:
-                (__, __, reason) = httputil.parse_response_start_line(header_line)
+                (_version, _code, reason) = httputil.parse_response_start_line(
+                    header_line
+                )
                 header_line = "X-Http-Reason: %s" % reason
             except httputil.HTTPInputError:
                 return

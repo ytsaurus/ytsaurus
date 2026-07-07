@@ -8,7 +8,7 @@ PEERDIR(
     yt/python/yt/wrapper
 
     contrib/python/python-dateutil
-    contrib/python/cheroot
+    contrib/python/waitress
     contrib/python/Flask
 )
 

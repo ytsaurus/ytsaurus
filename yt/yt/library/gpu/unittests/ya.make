@@ -1,4 +1,4 @@
-GTEST(library-gpu-unittest)
+GTEST(unittester-library-gpu)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 

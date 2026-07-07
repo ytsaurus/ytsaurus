@@ -4,13 +4,15 @@
 
 #include <yt/yt/server/master/tablet_server/config.h>
 
-#include <yt/yt/server/lib/cypress_election/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
+
+#include <yt/yt/library/cypress_election/config.h>
+
+#include <yt/yt/library/dynamic_config/public.h>
 
 #include <yt/yt/library/server_program/config.h>
 
@@ -55,6 +57,7 @@ struct TBundleControllerConfig
     : public NYTree::TYsonStruct
 {
     std::string Cluster;
+    bool UseDedicatedUserName;
     TDuration BundleScanPeriod;
     TDuration BundleScanTransactionTimeout;
     // TODO(grachevkirill): Rename to AllocatorRequestTimeout
@@ -94,12 +97,72 @@ struct TBundleControllerConfig
     bool EnableChaosBundleManagement;
     TChaosConfigPtr ChaosConfig;
 
+    bool AnnotateNewNodes;
+    bool AnnotateNewProxies;
+
     REGISTER_YSON_STRUCT(TBundleControllerConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleControllerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNodeTrackerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    TDuration HeartbeatTimeout;
+
+    int MaxDetectedOfflineNodes;
+
+    REGISTER_YSON_STRUCT(TNodeTrackerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNodeTrackerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBundleControllerDynamicConfig
+    : public TSingletonsDynamicConfig
+{
+    std::optional<TDuration> BundleScanPeriod;
+
+    TNodeTrackerDynamicConfigPtr NodeTracker;
+
+    bool RemoveTagsFromOfflineNodes;
+
+    std::optional<TDuration> RemoveInstanceCypressNodeAfter;
+    std::optional<TDuration> OfflineInstanceGracePeriod;
+
+    int MaxConcurrentCypressWriteRequests;
+
+    // Limits the number of nodes which are released via decommission.
+    // Used to throttle tablet cell restart rate.
+    int MaxReleasedNodesPerIteration;
+
+    // For unittests.
+    bool FlushLogAfterMutations;
+
+    std::optional<bool> EnableChaosBundleManagement;
+
+    TDuration ForeignClusterRequestTimeout;
+
+    std::optional<bool> AnnotateNewNodes;
+    std::optional<bool> AnnotateNewProxies;
+
+    bool UseDataNodeRacks;
+
+    REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleControllerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,6 +178,9 @@ struct TCellBalancerBootstrapConfig
 
     bool EnableBundleController;
     TBundleControllerConfigPtr BundleController;
+
+    NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
+    NYPath::TYPath DynamicConfigPath;
 
     REGISTER_YSON_STRUCT(TCellBalancerBootstrapConfig);
 

@@ -13,6 +13,8 @@
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 namespace NYT::NHttpProxy {
 
 using namespace NFormats;
@@ -118,10 +120,14 @@ TFormat InferHeaderFormat(const TFormatManager& formatManager, const std::string
         THROW_ERROR_EXCEPTION("Unable to parse X-YT-Header-Format header")
             << ex;
     }
+
+    if (ConvertTo<EFormatType>(formatNode) == EFormatType::Yson) {
+        formatNode->MutableAttributes()->Set("format", "text");
+    }
     return formatManager.ConvertToFormat(formatNode, "header format from X-YT-Header-Format header");
 }
 
-TString FormatToMime(const NFormats::TFormat& format)
+std::string FormatToMime(const NFormats::TFormat& format)
 {
     switch (format.GetType()) {
         case EFormatType::SchemafulDsv:
@@ -190,7 +196,7 @@ NYTree::INodePtr ConvertBytesToNode(
     TStringBuf bytes,
     const NFormats::TFormat& format)
 {
-    TMemoryInput stream{bytes.data(), bytes.size()};
+    TMemoryInput stream{bytes};
     return ConvertToNode(CreateProducerForFormat(
         format,
         EDataType::Structured,
@@ -204,8 +210,8 @@ void FillFormattedYTError(
     const TError& error,
     const TFormat& format)
 {
-    TString errorString;
-    TStringOutput errorStringOutput(errorString);
+    std::string errorString;
+    TStdStringOutput errorStringOutput(errorString);
 
     auto consumer = CreateConsumerForFormat(
         format,

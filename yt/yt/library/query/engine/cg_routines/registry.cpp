@@ -1,0 +1,4850 @@
+#include "registry.h"
+
+#include <yt/yt/library/query/engine/cg_types.h>
+#include <yt/yt/library/query/engine/web_assembly_data_transfer.h>
+
+#include <yt/yt/library/web_assembly/api/compartment.h>
+#include <yt/yt/library/web_assembly/api/function.h>
+#include <yt/yt/library/web_assembly/api/pointer.h>
+
+#include <yt/yt/library/web_assembly/engine/intrinsics.h>
+#include <yt/yt/library/web_assembly/engine/wavm_private_imports.h>
+
+#include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/private.h>
+#include <yt/yt/library/query/base/join_profiler.h>
+
+#include <yt/yt/library/query/engine/cg_routines/inferrum.h>
+#include <yt/yt/library/query/engine/cg_routines/yt.h>
+
+#include <yt/yt/library/query/engine/time/dates.h>
+
+#include <yt/yt/library/query/engine_api/position_independent_value.h>
+#include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
+#include <yt/yt/library/query/engine_api/top_collector.h>
+
+#include <yt/yt/library/query/misc/allocator.h>
+
+#include <yt/yt/client/chunk_client/public.h>
+
+#include <yt/yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/helpers.h>
+
+#include <yt/yt/client/query_client/query_statistics.h>
+
+#include <yt/yt/client/table_client/composite_compare.h>
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/validate_logical_type.h>
+#include <yt/yt/client/table_client/lightweight_yson_list_parser.h>
+
+#include <yt/yt/client/node_tracker_client/public.h>
+
+#include <yt/yt/core/yson/lexer.h>
+#include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/token.h>
+#include <yt/yt/core/yson/writer.h>
+
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
+
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/hyperloglog.h>
+
+#include <yt/yt/core/profiling/timing.h>
+
+#include <contrib/libs/re2/re2/re2.h>
+
+#include <contrib/libs/xxhash/xxhash.h>
+
+#include <library/cpp/yt/memory/chunked_memory_pool_output.h>
+
+#include <library/cpp/yt/misc/static_initializer.h>
+
+#include <library/cpp/yt/string/stream.h>
+
+#include <library/cpp/yt/farmhash/farm_hash.h>
+
+#include <library/cpp/xdelta3/state/merge.h>
+
+#include <util/charset/utf8.h>
+#include <util/digest/multi.h>
+
+#include <string.h>
+
+namespace NYT::NCodegen {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct TTypeBuilder<re2::RE2*>
+    : public TTypeBuilder<void*>
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCodegen
+
+namespace NYT::NQueryClient {
+
+using namespace NWebAssembly;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = QueryClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: Since pointer to current compartment is stored inside of a thread local,
+// calls to context-switching functions should be guarded via this function.
+template <typename TFunction>
+auto SaveAndRestoreCurrentCompartment(const TFunction& function) -> decltype(function())
+{
+    auto* savedCompartment = GetCurrentCompartment();
+
+    auto finally = Finally([&] {
+        YT_VERIFY(GetCurrentCompartment() == nullptr);
+        SetCurrentCompartment(savedCompartment);
+    });
+
+    SetCurrentCompartment(nullptr);
+
+    return function();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NRoutines {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NConcurrency;
+using namespace NTableClient;
+using namespace NProfiling;
+using namespace NWebAssembly;
+using namespace NYson;
+using namespace NYTree;
+using namespace NChunkClient;
+using namespace NNodeTrackerClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+char* AllocateBytes(TExpressionContext* context, size_t byteCount)
+{
+    return context->AllocateUnaligned(byteCount, EAddressSpace::WebAssembly);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+template <typename TStringType>
+void CopyStringLike(TExpressionContext* context, TValue* result, const TStringType& str, EValueType type)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* offset = AllocateBytes(context, str.size());
+    ::memcpy(PtrFromVM(compartment, offset, str.size()), str.data(), str.size());
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(type, TStringBuf(offset, str.size()));
+}
+
+template <typename TStringType>
+void CopyStringLike(TExpressionContext* context, TPIValue* result, const TStringType& str, EValueType type)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* offset = AllocateBytes(context, str.size());
+    auto* offsetAtHost = PtrFromVM(compartment, offset, str.size());
+    ::memcpy(offsetAtHost, str.data(), str.size());
+    MakePositionIndependentStringLikeValue(
+        PtrFromVM(compartment, result),
+        type,
+        TStringBuf(offsetAtHost, str.size()));
+}
+
+class TContextStringOutput
+    : public IZeroCopyOutput
+{
+public:
+    explicit TContextStringOutput(TExpressionContext* context)
+        : Context_(context)
+    { }
+
+    TStringBuf GetVMView() const
+    {
+        return {BeginOffset_, Size_};
+    }
+
+    TStringBuf GetHostView() const
+    {
+        return {PtrFromVM(GetCurrentCompartment(), BeginOffset_, Size_), Size_};
+    }
+
+private:
+    TExpressionContext* const Context_;
+    char* BeginOffset_ = {};
+
+    size_t Size_ = 0;
+    size_t Capacity_ = 0;
+
+    static constexpr size_t BufferSizeStep = 16;
+
+    size_t DoNext(void** ptr) override
+    {
+        if (Size_ == Capacity_) {
+            Extend(Capacity_ + BufferSizeStep);
+        }
+        size_t previousSize = Size_;
+        Size_ = Capacity_;
+        *ptr = PtrFromVM(GetCurrentCompartment(), BeginOffset_ + previousSize);
+        return Size_ - previousSize;
+    }
+
+    void DoUndo(size_t len) override
+    {
+        YT_ASSERT(len <= Size_);
+        Size_ -= len;
+    }
+
+    void Extend(size_t desiredCapacity)
+    {
+        YT_ASSERT(desiredCapacity > Capacity_);
+        auto* compartment = GetCurrentCompartment();
+        Capacity_ = FastClp2(desiredCapacity);
+        char* oldBeginOffset = BeginOffset_;
+        BeginOffset_ = AllocateBytes(Context_, Capacity_);
+        ::memcpy(PtrFromVM(compartment, BeginOffset_), PtrFromVM(compartment, oldBeginOffset), Size_);
+    }
+};
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto YieldThreshold = TDuration::MilliSeconds(30);
+
+class TYielder
+    : public TWallTimer
+    , private TContextSwitchGuard
+{
+public:
+    TYielder()
+        : TContextSwitchGuard(
+            [this] () noexcept { Stop(); },
+            [this] () noexcept { Restart(); })
+    { }
+
+    void Checkpoint(i64 processedRows)
+    {
+        if (GetElapsedTime() > YieldThreshold) {
+            YT_LOG_DEBUG("Yielding fiber (ProcessedRows: %v, SyncTime: %v)",
+                processedRows,
+                GetElapsedTime());
+            SaveAndRestoreCurrentCompartment([&] {
+                Yield();
+            });
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TUnversionedRowsConsumer = bool (*)(void** closure, TExpressionContext*, const TValue** rows, i64 size);
+
+bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* values)
+{
+    auto* statistics = context->Statistics;
+
+    if (statistics->RowsWritten >= context->OutputRowLimit) {
+        throw TInterruptedIncompleteException();
+    }
+
+    ++statistics->RowsWritten;
+
+    auto& batch = closure->OutputRowsBatch;
+
+    auto& outputContext = closure->OutputContext;
+
+    YT_ASSERT(std::ssize(batch) < context->WriteRowsetSize);
+
+    batch.push_back(
+        CopyAndConvertFromPI(
+            GetCurrentCompartment(),
+            &outputContext,
+            TRange(values, closure->RowSize)));
+
+    // NB: Flags are neither set from TCG value nor cleared during row allocation.
+    // XXX(babenko): fix this
+    size_t id = 0;
+    for (auto* value = batch.back().Begin(); value < batch.back().End(); ++value) {
+        auto mutableValue = const_cast<TUnversionedValue*>(value);
+        mutableValue->Id = id++;
+        mutableValue->Flags = {};
+        if (!IsStringLikeType(value->Type)) {
+            mutableValue->Length = 0;
+        }
+    }
+
+    if (std::ssize(batch) == context->WriteRowsetSize) {
+        const auto& writer = context->Writer;
+        bool shouldNotWait;
+        {
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->WriteTime);
+            shouldNotWait = SaveAndRestoreCurrentCompartment([&] {
+                return writer->Write(batch);
+            });
+        }
+
+        if (!shouldNotWait) {
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
+            SaveAndRestoreCurrentCompartment([&] {
+                WaitForFast(writer->GetReadyEvent())
+                    .ThrowOnError();
+            });
+        }
+        batch.clear();
+        outputContext.Clear();
+    }
+
+    return false;
+}
+
+void ScanOpHelper(
+    TExecutionContext* context,
+    void** consumeRowsClosure,
+    TUnversionedRowsConsumer consumeRowsFunction,
+    TRowSchemaInformation* rowSchemaInformation)
+{
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+
+    auto finalLogger = Finally([&] {
+        YT_LOG_DEBUG("Finalizing scan helper");
+    });
+    if (context->Limit == 0) {
+        return;
+    }
+
+    auto startBatchSize = context->Offset + context->Limit;
+
+    TRowBatchReadOptions readOptions{
+        .MaxRowsPerRead = (context->ScanOrder == EScanOrder::Ordered)
+            ? std::min(startBatchSize, context->RowsetProcessingBatchSize)
+            : context->RowsetProcessingBatchSize
+    };
+
+    std::vector<const TValue*> values;
+    values.reserve(readOptions.MaxRowsPerRead);
+
+    auto& reader = context->Reader;
+    auto* statistics = context->Statistics;
+
+    TYielder yielder;
+
+    auto scanContext = MakeExpressionContext(
+        TIntermediateBufferTag(),
+        context->MemoryChunkProvider);
+    std::vector<TUnversionedRow> rows;
+
+    bool interrupt = false;
+    while (!interrupt) {
+        IUnversionedRowBatchPtr batch;
+        {
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->ReadTime);
+            batch = SaveAndRestoreCurrentCompartment([&] {
+                return reader->Read(readOptions);
+            });
+            if (!batch) {
+                break;
+            }
+            // Materialize rows here.
+            // Drop null rows.
+            auto batchRows = batch->MaterializeRows();
+            rows.reserve(batchRows.size());
+            rows.clear();
+            for (auto row : batchRows) {
+                if (row) {
+                    rows.push_back(row);
+                }
+            }
+        }
+
+        if (batch->IsEmpty()) {
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
+            SaveAndRestoreCurrentCompartment([&] {
+                WaitForFast(reader->GetReadyEvent())
+                    .ThrowOnError();
+            });
+            continue;
+        }
+
+        if (statistics->RowsRead + std::ssize(rows) >= context->InputRowLimit) {
+            YT_VERIFY(statistics->RowsRead <= context->InputRowLimit);
+            rows.resize(context->InputRowLimit - statistics->RowsRead);
+            statistics->IncompleteInput = true;
+            interrupt = true;
+        }
+
+        statistics->RowsRead += rows.size();
+
+        statistics->DataWeightRead += rowSchemaInformation->RowWeightWithNoStrings * rows.size();
+        i64 stringLikeColumnsDataWeight = 0;
+
+        for (auto row : rows) {
+            values.push_back(row.Begin());
+
+            for (int index : rowSchemaInformation->StringLikeIndices) {
+                stringLikeColumnsDataWeight += row[index].Type == EValueType::Null
+                    ? 0
+                    : row[index].Length;
+            }
+        }
+
+        statistics->DataWeightRead += stringLikeColumnsDataWeight;
+
+        if (auto* compartment = GetCurrentCompartment()) {
+            auto copiedRangesGuard = CopyRowRangeIntoCompartment(
+                values,
+                stringLikeColumnsDataWeight,
+                *rowSchemaInformation,
+                compartment);
+            auto copiedRangesPointersGuard = CopyIntoCompartment(
+                TRange(std::bit_cast<uintptr_t*>(copiedRangesGuard.second.data()), copiedRangesGuard.second.size()),
+                compartment);
+            auto** valuesOffset = std::bit_cast<const TValue**>(copiedRangesPointersGuard.GetCopiedOffset());
+            interrupt |= consumeRows(consumeRowsClosure, &scanContext, valuesOffset, values.size());
+        } else {
+            // TODO(dtorilov): This is a fix of YT-21907. Should use consumer with PI conversion here.
+            for (auto row : rows) {
+                for (int index : rowSchemaInformation->StringLikeIndices) {
+                    MakePositionIndependentFromUnversioned(std::bit_cast<TPIValue*>(&row[index]), row[index]);
+                }
+            }
+
+            interrupt |= consumeRows(consumeRowsClosure, &scanContext, values.data(), values.size());
+        }
+
+        yielder.Checkpoint(statistics->RowsRead);
+
+        values.clear();
+        scanContext.Clear();
+
+        if (!context->IsMerge) {
+            readOptions.MaxRowsPerRead = std::min(2 * readOptions.MaxRowsPerRead, context->RowsetProcessingBatchSize);
+        }
+    }
+}
+
+char* AllocateAlignedBytes(TExpressionContext* context, size_t byteCount)
+{
+    return context->AllocateAligned(byteCount, EAddressSpace::WebAssembly);
+}
+
+struct TSlot
+{
+    size_t Offset;
+    size_t Count;
+};
+
+TPIValue* AllocateJoinKeys(
+    TExecutionContext* /*context*/,
+    TMultiJoinClosure* closure,
+    TPIValue** keyPtrs)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
+        auto& joinItem = closure->Items[joinId];
+        i64 length = GetUnversionedRowByteSize(joinItem.KeySize) + sizeof(TSlot);
+        auto* offset = AllocateAlignedBytes(&joinItem.Context, length);
+        auto* data = PtrFromVM(compartment, offset, length);
+        auto row = TMutableRow::Create(data, joinItem.KeySize);
+        auto* rowBeginOffset = PtrToVM(compartment, row.Begin(), row.GetCount());
+        PtrFromVM(compartment, keyPtrs)[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
+    }
+
+    size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TPIValue) + sizeof(TSlot*) * closure->Items.size();
+
+    return reinterpret_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
+}
+
+// Define here to inline.
+size_t GetUnversionedRowByteSize(ui32 valueCount)
+{
+    return sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
+}
+
+bool StorePrimaryRow(
+    TExecutionContext* context,
+    TMultiJoinClosure* closure,
+    TPIValue** primaryValues,
+    TPIValue** keysPtr)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    if (std::ssize(closure->PrimaryRows) >= context->JoinRowLimit) {
+        throw TInterruptedIncompleteException();
+    }
+
+    closure->PrimaryRows.emplace_back(*PtrFromVM(compartment, primaryValues));
+
+    for (size_t columnIndex = 0; columnIndex < closure->PrimaryRowSize; ++columnIndex) {
+        CapturePIValue(
+            compartment,
+            &closure->Context,
+            *PtrFromVM(compartment, primaryValues) + columnIndex);
+    }
+
+    auto joinItems = TMutableRange(closure->Items);
+
+    for (size_t joinId = 0; joinId < joinItems.size(); ++joinId) {
+        auto& item = joinItems[joinId];
+        auto* key = PtrFromVM(compartment, keysPtr, joinItems.size())[joinId];
+
+        if (!item.LastKey || !item.PrefixEqComparer(key, item.LastKey)) {
+            closure->ProcessSegment(joinId);
+            item.LastKey = key;
+            item.Lookup.clear();
+            // Key will be reallocated further.
+        }
+
+        *std::bit_cast<TSlot*>(PtrFromVM(compartment, key) + item.KeySize) = TSlot{0, 0};
+
+        auto inserted = item.Lookup.insert(key);
+        if (inserted.second) {
+            for (size_t columnIndex = 0; columnIndex < item.KeySize; ++columnIndex) {
+                CapturePIValue(
+                    compartment,
+                    &joinItems[joinId].Context,
+                    &key[columnIndex]);
+            }
+
+            i64 length = GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot);
+            auto* offset = AllocateAlignedBytes(&item.Context, length);
+            auto* data = PtrFromVM(compartment, offset, length);
+            auto row = TMutableRow::Create(data, item.KeySize);
+            auto* rowBeginOffset = PtrToVM(compartment, row.Begin(), row.GetCount());
+            PtrFromVM(compartment, keysPtr, joinItems.size())[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
+        }
+
+        auto* insertedOffset = std::bit_cast<TSlot*>(*inserted.first + item.KeySize);
+        auto** arrayOffset = std::bit_cast<TSlot**>(*PtrFromVM(compartment, primaryValues) + closure->PrimaryRowSize);
+        auto** array = PtrFromVM(compartment, arrayOffset, joinItems.size());
+        array[joinId] = insertedOffset;
+    }
+
+    if (closure->PrimaryRows.size() >= closure->BatchSize) {
+        closure->BatchSize = std::min<size_t>(2 * closure->BatchSize, context->MaxJoinBatchSize);
+
+        if (closure->ProcessJoinBatch()) {
+            return true;
+        }
+
+        // Allocate all keys
+        for (size_t joinId = 0; joinId < joinItems.size(); ++joinId) {
+            auto& item = joinItems[joinId];
+            char* data = AllocateAlignedBytes(
+                &item.Context,
+                GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
+            auto* dataAtHost = PtrFromVM(compartment, data, GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
+            auto row = TMutableRow::Create(dataAtHost, item.KeySize);
+            auto* rowBeginOffset = PtrToVM(compartment, row.Begin(), row.GetCount());
+            PtrFromVM(compartment, keysPtr)[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
+        }
+    }
+
+    size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * joinItems.size();
+
+    *PtrFromVM(compartment, primaryValues) = std::bit_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
+
+    return false;
+}
+
+namespace NDetail {
+
+struct TJoinComparersCallbacks
+{
+    TCompartmentFunction<TComparerFunction> PrefixEqComparer;
+    TCompartmentFunction<THasherFunction> SuffixHasher;
+    TCompartmentFunction<TComparerFunction> SuffixEqComparer;
+    TCompartmentFunction<TComparerFunction> SuffixLessComparer;
+    TCompartmentFunction<TComparerFunction> ForeignPrefixEqComparer;
+    TCompartmentFunction<TComparerFunction> ForeignSuffixLessComparer;
+    TCompartmentFunction<TTernaryComparerFunction> FullTernaryComparer;
+};
+
+std::vector<TJoinComparersCallbacks> MakeJoinComparersCallbacks(TRange<TJoinComparers> comparers)
+{
+    std::vector<TJoinComparersCallbacks> result;
+    result.reserve(comparers.Size());
+    for (size_t joinId = 0; joinId < comparers.Size(); ++joinId) {
+        result.push_back({
+            PrepareFunction(comparers[joinId].PrefixEqComparer),
+            PrepareFunction(comparers[joinId].SuffixHasher),
+            PrepareFunction(comparers[joinId].SuffixEqComparer),
+            PrepareFunction(comparers[joinId].SuffixLessComparer),
+            PrepareFunction(comparers[joinId].ForeignPrefixEqComparer),
+            PrepareFunction(comparers[joinId].ForeignSuffixLessComparer),
+            PrepareFunction(comparers[joinId].FullTernaryComparer),
+        });
+    }
+
+    return result;
+}
+
+} // namespace NDetail
+
+void MultiJoinOpHelper(
+    TExecutionContext* context,
+    TMultiJoinParameters* parameters,
+    TJoinComparers* comparersOffsets,
+    void** collectRowsClosure,
+    void (*collectRowsFunction)(
+        void** closure,
+        TMultiJoinClosure* joinClosure,
+        TExpressionContext* context),
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    auto comparers = NDetail::MakeJoinComparersCallbacks(
+        TRange(
+            PtrFromVM(compartment, comparersOffsets, parameters->Items.size()),
+            parameters->Items.size()));
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+
+    auto finalLogger = Finally([&] {
+        YT_LOG_DEBUG("Finalizing multijoin helper");
+    });
+
+    TMultiJoinClosure closure{
+        .Context = MakeExpressionContext(TMultiJoinClosure::TBufferTag(), context->MemoryChunkProvider),
+    };
+
+    closure.PrimaryRowSize = parameters->PrimaryRowSize;
+    closure.BatchSize = parameters->BatchSize;
+
+    for (size_t joinId = 0; joinId < parameters->Items.size(); ++joinId) {
+        TMultiJoinClosure::TItem subclosure(
+            context->MemoryChunkProvider,
+            parameters->Items[joinId].KeySize,
+            comparers[joinId].PrefixEqComparer,
+            comparers[joinId].SuffixHasher,
+            comparers[joinId].SuffixEqComparer);
+        closure.Items.push_back(std::move(subclosure));
+    }
+
+    closure.ProcessSegment = [&] (size_t joinId) {
+        auto& orderedKeys = closure.Items[joinId].OrderedKeys;
+        auto& lookup = closure.Items[joinId].Lookup;
+
+        auto offset = orderedKeys.size();
+        orderedKeys.insert(orderedKeys.end(), lookup.begin(), lookup.end());
+        std::sort(orderedKeys.begin() + offset, orderedKeys.end(), comparers[joinId].SuffixLessComparer);
+    };
+
+    bool finished = false;
+
+    closure.ProcessJoinBatch = [&] {
+        if (finished) {
+            return true;
+        }
+
+        YT_LOG_DEBUG("Joining started");
+        auto finalLogger = Finally([&] {
+            YT_LOG_DEBUG("Joining finished");
+        });
+
+        auto foreignContext = MakeExpressionContext(
+            TForeignExecutorBufferTag(),
+            context->MemoryChunkProvider);
+
+        TYielder yielder;
+
+        std::vector<ISchemafulUnversionedReaderPtr> readers;
+        for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
+            closure.ProcessSegment(joinId);
+
+            std::vector<TPIValueRange> orderedKeys;
+            orderedKeys.reserve(closure.Items[joinId].OrderedKeys.size());
+            for (auto* key : closure.Items[joinId].OrderedKeys) {
+                // NB: Flags are neither set from TCG value nor cleared during row allocation.
+                size_t id = 0;
+                auto* items = PtrFromVM(compartment, key, closure.Items[joinId].KeySize);
+                for (size_t index = 0; index < closure.Items[joinId].KeySize; ++index) {
+                    auto& value = items[index];
+                    value.Flags = {};
+                    value.Id = id++;
+                }
+                auto row = TRow(PtrFromVM(compartment, std::bit_cast<const TUnversionedRowHeader*>(key) - 1));
+                orderedKeys.emplace_back(key, row.GetCount());
+            }
+
+            yielder.Checkpoint(closure.Items[joinId].OrderedKeys.size());
+
+            auto foreignExecutorCopy = CopyAndConvertFromPI(compartment, &foreignContext, orderedKeys);
+            SaveAndRestoreCurrentCompartment([&] {
+                auto reader = parameters->Items[joinId].JoinRowsProducer->FetchJoinedRows(
+                    foreignExecutorCopy,
+                    foreignContext.GetRowBuffer());
+                readers.push_back(std::move(reader));
+            });
+
+            closure.Items[joinId].Lookup.clear();
+            closure.Items[joinId].LastKey = nullptr;
+        }
+
+        std::vector<std::vector<TPIValue*>> sortedForeignSequences;
+        for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
+            auto orderedKeys = std::move(closure.Items[joinId].OrderedKeys);
+
+            YT_LOG_DEBUG("Collected %v join keys",
+                orderedKeys.size());
+
+            auto reader = readers[joinId];
+
+            // Join rowsets.
+            // allRows have format (join key... , other columns...)
+
+            bool isPartiallySorted = parameters->Items[joinId].IsPartiallySorted;
+            size_t keySize = parameters->Items[joinId].KeySize;
+
+            auto foreignSuffixLessComparer = comparers[joinId].ForeignSuffixLessComparer;
+            auto foreignPrefixEqComparer = comparers[joinId].ForeignPrefixEqComparer;
+            auto fullTernaryComparer = comparers[joinId].FullTernaryComparer;
+
+            std::vector<TPIValue*> sortedForeignSequence;
+            size_t unsortedOffset = 0;
+            TPIValue* lastForeignKey = nullptr;
+
+            TRowBatchReadOptions readOptions{
+                .MaxRowsPerRead = context->RowsetProcessingBatchSize,
+            };
+
+            std::vector<TPIValue*> foreignValues;
+            foreignValues.reserve(readOptions.MaxRowsPerRead);
+
+            // Sort-merge join
+            auto currentKey = orderedKeys.begin();
+
+            auto processSortedForeignSequence = [&] {
+                size_t index = 0;
+                while (index != sortedForeignSequence.size() && currentKey != orderedKeys.end()) {
+                    int cmpResult = fullTernaryComparer(*currentKey, sortedForeignSequence[index]);
+                    if (cmpResult == 0) {
+                        auto* slot = std::bit_cast<TSlot*>(PtrFromVM(compartment, *currentKey + keySize));
+                        if (slot->Count == 0) {
+                            slot->Offset = index;
+                        }
+                        ++slot->Count;
+                        ++index;
+                    } else if (cmpResult < 0) {
+                        ++currentKey;
+                    } else {
+                        ++index;
+                    }
+                }
+            };
+
+            auto processForeignSequence = [&] (auto foreignIt, auto endForeignIt) {
+                while (foreignIt != endForeignIt) {
+                    if (!lastForeignKey || !foreignPrefixEqComparer(*foreignIt, lastForeignKey)) {
+                        std::sort(
+                            sortedForeignSequence.begin() + unsortedOffset,
+                            sortedForeignSequence.end(),
+                            foreignSuffixLessComparer);
+                        unsortedOffset = sortedForeignSequence.size();
+                        lastForeignKey = *foreignIt;
+                    }
+
+                    sortedForeignSequence.push_back(*foreignIt);
+                    ++foreignIt;
+                }
+            };
+
+            TDuration sortingForeignTime;
+
+            while (currentKey != orderedKeys.end()) {
+                IUnversionedRowBatchPtr foreignBatch;
+                TRange<TUnversionedRow> foreignRows;
+                {
+                    TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
+                    foreignBatch = SaveAndRestoreCurrentCompartment([&] {
+                        return reader->Read(readOptions);
+                    });
+                    if (!foreignBatch) {
+                        break;
+                    }
+                    // Materialize rows here.
+                    foreignRows = foreignBatch->MaterializeRows();
+                }
+
+                if (foreignBatch->IsEmpty()) {
+                    TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                    SaveAndRestoreCurrentCompartment([&] {
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
+                    });
+                    continue;
+                }
+
+                for (auto row : foreignRows) {
+                    auto captured = CaptureUnversionedValueRange(&closure.Context, row.Elements());
+                    foreignValues.push_back(captured.Begin());
+                }
+
+                {
+                    TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&sortingForeignTime);
+                    if (isPartiallySorted) {
+                        processForeignSequence(foreignValues.begin(), foreignValues.end());
+                    } else {
+                        sortedForeignSequence.insert(
+                            sortedForeignSequence.end(),
+                            foreignValues.begin(),
+                            foreignValues.end());
+                    }
+                }
+
+                yielder.Checkpoint(sortedForeignSequence.size());
+
+                foreignValues.clear();
+            }
+
+            {
+                TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&sortingForeignTime);
+
+                if (isPartiallySorted) {
+                    std::sort(
+                        sortedForeignSequence.begin() + unsortedOffset,
+                        sortedForeignSequence.end(),
+                        foreignSuffixLessComparer);
+                }
+
+                processSortedForeignSequence();
+            }
+
+            sortedForeignSequences.push_back(std::move(sortedForeignSequence));
+
+            YT_LOG_DEBUG("Finished precessing foreign rowset (SortingTime: %v)", sortingForeignTime);
+        }
+
+        auto intermediateContext = MakeExpressionContext(
+            TIntermediateBufferTag(),
+            context->MemoryChunkProvider);
+        std::vector<const TPIValue*> joinedRows;
+
+        i64 processedRows = 0;
+
+        auto consumeJoinedRows = [&] () -> bool {
+            // Consume joined rows.
+            processedRows += joinedRows.size();
+
+            bool finished = false;
+            if (auto* compartment = GetCurrentCompartment()) {
+                auto guard = CopyIntoCompartment(
+                    TRange(std::bit_cast<uintptr_t*>(joinedRows.begin()), joinedRows.size()),
+                    compartment);
+                auto** offset = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+                finished = consumeRows(consumeRowsClosure, &intermediateContext, offset, joinedRows.size());
+            } else {
+                finished = consumeRows(consumeRowsClosure, &intermediateContext, joinedRows.data(), joinedRows.size());
+            }
+
+            joinedRows.clear();
+            intermediateContext.Clear();
+            yielder.Checkpoint(processedRows);
+            return finished;
+        };
+
+        // TODO: Join first row in place or join all rows in place and immediately consume them?
+
+        size_t resultRowSize = closure.PrimaryRowSize;
+
+        for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
+            resultRowSize += parameters->Items[joinId].ForeignColumns.size();
+        }
+
+        YT_LOG_DEBUG("Started producing joined rows");
+
+        std::vector<size_t> indexes(closure.Items.size(), 0);
+
+        auto joinRow = [&] (TPIValue* rowValues) -> bool {
+            size_t incrementIndex = 0;
+            while (incrementIndex < closure.Items.size()) {
+                auto joinedRow = AllocatePIValueRange(&intermediateContext, resultRowSize, EAddressSpace::WebAssembly);
+
+                for (size_t index = 0; index < closure.PrimaryRowSize; ++index) {
+                    CopyPositionIndependent(
+                        &PtrFromVM(compartment, joinedRow.Begin())[index],
+                        PtrFromVM(compartment, rowValues)[index]);
+                }
+
+                size_t offset = closure.PrimaryRowSize;
+                for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
+                    auto** arrayAtHost = PtrFromVM(
+                        compartment,
+                        std::bit_cast<TSlot**>(rowValues + closure.PrimaryRowSize),
+                        closure.Items.size());
+                    auto* slotPointer = PtrFromVM(compartment, arrayAtHost[joinId]);
+                    auto slot = *slotPointer;
+
+                    const auto& foreignIndexes = parameters->Items[joinId].ForeignColumns;
+
+                    if (slot.Count != 0) {
+                        YT_VERIFY(indexes[joinId] < slot.Count);
+                        TPIValue* foreignRow = sortedForeignSequences[joinId][slot.Offset + indexes[joinId]];
+
+                        if (incrementIndex == joinId) {
+                            ++indexes[joinId];
+                            if (indexes[joinId] == slot.Count) {
+                                indexes[joinId] = 0;
+                                ++incrementIndex;
+                            } else {
+                                incrementIndex = 0;
+                            }
+                        }
+
+                        for (size_t columnIndex : foreignIndexes) {
+                            CopyPositionIndependent(
+                                &PtrFromVM(compartment, joinedRow.Begin())[offset++],
+                                *PtrFromVM(compartment, &foreignRow[columnIndex]));
+                        }
+                    } else {
+                        if (incrementIndex == joinId) {
+                            ++incrementIndex;
+                        }
+
+                        bool isLeft = parameters->Items[joinId].IsLeft;
+                        if (!isLeft) {
+                            indexes.assign(closure.Items.size(), 0);
+                            return false;
+                        }
+                        for (size_t count = foreignIndexes.size(); count > 0; --count) {
+                            MakePositionIndependentSentinelValue(
+                                &PtrFromVM(compartment, joinedRow.Begin())[offset++],
+                                EValueType::Null);
+                        }
+                    }
+                }
+
+                joinedRows.push_back(joinedRow.Begin());
+
+                if (std::ssize(joinedRows) >= context->RowsetProcessingBatchSize) {
+                    if (consumeJoinedRows()) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        };
+
+        for (auto* rowValues : closure.PrimaryRows) {
+            if (joinRow(rowValues)) {
+                finished = true;
+                break;
+            }
+        }
+
+        if (!finished) {
+            finished = consumeJoinedRows();
+        }
+
+        closure.PrimaryRows.clear();
+        closure.Context.Clear();
+        for (auto& joinItem : closure.Items) {
+            joinItem.Context.Clear();
+        }
+
+        return finished;
+    };
+
+    try {
+        // Collect join ids.
+        collectRows(collectRowsClosure, &closure, &closure.Context);
+    } catch (const TInterruptedIncompleteException&) {
+        // Set incomplete and continue
+        context->Statistics->IncompleteOutput = true;
+    }
+
+    closure.ProcessJoinBatch();
+}
+
+int DoUnpackComplex(
+    TExpressionContext* context,
+    std::vector<TPIValue*>& nestedRows,
+    EValueType listItemType,
+    TPIValue* arrayAtHost,
+    int arrayCount,
+    int currentArrayIndex,
+    int index)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    TMemoryInput memoryInput;
+    std::string buffer;
+    if (compartment) {
+        buffer = arrayAtHost->AsStringBuf();
+        memoryInput = TMemoryInput(TStringBuf(buffer));
+    } else {
+        memoryInput = TMemoryInput(FromPositionIndependentValue<NYson::TYsonStringBuf>(*arrayAtHost).AsStringBuf());
+    }
+
+    auto parser = TYsonPullParser(&memoryInput, EYsonType::Node);
+    auto cursor = TYsonPullParserCursor(&parser);
+
+    TPIValue parsedValue;
+
+    auto validateType = [] (EValueType expected, EValueType actual) {
+        THROW_ERROR_EXCEPTION_IF(expected != actual, "Type mismatch in array join: expected %Qlv, actual %Qlv",
+            expected,
+            actual);
+    };
+
+    cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
+        const auto current = cursor->GetCurrent();
+        switch (current.GetType()) {
+            case EYsonItemType::EntityValue: {
+                MakePositionIndependentNullValue(&parsedValue);
+                break;
+            }
+            case EYsonItemType::Int64Value: {
+                validateType(listItemType, EValueType::Int64);
+
+                auto value = current.UncheckedAsInt64();
+                MakePositionIndependentInt64Value(&parsedValue, value);
+                break;
+            }
+            case EYsonItemType::Uint64Value: {
+                validateType(listItemType, EValueType::Uint64);
+
+                auto value = current.UncheckedAsUint64();
+                MakePositionIndependentUint64Value(&parsedValue, value);
+                break;
+            }
+            case EYsonItemType::DoubleValue: {
+                validateType(listItemType, EValueType::Double);
+
+                auto value = current.UncheckedAsDouble();
+                MakePositionIndependentDoubleValue(&parsedValue, value);
+                break;
+            }
+            case EYsonItemType::StringValue: {
+                validateType(listItemType, EValueType::String);
+
+                auto value = current.UncheckedAsString();
+                MakePositionIndependentStringLikeValue(&parsedValue, EValueType::String, value);
+                break;
+            }
+            case EYsonItemType::BeginList:
+            case EYsonItemType::BeginMap: {
+                THROW_ERROR_EXCEPTION_IF(listItemType != EValueType::Any && listItemType != EValueType::Composite,
+                    "Type mismatch in array join: expected %Qlv or %Qlv, actual %Qlv",
+                    EValueType::Any,
+                    EValueType::Composite,
+                    listItemType);
+
+                NDetail::TContextStringOutput output(context);
+                TCheckedInDebugYsonTokenWriter writer(&output);
+
+                cursor->TransferComplexValue(&writer);
+
+                writer.Finish();
+
+                MakePositionIndependentStringLikeValue(&parsedValue, listItemType, output.GetHostView());
+                break;
+            }
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected item in array join: expected value of type %Qlv, encountered %Qlv",
+                    current.GetType(),
+                    listItemType);
+        }
+
+        if (currentArrayIndex >= std::ssize(nestedRows)) {
+            int nestedRowSize = arrayCount;
+            auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
+            for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
+                MakePositionIndependentNullValue(PtrFromVM(compartment, &mutableRange[leadingRowIndex]));
+            }
+            nestedRows.push_back(mutableRange.Begin());
+        }
+
+        CopyPositionIndependent(
+            PtrFromVM(compartment, &nestedRows[currentArrayIndex][index]),
+            parsedValue);
+        currentArrayIndex++;
+
+        // NB(sabdenovch): If a composite value has been transferred, cursor has already been advanced.
+        if (current.GetType() != EYsonItemType::BeginList && current.GetType() != EYsonItemType::BeginMap) {
+            cursor->Next();
+        }
+    });
+
+    return currentArrayIndex;
+}
+
+std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValueType> types, TPIValue* lists)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    int arrayCount = types.size();
+
+    // TODO(lukyan): Reuse.
+    std::vector<TPIValue*> nestedRows;
+
+    TToken token;
+    TStatelessLexer lexer;
+
+    for (int index = 0; index < arrayCount; ++index) {
+        auto listItemType = types[index];
+
+        auto* arrayAtHost = PtrFromVM(compartment, &lists[index]);
+        int currentArrayIndex = 0;
+
+        if (arrayAtHost->Type != EValueType::Null) {
+            if (listItemType != EValueType::Any && listItemType != EValueType::Composite) {
+                DoUnpackValuesTyped([&] (const TUnversionedValue& value) {
+                    if (currentArrayIndex >= std::ssize(nestedRows)) {
+                        int nestedRowSize = arrayCount;
+                        auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
+                        for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
+                            MakePositionIndependentNullValue(PtrFromVM(compartment, &mutableRange[leadingRowIndex]));
+                        }
+                        nestedRows.push_back(mutableRange.Begin());
+                    }
+
+                    MakePositionIndependentFromUnversioned(
+                        PtrFromVM(compartment, &nestedRows[currentArrayIndex][index]),
+                        value);
+                    currentArrayIndex++;
+
+                    return false;
+                },
+                arrayAtHost->AsStringBuf(),
+                listItemType,
+                &lexer,
+                &token);
+
+            } else {
+                currentArrayIndex = DoUnpackComplex(context, nestedRows, listItemType, arrayAtHost, arrayCount, currentArrayIndex, index);
+            }
+        }
+
+        for (int trailingIndex = currentArrayIndex; trailingIndex < std::ssize(nestedRows); ++trailingIndex) {
+            MakePositionIndependentNullValue(PtrFromVM(compartment, &nestedRows[trailingIndex][index]));
+        }
+    }
+
+    return nestedRows;
+}
+
+using TArrayJoinPredicate = bool (*)(void** closure, TExpressionContext*, const TPIValue* row);
+
+bool ArrayJoinOpHelper(
+    TExpressionContext* context,
+    TArrayJoinParameters* parameters,
+    TPIValue* row,
+    TPIValue* arrays,
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction,
+    void** predicateClosure,
+    TArrayJoinPredicate predicateFunction)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+    auto predicate = PrepareFunction(predicateFunction);
+    auto nestedRows = UnpackRows(context, parameters->FlattenedTypes, arrays);
+
+    int valueCount = parameters->SelfJoinedColumns.size() + parameters->ArrayJoinedColumns.size();
+    auto filteredRows = std::vector<const TPIValue*>();
+
+    for (const auto* nestedRow : nestedRows) {
+        if (predicate(predicateClosure, context, nestedRow)) {
+            int joinedRowIndex = 0;
+            auto joinedRow = AllocatePIValueRange(context, valueCount, EAddressSpace::WebAssembly);
+
+            for (int index : parameters->SelfJoinedColumns) {
+                CopyPositionIndependent(
+                    PtrFromVM(compartment, &joinedRow[joinedRowIndex++]),
+                    *PtrFromVM(compartment, &row[index]));
+            }
+
+            for (int index : parameters->ArrayJoinedColumns) {
+                CopyPositionIndependent(
+                    PtrFromVM(compartment, &joinedRow[joinedRowIndex++]),
+                    *PtrFromVM(compartment, &nestedRow[index]));
+            }
+
+            filteredRows.push_back(joinedRow.Begin());
+        }
+    }
+
+    if (parameters->IsLeft && filteredRows.empty()) {
+        int joinedRowIndex = 0;
+        auto joinedRow = AllocatePIValueRange(context, valueCount, EAddressSpace::WebAssembly);
+
+        for (int index : parameters->SelfJoinedColumns) {
+            CopyPositionIndependent(
+                PtrFromVM(compartment, &joinedRow[joinedRowIndex++]),
+                *PtrFromVM(compartment, &row[index]));
+        }
+
+        for (int index : parameters->ArrayJoinedColumns) {
+            Y_UNUSED(index);
+            MakePositionIndependentNullValue(PtrFromVM(compartment, &joinedRow[joinedRowIndex++]));
+        }
+
+        filteredRows.push_back(joinedRow.Begin());
+    }
+
+    if (compartment) {
+        auto guard = CopyIntoCompartment(
+            TRange(std::bit_cast<uintptr_t*>(filteredRows.data()), std::ssize(filteredRows)),
+            compartment);
+        auto** begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+        return consumeRows(consumeRowsClosure, context, begin, filteredRows.size());
+    }
+
+    return consumeRows(consumeRowsClosure, context, filteredRows.data(), filteredRows.size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRoutines
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TWebAssemblyRowsConsumer = NWebAssembly::TCompartmentFunction<bool(void**, TExpressionContext*, const TPIValue**, i64)>;
+
+DEFINE_ENUM(EGroupOpProcessingStage,
+    ((LeftBorder)  (0))
+    ((Inner)       (1))
+    ((RightBorder) (2))
+);
+
+class TGroupByClosure
+{
+public:
+    TGroupByClosure(
+        IMemoryChunkProviderPtr chunkProvider,
+        NWebAssembly::TCompartmentFunction<TComparerFunction> prefixEqComparer,
+        NWebAssembly::TCompartmentFunction<THasherFunction> groupHasher,
+        NWebAssembly::TCompartmentFunction<TComparerFunction> groupComparer,
+        int groupKeySize,
+        int groupStateSize,
+        bool combineGroupOpWithOrderOp,
+        int orderKeySize,
+        i64 orderOpLimit,
+        NWebAssembly::TCompartmentFunction<TComparerFunction> orderOpComparer,
+        bool shouldCheckForNullGroupKey,
+        bool allAggregatesAreFirst,
+        void** consumeIntermediateClosure,
+        TWebAssemblyRowsConsumer consumeIntermediate,
+        void** consumeAggregatedClosure,
+        TWebAssemblyRowsConsumer consumeAggregated,
+        void** consumeDeltaClosure,
+        TWebAssemblyRowsConsumer consumeDelta,
+        void** consumeTotalsClosure,
+        TWebAssemblyRowsConsumer consumeTotals);
+
+    // If the stream tag has changed, we flush to keep the segments sorted by primary key.
+    Y_FORCE_INLINE void UpdateTagAndFlushIfNeeded(const TExecutionContext* context, EStreamTag tag);
+
+    // The grouping key cannot be null if `with totals` is used,
+    // since the result of `totals` is contained in a row with a null group key.
+    Y_FORCE_INLINE void ValidateGroupKeyIsNotNull(TPIValue* row) const;
+
+    // If the common prefix of primary key and group key has changed,
+    // no new lines can be added to the grouping. Thus, we can flush.
+    Y_FORCE_INLINE void FlushIntermediatesIfCurrentGroupSetIsFinished(const TExecutionContext* context, TPIValue* row);
+
+    // If the request exceeds the given memory limit, we interrupt processing.
+    // NB: We do not guarantee the correctness of the result.
+    Y_FORCE_INLINE void ValidateGroupedRowCount(i64 groupRowLimit) const;
+
+    // True when the common prefix of the grouping key and the primary key has changed.
+    Y_FORCE_INLINE bool IsCurrentGroupSetFinished(TPIValue* row) const;
+
+    // If current group set is finished and, we can stop the query execution when the row limit is reached.
+    Y_FORCE_INLINE bool CanEarlyStopProcessing(const TExecutionContext* context, TPIValue* row) const;
+
+    // If all aggregate functions are `first()`, we can stop the query execution when the row limit is reached.
+    Y_FORCE_INLINE bool AreAllAggregatesFirst() const;
+
+    // Returns grouped row in the lookup table.
+    Y_FORCE_INLINE const TPIValue* InsertIntermediate(const TExecutionContext* context, TPIValue* row);
+
+    // Returns row itself.
+    Y_FORCE_INLINE const TPIValue* InsertAggregated(const TExecutionContext* context, TPIValue* row);
+
+    // Returns row itself.
+    Y_FORCE_INLINE const TPIValue* InsertTotals(const TExecutionContext* context, TPIValue* row);
+
+    // Flushes grouped rows.
+    Y_FORCE_INLINE void Flush(const TExecutionContext* context, EStreamTag incomingTag);
+
+    // Returns context that holds grouped rows.
+    Y_FORCE_INLINE TExpressionContext* GetContext();
+
+    // Number of processed rows for logging.
+    Y_FORCE_INLINE i64 GetProcessedRowCount() const;
+
+    // Notifies that the next flush is the last flush.
+    Y_FORCE_INLINE void SetClosingSegment();
+
+    // At the end of the group operation all rows should be flushed.
+    Y_FORCE_INLINE bool IsFlushed() const;
+
+    // We combine grouping and ordering if query has `ORDER BY` and sorting key does not contain aggregates.
+    Y_FORCE_INLINE bool IsCombinedWithOrderOp() const;
+
+    // Returns tagged pointer when incoming row is inserted and is new.
+    Y_FORCE_INLINE const TPIValue* InsertIntermediateWhenCombinedWithOrderOp(TPIValue* row);
+
+    i64 GetGroupedRowCount() const;
+
+private:
+    struct TGroupByClosureBufferTag
+    { };
+
+    struct TGroupByClosureAggregatedBufferTag
+    { };
+
+    struct TGroupByClosureTotalsBufferTag
+    { };
+
+    TExpressionContext Context_;
+    TExpressionContext AggregatedContext_;
+    TExpressionContext TotalsContext_;
+
+    // The grouping key and the primary key may have a common prefix of length P.
+    // This function compares prefixes of length P.
+    const NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer_;
+
+    TGroupRows GroupedIntermediateRows_;
+    const int GroupKeySize_;
+    const int GroupStateSize_;
+    const int OrderKeySize_;
+
+    std::unique_ptr<TTopCollector> TopCollector_ = nullptr;
+
+    // When executing a query with `with totals`, we store data for `totals` using the null grouping key.
+    // Thus, rows with a null grouping key should lead to an execution error.
+    const bool ShouldCheckForNullGroupKey_;
+
+    // If all aggregate functions are `first()`, we can stop the query execution when the limit is reached.
+    const bool AllAggregatesAreFirst_;
+
+    void** const ConsumeIntermediateClosure_;
+    const TWebAssemblyRowsConsumer ConsumeIntermediate_;
+
+    void** const ConsumeAggregatedClosure_;
+    const TWebAssemblyRowsConsumer ConsumeAggregated_;
+
+    void** const ConsumeDeltaClosure_;
+    const TWebAssemblyRowsConsumer ConsumeDelta_;
+
+    void** const ConsumeTotalsClosure_;
+    const TWebAssemblyRowsConsumer ConsumeTotals_;
+
+    const TPIValue* LastKey_ = nullptr;
+    TGroupVector Intermediate_;
+    TGroupVector Aggregated_;
+    TGroupVector Totals_;
+
+    // Defines the stage of the stream processing.
+    EGroupOpProcessingStage CurrentSegment_ = EGroupOpProcessingStage::LeftBorder;
+
+    // Grouped rows can be flushed and cleared during aggregation.
+    // So we have to count grouped rows separately.
+    i64 GroupedRowCount_ = 0;
+
+    EStreamTag LastTag_ = EStreamTag::Intermediate;
+
+    // We perform flushes (and yields) during grouping.
+    NRoutines::TYielder Yielder_{};
+    i64 ProcessedRows_ = 0;
+    TExpressionContext FlushContext_;
+
+    template <typename TFlushFunction>
+    Y_FORCE_INLINE void FlushWithBatching(
+        const TExecutionContext* context,
+        const TPIValue** begin,
+        const TPIValue** end,
+        const TFlushFunction& flush);
+
+    Y_FORCE_INLINE void FlushIntermediate(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
+    Y_FORCE_INLINE void FlushAggregated(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
+    Y_FORCE_INLINE void FlushDelta(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
+    Y_FORCE_INLINE void FlushTotals(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
+};
+
+TGroupByClosure::TGroupByClosure(
+    IMemoryChunkProviderPtr chunkProvider,
+    NWebAssembly::TCompartmentFunction<TComparerFunction> prefixEqComparer,
+    NWebAssembly::TCompartmentFunction<THasherFunction> groupHasher,
+    NWebAssembly::TCompartmentFunction<TComparerFunction> groupComparer,
+    int groupKeySize,
+    int groupStateSize,
+    bool combineGroupOpWithOrderOp,
+    int orderKeySize,
+    i64 orderOpLimit,
+    NWebAssembly::TCompartmentFunction<TComparerFunction> orderOpComparer,
+    bool shouldCheckForNullGroupKey,
+    bool allAggregatesAreFirst,
+    void** consumeIntermediateClosure,
+    TWebAssemblyRowsConsumer consumeIntermediate,
+    void** consumeAggregatedClosure,
+    TWebAssemblyRowsConsumer consumeAggregated,
+    void** consumeDeltaClosure,
+    TWebAssemblyRowsConsumer consumeDelta,
+    void** consumeTotalsClosure,
+    TWebAssemblyRowsConsumer consumeTotals)
+    : Context_(MakeExpressionContext(TGroupByClosureBufferTag(), chunkProvider))
+    , AggregatedContext_(MakeExpressionContext(TGroupByClosureAggregatedBufferTag(), chunkProvider))
+    , TotalsContext_(MakeExpressionContext(TGroupByClosureTotalsBufferTag(), chunkProvider))
+    , PrefixEqComparer_(prefixEqComparer)
+    , GroupedIntermediateRows_(
+        InitialGroupOpHashtableCapacity,
+        groupHasher,
+        groupComparer)
+    , GroupKeySize_(groupKeySize)
+    , GroupStateSize_(groupStateSize)
+    , OrderKeySize_(orderKeySize)
+    , ShouldCheckForNullGroupKey_(shouldCheckForNullGroupKey)
+    , AllAggregatesAreFirst_(allAggregatesAreFirst)
+    , ConsumeIntermediateClosure_(consumeIntermediateClosure)
+    , ConsumeIntermediate_(consumeIntermediate)
+    , ConsumeAggregatedClosure_(consumeAggregatedClosure)
+    , ConsumeAggregated_(consumeAggregated)
+    , ConsumeDeltaClosure_(consumeDeltaClosure)
+    , ConsumeDelta_(consumeDelta)
+    , ConsumeTotalsClosure_(consumeTotalsClosure)
+    , ConsumeTotals_(consumeTotals)
+    , Intermediate_(TGroupVector::allocator_type(chunkProvider, GetRefCountedTypeCookie<TGroupVector>()))
+    , Aggregated_(TGroupVector::allocator_type(chunkProvider, GetRefCountedTypeCookie<TGroupVector>()))
+    , Totals_(TGroupVector::allocator_type(chunkProvider, GetRefCountedTypeCookie<TGroupVector>()))
+    , FlushContext_(MakeExpressionContext(TIntermediateBufferTag(), chunkProvider))
+{
+    GroupedIntermediateRows_.set_empty_key(
+        NDetail::TRowComparer::MakeSentinel(NDetail::TRowComparer::ESentinelType::Empty));
+
+    GroupedIntermediateRows_.set_deleted_key(
+        NDetail::TRowComparer::MakeSentinel(NDetail::TRowComparer::ESentinelType::Deleted));
+
+    if (combineGroupOpWithOrderOp) {
+        TopCollector_ = std::make_unique<TTopCollector>(
+            orderOpLimit,
+            orderOpComparer,
+            GroupKeySize_ + GroupStateSize_ + OrderKeySize_,
+            chunkProvider);
+    }
+}
+
+void TGroupByClosure::UpdateTagAndFlushIfNeeded(const TExecutionContext* context, EStreamTag tag)
+{
+    if (tag != LastTag_) {
+        if (context->ScanOrder == EScanOrder::Ordered) {
+            Flush(context, tag);
+        }
+    }
+    LastTag_ = tag;
+}
+
+void TGroupByClosure::ValidateGroupKeyIsNotNull(TPIValue* row) const
+{
+    if (!ShouldCheckForNullGroupKey_) {
+        return;
+    }
+
+    row = PtrFromVM(GetCurrentCompartment(), row, GroupKeySize_);
+
+    if (std::all_of(
+        &row[0],
+        &row[GroupKeySize_],
+        [] (const TPIValue& value) {
+            return value.Type == EValueType::Null;
+        }))
+    {
+        THROW_ERROR_EXCEPTION("Null values are forbidden in group key");
+    }
+}
+
+void TGroupByClosure::FlushIntermediatesIfCurrentGroupSetIsFinished(const TExecutionContext* context, TPIValue* row)
+{
+    // NB: If context->ScanOrder == EScanOrder::Unordered then PrefixEqComparer_ never lets flush.
+    if (IsCurrentGroupSetFinished(row)) {
+        Flush(context, EStreamTag::Intermediate);
+    }
+}
+
+void TGroupByClosure::ValidateGroupedRowCount(i64 groupRowLimit) const
+{
+    if (std::ssize(Intermediate_) == groupRowLimit) {
+        throw TInterruptedIncompleteException();
+    }
+}
+
+bool TGroupByClosure::IsCurrentGroupSetFinished(TPIValue* row) const
+{
+    return LastKey_ && !PrefixEqComparer_(row, LastKey_);
+}
+
+bool TGroupByClosure::CanEarlyStopProcessing(const TExecutionContext* context, TPIValue* row) const
+{
+    // NB: We do not support `having` with `limit` yet.
+    // If query uses `having`, skipping rows here is incorrect because `having` filters rows.
+
+    // NB: Our semantics of `totals` operation allows to stop grouping when the limit is reached.
+
+    return
+        (context->ScanOrder == EScanOrder::Ordered) &&
+        (GroupedRowCount_ >= context->Offset + context->Limit) &&
+        (IsCurrentGroupSetFinished(row) || AllAggregatesAreFirst_);
+}
+
+bool TGroupByClosure::AreAllAggregatesFirst() const
+{
+    return AllAggregatesAreFirst_;
+}
+
+const TPIValue* TGroupByClosure::InsertIntermediate(const TExecutionContext* context, TPIValue* row)
+{
+    auto [it, inserted] = GroupedIntermediateRows_.insert(row);
+
+    if (inserted) {
+        YT_ASSERT(*it == row);
+
+        LastKey_ = *it;
+
+        Intermediate_.push_back(row);
+        ++GroupedRowCount_;
+        YT_VERIFY(std::ssize(Intermediate_) <= context->GroupRowLimit);
+
+        auto* compartment = GetCurrentCompartment();
+
+        for (int index = 0; index < GroupKeySize_; ++index) {
+            CapturePIValue(compartment, &Context_, &row[index]);
+        }
+    }
+
+    return *it;
+}
+
+const TPIValue* TGroupByClosure::InsertAggregated(const TExecutionContext* /*context*/, TPIValue* row)
+{
+    LastKey_ = row;
+
+    Aggregated_.push_back(row);
+    ++GroupedRowCount_;
+
+    auto* compartment = GetCurrentCompartment();
+
+    for (int index = 0; index < GroupKeySize_ + GroupStateSize_; ++index) {
+        CapturePIValue(compartment, &AggregatedContext_, &row[index]);
+    }
+
+    return row;
+}
+
+const TPIValue* TGroupByClosure::InsertTotals(const TExecutionContext* /*context*/, TPIValue* row)
+{
+    // |LastKey_| should not be updated because bordering intermediate streams should be merged.
+
+    Totals_.push_back(row);
+
+    auto* compartment = GetCurrentCompartment();
+
+    for (int index = 0; index < GroupKeySize_ + GroupStateSize_; ++index) { // FIXME: first values are null btw.
+        CapturePIValue(compartment, &TotalsContext_, &row[index]);
+    }
+
+    return row;
+}
+
+void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomingTag)
+{
+    if (IsCombinedWithOrderOp()) [[unlikely]] {
+        YT_VERIFY(CurrentSegment_ == EGroupOpProcessingStage::RightBorder);
+        auto rows = TopCollector_->GetRows();
+        auto begin = rows.data() + std::min(context->Offset, std::ssize(rows));
+        auto end = rows.data() + std::min(context->Offset + context->Limit, std::ssize(rows));
+        FlushIntermediate(context, begin, end);
+        return;
+    }
+
+    if (CurrentSegment_ == EGroupOpProcessingStage::RightBorder) [[unlikely]] {
+        if (!Aggregated_.empty()) {
+            FlushAggregated(context, Aggregated_.data(), Aggregated_.data() + Aggregated_.size());
+            Aggregated_.clear();
+        }
+
+        if (!Intermediate_.empty()) {
+            // Can be non-null in last call.
+            i64 innerCount = Intermediate_.size() - GroupedIntermediateRows_.size();
+
+            FlushDelta(context, Intermediate_.data(), Intermediate_.data() + innerCount);
+            FlushIntermediate(context, Intermediate_.data() + innerCount, Intermediate_.data() + Intermediate_.size());
+
+            Intermediate_.clear();
+            GroupedIntermediateRows_.clear();
+        }
+
+        if (!Totals_.empty()) {
+            FlushTotals(context, Totals_.data(), Totals_.data() + Totals_.size());
+            Totals_.clear();
+        }
+
+        return;
+    }
+
+    switch (LastTag_) {
+        case EStreamTag::Aggregated: {
+            FlushAggregated(context, Aggregated_.data(), Aggregated_.data() + Aggregated_.size());
+            Aggregated_.clear();
+            break;
+        }
+
+        case EStreamTag::Intermediate: {
+            if (incomingTag == EStreamTag::Totals) [[unlikely]] {
+                // Do nothing since totals can be followed with intermediate that should be grouped with current.
+                break;
+            }
+
+            if (CurrentSegment_ == EGroupOpProcessingStage::LeftBorder) [[unlikely]] {
+                FlushIntermediate(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
+                Intermediate_.clear();
+            } else if (std::ssize(Intermediate_) >= context->RowsetProcessingBatchSize) [[unlikely]] {
+                // When group key contains full primary key (used with joins), flush will be called on each grouped row.
+                // Thus, we batch calls to Flusher.
+                FlushDelta(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
+                Intermediate_.clear();
+            } else if (incomingTag == EStreamTag::Aggregated) [[unlikely]] {
+                FlushDelta(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
+                Intermediate_.clear();
+            }
+
+            GroupedIntermediateRows_.clear();
+            // Otherwise, do nothing. Grouped rows will be flushed later.
+            break;
+        }
+
+        case EStreamTag::Totals: {
+            FlushTotals(context, Totals_.data(), Totals_.data() + Totals_.size());
+            Totals_.clear();
+            break;
+        }
+
+        default: {
+            YT_ABORT();
+        }
+    }
+
+    CurrentSegment_ = EGroupOpProcessingStage::Inner;
+}
+
+TExpressionContext* TGroupByClosure::GetContext()
+{
+    return &Context_;
+}
+
+i64 TGroupByClosure::GetProcessedRowCount() const
+{
+    return ProcessedRows_;
+}
+
+void TGroupByClosure::SetClosingSegment()
+{
+    CurrentSegment_ = EGroupOpProcessingStage::RightBorder;
+}
+
+bool TGroupByClosure::IsFlushed() const
+{
+    return Intermediate_.empty() && Aggregated_.empty() && Totals_.empty();
+}
+
+bool TGroupByClosure::IsCombinedWithOrderOp() const
+{
+    return TopCollector_ != nullptr;
+}
+
+const TPIValue* TGroupByClosure::InsertIntermediateWhenCombinedWithOrderOp(TPIValue* row)
+{
+    auto it = GroupedIntermediateRows_.find(row);
+    if (it != GroupedIntermediateRows_.end()) {
+        return *it;
+    }
+
+    auto* inserted = TopCollector_->AddRow(
+        row,
+        [&] (const TPIValue* insertedRow) {
+            GroupedIntermediateRows_.insert(insertedRow);
+        },
+        [&] (const TPIValue* evictedRow) {
+            GroupedIntermediateRows_.erase(evictedRow);
+        });
+
+    if (inserted) {
+        ++GroupedRowCount_;
+        return std::bit_cast<const TPIValue*>(std::bit_cast<ui64>(inserted) | (1ULL << 48));
+    }
+
+    return nullptr;
+}
+
+i64 TGroupByClosure::GetGroupedRowCount() const
+{
+    return GroupedRowCount_;
+}
+
+template <typename TFlushFunction>
+void TGroupByClosure::FlushWithBatching(
+    const TExecutionContext* context,
+    const TPIValue** begin,
+    const TPIValue** end,
+    const TFlushFunction& flush)
+{
+    auto guard = TCopyGuard();
+    if (auto* compartment = GetCurrentCompartment()) {
+        i64 length = end - begin;
+        guard = CopyIntoCompartment(TRange(std::bit_cast<uintptr_t*>(begin), length), compartment);
+        begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+        end = begin + length;
+    }
+
+    bool finished = false;
+
+    // We cannot skip intermediate rows for ordered queries
+    // (when the grouping key is a prefix of primary key),
+    // since intermediate rows from the beginning of the processed range
+    // can be grouped with rows of the previous range.
+
+    while (!finished && begin < end) {
+        i64 size = std::min(begin + context->RowsetProcessingBatchSize, end) - begin;
+        ProcessedRows_ += size;
+        finished = flush(&FlushContext_, begin, size);
+        FlushContext_.Clear();
+        Yielder_.Checkpoint(ProcessedRows_);
+        begin += size;
+    }
+}
+
+void TGroupByClosure::FlushIntermediate(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
+{
+    auto flush = [this] (TExpressionContext* context, const TPIValue** begin, i64 size) {
+        return ConsumeIntermediate_(ConsumeIntermediateClosure_, context, begin, size);
+    };
+
+    FlushWithBatching(context, begin, end, flush);
+}
+
+void TGroupByClosure::FlushAggregated(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
+{
+    auto flush = [this] (TExpressionContext* context, const TPIValue** begin, i64 size) {
+        return ConsumeAggregated_(ConsumeAggregatedClosure_, context, begin, size);
+    };
+
+    FlushWithBatching(context, begin, end, flush);
+}
+
+void TGroupByClosure::FlushDelta(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
+{
+    auto flush = [this] (TExpressionContext* context, const TPIValue** begin, i64 size) {
+        return ConsumeDelta_(ConsumeDeltaClosure_, context, begin, size);
+    };
+
+    FlushWithBatching(context, begin, end, flush);
+}
+
+void TGroupByClosure::FlushTotals(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
+{
+    auto flush = [this] (TExpressionContext* context, const TPIValue** begin, i64 size) {
+        return ConsumeTotals_(ConsumeTotalsClosure_, context, begin, size);
+    };
+
+    FlushWithBatching(context, begin, end, flush);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NRoutines {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Returns nullptr when no more rows are needed.
+// Returns pointer different to |row| if incoming row is intermediate and should be updated.
+// Returns tagged pointer if group op is combined with order op and the incoming row is inserted and is new.
+const TPIValue* InsertGroupRow(
+    TExecutionContext* context,
+    TGroupByClosure* closure,
+    TPIValue* row,
+    ui64 rowTagAsUint)
+{
+    auto rowTag = static_cast<EStreamTag>(rowTagAsUint);
+
+    if (closure->IsCombinedWithOrderOp()) {
+        YT_ASSERT(rowTag == EStreamTag::Intermediate);
+        // We intentionally do not call ValidateGroupedRowCount here since the row count is bounded by `LIMIT`.
+        // NB(dtorilov): Here we can early stop processing for the NodeThread execution level.
+        closure->ValidateGroupKeyIsNotNull(row);
+        return closure->InsertIntermediateWhenCombinedWithOrderOp(row);
+    }
+
+    closure->UpdateTagAndFlushIfNeeded(context, rowTag);
+
+    switch (rowTag) {
+        case EStreamTag::Aggregated: {
+            if (closure->CanEarlyStopProcessing(context, row)) {
+                return nullptr;
+            }
+
+            closure->InsertAggregated(context, row);
+            return row;
+        }
+
+        case EStreamTag::Intermediate: {
+            closure->FlushIntermediatesIfCurrentGroupSetIsFinished(context, row);
+
+            closure->ValidateGroupedRowCount(context->GroupRowLimit);
+
+            if (closure->CanEarlyStopProcessing(context, row)) {
+                return nullptr;
+            }
+
+            closure->ValidateGroupKeyIsNotNull(row);
+
+            return closure->InsertIntermediate(context, row);
+        }
+
+        case EStreamTag::Totals: {
+            closure->InsertTotals(context, row);
+            return row;
+        }
+
+        default: {
+            YT_ABORT();
+        }
+    }
+}
+
+using TGroupCollector = void(*)(void** closure, TGroupByClosure* groupByClosure, TExpressionContext* context);
+
+void GroupOpHelper(
+    TExecutionContext* context,
+    TComparerFunction* prefixEqComparerFunction,
+    THasherFunction* groupHasherFunction,
+    TComparerFunction* groupComparerFunction,
+    int groupKeySize,
+    int groupStateSize,
+    bool combineGroupOpWithOrderOp,
+    int orderKeySize,
+    TComparerFunction* orderOpComparerFunction,
+    bool shouldCheckForNullGroupKey,
+    bool allAggregatesAreFirst,
+    void** collectRowsClosure,
+    TGroupCollector collectRowsFunction,
+    void** consumeIntermediateClosure,
+    TRowsConsumer consumeIntermediateFunction,
+    void** consumeAggregatedClosure,
+    TRowsConsumer consumeAggregatedFunction,
+    void** consumeDeltaClosure,
+    TRowsConsumer consumeDeltaFunction,
+    void** consumeTotalsClosure,
+    TRowsConsumer consumeTotalsFunction)
+{
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto prefixEqComparer = PrepareFunction(prefixEqComparerFunction);
+    auto groupHasher = PrepareFunction(groupHasherFunction);
+    auto groupComparer = PrepareFunction(groupComparerFunction);
+
+    auto orderOpComparer = PrepareFunction(orderOpComparerFunction);
+
+    auto consumeIntermediate = PrepareFunction(consumeIntermediateFunction);
+    auto consumeAggregated = PrepareFunction(consumeAggregatedFunction);
+    auto consumeDelta = PrepareFunction(consumeDeltaFunction);
+    auto consumeTotals = PrepareFunction(consumeTotalsFunction);
+
+    auto closure = TGroupByClosure(
+        context->MemoryChunkProvider,
+        prefixEqComparer,
+        groupHasher,
+        groupComparer,
+        groupKeySize,
+        groupStateSize,
+        combineGroupOpWithOrderOp,
+        orderKeySize,
+        context->Offset + context->Limit,
+        orderOpComparer,
+        shouldCheckForNullGroupKey,
+        allAggregatesAreFirst,
+        consumeIntermediateClosure,
+        consumeIntermediate,
+        consumeAggregatedClosure,
+        consumeAggregated,
+        consumeDeltaClosure,
+        consumeDelta,
+        consumeTotalsClosure,
+        consumeTotals);
+
+    auto finalLogger = Finally([&] {
+        YT_LOG_DEBUG("Finalizing group helper (ProcessedRows: %v)", closure.GetProcessedRowCount());
+    });
+
+    try {
+        collectRows(collectRowsClosure, &closure, closure.GetContext());
+    } catch (const TInterruptedIncompleteException&) {
+        // Set incomplete and continue
+        context->Statistics->IncompleteOutput = true;
+
+        // TODO(dtorilov): Since the request processing has exceeded the given limits, just exit here.
+    }
+
+    closure.SetClosingSegment();
+
+    closure.Flush(context, EStreamTag::Totals); // Dummy tag.
+
+    context->Statistics->GroupedRowCount += closure.GetGroupedRowCount();
+
+    YT_VERIFY(closure.IsFlushed());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TGroupTotalsCollector = void(*)(void** closure, TExpressionContext* context);
+
+void GroupTotalsOpHelper(
+    TExecutionContext* context,
+    void** collectRowsClosure,
+    TGroupTotalsCollector collectRowsFunction)
+{
+    auto expressionContext = MakeExpressionContext(TIntermediateBufferTag(), context->MemoryChunkProvider);
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    collectRows(collectRowsClosure, &expressionContext);
+}
+
+void AllocatePermanentRow(
+    TExecutionContext* /*executionContext*/,
+    TExpressionContext* expressionContext,
+    int valueCount,
+    TValue** row)
+{
+    // TODO(dtorilov): Use AllocateUnversioned.
+    auto* offset = expressionContext->AllocateAligned(valueCount * sizeof(TPIValue), EAddressSpace::WebAssembly);
+    *PtrFromVM(GetCurrentCompartment(), row) = std::bit_cast<TValue*>(offset);
+}
+
+void AddRowToCollector(TTopCollector* topCollector, TPIValue* row)
+{
+    topCollector->AddRow(row);
+}
+
+void OrderOpHelper(
+    TExecutionContext* context,
+    TComparerFunction* comparerFunction,
+    void** collectRowsClosure,
+    void (*collectRowsFunction)(void** closure, TTopCollector* topCollector),
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction,
+    size_t rowSize)
+{
+    auto comparer = PrepareFunction(comparerFunction);
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+
+    auto finalLogger = Finally([&] {
+        YT_LOG_DEBUG("Finalizing order helper");
+    });
+
+    auto topCollector = TTopCollector(
+        context->Offset + context->Limit,
+        comparer,
+        rowSize,
+        context->MemoryChunkProvider);
+    collectRows(collectRowsClosure, &topCollector);
+    auto rows = topCollector.GetRows();
+
+    auto consumerContext = MakeExpressionContext(TIntermediateBufferTag(), context->MemoryChunkProvider);
+
+    TYielder yielder;
+    size_t processedRows = 0;
+
+    auto guard = TCopyGuard();
+    auto** begin = rows.data();
+    if (auto* compartment = GetCurrentCompartment()) {
+        guard = CopyIntoCompartment(TRange(std::bit_cast<uintptr_t*>(rows.data()), std::ssize(rows)), compartment);
+        begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+    }
+
+    auto rowCount = std::ssize(rows);
+    for (i64 index = context->Offset; index < rowCount; index += context->RowsetProcessingBatchSize) {
+        auto size = std::min(context->RowsetProcessingBatchSize, rowCount - index);
+        processedRows += size;
+
+        bool finished = consumeRows(consumeRowsClosure, &consumerContext, begin + index, size);
+        YT_VERIFY(!finished);
+
+        consumerContext.Clear();
+
+        yielder.Checkpoint(processedRows);
+    }
+}
+
+void WriteOpHelper(
+    TExecutionContext* context,
+    size_t rowSize,
+    void** collectRowsClosure,
+    void (*collectRowsFunction)(void** closure, TWriteOpClosure* writeOpClosure))
+{
+    auto collectRows = PrepareFunction(collectRowsFunction);
+
+    TWriteOpClosure closure(context->MemoryChunkProvider);
+    closure.RowSize = rowSize;
+
+    try {
+        collectRows(collectRowsClosure, &closure);
+    } catch (const TInterruptedIncompleteException&) {
+        // Set incomplete and continue
+        context->Statistics->IncompleteOutput = true;
+    }
+
+    auto& batch = closure.OutputRowsBatch;
+    auto& writer = context->Writer;
+
+    YT_LOG_DEBUG("Flushing writer");
+    if (!batch.empty()) {
+        bool shouldNotWait;
+        {
+            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->WriteTime);
+            SaveAndRestoreCurrentCompartment([&] {
+                shouldNotWait = writer->Write(batch);
+            });
+        }
+
+        if (!shouldNotWait) {
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+            SaveAndRestoreCurrentCompartment([&] {
+                WaitForFast(writer->GetReadyEvent())
+                    .ThrowOnError();
+            });
+        }
+    }
+
+    YT_LOG_DEBUG("Closing writer");
+    {
+        TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+        SaveAndRestoreCurrentCompartment([&] {
+            WaitForFast(context->Writer->Close())
+                .ThrowOnError();
+        });
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPIValue* LookupInRowset(
+    TComparerFunction* comparerFunction,
+    THasherFunction* hasherFunction,
+    TComparerFunction* eqComparerFunction,
+    TPIValue* key,
+    TSharedRange<TRange<TPIValue>>* rowset,
+    std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>* lookupContext)
+{
+    auto comparer = PrepareFunction(comparerFunction);
+    auto hasher = PrepareFunction(hasherFunction);
+    auto eqComparer = PrepareFunction(eqComparerFunction);
+
+    if (*lookupContext == nullptr) {
+        *lookupContext = std::make_unique<TLookupRowInRowsetWebAssemblyContext>();
+
+        if (auto* compartment = GetCurrentCompartment()) {
+            // TODO(dtorilov): Change signature to return TSharedRange<TRange<TPIValue>>.
+            auto [guard, rows] = CopyRowRangeIntoCompartment(*rowset, compartment);
+            (*lookupContext)->RowsInsideCompartmentGuard = std::move(guard);
+            (*lookupContext)->RowsInsideCompartment = rows;
+        }
+    }
+
+    if (rowset->Size() < 32) {
+        if (GetCurrentCompartment()) {
+            auto& searchRange = (*lookupContext)->RowsInsideCompartment;
+            auto it = std::lower_bound(
+                searchRange.begin(),
+                searchRange.end(),
+                key,
+                [&] (TPIValue* rowOffsetInsideCompartment, TPIValue* target) {
+                    return comparer(rowOffsetInsideCompartment, target);
+                });
+
+            if (it != searchRange.end() && !comparer(key, *it)) {
+                return const_cast<TPIValue*>(*it);
+            }
+
+            return nullptr;
+        } else {
+            auto it = std::lower_bound(
+                rowset->Begin(),
+                rowset->End(),
+                key,
+                [&] (TRange<TPIValue> row, TPIValue* values) {
+                    return comparer(row.Begin(), values);
+                });
+
+            if (it != rowset->End() && !comparer(key, it->Begin())) {
+                return const_cast<TPIValue*>(it->Begin());
+            }
+
+            return nullptr;
+        }
+    }
+
+    auto& lookupTable = (*lookupContext)->LookupTable;
+    if (lookupTable == nullptr) {
+        lookupTable = std::make_unique<TLookupRows>(
+            rowset->Size(),
+            hasher,
+            eqComparer);
+        lookupTable->set_empty_key(nullptr);
+
+        if (GetCurrentCompartment()) {
+            auto& searchRange = (*lookupContext)->RowsInsideCompartment;
+            for (auto* row : searchRange) {
+                lookupTable->insert(row);
+            }
+        } else {
+            for (auto& row : *rowset) {
+                lookupTable->insert(row.Begin());
+            }
+        }
+    }
+
+    auto it = lookupTable->find(key);
+    if (it != lookupTable->end()) {
+        return const_cast<TPIValue*>(*it);
+    }
+
+    return nullptr;
+}
+
+char IsRowInRowset(
+    TComparerFunction* comparer,
+    THasherFunction* hasher,
+    TComparerFunction* eqComparer,
+    TPIValue* values,
+    TSharedRange<TRange<TPIValue>>* rows,
+    std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>* lookupRows)
+{
+    return LookupInRowset(comparer, hasher, eqComparer, values, rows, lookupRows) != nullptr;
+}
+
+char IsRowInRanges(
+    ui32 valuesCount,
+    TPIValue* values,
+    TSharedRange<TPIRowRange>* ranges)
+{
+    values = PtrFromVM(GetCurrentCompartment(), values);
+
+    auto it = std::lower_bound(
+        ranges->Begin(),
+        ranges->End(),
+        values,
+        [&] (TPIRowRange range, TPIValue* values) {
+            ui32 length = std::min(static_cast<ui32>(range.second.Size()), valuesCount);
+            return CompareRows(range.second.Begin(), range.second.Begin() + length, values, values + length) < 0;
+        });
+
+    if (it == ranges->End()) {
+        return false;
+    }
+
+    ui32 length = std::min(static_cast<ui32>(it->first.Size()), valuesCount);
+    return CompareRows(
+        it->first.Begin(),
+        it->first.Begin() + length,
+        values,
+        values + length) <= 0;
+}
+
+const TPIValue* TransformTuple(
+    TComparerFunction* comparer,
+    THasherFunction* hasher,
+    TComparerFunction* eqComparer,
+    TPIValue* values,
+    TSharedRange<TRange<TPIValue>>* rows,
+    std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>* lookupRows)
+{
+    return LookupInRowset(comparer, hasher, eqComparer, values, rows, lookupRows);
+}
+
+size_t StringHash(
+    const char* data,
+    ui32 length)
+{
+    return FarmFingerprint(PtrFromVM(GetCurrentCompartment(), data, length), length);
+}
+
+ui64 StringXxHash64(const char* data, ui32 length)
+{
+    return XXH_INLINE_XXH64(PtrFromVM(GetCurrentCompartment(), data, length), length, 0);
+}
+
+// FarmHash and MurmurHash hybrid to hash TRow.
+ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
+{
+    const ui64 MurmurHashConstant = 0xc6a4a7935bd1e995ULL;
+
+    // Append fingerprint to hash value. Like Murmurhash.
+    const auto hash64 = [&] (ui64 data, ui64 value) {
+        value ^= FarmFingerprint(data);
+        value *= MurmurHashConstant;
+        return value;
+    };
+
+    // Hash string. Like Murmurhash.
+    const auto hash = [&] (const void* voidData, int length, ui64 seed) {
+        ui64 result = seed;
+        const ui64* ui64Data = reinterpret_cast<const ui64*>(voidData);
+        const ui64* ui64End = ui64Data + (length / 8);
+
+        while (ui64Data < ui64End) {
+            auto data = *ui64Data++;
+            result = hash64(data, result);
+        }
+
+        const char* charData = reinterpret_cast<const char*>(ui64Data);
+
+        if (length & 4) {
+            result ^= (*reinterpret_cast<const ui32*>(charData) << (length & 3));
+            charData += 4;
+        }
+        if (length & 2) {
+            result ^= (*reinterpret_cast<const ui16*>(charData) << (length & 1));
+            charData += 2;
+        }
+        if (length & 1) {
+            result ^= *reinterpret_cast<const ui8*>(charData);
+        }
+
+        result *= MurmurHashConstant;
+        result ^= (result >> 47);
+        result *= MurmurHashConstant;
+        result ^= (result >> 47);
+        return result;
+    };
+
+    ui64 result = end - begin;
+
+    for (auto value = begin; value != end; value++) {
+        switch (value->Type) {
+            case EValueType::Int64:
+                result = hash64(value->Data.Int64, result);
+                continue;
+            case EValueType::Uint64:
+                result = hash64(value->Data.Uint64, result);
+                continue;
+            case EValueType::Boolean:
+                result = hash64(value->Data.Boolean, result);
+                continue;
+            case EValueType::String:
+                result = hash(
+                    value->Data.String,
+                    value->Length,
+                    result);
+                continue;
+            case EValueType::Null:
+                result = hash64(0, result);
+                continue;
+
+            case EValueType::Double:
+            case EValueType::Any:
+            case EValueType::Composite:
+
+            case EValueType::Min:
+            case EValueType::Max:
+            case EValueType::TheBottom:
+                break;
+        }
+        YT_ABORT();
+    }
+
+    return result;
+}
+
+ui64 FarmHashUint64(ui64 value)
+{
+    return FarmFingerprint(value);
+}
+
+void ThrowException(const char* error)
+{
+    // TODO(dtorilov): Infer length of error description.
+    THROW_ERROR_EXCEPTION("Error while executing UDF")
+        << TError(TRuntimeFormat(PtrFromVM(GetCurrentCompartment(), error)));
+}
+
+void ThrowQueryException(const char* error)
+{
+    THROW_ERROR_EXCEPTION("Error while executing query")
+        << TError(TRuntimeFormat(PtrFromVM(GetCurrentCompartment(), error)));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+re2::RE2* RegexCreate(TValue* regexp)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* regexAtHost = PtrFromVM(compartment, regexp);
+    auto regexString = TStringBuf(
+        PtrFromVM(compartment, regexAtHost->Data.String),
+        regexAtHost->Length);
+
+    re2::RE2::Options options;
+    options.set_log_errors(false);
+    auto re2 = std::make_unique<re2::RE2>(
+        re2::StringPiece(regexString.data(), regexString.size()),
+        options);
+    if (!re2->ok()) {
+        THROW_ERROR_EXCEPTION(
+            "Error parsing regular expression %Qv",
+            regexString)
+            << TError(TRuntimeFormat(re2->error().c_str()));
+    }
+    return re2.release();
+}
+
+void RegexDestroy(re2::RE2* re2)
+{
+    delete re2;
+}
+
+bool RegexFullMatch(re2::RE2* re2, TValue* string)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
+
+    auto stringBuf = TStringBuf(
+        PtrFromVM(compartment, stringAtHost->Data.String),
+        stringAtHost->Length);
+
+    return re2::RE2::FullMatch(
+        re2::StringPiece(stringBuf.data(), stringBuf.size()),
+        *re2);
+}
+
+bool RegexPartialMatch(re2::RE2* re2, TValue* string)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
+    auto stringBuf = TStringBuf(
+        PtrFromVM(compartment, stringAtHost->Data.String),
+        stringAtHost->Length);
+
+    return re2::RE2::PartialMatch(
+        re2::StringPiece(stringBuf.data(), stringBuf.size()),
+        *re2);
+}
+
+void RegexReplaceFirst(
+    TExpressionContext* context,
+    re2::RE2* re2,
+    TValue* string,
+    TValue* rewrite,
+    TValue* result)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
+    auto stringBuf = TStringBuf(
+        PtrFromVM(compartment, stringAtHost->Data.String),
+        stringAtHost->Length);
+
+    auto* rewriteAtHost = PtrFromVM(compartment, rewrite);
+    YT_VERIFY(rewriteAtHost->Type == EValueType::String);
+    auto rewriteAtHostStringBuf = TStringBuf(
+        PtrFromVM(compartment, rewriteAtHost->Data.String),
+        rewriteAtHost->Length);
+
+    auto rewritten = std::string(stringBuf);
+    re2::RE2::Replace(
+        &rewritten,
+        *re2,
+        re2::StringPiece(rewriteAtHostStringBuf.data(), rewriteAtHostStringBuf.size()));
+
+    NDetail::CopyStringLike(context, result, rewritten, EValueType::String);
+}
+
+void RegexReplaceAll(
+    TExpressionContext* context,
+    re2::RE2* re2,
+    TValue* string,
+    TValue* rewrite,
+    TValue* result)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
+    auto stringBuf = TStringBuf(
+        PtrFromVM(compartment, stringAtHost->Data.String),
+        stringAtHost->Length);
+
+    auto* rewriteAtHost = PtrFromVM(compartment, rewrite);
+    YT_VERIFY(rewriteAtHost->Type == EValueType::String);
+    auto rewriteAtHostStringBuf = TStringBuf(
+        PtrFromVM(compartment, rewriteAtHost->Data.String),
+        rewriteAtHost->Length);
+
+    auto rewritten = std::string(stringBuf);
+    re2::RE2::GlobalReplace(
+        &rewritten,
+        *re2,
+        re2::StringPiece(rewriteAtHostStringBuf.data(), rewriteAtHostStringBuf.size()));
+
+    NDetail::CopyStringLike(context, result, rewritten, EValueType::String);
+}
+
+void RegexExtract(
+    TExpressionContext* context,
+    re2::RE2* re2,
+    TValue* string,
+    TValue* rewrite,
+    TValue* result)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
+    auto stringBuf = TStringBuf(
+        PtrFromVM(compartment, stringAtHost->Data.String),
+        stringAtHost->Length);
+
+    auto* rewriteAtHost = PtrFromVM(compartment, rewrite);
+    YT_VERIFY(rewriteAtHost->Type == EValueType::String);
+    auto rewriteAtHostStringBuf = TStringBuf(
+        PtrFromVM(compartment, rewriteAtHost->Data.String),
+        rewriteAtHost->Length);
+
+    auto extracted = std::string(stringBuf);
+    re2::RE2::Extract(
+        re2::StringPiece(stringBuf.data(), stringBuf.size()),
+        *re2,
+        re2::StringPiece(rewriteAtHostStringBuf.data(), rewriteAtHostStringBuf.size()),
+        &extracted);
+
+    NDetail::CopyStringLike(context, result, extracted, EValueType::String);
+}
+
+void RegexEscape(
+    TExpressionContext* context,
+    TValue* string,
+    TValue* result)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
+    auto stringBuf = TStringBuf(
+        PtrFromVM(compartment, stringAtHost->Data.String),
+        stringAtHost->Length);
+
+    auto escaped = re2::RE2::QuoteMeta(
+        re2::StringPiece(stringBuf.data(), stringBuf.size()));
+
+    NDetail::CopyStringLike(context, result, escaped, EValueType::String);
+}
+
+static void* XdeltaAllocate(void* opaque, size_t size)
+{
+    auto* compartment = GetCurrentCompartment();
+    if (opaque) {
+        return std::bit_cast<uint8_t*>(
+            PtrFromVM(compartment,
+                AllocateBytes(static_cast<TExpressionContext*>(opaque), size),
+                size));
+    }
+
+    return static_cast<uint8_t*>(malloc(size));
+}
+
+static void XdeltaFree(void* opaque, void* ptr)
+{
+    if (!opaque) {
+        free(ptr);
+    }
+}
+
+int XdeltaMerge(
+    TExpressionContext* context,
+    const uint8_t* lhsData,
+    size_t lhsSize,
+    const uint8_t* rhsData,
+    size_t rhsSize,
+    const uint8_t** resultData,
+    size_t* resultOffset,
+    size_t* resultSize)
+{
+    auto* compartment = GetCurrentCompartment();
+    lhsData = PtrFromVM(compartment, lhsData);
+    rhsData = PtrFromVM(compartment, rhsData);
+
+    NXdeltaAggregateColumn::TSpan result;
+    XDeltaContext ctx{
+        .opaque = context,
+        .allocate = XdeltaAllocate,
+        .free = XdeltaFree
+    };
+    auto code = NXdeltaAggregateColumn::MergeStates(&ctx, lhsData, lhsSize, rhsData, rhsSize, &result);
+    if (code == 0) {
+        ThrowException("Failed to merge xdelta states");
+    }
+    *PtrFromVM(compartment, resultData) = PtrToVM(compartment, result.Data);
+    *PtrFromVM(compartment, resultOffset) = result.Offset;
+    *PtrFromVM(compartment, resultSize) = result.Size;
+
+    return code;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DEFINE_YPATH_GET_IMPL2(PREFIX, TYPE, STATEMENT_OK, STATEMENT_FAIL) \
+    void PREFIX ## Get ## TYPE( \
+        [[maybe_unused]] TExpressionContext* context, \
+        TValue* result, \
+        TValue* anyValue, \
+        TValue* ypath) \
+    { \
+        auto* compartment = GetCurrentCompartment(); \
+        TValue* anyValueAtHost = PtrFromVM(compartment, anyValue); \
+        const char* anyValueDataOffset = anyValueAtHost->Data.String; \
+        const char* anyValueDataAtHost = PtrFromVM(compartment, anyValueDataOffset, anyValueAtHost->Length); \
+        \
+        TValue* ypathAtHost = PtrFromVM(compartment, ypath); \
+        const char* ypathDataOffset = ypathAtHost->Data.String; \
+        const char* ypathDataAtHost = PtrFromVM(compartment, ypathDataOffset, ypathAtHost->Length); \
+        \
+        auto value = NYTree::TryGet ## TYPE( \
+            TStringBuf(anyValueDataAtHost, anyValueAtHost->Length), \
+            std::string(ypathDataAtHost, ypathAtHost->Length)); \
+        if (value) { \
+            STATEMENT_OK \
+        } else { \
+            STATEMENT_FAIL \
+        } \
+    }
+
+#define DEFINE_YPATH_GET_IMPL(TYPE, STATEMENT_OK) \
+    DEFINE_YPATH_GET_IMPL2(Try, TYPE, STATEMENT_OK, \
+        TValue* resultAtHost = PtrFromVM(GetCurrentCompartment(), result); \
+        *resultAtHost = MakeUnversionedNullValue();) \
+    DEFINE_YPATH_GET_IMPL2(, TYPE, STATEMENT_OK, \
+        THROW_ERROR_EXCEPTION("Value of type %Qlv is not found at YPath %Qv", \
+            EValueType::TYPE, \
+            TStringBuf(ypathDataAtHost, ypathAtHost->Length));)
+
+#define DEFINE_YPATH_GET(TYPE) \
+    DEFINE_YPATH_GET_IMPL(TYPE, \
+        TValue* resultAtHost = PtrFromVM(GetCurrentCompartment(), result); \
+        *resultAtHost = MakeUnversioned ## TYPE ## Value(*value);)
+
+#define DEFINE_YPATH_GET_STRING \
+    DEFINE_YPATH_GET_IMPL(String, \
+        NDetail::CopyStringLike(context, result, *value, EValueType::String);)
+
+#define DEFINE_YPATH_GET_ANY \
+    DEFINE_YPATH_GET_IMPL(Any, \
+        NDetail::CopyStringLike(context, result, *value, EValueType::Any);)
+
+DEFINE_YPATH_GET(Int64)
+DEFINE_YPATH_GET(Uint64)
+DEFINE_YPATH_GET(Double)
+DEFINE_YPATH_GET(Boolean)
+DEFINE_YPATH_GET_STRING
+DEFINE_YPATH_GET_ANY
+
+void TryGetFrontAsInt64(
+    TPIValue* result,
+    TPIValue* anyValue)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    TPIValue* anyValueAtHost = PtrFromVM(compartment, anyValue);
+    TPIValue* resultAtHost = PtrFromVM(compartment, result);
+
+    int count = 0;
+    if (anyValueAtHost->Type != EValueType::Null) {
+        DoUnpackValuesTyped(
+            [&] (const TUnversionedValue& value) {
+                ++count;
+                MakePositionIndependentFromUnversioned(resultAtHost, value);
+                // Break.
+                return true;
+            },
+            anyValueAtHost->AsStringBuf(),
+            EValueType::Int64);
+    }
+
+    if (count == 0) {
+        MakePositionIndependentFromUnversioned(resultAtHost, MakeUnversionedNullValue());
+    }
+}
+
+void GetFarmHashInt64(
+    TPIValue* result,
+    TPIValue* anyValue)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    TPIValue* valueAtHost = PtrFromVM(compartment, anyValue);
+    TPIValue* resultAtHost = PtrFromVM(compartment, result);
+
+    i64 intValue = valueAtHost->Type != EValueType::Null ? BitCast<ui64>(valueAtHost->Data.Int64) : 0;
+
+    // Compatible with farm_hash function.
+    ui64 resultHash = 0xdeadc0de;
+    resultHash = FarmFingerprint(resultHash, NYT::FarmFingerprint(intValue));
+    resultHash = resultHash ^ 1;
+
+    MakePositionIndependentUint64Value(resultAtHost, resultHash);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DEFINE_CONVERT_ANY(TYPE, STATEMENT_OK) \
+    void AnyTo ## TYPE([[maybe_unused]] TExpressionContext* context, TPIValue* result, TPIValue* anyValue) \
+    { \
+        auto* compartment = GetCurrentCompartment(); \
+        anyValue = PtrFromVM(compartment, anyValue); \
+        if (anyValue->Type == EValueType::Null) { \
+            MakePositionIndependentNullValue(PtrFromVM(compartment, result)); \
+            return; \
+        } \
+        NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
+        auto anyString = anyValue->AsStringBuf(); \
+        lexer.ParseToken(anyString, &token); \
+        if (token.GetType() == NYson::ETokenType::TYPE) { \
+            STATEMENT_OK \
+        } else { \
+            THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type \"any\" to %Qlv", \
+                anyString, \
+                EValueType::TYPE); \
+        } \
+    }
+
+#define DEFINE_CONVERT_ANY_NUMERIC_IMPL(TYPE) \
+    void AnyTo ## TYPE(TExpressionContext* /*context*/, TPIValue* result, TPIValue* anyValue) \
+    { \
+        auto* compartment = GetCurrentCompartment(); \
+        anyValue = PtrFromVM(compartment, anyValue); \
+        if (anyValue->Type == EValueType::Null) { \
+            MakePositionIndependentNullValue(PtrFromVM(compartment, result)); \
+            return; \
+        } \
+        NYson::TStatelessLexer lexer; \
+        NYson::TToken token; \
+        auto anyString = anyValue->AsStringBuf(); \
+        lexer.ParseToken(anyString, &token); \
+        if (token.GetType() == NYson::ETokenType::Int64) { \
+            MakePositionIndependent ## TYPE ## Value(PtrFromVM(compartment, result), token.GetInt64Value()); \
+        } else if (token.GetType() == NYson::ETokenType::Uint64) { \
+            MakePositionIndependent ## TYPE ## Value(PtrFromVM(compartment, result), token.GetUint64Value()); \
+        } else if (token.GetType() == NYson::ETokenType::Double) { \
+            MakePositionIndependent ## TYPE ## Value(PtrFromVM(compartment, result), token.GetDoubleValue()); \
+        } else { \
+            THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type \"any\" to %Qlv", \
+                anyString, \
+                EValueType::TYPE); \
+        } \
+    }
+
+DEFINE_CONVERT_ANY_NUMERIC_IMPL(Int64)
+DEFINE_CONVERT_ANY_NUMERIC_IMPL(Uint64)
+DEFINE_CONVERT_ANY_NUMERIC_IMPL(Double)
+DEFINE_CONVERT_ANY(
+    Boolean,
+    MakePositionIndependentBooleanValue(PtrFromVM(GetCurrentCompartment(), result), token.GetBooleanValue());)
+DEFINE_CONVERT_ANY(String, NDetail::CopyStringLike(context, result, token.GetStringValue(), EValueType::String);)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ThrowCannotCompareTypes(NYson::ETokenType lhsType, NYson::ETokenType rhsType)
+{
+    THROW_ERROR_EXCEPTION("Cannot compare values of types %Qlv and %Qlv",
+        lhsType,
+        rhsType);
+}
+
+#define DEFINE_COMPARE_ANY(TYPE, TOKEN_TYPE) \
+int CompareAny##TOKEN_TYPE(char* lhsData, i32 lhsLength, TYPE rhsValue) \
+{ \
+    lhsData = PtrFromVM(GetCurrentCompartment(), lhsData); \
+    TStringBuf lhsInput(lhsData, lhsLength); \
+    NYson::TStatelessLexer lexer; \
+    NYson::TToken lhsToken; \
+    lexer.ParseToken(lhsInput, &lhsToken); \
+    if (lhsToken.GetType() != NYson::ETokenType::TOKEN_TYPE) { \
+        ThrowCannotCompareTypes(lhsToken.GetType(), NYson::ETokenType::TOKEN_TYPE); \
+    } \
+    auto lhsValue = lhsToken.Get##TOKEN_TYPE##Value(); \
+    if (lhsValue < rhsValue) { \
+        return -1; \
+    } else if (lhsValue > rhsValue) { \
+        return +1; \
+    } else { \
+        return 0; \
+    } \
+}
+
+DEFINE_COMPARE_ANY(bool, Boolean)
+DEFINE_COMPARE_ANY(i64, Int64)
+DEFINE_COMPARE_ANY(ui64, Uint64)
+DEFINE_COMPARE_ANY(double, Double)
+
+int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
+{
+    auto* compartment = GetCurrentCompartment();
+    lhsData = PtrFromVM(compartment, lhsData);
+    rhsData = PtrFromVM(compartment, rhsData);
+
+    TStringBuf lhsInput(lhsData, lhsLength);
+    NYson::TStatelessLexer lexer;
+    NYson::TToken lhsToken;
+    lexer.ParseToken(lhsInput, &lhsToken);
+    if (lhsToken.GetType() != NYson::ETokenType::String) {
+        ThrowCannotCompareTypes(lhsToken.GetType(), NYson::ETokenType::String);
+    }
+    auto lhsValue = lhsToken.GetStringValue();
+    TStringBuf rhsValue(rhsData, rhsLength);
+    if (lhsValue < rhsValue) {
+        return -1;
+    } else if (lhsValue > rhsValue) {
+        return +1;
+    } else {
+        return 0;
+    }
+}
+
+void ToAny(TExpressionContext* context, TValue* result, TValue* value)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* valueAtHost = PtrFromVM(compartment, value);
+    auto* resultAtHost = PtrFromVM(compartment, result);
+
+    auto valueCopy = *valueAtHost;
+    if (IsStringLikeType(valueAtHost->Type)) {
+        valueCopy.Data.String = PtrFromVM(compartment, valueAtHost->Data.String);
+    }
+
+    // TODO(babenko): for some reason, flags are garbage here.
+    valueCopy.Flags = {};
+
+    if (valueAtHost->Type == EValueType::Null) {
+        resultAtHost->Type = EValueType::Null;
+        return;
+    }
+
+    // NB: TRowBuffer should be used with caution while executing via WebAssembly engine.
+    TValue buffer = EncodeUnversionedAnyValue(valueCopy, context->GetRowBuffer().Get()->GetPool());
+
+    *resultAtHost = buffer;
+    if (compartment) {
+        auto* data = AllocateBytes(context, buffer.Length);
+        ::memcpy(PtrFromVM(compartment, data, buffer.Length), buffer.Data.String, buffer.Length);
+        resultAtHost->Data.String = data;
+    }
+}
+
+void MakeNgrams(TExpressionContext* context, TValue* result, TValue* textVM, TValue* gramLengthVM)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* textAtHost = PtrFromVM(compartment, textVM);
+    auto* gramLengthAtHost = PtrFromVM(compartment, gramLengthVM);
+
+    if (textAtHost->Type == EValueType::Null || gramLengthAtHost->Type == EValueType::Null) {
+        *PtrFromVM(compartment, result) = MakeUnversionedNullValue();
+        return;
+    }
+
+    const i64 gramLength = gramLengthAtHost->Data.Int64;
+    THROW_ERROR_EXCEPTION_UNLESS(gramLength > 0,
+        "Invalid gram length %v",
+        gramLength);
+
+    const char* textBegin = PtrFromVM(compartment, textAtHost->Data.String, textAtHost->Length);
+    const char* textEnd = textBegin + textAtHost->Length;
+
+    NDetail::TContextStringOutput output(context);
+    NYson::TYsonWriter writer(&output);
+
+    writer.OnBeginList();
+
+    for (i64 ngramStart = 0; ngramStart < textAtHost->Length - gramLength + 1; ++ngramStart) {
+        auto gramView = TStringBuf(textBegin + ngramStart, textBegin + ngramStart + gramLength);
+        writer.OnStringScalar(gramView);
+    }
+
+    const char* tailStart = std::max(textBegin, textBegin + textAtHost->Length - gramLength + 1);
+    while (tailStart < textEnd) {
+        writer.OnStringScalar(TStringBuf(tailStart, textEnd));
+        tailStart++;
+    }
+
+    writer.OnEndList();
+
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Composite, output.GetVMView());
+}
+
+void CastToV3TypeWithValidation(TPIValue* result, TPIValue* value, TLogicalTypePtr* type)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* valueAtHost = PtrFromVM(compartment, value);
+    auto* resultAtHost = PtrFromVM(compartment, result);
+
+    CopyPositionIndependent(resultAtHost, *valueAtHost);
+
+    if (valueAtHost->Type == EValueType::Null) {
+        THROW_ERROR_EXCEPTION_UNLESS((*type)->IsNullable(),
+            "Encountered a null value during cast to a non-nullable type");
+
+        return;
+    }
+
+    YT_VERIFY(valueAtHost->Type == EValueType::Composite || valueAtHost->Type == EValueType::Any);
+
+    resultAtHost->Type = GetWireType(*type);
+
+    auto ysonView = TStringBuf(GetStringPosition(*valueAtHost), valueAtHost->Length);
+    ValidateComplexLogicalType(ysonView, *type);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToLowerUTF8(TExpressionContext* context, char** result, int* resultLength, char* source, int sourceLength)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto lowered = ToLowerUTF8(TStringBuf(PtrFromVM(compartment, source), sourceLength));
+    auto* offset = AllocateBytes(context, lowered.size());
+    *PtrFromVM(compartment, result) = offset;
+    *PtrFromVM(compartment, resultLength) = lowered.size();
+    ::memcpy(PtrFromVM(compartment, offset, lowered.size()), lowered.data(), lowered.size());
+}
+
+TFingerprint GetFarmFingerprint(const TValue* begin, const TValue* end)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto asRange = TMutableRange<TValue>(
+        PtrFromVM(compartment, const_cast<TValue*>(begin), end - begin),
+        static_cast<size_t>(end - begin));
+
+    for (auto& item : asRange) {
+        if (IsStringLikeType(item.Type)) {
+            item.Data.String = PtrFromVM(compartment, item.Data.String);
+        }
+    }
+
+    auto finally = Finally([&] {
+        for (auto& item : asRange) {
+            if (IsStringLikeType(item.Type)) {
+                item.Data.String = PtrToVM(compartment, item.Data.String);
+            }
+        }
+    });
+
+    // TODO(dtorilov): Do not convert twice.
+    auto asPIRange = BorrowFromNonPI(TRange(asRange.Begin(), asRange.End()));
+
+    return GetFarmFingerprint(asPIRange.Begin(), asPIRange.Begin() + asPIRange.Size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern "C" void MakeMap(
+    TExpressionContext* context,
+    TValue* result,
+    TValue* args,
+    int argCount)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    if (argCount % 2 != 0) {
+        THROW_ERROR_EXCEPTION("\"make_map\" takes a even number of arguments");
+    }
+
+    auto arguments = TRange(PtrFromVM(compartment, args, argCount), argCount);
+
+    NDetail::TContextStringOutput output(context);
+    NYson::TYsonWriter writer(&output);
+
+    writer.OnBeginMap();
+    for (int index = 0; index < argCount / 2; ++index) {
+        const auto& nameArg = arguments[index * 2];
+        const auto& valueArg = arguments[index * 2 + 1];
+
+        if (nameArg.Type != EValueType::String) {
+            THROW_ERROR_EXCEPTION("Invalid type of key in key-value pair #%v: expected %Qlv, got %Qlv",
+                index,
+                EValueType::String,
+                nameArg.Type);
+        }
+
+        writer.OnKeyedItem(TStringBuf(
+            PtrFromVM(compartment, nameArg.Data.String, nameArg.Length),
+            nameArg.Length));
+
+        switch (valueArg.Type) {
+            case EValueType::Int64:
+                writer.OnInt64Scalar(valueArg.Data.Int64);
+                break;
+            case EValueType::Uint64:
+                writer.OnUint64Scalar(valueArg.Data.Uint64);
+                break;
+            case EValueType::Double:
+                writer.OnDoubleScalar(valueArg.Data.Double);
+                break;
+            case EValueType::Boolean:
+                writer.OnBooleanScalar(valueArg.Data.Boolean);
+                break;
+            case EValueType::String:
+                writer.OnStringScalar(TStringBuf(
+                    PtrFromVM(compartment, valueArg.Data.String, valueArg.Length),
+                    valueArg.Length));
+                break;
+            case EValueType::Any:
+            case EValueType::Composite:
+                writer.OnRaw(TStringBuf(
+                    PtrFromVM(compartment, valueArg.Data.String, valueArg.Length),
+                    valueArg.Length));
+                break;
+            case EValueType::Null:
+                writer.OnEntity();
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected type %Qlv of value in key-value pair #%v",
+                    valueArg.Type,
+                    index);
+        }
+    }
+    writer.OnEndMap();
+
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.GetVMView());
+}
+
+extern "C" void MakeList(
+    TExpressionContext* context,
+    TValue* result,
+    TValue* args,
+    int argCount)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    auto arguments = TRange(PtrFromVM(compartment, args, argCount), argCount);
+
+    NDetail::TContextStringOutput output(context);
+    NYson::TYsonWriter writer(&output);
+
+    writer.OnBeginList();
+    for (int index = 0; index < argCount; ++index) {
+        const auto& valueArg = arguments[index];
+
+        writer.OnListItem();
+
+        switch (valueArg.Type) {
+            case EValueType::Int64:
+                writer.OnInt64Scalar(valueArg.Data.Int64);
+                break;
+            case EValueType::Uint64:
+                writer.OnUint64Scalar(valueArg.Data.Uint64);
+                break;
+            case EValueType::Double:
+                writer.OnDoubleScalar(valueArg.Data.Double);
+                break;
+            case EValueType::Boolean:
+                writer.OnBooleanScalar(valueArg.Data.Boolean);
+                break;
+            case EValueType::String:
+                writer.OnStringScalar(TStringBuf(
+                    PtrFromVM(compartment, valueArg.Data.String, valueArg.Length),
+                    valueArg.Length));
+                break;
+            case EValueType::Any:
+            case EValueType::Composite:
+                writer.OnRaw(TStringBuf(
+                    PtrFromVM(compartment, valueArg.Data.String, valueArg.Length),
+                    valueArg.Length));
+                break;
+            case EValueType::Null:
+                writer.OnEntity();
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected type %Qlv of value #%v",
+                    valueArg.Type,
+                    index);
+        }
+    }
+    writer.OnEndList();
+
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.GetVMView());
+}
+
+bool ListContainsNullImpl(const INodePtr& node)
+{
+    auto children = node->AsList()->GetChildren();
+    return std::any_of(children.begin(), children.end(), [] (const INodePtr& element) {
+        return element->GetType() == ENodeType::Entity;
+    });
+}
+
+template <ENodeType NodeType, typename TElement, typename TValue>
+bool ListContainsImpl(const INodePtr& node, const TValue& value)
+{
+    for (const auto& element : node->AsList()->GetChildren()) {
+        if (element->GetType() == NodeType && ConvertTo<TElement>(element) == value) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ListContains(
+    TExpressionContext* /*context*/,
+    TValue* result,
+    TValue* ysonList,
+    TValue* what)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    auto whatAtHost = *PtrFromVM(compartment, what);
+    if (IsStringLikeType(whatAtHost.Type)) {
+        whatAtHost.Data.String = PtrFromVM(compartment, whatAtHost.Data.String, whatAtHost.Length);
+    }
+
+    auto ysonListAtHost = *PtrFromVM(compartment, ysonList);
+    YT_VERIFY(IsStringLikeType(ysonListAtHost.Type));
+    ysonListAtHost.Data.String = PtrFromVM(compartment, ysonListAtHost.Data.String, ysonListAtHost.Length);
+
+    auto node = NYTree::ConvertToNode(
+        FromUnversionedValue<NYson::TYsonStringBuf>(ysonListAtHost));
+
+    if (node->GetType() == NYTree::ENodeType::Entity) {
+        *PtrFromVM(compartment, result) = MakeUnversionedSentinelValue(EValueType::Null);
+        return;
+    }
+
+    bool found = false;
+    switch (whatAtHost.Type) {
+        case EValueType::String:
+            found = ListContainsImpl<ENodeType::String, std::string>(node, TStringBuf(whatAtHost.Data.String, whatAtHost.Length));
+            break;
+        case EValueType::Int64:
+            found = ListContainsImpl<ENodeType::Int64, i64>(node, whatAtHost.Data.Int64);
+            break;
+        case EValueType::Uint64:
+            found = ListContainsImpl<ENodeType::Uint64, ui64>(node, whatAtHost.Data.Uint64);
+            break;
+        case EValueType::Boolean:
+            found = ListContainsImpl<ENodeType::Boolean, bool>(node, whatAtHost.Data.Boolean);
+            break;
+        case EValueType::Double:
+            found = ListContainsImpl<ENodeType::Double, double>(node, whatAtHost.Data.Double);
+            break;
+        case EValueType::Null:
+            found = ListContainsNullImpl(node);
+            break;
+        default:
+            THROW_ERROR_EXCEPTION("ListContains is not implemented for %Qlv values",
+                whatAtHost.Type);
+    }
+
+    *PtrFromVM(compartment, result) = MakeUnversionedBooleanValue(found);
+}
+
+template <ENodeType NodeType, typename TValue>
+bool ListHasIntersectionImpl(const INodePtr& lhsNode, const INodePtr& rhsNode)
+{
+    THashSet<TValue> values;
+    for (const auto& node : rhsNode->AsList()->GetChildren()) {
+        switch (node->GetType()) {
+            case ENodeType::Entity:
+                break;
+            case NodeType:
+                values.insert(ConvertTo<TValue>(node));
+                break;
+            default:
+                ThrowException("ListHasIntersection args list must contain only elements of the same type");
+        }
+    }
+    for (const auto& node : lhsNode->AsList()->GetChildren()) {
+        if (node->GetType() == NodeType && values.contains(ConvertTo<TValue>(node))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ListHasIntersection(
+    TExpressionContext* /*context*/,
+    TValue* result,
+    TValue* lhsYsonList,
+    TValue* rhsYsonList)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    auto lhsAtHost = *PtrFromVM(compartment, lhsYsonList);
+    YT_VERIFY(IsStringLikeType(lhsAtHost.Type));
+    lhsAtHost.Data.String = PtrFromVM(compartment, lhsAtHost.Data.String, lhsAtHost.Length);
+    auto rhsAtHost = *PtrFromVM(compartment, rhsYsonList);
+    YT_VERIFY(IsStringLikeType(rhsAtHost.Type));
+    rhsAtHost.Data.String = PtrFromVM(compartment, rhsAtHost.Data.String, rhsAtHost.Length);
+
+    auto lhsNode = NYTree::ConvertToNode(
+        FromUnversionedValue<NYson::TYsonStringBuf>(lhsAtHost));
+    auto rhsNode = NYTree::ConvertToNode(
+        FromUnversionedValue<NYson::TYsonStringBuf>(rhsAtHost));
+
+    bool found = false;
+    const auto rhsNodeList = rhsNode->AsList()->GetChildren();
+    size_t i = 0;
+    while (i < rhsNodeList.size() && rhsNodeList[i]->GetType() == ENodeType::Entity) {
+        ++i;
+    }
+    if (i < rhsNodeList.size()) {
+        auto element = rhsNodeList[i];
+        switch (element->GetType()) {
+            case ENodeType::String:
+                found = ListHasIntersectionImpl<ENodeType::String, std::string>(lhsNode, rhsNode);
+                break;
+            case ENodeType::Int64:
+                found = ListHasIntersectionImpl<ENodeType::Int64, i64>(lhsNode, rhsNode);
+                break;
+            case ENodeType::Uint64:
+                found = ListHasIntersectionImpl<ENodeType::Uint64, ui64>(lhsNode, rhsNode);
+                break;
+            case ENodeType::Boolean:
+                found = ListHasIntersectionImpl<ENodeType::Boolean, bool>(lhsNode, rhsNode);
+                break;
+            case ENodeType::Double:
+                found = ListHasIntersectionImpl<ENodeType::Double, double>(lhsNode, rhsNode);
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("ListHasIntersection is not implemented for %Qlv values",
+                element->GetType());
+        }
+    }
+
+    *PtrFromVM(compartment, result) = MakeUnversionedBooleanValue(found);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void AnyToYsonString(
+    TExpressionContext* context,
+    char** result,
+    int* resultLength,
+    char* any,
+    int anyLength)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    YT_VERIFY(anyLength >= 0);
+    auto textYsonLengthEstimate = static_cast<size_t>(anyLength) * 3;
+
+    // NB: TRowBuffer should be used with caution while executing via WebAssembly engine.
+    auto output = TChunkedMemoryPoolOutput(context->GetRowBuffer()->GetPool(), textYsonLengthEstimate);
+    {
+        TYsonWriter writer(&output, EYsonFormat::Text);
+        TMemoryInput input(PtrFromVM(compartment, any), anyLength);
+        TYsonPullParser parser(&input, EYsonType::Node);
+        TYsonPullParserCursor cursor(&parser);
+        cursor.TransferComplexValue(&writer);
+    }
+    auto refs = output.Finish();
+    if (!compartment && refs.size() == 1) {
+        *PtrFromVM(compartment, result) = refs.front().Begin();
+        *PtrFromVM(compartment, resultLength) = refs.front().Size();
+    } else {
+        *PtrFromVM(compartment, resultLength) = GetByteSize(refs);
+        *PtrFromVM(compartment, result) = AllocateBytes(context, *PtrFromVM(compartment, resultLength));
+        size_t offset = 0;
+        for (const auto& ref : refs) {
+            ::memcpy(PtrFromVM(compartment, *PtrFromVM(compartment, result) + offset, ref.Size()), ref.Begin(), ref.Size());
+            offset += ref.Size();
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern "C" void NumericToString(
+    TExpressionContext* context,
+    TValue* result,
+    TValue* value)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* resultAtHost = PtrFromVM(compartment, result);
+    auto* valueAtHost = PtrFromVM(compartment, value);
+
+    if (valueAtHost->Type == EValueType::Null) {
+        resultAtHost->Type = EValueType::Null;
+        return;
+    }
+
+    NDetail::TContextStringOutput output(context);
+    auto writer = TYsonWriter(&output, EYsonFormat::Text);
+
+    switch (valueAtHost->Type) {
+        case EValueType::Int64:
+            writer.OnInt64Scalar(valueAtHost->Data.Int64);
+            break;
+        case EValueType::Uint64:
+            writer.OnUint64Scalar(valueAtHost->Data.Uint64);
+            break;
+        case EValueType::Double:
+            writer.OnDoubleScalar(valueAtHost->Data.Double);
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    *resultAtHost = MakeUnversionedStringLikeValue(EValueType::String, output.GetVMView());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern "C" void Split(
+    TExpressionContext* context,
+    TValue* result,
+    TValue* string,
+    TValue* delimeter)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
+    auto* delimeterAtHost = PtrFromVM(compartment, delimeter);
+    auto* resultAtHost = PtrFromVM(compartment, result);
+
+    if (stringAtHost->Type == EValueType::Null || delimeterAtHost->Type == EValueType::Null) {
+        resultAtHost->Type = EValueType::Null;
+        return;
+    }
+
+    auto stringView = TStringBuf(
+        PtrFromVM(compartment, stringAtHost->Data.String),
+        stringAtHost->Length);
+    auto delimeterView = TStringBuf(
+        PtrFromVM(compartment, delimeterAtHost->Data.String),
+        delimeterAtHost->Length);
+
+    result->Type = EValueType::Any;
+    result->Flags = {};
+
+    auto resultYson = std::string();
+    auto output = TStdStringOutput(resultYson);
+    auto writer = TYsonWriter(&output, EYsonFormat::Binary);
+
+    writer.OnBeginList();
+
+    size_t from = 0;
+    size_t to = stringView.find(delimeterView);
+    while (to != std::string::npos) {
+        writer.OnStringScalar(stringView.SubString(from, to - from));
+        from = to + delimeterView.size();
+        to = stringView.find(delimeterView, from);
+    }
+
+    writer.OnStringScalar(stringView.SubString(from, stringView.size() - from));
+    writer.OnEndList();
+
+    NDetail::CopyStringLike(context, result, resultYson, EValueType::Any);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DEFINE_CONVERT_STRING(TYPE) \
+    extern "C" void StringTo ## TYPE(TExpressionContext* /*context*/, TValue* result, TValue* value) \
+    { \
+        auto* compartment = GetCurrentCompartment(); \
+        auto* resultAtHost = PtrFromVM(compartment, result); \
+        auto* valueAtHost = PtrFromVM(compartment, value); \
+        if (valueAtHost->Type == EValueType::Null) { \
+            *resultAtHost = MakeUnversionedNullValue(); \
+            return; \
+        } \
+        NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
+        auto valueString = TStringBuf(PtrFromVM(compartment, valueAtHost->Data.String, valueAtHost->Length), valueAtHost->Length); \
+        lexer.ParseToken(valueString, &token); \
+        if (token.GetType() == NYson::ETokenType::Int64) { \
+            *resultAtHost = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \
+        } else if (token.GetType() == NYson::ETokenType::Uint64) { \
+            *resultAtHost = MakeUnversioned ## TYPE ## Value(token.GetUint64Value()); \
+        } else if (token.GetType() == NYson::ETokenType::Double) { \
+            *resultAtHost = MakeUnversioned ## TYPE ## Value(token.GetDoubleValue()); \
+        } else { \
+            THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type %Qlv to \"string\"", \
+                valueString, \
+                EValueType::TYPE); \
+        } \
+    }
+
+DEFINE_CONVERT_STRING(Int64)
+DEFINE_CONVERT_STRING(Uint64)
+DEFINE_CONVERT_STRING(Double)
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DEFINE_HLL(PRECISION) \
+    static_assert(std::is_trivially_destructible<THyperLogLog<PRECISION>>::value); \
+\
+    void HyperLogLogAllocate ## PRECISION(TExpressionContext* context, TValue* result) \
+    { \
+        auto* compartment = GetCurrentCompartment(); \
+        auto* hllOffset = AllocateBytes(context, sizeof(THyperLogLog<PRECISION>)); \
+        auto* hll = PtrFromVM(compartment, hllOffset, sizeof(THyperLogLog<PRECISION>)); \
+        new (hll) THyperLogLog<PRECISION>(); \
+\
+        auto* resultAtHost = PtrFromVM(compartment, result); \
+        *resultAtHost = MakeUnversionedStringValue(TStringBuf(hllOffset, sizeof(THyperLogLog<PRECISION>))); \
+    } \
+\
+    void HyperLogLogAdd ## PRECISION(void* hll, uint64_t value) \
+    { \
+        auto* hllAtHost = PtrFromVM(GetCurrentCompartment(), static_cast<THyperLogLog<PRECISION>*>(hll)); \
+        hllAtHost->Add(value); \
+    } \
+\
+    void HyperLogLogMerge ## PRECISION(void* hll1, void* hll2) \
+    { \
+        auto* compartment = GetCurrentCompartment(); \
+        auto* hll1AtHost = PtrFromVM(compartment, static_cast<THyperLogLog<PRECISION>*>(hll1)); \
+        auto* hll2AtHost = PtrFromVM(compartment, static_cast<THyperLogLog<PRECISION>*>(hll2)); \
+        hll1AtHost->Merge(*hll2AtHost); \
+    } \
+\
+    void HyperLogLogMergeWithValidation ## PRECISION(void* hll1, void* hll2, uint64_t incomingStateLength) \
+    { \
+        THROW_ERROR_EXCEPTION_IF(incomingStateLength != sizeof(THyperLogLog<PRECISION>), \
+            "State size mismatch in hyperloglog: expected %v, got %v; " \
+            "this potentially signals a misuse of function \"cardinality_*\"", \
+            sizeof(THyperLogLog<PRECISION>), \
+            incomingStateLength); \
+        HyperLogLogMerge ## PRECISION(hll1, hll2); \
+    } \
+\
+    ui64 HyperLogLogEstimateCardinality ## PRECISION(void* hll) \
+    { \
+        auto* hllAtHost = PtrFromVM(GetCurrentCompartment(), static_cast<THyperLogLog<PRECISION>*>(hll)); \
+        return hllAtHost->EstimateCardinality(); \
+    }
+
+ui64 HyperLogLogGetFingerprint(TValue* value)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto valueAtHost = *PtrFromVM(compartment, value);
+    if (IsStringLikeType(valueAtHost.Type)) {
+        valueAtHost.Data.String = PtrFromVM(compartment, valueAtHost.Data.String);
+    }
+    return NTableClient::GetFarmFingerprint(valueAtHost);
+}
+
+ui64 UniqGetFingerprint(TValue* valueBegin, int valueCount)
+{
+    return GetFarmFingerprint(valueBegin, valueBegin + valueCount);
+}
+
+DEFINE_HLL(7)
+DEFINE_HLL(8)
+DEFINE_HLL(9)
+DEFINE_HLL(10)
+DEFINE_HLL(11)
+DEFINE_HLL(12)
+DEFINE_HLL(13)
+DEFINE_HLL(14)
+
+// COMPAT(dtorilov): Remove after 25.4.
+// COMPAT BEGIN {
+
+using THLL = NYT::THyperLogLog<14>;
+static_assert(std::is_trivially_destructible<THLL>::value);
+
+void HyperLogLogAllocate(TExpressionContext* context, TValue* result)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* hllOffset = AllocateBytes(context, sizeof(THLL));
+    auto* hll = PtrFromVM(compartment, hllOffset, sizeof(THLL));
+    new (hll) THLL();
+
+    auto* resultAtHost = PtrFromVM(compartment, result);
+    *resultAtHost = MakeUnversionedStringValue(TStringBuf(hllOffset, sizeof(THLL)));
+}
+
+void HyperLogLogAdd(void* hll, uint64_t value)
+{
+    auto* hllAtHost = PtrFromVM(GetCurrentCompartment(), static_cast<THLL*>(hll));
+    hllAtHost->Add(value);
+}
+
+void HyperLogLogMerge(void* hll1, void* hll2)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* hll1AtHost = PtrFromVM(compartment, static_cast<THLL*>(hll1));
+    auto* hll2AtHost = PtrFromVM(compartment, static_cast<THLL*>(hll2));
+    hll1AtHost->Merge(*hll2AtHost);
+}
+
+void HyperLogLogMergeWithValidation(void* hll1, void* hll2, uint64_t incomingStateLength)
+{
+    THROW_ERROR_EXCEPTION_IF(incomingStateLength != sizeof(THLL),
+        "State size mismatch in hyperloglog: expected %v, got %v; "
+        "this potentially signals a misuse of function \"cardinality_*\"",
+        sizeof(THLL),
+        incomingStateLength);
+    HyperLogLogMerge(hll1, hll2);
+}
+
+ui64 HyperLogLogEstimateCardinality(void* hll)
+{
+    auto* hllAtHost = PtrFromVM(GetCurrentCompartment(), static_cast<THLL*>(hll));
+    return hllAtHost->EstimateCardinality();
+}
+
+// } COMPAT END
+
+////////////////////////////////////////////////////////////////////////////////
+
+void NodeToWasmUnversionedValue(TExpressionContext* context, TUnversionedValue& unversionedValue, const INodePtr& value)
+{
+    if (!value) {
+        unversionedValue.Type = EValueType::Null;
+        return;
+    }
+    auto ysonString = NYson::ConvertToYsonString(value);
+    unversionedValue.Type = EValueType::Any;
+    unversionedValue.Length = ysonString.AsStringBuf().size();
+    char* data = AllocateBytes(context, unversionedValue.Length);
+    std::memcpy(data, ysonString.AsStringBuf().data(), unversionedValue.Length);
+    unversionedValue.Data.String = PtrToVM(GetCurrentCompartment(), data, unversionedValue.Length);
+}
+
+INodePtr NodeFromWasmUnversionedValue(const TUnversionedValue& unversionedValue)
+{
+    if (unversionedValue.Type == EValueType::Null) {
+        return nullptr;
+    }
+    auto data = PtrFromVM(GetCurrentCompartment(), unversionedValue.Data.String, unversionedValue.Length);
+    auto stringBuf = TStringBuf(data, unversionedValue.Length);
+    auto ysonString = NYson::TYsonString(stringBuf);
+    return ConvertToNode(ysonString);
+}
+
+void RemoveRecursively(INodePtr node)
+{
+    auto parent = node->GetParent();
+    while (parent) {
+        if (parent->GetType() != ENodeType::Map) {
+            break;
+        }
+
+        auto parentMap = parent->AsMap();
+        parentMap->RemoveChild(node);
+        if (parentMap->GetChildCount() == 0) {
+            node = parent;
+            parent = parentMap->GetParent();
+        } else {
+            parent = nullptr;
+        }
+    }
+}
+
+INodePtr DictSum(const INodePtr& stateRoot, const INodePtr& deltaRoot)
+{
+    if (!deltaRoot || deltaRoot->GetType() != ENodeType::Map) {
+        return stateRoot;
+    }
+
+    if (!stateRoot) {
+        return deltaRoot;
+    }
+
+    if (stateRoot->GetType() != ENodeType::Map) {
+        return nullptr;
+    }
+
+    auto oldStateRoot = ConvertToNode(stateRoot);
+    std::vector<std::pair<IMapNodePtr, IMapNodePtr>> traversal;
+    traversal.push_back({stateRoot->AsMap(), deltaRoot->AsMap()});
+    while (!traversal.empty()) {
+        auto [state, delta] = traversal.back();
+        traversal.pop_back();
+        for (auto& [key, deltaChild] : delta->GetChildren()) {
+            auto stateChild = state->FindChild(key);
+            if (!stateChild) {
+                delta->RemoveChild(deltaChild);
+                state->AddChild(key, deltaChild);
+                continue;
+            }
+
+            if (stateChild->GetType() == ENodeType::Int64 && deltaChild->GetType() == ENodeType::Int64) {
+                auto intNode = stateChild->AsInt64();
+                intNode->SetValue(intNode->GetValue() + deltaChild->AsInt64()->GetValue());
+                if (intNode->GetValue() == 0) {
+                    RemoveRecursively(intNode);
+                }
+            } else if (stateChild->GetType() == ENodeType::Map && deltaChild->GetType() == ENodeType::Map) {
+                traversal.push_back({stateChild->AsMap(), deltaChild->AsMap()});
+            } else {
+                return oldStateRoot;
+            }
+        }
+    }
+
+    return stateRoot;
+}
+
+void DictSumIteration(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state,
+    TUnversionedValue* delta)
+{
+    auto stateNode = NodeFromWasmUnversionedValue(*state);
+    auto deltaNode = NodeFromWasmUnversionedValue(*delta);
+    auto resultNode = DictSum(stateNode, deltaNode);
+    NodeToWasmUnversionedValue(context, *result, resultNode);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void copyString(TExpressionContext* context, TUnversionedValue* result, const char* source, int length)
+{
+    result->Length = length;
+    result->Data.String = AllocateBytes(context, length);
+    ::memcpy(std::bit_cast<void*>(result->Data.String), source, length);
+}
+
+// TODO(dtorilov): Convert pointers here.
+void Greatest(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* first, TUnversionedValue* args, int argsLen)
+{
+    #define FIND_GREATEST(type, cmp) \
+        for (int index = 0; index < argsLen; ++index) { \
+            if (args[index].Type == EValueType::Null) { \
+                ThrowException("Found null argument"); \
+                break; \
+            } \
+            if (cmp(args[greatestIndex].Data.type, args[index].Data.type, args[greatestIndex].Length, args[index].Length)) { \
+                greatestIndex = index; \
+            } \
+        } \
+        if (argsLen == 0 || cmp(args[greatestIndex].Data.type, first->Data.type, args[greatestIndex].Length, first->Length)) { \
+            greatestIndex = -1; \
+        }
+
+    result->Type = first->Type;
+    int greatestIndex = 0;
+
+    switch (first->Type) {
+        case EValueType::Uint64:
+            FIND_GREATEST(
+                Uint64,
+                [] (ui64 lhs, ui64 rhs, size_t /*lhsLen*/, size_t /*rhsLen*/) {
+                    return lhs < rhs;
+                });
+            break;
+
+        case EValueType::Int64:
+            FIND_GREATEST(
+                Int64,
+                [] (i64 lhs, i64 rhs, size_t /*lhsLen*/, size_t /*rhsLen*/) {
+                    return lhs < rhs;
+                });
+            break;
+
+        case EValueType::Double:
+            FIND_GREATEST(
+                Double,
+                [] (double lhs, double rhs, size_t /*lhsLen*/, size_t /*rhsLen*/) {
+                    return lhs < rhs;
+                });
+            break;
+
+        case EValueType::Boolean:
+            FIND_GREATEST(
+                Boolean,
+                [] (bool lhs, bool rhs, size_t /*lhsLen*/, size_t /*rhsLen*/) {
+                    return lhs < rhs;
+                });
+            break;
+
+        case EValueType::String:
+            FIND_GREATEST(
+                String,
+                [] (const char* lhs, const char* rhs, size_t lhsLen, size_t rhsLen) {
+                    int cmpResult = ::memcmp(lhs, rhs, std::min(lhsLen, rhsLen));
+
+                    if (cmpResult == 0) {
+                        if (lhsLen < rhsLen) {
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    }
+
+                    return cmpResult < 0;
+                });
+            break;
+
+        case EValueType::Null:
+            ThrowException("Found null argument");
+            break;
+
+        default:
+            break;
+    }
+
+    #undef FIND_GREATEST
+
+    switch (first->Type) {
+        case EValueType::String:
+            if (greatestIndex == -1) {
+                copyString(context, result, first->Data.String, first->Length);
+            } else {
+                copyString(context, result, args[greatestIndex].Data.String, args[greatestIndex].Length);
+            }
+
+            break;
+
+        default:
+            if (greatestIndex == -1) {
+                result->Data = first->Data;
+            } else {
+                result->Data = args[greatestIndex].Data;
+            }
+
+            break;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(dtorilov): Convert pointers here.
+void FirstInit(
+    TExpressionContext* context,
+    TUnversionedValue* result)
+{
+    Y_UNUSED(context);
+
+    result->Type = EValueType::Null;
+}
+
+void FirstIteration(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state,
+    TUnversionedValue* newValue)
+{
+    if (state->Type == EValueType::Null) {
+        result->Type = newValue->Type;
+        if (newValue->Type == EValueType::String || newValue->Type == EValueType::Any || newValue->Type == EValueType::Composite) {
+            char* permanentData = AllocateBytes(context, newValue->Length);
+            ::memcpy(permanentData, newValue->Data.String, newValue->Length);
+            result->Length = newValue->Length;
+            result->Data.String = permanentData;
+        } else {
+            result->Data = newValue->Data;
+        }
+    } else {
+        result->Type = state->Type;
+        result->Length = state->Length;
+        result->Data = state->Data;
+    }
+}
+
+void FirstUpdate(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state,
+    TUnversionedValue* newValue)
+{
+    FirstIteration(context, result, state, newValue);
+}
+
+void FirstMerge(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* dstState,
+    TUnversionedValue* state)
+{
+    FirstIteration(context, result, dstState, state);
+}
+
+void FirstFinalize(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state)
+{
+    Y_UNUSED(context);
+
+    result->Type = state->Type;
+    result->Length = state->Length;
+    result->Data = state->Data;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* state)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    auto* stateAtHost = PtrFromVM(compartment, state);
+
+    NDetail::TContextStringOutput output(context);
+    NYson::TYsonWriter writer(&output);
+
+    writer.OnBeginList();
+
+    if (stateAtHost->Length != 0) {
+        const auto* start = PtrFromVM(compartment, stateAtHost->Data.String);
+        const auto* end = start + *PtrFromVM(compartment, std::bit_cast<const i64*>(stateAtHost->Data.String));
+        const auto* cursor = start + sizeof(i64);
+
+        while (cursor < end) {
+            writer.OnListItem();
+
+            auto type = *reinterpret_cast<const EValueType*>(cursor);
+            cursor += sizeof(EValueType);
+
+            if (type == EValueType::Null) {
+                writer.OnEntity();
+                continue;
+            }
+
+            auto data = *reinterpret_cast<const TUnversionedValueData*>(cursor);
+            cursor += sizeof(TUnversionedValueData);
+
+            switch (type) {
+                case EValueType::Int64:
+                    writer.OnInt64Scalar(data.Int64);
+                    break;
+
+                case EValueType::Boolean:
+                    writer.OnBooleanScalar(data.Boolean);
+                    break;
+
+                case EValueType::Uint64:
+                    writer.OnUint64Scalar(data.Uint64);
+                    break;
+
+                case EValueType::Double:
+                    writer.OnDoubleScalar(data.Double);
+                    break;
+
+                case EValueType::String:
+                    writer.OnStringScalar({cursor, data.Uint64});
+                    cursor+=data.Uint64;
+                    break;
+
+                case EValueType::Any:
+                case EValueType::Composite:
+                    writer.OnRaw({cursor, data.Uint64});
+                    cursor+=data.Uint64;
+                    break;
+
+                default:
+                    THROW_ERROR_EXCEPTION("Unsupported element type %Qlv", type);
+            }
+        }
+
+        YT_VERIFY(cursor == end);
+    }
+
+    writer.OnEndList();
+
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.GetVMView());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(dtorilov): Add unit-test.
+void HasPermissions(
+    TExpressionContext* /*context*/,
+    TUnversionedValue* result,
+    TUnversionedValue* ysonAcl,
+    TUnversionedValue* ysonSubjectClosureList,
+    TUnversionedValue* ysonPermissionList)
+{
+    using namespace NYTree;
+    using namespace NYson;
+
+    auto acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(
+        FromUnversionedValue<TYsonStringBuf>(*ysonAcl));
+    // NB: "subjectClosure" and "permissions" are being passed as strings.
+    auto subjectClosure = ConvertTo<THashSet<std::string>>(
+        TYsonStringBuf(FromUnversionedValue<TStringBuf>(*ysonSubjectClosureList)));
+    auto permissions = ConvertTo<EPermissionSet>(
+        TYsonStringBuf(FromUnversionedValue<TStringBuf>(*ysonPermissionList)));
+
+    auto action = CheckPermissionsByAclAndSubjectClosure(acl, subjectClosure, permissions);
+    *result = MakeUnversionedBooleanValue(action == NSecurityClient::ESecurityAction::Allow);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYsonLengthEvaluationVisitor
+    : public TYsonConsumerBase
+{
+public:
+    void OnStringScalar(TStringBuf /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "String");
+        }
+    }
+
+    void OnInt64Scalar(i64 /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "Int64");
+        }
+    }
+
+    void OnUint64Scalar(ui64 /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "Uint64");
+        }
+    }
+
+    void OnDoubleScalar(double /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "Double");
+        }
+    }
+
+    void OnBooleanScalar(bool /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "Boolean");
+        }
+    }
+
+    void OnEntity() override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "Entity");
+        }
+    }
+
+    void OnBeginList() override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            YT_ASSERT(!IsList_.has_value());
+            IsList_ = true;
+        }
+        ++Depth_;
+    }
+
+    void OnListItem() override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 1) {
+            ++Length_;
+        }
+    }
+
+    void OnEndList() override
+    {
+        --Depth_;
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            YT_ASSERT(IsList_.has_value());
+            YT_ASSERT(IsList_ == true);
+            YT_ASSERT(!Done_);
+            Done_ = true;
+        }
+    }
+
+    void OnBeginMap() override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            YT_ASSERT(!IsList_.has_value());
+            IsList_ = false;
+        }
+        ++Depth_;
+    }
+
+    void OnKeyedItem(TStringBuf /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 1) {
+            ++Length_;
+        }
+    }
+
+    void OnEndMap() override
+    {
+        --Depth_;
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            YT_ASSERT(IsList_.has_value());
+            YT_ASSERT(IsList_ == false);
+            YT_ASSERT(!Done_);
+            Done_ = true;
+        }
+    }
+
+    void OnBeginAttributes() override
+    {
+        ++AttributesDepth_;
+    }
+
+    void OnEndAttributes() override
+    {
+        --AttributesDepth_;
+    }
+
+    i64 GetLength() const
+    {
+        return Length_;
+    }
+
+    bool Done() const
+    {
+        return Done_;
+    }
+
+private:
+    i64 Depth_ = 0;
+    i64 AttributesDepth_ = 0;
+    i64 Length_ = 0;
+    std::optional<bool> IsList_;
+    bool Done_ = false;
+};
+
+i64 YsonLength(char* data, int length)
+{
+    data = PtrFromVM(GetCurrentCompartment(), data, length);
+
+    TMemoryInput input(data, length);
+    TYsonPullParser ysonParser(&input, EYsonType::Node);
+    TYsonPullParserCursor ysonCursor(&ysonParser);
+
+    TYsonLengthEvaluationVisitor lengthEvaluator;
+    ysonCursor.TransferComplexValue(&lengthEvaluator);
+    YT_ASSERT(lengthEvaluator.Done());
+    return lengthEvaluator.GetLength();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void LikeOpHelper(
+    TPIValue* result,
+    TPIValue* text,
+    EStringMatchOp matchOp,
+    TPIValue* pattern,
+    bool useEscapeCharacter,
+    TPIValue* escapeCharacter,
+    TLikeExpressionContext* context)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    result = PtrFromVM(compartment, result);
+    text = PtrFromVM(compartment, text);
+    pattern = PtrFromVM(compartment, pattern);
+    escapeCharacter = PtrFromVM(compartment, escapeCharacter);
+
+    if (text->Type == EValueType::Null ||
+        pattern->Type == EValueType::Null ||
+        (useEscapeCharacter && escapeCharacter->Type == EValueType::Null))
+    {
+        result->Type = EValueType::Null;
+        return;
+    }
+
+    std::unique_ptr<re2::RE2> newRegex;
+
+    re2::RE2* matcher = nullptr;
+    if (context->PrecompiledRegex) {
+        matcher = context->PrecompiledRegex.get();
+    } else {
+        TStringBuf escape;
+        if (useEscapeCharacter) {
+            escape = escapeCharacter->AsStringBuf();
+        }
+
+        auto asRe2Pattern = ConvertLikePatternToRegex(pattern->AsStringBuf(), matchOp, escape, useEscapeCharacter);
+
+        re2::RE2::Options options;
+        options.set_log_errors(false);
+        newRegex = std::make_unique<re2::RE2>(re2::StringPiece(asRe2Pattern.data(), asRe2Pattern.size()), options);
+        if (!newRegex->ok()) {
+            THROW_ERROR_EXCEPTION("Error parsing regular expression %Qv",
+                asRe2Pattern)
+                << TError(TRuntimeFormat(matcher->error().c_str()));
+        }
+
+        matcher = newRegex.get();
+    }
+
+    bool matched = re2::RE2::FullMatch(re2::StringPiece(text->AsStringBuf().data(), text->AsStringBuf().size()), *matcher);
+
+    result->Type = EValueType::Boolean;
+    result->Data.Boolean = matched;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void CompositeMemberAccessorHelper(
+    TExpressionContext* context,
+    TPIValue* result,
+    EValueType resultType,
+    TPIValue* composite,
+    TCompositeMemberAccessorPath* path,
+    bool hasDictOrListItemAccessor,
+    TPIValue* dictOrListItemAccessor)
+{
+    using NYTree::ParseMapOrAttributesUntilKey;
+    using NYTree::ParseListUntilIndex;
+    using NYTree::ParseAnyValue;
+
+    auto* compartment = GetCurrentCompartment();
+
+    MakePositionIndependentNullValue(PtrFromVM(compartment, result));
+
+    composite = PtrFromVM(compartment, composite);
+    dictOrListItemAccessor = PtrFromVM(compartment, dictOrListItemAccessor);
+
+    if (composite->Type == EValueType::Null || composite->Length == 0) {
+        return;
+    }
+
+    TMemoryInput input(composite->AsStringBuf());
+    TYsonPullParser parser(&input, EYsonType::Node);
+    TYsonPullParserCursor cursor(&parser);
+
+    for (int index = 0; index < std::ssize(path->NestedTypes); ++index) {
+        auto type = path->NestedTypes[index];
+
+        if (type == ELogicalMetatype::Struct) {
+            if (cursor->GetType() == EYsonItemType::BeginMap) {
+                if (!ParseMapOrAttributesUntilKey(&cursor, path->NamedStructMembers[index])) {
+                    return;
+                }
+            } else if (cursor->GetType() == EYsonItemType::BeginList) {
+                if (!ParseListUntilIndex(&cursor, path->PositionalStructMembers[index])) {
+                    return;
+                }
+            } else {
+                return;
+            }
+        } else if (type == ELogicalMetatype::Tuple) {
+            if (cursor->GetType() == EYsonItemType::BeginList) {
+                if (!ParseListUntilIndex(&cursor, path->TupleItemIndices[index])) {
+                    return;
+                }
+            } else {
+                return;
+            }
+        } else {
+            YT_ABORT();
+        }
+    }
+
+    if (hasDictOrListItemAccessor) {
+        if (cursor->GetType() == EYsonItemType::BeginMap && dictOrListItemAccessor->Type == EValueType::String) {
+            if (!ParseMapOrAttributesUntilKey(&cursor, dictOrListItemAccessor->AsStringBuf())) {
+                return;
+            }
+        } else if (cursor->GetType() == EYsonItemType::BeginList && dictOrListItemAccessor->Type == EValueType::Int64) {
+            if (!ParseListUntilIndex(&cursor, dictOrListItemAccessor->Data.Int64)) {
+                return;
+            }
+        } else {
+            return;
+        }
+    }
+
+    switch (resultType) {
+        case EValueType::Null:
+            break;
+
+        case EValueType::Int64:
+            if (auto parsed = TryParseValue<i64>(&cursor)) {
+                MakePositionIndependentInt64Value(PtrFromVM(compartment, result), *parsed);
+            }
+            break;
+
+        case EValueType::Uint64:
+            if (auto parsed = TryParseValue<ui64>(&cursor)) {
+                MakePositionIndependentUint64Value(PtrFromVM(compartment, result), *parsed);
+            }
+            break;
+
+        case EValueType::Double:
+            if (auto parsed = TryParseValue<double>(&cursor)) {
+                MakePositionIndependentDoubleValue(PtrFromVM(compartment, result), *parsed);
+            }
+            break;
+
+        case EValueType::Boolean:
+            if (auto parsed = TryParseValue<bool>(&cursor)) {
+                MakePositionIndependentBooleanValue(PtrFromVM(compartment, result), *parsed);
+            }
+            break;
+
+        case EValueType::String:
+            if (auto parsed = TryParseValue<std::string>(&cursor)) {
+                NDetail::CopyStringLike(context, result, *parsed, EValueType::String);
+            }
+            break;
+
+        case EValueType::Any:
+        case EValueType::Composite: {
+            auto parsed = ParseAnyValue(&cursor);
+            NDetail::CopyStringLike(context, result, parsed, EValueType::Any);
+            PtrFromVM(compartment, result)->Type = resultType;
+            break;
+        }
+
+        default:
+            YT_ABORT();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProcessHierarchicalJoinBatch(THierarchicalJoinClosure* closure)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* parameters = closure->Parameters;
+    auto* context = closure->ExecutionContext;
+    size_t keySize = parameters->KeySize;
+
+    YT_LOG_DEBUG("Processing hierarchical join batch (OuterRowCount: %v, UniqueKeyCount: %v)",
+        closure->SelfSideRowBatch.size(),
+        closure->SelfSideDomainBatch.size());
+
+    std::vector<TPIValueRange> selfKeys;
+    selfKeys.reserve(closure->SelfSideDomainBatch.size());
+    for (auto* key : closure->SelfSideDomainBatch) {
+        selfKeys.emplace_back(key, keySize);
+    }
+
+    std::sort(selfKeys.begin(), selfKeys.end(), [&] (const TPIValueRange& lhs, const TPIValueRange& rhs) {
+        return closure->SuffixLessComparer(lhs.Begin(), rhs.Begin());
+    });
+
+    auto foreignExecutorCopy = CopyAndConvertFromPI(compartment, &closure->ForeignContext, selfKeys);
+    ISchemafulUnversionedReaderPtr reader;
+    SaveAndRestoreCurrentCompartment([&] {
+        reader = parameters->JoinRowsProducer->FetchJoinedRows(
+            foreignExecutorCopy,
+            closure->ForeignContext.GetRowBuffer());
+    });
+
+    if (reader) {
+        TRowBatchReadOptions readOptions{.MaxRowsPerRead = context->RowsetProcessingBatchSize};
+
+        while (true) {
+            IUnversionedRowBatchPtr foreignBatch;
+            {
+                TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
+                foreignBatch = SaveAndRestoreCurrentCompartment([&] {
+                    return reader->Read(readOptions);
+                });
+            }
+
+            if (!foreignBatch) {
+                break;
+            }
+
+            if (foreignBatch->IsEmpty()) {
+                TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
+                SaveAndRestoreCurrentCompartment([&] {
+                    WaitFor(reader->GetReadyEvent()).ThrowOnError();
+                });
+                continue;
+            }
+
+            for (auto foreignRow : foreignBatch->MaterializeRows()) {
+                auto capturedRow = CaptureUnversionedValueRange(&closure->ForeignContext, foreignRow.Elements());
+                auto* rowPtr = capturedRow.Begin();
+                closure->ForeignSideLookup[rowPtr].push_back(rowPtr);
+            }
+        }
+    }
+
+    bool finished = false;
+    if (compartment) {
+        auto guard = CopyIntoCompartment(
+            TRange(std::bit_cast<uintptr_t*>(closure->SelfSideRowBatch.data()), closure->SelfSideRowBatch.size()),
+            compartment);
+        finished = closure->ConsumeJoinedRowsFunction(
+            closure->ConsumeJoinedRowsClosure,
+            &closure->SelfContext,
+            std::bit_cast<const TPIValue**>(guard.GetCopiedOffset()),
+            std::ssize(closure->SelfSideRowBatch));
+    } else {
+        finished = closure->ConsumeJoinedRowsFunction(
+            closure->ConsumeJoinedRowsClosure,
+            &closure->SelfContext,
+            closure->SelfSideRowBatch.data(),
+            std::ssize(closure->SelfSideRowBatch));
+    }
+
+    closure->SelfSideRowBatch.clear();
+    closure->SelfSideDomainBatch.clear_no_resize();
+    closure->SelfContext.Clear();
+    closure->ForeignSideLookup.clear_no_resize();
+    closure->ForeignContext.Clear();
+
+    return finished;
+}
+
+void StoreSelfRowIntoHierarchicalJoinBatch(
+    TExecutionContext* /*context*/,
+    THierarchicalJoinClosure* closure,
+    TPIValue* outerRow)
+{
+    auto* compartment = GetCurrentCompartment();
+    size_t rowSize = closure->PrimaryRowSize;
+
+    auto* copy = std::bit_cast<TPIValue*>(
+        closure->SelfContext.AllocateAligned(rowSize * sizeof(TPIValue), EAddressSpace::WebAssembly));
+    {
+        auto* hostCopy = PtrFromVM(compartment, copy, rowSize);
+        auto* hostRow = PtrFromVM(compartment, outerRow, rowSize);
+
+        for (size_t index = 0; index < rowSize; ++index) {
+            CopyPositionIndependent(&hostCopy[index], hostRow[index]);
+        }
+    }
+    {
+        for (size_t index = 0; index < rowSize; ++index) {
+            CapturePIValue(compartment, &closure->SelfContext, &copy[index]);
+        }
+    }
+
+    closure->SelfSideRowBatch.push_back(copy);
+}
+
+bool FlushHierarchicalJoinBatchIfNeeded(
+    TExecutionContext* /*context*/,
+    THierarchicalJoinClosure* closure)
+{
+    if (std::ssize(closure->SelfSideRowBatch) >= closure->BatchSize) {
+        return ProcessHierarchicalJoinBatch(closure);
+    }
+
+    return false;
+}
+
+void HierarchicalJoinOpHelper(
+    TExecutionContext* context,
+    TSingleJoinParameters* parameters,
+    TJoinComparers* comparersOffset,
+    void** collectRowsClosure,
+    void (*collectRowsFunction)(void** closure, THierarchicalJoinClosure* joinClosure),
+    void** consumeJoinedRowsClosure,
+    TRowsConsumer consumeJoinedRowsFunction,
+    i64 primaryRowSize,
+    THierarchicalJoinClosure** closurePtrSlot)
+{
+    using NQueryClient::NDetail::TGroupHasher;
+    using NQueryClient::NDetail::TRowComparer;
+
+    auto* compartment = GetCurrentCompartment();
+
+    auto comparers = NDetail::MakeJoinComparersCallbacks(TRange(PtrFromVM(compartment, comparersOffset, /*length*/ 1), /*length*/ 1));
+    const auto& comparer = comparers[0];
+
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto consumeJoinedRows = PrepareFunction(consumeJoinedRowsFunction);
+
+    THierarchicalJoinClosure::TSelfSideDomainBatch selfSideDomainBatch(
+        InitialGroupOpHashtableCapacity,
+        TGroupHasher(comparer.SuffixHasher),
+        TRowComparer(comparer.SuffixEqComparer));
+    selfSideDomainBatch.set_empty_key(TRowComparer::MakeSentinel(TRowComparer::ESentinelType::Empty));
+
+    THierarchicalJoinClosure::TForeignSideLookup foreignSideLookup(
+        InitialGroupOpHashtableCapacity,
+        TGroupHasher(comparer.SuffixHasher),
+        TRowComparer(comparer.SuffixEqComparer));
+    foreignSideLookup.set_empty_key(TRowComparer::MakeSentinel(TRowComparer::ESentinelType::Empty));
+
+    THierarchicalJoinClosure closure{
+        .SelfContext = MakeExpressionContext(THierarchicalJoinClosure::TBufferTag(), context->MemoryChunkProvider),
+        .SelfSideDomainBatch = std::move(selfSideDomainBatch),
+        .ForeignContext = MakeExpressionContext(THierarchicalJoinClosure::TBufferTag(), context->MemoryChunkProvider),
+        .ForeignSideLookup = std::move(foreignSideLookup),
+        .ExecutionContext = context,
+        .Parameters = parameters,
+        .ConsumeJoinedRowsClosure = consumeJoinedRowsClosure,
+        .ConsumeJoinedRowsFunction = consumeJoinedRows,
+        .SuffixLessComparer = comparer.SuffixLessComparer,
+        .PrimaryRowSize = primaryRowSize,
+        .BatchSize = context->MaxJoinBatchSize,
+    };
+
+    *closurePtrSlot = &closure;
+
+    collectRows(collectRowsClosure, &closure);
+
+    if (!closure.SelfSideRowBatch.empty()) {
+        ProcessHierarchicalJoinBatch(&closure);
+    }
+
+    *closurePtrSlot = nullptr;
+}
+
+void SubqueryHierarchicalJoinWriteDomainRow(THierarchicalJoinClosure* closure, TPIValue* row)
+{
+    if (closure->SelfSideDomainBatch.count(row) != 0) {
+        return;
+    }
+
+    auto* compartment = GetCurrentCompartment();
+
+    size_t length = closure->Parameters->KeySize;
+
+    auto* copy = std::bit_cast<TPIValue*>(closure->SelfContext.AllocateAligned(length * sizeof(TPIValue), EAddressSpace::WebAssembly));
+    {
+        auto* copyAtHost = PtrFromVM(compartment, copy, length);
+        auto* rowAtHost = PtrFromVM(compartment, row, length);
+
+        for (size_t index = 0; index < length; ++index) {
+            CopyPositionIndependent(&copyAtHost[index], rowAtHost[index]);
+
+            copyAtHost[index].Flags = {};
+            copyAtHost[index].Id = index;
+        }
+    }
+    {
+        for (size_t index = 0; index < length; ++index) {
+            CapturePIValue(compartment, &closure->SelfContext, &copy[index]);
+        }
+    }
+
+    closure->SelfSideDomainBatch.insert(copy);
+}
+
+bool SubqueryHierarchicalJoinLookupRows(
+    TExpressionContext* buffer,
+    TSingleJoinParameters* parameters,
+    THierarchicalJoinClosure* closure,
+    TPIValue* primaryRow,
+    i64 primaryRowSize,
+    TPIValue* keyRow,
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+    const auto& foreignColumns = parameters->ForeignColumns;
+    i64 joinedRowSize = primaryRowSize + std::ssize(foreignColumns);
+
+    auto foreignIt = closure->ForeignSideLookup.find(keyRow);
+
+    std::vector<const TPIValue*> joinedRows;
+
+    if (foreignIt != closure->ForeignSideLookup.end()) {
+        size_t foreignRowAccessLength = foreignColumns.empty() ? 0
+            : *std::max_element(foreignColumns.begin(), foreignColumns.end()) + 1;
+
+        for (auto* foreignRow : foreignIt->second) {
+            auto joinedSlice = AllocatePIValueRange(buffer, joinedRowSize, EAddressSpace::WebAssembly);
+            auto* hostJoined = PtrFromVM(compartment, joinedSlice.Begin(), joinedRowSize);
+            auto* hostPrimary = PtrFromVM(compartment, primaryRow, primaryRowSize);
+            auto* hostForeign = PtrFromVM(compartment, foreignRow, foreignRowAccessLength);
+
+            for (i64 index = 0; index < primaryRowSize; ++index) {
+                CopyPositionIndependent(&hostJoined[index], hostPrimary[index]);
+            }
+            for (i64 index = 0; index < std::ssize(foreignColumns); ++index) {
+                CopyPositionIndependent(&hostJoined[primaryRowSize + index], hostForeign[foreignColumns[index]]);
+            }
+
+            joinedRows.push_back(joinedSlice.Begin());
+        }
+    } else if (parameters->IsLeft) {
+        auto joinedSlice = AllocatePIValueRange(buffer, joinedRowSize, EAddressSpace::WebAssembly);
+        auto* hostJoined = PtrFromVM(compartment, joinedSlice.Begin(), joinedRowSize);
+        auto* hostPrimary = PtrFromVM(compartment, primaryRow, primaryRowSize);
+
+        for (i64 index = 0; index < primaryRowSize; ++index) {
+            CopyPositionIndependent(&hostJoined[index], hostPrimary[index]);
+        }
+        for (i64 index = primaryRowSize; index < joinedRowSize; ++index) {
+            MakePositionIndependentSentinelValue(&hostJoined[index], EValueType::Null);
+        }
+
+        joinedRows.push_back(joinedSlice.Begin());
+    }
+
+    if (compartment) {
+        auto guard = CopyIntoCompartment(
+            TRange(std::bit_cast<uintptr_t*>(joinedRows.data()), joinedRows.size()),
+            compartment);
+        auto** offset = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+        return consumeRows(consumeRowsClosure, buffer, offset, joinedRows.size());
+    }
+
+    return consumeRows(consumeRowsClosure, buffer, joinedRows.data(), joinedRows.size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool SubqueryExprHelper(
+    TNestedExecutionContext* context,
+    TSubqueryParameters* parameters,
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction)
+{
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+
+    // Unpack lists of fromValues.
+    auto nestedRows = UnpackRows(context->ExpressionContext, parameters->FromTypes, context->FromValues);
+
+    std::vector<const TPIValue*> castedRows(nestedRows.begin(), nestedRows.end());
+
+    return consumeRows(consumeRowsClosure, context->ExpressionContext, castedRows.data(), castedRows.size());
+}
+
+bool SubqueryWriteRow(TNestedExecutionContext* context, TSubqueryWriteOpClosure* closure, TPIValue* values)
+{
+    auto mutableRow = CopyAndConvertFromPI(
+        GetCurrentCompartment(),
+        context->ExpressionContext,
+        TRange(values, values + closure->RowSize));
+    closure->OutputRowsBatch.push_back(mutableRow.Begin());
+
+    return false;
+}
+
+// Build yson list from values.
+TUnversionedValue PackValues(TRange<TUnversionedValue> values, TExpressionContext* context)
+{
+    NDetail::TContextStringOutput output(context);
+    NYson::TYsonWriter writer(&output);
+
+    writer.OnBeginList();
+    for (int index = 0; index < std::ssize(values); ++index) {
+        const auto& valueArg = values[index];
+
+        writer.OnListItem();
+
+        switch (valueArg.Type) {
+            case EValueType::Int64:
+                writer.OnInt64Scalar(valueArg.Data.Int64);
+                break;
+            case EValueType::Uint64:
+                writer.OnUint64Scalar(valueArg.Data.Uint64);
+                break;
+            case EValueType::Double:
+                writer.OnDoubleScalar(valueArg.Data.Double);
+                break;
+            case EValueType::Boolean:
+                writer.OnBooleanScalar(valueArg.Data.Boolean);
+                break;
+            case EValueType::String:
+                writer.OnStringScalar(valueArg.AsStringBuf());
+                break;
+            case EValueType::Any:
+            case EValueType::Composite:
+                writer.OnRaw(valueArg.AsStringBuf());
+                break;
+            case EValueType::Null:
+                writer.OnEntity();
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected type %Qlv of value #%v",
+                    valueArg.Type,
+                    index);
+        }
+    }
+
+    writer.OnEndList();
+
+    return MakeUnversionedStringLikeValue(EValueType::Composite, output.GetVMView());
+}
+
+void SubqueryWriteHelper(
+    TNestedExecutionContext* context,
+    int resultColumns,
+    void** collectRowsClosure,
+    void (*collectRowsFunction)(void** closure, TSubqueryWriteOpClosure* writeOpClosure))
+{
+    auto collectRows = PrepareFunction(collectRowsFunction);
+
+    TSubqueryWriteOpClosure closure;
+    closure.RowSize = resultColumns;
+    collectRows(collectRowsClosure, &closure);
+
+    // Produce yson with complex_type_mode=positional.
+
+    std::vector<TValue> packedResult;
+
+    for (auto row : closure.OutputRowsBatch) {
+        packedResult.push_back(PackValues(TRange(row, row + closure.RowSize), context->ExpressionContext));
+    }
+
+    MakePositionIndependentFromUnversioned(&context->Result, PackValues(packedResult, context->ExpressionContext));
+}
+
+const TPIValue* SubqueryInsertGroupRow(
+    TNestedExecutionContext* /*context*/,
+    TNestedGroupByClosure* closure,
+    TPIValue* row)
+{
+    return *closure->insert(row).first;
+}
+
+void SubqueryGroupOpHelper(
+    TNestedExecutionContext* context,
+    THasherFunction* groupHasherFunction,
+    TComparerFunction* groupComparerFunction,
+    void** collectRowsClosure,
+    void (*collectRowsFunction)(void** closure, TNestedGroupByClosure* writeOpClosure, TExpressionContext* context),
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction)
+{
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+
+    auto groupHasher = PrepareFunction(groupHasherFunction);
+    auto groupComparer = PrepareFunction(groupComparerFunction);
+
+    TNestedGroupByClosure closure(
+        /*default capacity*/ 10,
+        groupHasher,
+        groupComparer);
+
+    closure.set_empty_key(
+        NQueryClient::NDetail::TRowComparer::MakeSentinel(NQueryClient::NDetail::TRowComparer::ESentinelType::Empty));
+
+    collectRows(collectRowsClosure, &closure, context->ExpressionContext);
+
+    for (auto it = closure.begin(); it != closure.end(); ++it) {
+        const TPIValue* ptr = *it;
+        consumeRows(consumeRowsClosure, context->ExpressionContext, &ptr, 1);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int CompareYsonValuesHelper(const char* lhsOffset, ui32 lhsLength, const char* rhsOffset, ui32 rhsLength)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    auto* lhs = PtrFromVM(compartment, lhsOffset, lhsLength);
+    auto* rhs = PtrFromVM(compartment, rhsOffset, rhsLength);
+    return NYT::NTableClient::CompareYsonValues(
+        TYsonStringBuf(TStringBuf(lhs, lhsLength)),
+        TYsonStringBuf(TStringBuf(rhs, rhsLength)));
+}
+
+ui64 HashYsonValueHelper(const char* dataOffset, ui32 length)
+{
+    auto* data = PtrFromVM(GetCurrentCompartment(), dataOffset, length);
+    return NYT::NTableClient::CompositeFarmHash(TYsonStringBuf(TStringBuf(data, length)));
+}
+
+int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
+{
+    return CompareYsonValuesHelper(lhsData, lhsLength, rhsData, rhsLength);
+}
+
+void ValidateYsonHelper(const char* offset, ui32 length)
+{
+    auto* data = PtrFromVM(GetCurrentCompartment(), offset, length);
+    ValidateYson(TYsonStringBuf(TStringBuf(data, length)), /*nestingLevelLimit*/ 256);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int memcmp(const void* firstOffset, const void* secondOffset, std::size_t count) // NOLINT
+{
+    auto* compartment = GetCurrentCompartment();
+
+    auto* first = PtrFromVM(compartment, std::bit_cast<char*>(firstOffset), count);
+    auto* second = PtrFromVM(compartment, std::bit_cast<char*>(secondOffset), count);
+    return ::memcmp(first, second, count);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// FIXME(dtorilov): Check TFunctionContext* address.
+// FIXME(dtorilov): Jump into VM and call deleter.
+
+// bool TFunctionContext::IsLiteralArg(int) const
+bool _ZNK3NYT12NQueryClient16TFunctionContext12IsLiteralArgEi(TFunctionContext* context, int index) // NOLINT
+{
+    return context->IsLiteralArg(index);
+}
+
+// void* TFunctionContext::GetPrivateData() const
+void* _ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv(TFunctionContext* context) // NOLINT
+{
+    return context->GetPrivateData();
+}
+
+// NYT::NQueryClient::TFunctionContext::CreateUntypedObject(void*, void (*)(void*))
+void* _ZN3NYT12NQueryClient16TFunctionContext19CreateUntypedObjectEPvPFvS2_E(TFunctionContext* context, void* objectOffset, void (*deleter)(void*))
+{
+    Y_UNUSED(context, deleter);
+    return objectOffset;
+}
+
+// NYT::NQueryClient::TFunctionContext::SetPrivateData(void*)
+void _ZN3NYT12NQueryClient16TFunctionContext14SetPrivateDataEPv(TFunctionContext* context, void* data)
+{
+    context->SetPrivateData(data);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NYT::NDetail::AssertTrapImpl(TBasicStringBuf<char, std::__y1::char_traits<char> >, TBasicStringBuf<char, std::__y1::char_traits<char> >, TBasicStringBuf<char, std::__y1::char_traits<char> >, TBasicStringBuf<char, std::__y1::char_traits<char> >, int, TBasicStringBuf<char, std::__y1::char_traits<char> >)
+void _ZN3NYT7NDetail14AssertTrapImplE15TBasicStringBufIcNSt4__y111char_traitsIcEEES5_S5_S5_iS5_(i64, i64, i64, i64, i32, i64)
+{
+    THROW_ERROR_EXCEPTION("YT_ABORT called inside WebAssembly VM");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRoutines
+
+////////////////////////////////////////////////////////////////////////////////
+
+NCodegen::TRoutineRegistry NativeRegistry;
+NCodegen::TRoutineRegistry WebAssemblyRegistry;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TSignature>
+struct TMakeWebAssemblyIntrinsic;
+
+template <class TResult, class... TArgs>
+struct TMakeWebAssemblyIntrinsic<TResult(TArgs...)>
+{
+    template <TResult(*FunctionPtr)(TArgs...)>
+    static TResult Wrapper(WAVM::Runtime::ContextRuntimeData*, TArgs... args)
+    {
+        auto* compartmentBeforeCall = GetCurrentCompartment();
+        auto finally = Finally([&] {
+            auto* compartmentAfterCall = GetCurrentCompartment();
+            YT_VERIFY(compartmentBeforeCall == compartmentAfterCall);
+        });
+        return FunctionPtr(args...);
+    }
+};
+
+template <class TResult, class... TArgs>
+void RegisterLlvmRoutine(const char* symbol, bool onlyWebAssembly, TResult(*functionPointer)(TArgs...))
+{
+    if (!onlyWebAssembly) {
+        NativeRegistry.RegisterRoutine(symbol, functionPointer);
+    }
+
+    WebAssemblyRegistry.RegisterRoutine(symbol, functionPointer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define REGISTER_WEB_ASSEMBLY_INTRINSIC(intrinsic) \
+    YT_STATIC_INITIALIZER( \
+        [[maybe_unused]] static WAVM::Intrinsics::Function intrinsicFunction( \
+            NWebAssembly::getIntrinsicModule_standard(), \
+            #intrinsic, \
+            reinterpret_cast<void*>(&TMakeWebAssemblyIntrinsic<decltype(NRoutines::intrinsic)>::Wrapper<&NRoutines::intrinsic>), \
+            WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{ \
+                std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(NRoutines::intrinsic) >::Get()) \
+            })));
+
+#define REGISTER_LLVM_ROUTINE(routine, onlyWebAssembly) \
+    YT_STATIC_INITIALIZER(RegisterLlvmRoutine(#routine, onlyWebAssembly, NRoutines::routine));
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define REGISTER_ROUTINE(routine) \
+    REGISTER_LLVM_ROUTINE(routine, /*onlyWebAssembly*/ false) \
+    REGISTER_WEB_ASSEMBLY_INTRINSIC(routine)
+
+#define REGISTER_YPATH_GET_ROUTINE(TYPE) \
+    REGISTER_ROUTINE(TryGet ## TYPE); \
+    REGISTER_ROUTINE(Get ## TYPE)
+
+#define REGISTER_WEB_ASSEMBLY_INTRINSIC_IN_LLVM(routine, ...) \
+    REGISTER_LLVM_ROUTINE(routine, /*onlyWebAssembly*/ true)
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define REGISTER_TIME_ROUTINE(routine) \
+    REGISTER_ROUTINE(routine); \
+    REGISTER_ROUTINE(routine ## Localtime); \
+    REGISTER_ROUTINE(routine ## TZ)
+
+#define REGISTER_HLL_ROUTINE(PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogAllocate ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogAdd ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogMerge ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogMergeWithValidation ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogEstimateCardinality ## PRECISION)
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_ROUTINE(WriteRow);
+REGISTER_ROUTINE(InsertGroupRow);
+REGISTER_ROUTINE(ScanOpHelper);
+REGISTER_ROUTINE(WriteOpHelper);
+REGISTER_ROUTINE(AllocateJoinKeys);
+REGISTER_ROUTINE(AllocateAlignedBytes);
+REGISTER_ROUTINE(StorePrimaryRow);
+REGISTER_ROUTINE(MultiJoinOpHelper);
+REGISTER_ROUTINE(ArrayJoinOpHelper);
+REGISTER_ROUTINE(GroupOpHelper);
+REGISTER_ROUTINE(GroupTotalsOpHelper);
+REGISTER_ROUTINE(StringHash);
+REGISTER_ROUTINE(StringXxHash64);
+REGISTER_ROUTINE(AllocatePermanentRow);
+REGISTER_ROUTINE(AllocateBytes);
+REGISTER_ROUTINE(IsRowInRowset);
+REGISTER_ROUTINE(IsRowInRanges);
+REGISTER_ROUTINE(TransformTuple);
+REGISTER_ROUTINE(AddRowToCollector);
+REGISTER_ROUTINE(OrderOpHelper);
+REGISTER_ROUTINE(ThrowException);
+REGISTER_ROUTINE(ThrowQueryException);
+REGISTER_ROUTINE(RegexCreate);
+REGISTER_ROUTINE(RegexDestroy);
+REGISTER_ROUTINE(RegexFullMatch);
+REGISTER_ROUTINE(RegexPartialMatch);
+REGISTER_ROUTINE(RegexReplaceFirst);
+REGISTER_ROUTINE(RegexReplaceAll);
+REGISTER_ROUTINE(RegexExtract);
+REGISTER_ROUTINE(RegexEscape);
+REGISTER_ROUTINE(XdeltaMerge);
+REGISTER_ROUTINE(ToLowerUTF8);
+REGISTER_ROUTINE(GetFarmFingerprint);
+REGISTER_ROUTINE(CompareAnyBoolean);
+REGISTER_ROUTINE(CompareAnyInt64);
+REGISTER_ROUTINE(CompareAnyUint64);
+REGISTER_ROUTINE(CompareAnyDouble);
+REGISTER_ROUTINE(CompareAnyString);
+REGISTER_ROUTINE(ToAny);
+REGISTER_ROUTINE(CastToV3TypeWithValidation);
+REGISTER_YPATH_GET_ROUTINE(Int64);
+REGISTER_YPATH_GET_ROUTINE(Uint64);
+REGISTER_YPATH_GET_ROUTINE(Double);
+REGISTER_YPATH_GET_ROUTINE(Boolean);
+REGISTER_YPATH_GET_ROUTINE(String);
+REGISTER_YPATH_GET_ROUTINE(Any);
+REGISTER_ROUTINE(TryGetFrontAsInt64);
+REGISTER_ROUTINE(GetFarmHashInt64);
+REGISTER_ROUTINE(AnyToInt64);
+REGISTER_ROUTINE(AnyToUint64);
+REGISTER_ROUTINE(AnyToDouble);
+REGISTER_ROUTINE(AnyToBoolean);
+REGISTER_ROUTINE(AnyToString);
+REGISTER_ROUTINE(MakeMap);
+REGISTER_ROUTINE(MakeList);
+REGISTER_ROUTINE(Split);
+REGISTER_ROUTINE(MakeNgrams);
+REGISTER_ROUTINE(ListContains);
+REGISTER_ROUTINE(ListHasIntersection);
+REGISTER_ROUTINE(AnyToYsonString);
+REGISTER_ROUTINE(NumericToString);
+REGISTER_ROUTINE(StringToInt64);
+REGISTER_ROUTINE(StringToUint64);
+REGISTER_ROUTINE(StringToDouble);
+REGISTER_ROUTINE(HyperLogLogGetFingerprint);
+REGISTER_ROUTINE(UniqGetFingerprint);
+// COMPAT(dtorilov): Remove after 25.4.
+// COMPAT BEGIN {
+REGISTER_ROUTINE(HyperLogLogAllocate);
+REGISTER_ROUTINE(HyperLogLogAdd);
+REGISTER_ROUTINE(HyperLogLogMerge);
+REGISTER_ROUTINE(HyperLogLogMergeWithValidation);
+REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
+// } COMPAT END
+REGISTER_HLL_ROUTINE(7);
+REGISTER_HLL_ROUTINE(8);
+REGISTER_HLL_ROUTINE(9);
+REGISTER_HLL_ROUTINE(10);
+REGISTER_HLL_ROUTINE(11);
+REGISTER_HLL_ROUTINE(12);
+REGISTER_HLL_ROUTINE(13);
+REGISTER_HLL_ROUTINE(14);
+REGISTER_ROUTINE(StoredReplicaSetMerge);
+REGISTER_ROUTINE(StoredReplicaSetFinalize);
+REGISTER_ROUTINE(LastSeenReplicaSetMerge);
+REGISTER_ROUTINE(LastSeenReplicaSetFinalize);
+REGISTER_ROUTINE(InferrumKVCacheReplicaSetMerge);
+REGISTER_ROUTINE(InferrumKVCacheReplicaSetFinalize);
+REGISTER_ROUTINE(HasPermissions);
+REGISTER_ROUTINE(YsonLength);
+REGISTER_ROUTINE(LikeOpHelper);
+REGISTER_ROUTINE(CompositeMemberAccessorHelper);
+REGISTER_ROUTINE(DictSumIteration);
+REGISTER_ROUTINE(Greatest);
+REGISTER_ROUTINE(FirstInit);
+REGISTER_ROUTINE(FirstUpdate);
+REGISTER_ROUTINE(FirstMerge);
+REGISTER_ROUTINE(FirstFinalize);
+REGISTER_ROUTINE(CompareYsonValuesHelper);
+REGISTER_ROUTINE(HashYsonValueHelper);
+REGISTER_ROUTINE(CompareAny);
+REGISTER_ROUTINE(ValidateYsonHelper);
+REGISTER_TIME_ROUTINE(TimestampFloorHour);
+REGISTER_TIME_ROUTINE(TimestampFloorDay);
+REGISTER_TIME_ROUTINE(TimestampFloorWeek);
+REGISTER_TIME_ROUTINE(TimestampFloorMonth);
+REGISTER_TIME_ROUTINE(TimestampFloorQuarter);
+REGISTER_TIME_ROUTINE(TimestampFloorYear);
+REGISTER_ROUTINE(FormatTimestamp);
+REGISTER_ROUTINE(FormatTimestampTZ);
+REGISTER_ROUTINE(ArrayAggFinalize);
+
+REGISTER_ROUTINE(SubqueryExprHelper);
+REGISTER_ROUTINE(HierarchicalJoinOpHelper);
+REGISTER_ROUTINE(StoreSelfRowIntoHierarchicalJoinBatch);
+REGISTER_ROUTINE(FlushHierarchicalJoinBatchIfNeeded);
+REGISTER_ROUTINE(SubqueryHierarchicalJoinWriteDomainRow);
+REGISTER_ROUTINE(SubqueryHierarchicalJoinLookupRows);
+REGISTER_ROUTINE(SubqueryWriteRow);
+REGISTER_ROUTINE(SubqueryWriteHelper);
+REGISTER_ROUTINE(SubqueryInsertGroupRow);
+REGISTER_ROUTINE(SubqueryGroupOpHelper);
+
+REGISTER_ROUTINE(memcmp);
+
+REGISTER_WEB_ASSEMBLY_INTRINSIC(_ZNK3NYT12NQueryClient16TFunctionContext12IsLiteralArgEi);
+REGISTER_WEB_ASSEMBLY_INTRINSIC(_ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv);
+REGISTER_WEB_ASSEMBLY_INTRINSIC(_ZN3NYT12NQueryClient16TFunctionContext19CreateUntypedObjectEPvPFvS2_E);
+REGISTER_WEB_ASSEMBLY_INTRINSIC(_ZN3NYT12NQueryClient16TFunctionContext14SetPrivateDataEPv);
+
+REGISTER_WEB_ASSEMBLY_INTRINSIC(_ZN3NYT7NDetail14AssertTrapImplE15TBasicStringBufIcNSt4__y111char_traitsIcEEES5_S5_S5_iS5_);
+
+REGISTER_WEB_ASSEMBLY_INTRINSIC_IN_LLVM(emscripten_notify_memory_growth);
+
+FOREACH_WEB_ASSEMBLY_SYSCALL(REGISTER_WEB_ASSEMBLY_INTRINSIC_IN_LLVM);
+
+////////////////////////////////////////////////////////////////////////////////
+
+NCodegen::TRoutineRegistry* GetQueryRoutineRegistry(NCodegen::EExecutionBackend backend)
+{
+    switch (backend) {
+        case NCodegen::EExecutionBackend::Native:
+            return &NativeRegistry;
+        case NCodegen::EExecutionBackend::WebAssembly:
+            return &WebAssemblyRegistry;
+        default:
+            YT_ABORT();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NQueryClient

@@ -95,9 +95,10 @@ def _postgresql_set_default_schema_on_connection(
 def drop_all_schema_objects_pre_tables(cfg, eng):
     with eng.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
         for xid in conn.exec_driver_sql(
-            "select gid from pg_prepared_xacts"
+            "SELECT gid FROM pg_prepared_xacts "
+            "WHERE database = current_database()"
         ).scalars():
-            conn.exec_driver_sql("ROLLBACK PREPARED '%s'" % xid)
+            eng.dialect.do_rollback_twophase(conn, xid, recover=True)
 
 
 @drop_all_schema_objects_post_tables.for_db("postgresql")
@@ -137,7 +138,13 @@ def prepare_for_drop_tables(config, connection):
 
 @upsert.for_db("postgresql")
 def _upsert(
-    cfg, table, returning, *, set_lambda=None, sort_by_parameter_order=False
+    cfg,
+    table,
+    returning,
+    *,
+    set_lambda=None,
+    sort_by_parameter_order=False,
+    index_elements=None,
 ):
     from sqlalchemy.dialects.postgresql import insert
 
@@ -146,8 +153,10 @@ def _upsert(
     table_pk = inspect(table).selectable
 
     if set_lambda:
+        if index_elements is None:
+            index_elements = table_pk.primary_key
         stmt = stmt.on_conflict_do_update(
-            index_elements=table_pk.primary_key, set_=set_lambda(stmt.excluded)
+            index_elements=index_elements, set_=set_lambda(stmt.excluded)
         )
     else:
         stmt = stmt.on_conflict_do_nothing()

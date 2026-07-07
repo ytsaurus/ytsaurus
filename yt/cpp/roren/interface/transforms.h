@@ -203,7 +203,7 @@ TTransformApplicator<TInputType, TOutputType> MakeTransformApplicator(Ts&&... ar
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NPrivate
+} // namespace NPrivate
 
 class TMetaWriteApplicator
     : public NRoren::NPrivate::TAttributes

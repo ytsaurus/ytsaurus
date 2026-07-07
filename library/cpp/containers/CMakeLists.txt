@@ -12,7 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(absl_flat_hash)
+add_subdirectory(absl)
 add_subdirectory(stack_vector)
 add_subdirectory(cow_string)
 add_subdirectory(concurrent_hash)

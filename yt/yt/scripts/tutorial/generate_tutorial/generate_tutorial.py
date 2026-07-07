@@ -76,7 +76,7 @@ ARCHIVE_NAME = "data.tar.zst"
 SCHEMA_NOMENCLATURE = yson.to_yson_type(
     [
         {"name": "id", "type": "int64", "sort_order": "ascending"},
-        {"name": "name", "type": "string"},
+        {"name": "name", "type": "utf8"},
         {"name": "is_rx", "type": "boolean"},
         {"name": "first_appeared", "type": "timestamp"},
         {"name": "meta_data", "type": "any"},
@@ -96,12 +96,12 @@ SCHEMA_PRICES = [
 SCHEMA_ORDERS = [
     {"name": "date", "type": "date"},
     {"name": "nomenclature_id", "type": "int64"},
-    {"name": "order_uuid", "type": "string"},
+    {"name": "order_uuid", "type": "utf8"},
     {"name": "quantity", "type": "int64"},
     {"name": "order_meta", "type": "any"},
 ]
 
-SCHEMA_TUTORIAL_QUERY_ID = [{"name": "query_id", "type": "string", "required": True}]
+SCHEMA_TUTORIAL_QUERY_ID = [{"name": "query_id", "type": "utf8", "required": True}]
 
 
 def upload_files_to_map(
@@ -310,6 +310,45 @@ class GenerateOrders(yt.wrapper.TypedJob):
                     table_index=input_row.price_date,
                 )
 
+def track_query(yt_client, query_id, stage):
+    last_state = ""
+    delay = 1.0
+    while delay < 100.0:
+        state = yt_client.get_query(query_id, attributes=["state"], stage=stage)["state"]
+        if state != last_state:
+            print(f"Query {query_id}: {state}")
+            last_state = state
+        else:
+            delay = delay * 1.2
+
+        if state in ("completed", "failed", "aborted"):
+            return state
+        else:
+            time.sleep(delay)
+
+    assert last_state == "completed"
+
+def apply_paths(script: str, args: argparse.Namespace, recursive: bool = False):
+    path_to_nomenclature_table = args.yt_directory + "/nomenclature"
+    path_to_prices_table = args.yt_directory + "/price"
+    path_to_price_map_table = args.yt_directory + "/price_map"
+    path_to_orders_directory = args.yt_directory + "/orders"
+    path_to_joint_view = args.yt_directory + "/orders_with_prices"
+
+    create_joint_view = ""
+    if not recursive:
+        with open(os.path.join(args.scripts_folder, "yql/views/create_joint_view.sql"), "r") as f:
+            create_joint_view = apply_paths(f.read(), args, True);
+
+    return Template(script).safe_substitute(
+        nomenclature=path_to_nomenclature_table,
+        price=path_to_prices_table,
+        orders=path_to_orders_directory,
+        joint=path_to_joint_view,
+        start_date=datetime.date.today() - timedelta(days=args.days_to_generate - 1),
+        end_date=datetime.date.today(),
+        create_joint_view=create_joint_view
+    )
 
 def generate_data(args: argparse.Namespace):
     client = yt.wrapper.YtClient(proxy=args.proxy, token=os.environ["YT_TOKEN"])
@@ -318,6 +357,7 @@ def generate_data(args: argparse.Namespace):
     path_to_prices_table = args.yt_directory + "/price"
     path_to_price_map_table = args.yt_directory + "/price_map"
     path_to_orders_directory = args.yt_directory + "/orders"
+    path_to_joint_view = args.yt_directory + "/orders_with_prices"
 
     if not client.exists(args.yt_directory) and not args.create_directory:
         raise TutorialGenerateError(f"No such directory: {args.yt_directory}")
@@ -333,6 +373,7 @@ def generate_data(args: argparse.Namespace):
             path_to_prices_table,
             path_to_price_map_table,
             path_to_orders_directory,
+            path_to_joint_view,
         ]:
             if client.exists(table):
                 raise TutorialGenerateError(f"Table {table} exists and force flag is false")
@@ -347,6 +388,7 @@ def generate_data(args: argparse.Namespace):
                 "optimize_for": "lookup",
                 "chunk_writer": {"block_size": 256 * 2**10},
                 "desired_chunk_size": 100 * 2**20,
+                "tablet_cell_bundle": args.bundle,
             },
         )
 
@@ -370,8 +412,15 @@ def generate_data(args: argparse.Namespace):
             input_stream=[PricesSplit(i) for i in range(args.days_to_generate)],
         )
 
+        with open(os.path.join(args.scripts_folder, "yql/views/nomenclature_plain.sql"), "r") as f:
+            plain_nomenclature_view = f.read();
+        client.set(f"{path_to_nomenclature_table}/@_yql_view_plain", plain_nomenclature_view)
+
         output_order_tables = []
         client.create("map_node", path_to_orders_directory, force=args.force)
+
+        with open(os.path.join(args.scripts_folder, "yql/views/orders_plain.sql"), "r") as f:
+            plain_orders_view = f.read();
 
         for day_index in range(args.days_to_generate):
             order_table_path = path_to_orders_directory + "/" + str(datetime.date.today() - timedelta(days=day_index))
@@ -383,6 +432,7 @@ def generate_data(args: argparse.Namespace):
                 recursive=True,
                 attributes={"schema": SCHEMA_ORDERS, "optimize_for": "scan"},
             )
+            client.set(f"{order_table_path}/@_yql_view_plain", plain_orders_view)
 
         client.run_map(
             GenerateOrders(
@@ -409,6 +459,21 @@ def generate_data(args: argparse.Namespace):
     client.set(f"{path_to_nomenclature_table}/@enable_dynamic_store_read", True)
     client.mount_table(path=path_to_nomenclature_table, sync=True)
 
+    settings = {"yql_version": "2025.05"}
+    if args.cluster_name:
+        settings["cluster"] = args.cluster_name
+
+    if args.force:
+        client.remove(apply_paths('$joint', args), force=args.force)
+
+    query_id = client.start_query(
+        engine = "yql",
+        settings = settings,
+        access_control_objects = ["nobody"],
+        stage = args.stage,
+        query = apply_paths("$create_joint_view", args)
+    )
+    track_query(client, query_id, args.stage)
 
 def upload_tutorials(args: argparse.Namespace):
     client = yt.wrapper.YtClient(proxy=args.proxy, token=os.environ["YT_TOKEN"])
@@ -447,16 +512,13 @@ def upload_tutorials(args: argparse.Namespace):
         if files:
             print(f" Root: {root}, Dirs: {dirs}, Files: {files}")
             for file in files:
-                print(f"Engine: {root.split("/")[1]}")
+                parts = root.split("/")
+                if len(parts) > 2:
+                    continue
+                print(f"Engine: {parts[1]}")
                 file_path = os.path.join(root, file)
                 with open(file_path, "r") as f:
-                    script = Template(f.read()).safe_substitute(
-                        nomenclature=path_to_tables_directory + "/nomenclature",
-                        price=path_to_tables_directory + "/price",
-                        orders=path_to_tables_directory + "/orders",
-                        start_date=datetime.date.today() - timedelta(days=args.days_to_generate - 1),
-                        end_date=datetime.date.today(),
-                    )
+                    script = apply_paths(f.read(), args)
                     query_id = yt.wrapper.driver.make_request(
                         "start_query",
                         {
@@ -499,6 +561,7 @@ def main():
     )
     parser.add_argument("--cluster-name", help="Name of the target cluster")
     parser.add_argument("--stage", help="Stage for queries", default="experimental")
+    parser.add_argument("--bundle", help="Bundle for tutorial table mount", default="default")
 
     args = parser.parse_args()
 

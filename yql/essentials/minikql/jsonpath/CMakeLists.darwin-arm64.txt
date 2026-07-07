@@ -37,7 +37,7 @@ target_link_libraries(essentials-minikql-jsonpath PUBLIC
   essentials-public-udf
   yql-essentials-ast
   yql-essentials-utils
-  core-issue-protos
+  public-issue-protos
 )
 
 target_sources(essentials-minikql-jsonpath PRIVATE

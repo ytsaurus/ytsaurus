@@ -150,6 +150,23 @@ ui64 GetNativeYtTypeFlags(const TStructExprType& type, const NCommon::TStructMem
     return flags;
 }
 
+void UpdateNativeYtTypeFlags(NYT::TNode& spec, ui64 nativeTypeCompat) {
+    if (spec.HasKey(YqlRowSpecAttribute)) {
+        auto& rowSpec = spec[YqlRowSpecAttribute];
+        ui64 nativeYtTypeFlags = 0;
+        if (rowSpec.HasKey(RowSpecAttrNativeYtTypeFlags)) {
+            nativeYtTypeFlags = rowSpec[RowSpecAttrNativeYtTypeFlags].AsUint64();
+        } else {
+            if (rowSpec.HasKey(RowSpecAttrUseNativeYtTypes)) {
+                nativeYtTypeFlags = rowSpec[RowSpecAttrUseNativeYtTypes].AsBool() ? NTCF_LEGACY : NTCF_NONE;
+            } else if (rowSpec.HasKey(RowSpecAttrUseTypeV2)) {
+                nativeYtTypeFlags = rowSpec[RowSpecAttrUseTypeV2].AsBool() ? NTCF_LEGACY : NTCF_NONE;
+            }
+        }
+        rowSpec[RowSpecAttrNativeYtTypeFlags] = ui64(nativeYtTypeFlags & nativeTypeCompat);
+    }
+}
+
 TColumnOrder GetNativeYtDefaultColumnOrder(const TStructExprType* type, const TVector<TString>& sortMembers) {
     TVector<TString> order;
     order.insert(order.end(), sortMembers.begin(), sortMembers.end());
@@ -369,7 +386,7 @@ bool TYqlRowSpecInfo::ParseFull(const NYT::TNode& rowSpecAttr, const THashMap<TS
 // 3. _infer_schema + schema(SortBy)
 // 4. _read_schema + schema(SortBy)
 // 5. schema
-bool TYqlRowSpecInfo::Parse(const THashMap<TString, TString>& attrs, TExprContext& ctx, const TPositionHandle& pos) {
+bool TYqlRowSpecInfo::Parse(const THashMap<TString, TString>& attrs, bool parseExpressionColumns, TExprContext& ctx, const TPositionHandle& pos) {
     *this = {};
     try {
         if (auto rowSpecAttr = attrs.FindPtr(YqlRowSpecAttribute)) {
@@ -392,6 +409,9 @@ bool TYqlRowSpecInfo::Parse(const THashMap<TString, TString>& attrs, TExprContex
                 auto schema = NYT::NodeFromYsonString(*schemaAttr);
                 sortInfo = KeyColumnsFromSchema(schema);
                 MergeInferredSchemeWithSort(inferSchema, sortInfo);
+                if (parseExpressionColumns) {
+                    ExpressionColumns = GetExpressionColumnsFromSchema(schema);
+                }
             }
             auto schemaAsRowSpec = YTSchemaToRowSpec(inferSchema, schemaAttr ? &sortInfo : nullptr);
             if (!ParseType(schemaAsRowSpec, ctx, pos) || !ParseSort(schemaAsRowSpec, ctx, pos)) {
@@ -401,7 +421,11 @@ bool TYqlRowSpecInfo::Parse(const THashMap<TString, TString>& attrs, TExprContex
         } else if (auto readSchema = attrs.FindPtr(READ_SCHEMA_ATTR_NAME)) {
             TYTSortInfo sortInfo;
             if (auto schemaAttr = attrs.FindPtr(SCHEMA_ATTR_NAME)) {
-                sortInfo = KeyColumnsFromSchema(NYT::NodeFromYsonString(*schemaAttr));
+                auto schemaNode = NYT::NodeFromYsonString(*schemaAttr);
+                sortInfo = KeyColumnsFromSchema(schemaNode);
+                if (parseExpressionColumns) {
+                    ExpressionColumns = GetExpressionColumnsFromSchema(schemaNode);
+                }
             }
             auto schemaAsRowSpec = YTSchemaToRowSpec(NYT::NodeFromYsonString(*readSchema), &sortInfo);
             if (!ParseType(schemaAsRowSpec, ctx, pos) || !ParseSort(schemaAsRowSpec, ctx, pos)) {
@@ -409,11 +433,15 @@ bool TYqlRowSpecInfo::Parse(const THashMap<TString, TString>& attrs, TExprContex
             }
             ParseFlags(schemaAsRowSpec);
         } else if (auto schema = attrs.FindPtr(SCHEMA_ATTR_NAME)) {
-            auto schemaAsRowSpec = YTSchemaToRowSpec(NYT::NodeFromYsonString(*schema));
+            auto schemaNode = NYT::NodeFromYsonString(*schema);
+            auto schemaAsRowSpec = YTSchemaToRowSpec(schemaNode);
             if (!ParseType(schemaAsRowSpec, ctx, pos) || !ParseSort(schemaAsRowSpec, ctx, pos)) {
                 return false;
             }
             ParseFlags(schemaAsRowSpec);
+            if (parseExpressionColumns) {
+                ExpressionColumns = GetExpressionColumnsFromSchema(schemaNode);
+            }
         } else {
             YQL_LOG_CTX_THROW yexception() << "Table has no supported schema attributes";
         }
@@ -1615,7 +1643,7 @@ const TSortedConstraintNode* TYqlRowSpecInfo::MakeSortConstraint(TExprContext& c
 const TDistinctConstraintNode* TYqlRowSpecInfo::MakeDistinctConstraint(TExprContext& ctx) const {
     if (UniqueKeys && !SortMembers.empty() && SortedBy.size() == SortMembers.size()) {
         std::vector<std::string_view> uniqColumns(SortMembers.size());
-        std::transform(SortMembers.cbegin(), SortMembers.cend(), uniqColumns.begin(), std::bind(&TExprContext::AppendString, std::ref(ctx), std::placeholders::_1));
+        std::transform(SortMembers.cbegin(), SortMembers.cend(), uniqColumns.begin(), std::bind_front(&TExprContext::AppendString, std::ref(ctx)));
         return ctx.MakeConstraint<TDistinctConstraintNode>(uniqColumns);
     }
     return nullptr;

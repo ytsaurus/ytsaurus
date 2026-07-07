@@ -220,8 +220,7 @@ TEST(OperationTracker, ConnectionErrorWhenOperationIsTracked)
     TDebugMetricDiff ytPollerTopLoopCounter("yt_poller_top_loop_repeat_count");
 
     auto fut = op->Watch();
-    auto res = fut.Wait(TDuration::MilliSeconds(500));
-    EXPECT_EQ(res, true);
+    fut.Wait();
     EXPECT_THROW(fut.GetValue(), yexception);
     EXPECT_TRUE(ytPollerTopLoopCounter.GetTotal() > 0);
     outage.Stop();

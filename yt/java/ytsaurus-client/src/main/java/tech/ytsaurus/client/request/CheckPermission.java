@@ -1,6 +1,5 @@
 package tech.ytsaurus.client.request;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -21,6 +20,7 @@ public class CheckPermission
     private final String user;
     private final String path;
     private final int permissions;
+    @Nullable
     private final Set<String> columns;
     @Nullable
     private final MasterReadOptions masterReadOptions;
@@ -30,12 +30,12 @@ public class CheckPermission
         this.user = Objects.requireNonNull(builder.user);
         this.path = Objects.requireNonNull(builder.path);
         this.permissions = Objects.requireNonNull(builder.permissions);
-        this.columns = Objects.requireNonNull(builder.columns);
+        this.columns = builder.columns;
         this.masterReadOptions = builder.masterReadOptions;
     }
 
     public CheckPermission(String user, String path, int permissions) {
-        this(user, path, permissions, Collections.emptySet());
+        this(builder().setUser(user).setPath(path).setPermissions(permissions));
     }
 
     public CheckPermission(String user, String path, int permissions, Set<String> columns) {
@@ -56,8 +56,11 @@ public class CheckPermission
         builder
                 .setUser(user)
                 .setPath(ByteString.copyFromUtf8(path))
-                .setPermission(permissions)
-                .setColumns(TReqCheckPermission.TColumns.newBuilder().addAllItems(columns));
+                .setPermission(permissions);
+
+        if (columns != null) {
+            builder.setColumns(TReqCheckPermission.TColumns.newBuilder().addAllItems(columns));
+        }
 
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
@@ -114,7 +117,7 @@ public class CheckPermission
         @Nullable
         private Integer permissions;
         @Nullable
-        private Set<String> columns = Collections.emptySet();
+        private Set<String> columns = null;
         @Nullable
         private MasterReadOptions masterReadOptions;
 
@@ -133,8 +136,8 @@ public class CheckPermission
             return self();
         }
 
-        public Builder setColumns(Set<String> columns) {
-            this.columns = new HashSet<>(columns);
+        public Builder setColumns(@Nullable Set<String> columns) {
+            this.columns = (columns == null) ? null : new HashSet<>(columns);
             return self();
         }
 

@@ -3,6 +3,8 @@
 #include "private.h"
 #include "strategy.h"
 
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
+
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
 
@@ -12,7 +14,7 @@ namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters);
+THashMap<std::string, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,10 +69,11 @@ struct IPoolTree
 {
     //! Methods below rely on presence of snapshot.
     virtual TFuture<void> ProcessSchedulingHeartbeat(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, bool skipScheduleAllocations) = 0;
-    virtual void ProcessAllocationUpdates(
-        const std::vector<TAllocationUpdate>& allocationUpdates,
-        THashSet<TAllocationId>* allocationsToPostpone,
-        THashMap<TAllocationId, EAbortReason>* allocationsToAbort) = 0;
+    //! Hands the batch to the scheduling policy and returns a future set to a result per update,
+    //! index-aligned with |allocationUpdates|. Must not suspend (the strategy calls this under a context
+    //! switch guard to keep batch dispatch order equal to drain order).
+    virtual TFuture<std::vector<NPolicy::TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
+        const std::vector<TAllocationUpdate>& allocationUpdates) = 0;
 
     virtual int GetSchedulingHeartbeatComplexity() const = 0;
 
@@ -78,8 +81,11 @@ struct IPoolTree
 
     virtual TStrategyTreeConfigPtr GetSnapshottedConfig() const = 0;
     virtual TJobResources GetSnapshottedTotalResourceLimits() const = 0;
-    virtual std::optional<TPoolTreeElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
-    virtual void BuildSchedulingAttributesStringForNode(NNodeTrackerClient::TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+    virtual std::optional<TPoolTreeElementStateSnapshot> GetMaybeStateSnapshotForPool(const std::string& poolId) const = 0;
+    virtual void BuildSchedulingAttributesStringForNode(
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        NNodeTrackerClient::TNodeId nodeId,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
     virtual void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const = 0;
     virtual void BuildSchedulingAttributesStringForOngoingAllocations(
         const std::vector<TAllocationPtr>& allocations,
@@ -90,11 +96,11 @@ struct IPoolTree
 
     virtual void BuildResourceMetering(
         TMeteringMap* meteringMap,
-        THashMap<TString, TString>* customMeteringTags) const = 0;
+        THashMap<std::string, std::string>* customMeteringTags) const = 0;
 
     virtual void ProfileFairShare() const = 0;
     virtual void LogFairShareAt(TInstant now) const = 0;
-    virtual void LogAccumulatedUsage() const = 0;
+    virtual void LogAccumulatedResourceDistribution() const = 0;
     virtual void EssentialLogFairShareAt(TInstant now) const = 0;
 
     //! Updates accumulated resources usage information. Update current resource usages in snapshot.
@@ -151,31 +157,31 @@ struct IPoolTree
 
     virtual const std::string& GetId() const = 0;
 
-    virtual TError CheckOperationIsStuck(
+    virtual TError CheckIsOperationStuck(
         TOperationId operationId,
         const TOperationStuckCheckOptionsPtr& options) = 0;
 
     virtual void ProcessActivatableOperations() = 0;
     virtual void TryRunAllPendingOperations() = 0;
 
-    virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const std::string& user) const = 0;
-    virtual const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const std::string& user) const = 0;
+    virtual TPoolName CreatePoolName(const std::optional<std::string>& poolFromSpec, const std::string& user) const = 0;
+    virtual const TOffloadingSettings& GetOffloadingSettingsFor(const std::string& poolName, const std::string& user) const = 0;
 
     virtual TPoolsUpdateResult UpdatePools(const NYTree::INodePtr& poolsNode, bool forceUpdate) = 0;
-    virtual TError ValidateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) = 0;
+    virtual TError ValidateUserToDefaultPoolMap(const THashMap<std::string, std::string>& userToDefaultPoolMap) = 0;
 
     virtual void ValidatePoolLimits(const IOperation* operation, const TPoolName& poolName) const = 0;
     virtual void ValidatePoolLimitsOnPoolChange(const IOperation* operation, const TPoolName& newPoolName) const = 0;
     virtual TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperation* operation, const TPoolName& poolName) const = 0;
     virtual TFuture<void> ValidateOperationPoolPermissions(TOperationId operationId, const std::string& user, NYTree::EPermissionSet permissions) const = 0;
-    virtual void EnsureOperationPoolExistence(const TString& poolName) const = 0;
+    virtual void EnsureOperationPoolExistence(const std::string& poolName) const = 0;
 
-    virtual void ActualizeEphemeralPoolParents(const THashMap<std::string, TString>& userToDefaultPoolMap) = 0;
+    virtual void ActualizeEphemeralPoolParents(const THashMap<std::string, std::string>& userToDefaultPoolMap) = 0;
 
     virtual TPersistentTreeStatePtr BuildPersistentState() const = 0;
     virtual void InitPersistentState(const TPersistentTreeStatePtr& persistentState) = 0;
 
-    virtual TError OnOperationMaterialized(TOperationId operationId) = 0;
+    virtual TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) = 0;
     virtual TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) = 0;
     virtual TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId) const = 0;
 

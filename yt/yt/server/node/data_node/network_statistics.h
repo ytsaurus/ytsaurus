@@ -29,13 +29,13 @@ class TNetworkStatistics
 public:
     explicit TNetworkStatistics(TDataNodeConfigPtr config);
 
-    void IncrementReadThrottlingCounter(const TString& name);
+    void IncrementReadThrottlingCounter(const std::string& name);
     void UpdateStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics* statistics);
 
 private:
     const TDataNodeConfigPtr Config_;
 
-    NConcurrency::TSyncMap<TString, TIntrusivePtr<TNetworkCounters>> Counters_;
+    NConcurrency::TSyncMap<std::string, TIntrusivePtr<TNetworkCounters>> Counters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

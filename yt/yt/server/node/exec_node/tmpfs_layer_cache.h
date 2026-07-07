@@ -8,20 +8,20 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/library/containers/public.h>
-
 #include <yt/yt/ytlib/misc/public.h>
 
-#include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/library/containers/public.h>
 
-#include <yt/yt/core/concurrency/public.h>
+#include <yt/yt/client/ypath/rich.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/client/ypath/rich.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NExecNode {
 
@@ -50,7 +50,7 @@ public:
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         IInvokerPtr controlInvoker,
         IMemoryUsageTrackerPtr memoryUsageTracker,
-        const TString& cacheName,
+        const std::string& cacheName,
         NContainers::IPortoExecutorPtr portoExecutor,
         TAbsorbLayerCallback absorbLayer);
 
@@ -69,10 +69,10 @@ private:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IInvokerPtr ControlInvoker_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
-    const TString CacheName_;
+    const std::string CacheName_;
     IBootstrap* const Bootstrap_;
-    NContainers::IPortoExecutorPtr PortoExecutor_;
-    TAbsorbLayerCallback AbsorbLayer_;
+    const NContainers::IPortoExecutorPtr PortoExecutor_;
+    const TAbsorbLayerCallback AbsorbLayer_;
 
     TLayerLocationPtr TmpfsLocation_;
 
@@ -85,7 +85,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertSpinLock_);
     TError Alert_;
 
-    TPromise<void> Initialized_ = NewPromise<void>();
+    const TPromise<void> Initialized_ = NewPromise<void>();
 
     const NProfiling::TProfiler Profiler_;
 

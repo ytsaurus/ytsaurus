@@ -24,6 +24,7 @@ target_compile_options(unittester-ytlib PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(unittester-ytlib PRIVATE
@@ -71,6 +72,7 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_fragment_read_controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_meta_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_slice_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/distributed_chunk_session_pool_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/downed_cell_tracker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/encoding_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/erasure_parts_reader_ut.cpp
@@ -81,10 +83,13 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/parallel_reader_memory_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/partitioner_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/permission_cache_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/push_based_shuffle_record_format_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/push_based_partition_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/replication_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/replication_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/secondary_index_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/serialize_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/shuffle_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/sorted_merging_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/striped_erasure_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/tablet_request_batcher_ut.cpp

@@ -45,6 +45,7 @@ public:
         : TMasterHeartbeatReporterBase(
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ false,
+            ENodeHeartbeatType::Exec,
             ExecNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Exec))
         , Bootstrap_(bootstrap)
         , DynamicConfig_(New<TMasterConnectorDynamicConfig>())
@@ -175,9 +176,7 @@ private:
         auto futureIt = GetIteratorOrCrash(CellTagToHeartbeatRspFuture_, cellTag);
         auto future = std::move(futureIt->second);
         CellTagToHeartbeatRspFuture_.erase(futureIt);
-        YT_VERIFY(future.IsSet());
-
-        return future.Get();
+        return future.GetOrCrash();
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

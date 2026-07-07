@@ -25,8 +25,6 @@ struct IStorageDistributor
     virtual std::vector<TTablePtr> GetTables() const = 0;
 
     virtual NTableClient::TTableSchemaPtr GetSchema() const = 0;
-
-    virtual std::vector<NYTree::IAttributeDictionaryPtr> GetColumnAttributes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,6 +33,10 @@ DB::StoragePtr CreateStorageDistributor(
     DB::ContextPtr context,
     std::vector<TTablePtr> tables,
     DB::StorageID storageId);
+
+DB::StoragePtr CreateStorageDistributor(
+    DB::ContextPtr context,
+    std::vector<TTablePtr> tables);
 
 void RegisterStorageDistributor();
 

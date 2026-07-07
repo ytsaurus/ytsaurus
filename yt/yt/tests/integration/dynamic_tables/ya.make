@@ -14,6 +14,8 @@ TEST_SRCS(
     test_cell_balancer.py
     test_bundle_controller.py
     test_chaos.py
+    test_chaos_clocks.py
+    test_chaos_smooth_movement.py
     test_compaction_partitioning.py
     test_cross_cluster_transactions.py
     test_dynamic_tables.py

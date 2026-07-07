@@ -64,7 +64,7 @@ struct TTable
     bool IsParameterizedMoveBalancingEnabled() const;
     bool IsParameterizedReshardBalancingEnabled(
         bool enableParameterizedByDefault,
-        bool desiredTabletCountRequired = true) const;
+        bool desiredTabletCountOrMetricRequired = true) const;
 
     bool IsReplicaBalancingEnabled() const;
     bool IsReplicaMoveBalancingEnabled() const;

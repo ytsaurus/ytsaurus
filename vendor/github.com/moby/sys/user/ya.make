@@ -32,6 +32,7 @@ ENDIF()
 IF (OS_WINDOWS)
     SRCS(
         idtools_windows.go
+        lookup_windows.go
     )
 ENDIF()
 
@@ -39,6 +40,14 @@ IF (OS_ANDROID)
     SRCS(
         idtools_unix.go
         lookup_unix.go
+    )
+
+    GO_TEST_SRCS(idtools_unix_test.go)
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        idtools_unix.go
     )
 
     GO_TEST_SRCS(idtools_unix_test.go)

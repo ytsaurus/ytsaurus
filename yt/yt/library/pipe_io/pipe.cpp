@@ -110,20 +110,20 @@ DEFINE_REFCOUNTED_TYPE(TNamedPipeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPipe::TPipe()
+TPipe::TPipe() noexcept
 { }
 
-TPipe::TPipe(TPipe&& pipe)
+TPipe::TPipe(TPipe&& pipe) noexcept
 {
     Init(std::move(pipe));
 }
 
-TPipe::TPipe(int fd[2])
+TPipe::TPipe(int fd[2]) noexcept
     : ReadFD_(fd[0])
     , WriteFD_(fd[1])
 { }
 
-void TPipe::Init(TPipe&& other)
+void TPipe::Init(TPipe&& other) noexcept
 {
     ReadFD_ = other.ReadFD_;
     WriteFD_ = other.WriteFD_;
@@ -142,7 +142,7 @@ TPipe::~TPipe()
     }
 }
 
-void TPipe::operator=(TPipe&& other)
+void TPipe::operator=(TPipe&& other) noexcept
 {
     if (this == &other) {
         return;

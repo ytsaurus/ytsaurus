@@ -21,6 +21,8 @@ DECLARE_REFCOUNTED_STRUCT(ICellDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_STRUCT(TCellDirectoryConfig)
 DECLARE_REFCOUNTED_STRUCT(TCellDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellDirectorySynchronizerOverrideDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TTestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

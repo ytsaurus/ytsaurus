@@ -4,7 +4,7 @@
 
 #include <yt/yt/library/stockpile/config.h>
 
-#include <util/system/env.h>
+#include <library/cpp/yt/system/env.h>
 
 namespace NYT::NJobProxy {
 
@@ -16,6 +16,9 @@ void TJobProxyTestingConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("fail_preparation", &TThis::FailPreparation)
+        .Default(false);
+
+    registrar.Parameter("halt_when_materializing_artifact", &TThis::HaltWhenMaterializingArtifact)
         .Default(false);
 }
 
@@ -134,10 +137,10 @@ void TEnvironmentVariableConfig::Register(TRegistrar registrar)
     });
 }
 
-TString TEnvironmentVariableConfig::LoadValue() const
+std::string TEnvironmentVariableConfig::LoadValue() const
 {
     if (EnvironmentVariable) {
-        if (auto value = TryGetEnv(*EnvironmentVariable)) {
+        if (auto value = TryGetEnvValue(*EnvironmentVariable)) {
             return *std::move(value);
         }
     }
@@ -145,7 +148,8 @@ TString TEnvironmentVariableConfig::LoadValue() const
         return *Value;
     }
     if (FileName) {
-        return TFileInput(*FileName).ReadAll();
+        // TODO(babenko): migrate to std::string
+        return TFileInput(TString(*FileName)).ReadAll();
     }
     THROW_ERROR_EXCEPTION("Cannot load environment variable %Qv", EnvironmentVariable);
 }
@@ -281,6 +285,20 @@ void TCriJobEnvironmentConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobProxyPeakMemoryProfilerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(true);
+
+    registrar.Parameter("run_external_symbolizer", &TThis::RunExternalSymbolizer)
+        .Default(false);
+
+    registrar.Parameter("wait_last_profile", &TThis::WaitLastProfile)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobProxyInternalConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex);
@@ -411,6 +429,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("tvm_bridge", &TThis::TvmBridge)
         .Default();
 
+    registrar.Parameter("rpc_server_dynamic", &TThis::RpcServerDynamic)
+        .DefaultNew();
+
     registrar.Parameter("job_proxy_api_service_static", &TThis::JobProxyApiServiceStatic)
         .DefaultNew();
 
@@ -499,6 +520,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_api_service", &TThis::JobApiService)
         .DefaultNew();
 
+    registrar.Parameter("job_proxy_peak_memory_profiler", &TThis::JobProxyPeakMemoryProfiler)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
@@ -572,6 +596,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Alias("heap_dump_directory")
         .Default();
 
+    registrar.Parameter("rpc_server", &TThis::RpcServer)
+        .DefaultNew();
+
     registrar.Parameter("job_proxy_api_service", &TThis::JobProxyApiService)
         .DefaultNew();
 
@@ -584,6 +611,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
         .Default(false);
+
+    registrar.Parameter("job_proxy_peak_memory_profiler", &TThis::JobProxyPeakMemoryProfiler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

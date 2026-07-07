@@ -5,6 +5,8 @@
 
 #include <yt/yt/core/concurrency/retrying_periodic_executor.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 namespace NYT::NClusterNode {
 
 using namespace NCellMasterClient;
@@ -12,15 +14,18 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NLogging;
 using namespace NRpc;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterHeartbeatReporterBase::TMasterHeartbeatReporterBase(
     IBootstrapBase* bootstrap,
     bool reportHeartbeatsToAllSecondaryMasters,
+    NNodeTrackerServer::ENodeHeartbeatType heartbeatType,
     TLogger logger)
     : Bootstrap_(bootstrap)
     , ReportHeartbeatsToAllSecondaryMasters_(reportHeartbeatsToAllSecondaryMasters)
+    , HeartbeatType_(heartbeatType)
     , Logger(std::move(logger))
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -78,16 +83,31 @@ void TMasterHeartbeatReporterBase::ScheduleOutOfBandMasterHeartbeats(const THash
         } else {
             executor = New<TRetryingPeriodicExecutor>(
                 Bootstrap_->GetMasterConnectionInvoker(),
-                BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this), cellTag] {
-                    auto this_ = weakThis.Lock();
-                    return this_ ? ReportHeartbeat(cellTag) : TError("Master heartbeat reporter is destroyed");
-                }),
+                BIND_NO_PROPAGATE(&TMasterHeartbeatReporterBase::ReportHeartbeat, MakeStrong(this), cellTag),
                 Options_);
 
             executor->Start();
             Executors_[cellTag] = std::move(executor);
         }
     }
+}
+
+TFuture<std::vector<TError>> TMasterHeartbeatReporterBase::GetExecutedEvents(const THashSet<NObjectClient::TCellTag>& masterCellTags)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    std::vector<TFuture<void>> futures;
+    futures.reserve(masterCellTags.size());
+
+    for (auto cellTag : masterCellTags) {
+        if (auto executor = FindExecutor(cellTag)) {
+            futures.emplace_back(executor->GetExecutedEvent());
+        } else {
+            futures.emplace_back(OKFuture);
+        }
+    }
+
+    return AllSet(futures);
 }
 
 void TMasterHeartbeatReporterBase::StartNodeHeartbeatsToCells(const THashSet<TCellTag>& masterCellTags)
@@ -218,10 +238,7 @@ void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCells(
     for (auto cellTag : masterCellTags) {
         auto executor = New<TRetryingPeriodicExecutor>(
             Bootstrap_->GetMasterConnectionInvoker(),
-            BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this), cellTag] {
-                auto this_ = weakThis.Lock();
-                return this_ ? ReportHeartbeat(cellTag) : TError("Master heartbeat reporter is destroyed");
-            }),
+            BIND_NO_PROPAGATE(&TMasterHeartbeatReporterBase::ReportHeartbeat, MakeStrong(this), cellTag),
             Options_);
 
         YT_LOG_INFO(
@@ -235,6 +252,9 @@ void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCells(
 TError TMasterHeartbeatReporterBase::ReportHeartbeat(TCellTag cellTag)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    auto traceContext = TTraceContext::NewRoot(Format("%vNodeHeartbeat", HeartbeatType_));
+    TTraceContextGuard traceContextGuard(std::move(traceContext));
 
     const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
     if (!clusterNodeMasterConnector->IsConnected()) {

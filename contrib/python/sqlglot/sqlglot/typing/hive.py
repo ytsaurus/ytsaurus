@@ -6,45 +6,70 @@ from sqlglot.typing import EXPRESSION_METADATA
 EXPRESSION_METADATA = {
     **EXPRESSION_METADATA,
     **{
-        expr_type: {"returns": exp.DataType.Type.BINARY}
+        expr_type: {"returns": exp.DType.BINARY}
         for expr_type in {
             exp.Encode,
             exp.Unhex,
         }
     },
     **{
-        expr_type: {"returns": exp.DataType.Type.DOUBLE}
+        expr_type: {"returns": exp.DType.DOUBLE}
         for expr_type in {
             exp.Corr,
             exp.MonthsBetween,
         }
     },
     **{
-        expr_type: {"returns": exp.DataType.Type.VARCHAR}
+        expr_type: {"returns": exp.DType.VARCHAR}
         for expr_type in {
+            exp.AddMonths,
             exp.CurrentDatabase,
-            exp.CurrentSchema,
             exp.CurrentUser,
+            exp.CurrentSchema,
             exp.Hex,
+            exp.NextDay,
+            exp.RegexpExtract,
+            exp.Repeat,
+            exp.Replace,
             exp.Soundex,
         }
     },
     **{
-        expr_type: {"returns": exp.DataType.Type.BIGINT}
+        expr_type: {"returns": exp.DType.BIGINT}
         for expr_type in {
             exp.StrToUnix,
             exp.Factorial,
         }
     },
     **{
-        expr_type: {"returns": exp.DataType.Type.INT}
+        expr_type: {"returns": exp.DType.INT}
         for expr_type in {
+            exp.DenseRank,
             exp.Month,
+            exp.Ntile,
+            exp.Rank,
+            exp.RowNumber,
             exp.Second,
         }
     },
+    exp.PercentileDisc: {"returns": exp.DType.DOUBLE},
+    **{
+        expr_type: {"annotator": lambda self, e: self._annotate_by_args(e, "this")}
+        for expr_type in {
+            exp.ArrayDistinct,
+            exp.ArrayExcept,
+            exp.First,
+            exp.Last,
+            exp.Reverse,
+        }
+    },
+    exp.ApproxQuantile: {"annotator": lambda self, e: self._annotate_by_args(e, "quantile")},
+    exp.WithinGroup: {"annotator": lambda self, e: self._annotate_by_args(e, "this")},
+    exp.ArrayIntersect: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions")},
     exp.Coalesce: {
         "annotator": lambda self, e: self._annotate_by_args(e, "this", "expressions", promote=True)
     },
     exp.If: {"annotator": lambda self, e: self._annotate_by_args(e, "true", "false", promote=True)},
+    exp.Quantile: {"annotator": lambda self, e: self._annotate_by_args(e, "quantile")},
+    exp.RegexpSplit: {"returns": exp.DataType.from_str("ARRAY<STRING>")},
 }

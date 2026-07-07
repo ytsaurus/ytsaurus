@@ -449,4 +449,4 @@ class PatientChildrenWatch(object):
 
     def _children_watcher(self, async_result, event):
         self.children_changed.set()
-        async_result.set(time.time())
+        async_result.set(time.monotonic())

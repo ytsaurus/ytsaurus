@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     wait, ls, get, set, exists, create_dynamic_table, set_node_decommissioned,
     disable_tablet_cells_on_node, get_driver, get_cluster_drivers, print_debug,
-    remove
+    remove, insert_rows, write_hunks, build_snapshot, enable_tablet_cells_on_node, alter_table
 )
 
 # Used by SmoothMovementHelper by name lookup.
@@ -19,7 +19,11 @@ from yt.common import YtError
 
 import yt.yson as yson
 
+import yt_error_codes
+
 from concurrent.futures import ThreadPoolExecutor
+
+import builtins
 
 ##################################################################
 
@@ -82,6 +86,16 @@ class DynamicTablesBase(YTEnvSetup):
                 },
             },
         },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "tablet_node": {
+                "tablet_manager": {
+                    "yield_before_building_lsm_actions": True,
+                }
+            }
+        }
     }
 
     class CellsDisabled():
@@ -244,7 +258,7 @@ class DynamicTablesBase(YTEnvSetup):
                     proxies = ls("//sys/rpc_proxies", driver=driver)
                     orchid_path = f"orchid/dynamic_config_manager/effective_config{config_path}"
                     for proxy in proxies:
-                        wait(lambda: get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) == config_value)
+                        wait(lambda: get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) == config_value, ignore_exceptions=True)
             else:
                 assert config_path == ""
                 self._update_and_wait(lambda: remove("//sys/rpc_proxies/@config", driver=driver), driver)
@@ -392,6 +406,12 @@ class DynamicTablesBase(YTEnvSetup):
                     raise
         raise RuntimeError("Method get_store_chunk_ids failed")
 
+    def _get_chunk_ids(self, path="//tmp/t"):
+        chunk_ids = get("{}/@chunk_ids".format(path))
+        store_chunk_ids = builtins.set(self._get_store_chunk_ids(path))
+        hunk_chunk_ids = builtins.set([chunk_id for chunk_id in chunk_ids if chunk_id not in store_chunk_ids])
+        return store_chunk_ids, hunk_chunk_ids
+
     def _get_hunk_chunk_ids(self, path):
         for _ in range(5):
             try:
@@ -455,6 +475,60 @@ class DynamicTablesBase(YTEnvSetup):
         wait(lambda: _do_init())
 
         return sensors[0]
+
+    def _insert_rows_with_hunk_storage(self, path, rows, tx=None, retry_count=100):
+        iteration = 0
+        while iteration < retry_count:
+            iteration += 1
+            try:
+                if tx is not None:
+                    insert_rows(path, rows, tx=tx)
+                else:
+                    insert_rows(path, rows)
+                return
+            except YtError as e:
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
+                    raise e
+
+    def _write_hunks_with_retries(self, path, rows, tablet_index=0, retry_count=100):
+        iteration = 0
+        while iteration < retry_count:
+            iteration += 1
+            try:
+                result = write_hunks(path, rows, tablet_index=tablet_index)
+                return result
+            except YtError as e:
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
+                    raise e
+
+    def _restart_cell(self, cell_id, sync=True, with_snapshot=False):
+        def _get_peer_address():
+            for peer in get(f"#{cell_id}/@peers"):
+                if address := peer.get("address"):
+                    return address
+
+        node_address = _get_peer_address()
+        if with_snapshot:
+            build_snapshot(cell_id)
+        disable_tablet_cells_on_node(node_address)
+        wait(lambda: _get_peer_address() != node_address)
+        enable_tablet_cells_on_node(node_address)
+        if sync:
+            wait(lambda: get(f"#{cell_id}/@health") == "good")
+
+    def _alter_to_static(self, path="//tmp/t"):
+        def _wait_sealed():
+            _, hunk_chunk_ids = self._get_chunk_ids(path)
+            for hunk_chunk_id in hunk_chunk_ids:
+                if not get("#{}/@sealed".format(hunk_chunk_id)):
+                    return False
+            return True
+
+        wait(lambda: _wait_sealed())
+        set("//sys/@config/tablet_manager/enable_alter_to_static_with_hunks", True)
+        alter_table(path, dynamic=False)
 
 
 ##################################################################

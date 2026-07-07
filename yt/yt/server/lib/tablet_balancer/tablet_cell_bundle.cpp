@@ -33,7 +33,7 @@ std::vector<TTabletCellPtr> TTabletCellBundle::GetAliveCells() const
     return cells;
 }
 
-TTabletCellBundle::TTabletCellBundle(TString name)
+TTabletCellBundle::TTabletCellBundle(std::string name)
     : Name(std::move(name))
 { }
 
@@ -54,6 +54,10 @@ TTabletCellBundlePtr TTabletCellBundle::DeepCopy(bool copyCells, bool copyTablet
     for (const auto& [id, table] : Tables) {
         auto newTable = table->Clone(bundle.Get(), copyTabletsAndStatistics);
         EmplaceOrCrash(bundle->Tables, id, newTable);
+
+        // NB: There may be multiple tables with the same path and different ids
+        // if the table was recreated.
+        bundle->TablesByPath.emplace(newTable->Path, newTable);
 
         if (copyTabletsAndStatistics) {
             for (const auto& tablet : table->Tablets) {

@@ -1,16 +1,13 @@
 #pragma once
 
-#include "private.h"
-
 #include "data_flow_graph.h"
-#include "table.h"
 #include "extended_job_resources.h"
+#include "private.h"
+#include "table.h"
 
 #include <yt/yt/server/controller_agent/operation_controller.h>
 
 #include <yt/yt/server/lib/chunk_pools/public.h>
-
-#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
@@ -21,6 +18,8 @@
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
+#include <yt/yt/client/ypath/rich.h>
 
 #include <expected>
 
@@ -85,7 +84,9 @@ struct ITaskHost
     virtual bool ShouldSkipSanityCheck() = 0;
 
     virtual const TChunkListPoolPtr& GetOutputChunkListPool() const = 0;
+    virtual const TChunkListPoolPtr& GetOutputHunkChunkListPool() const = 0;
     virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) = 0;
+    virtual NChunkClient::TChunkListId ExtractOutputHunkChunkList(NObjectClient::TCellTag cellTag) = 0;
     virtual NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) = 0;
     virtual void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
@@ -146,9 +147,9 @@ struct ITaskHost
     virtual TJobletPtr CreateJoblet(
         TTask* task,
         TJobId jobId,
-        TString treeId,
+        std::string treeId,
         int taskJobIndex,
-        std::optional<TString> poolPath,
+        std::optional<std::string> poolPath,
         bool treeIsTentative) = 0;
 
     virtual TSharedRef BuildJobSpecProto(
@@ -180,9 +181,9 @@ struct ITaskHost
     virtual const std::vector<std::string>& GetOffloadingPoolTrees() = 0;
     virtual TJobExperimentBasePtr GetJobExperiment() = 0;
 
-    virtual bool IsIdleCpuPolicyAllowedInTree(const TString& treeId) const = 0;
+    virtual bool IsIdleCpuPolicyAllowedInTree(const std::string& treeId) const = 0;
 
-    virtual bool IsTreeProbing(const TString& treeId) const = 0;
+    virtual bool IsTreeProbing(const std::string& treeId) const = 0;
 
     virtual std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const = 0;
 

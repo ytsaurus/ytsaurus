@@ -10,6 +10,10 @@
 
 #include <yt/yt/core/http/public.h>
 
+#include <yt/yt/core/https/public.h>
+
+#include <yt/yt/core/ypath/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NServer {
@@ -22,17 +26,20 @@ namespace NYT::NServer {
 struct TServerBootstrapConfig
     : public virtual NYTree::TYsonStruct
 {
-    NBus::TBusServerConfigPtr BusServer;
+    NBus::NTcp::TBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
 
     int RpcPort;
     int TvmOnlyRpcPort;
     int MonitoringPort;
+    std::optional<int> MonitoringHttpsPort;
+    NHttps::TServerCredentialsConfigPtr MonitoringHttpsCredentials;
     //! This option may be used to prevent config-containing nodes to be exposed in Orchid as a mean of security
     //! (disclosing less information about YT servers to a potential attacker).
     bool ExposeConfigInOrchid;
 
     NHttp::TServerConfigPtr CreateMonitoringHttpServerConfig();
+    NHttps::TServerConfigPtr CreateMonitoringHttpsServerConfig();
 
     REGISTER_YSON_STRUCT(TServerBootstrapConfig);
 
@@ -68,16 +75,18 @@ struct TDiskLocationConfig
     std::optional<i64> MinDiskSpace;
 
     //! Block device name.
-    TString DeviceName;
-    static inline const TString UnknownDeviceName = "UNKNOWN";
+    std::string DeviceName;
+    static inline const std::string UnknownDeviceName = "UNKNOWN";
 
     //! Storage device vendor info.
-    TString DeviceModel;
-    static inline const TString UnknownDeviceModel = "UNKNOWN";
+    std::string DeviceModel;
+    static inline const std::string UnknownDeviceModel = "UNKNOWN";
 
     //! Disk family in this location (HDD, SDD, etc.)
-    TString DiskFamily;
-    static inline const TString UnknownDiskFamily = "UNKNOWN";
+    std::string DiskFamily;
+    static inline const std::string UnknownDiskFamily = "UNKNOWN";
+
+    bool DisableProfiling;
 
     void ApplyDynamicInplace(const TDiskLocationDynamicConfig& dynamicConfig);
 
@@ -94,6 +103,8 @@ struct TDiskLocationDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
     std::optional<i64> MinDiskSpace;
+
+    std::optional<bool> DisableProfiling;
 
     REGISTER_YSON_STRUCT(TDiskLocationDynamicConfig);
 
@@ -212,7 +223,7 @@ struct TArchiveHandlerConfig
     : public NYTree::TYsonStruct
 {
     i64 MaxInProgressDataSize;
-    TString Path;
+    NYPath::TYPath Path;
 
     REGISTER_YSON_STRUCT(TArchiveHandlerConfig);
 

@@ -58,7 +58,8 @@ To start an internal Spark cluster, use the `spark-launch-yt` command and pass a
 | `--discovery-path` | yes | - | Path to the directory for service data on Cypress (Discovery path). | - |
 | `--proxy` | no | Value from the `YT_PROXY` environment variable. | {{product-name}} cluster address | - |
 | `--pool` | no | - | {{product-name}} compute pool that will be used to start the cluster. | - |
-| `--operation-alias` | no | - | Alias of a {{product-name}} operation with the Spark cluster. | - |
+| `--operation-title` | no | `spark_<username>` | The name of the {{product-name}} operation with a Spark cluster | 2.9.0 |
+| `--operation-alias` | no | - | Alias for the {{product-name}} operation with a Spark cluster. The operation alias must start with the `*` character | - |
 | `--params` | no | - | Additional {{product-name}} operation parameters specified as a YSON string. Learn more on the [configuration](../../../../../user-guide/data-processing/spyt/cluster/configuration.md#add) page. | - |
 | `--spyt-version` | no | Version of the `ytsaurus-spyt` package on the client. | SPYT version that will be used to start the cluster. | - |
 | `--preemption-mode` | no | normal | Preemption mode used by the {{product-name}} scheduler. Possible values: "normal" or "graceful". | - |

@@ -27,6 +27,7 @@ SRCS(
     live_preview.cpp
     operation_controller_detail.cpp
     ordered_controller.cpp
+    private.cpp
     probing_job_manager.cpp
     remote_copy_controller.cpp
     sink.cpp

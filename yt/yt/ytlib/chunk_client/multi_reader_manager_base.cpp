@@ -253,6 +253,7 @@ void TMultiReaderManagerBase::OnReaderFinished()
     }
 
     {
+        YT_VERIFY(CurrentSession_.Reader);
         auto guard = Guard(ActiveReadersLock_);
         DataStatistics_ += CurrentSession_.Reader->GetDataStatistics();
         DecompressionStatistics_ += CurrentSession_.Reader->GetDecompressionStatistics();
@@ -273,7 +274,7 @@ bool TMultiReaderManagerBase::OnEmptyRead(bool readerFinished)
 {
     if (readerFinished) {
         OnReaderFinished();
-        return !CompletionError_.IsSet() || !CompletionError_.Get().IsOK();
+        return !CompletionError_.IsSet() || !CompletionError_.GetOrCrash().IsOK();
     } else {
         OnReaderBlocked();
         return true;

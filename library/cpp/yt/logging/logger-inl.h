@@ -22,9 +22,9 @@ inline bool TLogger::IsAnchorUpToDate(const TLoggingAnchor& anchor) const
 }
 
 template <class... TArgs>
-void TLogger::AddTag(const char* format, TArgs&&... args)
+void TLogger::AddTag(TFormatString<TArgs...> format, TArgs&&... args)
 {
-    AddRawTag(Format(TRuntimeFormat{format}, std::forward<TArgs>(args)...));
+    AddRawTag(Format(format, std::forward<TArgs>(args)...));
 }
 
 template <class TType>
@@ -35,7 +35,7 @@ void TLogger::AddStructuredTag(TStringBuf key, TType value)
 }
 
 template <class... TArgs>
-TLogger TLogger::WithTag(const char* format, TArgs&&... args) const &
+TLogger TLogger::WithTag(TFormatString<TArgs...> format, TArgs&&... args) const &
 {
     auto result = *this;
     result.AddTag(format, std::forward<TArgs>(args)...);
@@ -43,7 +43,7 @@ TLogger TLogger::WithTag(const char* format, TArgs&&... args) const &
 }
 
 template <class... TArgs>
-TLogger TLogger::WithTag(const char* format, TArgs&&... args) &&
+TLogger TLogger::WithTag(TFormatString<TArgs...> format, TArgs&&... args) &&
 {
     AddTag(format, std::forward<TArgs>(args)...);
     return std::move(*this);
@@ -208,16 +208,16 @@ void AppendLogMessageWithFormat(
 {
     if (HasMessageTags(loggingContext, logger)) {
         if (format.size() >= 2 && format[format.size() - 1] == ')') {
-            builder->AppendFormat(format.substr(0, format.size() - 1), std::forward<TArgs>(args)...);
+            builder->AppendFormat(TRuntimeFormat{format.substr(0, format.size() - 1)}, std::forward<TArgs>(args)...);
             builder->AppendString(TStringBuf(", "));
         } else {
-            builder->AppendFormat(format, std::forward<TArgs>(args)...);
+            builder->AppendFormat(TRuntimeFormat{format}, std::forward<TArgs>(args)...);
             builder->AppendString(TStringBuf(" ("));
         }
         AppendMessageTags(builder, loggingContext, logger);
         builder->AppendChar(')');
     } else {
-        builder->AppendFormat(format, std::forward<TArgs>(args)...);
+        builder->AppendFormat(TRuntimeFormat{format}, std::forward<TArgs>(args)...);
     }
 }
 

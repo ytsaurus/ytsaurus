@@ -160,6 +160,8 @@ message TSubqueryExpression
     optional TExpression where_clause = 2;
     optional TGroupClause group_clause = 3;
     optional TProjectClause project_clause = 6;
+
+    repeated TJoinClause join_clauses = 7;
 }
 
 message TNamedItem
@@ -203,6 +205,9 @@ message TJoinClause
     // COMPAT(babenko): legacy clients may omit this field.
     optional NYT.NProto.TGuid foreign_cell_id = 15;
 
+    optional int32 prefetched_first_block = 19;
+    optional int32 prefetched_last_block = 20;
+
     required bool is_left = 10;
 
     optional uint64 common_key_prefix = 11 [default = 0];
@@ -216,6 +221,25 @@ message TJoinClause
     optional TGroupClause group_clause = 17;
 
     optional bool require_sync_replica = 18 [default = true];
+}
+
+message THierarchicalJoinClause
+{
+    required NYT.NTableClient.NProto.TTableSchemaExt foreign_table_original_schema = 1;
+    repeated TColumnDescriptor foreign_table_schema_mapping = 2;
+
+    repeated TExpression foreign_equations = 3;
+    repeated TSelfEquation self_equations = 4;
+
+    required NYT.NProto.TGuid foreign_object_id = 5;
+    optional NYT.NProto.TGuid foreign_cell_id = 6;
+
+    required bool is_left = 7;
+
+    optional TExpression self_side_join_keys = 8;
+    optional TExpression joining_subquery = 9;
+    required string result_column_name = 10;
+    repeated string foreign_joined_columns = 11;
 }
 
 message TGroupClause
@@ -269,6 +293,9 @@ message TQuery
     repeated TColumnDescriptor schema_mapping = 6;
 
     repeated TJoinClause join_clauses = 7;
+    repeated THierarchicalJoinClause hierarchical_joins_in_where_clause = 19;
+    repeated THierarchicalJoinClause hierarchical_joins_before_group_by = 17;
+    repeated THierarchicalJoinClause hierarchical_joins_after_group_by = 18;
     optional TExpression where_clause = 8;
     optional TGroupClause group_clause = 9;
     optional TExpression having_clause = 12;
@@ -311,6 +338,9 @@ message TQueryOptions
     optional int32 statistics_aggregation = 27; // EStatisticsAggregation
     optional int32 read_from = 28; // NHydra::EPeerKind
     optional int32 optimization_level = 29; // EOptimizationLevel
+    optional int64 join_cache_size = 30;
+    optional bool enable_parallelize_unordered_group_by = 31;
+    optional bool allow_udf_object_code_cache = 32;
 }
 
 message TFeatureFlags

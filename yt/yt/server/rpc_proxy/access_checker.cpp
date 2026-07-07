@@ -37,7 +37,7 @@ public:
         , Connection_(std::move(connection))
         , Enabled_(Config_->Enabled)
     {
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
         proxyCoordinator->SubscribeOnProxyRoleChanged(BIND_NO_PROPAGATE(&TAccessChecker::OnProxyRoleChanged, MakeWeak(this)));
     }
 

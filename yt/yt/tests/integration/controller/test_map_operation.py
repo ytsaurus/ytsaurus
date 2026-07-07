@@ -6,7 +6,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, events_on_fs, print_debug, raises_yt_error, remove, set_nodes_banned, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    ls, get, sorted_dicts,
+    ls, get, sorted_dicts, check_permission,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, get_job,
     get_singular_chunk_id, check_all_stderrs, make_random_string,
@@ -27,6 +27,7 @@ from flaky import flaky
 
 import base64
 from datetime import datetime, timedelta
+import itertools
 import pytest
 import random
 import string
@@ -35,7 +36,6 @@ import time
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
@@ -208,7 +208,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("file", file1)
         write_file(file1, b"}}}}};\n")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unexpected .* while parsing node"):
             map(
                 in_="//tmp/t_input",
                 out=["//tmp/t_output1", "//tmp/t_output2"],
@@ -344,7 +344,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                                     {"name": "value", "type": "string"}]
         create("table", "//tmp/t2", attributes=attributes)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Output table .* is not sorted: job outputs have overlapping key ranges"):
             map(
                 in_="//tmp/t1",
                 out=out_table,
@@ -374,7 +374,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                                     {"name": "value", "type": "string"}]
         create("table", "//tmp/t2", attributes=attributes)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort order violation"):
             map(
                 in_="//tmp/t1",
                 out=out_table,
@@ -633,7 +633,7 @@ print(row + table_index)
 
         write_table("//tmp/t_in", {"cool": "stuff"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no nodes with enough resources to schedule an allocation|No online node can satisfy the resource demand"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -665,7 +665,7 @@ print(row + table_index)
         )
 
         if throw_on_failure:
-            with pytest.raises(YtError):
+            with raises_yt_error("Failed jobs limit exceeded"):
                 op.track()
         else:
             op.track()
@@ -786,6 +786,11 @@ print(row + table_index)
             live_preview_data2 = [d["b"] for d in live_preview_data2]
             assert sorted(live_preview_data1) == sorted(live_preview_data2)
             assert len(live_preview_data1) == 2
+
+        if self.Env.get_component_version("ytserver-master").abi >= (26, 2):
+            with raises_yt_error("\"CheckPermission\" method is not supported"):
+                path = f"{operation_path}/controller_orchid/{live_preview_path}0"
+                check_permission("everyone", "read", path)
 
         release_breakpoint()
         op.track()
@@ -937,7 +942,7 @@ print(row + table_index)
         create("table", "//tmp/input")
         create("table", "//tmp/out_1")
         create("table", "//tmp/out_2")
-        with pytest.raises(YtError):
+        with raises_yt_error("Only one output table with \"row_count_limit\" is supported"):
             map(
                 in_="//tmp/input",
                 out=[
@@ -951,7 +956,7 @@ print(row + table_index)
     def test_negative_row_count_limit(self):
         create("table", "//tmp/input")
         create("table", "//tmp/output")
-        with pytest.raises(YtError):
+        with raises_yt_error("Row count limit should be non-negative"):
             map(
                 in_="//tmp/input",
                 out=[
@@ -1005,7 +1010,7 @@ print(row + table_index)
 
         write_table("//tmp/input", {"key": "1", "value": "foo"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             map(in_="//tmp/input", out="//tmp/output", command="cat")
 
     @authors("dakovalkov")
@@ -1031,7 +1036,7 @@ print(row + table_index)
         create("table", "//tmp/tout")
         write_table("//tmp/tin", [{"a": 42}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error renaming columns"):
             map(in_="<rename_columns={a=b}>//tmp/tin", out="//tmp/tout", command="cat")
 
     @authors("dakovalkov")
@@ -1051,7 +1056,7 @@ print(row + table_index)
         create("table", "//tmp/tout")
         write_table("//tmp/tin", [{"a": 42, "b": 34}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error renaming columns"):
             map(in_="<rename_columns={a=b}>//tmp/tin", out="//tmp/tout", command="cat")
 
     @authors("dakovalkov")
@@ -1064,7 +1069,7 @@ print(row + table_index)
         # Set weak schema
         sort(in_="//tmp/tin", out="//tmp/tin", sort_by="a")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate column .* in unversioned row"):
             map(in_="<rename_columns={a=b}>//tmp/tin", out="//tmp/tout", command="cat")
 
     @authors("dakovalkov")
@@ -1078,17 +1083,17 @@ print(row + table_index)
         )
         create("table", "//tmp/tout")
         write_table("//tmp/tin", [{"a": 42}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Error renaming columns"):
             map(
                 in_='<rename_columns={a="$wrong_name"}>//tmp/tin',
                 out="//tmp/tout",
                 command="cat",
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error renaming columns"):
             map(in_='<rename_columns={a=""}>//tmp/tin', out="//tmp/tout", command="cat")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error renaming columns"):
             map(
                 in_="<rename_columns={a=" + "b" * 1000 + "}>//tmp/tin",
                 out="//tmp/tout",
@@ -1344,7 +1349,7 @@ print(row + table_index)
             spec={"max_data_size_per_job": 1},
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Maximum allowed data weight per job exceeds the limit"):
             op.track()
 
     @authors("psushin")
@@ -2191,7 +2196,7 @@ print(json.dumps(input))
         )
         write_table("//tmp/t", [{"key": 1}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("YPath attribute \"partially_sorted\" can be set only for dynamic tables"):
             map(in_="//tmp/t", out="<partially_sorted=%true>//tmp/t", command="cat")
 
     @authors("gritukan")
@@ -2378,7 +2383,7 @@ print(json.dumps(input))
         create("table", "//tmp/t_input")
         write_table("//tmp/t_input", [{"a": "b"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
@@ -2397,7 +2402,7 @@ print(json.dumps(input))
         assert exists("//tmp/stderr_table")
         assert exists("//tmp/core_table")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/t_input",
                 out="<create=true>//tmp/t_output1",
@@ -2447,7 +2452,7 @@ print(json.dumps(input))
                 command="cat",
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/in",
                 out='<create={}>//tmp/out2',
@@ -2523,7 +2528,18 @@ print(json.dumps(input))
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat && echo stderr > /proc/self/fd/2 && BREAKPOINT"),
+            spec={
+                # Chunk lists creation may be slow.
+                # We allocate them in materialization,
+                # so we should have them ready for the first job.
+                "suspend_operation_after_materialization": True,
+            }
         )
+
+        # Wait for the CreateChunkLists to complete.
+        wait(lambda: get(op.get_path() + "/@suspended"))
+        time.sleep(1)
+        op.resume()
 
         # orchid does not outlive operation, so we need to inspect it in the middle of the operation
         wait_breakpoint()
@@ -2691,9 +2707,9 @@ print(json.dumps(input))
     def test_writer_timing_statistics(self):
         skip_if_component_old(self.Env, (26, 1), "node")
         create("table", "//tmp/t1")
-        create("table", "//tmp/t_out0", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
-        create("table", "//tmp/t_out1", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
-        create("table", "//tmp/t_out2", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out0", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out1", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out2", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
 
         write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10000)])
         op = map(
@@ -2742,7 +2758,7 @@ print(json.dumps(input))
 
             assert wait_time == 0
             assert write_time == 0
-            assert 100 <= close_time < 100 + eps_ms  # tesing_delay_before_chunk_close + eps.
+            assert 100 <= close_time < 100 + eps_ms  # testing_delay_before_chunk_close + eps.
             assert_total_time(idle_time + wait_time + write_time + close_time)
 
     @authors("apollo1321")
@@ -2871,7 +2887,7 @@ print(json.dumps(input))
 
         assert read_table("//tmp/t_out_as_file") == [{"secret": "public_value"}]
 
-        with raises_yt_error("permission for column \"secret\" of node //tmp/t_in is denied"):
+        with raises_yt_error("Access denied for user .* permission for column .* of node .* is denied for .* by ACE at node .*"):
             run_with_file({
                 "rename_columns": {
                     "secret": "public",
@@ -3054,7 +3070,6 @@ class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 15
@@ -3086,7 +3101,6 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsPortal(TestSchedulerMapCommandsMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -3097,7 +3111,6 @@ class TestSchedulerMapCommandsPortal(TestSchedulerMapCommandsMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 5
@@ -3111,7 +3124,6 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -3131,7 +3143,6 @@ class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsSha
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsSysOperationsRootstock):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = True
@@ -3140,7 +3151,6 @@ class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsSysOperationsRoots
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestWriteBufferEstimation(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -3405,11 +3415,112 @@ class TestJobSizeAdjuster(YTEnvSetup):
         op.track()
         assert op.get_state() == "completed"
 
+    @authors("coteeq")
+    @pytest.mark.timeout(180)
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
+    def test_ordered_interrupted_adjusted(self):
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": [
+                {"name": "index", "type": "int64"},
+                {"name": "payload", "type": "string"},
+            ]},
+        )
+
+        # We need random to make chunk pool schedule jobs from the middle.
+        # If we schedule jobs left-to-right, the probability of the misadjusment is much lower.
+        payload_size = (800, 1000)
+        seed = random.randint(0, 2**16)
+        print_debug(f"Seed: {seed}")
+        rng = random.Random(seed)
+
+        def rows(*indices):
+            return [{"index": i, "payload": rng.randint(payload_size[0], payload_size[1]) * "x"} for i in indices]
+
+        for indices in itertools.batched(range(1000), n=50):
+            write_table("<append=%true>//tmp/in", rows(*indices))
+
+        ranges = [
+            "{lower_limit={row_index=%s};upper_limit={row_index=%s}}" % (range[0], range[-1] + 1)
+            for range in itertools.batched(range(1000), n=100)
+        ]
+
+        op = map(
+            track=False,
+            in_=[
+                f"<ranges=[{';'.join(ranges)}]>//tmp/in",
+            ],
+            out="<create=%true>//tmp/t_output",
+            command="cat",
+            ordered=True,
+            spec={
+                "data_weight_per_job": 10_000,
+                "mapper": {"format": "json"},
+                "resource_limits": {"user_slots": 3},
+                "force_allow_job_interruption": True,
+                "force_job_size_adjuster": True,
+                "job_io": {
+                    "testing_options": {"pipe_delay": 100},
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 1,
+                },
+            }
+        )
+
+        op.wait_for_state("running")
+
+        def get_and_print_progress():
+            try:
+                progress = get(
+                    op.get_path() + "/@brief_progress/jobs",
+                    verbose=False
+                )
+            except YtError as e:
+                if e.contains_code(500):
+                    return None
+                else:
+                    raise
+
+            print_debug("Progress: ", (", ".join(f"{category}={count}" for category, count in progress.items())))
+            return progress
+
+        while op.get_state() == "running":
+            progress = get_and_print_progress()
+            if not progress:
+                continue
+
+            # No point in interrupting final jobs. They are not going to be adjusted anyway.
+            if progress["pending"] <= 5:
+                break
+
+            progress = op.build_progress()
+            jobs = op.get_running_jobs(verbose=False)
+            if len(jobs) >= 1:
+                job_id = next(iter(jobs))
+                try:
+                    time.sleep(1.5)  # Wait a bit until job starts reading.
+                    op.interrupt_job(job_id, raise_on_failed_interruption=False)
+                    print_debug(f"Successfully interrupted {job_id}")
+                except YtError:
+                    print_debug(f"Failed to interrupt {job_id}")
+                    pass
+
+        op.track()
+
+        # Otherwise payload shows up in diff
+        def strip_payload(rows):
+            return [
+                {"index": row["index"]}
+                for row in rows
+            ]
+
+        assert strip_payload(read_table("//tmp/t_output", verbose=False)) == strip_payload(rows(*range(1000)))
+
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestInputOutputFormats(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3596,7 +3707,7 @@ print('{hello=world}')
 
         row = '{int64=3u; uint64=42; boolean="false"; double=18; any={}; extra=qwe}'
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/s",
                 out="//tmp/t",
@@ -3714,7 +3825,6 @@ print('{hello=world}')
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestInputOutputFormatsMulticell(TestInputOutputFormats):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -3728,7 +3838,6 @@ class TestInputOutputFormatsMulticell(TestInputOutputFormats):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestNestingLevelLimitOperations(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3787,7 +3896,6 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3847,7 +3955,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert get(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed") == 0
 
 
-@pytest.mark.enabled_multidaemon
 class TestEnvironment(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

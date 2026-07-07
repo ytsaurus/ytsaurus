@@ -1,10 +1,9 @@
 #include "controller_agent.h"
 
-#include "config.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "helpers.h"
 #include "job_monitoring_index_manager.h"
-#include "controllers/common_profilers.h"
 #include "job_tracker.h"
 #include "master_connector.h"
 #include "memory_watchdog.h"
@@ -15,12 +14,14 @@
 #include "scheduling_context.h"
 #include "universal_monitoring_descriptor_manager.h"
 
+#include <yt/yt/server/controller_agent/controllers/common_profilers.h>
 #include <yt/yt/server/controller_agent/controllers/common_state.h>
 
-#include <yt/yt/server/lib/scheduler/message_queue.h>
 #include <yt/yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/message_queue.h>
+
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
@@ -33,16 +34,16 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/yt/ytlib/event_log/config.h>
 #include <yt/yt/ytlib/event_log/event_log.h>
 
-#include <yt/yt/ytlib/scheduler/disk_resources.h>
-#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 #include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/disk_resources.h>
 #include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/client/api/transaction.h>
 
@@ -60,8 +61,8 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/ytree/convert.h>
-#include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/service_combiner.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
@@ -717,6 +718,8 @@ public:
             THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
         }
 
+        operation->UpdateJobShellOptions(update->OptionsPerJobShell);
+
         if (update->Acl || update->AcoName || update->SchedulingTagFilter) {
             if (update->Acl) {
                 operation->SetAcl(*update->Acl);
@@ -730,8 +733,6 @@ public:
                     .Run();
             }
         }
-
-        operation->UpdateJobShellOptions(update->OptionsPerJobShell);
 
         return OKFuture;
     }
@@ -859,13 +860,13 @@ public:
                 .Via(CancelableControlInvoker_));
     }
 
-    TFuture<std::optional<TOperationControllerReviveResult>> ReviveOperation(const TOperationPtr& operation)
+    TFuture<std::optional<TOperationControllerReviveResult>> ReviveOperation(const TOperationPtr& operation, bool suspended)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
-        auto asyncResult = BIND(&IOperationControllerSchedulerHost::Revive, controller)
+        auto asyncResult = BIND(&IOperationControllerSchedulerHost::Revive, controller, suspended)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run();
 
@@ -1080,7 +1081,7 @@ public:
 
     void EnqueueJobMonitoringAlertUpdate()
     {
-        BIND([&] {
+        BIND([this] {
             auto alert = TError();
             if (JobMonitoringIndexManager_.GetResidualCapacity() == 0) {
                 alert = TError(
@@ -1100,7 +1101,7 @@ public:
 
     void EnqueueGangJobMonitoringAlertUpdate()
     {
-        BIND([&] {
+        BIND([this] {
             auto alert = TError();
             if (GangJobMonitoringDescriptorManager_.GetResidualCapacity() == 0) {
                 alert = TError(
@@ -1206,7 +1207,7 @@ private:
     bool ConnectScheduled_ = false;
     std::atomic<TInstant> ConnectionTime_ = TInstant::Zero();
     TIncarnationId IncarnationId_;
-    TString SchedulerVersion_;
+    std::string SchedulerVersion_;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
@@ -1285,6 +1286,22 @@ private:
             immediate ? TDuration::Zero() : Config_->SchedulerHandshakeFailureBackoff);
     }
 
+    template <class TCallback>
+    bool RunGuarded(const TCallback& callback)
+    {
+        try {
+            callback();
+            return true;
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error connecting to scheduler");
+
+            SchedulerDisconnected_.Fire();
+            DoCleanup();
+            ScheduleConnect(false);
+            return false;
+        }
+    }
+
     void DoConnect()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -1292,24 +1309,18 @@ private:
         YT_VERIFY(ConnectScheduled_);
         ConnectScheduled_ = false;
 
-        try {
-            OnConnecting();
-            SyncClusterDirectory();
-            SyncMediumDirectory();
-            SyncMasterCellDirectory();
-            UpdateConfig();
-            PerformHandshake();
-            OnConnected();
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error connecting to scheduler");
-
-            SchedulerDisconnected_.Fire();
-            DoCleanup();
-            ScheduleConnect(false);
+        auto connected = RunGuarded([&] {
+            StartConnecting();
+        });
+        if (connected) {
+            // Run the rest of the connection sequence on the cancelable control
+            // invoker so that a disconnect aborts it.
+            CancelableControlInvoker_->Invoke(
+                BIND(&TImpl::DoConnectCancelable, MakeStrong(this)));
         }
     }
 
-    void OnConnecting()
+    void StartConnecting()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -1331,10 +1342,21 @@ private:
                 error,
                 "Unexpected failure in job tracker initialization");
         }
+    }
 
-        SwitchTo(CancelableControlInvoker_);
+    void DoConnectCancelable()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        SchedulerConnecting_.Fire();
+        RunGuarded([&] {
+            SchedulerConnecting_.Fire();
+            SyncClusterDirectory();
+            SyncMediumDirectory();
+            SyncMasterCellDirectory();
+            UpdateConfig();
+            PerformHandshake();
+            OnConnected();
+        });
     }
 
     void SyncClusterDirectory()
@@ -1541,6 +1563,11 @@ private:
             HeartbeatExecutor_.Reset();
         }
 
+        if (ScheduleAllocationHeartbeatExecutor_) {
+            YT_UNUSED_FUTURE(ScheduleAllocationHeartbeatExecutor_->Stop());
+            ScheduleAllocationHeartbeatExecutor_.Reset();
+        }
+
         MemoryWatchdog_.Reset();
         OperationEventsOutbox_.Reset();
         ScheduleAllocationResponsesOutbox_.Reset();
@@ -1716,12 +1743,14 @@ private:
                 protoOperation->set_suspicious_jobs(ToProto(controller->GetSuspiciousJobsYson()));
             }
 
-            ToProto(
-                protoOperation->mutable_composite_needed_resources(),
-                controller->GetNeededResources());
-            ToProto(
-                protoOperation->mutable_grouped_needed_resources(),
-                controller->GetGroupedNeededResources());
+            if (controller->IsRunning()) {
+                ToProto(
+                    protoOperation->mutable_composite_needed_resources(),
+                    controller->GetNeededResources());
+                ToProto(
+                    protoOperation->mutable_grouped_needed_resources(),
+                    controller->GetGroupedNeededResources());
+            }
         }
 
         request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);
@@ -1947,8 +1976,7 @@ private:
                 auto scheduleAllocationInvoker = controller->GetCancelableInvoker(Config_->ScheduleAllocationControllerQueue);
                 auto requestDequeueInstant = TInstant::Now();
 
-                GuardedInvoke(
-                    scheduleAllocationInvoker,
+                scheduleAllocationInvoker->Invoke(MakeGuardedCallback(
                     BIND([=, rsp = rsp, this, this_ = MakeStrong(this)] {
                         TTraceContextFinishGuard guard(TryGetCurrentTraceContext());
 
@@ -1999,7 +2027,8 @@ private:
                             FromProto<NScheduler::TDiskResources>(protoRequest->node_disk_resources()),
                             descriptorIt->second,
                             YT_OPTIONAL_FROM_PROTO(*protoRequest, pool_path),
-                            protoRequest->spec());
+                            protoRequest->spec(),
+                            YT_OPTIONAL_FROM_PROTO(*protoRequest, allocation_group_name));
 
                         response.OperationId = operationId;
                         response.AllocationId = allocationId;
@@ -2034,7 +2063,7 @@ private:
                             operationId,
                             allocationId,
                             EScheduleFailReason::UnknownOperation);
-                    }));
+                    })));
             });
     }
 
@@ -2089,20 +2118,17 @@ private:
                 };
                 THashMap<TOperationId, TOperationAllocationEvents> allocationEventsPerOperationId;
 
-                auto handleAllocationEvent = [&] (auto&& allocationEvent) {
-                    auto& operationAllocationEvents = allocationEventsPerOperationId[allocationEvent.OperationId];
-
-                    auto& storage = TOverloaded{
-                        [&] (const TFinishedAllocationSummary&) -> auto& {
-                            return operationAllocationEvents.FinishedAllocations;
-                        },
-                        [&] (const TAbortedAllocationSummary&) -> auto& {
-                            return operationAllocationEvents.AbortedAllocations;
-                        },
-                    }(allocationEvent);
-
-                    storage.push_back(std::move(allocationEvent));
+                auto getOperationAllocationEvents = [&] (const auto& event) -> auto& {
+                    return allocationEventsPerOperationId[event.OperationId];
                 };
+
+                auto handleAllocationEvent = TOverloaded(
+                    [&] (TFinishedAllocationSummary&& event) {
+                        getOperationAllocationEvents(event).FinishedAllocations.push_back(std::move(event));
+                    },
+                    [&] (TAbortedAllocationSummary&& event) {
+                        getOperationAllocationEvents(event).AbortedAllocations.push_back(std::move(event));
+                    });
 
                 AllocationEventsInbox_->HandleIncoming<TSchedulerToAgentAllocationEvent>(
                     rsp->mutable_scheduler_to_agent_allocation_events(),
@@ -2111,7 +2137,6 @@ private:
                             handleAllocationEvent,
                             std::move(allocationEvent.EventSummary));
                     });
-
                 return allocationEventsPerOperationId;
             })
             .AsyncVia(JobEventsInvoker_)
@@ -2162,6 +2187,14 @@ private:
                         ProcessUnregisterOperationEvent(operationId);
                         break;
 
+                    case ESchedulerToAgentOperationEventType::SuspendOperation:
+                        ProcessSuspendOperationEvent(operationId);
+                        break;
+
+                    case ESchedulerToAgentOperationEventType::ResumeOperation:
+                        ProcessResumeOperationEvent(operationId);
+                        break;
+
                     default:
                         YT_ABORT();
                 }
@@ -2199,6 +2232,38 @@ private:
             return;
         }
         UnregisterOperation(operation->GetId());
+    }
+
+    void ProcessSuspendOperationEvent(TOperationId operationId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            YT_LOG_FATAL(
+                "Requested to suspend an unknown operation; ignored (OperationId: %v)",
+                operationId);
+            return;
+        }
+
+        const auto& host = operation->GetHost();
+        host->SuspendOperation();
+    }
+
+    void ProcessResumeOperationEvent(TOperationId operationId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            YT_LOG_FATAL(
+                "Requested to resume an unknown operation; ignored (OperationId: %v)",
+                operationId);
+            return;
+        }
+
+        const auto& host = operation->GetHost();
+        host->ResumeOperation();
     }
 
     // TODO(ignat): eliminate this copy/paste from scheduler.cpp somehow.
@@ -2577,9 +2642,9 @@ TFuture<std::optional<TOperationControllerMaterializeResult>> TControllerAgent::
     return Impl_->MaterializeOperation(operation);
 }
 
-TFuture<std::optional<TOperationControllerReviveResult>> TControllerAgent::ReviveOperation(const TOperationPtr& operation)
+TFuture<std::optional<TOperationControllerReviveResult>> TControllerAgent::ReviveOperation(const TOperationPtr& operation, bool suspended)
 {
-    return Impl_->ReviveOperation(operation);
+    return Impl_->ReviveOperation(operation, suspended);
 }
 
 TFuture<std::optional<TOperationControllerCommitResult>> TControllerAgent::CommitOperation(const TOperationPtr& operation)

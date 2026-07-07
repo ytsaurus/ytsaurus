@@ -68,7 +68,7 @@ public:
             dataNodeConfig->ChangelogReaderCache,
             DataNodeProfiler().WithPrefix("/changelog_reader_cache"))
     {
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TJournalDispatcher::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TJournalDispatcher::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     TFuture<IFileChangelogPtr> OpenJournal(
@@ -85,9 +85,9 @@ public:
         const TJournalChunkPtr& chunk,
         bool enableMultiplexing) override;
 
-    TFuture<bool> IsJournalSealed(
+    bool IsJournalSealed(
         const TStoreLocationPtr& location,
-        TChunkId chunkId) override;
+        TChunkId chunkId) const override;
 
     TFuture<void> SealJournal(TJournalChunkPtr chunk) override;
 
@@ -165,15 +165,23 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    i64 EstimateChangelogSize(i64 payloadSize) const override
+    i64 EstimateWriteSize(i64 payloadSize) const override
     {
-        auto result = UnderlyingChangelog_->EstimateChangelogSize(payloadSize);
+        auto result = UnderlyingChangelog_->EstimateWriteSize(payloadSize);
         if (EnableMultiplexing_) {
             const auto& journalManager = Location_->GetJournalManager();
             result += journalManager->EstimateMultiplexedChangelogSize(payloadSize);
         }
 
         return result;
+    }
+
+    i64 EstimateReadSize(
+        int firstRecordId,
+        int maxRecords,
+        i64 maxBytes) const override
+    {
+        return UnderlyingChangelog_->EstimateReadSize(firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Append(TRange<TSharedRef> records) override
@@ -346,9 +354,9 @@ TFuture<void> TJournalDispatcher::RemoveJournal(
     return journalManager->RemoveChangelog(chunk, enableMultiplexing);
 }
 
-TFuture<bool> TJournalDispatcher::IsJournalSealed(
+bool TJournalDispatcher::IsJournalSealed(
     const TStoreLocationPtr& location,
-    TChunkId chunkId)
+    TChunkId chunkId) const
 {
     const auto& journalManager = location->GetJournalManager();
     return journalManager->IsChangelogSealed(chunkId);

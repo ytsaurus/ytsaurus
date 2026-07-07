@@ -32,9 +32,17 @@ def main():
     if args.spec_patch:
         raw_spec = lib.spec.merge_specs(raw_spec, args.spec_patch)
 
-    specs = lib.spec.variate_modes(raw_spec)
-    assert len(specs) == 1, "Variating specs are not allowed"
-    spec = specs[0][0]
+    spec = None
+    for _ in range(100):
+        specs = lib.spec.variate_modes(raw_spec)
+        if len(specs) != 0:
+            assert len(specs) == 1, "Variating specs are not allowed"
+            spec = specs[0][0]
+            break
+
+    if spec is None:
+        raise yt.YtError("Failed to generate spec")
+
     pprint.pprint(spec)
 
     lib.runner.configure_client(yt)

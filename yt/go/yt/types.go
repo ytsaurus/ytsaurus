@@ -35,6 +35,8 @@ const (
 	NodeSys               NodeType = "sys_node"
 	NodePortalEntrance    NodeType = "portal_entrance"
 	NodePortalExit        NodeType = "portal_exit"
+	NodeScion             NodeType = "scion"
+	NodeRootstock         NodeType = "rootstock"
 	NodeSchedulerPool     NodeType = "scheduler_pool"
 	NodeSchedulerPoolTree NodeType = "scheduler_pool_tree"
 
@@ -133,6 +135,21 @@ var (
 	JobDataSourceRuntime JobDataSource = "runtime"
 	JobDataSourceAuto    JobDataSource = "auto"
 	JobDataSourceManual  JobDataSource = "manual"
+)
+
+type OperationEventType string
+
+const (
+	IncarnationStarted OperationEventType = "incarnation_started"
+)
+
+type OperationIncarnationSwitchReason string
+
+const (
+	OperationIncarnationSwitchReasonJobAborted          OperationIncarnationSwitchReason = "job_aborted"
+	OperationIncarnationSwitchReasonJobFailed           OperationIncarnationSwitchReason = "job_failed"
+	OperationIncarnationSwitchReasonJobInterrupted      OperationIncarnationSwitchReason = "job_interrupted"
+	OperationIncarnationSwitchReasonJobLackAfterRevival OperationIncarnationSwitchReason = "job_lack_after_revival"
 )
 
 type NodeID guid.GUID
@@ -450,3 +467,7 @@ const (
 	ListQueriesSortOrderAscending  QueryEngine = "ascending"
 	ListQueriesSortOrderDescending QueryEngine = "descending"
 )
+
+func (r *ListOperationEventsResult) UnmarshalYSON(data []byte) error {
+	return yson.Unmarshal(data, &r.Events)
+}

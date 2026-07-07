@@ -64,7 +64,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRegularMessage(
     EVisitReason reason)
 {
     if (Self()->PathComplete()) {
-        if (Self()->GetVisitEverythingAfterPath()) {
+        if (Self()->IsVisitEverythingAfterPath()) {
             Self()->VisitWholeMessage(message, EVisitReason::AfterPath);
             return;
         } else {
@@ -81,13 +81,13 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRegularMessage(
     } else {
         Self()->Expect(NYPath::ETokenType::Literal);
 
-        TString name = Self()->GetLiteralValue();
+        auto name = Self()->GetLiteralValue();
         Self()->AdvanceOver(name);
         const auto* fieldDescriptor = descriptor->FindFieldByName(name);
         if (fieldDescriptor) {
             Self()->VisitField(message, fieldDescriptor, EVisitReason::Path);
         } else {
-            Self()->VisitUnrecognizedField(message, descriptor, std::move(name), reason);
+            Self()->VisitUnrecognizedField(message, descriptor, name, reason);
         }
     }
 }
@@ -114,7 +114,7 @@ template <typename TWrappedMessage, typename TSelf>
 void TProtoVisitor<TWrappedMessage, TSelf>::VisitUnrecognizedField(
     TMessageParam message,
     const NProtoBuf::Descriptor* descriptor,
-    TString name,
+    TStringBuf name,
     EVisitReason reason)
 {
     Y_UNUSED(message);
@@ -488,7 +488,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitMapField(
     } else {
         Self()->Expect(NYPath::ETokenType::Literal);
 
-        TString key = Self()->GetLiteralValue();
+        auto key = Self()->GetLiteralValue();
         Self()->AdvanceOver(key);
 
         auto keyMessage = MakeMapKeyMessage(fieldDescriptor, key).ValueOrThrow();
@@ -501,7 +501,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitMapField(
                 message,
                 fieldDescriptor,
                 std::move(keyMessage),
-                std::move(key),
+                key,
                 EVisitReason::Path,
                 std::move(errorOrEntry));
             return;
@@ -511,7 +511,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitMapField(
             message,
             fieldDescriptor,
             std::move(errorOrEntry).Value(),
-            std::move(key),
+            key,
             EVisitReason::Path);
     }
 }
@@ -527,8 +527,8 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitWholeMapField(
         Self()->OnKeyError(
             message,
             fieldDescriptor,
-            {},
-            {},
+            /*keyMessage*/ {},
+            /*key*/ {},
             reason,
             std::move(errorOrEntries));
         return;
@@ -546,7 +546,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitMapFieldEntry(
     TMessageParam message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     TMessageParam entryMessage,
-    TString key,
+    TStringBuf key,
     EVisitReason reason)
 {
     Y_UNUSED(message);
@@ -561,7 +561,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::OnKeyError(
     TMessageParam message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     std::unique_ptr<NProtoBuf::Message> keyMessage,
-    TString key,
+    TStringBuf key,
     EVisitReason reason,
     TError error)
 {
@@ -596,7 +596,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::OnKeyError(
                         message,
                         fieldDescriptor,
                         std::move(entry),
-                        std::move(key),
+                        key,
                         reason);
                 }
                 return;

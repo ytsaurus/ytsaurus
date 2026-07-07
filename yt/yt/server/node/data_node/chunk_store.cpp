@@ -196,13 +196,15 @@ void TChunkStore::ReconfigureLocation(const TChunkLocationPtr& location)
         return;
     }
 
-    if (!DynamicConfig_) {
+    auto dynamicConfig = DynamicConfig_.Acquire();
+
+    if (!dynamicConfig) {
         return;
     }
 
     const auto& staticLocationConfig = storeLocation->GetStaticConfig();
-    auto it = DynamicConfig_->StoreLocationConfigPerMedium.find(storeLocation->GetMediumName());
-    auto locationConfig = it == DynamicConfig_->StoreLocationConfigPerMedium.end()
+    auto it = dynamicConfig->StoreLocationConfigPerMedium.find(storeLocation->GetMediumName());
+    auto locationConfig = it == dynamicConfig->StoreLocationConfigPerMedium.end()
         ? staticLocationConfig
         : staticLocationConfig->ApplyDynamic(it->second);
     storeLocation->Reconfigure(locationConfig);
@@ -279,7 +281,7 @@ void TChunkStore::RegisterNewChunk(
         OnChunkRegistered(chunk);
     }
 
-    lockedChunkGuard.Release();
+    std::move(lockedChunkGuard).Release();
 }
 
 TChunkStore::TChunkEntry TChunkStore::DoFindExistingChunk(const IChunkPtr& chunk) const
@@ -420,7 +422,7 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
             chunk->GetLocation()->GetId(),
             chunk->GetId());
 
-        lockedChunkGuard.Release();
+        std::move(lockedChunkGuard).Release();
     }
 
     IChunkPtr oldChunk;
@@ -456,23 +458,34 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
 
             case EObjectType::JournalChunk:
             case EObjectType::ErasureJournalChunk: {
-                auto longerRowCount = chunk->AsJournalChunk()->GetFlushedRowCount();
-                auto shorterRowCount = oldChunk->AsJournalChunk()->GetFlushedRowCount();
+                std::optional<i64> longerRowCount;
+                std::optional<i64> shorterRowCount;
+                if (!chunk->AsJournalChunk()->IsSealed()) {
+                    longerRowCount = chunk->AsJournalChunk()->GetFlushedRowCount();
+                }
+                if (!oldChunk->AsJournalChunk()->IsSealed()) {
+                    shorterRowCount = oldChunk->AsJournalChunk()->GetFlushedRowCount();
+                }
 
                 auto longerChunk = chunk;
                 auto shorterChunk = oldChunk;
 
-                if (longerRowCount < shorterRowCount) {
+                if (longerRowCount && !shorterRowCount ||
+                    longerRowCount && shorterRowCount && longerRowCount < shorterRowCount)
+                {
                     std::swap(longerRowCount, shorterRowCount);
                     std::swap(longerChunk, shorterChunk);
                 }
 
                 // Remove shorter replica.
-                YT_LOG_WARNING("Removing shorter journal chunk: %v (%v rows) vs %v (%v rows)",
+                YT_LOG_WARNING("Removing shorter journal chunk: %v (RowCount: %v, Sealed: %v) vs %v (RowCount: %v, Sealed: %v)",
                     shorterChunk->GetFileName(),
                     shorterRowCount,
+                    shorterChunk->AsJournalChunk()->IsSealed(),
                     longerChunk->GetFileName(),
-                    longerRowCount);
+                    longerRowCount,
+                    longerChunk->AsJournalChunk()->IsSealed());
+
                 shorterChunk->SyncRemove(true);
                 if (shorterChunk == oldChunk) {
                     // But register new chunk.
@@ -557,9 +570,12 @@ void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
     ChunkAdded_.Fire(chunk);
 }
 
-void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
+void TChunkStore::UpdateExistingChunk(
+    const IChunkPtr& chunk,
+    const NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& /*guard*/)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ChunkMapLock_);
 
     const auto& location = chunk->GetLocation();
     if (!location->IsEnabled()) {
@@ -572,26 +588,23 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
 
     TChunkEntry oldChunkEntry;
     TChunkEntry newChunkEntry;
-    {
-        auto guard = WriterGuard(ChunkMapLock_);
 
-        oldChunkEntry = DoFindExistingChunk(chunk);
-        if (!oldChunkEntry.Chunk) {
-            YT_LOG_DEBUG(
-                "Journal chunk no longer exists and will not be updated (ChunkId: %v, Version: %v, JournalChunkSealed: %v, JournalChunkActive: %v)",
-                journalChunk->GetId(),
-                version,
-                journalChunk->IsSealed(),
-                journalChunk->IsActive());
-            return;
-        }
-
-        newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
-
-        location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
-
-        ChunkAdded_.Fire(chunk);
+    oldChunkEntry = DoFindExistingChunk(chunk);
+    if (!oldChunkEntry.Chunk) {
+        YT_LOG_DEBUG(
+            "Journal chunk no longer exists and will not be updated (ChunkId: %v, Version: %v, JournalChunkSealed: %v, JournalChunkActive: %v)",
+            journalChunk->GetId(),
+            version,
+            journalChunk->IsSealed(),
+            journalChunk->IsActive());
+        return;
     }
+
+    newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
+
+    location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
+
+    ChunkAdded_.Fire(chunk);
 }
 
 void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
@@ -776,11 +789,11 @@ std::vector<IChunkPtr> TChunkStore::GetLocationChunks(const TChunkLocationPtr& l
 TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
 {
     auto guard = ReaderGuard(ChunkMapLock_);
-    return GetPerLocationChunksUnsafe(std::move(guard));
+    return GetPerLocationChunksUnsafe(guard);
 }
 
 TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunksUnsafe(
-    NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> /*guard*/)
+    const NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock>& /*guard*/)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
@@ -822,10 +835,14 @@ void TChunkStore::CheckAllChunksHaveValidCellTags(const THashSet<NObjectClient::
     int totalInvalidChunkCount = 0;
     for (auto [cellTag, count] : invalidCellTagToChunkCount) {
         totalInvalidChunkCount += count;
-        YT_LOG_ALERT("Invalid master cell tag found for chunks (CellTag: %v, InvalidChunkCount: %v)", cellTag, count);
+        YT_LOG_ALERT("Invalid master cell tag found for chunks (CellTag: %v, InvalidChunkCount: %v)",
+            cellTag,
+            count);
     }
 
-    YT_LOG_INFO("Chunks cell tags are checked (InvalidCells: %v, InvalidChunkCount: %v)", invalidCellTagToChunkCount.size(), totalInvalidChunkCount);
+    YT_LOG_INFO("Chunks cell tags are checked (InvalidCells: %v, InvalidChunkCount: %v)",
+        invalidCellTagToChunkCount.size(),
+        totalInvalidChunkCount);
 }
 
 TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk, std::optional<TDuration> startRemoveDelay)
@@ -996,11 +1013,14 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             location->GetIndex());
     } else {
         location = Locations_[candidateIndices[RandomNumber(candidateIndices.size())]];
-        YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
+        YT_LOG_DEBUG("Random location is chosen for chunk "
+            "(ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, MediumIndex: %v, MediumName: %v)",
             sessionId,
             location->GetId(),
             location->GetUuid(),
-            location->GetIndex());
+            location->GetIndex(),
+            location->GetMediumDescriptor()->GetIndex(),
+            location->GetMediumName());
     }
 
     auto lockedChunkGuard = location->TryLockChunk(sessionId.ChunkId);
@@ -1102,22 +1122,25 @@ void TChunkStore::OnProfiling()
 
 bool TChunkStore::ShouldPublishDisabledLocations()
 {
-    return DynamicConfig_
-        ? DynamicConfig_->PublishDisabledLocations.value_or(Config_->PublishDisabledLocations)
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig
+        ? dynamicConfig->PublishDisabledLocations.value_or(Config_->PublishDisabledLocations)
         : Config_->PublishDisabledLocations;
 }
 
 bool TChunkStore::ShouldChooseLocationBasedOnIOWeight()
 {
-    return DynamicConfig_
-        ? DynamicConfig_->ChooseLocationBasedOnIOWeight.value_or(Config_->ChooseLocationBasedOnIOWeight)
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig
+        ? dynamicConfig->ChooseLocationBasedOnIOWeight.value_or(Config_->ChooseLocationBasedOnIOWeight)
         : Config_->ChooseLocationBasedOnIOWeight;
 }
 
 bool TChunkStore::ShouldSkipWriteThrottlingLocations()
 {
-    return DynamicConfig_
-        ? DynamicConfig_->SkipWriteThrottlingLocations.value_or(Config_->SkipWriteThrottlingLocations)
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig
+        ? dynamicConfig->SkipWriteThrottlingLocations.value_or(Config_->SkipWriteThrottlingLocations)
         : Config_->SkipWriteThrottlingLocations;
 }
 
@@ -1126,6 +1149,13 @@ NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> TChunkStore::Acquire
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ReaderGuard(ChunkMapLock_);
+}
+
+NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock> TChunkStore::AcquireChunkMapWriterLock()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return WriterGuard(ChunkMapLock_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

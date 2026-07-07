@@ -203,12 +203,17 @@ void TCellBase::RevokePeer(int peerId, const TError& reason)
     peer.LastRevocationReason = reason;
 }
 
-void TCellBase::ExpirePeerRevocationReasons(TInstant deadline)
+void TCellBase::ExpireDiagnosticErrors(TInstant deadline)
 {
-    for (auto& peer : Peers_) {
-        if (!peer.LastRevocationReason.IsOK() && peer.LastRevocationReason.GetDatetime() < deadline) {
-            peer.LastRevocationReason = {};
+    auto clearError = [&] (TError* error) {
+        if (!error->IsOK() && error->GetDatetime() < deadline) {
+            *error = {};
         }
+    };
+
+    for (auto& peer : Peers_) {
+        clearError(&peer.LastRevocationReason);
+        clearError(&peer.LastHydraRestartReason);
     }
 }
 

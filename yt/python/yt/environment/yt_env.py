@@ -12,11 +12,13 @@ from .porto_helpers import PortoSubprocess, porto_available
 from .watcher import ProcessWatcher
 from .init_cluster import _initialize_world_for_local_cluster
 from .local_cypress import _synchronize_cypress_with_local_dir
-from .local_cluster_configuration import modify_cluster_configuration, get_patched_dynamic_node_config, get_patched_dynamic_master_config
+from .local_cluster_configuration import (
+    modify_cluster_configuration, get_patched_dynamic_node_config, get_patched_dynamic_master_config,
+    get_patched_dynamic_rpc_proxy_config)
 
 from .tls_helpers import create_ca, create_certificate
 
-from yt.common import YtError, remove_file, makedirp, update, get_value, which, to_native_str
+from yt.common import YtError, remove_file, makedirp, update, get_fqdn, get_value, which, to_native_str
 from yt.wrapper.common import flatten
 from yt.wrapper.constants import FEEDBACK_URL
 from yt.wrapper.errors import YtResponseError
@@ -27,15 +29,7 @@ from yt.test_helpers import wait
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
-try:
-    from yt.packages.six import itervalues, iteritems
-    from yt.packages.six.moves import xrange, map as imap
-except ImportError:
-    from six import itervalues, iteritems
-    from six.moves import xrange, map as imap
-
 import yt.packages.requests as requests
-from yt.common import get_fqdn
 
 import logging
 import os
@@ -52,7 +46,7 @@ import stat
 import sys
 import traceback
 from collections import defaultdict, namedtuple, OrderedDict
-from threading import RLock
+from threading import RLock, Thread
 
 logger = logging.getLogger("YtLocal")
 
@@ -88,7 +82,7 @@ def _parse_version(s):
     else:
         # "19.0.0-local~debug~local"
         literal = s.strip()
-    parts = list(imap(int, literal.split("-")[0].split(".")[:3]))
+    parts = list(map(int, literal.split("-")[0].split(".")[:3]))
     abi = tuple(parts[:2])
     return BinaryVersion(abi, literal)
 
@@ -134,7 +128,7 @@ def _get_yt_versions(custom_paths):
                 "ytserver-clock", "ytserver-discovery", "ytserver-cell-balancer",
                 "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache",
                 "ytserver-tablet-balancer", "ytserver-replicated-table-tracker", "ytserver-kafka-proxy", "ytserver-queue-agent",
-                "ytserver-cypress-proxy"]
+                "ytserver-cypress-proxy", "ytserver-offshore-data-gateway"]
 
     binary_infos = [BinaryInfo(name=name, path=_get_yt_binary_path(name, custom_paths=custom_paths)) for name in binaries]
 
@@ -149,7 +143,7 @@ def _get_yt_versions(custom_paths):
 
     if missing_binaries:
         logger.info("Binaries %s are not found, custom_paths=%s", missing_binaries, custom_paths)
-    for path_dir, binaries in iteritems(path_dir_to_binaries):
+    for path_dir, binaries in path_dir_to_binaries.items():
         logger.debug("Binaries %s found at directory %s", binaries, path_dir)
 
     filtered_binary_infos = [binary_info for binary_info in binary_infos if binary_info.path is not None]
@@ -165,6 +159,8 @@ def _configure_logger(path):
             logger.addHandler(logging.StreamHandler())
         logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     else:
+        for handler in logger.handlers:
+            handler.close()
         logger.handlers = [logging.FileHandler(path)]
         logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 
@@ -195,11 +191,13 @@ class YTInstance(object):
                  tmpfs_path=None,
                  open_port_iterator=None,
                  modify_driver_logging_config_func=None,
-                 modify_master_dynamic_configs_func=None):
+                 modify_master_dynamic_configs_func=None,
+                 modify_rpc_proxy_dynamic_configs_func=None):
         self.path = os.path.realpath(os.path.abspath(path))
         self.yt_config = yt_config
         self.modify_dynamic_configs_func = modify_dynamic_configs_func
         self.modify_master_dynamic_configs_func = modify_master_dynamic_configs_func
+        self.modify_rpc_proxy_dynamic_configs_func = modify_rpc_proxy_dynamic_configs_func
 
         self.id = yt_config.cluster_name
 
@@ -246,7 +244,8 @@ class YTInstance(object):
                 programs = ["master", "clock", "node", "job-proxy", "exec", "cell-balancer",
                             "proxy", "http-proxy", "tools", "scheduler", "discovery",
                             "controller-agent", "timestamp-provider", "master-cache",
-                            "tablet-balancer", "replicated-table-tracker", "queue-agent", "kafka-proxy", "multi"]
+                            "tablet-balancer", "replicated-table-tracker", "queue-agent", "kafka-proxy", "multi",
+                            "offshore-data-gateway"]
                 for program in programs:
                     os.symlink(os.path.abspath(self.ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
 
@@ -263,7 +262,7 @@ class YTInstance(object):
                           "ytserver_all_path keyword in Python/--ytserver-all-path argument of yt_local/$YTSERVER_ALL_PATH, or "
                           "put ytserver-* binaries into $PATH")
 
-        abi_versions = set(imap(lambda v: v.abi, self._binary_to_version.values()))
+        abi_versions = set(map(lambda v: v.abi, self._binary_to_version.values()))
         self.abi_version = abi_versions.pop()
 
         self._lock = RLock()
@@ -331,16 +330,16 @@ class YTInstance(object):
         master_dirs = []
         master_tmpfs_dirs = [] if self._tmpfs_path else None
 
-        for cell_index in xrange(self.yt_config.secondary_cell_count + 1):
+        for cell_index in range(self.yt_config.secondary_cell_count + 1):
             name = self._get_master_name("master", cell_index)
             master_dirs.append([os.path.join(self.runtime_data_path, name, str(i))
-                                for i in xrange(self.yt_config.master_count)])
+                                for i in range(self.yt_config.master_count)])
             for dir_ in master_dirs[cell_index]:
                 makedirp(dir_)
 
             if self._tmpfs_path is not None:
                 master_tmpfs_dirs.append([os.path.join(self._tmpfs_path, name, str(i))
-                                          for i in xrange(self.yt_config.master_count)])
+                                          for i in range(self.yt_config.master_count)])
 
                 for dir_ in master_tmpfs_dirs[cell_index]:
                     makedirp(dir_)
@@ -368,6 +367,7 @@ class YTInstance(object):
                 "cypress_proxy": self._make_service_dirs("cypress_proxy", self.yt_config.cypress_proxy_count),
                 "replicated_table_tracker": self._make_service_dirs("replicated_table_tracker",
                                                                     self.yt_config.replicated_table_tracker_count),
+                "offshore_data_gateway": self._make_service_dirs("offshore_data_gateway", self.yt_config.offshore_data_gateway_count),
                 }
 
     def _log_component_line(self, binary, name, count, is_external=False):
@@ -506,6 +506,7 @@ class YTInstance(object):
             ("ytserver-proxy", "RPC proxies", self.yt_config.rpc_proxy_count),
             ("ytserver-cypres-proxy", "cypress proxies", self.yt_config.cypress_proxy_count),
             ("ytserver-replicated-table-tracker", "replicated table trackers", self.yt_config.replicated_table_tracker_count),
+            ("ytserver-offshore-data-gateway", "offshore data gateways", self.yt_config.offshore_data_gateway_count),
         ]
 
         logger.info("Start preparing cluster instance as follows:")
@@ -572,6 +573,8 @@ class YTInstance(object):
             self._prepare_cypress_proxies(cluster_configuration["cypress_proxy"])
         if self.yt_config.replicated_table_tracker_count > 0:
             self._prepare_replicated_table_trackers(cluster_configuration["replicated_table_tracker"])
+        if self.yt_config.offshore_data_gateway_count > 0:
+            self._prepare_offshore_data_gateways(cluster_configuration["offshore_data_gateway"])
 
         self._prepare_drivers(
             cluster_configuration["driver"],
@@ -591,7 +594,7 @@ class YTInstance(object):
         else:
             path = self.runtime_data_path
 
-        service_dirs = [os.path.join(path, service_name, str(i)) for i in xrange(count)]
+        service_dirs = [os.path.join(path, service_name, str(i)) for i in range(count)]
         for dir_ in service_dirs:
             makedirp(dir_)
         return service_dirs
@@ -616,8 +619,8 @@ class YTInstance(object):
             shutil.rmtree(self.runtime_data_path, ignore_errors=True)
 
     def start(self, on_masters_started_func=None):
-        for name, processes in iteritems(self._service_processes):
-            for index in xrange(len(processes)):
+        for name, processes in self._service_processes.items():
+            for index in range(len(processes)):
                 processes[index] = None
         self._pid_to_process.clear()
 
@@ -680,6 +683,9 @@ class YTInstance(object):
             if self.yt_config.replicated_table_tracker_count > 0:
                 self.start_replicated_table_trackers(sync=False)
 
+            if self.yt_config.offshore_data_gateway_count > 0:
+                self.start_offshore_data_gateways(sync=False)
+
             self.synchronize()
 
             if self.yt_config.create_admin_user:
@@ -706,6 +712,12 @@ class YTInstance(object):
                 queue_agent_dynamic_config = None
                 if self.yt_config.queue_agent_count > 0:
                     queue_agent_dynamic_config = self._apply_queue_agent_dynamic_config(client)
+
+                rpc_proxy_dynamic_config = None
+                if self.yt_config.rpc_proxy_count > 0:
+                    rpc_proxy_dynamic_config = self._apply_rpc_proxy_dynamic_config(
+                        client,
+                        self._cluster_configuration)
 
                 # TODO(nadya73): fill kafka proxy dynamic config.
 
@@ -746,6 +758,10 @@ class YTInstance(object):
 
             if not self._load_existing_environment:
                 self._wait_for_dynamic_config_update(patched_node_config, client)
+
+                if rpc_proxy_dynamic_config is not None:
+                    self._wait_for_dynamic_config_update(rpc_proxy_dynamic_config, client, instance_type="rpc_proxies")
+
                 if queue_agent_dynamic_config is not None:
                     self._wait_for_dynamic_config_update(queue_agent_dynamic_config, client, instance_type="queue_agents/instances")
                 # TODO(nadya73): update kafka proxy dynamic config
@@ -797,7 +813,7 @@ class YTInstance(object):
             components = ["multi"]
         else:
             components = ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
-                          "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer",
+                          "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer", "offshore_data_gateway",
                           "tablet_balancer", "cypress_proxy", "replicated_table_tracker", "queue_agent", "kafka_proxy", "multi"]
 
         self._send_component_kills(components)
@@ -823,9 +839,23 @@ class YTInstance(object):
         wait_for_removing_file_lock(os.path.join(self.path, "lock_file"))
 
     def synchronize(self):
-        for func in self._wait_functions:
-            func()
+        exceptions = []
+
+        def run(func):
+            try:
+                func()
+            except Exception as e:
+                exceptions.append(e)
+
+        threads = [Thread(target=run, args=(func,)) for func in self._wait_functions]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
         self._wait_functions = []
+
+        if exceptions:
+            raise exceptions[0]
 
     def rewrite_master_configs(self):
         self._prepare_masters(self._cluster_configuration["master"], force_overwrite=True)
@@ -1013,7 +1043,7 @@ class YTInstance(object):
 
         raise YtError(f"Node with address {address} not found")
 
-    def kill_nodes(self, indexes=None, addresses=None, wait_offline=True):
+    def kill_nodes(self, indexes=None, addresses=None, wait_offline=True, abort_transactions=True):
         assert indexes is None or addresses is None
 
         if indexes is None and addresses is not None:
@@ -1021,19 +1051,20 @@ class YTInstance(object):
 
         self.kill_service("node", indexes=indexes)
 
-        addresses = None
-        if indexes is None:
-            indexes = list(xrange(self.yt_config.node_count))
-        addresses = [self.get_node_address(index) for index in indexes]
+        if abort_transactions:
+            addresses = None
+            if indexes is None:
+                indexes = list(range(self.yt_config.node_count))
+            addresses = [self.get_node_address(index) for index in indexes]
 
-        self._abort_node_transactions_and_wait(addresses, wait_offline)
+            self._abort_node_transactions_and_wait(addresses, wait_offline)
 
     def kill_chaos_nodes(self, indexes=None, wait_offline=True):
         self.kill_service("chaos_node", indexes=indexes)
 
         addresses = None
         if indexes is None:
-            indexes = list(xrange(self.yt_config.chaos_node_count))
+            indexes = list(range(self.yt_config.chaos_node_count))
         addresses = [self.get_node_address(index, config_service="chaos_node") for index in indexes]
 
         self._abort_node_transactions_and_wait(addresses, wait_offline)
@@ -1046,13 +1077,13 @@ class YTInstance(object):
 
     def kill_masters_at_cells(self, indexes=None, cell_indexes=None):
         if cell_indexes is None:
-            cell_indexes = [0]
+            cell_indexes = range(self.yt_config.secondary_cell_count + 1)
         for cell_index in cell_indexes:
             name = self._get_master_name("master", cell_index)
             self.kill_service(name, indexes=indexes)
 
     def kill_all_masters(self):
-        self.kill_masters_at_cells(indexes=None, cell_indexes=xrange(self.yt_config.secondary_cell_count + 1))
+        self.kill_masters_at_cells()
 
     def kill_master_caches(self, indexes=None):
         self.kill_service("master_cache", indexes=indexes)
@@ -1071,6 +1102,9 @@ class YTInstance(object):
 
     def kill_replicated_table_trackers(self, indexes=None):
         self.kill_service("replicated_table_tracker", indexes=indexes)
+
+    def kill_offshore_data_gateways(self, indexes=None):
+        self.kill_service("offshore_data_gateway", indexes=indexes)
 
     def kill_service(self, name, indexes=None, skip_multidaemon_check=False):
         with self._lock:
@@ -1150,7 +1184,7 @@ class YTInstance(object):
 
     def check_liveness(self, callback_func):
         with self._lock:
-            for info in itervalues(self._pid_to_process):
+            for info in self._pid_to_process.values():
                 proc, args = info
                 proc.poll()
                 if proc.returncode is not None:
@@ -1307,7 +1341,7 @@ class YTInstance(object):
         if has_some_bind_failure:
             raise YtEnvRetriableError(f"Process {name} failed to bind on some of ports")
 
-    def _run(self, args, name, env=None, number=None):
+    def _run(self, args, name, env=None, number=None, update_args=True):
         with self._lock:
             index = number if number is not None else 0
             name_with_number = name
@@ -1321,9 +1355,11 @@ class YTInstance(object):
             stderr_path = os.path.join(self.stderrs_path, "stderr.{0}".format(name_with_number))
             self._stderr_paths[name].append(stderr_path)
 
-            if self._kill_child_processes:
-                args += ["--pdeathsig", str(int(signal.SIGTERM))]
-            args += ["--setsid"]
+            if update_args:
+                # TODO(mpereskokova): Configure these params via environment variables
+                if self._kill_child_processes:
+                    args += ["--pdeathsig", str(int(signal.SIGTERM))]
+                args += ["--setsid"]
 
             if env is None:
                 env = copy.copy(os.environ)
@@ -1352,18 +1388,39 @@ class YTInstance(object):
             return p
 
     def _dump_backtraces(self, pid):
-        gdb_output = subprocess.check_output(
-            [
-                "gdb",
-                "-p",
-                str(pid),
-                "--batch",
-                "-ex",
-                "thr apply all bt",
-            ])
+        from .arcadia_interop import get_gdb_path
+
+        gdb_path = get_gdb_path()
+        if not shutil.which(gdb_path):
+            logger.warning("Cannot dump backtraces of process %s: gdb is not available (path: %s)", pid, gdb_path)
+            return
+
+        try:
+            gdb_output = subprocess.check_output(
+                [
+                    gdb_path,
+                    "-p",
+                    str(pid),
+                    "--batch",
+                    "-ex",
+                    "thr apply all bt",
+                ])
+        except Exception as error:
+            # Best-effort diagnostics; a failure here must not mask the original error.
+            logger.warning("Failed to dump backtraces of process %s: %s", pid, error)
+            return
         logger.info(f"Process {pid} backtraces:")
         for line in gdb_output.splitlines():
             logger.info(line)
+
+    def run_external_component(self, name, args):
+        logger.info("Starting external component %s", name)
+        with push_front_env_path(self.bin_path):
+            run_result = self._run(args, name, update_args=False)
+            if run_result is None:
+                raise YtError("Could not start external component '{}'".format(name))
+
+            return run_result.pid
 
     def run_yt_component(self, component, config_paths, name=None, indexes=None, config_option=None, custom_paths=None):
         if config_option is None:
@@ -1378,7 +1435,7 @@ class YTInstance(object):
         logger.info("Starting %s", name)
 
         pids = []
-        for index in xrange(len(config_paths)):
+        for index in range(len(config_paths)):
             if indexes is not None and index not in indexes:
                 continue
 
@@ -1440,7 +1497,7 @@ class YTInstance(object):
             return master_name + "_secondary_" + str(cell_index - 1)
 
     def _prepare_masters(self, master_configs, force_overwrite=False):
-        for cell_index in xrange(self.yt_config.secondary_cell_count + 1):
+        for cell_index in range(self.yt_config.secondary_cell_count + 1):
             master_name = self._get_master_name("master", cell_index)
             if cell_index == 0:
                 cell_tag = master_configs["primary_cell_tag"]
@@ -1452,7 +1509,7 @@ class YTInstance(object):
                 self.config_paths[master_name] = []
                 self._service_processes[master_name] = []
 
-            for master_index in xrange(self.yt_config.master_count):
+            for master_index in range(self.yt_config.master_count):
                 master_config_name = "master-{0}-{1}.yson".format(cell_index, master_index)
                 config_path = os.path.join(self.configs_path, master_config_name)
                 if self._load_existing_environment and not force_overwrite:
@@ -1551,11 +1608,11 @@ class YTInstance(object):
             self.start_secondary_master_cells(sync=sync)
 
     def start_secondary_master_cells(self, sync=True):
-        for i in xrange(self.yt_config.secondary_cell_count):
+        for i in range(self.yt_config.secondary_cell_count):
             self.start_master_cell(i + 1, sync=sync, set_config=False)
 
     def _prepare_clocks(self, clock_configs):
-        for clock_index in xrange(self.yt_config.clock_count):
+        for clock_index in range(self.yt_config.clock_count):
             clock_config_name = "clock-{0}.yson".format(clock_index)
             config_path = os.path.join(self.configs_path, clock_config_name)
             if self._load_existing_environment:
@@ -1595,7 +1652,7 @@ class YTInstance(object):
             sync)
 
     def _prepare_discovery_servers(self, discovery_server_configs):
-        for discovery_server_index in xrange(self.yt_config.discovery_server_count):
+        for discovery_server_index in range(self.yt_config.discovery_server_count):
             discovery_server_config_name = "discovery-{0}.yson".format(discovery_server_index)
             config_path = os.path.join(self.configs_path, discovery_server_config_name)
             if self._load_existing_environment:
@@ -1615,7 +1672,7 @@ class YTInstance(object):
         self._run_builtin_yt_component("discovery")
 
     def _prepare_queue_agents(self, queue_agent_configs):
-        for queue_agent_index in xrange(self.yt_config.queue_agent_count):
+        for queue_agent_index in range(self.yt_config.queue_agent_count):
             queue_agent_config_name = "queue_agent-{0}.yson".format(queue_agent_index)
             config_path = os.path.join(self.configs_path, queue_agent_config_name)
             if self._load_existing_environment:
@@ -1665,7 +1722,7 @@ class YTInstance(object):
             self.config_paths["timestamp_provider"] = []
             self._service_processes["timestamp_provider"] = []
 
-        for timestamp_provider_index in xrange(self.yt_config.timestamp_provider_count):
+        for timestamp_provider_index in range(self.yt_config.timestamp_provider_count):
             timestamp_provider_config_name = "timestamp_provider-{0}.yson".format(timestamp_provider_index)
             config_path = os.path.join(self.configs_path, timestamp_provider_config_name)
             if self._load_existing_environment and not force_overwrite:
@@ -1703,7 +1760,7 @@ class YTInstance(object):
             sync)
 
     def _prepare_cell_balancers(self, cell_balancer_configs):
-        for cell_balancer_index in xrange(self.yt_config.cell_balancer_count):
+        for cell_balancer_index in range(self.yt_config.cell_balancer_count):
             cell_balancer_config_name = "cell_balancer-{0}.yson".format(cell_balancer_index)
             config_path = os.path.join(self.configs_path, cell_balancer_config_name)
             if self._load_existing_environment:
@@ -1776,7 +1833,7 @@ class YTInstance(object):
             self.config_paths["node"] = []
             self._service_processes["node"] = []
 
-        for node_index in xrange(self.yt_config.node_count):
+        for node_index in range(self.yt_config.node_count):
             node_config_name = "node-" + str(node_index) + ".yson"
             config_path = os.path.join(self.configs_path, node_config_name)
             if self._load_existing_environment and not force_overwrite:
@@ -1826,7 +1883,7 @@ class YTInstance(object):
             self.config_paths["chaos_node"] = []
             self._service_processes["chaos_node"] = []
 
-        for chaos_node_index in xrange(self.yt_config.chaos_node_count):
+        for chaos_node_index in range(self.yt_config.chaos_node_count):
             chaos_node_config_name = "chaos-node-" + str(chaos_node_index) + ".yson"
             config_path = os.path.join(self.configs_path, chaos_node_config_name)
             if self._load_existing_environment and not force_overwrite:
@@ -1858,13 +1915,13 @@ class YTInstance(object):
             max_wait_time=max(self.yt_config.chaos_node_count * 6.0, 60))
 
     def _prepare_master_caches(self, master_cache_configs):
-        for master_cache_index in xrange(self.yt_config.master_cache_count):
+        for master_cache_index in range(self.yt_config.master_cache_count):
             master_cache_config_name = "master_cache-{0}.yson".format(master_cache_index)
             config_path = os.path.join(self.configs_path, master_cache_config_name)
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
                     raise YtError("Master cache config {0} not found. It is possible that you requested "
-                                  "more timestamp providers than configs exist".format(config_path))
+                                  "more master caches than configs exist".format(config_path))
                 config = read_config(config_path)
             else:
                 config = master_cache_configs[master_cache_index]
@@ -1901,7 +1958,7 @@ class YTInstance(object):
             self.config_paths["scheduler"] = []
             self._service_processes["scheduler"] = []
 
-        for scheduler_index in xrange(self.yt_config.scheduler_count):
+        for scheduler_index in range(self.yt_config.scheduler_count):
             scheduler_config_name = "scheduler-" + str(scheduler_index) + ".yson"
             config_path = os.path.join(self.configs_path, scheduler_config_name)
             if self._load_existing_environment and not force_overwrite:
@@ -1923,7 +1980,7 @@ class YTInstance(object):
             self.config_paths["controller_agent"] = []
             self._service_processes["controller_agent"] = []
 
-        for controller_agent_index in xrange(self.yt_config.controller_agent_count):
+        for controller_agent_index in range(self.yt_config.controller_agent_count):
             controller_agent_config_name = "controller_agent-" + str(controller_agent_index) + ".yson"
             config_path = os.path.join(self.configs_path, controller_agent_config_name)
             if self._load_existing_environment and not force_overwrite:
@@ -2021,7 +2078,7 @@ class YTInstance(object):
                 exec_nodes = list(filter(check_node, nodes))
 
                 if not self.yt_config.defer_node_start:
-                    nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/scheduler/nodes")))
+                    nodes = list(client.get(active_scheduler_orchid_path + "/scheduler/nodes").values())
                     return len(nodes) == len(exec_nodes) and all(check_node_state(node) for node in nodes)
 
                 return True
@@ -2158,7 +2215,7 @@ class YTInstance(object):
                          master_configs,
                          clock_configs,
                          modify_driver_logging_config_func):
-        for cell_index in xrange(self.yt_config.secondary_cell_count + 1):
+        for cell_index in range(self.yt_config.secondary_cell_count + 1):
             if cell_index == 0:
                 tag = master_configs["primary_cell_tag"]
                 name = "driver"
@@ -2224,7 +2281,7 @@ class YTInstance(object):
         self.configs["kafka_proxy"] = []
         self.config_paths["kafka_proxy"] = []
 
-        for i in xrange(self.yt_config.kafka_proxy_count):
+        for i in range(self.yt_config.kafka_proxy_count):
             config_path = os.path.join(self.configs_path, "kafka-proxy-{}.yson".format(i))
             if self._load_existing_environment and not force_overwrite:
                 if not os.path.isfile(config_path):
@@ -2242,7 +2299,7 @@ class YTInstance(object):
         self.configs["http_proxy"] = []
         self.config_paths["http_proxy"] = []
 
-        for i in xrange(self.yt_config.http_proxy_count):
+        for i in range(self.yt_config.http_proxy_count):
             config_path = os.path.join(self.configs_path, "http-proxy-{}.yson".format(i))
             if self._load_existing_environment and not force_overwrite:
                 if not os.path.isfile(config_path):
@@ -2265,7 +2322,7 @@ class YTInstance(object):
         self.configs["rpc_proxy"] = []
         self.config_paths["rpc_proxy"] = []
 
-        for i in xrange(self.yt_config.rpc_proxy_count):
+        for i in range(self.yt_config.rpc_proxy_count):
             config_path = os.path.join(self.configs_path, "rpc-proxy-{}.yson".format(i))
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
@@ -2293,6 +2350,9 @@ class YTInstance(object):
     def start_http_proxy(self, sync=True):
         self._run_builtin_yt_component("http-proxy", name="http_proxy")
 
+        client = self._create_cluster_client()
+        expected_endpoints = set(self.get_http_proxy_addresses())
+
         def proxy_ready():
             self._validate_processes_are_running("http_proxy")
 
@@ -2303,6 +2363,15 @@ class YTInstance(object):
                     resp.raise_for_status()
             except (requests.exceptions.RequestException, socket.error):
                 return False, traceback.format_exc()
+
+            try:
+                registered = set(client.list("//sys/http_proxies"))
+            except Exception:
+                return False, traceback.format_exc()
+
+            if not expected_endpoints.issubset(registered):
+                missing = expected_endpoints - registered
+                return False, "HTTP proxies not yet fully registered; waiting for {0}".format(missing)
 
             return True
 
@@ -2329,7 +2398,7 @@ class YTInstance(object):
 
         client = self._create_cluster_client()
 
-        proxies_with_discovery_count = 0
+        expected_endpoints = set()
         proxies_ports = []
         for proxy in self.configs["rpc_proxy"]:
             proxies_ports.append(proxy["rpc_port"])
@@ -2339,18 +2408,25 @@ class YTInstance(object):
             discovery_service_config = get_value(proxy.get("discovery_service"), {})
             discovery_service_enabled = get_value(discovery_service_config.get("enable"), True)
             if discovery_service_enabled:
-                proxies_with_discovery_count += 1
+                expected_endpoints.add("{0}:{1}".format(self.yt_config.fqdn, proxy["rpc_port"]))
 
         def rpc_proxy_ready():
             self._validate_processes_are_running("rpc_proxy")
 
-            proxies_from_discovery = client.get("//sys/rpc_proxies")
-            proxies_discovery_ready = len(proxies_from_discovery) == proxies_with_discovery_count and \
-                all("alive" in proxy for proxy in proxies_from_discovery.values())
+            try:
+                proxies_from_discovery = client.get("//sys/rpc_proxies")
+            except Exception:
+                return False, traceback.format_exc()
+
+            alive = {addr for addr, attrs in proxies_from_discovery.items() if "alive" in attrs}
+
+            if not expected_endpoints.issubset(alive):
+                missing = expected_endpoints - alive
+                return False, "RPC proxies not yet fully registered; waiting for {0}".format(missing)
 
             proxies_ports_ready = all(is_port_opened(port) for port in proxies_ports)
 
-            return proxies_discovery_ready and proxies_ports_ready
+            return proxies_ports_ready
 
         self._wait_for_component(
             "rpc_proxy",
@@ -2358,7 +2434,7 @@ class YTInstance(object):
             sync)
 
     def _prepare_tablet_balancers(self, tablet_balancer_configs):
-        for tablet_balancer_index in xrange(self.yt_config.tablet_balancer_count):
+        for tablet_balancer_index in range(self.yt_config.tablet_balancer_count):
             tablet_balancer_config_name = "tablet_balancer-{0}.yson".format(tablet_balancer_index)
             config_path = os.path.join(self.configs_path, tablet_balancer_config_name)
             if self._load_existing_environment:
@@ -2392,7 +2468,7 @@ class YTInstance(object):
             self.config_paths["cypress_proxy"] = []
             self._service_processes["cypress_proxy"] = []
 
-        for cypress_proxy_index in xrange(self.yt_config.cypress_proxy_count):
+        for cypress_proxy_index in range(self.yt_config.cypress_proxy_count):
             cypress_proxy_config_name = "cypress_proxy-{0}.yson".format(cypress_proxy_index)
             config_path = os.path.join(self.configs_path, cypress_proxy_config_name)
             if self._load_existing_environment and not force_overwrite:
@@ -2421,7 +2497,7 @@ class YTInstance(object):
             sync)
 
     def _prepare_replicated_table_trackers(self, replicated_table_tracker_configs):
-        for replicated_table_tracker_index in xrange(self.yt_config.replicated_table_tracker_count):
+        for replicated_table_tracker_index in range(self.yt_config.replicated_table_tracker_count):
             replicated_table_tracker_config_name = "replicated_table_tracker-{0}.yson".format(replicated_table_tracker_index)
             config_path = os.path.join(self.configs_path, replicated_table_tracker_config_name)
             if self._load_existing_environment:
@@ -2447,6 +2523,35 @@ class YTInstance(object):
         self._wait_for_component(
             "replicated_table_tracker",
             replicated_table_tracker_ready,
+            sync)
+
+    def _prepare_offshore_data_gateways(self, offshore_data_gateway_configs):
+        for offshore_data_gateway_index in range(self.yt_config.offshore_data_gateway_count):
+            offshore_data_gateway_config_name = "offshore_data_gateway-{0}.yson".format(offshore_data_gateway_index)
+            config_path = os.path.join(self.configs_path, offshore_data_gateway_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Offshore data gateway config {0} not found. It is possible that you requested "
+                                  "more offshore data gateways than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = offshore_data_gateway_configs[offshore_data_gateway_index]
+                write_config(config, config_path)
+
+            self.configs["offshore_data_gateway"].append(config)
+            self.config_paths["offshore_data_gateway"].append(config_path)
+            self._service_processes["offshore_data_gateway"].append(None)
+
+    def start_offshore_data_gateways(self, sync=True):
+        self._run_builtin_yt_component("offshore-data-gateway", name="offshore_data_gateway")
+
+        def offshore_data_gateway_ready():
+            self._validate_processes_are_running("offshore_data_gateway")
+            return True
+
+        self._wait_for_component(
+            "offshore_data_gateway",
+            offshore_data_gateway_ready,
             sync)
 
     def _validate_process_is_running(self, process, name, number=None):
@@ -2518,7 +2623,7 @@ class YTInstance(object):
 
             extract_debug_log_paths("driver", {"logging": self.configs["driver_logging"]}, log_paths)
 
-            for service, configs in list(iteritems(self.configs)):
+            for service, configs in list(self.configs.items()):
                 for config in flatten(configs):
                     if service.startswith("driver") \
                             or service.startswith("rpc_driver") \
@@ -2555,6 +2660,17 @@ class YTInstance(object):
         client.create("document", "//sys/queue_agents/config", ignore_existing=True, attributes={"value": dyn_queue_agent_config})
         return dyn_queue_agent_config
 
+    def _apply_rpc_proxy_dynamic_config(self, client, cluster_configuration):
+        patched_dynamic_rpc_proxy_config = get_patched_dynamic_rpc_proxy_config(self.yt_config, cluster_configuration)
+
+        if self.modify_rpc_proxy_dynamic_configs_func is not None:
+            self.modify_rpc_proxy_dynamic_configs_func(patched_dynamic_rpc_proxy_config, self.abi_version)
+
+        client.set("//sys/rpc_proxies/@config", patched_dynamic_rpc_proxy_config)
+        logger.debug(patched_dynamic_rpc_proxy_config)
+
+        return patched_dynamic_rpc_proxy_config
+
     def _apply_nodes_dynamic_config(self, client):
         patched_dynamic_node_config = get_patched_dynamic_node_config(self.yt_config)
 
@@ -2579,6 +2695,16 @@ class YTInstance(object):
         client.set("//sys/tablet_cell_bundles/@config", {})
 
         self._wait_for_dynamic_config_update({}, client, config_node_name="bundle_dynamic_config_manager")
+
+    def restore_default_rpc_proxy_dynamic_config(self):
+        if self.yt_config.rpc_proxy_count == 0:
+            return
+
+        client = self._create_cluster_client()
+
+        patched_config = self._apply_rpc_proxy_dynamic_config(client, self._cluster_configuration)
+
+        self._wait_for_dynamic_config_update(patched_config, client, instance_type="rpc_proxies")
 
     def _wait_for_dynamic_config_update(self, expected_config, client, instance_type="cluster_nodes", config_node_name="dynamic_config_manager"):
         if not self.yt_config.wait_for_dynamic_config:

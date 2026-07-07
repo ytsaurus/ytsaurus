@@ -54,8 +54,8 @@ def _swap_table(client, target, source, version, mount=True):
 
     logging.info("Swapping tables %s <-> %s", source, target)
     if has_target:
-        client.move(target, backup_path, force=True)
-    client.move(source, target)
+        client.move(target, backup_path, force=True, preserve_account=True)
+    client.move(source, target, preserve_account=True)
 
     if mount:
         _mount_table(client, target)
@@ -155,7 +155,12 @@ class TableInfo(object):
                     del column["sort_order"]
 
         attributes = _make_dynamic_table_attributes(schema, key_columns, self.optimize_for)
-        attributes.update(self.attributes)
+
+        # Be aware of dynamic-tables-only attributes present in `self.attributes`.
+        for key in ["primary_medium", "account", "tablet_cell_bundle"]:
+            if key in self.attributes:
+                attributes[key] = self.attributes[key]
+
         attributes["dynamic"] = False
 
         logging.info("Creating table %s with attributes %s", path, attributes)
@@ -283,7 +288,10 @@ class Conversion(object):
 
             if len(source_tables) == 1:
                 old_key_columns = client.get(source_tables[0] + "/@key_columns")
-                need_sort = False if self.operation == "temporarily-copy" else old_key_columns != table_info.key_columns
+                need_sort = not (
+                    self.operation == "temporarily-copy"
+                    or old_key_columns == table_info.key_columns[:len(old_key_columns)]
+                )
             else:
                 need_sort = True
         else:

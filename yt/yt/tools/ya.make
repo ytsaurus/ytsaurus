@@ -1,7 +1,7 @@
 RECURSE(
     changelog_surgeon
+    chaos_tools
     cuda_core_dump_injection
-    cypress_nbd_server
     data_node_rpc_request
     dump_changelog
     dump_chunk_meta
@@ -12,6 +12,8 @@ RECURSE(
     hunk_chunk_advisor
     import_table
     journal_reader
+    logslice
+    nbd_server
     offline_controller
     offline_read
     offline_read_fmt_write

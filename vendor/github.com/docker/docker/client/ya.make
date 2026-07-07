@@ -2,16 +2,18 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v25.0.6+incompatible)
+VERSION(v28.2.2+incompatible)
 
 SRCS(
     build_cancel.go
     build_prune.go
+    checkpoint.go
     checkpoint_create.go
     checkpoint_delete.go
     checkpoint_list.go
     client.go
     client_deprecated.go
+    client_interfaces.go
     config_create.go
     config_inspect.go
     config_list.go
@@ -50,21 +52,22 @@ SRCS(
     image_build.go
     image_create.go
     image_history.go
+    image_history_opts.go
     image_import.go
     image_inspect.go
+    image_inspect_opts.go
     image_list.go
     image_load.go
+    image_load_opts.go
     image_prune.go
     image_pull.go
     image_push.go
     image_remove.go
     image_save.go
+    image_save_opts.go
     image_search.go
     image_tag.go
     info.go
-    interface.go
-    interface_experimental.go
-    interface_stable.go
     login.go
     network_connect.go
     network_create.go
@@ -140,6 +143,12 @@ IF (OS_WINDOWS)
 ENDIF()
 
 IF (OS_ANDROID)
+    SRCS(
+        client_unix.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
     SRCS(
         client_unix.go
     )

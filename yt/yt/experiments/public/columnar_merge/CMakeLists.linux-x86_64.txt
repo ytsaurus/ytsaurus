@@ -24,6 +24,7 @@ target_compile_options(columnar_merge PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(columnar_merge PRIVATE

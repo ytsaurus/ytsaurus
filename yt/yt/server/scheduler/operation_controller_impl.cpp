@@ -117,6 +117,7 @@ TControllerAgentPtr TOperationControllerImpl::FindAgent() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto guard = Guard(SpinLock_);
     return Agent_.Lock();
 }
 
@@ -257,7 +258,7 @@ TFuture<TOperationControllerMaterializeResult> TOperationControllerImpl::Materia
     return PendingMaterializeResult_;
 }
 
-TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive()
+TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive(bool suspended)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(IncarnationId_);
@@ -273,6 +274,7 @@ TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive()
     auto req = ControllerAgentTrackerProxy_->ReviveOperation();
     req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
     ToProto(req->mutable_operation_id(), OperationId_);
+    req->set_suspended(suspended);
     InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Subscribe(
         BIND([
             this,
@@ -402,6 +404,7 @@ TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
     ToProto(descriptor->mutable_operation_id(), operation->GetId());
     descriptor->set_operation_type(ToProto(operation->GetType()));
     descriptor->set_spec(ToProto(operation->GetSpecString()));
+    descriptor->set_provided_spec(ToProto(operation->ProvidedSpecString()));
     descriptor->set_experiment_assignments(ToProto(ConvertToYsonString(operation->ExperimentAssignments())));
     descriptor->set_start_time(ToProto(operation->GetStartTime()));
     descriptor->set_authenticated_user(operation->GetAuthenticatedUser());
@@ -488,6 +491,38 @@ TFuture<void> TOperationControllerImpl::PatchSpec(const INodePtr& newCumulativeS
         }
         rspOrError.ThrowOnError();
     }));
+}
+
+void TOperationControllerImpl::Suspend()
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    if (!IncarnationId_) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Suspend operation event enqueued");
+
+    EnqueueOperationEvent({
+        .EventType = ESchedulerToAgentOperationEventType::SuspendOperation,
+        .OperationId = OperationId_,
+    });
+}
+
+void TOperationControllerImpl::Resume()
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    if (!IncarnationId_) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Resume operation event enqueued");
+
+    EnqueueOperationEvent({
+        .EventType = ESchedulerToAgentOperationEventType::ResumeOperation,
+        .OperationId = OperationId_,
+    });
 }
 
 void TOperationControllerImpl::OnAllocationAborted(
@@ -681,7 +716,8 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     const TDiskResources& diskResourceLimits,
     const std::string& treeId,
     const TYPath& poolPath,
-    std::optional<TDuration> waitingForResourcesOnNodeTimeout)
+    std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+    std::optional<std::string> allocationGroupName)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -723,6 +759,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     request->NodeResourceLimits = context->ResourceLimits();
     request->NodeDiskResources = diskResourceLimits;
     request->Spec.WaitingForResourcesOnNodeTimeout = waitingForResourcesOnNodeTimeout;
+    request->AllocationGroupName = std::move(allocationGroupName);
 
     TIncarnationId incarnationId;
     {

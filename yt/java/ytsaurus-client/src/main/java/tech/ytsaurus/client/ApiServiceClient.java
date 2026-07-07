@@ -15,6 +15,7 @@ import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
 import tech.ytsaurus.client.request.AlterQuery;
 import tech.ytsaurus.client.request.AlterTable;
 import tech.ytsaurus.client.request.AlterTableReplica;
+import tech.ytsaurus.client.request.AttachTransaction;
 import tech.ytsaurus.client.request.BuildSnapshot;
 import tech.ytsaurus.client.request.CheckClusterLiveness;
 import tech.ytsaurus.client.request.CommitTransaction;
@@ -29,6 +30,7 @@ import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
+import tech.ytsaurus.client.request.GetCurrentUser;
 import tech.ytsaurus.client.request.GetFlowView;
 import tech.ytsaurus.client.request.GetFlowViewResult;
 import tech.ytsaurus.client.request.GetInSyncReplicas;
@@ -83,6 +85,7 @@ import tech.ytsaurus.client.request.TabletInfo;
 import tech.ytsaurus.client.request.TrimTable;
 import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
+import tech.ytsaurus.client.request.UnregisterQueueConsumer;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.request.WriteTableFragment;
 import tech.ytsaurus.client.rows.ConsumerSource;
@@ -116,6 +119,12 @@ public interface ApiServiceClient extends TransactionalClient {
     @Deprecated
     default CompletableFuture<ApiServiceTransaction> startTransaction(ApiServiceTransactionOptions options) {
         return startTransaction(options.toStartTransaction());
+    }
+
+    CompletableFuture<ApiServiceTransaction> attachTransaction(AttachTransaction req);
+
+    default CompletableFuture<ApiServiceTransaction> attachTransaction(GUID id) {
+        return attachTransaction(AttachTransaction.builder(id).build());
     }
 
     CompletableFuture<Void> pingTransaction(PingTransaction req);
@@ -374,6 +383,8 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<QueueRowset> pullConsumer(PullConsumer req);
 
     CompletableFuture<Void> registerQueueConsumer(RegisterQueueConsumer req);
+
+    CompletableFuture<Void> unregisterQueueConsumer(UnregisterQueueConsumer req);
 
     /**
      * Request to list queue consumer registrations.
@@ -680,4 +691,12 @@ public interface ApiServiceClient extends TransactionalClient {
      */
     CompletableFuture<FlowExecuteResult> flowExecute(FlowExecute req);
 
+    /**
+     * Retrieves the current client authorized user.
+     * <p>
+     *
+     * @param req The request object containing no parameters.
+     * @return A {@link CompletableFuture} that completes with the current user name.
+     */
+    CompletableFuture<String> getCurrentUser(GetCurrentUser req);
 }

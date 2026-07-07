@@ -43,7 +43,7 @@ void FromProto(
 }
 
 void ToProto(
-    NProto::TCellDirectoryItem* protoCellDirectoryItem,
+    NProto::TMasterCellConnectionConfig* protoCellDirectoryItem,
     const TMasterConnectionConfigPtr& masterConnectionConfig)
 {
     protoCellDirectoryItem->Clear();
@@ -89,7 +89,7 @@ void ToProto(
 
 void FromProto(
     TMasterConnectionConfigPtr* masterConnectionConfig,
-    const NProto::TCellDirectoryItem& protoCellDirectoryItem)
+    const NProto::TMasterCellConnectionConfig& protoCellDirectoryItem)
 {
     auto config = New<TMasterConnectionConfig>();
 

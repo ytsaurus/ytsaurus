@@ -523,8 +523,9 @@ public:
     TExpressionBuilderV1(
         TStringBuf source,
         const TConstTypeInferrerMapPtr& functions,
-        const NAst::TAliasMap& aliasMap)
-        : TExpressionBuilder(source, functions)
+        const NAst::TAliasMap& aliasMap,
+        const TPreparePlanFragmentContext& context)
+        : TExpressionBuilder(source, functions, context)
         , AliasMap_(aliasMap)
     { }
 
@@ -651,9 +652,10 @@ private:
 std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV1(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap)
+    const NAst::TAliasMap& aliasMap,
+    const TPreparePlanFragmentContext& context)
 {
-    return std::make_unique<TExpressionBuilderV1>(source, functions, aliasMap);
+    return std::make_unique<TExpressionBuilderV1>(source, functions, aliasMap, context);
 }
 
 TUntypedExpression TExpressionBuilderV1::OnExpression(
@@ -702,7 +704,7 @@ TUntypedExpression TExpressionBuilderV1::OnExpression(
     } else if (auto likeExpr = expr->As<NAst::TLikeExpression>()) {
         return OnLikeOp(likeExpr);
     } else if (expr->As<NAst::TQueryExpression>()) {
-        THROW_ERROR_EXCEPTION("Subqueries in expressions are not supported in expression builder v1.");
+        THROW_ERROR_EXCEPTION("Subqueries in expressions are not supported in expression builder v1");
     }
 
     YT_ABORT();
@@ -740,10 +742,16 @@ TExpressionBuilderV1::ResolveNestedTypesResult TExpressionBuilderV1::ResolveNest
     nestedStructOrTupleItemAccessor.Reserve(std::ssize(reference.CompositeTypeAccessor.NestedStructOrTupleItemAccessor));
 
     TLogicalTypePtr current = type;
+    bool optional = false;
 
     for (const auto& item : reference.CompositeTypeAccessor.NestedStructOrTupleItemAccessor) {
         Visit(item,
             [&] (const TStructMemberAccessor& structMember) {
+                if (current->GetMetatype() == ELogicalMetatype::Optional) {
+                    current = current->GetElement();
+                    optional = true;
+                }
+
                 if (current->GetMetatype() != ELogicalMetatype::Struct) {
                     THROW_ERROR_EXCEPTION("Member %Qv is not found", structMember)
                         << TErrorAttribute("source", NAst::FormatReference(reference));
@@ -762,6 +770,11 @@ TExpressionBuilderV1::ResolveNestedTypesResult TExpressionBuilderV1::ResolveNest
                     << TErrorAttribute("source", NAst::FormatReference(reference));
             },
             [&] (const TTupleItemIndexAccessor& itemIndex) {
+                if (current->GetMetatype() == ELogicalMetatype::Optional) {
+                    current = current->GetElement();
+                    optional = true;
+                }
+
                 if (current->GetMetatype() != ELogicalMetatype::Tuple) {
                     THROW_ERROR_EXCEPTION("Member %Qv is not found", itemIndex)
                         << TErrorAttribute("source", NAst::FormatReference(reference));
@@ -783,6 +796,11 @@ TExpressionBuilderV1::ResolveNestedTypesResult TExpressionBuilderV1::ResolveNest
     auto resultType = current;
 
     if (reference.CompositeTypeAccessor.DictOrListItemAccessor) {
+        if (current->GetMetatype() == ELogicalMetatype::Optional) {
+            current = current->GetElement();
+            optional = true;
+        }
+
         if (current->GetMetatype() == ELogicalMetatype::List) {
             resultType = current->GetElement();
         } else if (current->GetMetatype() == ELogicalMetatype::Dict) {
@@ -797,6 +815,10 @@ TExpressionBuilderV1::ResolveNestedTypesResult TExpressionBuilderV1::ResolveNest
             THROW_ERROR_EXCEPTION("Incorrect nested item accessor")
                 << TErrorAttribute("source", NAst::FormatReference(reference));
         }
+    }
+
+    if (optional) {
+        resultType = MakeOptionalIfNot(std::move(resultType));
     }
 
     return {std::move(nestedStructOrTupleItemAccessor), std::move(intermediateType), std::move(resultType)};
@@ -866,7 +888,7 @@ TUntypedExpression TExpressionBuilderV1::UnwrapCompositeMemberAccessor(
     auto listOrDictItemAccessor = UnwrapListOrDictItemAccessor(reference, resolved.IntermediateType->GetMetatype());
 
     auto memberAccessor = New<TCompositeMemberAccessorExpression>(
-        resolved.ResultType,
+        MakeOptionalIfNot(resolved.ResultType),
         columnReference,
         std::move(resolved.NestedStructOrTupleItemAccessor),
         listOrDictItemAccessor);

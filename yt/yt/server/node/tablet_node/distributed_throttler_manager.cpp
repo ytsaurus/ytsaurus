@@ -4,8 +4,6 @@
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -15,9 +13,10 @@
 
 #include <yt/yt/core/net/local_address.h>
 
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+
 namespace NYT::NTabletNode {
 
-using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NDistributedThrottler;
 using namespace NObjectClient;
@@ -41,12 +40,12 @@ public:
         , MemberId_(std::move(memberId))
         , DynamicConfigCallback_(BIND_NO_PROPAGATE(&TDistributedThrottlerManager::OnDynamicConfigChanged, MakeWeak(this)))
     {
-        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(DynamicConfigCallback_);
+        Bootstrap_->SubscribeTabletNodeConfigChanged(DynamicConfigCallback_);
     }
 
     ~TDistributedThrottlerManager()
     {
-        Bootstrap_->GetDynamicConfigManager()->UnsubscribeConfigChanged(DynamicConfigCallback_);
+        Bootstrap_->UnsubscribeTabletNodeConfigChanged(DynamicConfigCallback_);
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
@@ -117,8 +116,8 @@ public:
 
 private:
     using TDynamicConfigChangedCallback = TCallback<void(
-        const TClusterNodeDynamicConfigPtr& oldNodeConfig,
-        const TClusterNodeDynamicConfigPtr& newNodeConfig)>;
+        const TTabletNodeDynamicConfigPtr& oldNodeConfig,
+        const TTabletNodeDynamicConfigPtr& newNodeConfig)>;
     using TKey = std::tuple<TYPath, ETabletDistributedThrottlerKind>;
 
     IBootstrap* const Bootstrap_;
@@ -149,7 +148,7 @@ private:
         ETabletDistributedThrottlerKind kind,
         NProfiling::TProfiler profiler)
     {
-        auto throttlerConfigs = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->DistributedThrottlers;
+        auto throttlerConfigs = Bootstrap_->GetTabletNodeDynamicConfig()->DistributedThrottlers;
 
         return CreateDistributedThrottlerFactory(
             GetThrottlerConfig(throttlerConfigs, kind),
@@ -166,10 +165,10 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
-        const TClusterNodeDynamicConfigPtr& newNodeConfig)
+        const TTabletNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TTabletNodeDynamicConfigPtr& newNodeConfig)
     {
-        const auto& throttlerConfigs = newNodeConfig->TabletNode->DistributedThrottlers;
+        const auto& throttlerConfigs = newNodeConfig->DistributedThrottlers;
 
         auto guard = ReaderGuard(SpinLock_);
 

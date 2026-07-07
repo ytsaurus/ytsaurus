@@ -94,7 +94,7 @@ auto MakeFinishRequestFormatter(const TTransactionFinishRequest& request)
             additionalFormatter);
         return false;
     }
-    if (transaction->GetIsCypressTransaction() && transaction->IsForeign()) {
+    if (transaction->IsCypressTransaction() && transaction->IsForeign()) {
         YT_LOG_ALERT("Attempted to %v foreign Cypress transaction (TransactionId: %v%v)",
             actionDescription,
             GetObjectId(transaction),
@@ -415,9 +415,7 @@ public:
             return;
         }
 
-        if (transaction->GetPersistentState() != ETransactionState::Active ||
-            transaction->GetTransactionLeasesState() != ETransactionLeasesState::Active)
-        {
+        if (transaction->GetPersistentState() != ETransactionState::Active) {
             return;
         }
 
@@ -617,9 +615,10 @@ private:
             YT_LOG_EVENT(
                 Logger,
                 GetLogLevelForTooManyRetries(error),
-                "Too many attempts to revoke transaction leases (TransactionId: %v, RetryCount: %v)",
+                "Too many attempts to revoke transaction leases (TransactionId: %v, RetryCount: %v, LastError: %v)",
                 transaction->GetId(),
-                *invocationIndex);
+                *invocationIndex,
+                error);
         }
 
         YT_LOG_DEBUG("Transaction leases revocation enqueued (TransactionId: %v, Deadline: %v)",
@@ -637,7 +636,7 @@ private:
         }
 
         if (transaction->GetPersistentState() != ETransactionState::Active) {
-            YT_LOG_ALERT(
+            YT_LOG_DEBUG(
                 "Attempted to enqueue transaction finish for non-active transaction "
                 "(TransactionId: %v, PersistentState: %v)",
                 transaction->GetId(),
@@ -664,9 +663,10 @@ private:
             YT_LOG_EVENT(
                 Logger,
                 GetLogLevelForTooManyRetries(error),
-                "Too many attempts to finish transaction (TransactionId: %v, RetryCount: %v)",
+                "Too many attempts to finish transaction (TransactionId: %v, RetryCount: %v, LastError: %v)",
                 transaction->GetId(),
-                *invocationIndex);
+                *invocationIndex,
+                error);
         }
 
         YT_LOG_DEBUG("Transaction finish enqueued (TransactionId: %v, Deadline: %v)",

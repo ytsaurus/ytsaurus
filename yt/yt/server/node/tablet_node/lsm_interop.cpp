@@ -17,9 +17,6 @@
 #include "compaction_hint_controllers.h"
 #include "compaction_hint_fetching.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 
@@ -43,7 +40,6 @@
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
-using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
@@ -105,7 +101,7 @@ private:
         const auto& tabletManager = slot->GetTabletManager();
 
         std::vector<NLsm::TTabletPtr> lsmTablets;
-
+        lsmTablets.reserve(tabletManager->Tablets().size());
         {
             TForbidContextSwitchGuard guard;
 
@@ -121,6 +117,10 @@ private:
             slot->GetCellId(),
             lsmTablets.size());
 
+        if (Bootstrap_->GetTabletNodeDynamicConfig()->TabletManager->YieldBeforeBuildingLsmActions) {
+            Yield();
+        }
+
         auto actions = Backend_->BuildLsmActions(lsmTablets, slot->GetTabletCellBundleName());
         PartitionBalancer_->ProcessLsmActionBatch(slot, actions);
         StoreRotator_->ProcessLsmActionBatch(slot, actions);
@@ -130,6 +130,8 @@ private:
                 tablet->LsmStatistics() = lsmTablet->LsmStatistics();
             }
         }
+
+        GetFinalizerInvoker()->Invoke(BIND([lsmTablets = std::move(lsmTablets)] { }));
     }
 
     void OnEndSlotScan()
@@ -170,8 +172,8 @@ private:
         backendState.CurrentTimestamp = timestampProvider->GetLatestTimestamp();
 
         backendState.TabletNodeConfig = GenerateLsmConfig(
-            Bootstrap_->GetConfig()->TabletNode,
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode);
+            Bootstrap_->GetTabletNodeConfig(),
+            Bootstrap_->GetTabletNodeDynamicConfig());
 
         const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
         const auto& cellar = Bootstrap_->GetCellarManager()->GetCellar(NCellarClient::ECellarType::Tablet);
@@ -241,14 +243,19 @@ private:
 
         if (tablet->IsPhysicallySorted()) {
             lsmTablet->Eden() = ScanPartition(tablet->GetEden(), lsmTablet.Get());
+            lsmTablet->Partitions().reserve(tablet->PartitionList().size());
             for (const auto& partition : tablet->PartitionList()) {
                 lsmTablet->Partitions().push_back(ScanPartition(partition.get(), lsmTablet.Get()));
             }
             lsmTablet->SetOverlappingStoreCount(tablet->GetOverlappingStoreCount());
             lsmTablet->SetEdenOverlappingStoreCount(tablet->GetEdenOverlappingStoreCount());
             lsmTablet->SetCriticalPartitionCount(tablet->GetCriticalPartitionCount());
-            lsmTablet->SetHasTtlColumn(tablet->GetTableSchema()->HasTtlColumn());
+
+            auto tableSchema = tablet->GetTableSchema();
+            lsmTablet->SetHasTtlColumn(tableSchema->HasTtlColumn());
+            lsmTablet->SetHasAggregateColumn(tableSchema->HasAggregateColumns());
         } else {
+            lsmTablet->Stores().reserve(tablet->StoreIdMap().size());
             for (const auto& [id, store] : tablet->StoreIdMap()) {
                 lsmTablet->Stores().push_back(ScanStore(store, lsmTablet.Get()));
             }
@@ -280,6 +287,7 @@ private:
             lsmPartition->CompactionHints().Hints()[controller.GetPartitionCompactionHintKind()] = controller.LsmCompactionHint();
         }
 
+        lsmPartition->Stores().reserve(partition->Stores().size());
         for (const auto& store : partition->Stores()) {
             lsmPartition->Stores().push_back(ScanStore(
                 store,
@@ -331,13 +339,13 @@ private:
             if (store->IsSorted()) {
                 auto sortedChunkStore = store->AsSortedChunk();
 
-                auto& FetchPipelines = sortedChunkStore->CompactionHintFetchPipelines();
+                auto& fetchPipelines = sortedChunkStore->CompactionHintFetchPipelines();
                 for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
-                    if (FetchPipelines.DefinitelyHasNoHint(storeKind)) {
+                    if (fetchPipelines.DefinitelyHasNoHint(storeKind)) {
                         continue;
                     }
 
-                    if (auto pipeline = FetchPipelines.FetchPipelines()[storeKind]->Lock()) {
+                    if (auto pipeline = fetchPipelines.FetchPipelines()[storeKind]->Lock()) {
                         lsmStore->CompactionHints().Payloads()[storeKind] = pipeline->Payload();
                     }
 

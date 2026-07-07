@@ -1,11 +1,12 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, read_structured_log
 
 from yt_commands import (
     authors, read_table, wait, ls, set, get, map, update_nodes_dynamic_config, create,
     write_file, write_table, merge, create_domestic_medium, exists,
-    set_account_disk_space_limit, get_account_disk_space_limit, remove)
+    set_account_disk_space_limit, get_account_disk_space_limit, remove,
+    run_test_vanilla)
 
 import yt_error_codes
 
@@ -43,11 +44,19 @@ class TestLocationMisconfigured(YTEnvSetup):
         wait(lambda: check_alerts())
 
 
-class TestCacheLocation(YTEnvSetup):
+class TestDisableCacheLocation(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
     STORE_LOCATION_COUNT = 1
+
+    def teardown_method(self, method):
+        chunk_cache = self.Env.configs["node"][0]["data_node"]["cache_locations"][0]["path"]
+        if os.path.exists(f"{chunk_cache}/disabled"):
+            os.remove(f"{chunk_cache}/disabled")
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+        super().teardown_method(method)
 
     @authors("don-dron")
     def test_disable_cache_location(self):
@@ -132,6 +141,58 @@ for line in sys.stdin:
 
         op.track()
 
+    @authors("dann239")
+    def test_disabled_location_holds_no_artifacts(self):
+        node = ls("//sys/cluster_nodes")[0]
+        chunk_cache = self.Env.configs["node"][0]["data_node"]["cache_locations"][0]["path"]
+        assert not os.path.exists(f"{chunk_cache}/disabled")
+
+        # We set compression_codec here so that it trips the test_cache_location_disabling check.
+        create("file", "//tmp/file_big", attributes={"compression_codec": "lz4"})
+        write_file(
+            "//tmp/file_big",
+            b"x" * (1024 * 1024),
+            file_writer={"upload_replication_factor": 1},
+        )
+
+        create("file", "//tmp/file_small")
+        write_file(
+            "//tmp/file_small",
+            b"y" * 4096,
+            file_writer={"upload_replication_factor": 1},
+        )
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "chunk_cache": {
+                    "test_cache_location_disabling": True,
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            command="true",
+            spec={"max_failed_job_count": 1},
+            task_patch={"file_paths": ["//tmp/file_big", "//tmp/file_small"]},
+            track=False,
+        )
+
+        wait(lambda: os.path.exists(f"{chunk_cache}/disabled"))
+        op.abort()
+
+        def cache_artifact_count():
+            total = 0
+            for segment in ("younger", "older"):
+                value = profiler_factory().at_node(node).gauge(
+                    name="exec_node/artifact_cache/size",
+                    fixed_tags={"segment": segment},
+                ).get()
+                if value is not None:
+                    total += value
+            return total
+
+        wait(lambda: cache_artifact_count() == 0)
+
 
 class TestPerLocationFullHeartbeats(YTEnvSetup):
     ENABLE_MULTIDAEMON = False
@@ -184,7 +245,7 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
 
     @authors("grphil")
     def test_empty_locations_are_reported(self):
-        # COPMAT(danilalexeev): YT-23781. Remove this once location fhb are enabled by default.
+        # COMPAT(danilalexeev): YT-23781. Remove this once location fhb are enabled by default.
         set("//sys/@config/chunk_manager/data_node_tracker/enable_validation_full_heartbeats", False)
 
         nodes = ls("//sys/cluster_nodes")
@@ -232,7 +293,7 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_interrupt_full_heartbeat_session(self):
-        # COPMAT(danilalexeev): YT-23781. Remove this once location fhb are enabled by default.
+        # COMPAT(danilalexeev): YT-23781. Remove this once location fhb are enabled by default.
         set("//sys/@config/chunk_manager/data_node_tracker/enable_validation_full_heartbeats", False)
 
         self.create_chunk_on_every_medium()
@@ -459,3 +520,112 @@ class TestAsyncTrashLoad(YTEnvSetup):
 
         wait(lambda: wait_sensor_change('location/trash_space', trash_space))
         wait(lambda: wait_sensor_change('location/trash_chunk_count', trash_chunk_count))
+
+
+class TestCacheLocationOverflow(YTEnvSetup):
+    USE_PORTO = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+    STORE_LOCATION_COUNT = 1
+
+    _TMPFS_SIZE = 10 * 1024 * 1024
+
+    @classmethod
+    def setup_class(cls):
+        import porto
+        vol = porto.Connection().CreateVolume(backend="tmpfs", space_limit=str(cls._TMPFS_SIZE))
+        cls.cache_volume_path = vol.path
+        super().setup_class()
+
+    @classmethod
+    def teardown_class(cls):
+        super().teardown_class()
+
+        import porto
+        porto.Connection().UnlinkVolume(cls.cache_volume_path)
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        super().modify_node_config(config, cluster_index)
+        config["data_node"]["cache_locations"][0]["path"] = cls.cache_volume_path
+
+    def teardown_method(self, method):
+        chunk_cache = self.Env.configs["node"][0]["data_node"]["cache_locations"][0]["path"]
+        if os.path.exists(f"{chunk_cache}/disabled"):
+            os.remove(f"{chunk_cache}/disabled")
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+        super().teardown_method(method)
+
+    @authors("dann239")
+    @pytest.mark.parametrize("multi_chunk", [False, True])
+    @pytest.mark.parametrize("disable_on_out_of_disk_space", [False, True])
+    def test_cache_location_overflow(self, multi_chunk, disable_on_out_of_disk_space):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "chunk_cache": {
+                    "test_disable_on_out_of_disk_space": disable_on_out_of_disk_space,
+                }
+            }
+        })
+
+        artifact_size = self._TMPFS_SIZE + 2 * 1024 * 1024
+
+        create("file", "//tmp/big_file")
+        write_file(
+            "//tmp/big_file",
+            b"x" * artifact_size,
+            file_writer={
+                "upload_replication_factor": 1,
+                "desired_chunk_size":
+                    self._TMPFS_SIZE // 4
+                    if multi_chunk
+                    else artifact_size * 2
+            },
+        )
+
+        node = ls("//sys/cluster_nodes")[0]
+
+        assert get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 1
+        assert not os.path.exists(f"{self.cache_volume_path}/disabled")
+
+        op = run_test_vanilla(
+            command="true",
+            spec={"max_failed_job_count": 1},
+            task_patch={"file_paths": ["//tmp/big_file"]},
+            track=False,
+        )
+
+        if disable_on_out_of_disk_space:
+            wait(lambda: get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 0)
+            wait(lambda: os.path.exists(f"{self.cache_volume_path}/disabled"))
+            assert op.get_job_count("aborted") == 1
+            op.abort()
+        else:
+            wait(lambda: op.get_job_count("aborted") >= 2)
+            op.abort()
+
+            assert get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 1
+            assert not os.path.exists(f"{self.cache_volume_path}/disabled")
+
+        leftover_temp_files = [
+            os.path.join(root, name)
+            for root, _, files in os.walk(self.cache_volume_path)
+            for name in files
+            if name.endswith("~")
+        ]
+        assert len(leftover_temp_files) == 0, leftover_temp_files
+
+        entries = read_structured_log(
+            self.path_to_run + "/logs/controller-agent-0.json.log",
+            row_filter=lambda e: (
+                e.get("event_type") == "job_aborted" and
+                e.get("operation_id") == op.id and
+                "Job aborted by" not in e["error"]["message"]
+            ),
+        )
+        assert len(entries) > 0
+        for entry in entries:
+            assert 'No space left on device' in str(entry), entry

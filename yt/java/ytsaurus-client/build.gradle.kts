@@ -34,6 +34,7 @@ dependencies {
     api("org.lz4:lz4-java:1.6.0")
     testImplementation("javax.persistence:persistence-api:1.0")
     testImplementation(project(":yt:java:ytsaurus-testlib"))
+    testImplementation(project(":yt:java:ytsaurus-testlib:src:main:proto"))
     testImplementation("com.google.protobuf:protobuf-java:4.33.0")
     testImplementation("junit:junit:4.13")
     testImplementation("org.apache.logging.log4j:log4j-core:2.25.0")

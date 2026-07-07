@@ -1,10 +1,12 @@
 #include "config.h"
 
+#include <yt/yt/ytlib/exec_node/public.h>
+
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <yt/yt/library/profiling/solomon/config.h>
 
-#include <yt/yt/server/lib/signature/config.h>
+#include <yt/yt/library/signature/components/config.h>
 
 #include <yt/yt/core/misc/config.h>
 
@@ -69,9 +71,6 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("locations", &TThis::Locations);
 
-    registrar.Parameter("enable_tmpfs", &TThis::EnableTmpfs)
-        .Default(true);
-
     registrar.Parameter("detached_tmpfs_umount", &TThis::DetachedTmpfsUmount)
         .Default(true);
 
@@ -83,12 +82,6 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("file_copy_chunk_size", &TThis::FileCopyChunkSize)
         .GreaterThanOrEqual(1_KB)
         .Default(10_MB);
-
-    registrar.Parameter("enable_read_write_copy", &TThis::EnableReadWriteCopy)
-        .Default(false);
-
-    registrar.Parameter("enable_artifact_copy_tracking", &TThis::EnableArtifactCopyTracking)
-        .Default(false);
 
     registrar.Parameter("do_not_set_user_id", &TThis::DoNotSetUserId)
         .Default(false);
@@ -107,6 +100,10 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("numa_nodes", &TThis::NumaNodes)
         .Default();
+
+    registrar.Parameter("enable_non_root_volumes", &TThis::EnableNonRootVolumes)
+        .Alias("enable_tmpfs")
+        .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
         std::unordered_set<i64> numaNodeIds;
@@ -167,6 +164,12 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("volume_release_timeout", &TThis::VolumeReleaseTimeout)
         .Default(TDuration::Minutes(20));
 
+    registrar.Parameter("remove_volumes_from_porto_place_timeout", &TThis::RemoveVolumesFromPortoPlaceTimeout)
+        .Default(TDuration::Minutes(20));
+
+    registrar.Parameter("remove_layers_from_porto_place_timeout", &TThis::RemoveLayersFromPortoPlaceTimeout)
+        .Default(TDuration::Minutes(20));
+
     registrar.Parameter("abort_on_free_volume_synchronization_failed", &TThis::AbortOnFreeVolumeSynchronizationFailed)
         .Default(false);
 
@@ -182,10 +185,22 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
         .DefaultNew();
 
+    registrar.Parameter("enable_async_artifact_copy", &TThis::EnableAsyncArtifactCopy)
+        .Default(false);
+
+    registrar.Parameter("artifact_pipe_size", &TThis::ArtifactPipeSize)
+        .Default(1_MB);
+
+    registrar.Parameter("copy_rate_aggregator_half_life", &TThis::CopyRateAggregatorHalfLife)
+        .Default(TDuration::Minutes(1));
+
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .DefaultCtor([] {
             return NJobProxy::TJobEnvironmentConfig(NJobProxy::EJobEnvironmentType::Simple);
         });
+
+    registrar.Parameter("location_config_patch", &TThis::LocationConfigPatch)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,6 +243,9 @@ void TLayerCacheDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("tmpfs_cache", &TThis::TmpfsCache)
         .DefaultNew();
+
+    registrar.Parameter("location_config_patch", &TThis::LocationConfigPatch)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -255,6 +273,9 @@ void TChunkCacheDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("test_cache_location_disabling", &TThis::TestCacheLocationDisabling)
         .Default(false);
+
+    registrar.Parameter("test_disable_on_out_of_disk_space", &TThis::TestDisableOnOutOfDiskSpace)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -275,9 +296,9 @@ void TUserJobStatisticSensor::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const THashMap<TString, TUserJobStatisticSensorPtr>& TUserJobMonitoringDynamicConfig::GetDefaultStatisticSensors()
+const THashMap<std::string, TUserJobStatisticSensorPtr>& TUserJobMonitoringDynamicConfig::GetDefaultStatisticSensors()
 {
-    static const auto DefaultStatisticSensors = ConvertTo<THashMap<TString, TUserJobStatisticSensorPtr>>(BuildYsonStringFluently()
+    static const auto DefaultStatisticSensors = ConvertTo<THashMap<std::string, TUserJobStatisticSensorPtr>>(BuildYsonStringFluently()
         .BeginMap()
             // Sensors `job_cpu/*` and `job_memory/*` are relevant for CRI job environment.
             .Item("job_cpu/user").BeginMap()
@@ -372,6 +393,18 @@ const THashMap<TString, TUserJobStatisticSensorPtr>& TUserJobMonitoringDynamicCo
                 .Item("path").Value("/user_job/block_io/io_total")
                 .Item("type").Value("counter")
                 .Item("profiling_name").Value("/user_job/block_io/io_total")
+            .EndMap()
+
+            .Item("block_io/bytes_read").BeginMap()
+                .Item("path").Value("/user_job/block_io/bytes_read")
+                .Item("type").Value("counter")
+                .Item("profiling_name").Value("/user_job/block_io/bytes_read")
+            .EndMap()
+
+            .Item("block_io/bytes_written").BeginMap()
+                .Item("path").Value("/user_job/block_io/bytes_written")
+                .Item("type").Value("counter")
+                .Item("profiling_name").Value("/user_job/block_io/bytes_written")
             .EndMap()
 
             .Item("network/rx_bytes").BeginMap()
@@ -578,6 +611,12 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
+
+    registrar.Parameter("use_gpu_info_provider_for_device_discovery", &TThis::UseGpuInfoProviderForDeviceDiscovery)
+        .Default(false);
+
+    registrar.Parameter("gpu_flavor", &TThis::GpuFlavor)
+        .Default(EGpuFlavor::Nvidia);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -619,6 +658,9 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("apply_network_service_level_timeout", &TThis::ApplyNetworkServiceLevelTimeout)
         .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("use_gpu_info_provider_for_device_discovery", &TThis::UseGpuInfoProviderForDeviceDiscovery)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -639,6 +681,9 @@ void TTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fail_address_resolve", &TThis::FailAddressResolve)
         .Default(false);
+
+    registrar.Parameter("delay_in_artifacts_caching", &TThis::DelayInArtifactsCaching)
+        .Default();
 }
 
 void TJobProbeConfig::Register(TRegistrar registrar)
@@ -795,7 +840,7 @@ void TNbdClientConfig::Register(TRegistrar registrar)
     registrar.Parameter("reconnect_timeout", &TThis::ReconnectTimeout)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("connection_count", &TThis::ConnectionCount)
-        .Default(2);
+        .Default(DefaultNbdMultiplexingParallelism);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -804,6 +849,8 @@ void TNbdConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default();
+    registrar.Parameter("read_write_enabled", &TThis::ReadWriteEnabled)
+        .Default(true);
     registrar.Parameter("client", &TThis::Client)
         .DefaultNew();
     registrar.Parameter("server", &TThis::Server)
@@ -895,8 +942,6 @@ void TLogDumpConfig::Register(TRegistrar registrar)
 
 void TJobProxyLogManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("directory", &TThis::Directory);
-
     registrar.Parameter("sharding_key_length", &TThis::ShardingKeyLength)
         .GreaterThan(0);
 
@@ -906,7 +951,17 @@ void TJobProxyLogManagerConfig::Register(TRegistrar registrar)
         .Default(0)
         .GreaterThanOrEqual(0);
 
+    registrar.Parameter("location_check_period", &TThis::LocationCheckPeriod)
+        .Default(TDuration::Minutes(1));
+
     registrar.Parameter("log_dump", &TThis::LogDump);
+
+    // COMPAT(epsilond1): Use NonEmpty >= 26.1
+    registrar.Parameter("job_proxy_log_symlinks_path", &TThis::JobProxyLogSymlinksPath)
+        .Default();
+
+    registrar.Parameter("locations", &TThis::Locations)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -923,6 +978,9 @@ void TLogDumpDynamicConfig::Register(TRegistrar registrar)
 
 void TJobProxyLogManagerDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("location_check_period", &TThis::LocationCheckPeriod)
+        .Default();
+
     registrar.Parameter("logs_storage_period", &TThis::LogsStoragePeriod)
         .Default();
 
@@ -931,6 +989,14 @@ void TJobProxyLogManagerDynamicConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
 
     registrar.Parameter("log_dump", &TThis::LogDump)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobProxyLogManagerLocationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path)
         .Default();
 }
 
@@ -957,6 +1023,25 @@ void TExecNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("signature_components", &TThis::SignatureComponents)
         .DefaultNew();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->JobProxy->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
+            THROW_ERROR_EXCEPTION_IF(
+                config->JobProxyLogManager->JobProxyLogSymlinksPath.empty(),
+                "job_proxy_log_symlinks_path must not be empty");
+
+            THROW_ERROR_EXCEPTION_IF(
+                config->JobProxyLogManager->Locations.empty(),
+                "`locations` must be non-empty when job proxy logging mode is `per_job_directory`");
+
+            for (int idx = 0; idx < std::ssize(config->JobProxyLogManager->Locations); ++idx) {
+                THROW_ERROR_EXCEPTION_IF(
+                    config->JobProxyLogManager->Locations[idx]->Path.empty(),
+                    "Location has empty path (LocationIndex: %v)",
+                    idx);
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,7 +7,9 @@ The `Ip` module supports both the IPv4 and IPv6 addresses. By default, they are 
 * `Ip::FromString(String{Flags:AutoMap}) -> String?` — From a human-readable representation to a binary representation.
 * `Ip::SubnetFromString(String{Flags:AutoMap}) -> String?` — From a human-readable representation of a subnet to a binary representation.
 * `Ip::ToString(String{Flags:AutoMap}) -> String?` — From a binary representation to a human-readable representation.
-* `Ip::ToString(String{Flags:AutoMap}) -> String?` — From a binary representation of a subnet to a human-readable representation.
+* `Ip::SubnetToString(String{Flags:AutoMap}) -> String?` — From a binary representation of a subnet to a human-readable representation.
+* `Ip::Ipv4FromUint32(Uint32{Flags:AutoMap}) -> String` — From a Uint32 to a binary representation; the integer `A << 24 | B << 16 | C << 8 | D` corresponds to address `A.B.C.D`.
+* `Ip::Ipv4ToUint32(String{Flags:AutoMap}) -> Uint32?` — From a binary IPv4 representation to Uint32; address `A.B.C.D` corresponds to the integer `A << 24 | B << 16 | C << 8 | D`; IPv6 is not supported.
 * `Ip::IsIPv4(String?) -> Bool`
 * `Ip::IsIPv6(String?) -> Bool`
 * `Ip::IsEmbeddedIPv4(String?) -> Bool`
@@ -43,4 +45,12 @@ SELECT
       Ip::FromString("255.255.0.0")
     )
   ); -- "192.168.0.0"
+
+SELECT Ip::ToString(
+  Ip::Ipv4FromUint32(1)
+); -- "0.0.0.1"
+
+SELECT Ip::Ipv4ToUint32(
+  Ip::FromString("0.0.0.1")
+); -- 1
 ```

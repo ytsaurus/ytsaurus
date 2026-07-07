@@ -55,7 +55,6 @@ class DynamicTablesResourceLimitsBase(DynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -104,7 +103,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
         sync_flush_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* violates .* limit"):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/" + resource, 10000)
@@ -120,15 +119,15 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         sync_create_cells(1)
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over tablet count limit"):
             self._create_sorted_table("//tmp/t", account="test_account")
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over tablet count limit"):
             self._create_ordered_table("//tmp/t", account="test_account")
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over tablet count limit"):
             self._create_ordered_table("//tmp/t", account="test_account", tablet_count=2)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over tablet count limit"):
             self._create_sorted_table("//tmp/t", account="test_account", pivot_keys=[[], [1]])
 
         assert get("//sys/accounts/test_account/@ref_counter") == 1
@@ -168,7 +167,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         self._verify_resource_usage("test_account", "tablet_static_memory", data_size)
 
         set("//tmp/t1/@in_memory_mode", "uncompressed")
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over tablet static memory limit"):
             sync_mount_table("//tmp/t1")
 
         remount_table("//tmp/t0")
@@ -192,9 +191,9 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
             == 2
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over tablet count limit"):
             reshard_table("//tmp/t1", [[], [1]])
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over tablet count limit"):
             reshard_table("//tmp/t2", 2)
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 4)
@@ -223,7 +222,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
             == 1
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over tablet count limit"):
             copy("//tmp/t", "//tmp/t_copy", preserve_account=True)
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 2)
@@ -246,7 +245,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
 
         create("map_node", "//tmp/dir", attributes={"account": "test_account2"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over tablet count limit"):
             copy("//tmp/t", "//tmp/dir/t_copy", preserve_account=False)
 
         self._verify_resource_usage("test_account2", "tablet_count", 0)
@@ -297,7 +296,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         self._verify_resource_usage("test_account", "tablet_count", 0)
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over tablet count limit"):
             alter_table("//tmp/t", dynamic=True)
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
@@ -318,7 +317,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         sync_unmount_table("//tmp/t")
 
         set("//tmp/t/@in_memory_mode", mode)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over tablet static memory limit"):
             mount_table("//tmp/t")
 
         def _verify():
@@ -342,7 +341,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         wait(_verify)
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* violates tablet static memory limit"):
             insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
 
         self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 1000)
@@ -397,7 +396,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         sync_flush_table("//tmp/t1")
         assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") > 0
         assert get("//sys/accounts/test_account/@violated_resource_limits/tablet_static_memory")
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* violates tablet static memory limit"):
             insert_rows("//tmp/t1", [{"key": 1, "value": "1"}])
 
         self._create_sorted_table("//tmp/t2", account="test_account")
@@ -425,7 +424,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         insert_rows("//tmp/t2", [{"key": 1, "value": "1"}])
         sync_flush_table("//tmp/t2")
 
-        with raises_yt_error("tablet static"):
+        with raises_yt_error("Account .* violates tablet static memory limit"):
             insert_rows("//tmp/t1", [{"key": 1, "value": "1"}])
 
     @authors("ifsmirnov")
@@ -449,7 +448,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
 
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* violates disk space limit for medium .*"):
             insert_rows("//tmp/t", [{"key": 1}])
 
         set(
@@ -536,7 +535,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
 
         set("//sys/accounts/test_account/@resource_limits/node_count", 0)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             build_snapshot(cell_id=cell_id)
 
         time.sleep(3.0)
@@ -571,7 +570,6 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         assert get("//sys/tablet_cell_bundles/b/@changelog_account_violated_resource_limits/disk_space_per_medium/default")
 
 
-@pytest.mark.enabled_multidaemon
 class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -582,7 +580,6 @@ class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -593,7 +590,6 @@ class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulti
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -606,7 +602,6 @@ class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPo
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestDynamicTablesResourceLimitsSequoia(TestDynamicTablesResourceLimitsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -624,7 +619,6 @@ class TestDynamicTablesResourceLimitsSequoia(TestDynamicTablesResourceLimitsShar
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -646,15 +640,15 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         sync_create_cells(1, tablet_cell_bundle="b")
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 0)
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             self._create_ordered_table("//tmp/t", tablet_cell_bundle="b")
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             self._create_ordered_table("//tmp/t", tablet_cell_bundle="b", tablet_count=2)
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", pivot_keys=[[], [1]])
 
         assert get("//sys/tablet_cell_bundles/b/@ref_counter") == 2
@@ -693,7 +687,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         self._verify_resource_usage("b", "tablet_static_memory", data_size)
 
         set("//tmp/t1/@in_memory_mode", "uncompressed")
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             sync_mount_table("//tmp/t1")
 
         remount_table("//tmp/t0")
@@ -718,9 +712,9 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
             == 2
         )
 
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             reshard_table("//tmp/t1", [[], [1]])
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             reshard_table("//tmp/t2", 2)
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 4)
@@ -749,10 +743,10 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         )
 
         # Currently the table cannot be moved without 2x temporary quota.
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             move("//tmp/t", "//tmp/t_other")
 
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             copy("//tmp/t", "//tmp/t_copy")
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 2)
@@ -778,7 +772,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         self._verify_resource_usage("default", "tablet_count", 2)
 
         multicell_sleep()
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             set("//tmp/t/@tablet_cell_bundle", "b")
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 2)
@@ -798,7 +792,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         self._verify_resource_usage("b", "tablet_count", 0)
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 0)
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             alter_table("//tmp/t", dynamic=True)
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
@@ -819,7 +813,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         sync_unmount_table("//tmp/t")
 
         set("//tmp/t/@in_memory_mode", mode)
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             mount_table("//tmp/t")
 
         def _verify():
@@ -845,7 +839,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         #  with pytest.raises(YtError):
         #      insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
 
-        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 1000)
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 1400)
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
 
         sync_compact_table("//tmp/t")
@@ -882,7 +876,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         _test("compressed")
         _test("uncompressed")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change table memory mode since not all tablets are unmounted"):
             set("//tmp/t/@in_memory_mode", "none")
 
     @authors("ifsmirnov")
@@ -943,14 +937,14 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         insert_rows("//tmp/t", [{"key": 1}])
 
         self._multicell_set("//sys/@config/security_manager/enable_tablet_resource_validation", True)
-        with raises_yt_error(yt_error_codes.AccountLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.AccountLimitExceeded):
             insert_rows("//tmp/t", [{"key": 1}])
 
         self._multicell_set("//sys/@config/security_manager/enable_tablet_resource_validation", False)
         insert_rows("//tmp/t", [{"key": 1}])
 
         self._multicell_set("//sys/@config/tablet_manager/enable_tablet_resource_validation", True)
-        with raises_yt_error(yt_error_codes.BundleResourceLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.BundleResourceLimitExceeded):
             insert_rows("//tmp/t", [{"key": 1}])
 
         self._multicell_set("//sys/@config/tablet_manager/enable_tablet_resource_validation", False)
@@ -1015,9 +1009,9 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         assert get(path1) == {"tablet_count": 90, "tablet_static_memory": 180}
         assert get(path2) == {"tablet_count": 10, "tablet_static_memory": 20}
 
-        with raises_yt_error("does not have enough resources"):
+        with raises_yt_error("Failed to change resource limits of tablet cell bundle .* since it does not have enough resources"):
             transfer_bundle_resources("b1", "b2", {"tablet_count": 91})
-        with raises_yt_error("does not have enough resources"):
+        with raises_yt_error("Failed to change resource limits of tablet cell bundle .* since it does not have enough resources"):
             transfer_bundle_resources("b1", "b2", {"tablet_static_memory": 181})
 
         assert not exists(path1 + "/@cpu")
@@ -1025,11 +1019,11 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         assert get("//sys/tablet_cell_bundles/b1/@resource_quota") == {}
         assert get("//sys/tablet_cell_bundles/b2/@resource_quota") == {}
 
-        with raises_yt_error("does not have enough resources"):
+        with raises_yt_error("Failed to change resource limits of tablet cell bundle .* since it does not have enough resources"):
             transfer_bundle_resources("b1", "b2", {"cpu": 1})
 
         set(path1 + "/cpu", 300)
-        with raises_yt_error("does not have enough resources"):
+        with raises_yt_error("Failed to change resource limits of tablet cell bundle .* since it does not have enough resources"):
             transfer_bundle_resources("b1", "b2", {"cpu": 400})
         transfer_bundle_resources("b1", "b2", {"cpu": 300})
         assert get(path1 + "/cpu") == 0
@@ -1134,7 +1128,6 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
             transfer_bundle_resources("b", "b", {"tablet_count": 200})
 
 
-@pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingMulticell(TestPerBundleAccounting):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1145,14 +1138,12 @@ class TestPerBundleAccountingMulticell(TestPerBundleAccounting):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingRpcProxy(TestPerBundleAccounting):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingPortal(TestPerBundleAccountingMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -1163,7 +1154,6 @@ class TestPerBundleAccountingPortal(TestPerBundleAccountingMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -1176,7 +1166,6 @@ class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingSequoia(TestPerBundleAccountingShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

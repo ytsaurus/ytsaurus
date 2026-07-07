@@ -24,11 +24,13 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/core/concurrency/async_barrier.h>
+
 #include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
 
-#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
+#include <library/cpp/containers/absl/flat_hash_map.h>
 
 #include <optional>
 
@@ -124,8 +126,8 @@ class TTransaction
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, Title);
-    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ReplicatedToCellTags);
-    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ExternalizedToCellTags);
+    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagSet, ReplicatedToCellTags);
+    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagSet, ExternalizedToCellTags);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransactionRawPtr>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionRawPtr, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
@@ -134,16 +136,15 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransactionRawPtr>, DependentTransactions);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, Deadline);
     DEFINE_BYVAL_RW_PROPERTY(int, Depth);
+
+    struct TNativeCommitRevision
+    {
+        NHydra::TRevision Mutation = NHydra::NullRevision;
+        NHydra::TRevision Sequoia = NHydra::NullRevision;
+    };
     // Only set when transaction commit is in progress that has been initiated via an Hive message.
     // There's no strong reason for this field to be persistent, but it may ease future debugging.
-    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, NativeCommitMutationRevision, NHydra::NullRevision);
-
-    // COMPAT(h0pless): Remove this when all issues with system transaction types will be ironed out.
-    DEFINE_BYVAL_RW_PROPERTY(bool, IsCypressTransaction);
-
-    // COMPAT(kvk1920)
-    // NB: meaningful only for Cypress tx.
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(NativeTxExternalizationEnabled);
+    DEFINE_BYREF_RW_PROPERTY(TNativeCommitRevision, NativeCommitRevision);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<NHydra::TCellId>, LeaseCellIds);
 
@@ -151,7 +152,7 @@ public:
 
     struct TExportEntry
     {
-        NObjectServer::TObjectRawPtr Object;
+        NObjectServer::TStrongObjectPtr<NObjectServer::TObject> Object;
         NObjectClient::TCellTag DestinationCellTag;
 
         void Persist(const NCellMaster::TPersistenceContext& context);
@@ -166,6 +167,7 @@ public:
     using TLockSet = THashSet<NCypressServer::TLockRawPtr>;
     DEFINE_BYREF_RO_PROPERTY(TLockSet, Locks);
     DEFINE_BYREF_RW_PROPERTY(TBranchedNodeSet, BranchedNodes);
+    // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions. Remove after 26.1.
     using TStagedNodeList = std::vector<NCypressServer::TCypressNodeRawPtr>;
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
     DEFINE_BYREF_RW_PROPERTY(TBulkInsertState, BulkInsertState, this);
@@ -188,9 +190,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTracing::TTraceContextPtr, TraceContext);
 
 public:
-    explicit TTransaction(TTransactionId id, bool upload = false);
-
-    bool IsUpload() const;
+    explicit TTransaction(TTransactionId id);
 
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
@@ -217,11 +217,14 @@ public:
     //! Returns |true| if this a (topmost or nested) externalized transaction.
     bool IsExternalized() const;
 
+    //! Returns |true| if this a Cypress (topmost or nested) transaction.
+    bool IsCypressTransaction() const;
+
+    //! Returns |true| if this an upload (topmost or nested) transaction.
+    bool IsUpload() const;
+
     //! Returns total number of locks taken by transaction and it's children.
     int GetRecursiveLockCount() const;
-
-    // COMPAT(h0pless)
-    void IncreaseRecursiveLockCount(int delta = 1);
 
     void AttachLock(
         NCypressServer::TLock* lock,
@@ -240,19 +243,34 @@ public:
     void SetSuccessorTransactionLeaseCount(int newLeaseCount);
     int GetSuccessorTransactionLeaseCount() const;
 
+    bool IsNativeTxExternalizationEnabled() const;
+
     //! Can be confused with IsSequiaTransaction().
     bool IsSequoia() const = delete;
+
+    //! Saves a barrier tag and its corresponding cookie. Passing #InvalidAsyncBarrierCookie
+    //! as cookie indicates that an actual cookie is not known yet and will be delivered later,
+    //! but attaches the tag to the transaction permanently.
+    void RegisterBarrierCookie(
+        const std::string& tag,
+        NConcurrency::TAsyncBarrierCookie cookie);
+
+    const THashMap<std::string, NConcurrency::TAsyncBarrierCookie>& GetBarrierCookies() const;
 
 protected:
     IActionStateFactory* GetActionStateFactory() override;
 
 private:
-    bool Upload_ = false;
     int RecursiveLockCount_ = 0;
 
     int SuccessorTransactionLeaseCount_ = 0;
 
+    // COMPAT(h0pless): AbortStuckTransactions.
+    bool NativeTxExternalizationEnabled_ = true;
+
     ETransactionLeasesState LeasesState_ = ETransactionLeasesState::Active;
+
+    THashMap<std::string, NConcurrency::TAsyncBarrierCookie> BarrierTagToCookie_;
 
     void IncrementRecursiveLockCount();
     void DecrementRecursiveLockCount();

@@ -11,8 +11,10 @@ processings:
     interval: 30m
     table_format: "2006-01-02T15:04:05"
     cutoff_time: 2h
+    expiration_timeout: 168h
   1d:
     output_path: //sys/admin/logs/export/master-access-parsed/1d
     interval: 24h
     table_format: "2006-01-02"
     cutoff_time: 2h
+    # expiration_timeout: 672h

@@ -197,7 +197,7 @@ i64 TimestampFloorQuarterViaLib(i64 timestamp)
     timestamp -= timeinfo.tm_min * 60;
     timestamp -= timeinfo.tm_sec;
 
-    while (timeinfo.tm_mon % 4 != 0) {
+    while (timeinfo.tm_mon % 3 != 0) {
         timestamp--;
 
         GmTimeR(&timestamp, &timeinfo);
@@ -243,7 +243,7 @@ i64 TimestampFloorQuarterViaLut(i64 timestamp)
     timestamp -= timestamp % SECONDS_IN_DAY;
     timestamp -= (day->DayOfTheMonth - 1) * SECONDS_IN_DAY;
 
-    while (day->Month % 4 != 1) {
+    while (day->Month % 3 != 1) {
         timestamp--;
 
         day = &UtcLut[FindUtc(timestamp)];
@@ -289,7 +289,7 @@ i64 TimestampFloorQuarterLocaltimeViaLut(i64 timestamp)
 {
     const auto* day = &LocaltimeLut[FindLocal(timestamp)];
     day -= day->DayOfTheMonth - 1;
-    while (day->Month % 4 != 1) {
+    while (day->Month % 3 != 1) {
         day -= 1;
         day -= day->DayOfTheMonth - 1;
     }
@@ -357,7 +357,7 @@ i64 TimestampFloorQuarterLocaltimeViaLib(i64 timestamp)
     constexpr i64 FiveMonths = SECONDS_IN_DAY * 31 * 5;
 
     return BinarySearchTm(timestamp, FiveMonths, [] (const tm& probe, const tm& anchor) {
-        return probe.tm_mon - probe.tm_mon % 4 == anchor.tm_mon - anchor.tm_mon % 4;
+        return probe.tm_mon - probe.tm_mon % 3 == anchor.tm_mon - anchor.tm_mon % 3;
     });
 }
 
@@ -516,6 +516,14 @@ i64 TimestampFloorDayTZInternal(i64 timestamp, TTimeZone timezone)
 {
     auto tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
 
+    // Fast path: in the overwhelming majority of cases the local day starts at midnight,
+    // so flooring is just subtracting the civil hour/minute/second.
+    i64 candidate = timestamp - tm.Hour * SECONDS_IN_HOUR - tm.Min * 60 - tm.Sec;
+    auto candidateTm = ToCivilTime(TInstant::Seconds(candidate), timezone);
+    if (candidateTm.Hour == 0 && candidateTm.Min == 0 && candidateTm.Sec == 0 && candidateTm.YDay == tm.YDay) {
+        return candidate;
+    }
+
     // Some days in some timezones do not start from midnight, unfortunately.
 
     return NYT::BinarySearch(timestamp - 2 * SECONDS_IN_DAY, timestamp, [&] (i64 probe) {
@@ -557,6 +565,17 @@ i64 TimestampFloorMonthTZ(i64 timestamp, char* timezoneString, int timezoneLengt
 
     auto tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
 
+    auto monthStartTm = tm;
+    monthStartTm.MDay = 1;
+    monthStartTm.Hour = 0;
+    monthStartTm.Min = 0;
+    monthStartTm.Sec = 0;
+    i64 candidate = ToAbsoluteTime(monthStartTm, timezone).Seconds();
+    auto candidateTm = ToCivilTime(TInstant::Seconds(candidate), timezone);
+    if (candidateTm.Mon == tm.Mon && candidateTm.MDay == 1 && candidateTm.Hour == 0 && candidateTm.Min == 0 && candidateTm.Sec == 0) {
+        return candidate;
+    }
+
     return NYT::BinarySearch(timestamp - 40 * SECONDS_IN_DAY, timestamp, [&] (i64 probe) {
         auto probeTm = ToCivilTime(TInstant::Seconds(probe), timezone);
         return probeTm.Mon != tm.Mon;
@@ -569,9 +588,21 @@ i64 TimestampFloorQuarterTZ(i64 timestamp, char* timezoneString, int timezoneLen
 
     auto tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
 
+    auto quarterStartTm = tm;
+    quarterStartTm.Mon = tm.Mon - tm.Mon % 3;
+    quarterStartTm.MDay = 1;
+    quarterStartTm.Hour = 0;
+    quarterStartTm.Min = 0;
+    quarterStartTm.Sec = 0;
+    i64 candidate = ToAbsoluteTime(quarterStartTm, timezone).Seconds();
+    auto candidateTm = ToCivilTime(TInstant::Seconds(candidate), timezone);
+    if (candidateTm.Mon == tm.Mon - tm.Mon % 3 && candidateTm.MDay == 1 && candidateTm.Hour == 0 && candidateTm.Min == 0 && candidateTm.Sec == 0) {
+        return candidate;
+    }
+
     return NYT::BinarySearch(timestamp - 5 * 31 * SECONDS_IN_DAY, timestamp, [&] (i64 probe) {
         auto probeTm = ToCivilTime(TInstant::Seconds(probe), timezone);
-        return probeTm.Mon - probeTm.Mon % 4 != tm.Mon - tm.Mon % 4;
+        return probeTm.Mon - probeTm.Mon % 3 != tm.Mon - tm.Mon % 3;
     });
 }
 
@@ -580,6 +611,20 @@ i64 TimestampFloorYearTZ(i64 timestamp, char* timezoneString, int timezoneLength
     auto timezone = GetTimeZoneFromPrivateData(functionContext, timezoneString, timezoneLength);
 
     auto tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
+
+    auto yearStartTm = tm;
+    yearStartTm.Mon = 0;
+    yearStartTm.MDay = 1;
+    yearStartTm.Hour = 0;
+    yearStartTm.Min = 0;
+    yearStartTm.Sec = 0;
+    i64 candidate = ToAbsoluteTime(yearStartTm, timezone).Seconds();
+    auto candidateTm = ToCivilTime(TInstant::Seconds(candidate), timezone);
+    if (candidateTm.Year == tm.Year && candidateTm.Mon == 0 && candidateTm.MDay == 1 &&
+        candidateTm.Hour == 0 && candidateTm.Min == 0 && candidateTm.Sec == 0)
+    {
+        return candidate;
+    }
 
     return NYT::BinarySearch(timestamp - 400 * SECONDS_IN_DAY, timestamp, [&] (i64 probe) {
         auto probeTm = ToCivilTime(TInstant::Seconds(probe), timezone);

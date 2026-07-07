@@ -39,6 +39,8 @@ target_sources(parser-pg_wrapper-interface PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/interface.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/pack.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/parser.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/in_range.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/sign.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/type_desc.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/utils.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/arrow.h

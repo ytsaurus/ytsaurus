@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -90,7 +91,7 @@ func testConfAttr(newConf func(...MeasurementOption) attrConf) func(t *testing.T
 	}
 }
 
-func TestWithAttributesConcurrentSafe(t *testing.T) {
+func TestWithAttributesConcurrentSafe(*testing.T) {
 	attrs := []attribute.KeyValue{
 		attribute.String("user", "Alice"),
 		attribute.Bool("admin", true),
@@ -98,44 +99,63 @@ func TestWithAttributesConcurrentSafe(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		opt := []AddOption{WithAttributes(attrs...)}
 		_ = NewAddConfig(opt)
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	})
+	wg.Go(func() {
 		opt := []AddOption{WithAttributes(attrs...)}
 		_ = NewAddConfig(opt)
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		opt := []RecordOption{WithAttributes(attrs...)}
 		_ = NewRecordConfig(opt)
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	})
+	wg.Go(func() {
 		opt := []RecordOption{WithAttributes(attrs...)}
 		_ = NewRecordConfig(opt)
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		opt := []ObserveOption{WithAttributes(attrs...)}
 		_ = NewObserveConfig(opt)
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	})
+	wg.Go(func() {
 		opt := []ObserveOption{WithAttributes(attrs...)}
 		_ = NewObserveConfig(opt)
-	}()
+	})
 
 	wg.Wait()
+}
+
+func TestSettableOptions(t *testing.T) {
+	type settable interface {
+		Set(attribute.Set)
+	}
+
+	aliceAttr := attribute.String("user", "Alice")
+	alice := attribute.NewSet(aliceAttr)
+	bobAttr := attribute.String("user", "Bob")
+	bob := attribute.NewSet(bobAttr)
+
+	t.Run("WithAttributeSet", func(t *testing.T) {
+		opt := WithAttributeSet(alice)
+		r, ok := opt.(settable)
+		require.True(t, ok, "WithAttributeSet option does not implement settable")
+
+		r.Set(bob)
+		c := NewAddConfig([]AddOption{opt.(AddOption)})
+		assert.Equal(t, bob, c.Attributes())
+	})
+
+	t.Run("WithAttributes", func(t *testing.T) {
+		opt := WithAttributes(aliceAttr)
+		r, ok := opt.(settable)
+		require.True(t, ok, "WithAttributes option does not implement settable")
+
+		r.Set(bob)
+		c := NewAddConfig([]AddOption{opt.(AddOption)})
+		assert.Equal(t, bob, c.Attributes())
+	})
 }

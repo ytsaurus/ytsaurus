@@ -43,19 +43,18 @@ class TSinkToStorageBase
 public:
     TSinkToStorageBase(
         TTableSchemaPtr schema,
-        std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
         std::vector<DB::DataTypePtr> dataTypes,
-        const TCompositeSettingsPtr& compositeSettings,
+        const TConversionSettingsPtr& conversionSettings,
         std::function<void()> onFinished,
         const TLogger& logger,
         TCallback<void(const TStatistics&)> statisticsCallback = {})
-        : DB::SinkToStorage(ToHeaderBlock(*schema, std::move(columnAttributes), compositeSettings))
+        : DB::SinkToStorage(ToHeaderBlock(*schema, conversionSettings))
         , NameTable_(TNameTable::FromSchema(*schema))
         , Logger(logger)
         , Schema_(std::move(schema))
         , DataTypes_(std::move(dataTypes))
         , ColumnIndexToId_(GetColumnIndexToId(NameTable_, Schema_->GetColumnNames()))
-        , CompositeSettings_(std::move(compositeSettings))
+        , ConversionSettings_(std::move(conversionSettings))
         , OnFinished_(std::move(onFinished))
         , StatisticsCallback_(std::move(statisticsCallback))
     { }
@@ -69,7 +68,7 @@ public:
 
         // TODO(buyval01): refactor ToRowRange to work with chunks to avoid cloning.
         TWallTimer convertationTimer;
-        auto rowRange = ToRowRange(getHeader().cloneWithColumns(chunk.detachColumns()), DataTypes_, ColumnIndexToId_, CompositeSettings_);
+        auto rowRange = ToRowRange(getHeader().cloneWithColumns(chunk.detachColumns()), DataTypes_, ColumnIndexToId_, ConversionSettings_);
         convertationTimer.Stop();
         auto convertationTime = convertationTimer.GetElapsedTime();
 
@@ -113,7 +112,7 @@ private:
     std::vector<DB::DataTypePtr> DataTypes_;
     std::vector<int> ColumnIndexToId_;
     DB::Block HeaderBlock_;
-    TCompositeSettingsPtr CompositeSettings_;
+    TConversionSettingsPtr ConversionSettings_;
     std::function<void()> OnFinished_;
     TCallback<void(const TStatistics&)> StatisticsCallback_;
 };
@@ -127,10 +126,9 @@ public:
     TSinkToStaticTable(
         TRichYPath path,
         TTableSchemaPtr schema,
-        std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
         std::vector<DB::DataTypePtr> dataTypes,
         TTableWriterConfigPtr config,
-        TCompositeSettingsPtr compositeSettings,
+        TConversionSettingsPtr conversionSettings,
         NNative::IClientPtr client,
         TTransactionId writeTransactionId,
         std::function<void()> onFinished,
@@ -138,9 +136,8 @@ public:
         TCallback<void(const TStatistics&)> statisticsCallback = {})
         : TSinkToStorageBase(
             std::move(schema),
-            std::move(columnAttributes),
             std::move(dataTypes),
-            std::move(compositeSettings),
+            std::move(conversionSettings),
             std::move(onFinished),
             logger,
             std::move(statisticsCallback))
@@ -187,6 +184,7 @@ public:
 
 private:
     IUnversionedWriterPtr Writer_;
+    bool WriterClosed_ = false;
 
     void DoWriteRows(TSharedRange<TUnversionedRow> rows) override
     {
@@ -198,7 +196,13 @@ private:
 
     void CloseWriter()
     {
+        if (WriterClosed_) {
+            YT_LOG_DEBUG("Writer already closed, skipping");
+            return;
+        }
+
         YT_LOG_INFO("Closing writer");
+        WriterClosed_ = true;
         WaitFor(Writer_->Close())
             .ThrowOnError();
         YT_LOG_INFO("Writer closed");
@@ -214,19 +218,17 @@ public:
     TSinkToDynamicTable(
         TRichYPath path,
         TTableSchemaPtr schema,
-        std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
         std::vector<DB::DataTypePtr> dataTypes,
         TDynamicTableSettingsPtr dynamicTableSettings,
-        TCompositeSettingsPtr compositeSettings,
+        TConversionSettingsPtr conversionSettings,
         NNative::IClientPtr client,
         std::function<void()> onFinished,
         const TLogger& logger,
         TCallback<void(const TStatistics&)> statisticsCallback = {})
         : TSinkToStorageBase(
             std::move(schema),
-            std::move(columnAttributes),
             std::move(dataTypes),
-            std::move(compositeSettings),
+            std::move(conversionSettings),
             std::move(onFinished),
             logger,
             std::move(statisticsCallback))
@@ -331,23 +333,21 @@ private:
 DB::SinkToStoragePtr CreateSinkToStaticTable(
     TRichYPath path,
     TTableSchemaPtr schema,
-    std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
     std::vector<DB::DataTypePtr> dataTypes,
     TTableWriterConfigPtr config,
-    TCompositeSettingsPtr compositeSettings,
+    TConversionSettingsPtr conversionSettings,
     NNative::IClientPtr client,
     NTransactionClient::TTransactionId writeTransactionId,
     std::function<void()> onFinished,
     const TLogger& logger,
-    TCallback<void(const TStatistics&)> statisticsCallback = {})
+    TCallback<void(const TStatistics&)> statisticsCallback)
 {
     return std::make_shared<TSinkToStaticTable>(
         std::move(path),
         std::move(schema),
-        std::move(columnAttributes),
         std::move(dataTypes),
         std::move(config),
-        std::move(compositeSettings),
+        std::move(conversionSettings),
         std::move(client),
         writeTransactionId,
         std::move(onFinished),
@@ -360,22 +360,20 @@ DB::SinkToStoragePtr CreateSinkToStaticTable(
 DB::SinkToStoragePtr CreateSinkToDynamicTable(
     TRichYPath path,
     TTableSchemaPtr schema,
-    std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
     std::vector<DB::DataTypePtr> dataTypes,
     TDynamicTableSettingsPtr dynamicTableSettings,
-    TCompositeSettingsPtr compositeSettings,
+    TConversionSettingsPtr conversionSettings,
     NNative::IClientPtr client,
     std::function<void()> onFinished,
     const TLogger& logger,
-    TCallback<void(const TStatistics&)> statisticsCallback = {})
+    TCallback<void(const TStatistics&)> statisticsCallback)
 {
     return std::make_shared<TSinkToDynamicTable>(
         std::move(path),
         std::move(schema),
-        std::move(columnAttributes),
         std::move(dataTypes),
         std::move(dynamicTableSettings),
-        std::move(compositeSettings),
+        std::move(conversionSettings),
         std::move(client),
         std::move(onFinished),
         logger,

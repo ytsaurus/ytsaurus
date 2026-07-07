@@ -27,6 +27,20 @@ func run(m *testing.M) int {
 		dockertest.WithDynamicTables(),
 		dockertest.WithRPCProxies(1),
 		dockertest.WithDiscoveryServers(1),
+		dockertest.WithOperationsArchive(),
+		// Enable signing of distributed write sessions on the HTTP proxy.
+		dockertest.WithProxyConfigPatch(map[string]any{
+			"signature_components": map[string]any{
+				"validation": map[string]any{
+					"cypress_key_reader": map[string]any{},
+				},
+				"generation": map[string]any{
+					"cypress_key_writer": map[string]any{},
+					"generator":          map[string]any{},
+					"key_rotator":        map[string]any{},
+				},
+			},
+		}),
 	)
 	if err != nil {
 		log.Fatalf("failed to start container: %s", err)

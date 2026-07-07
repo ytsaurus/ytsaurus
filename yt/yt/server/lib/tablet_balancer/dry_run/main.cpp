@@ -15,7 +15,7 @@ int main(int argc, const char** argv)
         auto opts = NLastGetopt::TOpts::Default();
         opts.AddHelpOption();
 
-        TString modeName;
+        std::string modeName;
         opts.AddLongOption(
             "mode",
             "Choose balancing type from [parameterized | reshard | in_memory_move | ordinary_move]")
@@ -29,7 +29,7 @@ int main(int argc, const char** argv)
             .RequiredArgument("filename")
             .StoreResult(&loadFromFile);
 
-        TString groupName;
+        std::string groupName;
         opts.AddLongOption(
             "group-name",
             "Used only for parameterized balancing")
@@ -37,7 +37,7 @@ int main(int argc, const char** argv)
             .RequiredArgument("group-name")
             .StoreResult(&groupName);
 
-        TString parameterizedConfig;
+        std::string parameterizedConfig;
         opts.AddLongOption(
             "parameterized-config",
             "Used only for parameterized balancing")

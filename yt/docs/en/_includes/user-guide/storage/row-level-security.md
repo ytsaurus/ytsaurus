@@ -28,7 +28,7 @@ Otherwise, if at least one suitable ACE is found, for each row in the table, at 
 
 If you set a row-level ACL on a table, users who do not have the `full_read` permission will receive an authorization error when attempting to read the table.
 
-To ensure that users explicitly understand they may not receive all data, they must specify the `omit_inaccessible_rows` flag (the default value is `%false`) for read operations. A setting with the same name is also available in the operation specification.
+To ensure that users explicitly understand they may not receive all data, they must specify the `omit_inaccessible_rows` flag (the default value is `%false`) for read operations. In the CLI, use `--omit-inaccessible-rows` with the `read` or `read-table` command. A setting with the same name is also available in the operation specification.
 
 When this option is enabled, if the user does not have access to a table row (if there is read access to the table as a whole), the system hides that row completely from the user and the requested action is completed successfully.
 

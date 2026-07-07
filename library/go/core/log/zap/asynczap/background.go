@@ -31,9 +31,9 @@ type background struct {
 	lastErr    error
 	forceFlush chan struct{}
 
-	droppedRecords int64
-	writeErrors    int64
-	reportOverflow int64
+	droppedRecords atomic.Int64
+	writeErrors    atomic.Int64
+	reportOverflow atomic.Int64
 }
 
 func newBackground(options Options, out zapcore.WriteSyncer) *background {
@@ -55,7 +55,7 @@ func (b *background) flush() {
 }
 
 func (b *background) onError(err error) {
-	atomic.AddInt64(&b.writeErrors, 1)
+	b.writeErrors.Add(1)
 
 	b.lastErr = err
 }
@@ -73,7 +73,7 @@ func (b *background) finishIter() (stop bool) {
 	stop = b.stopped
 	b.mu.Unlock()
 
-	atomic.StoreInt64(&b.reportOverflow, 0)
+	b.reportOverflow.Store(0)
 	b.cond.Broadcast()
 	return
 }
@@ -122,9 +122,9 @@ func (b *background) run() {
 func (b *background) checkQueueSize() (size int, ok, shouldReport bool) {
 	size = int(b.q.loadSize())
 	if size >= b.options.MaxMemoryUsage {
-		atomic.AddInt64(&b.droppedRecords, 1)
+		b.droppedRecords.Add(1)
 
-		old := atomic.SwapInt64(&b.reportOverflow, 1)
+		old := b.reportOverflow.Swap(1)
 		return size, false, old == 0
 	}
 

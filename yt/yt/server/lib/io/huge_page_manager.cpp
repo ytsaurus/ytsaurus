@@ -116,10 +116,10 @@ public:
         Profiler_.AddFuncGauge("/huge_page_blob_size", MakeStrong(this), [this] {
             return GetHugePageBlobSize();
         });
-        profiler.AddFuncGauge("/huge_page_memory", MakeStrong(this), [this] {
+        Profiler_.AddFuncGauge("/huge_page_memory", MakeStrong(this), [this] {
             return GetHugePageSize() * GetUsedHugePageCount();
         });
-        profiler.AddFuncGauge("/huge_page_memory_limit", MakeStrong(this), [this] {
+        Profiler_.AddFuncGauge("/huge_page_memory_limit", MakeStrong(this), [this] {
             return GetHugePageMemoryLimit();
         });
     }

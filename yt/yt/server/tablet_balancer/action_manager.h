@@ -34,8 +34,14 @@ struct IActionManager
     // Thread affinity: Control.
     virtual void CancelPendingActions(const std::string& bundleName) = 0;
 
+    // Only for dry-run mode.
     // Thread affinity: Control.
-    virtual void Start(NTransactionClient::TTransactionId prerequisiteTransactionId) = 0;
+    virtual int GetPendingActionCount(const std::string& bundleName) const = 0;
+    // Thread affinity: Control.
+    virtual TFuture<void> WaitForAllActions() = 0;
+
+    // Thread affinity: Control.
+    virtual void Start(NTransactionClient::TTransactionId prerequisiteTransactionId, TDryRunConfigPtr dryRunConfig = {}) = 0;
     // Thread affinity: Control.
     virtual void Stop() = 0;
 

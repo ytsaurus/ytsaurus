@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "read_span_refiner.h"
 #endif
-#undef READ_SPAN_REFINER_INL_H_
 
 namespace NYT::NColumnarChunkFormat {
 
@@ -100,6 +99,12 @@ bool TColumnIterator<Type>::IsExhausted() const
 }
 
 template <EValueType Type>
+ui32 TColumnIterator<Type>::GetCurrentIndex() const
+{
+    return Span_.Lower;
+}
+
+template <EValueType Type>
 TUnversionedValue TColumnIterator<Type>::GetValue(ui32 position) const
 {
     YT_ASSERT(position < GetCount());
@@ -139,7 +144,7 @@ void TColumnIterator<Type>::SkipToSegment(ui32 rowIndex)
 template <EValueType Type>
 void TColumnIterator<Type>::SkipTo(ui32 rowIndex)
 {
-    if (Y_UNLIKELY(rowIndex >= GetSegmentRowLimit())) {
+    if (rowIndex >= GetSegmentRowLimit()) [[unlikely]] {
         SkipToSegment(rowIndex);
     }
 
@@ -174,7 +179,7 @@ ui32 TColumnIterator<Type>::SkipWhileImpl(ui32 upperRowBound, TPredicate pred)
     Position_ = SkipInSegment(upperRowBound, pred, Position_ + 1);
 
     // TODO(lukyan): Move this branch into noinline function?
-    if (Y_UNLIKELY(Position_ == GetCount())) {
+    if (Position_ == GetCount()) [[unlikely]] {
         // TODO(lukyan): Use lookup segment readers here.
         YT_ASSERT(UpperRowBound(GetCount() - 1) < upperRowBound && pred(GetCount() - 1));
 
@@ -350,8 +355,6 @@ TReadSpan TBoundsIterator<TRowRange>::ShrinkRange(TReadSpan span)
 
     return {begin, end};
 }
-
-using TRangeSliceAdapter =  TBoundsIterator<TRowRange>;
 
 // TODO(lukyan): push_back_inserter iterator or other consume callback?
 

@@ -9,6 +9,7 @@ PEERDIR(
     library/cpp/json
     contrib/ydb/public/api/client/yc_public/iam
     contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/iam/common
+    contrib/ydb/public/sdk/cpp/src/client/types/core_facility
 )
 
 END()

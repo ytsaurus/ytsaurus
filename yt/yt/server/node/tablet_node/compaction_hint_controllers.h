@@ -46,6 +46,17 @@ public:
         NLsm::EPartitionCompactionHintKind kind);
 
     TCompactionHintConfigChange AsOnlyEnableConfigChange();
+
+private:
+    static bool IsNonAggregateRowDigestEnabled(const TTableMountConfigPtr& config);
+    static bool IsAggregateRowDigestEnabled(const TTableMountConfigPtr& config);
+    static bool IsMinHashDigestEnabled(const TTableMountConfigPtr& config);
+
+    template <class TCompactionHintConfig>
+    static bool IsConfigChanged(
+        const TTableMountConfigPtr& oldConfig,
+        const TTableMountConfigPtr& newConfig,
+        TCompactionHintConfig TCompactionHintsConfig::* compactionHintField);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,7 +226,7 @@ public:
 
     void OnMountConfigUpdated(TPartition* partition, const TTableMountConfigPtr& oldConfig);
 
-    void OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store);
+    void OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store, EStoreState oldState);
 
     void OnStoreHasNoHint(TPartition* partition, TSortedChunkStore* store);
     void OnPartitionHasNoHint(TPartition* partition);
@@ -250,8 +261,8 @@ class TPartitionCompactionHints
     using TControllers = NLsm::TPartitionCompactionHintArray<TPartitionCompactionHintController>;
 public:
     DEFINE_BYREF_RW_PROPERTY(TControllers, Controllers, {
-        {NLsm::EPartitionCompactionHintKind::MinHashDigest, {NLsm::EStoreCompactionHintKind::MinHashDigest, NLsm::EPartitionCompactionHintKind::MinHashDigest}},
         {NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest, {NLsm::EStoreCompactionHintKind::VersionedRowDigest, NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest}},
+        {NLsm::EPartitionCompactionHintKind::MinHashDigest, {NLsm::EStoreCompactionHintKind::MinHashDigest, NLsm::EPartitionCompactionHintKind::MinHashDigest}},
     });
 
 public:
@@ -262,7 +273,7 @@ public:
 
     void OnMountConfigUpdated(TPartition* partition, const TTableMountConfigPtr& oldConfig);
 
-    void OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store);
+    void OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store, EStoreState oldState);
 
     void OnStoreHasNoHint(TPartition* partition, TSortedChunkStore* store, NLsm::EStoreCompactionHintKind kind);
 

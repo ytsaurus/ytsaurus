@@ -157,7 +157,7 @@ void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
         lastConfirmedItemId = FirstItemId_++;
     }
 
-    HandledItemsCounter_.Increment(lastConfirmedItemId - firstConfirmedItemId);
+    HandledItemsCounter_.Increment(lastConfirmedItemId - firstConfirmedItemId + 1);
 
     YT_LOG_DEBUG(
         "Outbox items confirmed (ItemIds: %v-%v, ItemCount: %v)",

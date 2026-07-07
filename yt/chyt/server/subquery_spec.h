@@ -33,6 +33,11 @@ void FillDataSliceDescriptors(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSubqueryOptions {
+    bool UseDistinctReadOptimization = false;
+    bool UseMinMaxOptimization = false;
+};
+
 struct TSubquerySpec
 {
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
@@ -42,11 +47,11 @@ struct TSubquerySpec
     TString InitialQuery;
     // Does not include virtual columns.
     NTableClient::TTableSchemaPtr ReadSchema;
-    std::vector<NYTree::IAttributeDictionaryPtr> ColumnAttributes;
     int SubqueryIndex;
     int TableIndex;
     NTableClient::TTableReaderConfigPtr TableReaderConfig;
     TQuerySettingsPtr QuerySettings;
+    TSubqueryOptions SubqueryOptions;
     std::optional<NTableClient::TColumnarStatistics> TableStatistics;
 };
 

@@ -32,8 +32,12 @@ DECLARE_REFCOUNTED_STRUCT(IMultiproxyAccessValidator)
 enum class EMultiproxyEnabledMethods;
 enum class EMultiproxyMethodKind;
 
-// Pair <cluster-name,user-identity>
-using TMultiConnectionClientCacheKey = std::pair<std::optional<std::string>, NRpc::TAuthenticationIdentity>;
+//! TMultiConnectionClientCacheKey is a tuple containing
+//!   - cluster-name
+//!   - user-identity
+//!   - address of connection object.
+// N.B. The cache values are client objects that hold references to their connection objects, so using connection addresses as keys is safe.
+using TMultiConnectionClientCacheKey = std::tuple<std::optional<std::string>, NRpc::TAuthenticationIdentity, intptr_t>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

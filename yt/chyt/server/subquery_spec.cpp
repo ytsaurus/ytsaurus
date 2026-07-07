@@ -92,9 +92,10 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
     if (spec.TableStatistics.has_value()) {
         ToProto(protoSpec->mutable_table_stats(), *spec.TableStatistics);
     }
-    for (const auto& attributes : spec.ColumnAttributes) {
-        NYTree::ToProto(protoSpec->add_column_attributes(), *attributes);
-    }
+
+    auto* protoSubqueryOptions = protoSpec->mutable_subquery_options();
+    protoSubqueryOptions->set_use_distinct_read_optimization(spec.SubqueryOptions.UseDistinctReadOptimization);
+    protoSubqueryOptions->set_use_min_max_optimization(spec.SubqueryOptions.UseMinMaxOptimization);
 }
 
 void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
@@ -127,9 +128,11 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
         spec->TableStatistics.emplace();
         FromProto(&spec->TableStatistics.value(), protoSpec.table_stats(), nullptr, protoSpec.table_stats().chunk_row_count());
     }
-    spec->ColumnAttributes.reserve(protoSpec.column_attributes_size());
-    for (const auto& attributes : protoSpec.column_attributes()) {
-        spec->ColumnAttributes.emplace_back(NYTree::FromProto(attributes));
+
+    if (protoSpec.has_subquery_options()) {
+        const auto& protoSubqueryOptions = protoSpec.subquery_options();
+        spec->SubqueryOptions.UseDistinctReadOptimization = protoSubqueryOptions.use_distinct_read_optimization();
+        spec->SubqueryOptions.UseMinMaxOptimization = protoSubqueryOptions.use_min_max_optimization();
     }
 }
 

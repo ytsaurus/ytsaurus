@@ -4,7 +4,6 @@
 package trace
 
 import (
-	"context"
 	"fmt"
 	"math/rand/v2"
 	"testing"
@@ -20,7 +19,7 @@ func TestParentBasedDefaultLocalParentSampled(t *testing.T) {
 	traceID, _ := trace.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
 	spanID, _ := trace.SpanIDFromHex("00f067aa0ba902b7")
 	parentCtx := trace.ContextWithSpanContext(
-		context.Background(),
+		t.Context(),
 		trace.NewSpanContext(trace.SpanContextConfig{
 			TraceID:    traceID,
 			SpanID:     spanID,
@@ -37,7 +36,7 @@ func TestParentBasedDefaultLocalParentNotSampled(t *testing.T) {
 	traceID, _ := trace.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
 	spanID, _ := trace.SpanIDFromHex("00f067aa0ba902b7")
 	parentCtx := trace.ContextWithSpanContext(
-		context.Background(),
+		t.Context(),
 		trace.NewSpanContext(trace.SpanContextConfig{
 			TraceID: traceID,
 			SpanID:  spanID,
@@ -114,7 +113,7 @@ func TestParentBasedWithSamplerOptions(t *testing.T) {
 
 			params := SamplingParameters{
 				ParentContext: trace.ContextWithSpanContext(
-					context.Background(),
+					t.Context(),
 					trace.NewSpanContext(pscc),
 				),
 			}
@@ -180,15 +179,15 @@ func TestTraceIdRatioSamplesInclusively(t *testing.T) {
 	)
 	idg := defaultIDGenerator()
 
-	for i := 0; i < numSamplers; i++ {
+	for range numSamplers {
 		ratioLo, ratioHi := rand.Float64(), rand.Float64()
 		if ratioHi < ratioLo {
 			ratioLo, ratioHi = ratioHi, ratioLo
 		}
 		samplerHi := TraceIDRatioBased(ratioHi)
 		samplerLo := TraceIDRatioBased(ratioLo)
-		for j := 0; j < numTraces; j++ {
-			traceID, _ := idg.NewIDs(context.Background())
+		for range numTraces {
+			traceID, _ := idg.NewIDs(t.Context())
 
 			params := SamplingParameters{TraceID: traceID}
 			if samplerLo.ShouldSample(params).Decision == RecordAndSample {
@@ -235,7 +234,7 @@ func TestTracestateIsPassed(t *testing.T) {
 
 			params := SamplingParameters{
 				ParentContext: trace.ContextWithSpanContext(
-					context.Background(),
+					t.Context(),
 					trace.NewSpanContext(trace.SpanContextConfig{
 						TraceState: traceState,
 					}),
@@ -245,4 +244,75 @@ func TestTracestateIsPassed(t *testing.T) {
 			require.Equal(t, traceState, tc.sampler.ShouldSample(params).Tracestate, "TraceState is not equal")
 		})
 	}
+}
+
+func TestAlwaysRecordSamplingDecision(t *testing.T) {
+	traceID, _ := trace.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
+	spanID, _ := trace.SpanIDFromHex("00f067aa0ba902b7")
+
+	testCases := []struct {
+		name             string
+		rootSampler      Sampler
+		expectedDecision SamplingDecision
+	}{
+		{
+			name:             "when root sampler decision is RecordAndSample, AlwaysRecord returns RecordAndSample",
+			rootSampler:      AlwaysSample(),
+			expectedDecision: RecordAndSample,
+		},
+		{
+			name:             "when root sampler decision is Drop, AlwaysRecord returns RecordOnly",
+			rootSampler:      NeverSample(),
+			expectedDecision: RecordOnly,
+		},
+		{
+			name:             "when root sampler decision is RecordOnly, AlwaysRecord returns RecordOnly",
+			rootSampler:      RecordingOnly(),
+			expectedDecision: RecordOnly,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sampler := AlwaysRecord(tc.rootSampler)
+			parentCtx := trace.ContextWithSpanContext(
+				t.Context(),
+				trace.NewSpanContext(trace.SpanContextConfig{
+					TraceID:    traceID,
+					SpanID:     spanID,
+					TraceFlags: trace.FlagsSampled,
+				}),
+			)
+			samplingResult := sampler.ShouldSample(SamplingParameters{ParentContext: parentCtx})
+			if samplingResult.Decision != tc.expectedDecision {
+				t.Errorf("Sampling decision should be %v, got %v instead",
+					tc.expectedDecision,
+					samplingResult.Decision,
+				)
+			}
+		})
+	}
+}
+
+func TestAlwaysRecordDefaultDescription(t *testing.T) {
+	sampler := AlwaysRecord(NeverSample())
+
+	expectedDescription := fmt.Sprintf("AlwaysRecord{root:%s}", NeverSample().Description())
+
+	if sampler.Description() != expectedDescription {
+		t.Errorf("Sampler description should be %s, got '%s' instead",
+			expectedDescription,
+			sampler.Description(),
+		)
+	}
+}
+
+func TestDescriptions(t *testing.T) {
+	assert.Equal(t, "AlwaysOnSampler", AlwaysSample().Description())
+	assert.Equal(t, "AlwaysOffSampler", NeverSample().Description())
+	assert.Equal(t, "TraceIDRatioBased{0.5}", TraceIDRatioBased(0.5).Description())
+	assert.Equal(t, "TraceIDRatioBased{1}", TraceIDRatioBased(1).Description())
+	assert.Equal(t, "TraceIDRatioBased{1}", TraceIDRatioBased(1.5).Description())
+	assert.Equal(t, "TraceIDRatioBased{0}", TraceIDRatioBased(0).Description())
+	assert.Equal(t, "TraceIDRatioBased{0}", TraceIDRatioBased(-0.5).Description())
 }

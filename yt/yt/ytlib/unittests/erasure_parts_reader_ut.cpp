@@ -15,6 +15,7 @@
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -22,6 +23,8 @@
 
 namespace NYT::NChunkClient {
 namespace {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,6 +63,7 @@ struct TPlot
     ERequestBehavior ReadBlocksBehavior = ERequestBehavior::Succeed;
     std::optional<int> MaxBlockCount;
     std::optional<int> ReadBlockCount;
+    bool SealedChunk = true;
 };
 
 class TMockChunkReader
@@ -163,6 +167,7 @@ private:
             dataSize += buffer.Size();
         }
         miscExt.set_uncompressed_data_size(dataSize);
+        miscExt.set_sealed(Plot_.SealedChunk);
         SetProtoExtension(chunkMeta->mutable_extensions(), miscExt);
 
         return chunkMeta;
@@ -198,7 +203,7 @@ struct TTestCase
     std::vector<int> ExpectedPartRowCount = {1, 1, 1};
     int DecodeRowCount = 1;
 
-    THashMap<int, TPlot> ReadersPlot;
+    THashMap<int, std::vector<TPlot>> ReadersPlot;
 
     bool ShouldFail = false;
     bool ReadShouldBeFast = false;
@@ -220,13 +225,22 @@ void ExecTest(TTestCase testCase)
 
     EXPECT_EQ(encodedRows.size(), 6u);
 
+    for (int part = 0; part < std::ssize(encodedRows); ++part) {
+        if (!testCase.ReadersPlot.contains(part)) {
+            testCase.ReadersPlot[part] = {TPlot{}};
+        }
+    }
+
     auto chunkId = NObjectClient::MakeRandomId(
         NObjectClient::EObjectType::ErasureJournalChunk,
         NObjectClient::TCellTag(0));
     std::vector<NChunkClient::IChunkReaderPtr> chunkReadersList;
     for (int part = 0; part < std::ssize(encodedRows); ++part) {
         auto replicaId = NChunkClient::EncodeChunkId({chunkId, part});
-        chunkReadersList.push_back(New<TMockChunkReader>(replicaId, encodedRows[part], testCase.ReadersPlot[part]));
+
+        for (const auto& partPlot : testCase.ReadersPlot[part]) {
+            chunkReadersList.push_back(New<TMockChunkReader>(replicaId, encodedRows[part], partPlot));
+        }
     }
 
     auto config = New<NJournalClient::TChunkReaderConfig>();
@@ -238,11 +252,10 @@ void ExecTest(TTestCase testCase)
         NChunkClient::ChunkClientLogger());
 
     auto readStart = Now();
-    auto rowParts = reader->ReadRows(
+    auto rowParts = WaitFor(reader->ReadRows(
         /*options*/ {},
         testCase.FirstRowIndex,
-        testCase.RowCount)
-        .Get()
+        testCase.RowCount))
         .ValueOrThrow();
 
     if (testCase.ReadShouldBeFast) {
@@ -315,52 +328,52 @@ INSTANTIATE_TEST_SUITE_P(
             .ExpectedPartRowCount = {3, 3, 3},
             .DecodeRowCount = 3,
             .ReadersPlot = {
-                {0, {.GetMetaBehavior = ERequestBehavior::Fail}},
-                {1, {.GetMetaBehavior = ERequestBehavior::Fail}},
-                {2, {.GetMetaBehavior = ERequestBehavior::Fail}},
+                {0, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {1, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {2, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
             },
         },
         TTestCase{
             .ReadersPlot = {
-                {0, {.GetMetaBehavior = ERequestBehavior::Fail}},
-                {1, {.GetMetaBehavior = ERequestBehavior::Fail}},
-                {2, {.GetMetaBehavior = ERequestBehavior::Fail}},
-                {3, {.GetMetaBehavior = ERequestBehavior::Fail}},
+                {0, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {1, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {2, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {3, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
             },
             .ShouldFail = true,
         },
         TTestCase{
             .ReadersPlot = {
-                {0, {.GetMetaBehavior = ERequestBehavior::Slow}},
-                {1, {.GetMetaBehavior = ERequestBehavior::Slow}},
-                {2, {.GetMetaBehavior = ERequestBehavior::Slow}},
+                {0, {{.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {1, {{.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {2, {{.GetMetaBehavior = ERequestBehavior::Slow}}},
             },
         },
         TTestCase{
             .ReadersPlot = {
-                {0, {.GetMetaBehavior = ERequestBehavior::Slow}},
-                {1, {.GetMetaBehavior = ERequestBehavior::Slow}},
-                {2, {.GetMetaBehavior = ERequestBehavior::Slow}},
-                {3, {.GetMetaBehavior = ERequestBehavior::Fail}},
-                {4, {.GetMetaBehavior = ERequestBehavior::Fail}},
-                {5, {.GetMetaBehavior = ERequestBehavior::Fail}},
+                {0, {{.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {1, {{.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {2, {{.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {3, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {4, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {5, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
             },
         },
         TTestCase{
             .ReadersPlot = {
-                {0, {.GetMetaBehavior = ERequestBehavior::Slow}},
-                {1, {.GetMetaBehavior = ERequestBehavior::Slow}},
-                {2, {.GetMetaBehavior = ERequestBehavior::Slow}},
-                {3, {.ReadBlocksBehavior = ERequestBehavior::Fail}},
-                {4, {.ReadBlocksBehavior = ERequestBehavior::Fail}},
-                {5, {.ReadBlocksBehavior = ERequestBehavior::Fail}},
+                {0, {{.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {1, {{.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {2, {{.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {3, {{.ReadBlocksBehavior = ERequestBehavior::Fail}}},
+                {4, {{.ReadBlocksBehavior = ERequestBehavior::Fail}}},
+                {5, {{.ReadBlocksBehavior = ERequestBehavior::Fail}}},
             },
         },
         TTestCase{
             .ReadersPlot = {
-                {0, {.ReadBlocksBehavior = ERequestBehavior::Fail}},
-                {1, {.ReadBlocksBehavior = ERequestBehavior::Fail}},
-                {2, {.ReadBlocksBehavior = ERequestBehavior::Fail}},
+                {0, {{.ReadBlocksBehavior = ERequestBehavior::Fail}}},
+                {1, {{.ReadBlocksBehavior = ERequestBehavior::Fail}}},
+                {2, {{.ReadBlocksBehavior = ERequestBehavior::Fail}}},
             },
         },
         TTestCase{
@@ -368,30 +381,30 @@ INSTANTIATE_TEST_SUITE_P(
             .ExpectedPartRowCount = {1},
             .DecodeRowCount = 0,
             .ReadersPlot = {
-                {0, {.GetMetaBehavior = ERequestBehavior::Slow}},
-                {1, {.GetMetaBehavior = ERequestBehavior::Fail}},
-                {2, {.GetMetaBehavior = ERequestBehavior::Fail}},
-                {3, {.GetMetaBehavior = ERequestBehavior::Fail}},
-                {4, {.GetMetaBehavior = ERequestBehavior::Fail}},
-                {5, {.GetMetaBehavior = ERequestBehavior::Fail}},
+                {0, {{.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {1, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {2, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {3, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {4, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {5, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
             },
         },
         TTestCase{
             .FirstRowIndex = 10,
             .ReadersPlot = {
-                {0, {.MaxBlockCount = 9}},
-                {1, {.MaxBlockCount = 9}},
-                {2, {.MaxBlockCount = 9}},
-                {3, {.MaxBlockCount = 9}},
+                {0, {{.MaxBlockCount = 9}}},
+                {1, {{.MaxBlockCount = 9}}},
+                {2, {{.MaxBlockCount = 9}}},
+                {3, {{.MaxBlockCount = 9}}},
             },
             .ShouldFail = true,
         },
         TTestCase{
             .FirstRowIndex = 10,
             .ReadersPlot = {
-                {1, {.MaxBlockCount = 9}},
-                {2, {.MaxBlockCount = 9}},
-                {3, {.MaxBlockCount = 9}},
+                {1, {{.MaxBlockCount = 9}}},
+                {2, {{.MaxBlockCount = 9}}},
+                {3, {{.MaxBlockCount = 9}}},
             },
         },
         TTestCase{
@@ -400,11 +413,11 @@ INSTANTIATE_TEST_SUITE_P(
             .ExpectedPartRowCount = {1},
             .DecodeRowCount = 0,
             .ReadersPlot = {
-                {0, {.GetMetaBehavior = ERequestBehavior::Slow}},
-                {1, {.MaxBlockCount = 9}},
-                {2, {.MaxBlockCount = 9}},
-                {3, {.MaxBlockCount = 9}},
-                {4, {.MaxBlockCount = 9}},
+                {0, {{.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {1, {{.MaxBlockCount = 9}}},
+                {2, {{.MaxBlockCount = 9}}},
+                {3, {{.MaxBlockCount = 9}}},
+                {4, {{.MaxBlockCount = 9}}},
             },
         },
         TTestCase{
@@ -413,23 +426,9 @@ INSTANTIATE_TEST_SUITE_P(
             .ExpectedPartRowCount = {3, 3, 3},
             .DecodeRowCount = 3,
             .ReadersPlot = {
-                {0, {.GetMetaBehavior = ERequestBehavior::FailImmediately}},
-                {1, {.GetMetaBehavior = ERequestBehavior::FailImmediately}},
-                {2, {.GetMetaBehavior = ERequestBehavior::FailImmediately}},
-            },
-        },
-        TTestCase{
-            .FirstRowIndex = 0,
-            .RowCount = 2,
-            .ExpectedPartRowCount = {2, 2, 2},
-            .DecodeRowCount = 2,
-            .ReadersPlot = {
-                {0, {.MaxBlockCount = 1, .ReadBlockCount = 1}},
-                {1, {.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}},
-                {2, {.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}},
-                {3, {.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}},
-                {4, {.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}},
-                {5, {.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}},
+                {0, {{.GetMetaBehavior = ERequestBehavior::FailImmediately}}},
+                {1, {{.GetMetaBehavior = ERequestBehavior::FailImmediately}}},
+                {2, {{.GetMetaBehavior = ERequestBehavior::FailImmediately}}},
             },
         },
         TTestCase{
@@ -438,16 +437,51 @@ INSTANTIATE_TEST_SUITE_P(
             .ExpectedPartRowCount = {1, 1, 1},
             .DecodeRowCount = 1,
             .ReadersPlot = {
-                {0, {.MaxBlockCount = 2, .ReadBlockCount = 1}},
-                {1, {.MaxBlockCount = 2, .ReadBlockCount = 1}},
-                {2, {.MaxBlockCount = 2, .ReadBlockCount = 1}},
-                {3, {.MaxBlockCount = 2, .ReadBlockCount = 1}},
-                {4, {.MaxBlockCount = 2, .ReadBlockCount = 1}},
-                {5, {.ReadBlocksBehavior = ERequestBehavior::Slow}},
+                {0, {{.MaxBlockCount = 1, .ReadBlockCount = 1}}},
+                {1, {{.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}}},
+                {2, {{.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}}},
+                {3, {{.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}}},
+                {4, {{.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}}},
+                {5, {{.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}}},
+            },
+        },
+        TTestCase{
+            .FirstRowIndex = 0,
+            .RowCount = 2,
+            .ExpectedPartRowCount = {1, 1, 1},
+            .DecodeRowCount = 1,
+            .ReadersPlot = {
+                {0, {{.MaxBlockCount = 2, .ReadBlockCount = 1}}},
+                {1, {{.MaxBlockCount = 2, .ReadBlockCount = 1}}},
+                {2, {{.MaxBlockCount = 2, .ReadBlockCount = 1}}},
+                {3, {{.MaxBlockCount = 2, .ReadBlockCount = 1}}},
+                {4, {{.MaxBlockCount = 2, .ReadBlockCount = 1}}},
+                {5, {{.ReadBlocksBehavior = ERequestBehavior::Slow}}},
             },
             .ReadShouldBeFast = true,
             .ExpectedCountShouldBeStrict = true,
-        }));
+        },
+        TTestCase{
+            .ReadersPlot = {
+                {0, {{.ReadBlocksBehavior = ERequestBehavior::Fail, .SealedChunk = false}, {.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {1, {{.ReadBlocksBehavior = ERequestBehavior::Fail, .SealedChunk = false}, {.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {2, {{.ReadBlocksBehavior = ERequestBehavior::Fail, .SealedChunk = false}, {.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {3, {{.ReadBlocksBehavior = ERequestBehavior::Fail, .SealedChunk = false}, {.GetMetaBehavior = ERequestBehavior::Slow}}},
+                {4, {TPlot{}, TPlot{}}},
+                {5, {TPlot{}, TPlot{}}},
+            },
+        },
+        TTestCase{
+            .ReadersPlot = {
+                {0, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {1, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {2, {{.GetMetaBehavior = ERequestBehavior::Fail}}},
+                {3, {{.SealedChunk = false}, {.GetMetaBehavior = ERequestBehavior::Slow, .SealedChunk = false}}},
+                {4, {{.SealedChunk = false}, {.GetMetaBehavior = ERequestBehavior::Slow, .SealedChunk = false}}},
+                {5, {{.SealedChunk = false}, {.GetMetaBehavior = ERequestBehavior::Slow, .SealedChunk = false}}},
+            },
+        }
+    ));
 
 ////////////////////////////////////////////////////////////////////////////////
 

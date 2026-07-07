@@ -2,6 +2,7 @@ package chyt
 
 import (
 	"context"
+	"path/filepath"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -13,6 +14,21 @@ const (
 	CHYTBinaryDirectory       = ypath.Path("//sys/bin/ytserver-clickhouse")
 	TrampolineBinaryDirectory = ypath.Path("//sys/bin/clickhouse-trampoline")
 )
+
+type chytBinaryInfo struct {
+	NodeId          string      `yson:"id,attr"`
+	Version         string      `yson:"version,attr"`
+	ContentRevision yt.Revision `yson:"content_revision,attr"`
+}
+
+func (c *Controller) getChytBinaryInfo(ctx context.Context, path ypath.Path) (info chytBinaryInfo, err error) {
+	options := yt.GetNodeOptions{Attributes: []string{"id", "version", "content_revision"}}
+	err = c.ytc.GetNode(ctx, path, &info, &options)
+	if err != nil {
+		return
+	}
+	return
+}
 
 func (c *Controller) resolveSymlink(ctx context.Context, path ypath.Path) (target ypath.Path, err error) {
 	var nodeType yt.NodeType
@@ -32,10 +48,17 @@ func (c *Controller) resolveSymlink(ctx context.Context, path ypath.Path) (targe
 
 func (c *Controller) resolveChytVersion(ctx context.Context, path ypath.Path, chytVersion *chytOpletInfo) {
 	chytVersion.CHYTRunningVersionPath = path.String()
-	err := c.ytc.GetNode(ctx, path.Attr("version"), &chytVersion.CHYTRunningVersion, nil)
+	info, err := c.getChytBinaryInfo(ctx, path)
 	if err != nil {
 		chytVersion.CHYTRunningVersion = "unknown"
+		chytVersion.BinaryNodeId = nil
+		chytVersion.BinaryRevision = nil
+		return
 	}
+
+	chytVersion.CHYTRunningVersion = info.Version
+	chytVersion.BinaryNodeId = &info.NodeId
+	chytVersion.BinaryRevision = &info.ContentRevision
 }
 
 type artifact struct {
@@ -57,6 +80,20 @@ func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, fi
 
 	if speclet.EnableGeodataOrDefault(c.config.EnableGeodataOrDefault()) {
 		artifacts = append(artifacts, artifact{"geodata.tgz", speclet.GeodataPathOrDefault()})
+	}
+
+	if speclet.ODBCConfig.EnableOrDefault() {
+		bridgePath := speclet.ODBCConfig.BridgePathOrDefault()
+		bridgeFileName := filepath.Base(bridgePath.String())
+		artifacts = append(artifacts, artifact{bridgeFileName, bridgePath})
+		for _, driver := range speclet.ODBCConfig.Drivers {
+			driverFileName := filepath.Base(driver.Path.String())
+			artifacts = append(artifacts, artifact{driverFileName, driver.Path})
+		}
+		for _, extraFilePath := range speclet.ODBCConfig.ExtraFiles {
+			extraFileName := filepath.Base(extraFilePath.String())
+			artifacts = append(artifacts, artifact{extraFileName, extraFilePath})
+		}
 	}
 
 	var artifactDescription = map[string]yson.RawValue{}

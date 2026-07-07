@@ -129,7 +129,17 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void Revive(std::vector<TStartedAllocationInfo>) override
+    void Revive(std::vector<TStartedAllocationInfo> /*allocations*/, bool /*suspended*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void SuspendOperation() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void ResumeOperation() override
     {
         YT_UNIMPLEMENTED();
     }
@@ -383,7 +393,7 @@ private:
 struct TOfflineOperation
 {
     EOperationType Type;
-    TString Spec;
+    std::string Spec;
     int SnapshotVersion;
     std::vector<TSharedRef> Snapshot;
 
@@ -442,7 +452,7 @@ IOperationControllerPtr CreateOperationController(const TOfflineOperation& offli
     return operationController;
 }
 
-TOfflineOperation DownloadOperation(const TString& token, const TString& proxy, const TString& path)
+TOfflineOperation DownloadOperation(const std::string& token, const std::string& proxy, const NYPath::TYPath& path)
 {
     auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
     connectionConfig->ClusterUrl = proxy;
@@ -481,13 +491,13 @@ void GuardedMain(int argc, char** argv)
     TSignalRegistry::Get()->PushCallback(NSignals::AllCrashSignals, CrashSignalHandler);
     TSignalRegistry::Get()->PushDefaultSignalHandler(NSignals::AllCrashSignals);
 
-    auto mode = TString("load");
-    TString loadFromFiles;
-    TString storeToFiles;
-    TString proxy;
-    TString path;
-    TString operationId;
-    TString token;
+    std::string mode = "load";
+    std::string loadFromFiles;
+    std::string storeToFiles;
+    std::string proxy;
+    NYPath::TYPath path;
+    std::string operationId;
+    std::string token;
     bool loop = false;
     bool rct = false;
     bool ignoreVersionMismatch = false;
@@ -519,34 +529,38 @@ void GuardedMain(int argc, char** argv)
 
     TOptsParseResult results(&opts, argc, argv);
 
-    if (!token) {
+    if (token.empty()) {
         auto tokenPath = NFS::GetHomePath() + "/.yt/token";
         if (NFS::Exists(tokenPath)) {
             TIFStream tokenStream(tokenPath);
-            tokenStream >> token;
+            // TODO(babenko): drop temporary once operator>> accepts std::string
+            TString tokenString;
+            tokenStream >> tokenString;
+            token = tokenString;
         } else {
             token = GetEnv("YT_TOKEN");
         }
     }
 
-    if (!proxy) {
+    if (proxy.empty()) {
         proxy = GetEnv("YT_PROXY");
     }
 
-    if (!path && operationId) {
+    if (path.empty() && !operationId.empty()) {
         path = Format("//sys/operations/%v/%v", operationId.substr(operationId.size() - 2), operationId);
     }
 
     NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateQuiet());
 
     TOfflineOperation operation;
-    if (loadFromFiles) {
-        operation = LoadFromFiles(loadFromFiles);
+    if (!loadFromFiles.empty()) {
+        // TODO(babenko): drop cast once LoadFromFiles accepts std::string.
+        operation = LoadFromFiles(TString(loadFromFiles));
     } else {
         operation = DownloadOperation(token, proxy, path);
     }
 
-    NBus::TTcpDispatcher::Get()->DisableNetworking();
+    NBus::NTcp::TDispatcher::Get()->DisableNetworking();
 
     if (!ValidateSnapshotVersion(operation.SnapshotVersion)) {
         auto error = TError("Snapshot version %v is not supported over current snapshot version %v (%v)",
@@ -560,8 +574,9 @@ void GuardedMain(int argc, char** argv)
         THROW_ERROR_EXCEPTION(error);
     }
 
-    if (storeToFiles) {
-        StoreToFiles(operation, storeToFiles);
+    if (!storeToFiles.empty()) {
+        // TODO(babenko): drop cast once StoreToFiles accepts std::string.
+        StoreToFiles(operation, TString(storeToFiles));
     }
 
     if (prepareAndExit) {

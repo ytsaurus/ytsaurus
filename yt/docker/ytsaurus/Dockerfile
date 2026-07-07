@@ -9,8 +9,8 @@ ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
 # Args for base-server-crio
-ARG K8S_VERSION="v1.32"
-ARG CRIO_VERSION="v1.32"
+ARG K8S_VERSION="v1.34"
+ARG CRIO_VERSION="v1.34"
 
 # Args for odin.
 ARG PYTHON_RUNTIME_VERSION="3.11"
@@ -101,7 +101,8 @@ packages=(
   unzip
   zstd
   google-perftools
-  linux-tools-generic
+  # linux-tools-generic
+  linux-tools-generic-hwe-24.04
   procps
   jq
   htop
@@ -117,6 +118,31 @@ packages=(
 
 apt-get install -y "${packages[@]}"
 
+ln -s /usr/lib/linux-tools/*/perf /usr/local/bin/
+
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+EOT
+
+# https://nvidia.github.io/libnvidia-container/stable/
+# https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
+# NOTE: key is expired 2021-06-16 but still in use, they publish repo like from 2018.
+ADD --chmod=664 \
+  https://nvidia.github.io/libnvidia-container/gpgkey \
+  /etc/apt/keyrings/nvidia-container-toolkit-keyring.asc
+
+RUN <<-EOT
+#!/bin/bash
+set -eux -o pipefail
+
+[ "$INSTALL_NVIDIA_PACKAGES" = "true" ] || exit 0
+
+tee <<EOF >/etc/apt/sources.list.d/nvidia-container-toolkit.list
+deb [signed-by=/etc/apt/keyrings/nvidia-container-toolkit-keyring.asc] https://nvidia.github.io/libnvidia-container/stable/deb/\$(ARCH) /
+# deb [signed-by=/etc/apt/keyrings/nvidia-container-toolkit-keyring.asc] #https://nvidia.github.io/libnvidia-container/experimental/deb/\$(ARCH) /
+EOF
+
 nvidia_packages=(
   nvidia-container-toolkit=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
   nvidia-container-toolkit-base=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
@@ -124,13 +150,12 @@ nvidia_packages=(
   libnvidia-container1=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
 )
 
-if [[ "$INSTALL_NVIDIA_PACKAGES" = "true" ]]; then curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
-  | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
-  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-  | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list \
-  && apt update \
-  && apt install -y "${nvidia_packages[@]}"; fi
+export DEBIAN_FRONTEND=noninteractive
+apt update -q --error-on=any
+
+apt policy nvidia-container-toolkit
+
+apt install -y "${nvidia_packages[@]}"
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*
@@ -153,11 +178,13 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
   openjdk-11-jdk \
   openjdk-17-jdk \
+  openjdk-21-jdk \
   java-common
 
 RUN HOST_ARCH=$(dpkg --print-architecture) \
   && ln -s /usr/lib/jvm/java-11-openjdk-${HOST_ARCH} /opt/jdk11 \
   && ln -s /usr/lib/jvm/java-17-openjdk-${HOST_ARCH} /opt/jdk17 \
+  && ln -s /usr/lib/jvm/java-21-openjdk-${HOST_ARCH} /opt/jdk21 \
   && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
 
 ##########################################################################################
@@ -176,6 +203,7 @@ ARG SOURCE_ROOT=/ytsaurus
 RUN mkdir -p ${SOURCE_ROOT}
 COPY ./yt/python ${SOURCE_ROOT}/yt/python
 COPY ./yt/yt/python ${SOURCE_ROOT}/yt/yt/python
+COPY ./yt/yt/tools/record_codegen ${SOURCE_ROOT}/yt/yt/tools/record_codegen
 COPY ./certs/cacert.pem ${SOURCE_ROOT}/certs/cacert.pem
 
 ARG BUILD_ROOT=/tmp
@@ -225,11 +253,13 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   containerd \
   openjdk-11-jdk \
   openjdk-17-jdk \
+  openjdk-21-jdk \
   java-common
 
 RUN HOST_ARCH=$(dpkg --print-architecture) \
   && ln -s /usr/lib/jvm/java-11-openjdk-${HOST_ARCH} /opt/jdk11 \
   && ln -s /usr/lib/jvm/java-17-openjdk-${HOST_ARCH} /opt/jdk17 \
+  && ln -s /usr/lib/jvm/java-21-openjdk-${HOST_ARCH} /opt/jdk21 \
   && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
@@ -279,11 +309,13 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-clock && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-discovery && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-node && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-offshore-data-gateway && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-job-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-exec && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-http-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-kafka-proxy && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-cypress-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tools && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-scheduler && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-controller-agent && \
@@ -435,7 +467,7 @@ COPY --from=ytsaurus-server-override-bloated / /
 
 ##########################################################################################
 
-FROM base as odin-installer
+FROM base AS odin-installer
 
 ARG ODIN_ROOT
 ARG ODIN_VIRTUAL_ENV
@@ -484,7 +516,7 @@ RUN mkdir -p ${ODIN_CHECKS_DIR} \
 
 ##########################################################################################
 
-FROM base as odin
+FROM base AS odin
 
 ARG ODIN_VIRTUAL_ENV
 ENV ODIN_VIRTUAL_ENV $ODIN_VIRTUAL_ENV

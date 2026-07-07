@@ -4,7 +4,7 @@ import "testing"
 
 func TestInmemSocket(t *testing.T) {
 	l := NewInmemSocket("test", 0)
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 	go func() {
 		for {
 			conn, err := l.Accept()

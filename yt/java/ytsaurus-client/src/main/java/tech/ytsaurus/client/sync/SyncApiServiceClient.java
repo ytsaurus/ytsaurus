@@ -19,6 +19,7 @@ import tech.ytsaurus.client.request.CreateObject;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
+import tech.ytsaurus.client.request.GetCurrentUser;
 import tech.ytsaurus.client.request.GetInSyncReplicas;
 import tech.ytsaurus.client.request.GetJob;
 import tech.ytsaurus.client.request.GetJobStderr;
@@ -52,6 +53,7 @@ import tech.ytsaurus.client.request.TabletInfo;
 import tech.ytsaurus.client.request.TrimTable;
 import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
+import tech.ytsaurus.client.request.UnregisterQueueConsumer;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.QueueRowset;
@@ -154,6 +156,8 @@ interface SyncApiServiceClient extends SyncTransactionalClient {
 
     void registerQueueConsumer(RegisterQueueConsumer req);
 
+    void unregisterQueueConsumer(UnregisterQueueConsumer req);
+
     ListQueueConsumerRegistrationsResult listQueueConsumerRegistrations(ListQueueConsumerRegistrations req);
 
     GUID startQuery(StartQuery req);
@@ -169,4 +173,6 @@ interface SyncApiServiceClient extends SyncTransactionalClient {
     ListQueriesResult listQueries(ListQueries req);
 
     void alterQuery(AlterQuery req);
+
+    String getCurrentUser(GetCurrentUser req);
 }

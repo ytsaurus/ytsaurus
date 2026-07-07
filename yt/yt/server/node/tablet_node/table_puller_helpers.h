@@ -52,7 +52,8 @@ public:
 public:
     TQueueReplicaSelector(
         NLogging::TLogger logger,
-        const TBannedReplicaTracker& bannedReplicaTracker);
+        std::optional<int> replicaBanDuration,
+        bool forceSameClusterQueue);
 
     TReplicaOrError PickQueueReplica(
         NChaosClient::TReplicaId selfUpstreamReplicaId,
@@ -61,15 +62,33 @@ public:
         TInstant now);
 
     void ResetLastPulledFromReplicaId();
+    TBannedReplicaTracker& GetBannedReplicaTracker();
 
 private:
     const NLogging::TLogger Logger;
-    const TBannedReplicaTracker& BannedReplicaTracker_;
+    const bool ForceSameClusterQueue_;
 
+    TBannedReplicaTracker BannedReplicaTracker_;
     NChaosClient::TReplicaId LastPulledFromReplicaId_;
     TInstant NextPermittedTimeForProgressBehindAlert_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+class TIterationTimeTracker
+{
+public:
+    TIterationTimeTracker(int previousIterationWeight, int currentIterationWeight, TDuration initialDuration);
+    TDuration CalculateSmoothedIterationDuration(TInstant currentIterationInstant);
+
+private:
+    const int PreviousIterationWeight_;
+    const int CurrentIterationWeight_;
+
+    TInstant LastIterationInstant_;
+    TDuration SmoothedItetationDuration_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletNode

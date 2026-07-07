@@ -10,6 +10,7 @@
 within INSERT and UPDATE statements.
 
 """
+
 from __future__ import annotations
 
 import functools
@@ -848,7 +849,7 @@ def _setup_delete_return_defaults(
     toplevel,
     kw,
 ):
-    (_, _, implicit_return_defaults, *_) = _get_returning_modifiers(
+    _, _, implicit_return_defaults, *_ = _get_returning_modifiers(
         compiler, stmt, compile_state, toplevel
     )
 
@@ -1661,7 +1662,15 @@ def _get_returning_modifiers(compiler, stmt, compile_state, toplevel):
             and compiler.for_executemany
             and dialect.use_insertmanyvalues
             and (
-                explicit_returning or dialect.use_insertmanyvalues_wo_returning
+                explicit_returning
+                or (
+                    dialect.use_insertmanyvalues_wo_returning
+                    # Disable insertmanyvalues_wo_returning when there's a
+                    # post-values clause like ON CONFLICT DO UPDATE.
+                    # This is a performance optimization flag and the batching
+                    # doesn't work correctly with these clauses. See #13130.
+                    and stmt._post_values_clause is None
+                )
             )
         )
 

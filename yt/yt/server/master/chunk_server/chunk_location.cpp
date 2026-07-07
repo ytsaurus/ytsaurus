@@ -45,6 +45,14 @@ void TChunkLocation::SetId(NObjectServer::TObjectId id)
     Id_ = id;
 }
 
+bool TChunkLocation::IsRegisteredOrOnline() const
+{
+    return
+        State_ == EChunkLocationState::Online &&
+        NObjectServer::IsObjectAlive(Node_) &&
+        Node_->HasAliveLocalState();
+}
+
 void TChunkLocation::ReserveReplicas(int sizeHint)
 {
     Replicas_.reserve(sizeHint);
@@ -215,7 +223,7 @@ void TChunkLocation::AddToChunkSealQueue(const TChunkIdWithIndex& replica)
 {
     YT_ASSERT(Node_);
     YT_ASSERT(Node_->ReportedDataNodeHeartbeat());
-    ChunkSealQueue_.insert(replica);
+    ChunkSealQueue_.emplace(replica, 0);
 }
 
 void TChunkLocation::RemoveFromChunkSealQueue(const TChunkIdWithIndex& replica)

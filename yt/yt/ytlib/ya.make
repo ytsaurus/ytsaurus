@@ -8,9 +8,6 @@ INCLUDE(../ya_check_dependencies.inc)
 PROTO_NAMESPACE(yt)
 
 SRCS(
-    admin/proto/admin_service.proto
-    admin/proto/restart_service.proto
-
     api/connection.cpp
     api/native/backup_session.cpp
     api/native/bundle_controller_client_impl.cpp
@@ -22,6 +19,7 @@ SRCS(
     api/native/chaos_table_replica_type_handler.cpp
     api/native/client_admin_impl.cpp
     api/native/client_authentication_impl.cpp
+    api/native/client_ban_impl.cpp
     api/native/client_cache.cpp
     api/native/client_cypress_impl.cpp
     api/native/client_distributed_table_impl.cpp
@@ -60,6 +58,7 @@ SRCS(
     api/native/pick_replica_session.cpp
     api/native/pipeline_type_handler.cpp
     api/native/pool_weight_provider.cpp
+    api/native/public.cpp
     api/native/queue_producer_type_handler.cpp
     api/native/register_transaction_actions_request_factory.cpp
     api/native/replicated_table_replica_type_handler.cpp
@@ -97,6 +96,8 @@ SRCS(
 
     auth/proto/tvm_bridge_service.proto
 
+    ban_client/proto/ban_service.proto
+
     bundle_controller/config.cpp
     bundle_controller/bundle_controller_channel.cpp
 
@@ -105,6 +106,7 @@ SRCS(
     cell_master_client/cell_directory_synchronizer.cpp
     cell_master_client/cell_directory.cpp
     cell_master_client/config.cpp
+    cell_master_client/helpers.cpp
     cell_master_client/protobuf_helpers.cpp
 
     cell_master_client/proto/cell_master_service.proto
@@ -147,6 +149,7 @@ SRCS(
     chunk_client/chunk_meta_fetcher.cpp
     chunk_client/chunk_reader_host.cpp
     chunk_client/chunk_reader_memory_manager.cpp
+    chunk_client/chunk_reader_options.cpp
     chunk_client/chunk_reader_statistics.cpp
     chunk_client/chunk_replica_cache.cpp
     chunk_client/chunk_scraper.cpp
@@ -255,8 +258,11 @@ SRCS(
     data_node_tracker_client/proto/data_node_tracker_service.proto
 
     distributed_chunk_session_client/config.cpp
+    distributed_chunk_session_client/helpers.cpp
+    distributed_chunk_session_client/distributed_chunk_session_pool.cpp
     distributed_chunk_session_client/distributed_chunk_writer.cpp
     distributed_chunk_session_client/distributed_chunk_session_controller.cpp
+    distributed_chunk_session_client/distributed_chunk_session_reader.cpp
 
     distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
 
@@ -310,9 +316,9 @@ SRCS(
 
     job_proxy/any_to_composite_converter.cpp
     job_proxy/config.cpp
+    job_proxy/first_batch_tracking_base.cpp
     job_proxy/helpers.cpp
     job_proxy/job_spec_helper.cpp
-    job_proxy/private.cpp
     job_proxy/profiling_reader.cpp
     job_proxy/profiling_writer.cpp
     job_proxy/user_job_io_factory.cpp
@@ -336,6 +342,7 @@ SRCS(
     misc/synchronizer_detail.cpp
 
     columnar_chunk_format/column_block_manager.cpp
+    columnar_chunk_format/compressed_block_last_keys.cpp
     columnar_chunk_format/memory_helpers.cpp
     columnar_chunk_format/prepared_meta.cpp
     columnar_chunk_format/rowset_builder.cpp
@@ -368,6 +375,15 @@ SRCS(
     object_client/proto/object_ypath.proto
     object_client/proto/user_directory.proto
 
+    offshore_data_gateway/config.cpp
+    offshore_data_gateway/offshore_data_gateway_channel.cpp
+
+    push_based_shuffle_client/config.cpp
+    push_based_shuffle_client/record_format.cpp
+    push_based_shuffle_client/session_provider.cpp
+    push_based_shuffle_client/partition_reader.cpp
+    push_based_shuffle_client/shuffle_writer.cpp
+
     query_client/executor.cpp
     query_client/explain.cpp
     query_client/functions_cache.cpp
@@ -377,6 +393,7 @@ SRCS(
     queue_client/queue_consumer_init.cpp
     queue_client/dynamic_state.cpp
     queue_client/helpers.cpp
+    queue_client/path.cpp
     queue_client/queue_producer_init.cpp
     queue_client/registration_manager.cpp
     queue_client/registration_manager_base.cpp
@@ -421,6 +438,7 @@ SRCS(
     sequoia_client/sequoia_reign.cpp
     sequoia_client/table_descriptor.cpp
     sequoia_client/transaction.cpp
+    sequoia_client/transaction_options.cpp
     sequoia_client/write_set.cpp
     sequoia_client/ypath_detail.cpp
 
@@ -481,6 +499,7 @@ SRCS(
     table_client/partitioner.cpp
     table_client/performance_counters.cpp
     table_client/remote_dynamic_store_reader.cpp
+    table_client/row_layout.cpp
     table_client/row_level_security.cpp
     table_client/rows_digest.cpp
     table_client/samples_fetcher.cpp
@@ -490,6 +509,7 @@ SRCS(
     table_client/schemaful_chunk_reader.cpp
     table_client/schemaful_concatenating_reader.cpp
     table_client/schemaful_reader_adapter.cpp
+    table_client/schemaful_translating_reader_adapter.cpp
     table_client/schemaless_block_reader.cpp
     table_client/schemaless_block_writer.cpp
     table_client/schemaless_buffered_table_writer.cpp
@@ -517,6 +537,12 @@ SRCS(
     table_client/proto/table_partition_cookie.proto
     table_client/proto/table_ypath.proto
     table_client/proto/virtual_value_directory.proto
+
+    tablet_balancer_client/balancing_request.cpp
+    tablet_balancer_client/config.cpp
+    tablet_balancer_client/tablet_balancer_channel.cpp
+
+    tablet_balancer_client/proto/tablet_balancer_service.proto
 
     tablet_client/backup.cpp
     tablet_client/config.cpp
@@ -760,6 +786,13 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
+    queue_client/records/multi_consumer_object.yaml
+    OUTPUT_INCLUDES
+        yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/public.h
+)
+
+GENERATE_YT_RECORD(
     queue_client/records/queue_agent_object_mapping.yaml
     OUTPUT_INCLUDES
         yt/yt/core/yson/string.h
@@ -791,7 +824,7 @@ PEERDIR(
     library/cpp/erasure
     library/cpp/iterator
     library/cpp/yt/backtrace/symbolizers/dwarf
-    library/cpp/containers/absl_flat_hash
+    library/cpp/containers/absl
     yt/yt/library/erasure/impl
     yt/yt/library/containers
     yt/yt/library/disk_manager
@@ -817,12 +850,12 @@ PEERDIR(
     yt/yt/library/s3
     yt/yt/library/row_merger
     yt/yt/library/query/base
-    yt/yt/library/query/engine
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
     yt/yt/library/query/secondary_index
     yt/yt/library/vector_hdrf
     yt/yt/library/web_assembly/api
+    yt/yt/ytlib/admin
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client
     yt/yt_proto/yt/client

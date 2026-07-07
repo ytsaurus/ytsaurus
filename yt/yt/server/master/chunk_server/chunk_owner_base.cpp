@@ -105,9 +105,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, UpdateMode_);
 
     // Initial migration is done in OnAfterSnapshotLoaded in CypressManager.
-    if (context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure && context.GetVersion() < EMasterReign::Start_25_4 ||
-        context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure_25_4)
-    {
+    if (context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure_25_4) {
         Load(context, SecurityTagsUpdateMode_);
     }
 
@@ -129,27 +127,24 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, HunkReplication_);
     Load(context, HunkPrimaryMediumIndex_);
 
-    // COMPAT(shakurov): IsTrunk() check should not be necessary after EMasterReign::ResetHunkMediaOnBranchedNodes is rolled out.
-    if (IsTrunk() || context.GetVersion() > EMasterReign::ResetHunkMediaOnBranchedNodes) {
-        // Check invariant: null hunk primary medium index <=> empty hunk replication.
-        if (auto hunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex()) {
-            if (HunkReplication().GetSize() == 0) {
-                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered "
-                    "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
-                    GetVersionedId(),
-                    hunkPrimaryMediumIndex);
-            } else if (!HunkReplication().Get(*hunkPrimaryMediumIndex)) {
-                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered "
-                    "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
-                    GetVersionedId(),
-                    hunkPrimaryMediumIndex);
-            }
-        } else if (HunkReplication().GetSize() != 0) {
-            YT_LOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered "
-                "(ChunkOwnerNodeId: %v, HunkReplication: %v)",
+    // Check invariant: null hunk primary medium index <=> empty hunk replication.
+    if (auto hunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex()) {
+        if (HunkReplication().GetSize() == 0) {
+            YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered "
+                "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
                 GetVersionedId(),
-                HunkReplication());
+                hunkPrimaryMediumIndex);
+        } else if (!HunkReplication().Get(*hunkPrimaryMediumIndex)) {
+            YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered "
+                "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
+                GetVersionedId(),
+                hunkPrimaryMediumIndex);
         }
+    } else if (HunkReplication().GetSize() != 0) {
+        YT_LOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered "
+            "(ChunkOwnerNodeId: %v, HunkReplication: %v)",
+            GetVersionedId(),
+            HunkReplication());
     }
 }
 
@@ -216,6 +211,7 @@ const TChunkList* TChunkOwnerBase::GetSnapshotChunkList(EChunkListContentType ty
             return chunkList;
 
         case EUpdateMode::Append:
+            YT_VERIFY(type == EChunkListContentType::Main);
             if (GetType() == EObjectType::Journal) {
                 return chunkList;
             } else {
@@ -325,6 +321,9 @@ const TChunkReplication& TChunkOwnerBase::EffectiveHunkReplication() const
     }
 }
 
+void TChunkOwnerBase::ValidateBeginUpload(const TBeginUploadContext& /*context*/)
+{ }
+
 void TChunkOwnerBase::BeginUpload(const TBeginUploadContext& context)
 {
     UpdateMode_ = context.Mode;
@@ -416,10 +415,9 @@ TChunkOwnerDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
             break;
 
         case EUpdateMode::Overwrite:
-            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                if (auto* chunkList = GetSnapshotChunkList(contentType)) {
-                    updateStatistics += chunkList->Statistics().ToDataStatistics();
-                }
+            updateStatistics += GetSnapshotChunkList()->Statistics().ToDataStatistics();
+            if (auto* hunkChunkList = GetSnapshotHunkChunkList()) {
+                updateStatistics += hunkChunkList->HunkStatistics().ToDataStatistics();
             }
             break;
 

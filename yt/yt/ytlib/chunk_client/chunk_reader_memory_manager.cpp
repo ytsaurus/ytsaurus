@@ -277,19 +277,19 @@ TMemoryUsageGuard::~TMemoryUsageGuard()
     Release();
 }
 
-void TMemoryUsageGuard::MoveFrom(TMemoryUsageGuard&& other)
+void TMemoryUsageGuard::MoveFrom(TMemoryUsageGuard&& other) noexcept
 {
     Guard_ = std::move(other.Guard_);
     MemoryManager_ = other.MemoryManager_;
     MemoryUsageTrackerGuard_ = std::move(other.MemoryUsageTrackerGuard_);
 }
 
-TMemoryUsageGuard::TMemoryUsageGuard(TMemoryUsageGuard&& other)
+TMemoryUsageGuard::TMemoryUsageGuard(TMemoryUsageGuard&& other) noexcept
 {
     MoveFrom(std::move(other));
 }
 
-TMemoryUsageGuard& TMemoryUsageGuard::operator=(TMemoryUsageGuard&& other)
+TMemoryUsageGuard& TMemoryUsageGuard::operator=(TMemoryUsageGuard&& other) noexcept
 {
     if (this != &other) {
         Release();

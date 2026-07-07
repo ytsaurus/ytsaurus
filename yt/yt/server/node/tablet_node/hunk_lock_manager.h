@@ -13,10 +13,12 @@ namespace NYT::NTabletNode {
 struct IHunkLockManager
     : public TRefCounted
 {
-    virtual void Initialize() = 0;
-
     virtual void StartEpoch() = 0;
     virtual void StopEpoch() = 0;
+
+    virtual void OnDynamicConfigChanged(
+        const TTabletNodeDynamicConfigPtr& oldConfig,
+        const TTabletNodeDynamicConfigPtr& newConfig) = 0;
 
     virtual void RegisterHunkStore(
         THunkStoreId hunkStoreId,

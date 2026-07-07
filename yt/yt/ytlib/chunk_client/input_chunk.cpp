@@ -144,7 +144,9 @@ bool TInputChunkBase::IsFile() const
 
 bool TInputChunkBase::IsHunk() const
 {
-    return ChunkFormat_ == EChunkFormat::HunkDefault;
+    return
+        ChunkFormat_ == EChunkFormat::HunkDefault ||
+        ChunkFormat_ == EChunkFormat::HunkJournal;
 }
 
 bool TInputChunkBase::IsRowCountMeaningless() const
@@ -465,7 +467,7 @@ void FromProto(TInputChunkPtr* inputChunk, const NProto::TChunkSpec& chunkSpec)
 
 void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, TStringBuf /*spec*/)
 {
-    TString boundaryKeys;
+    std::string boundaryKeys;
     if (inputChunk->BoundaryKeys()) {
         boundaryKeys = Format(
             "MinKey: %v, MaxKey: %v",

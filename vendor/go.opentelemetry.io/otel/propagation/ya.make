@@ -1,8 +1,11 @@
 GO_LIBRARY()
 
-LICENSE(Apache-2.0)
+LICENSE(
+    Apache-2.0 AND
+    BSD-3-Clause
+)
 
-VERSION(v1.37.0)
+VERSION(v1.44.0)
 
 SRCS(
     baggage.go
@@ -11,13 +14,15 @@ SRCS(
     trace_context.go
 )
 
+GO_TEST_SRCS(export_test.go)
+
 GO_XTEST_SRCS(
-    baggage_test.go
-    example_test.go
+    # baggage_test.go
+    # example_test.go
     propagation_test.go
     propagators_test.go
     trace_context_benchmark_test.go
-    trace_context_example_test.go
+    # trace_context_example_test.go
     trace_context_test.go
 )
 

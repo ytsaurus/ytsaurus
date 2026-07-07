@@ -21,11 +21,14 @@ DEPENDS(
     yql/essentials/udfs/common/re2
     yql/essentials/udfs/common/file
     yql/essentials/udfs/common/python/python3_small
+    yql/essentials/udfs/common/streaming
     yql/essentials/udfs/common/string
     yql/essentials/udfs/common/yson2
 )
 
 PEERDIR(
+    library/python/port_manager
+    yql/library/langver/python
     yt/yt/tests/conftest_lib
     yt/python/yt/environment/components/yql_agent
 )
@@ -49,7 +52,7 @@ ELSE()
 ENDIF()
 
 FORK_SUBTESTS()
-SPLIT_FACTOR(32)
+SPLIT_FACTOR(64)
 
 ENV(YT_LOCAL=1)
 

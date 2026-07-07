@@ -51,7 +51,7 @@ public:
         const TConstBaseQueryPtr& query,
         const ISchemafulUnversionedReaderPtr& reader,
         const IUnversionedRowsetWriterPtr& writer,
-        const std::vector<IJoinProfilerPtr>& joinProfilers,
+        const TJoinProfilerRegistry& joinProfilerRegistry,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const NWebAssembly::TModuleBytecode& sdk,
@@ -67,7 +67,11 @@ public:
         NTracing::TChildTraceContextGuard guard("QueryClient.Evaluate");
         NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag("fragment_id", query->Id);
-            traceContext->AddTag("query_fingerprint", queryFingerprint);
+            traceContext->AddTag(
+                "query_fingerprint",
+                TTruncatedStringView(
+                    queryFingerprint,
+                    options.TruncatedQueryLengthForTracing.value_or(std::numeric_limits<int>::max())));
         });
 
         auto Logger = MakeQueryLogger(query);
@@ -94,7 +98,7 @@ public:
             auto queryInstance = Codegen(
                 query,
                 fragmentParams,
-                joinProfilers,
+                joinProfilerRegistry,
                 functionProfilers,
                 aggregateProfilers,
                 sdk,
@@ -124,7 +128,7 @@ public:
                 .MaxJoinBatchSize = options.MaxJoinBatchSize,
                 .Offset = query->Offset,
                 .Limit = query->Limit,
-                .Ordered = query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
+                .ScanOrder = query->GetScanOrder(options.AllowUnorderedGroupByWithLimit),
                 .IsMerge = dynamic_cast<const TFrontQuery*>(query.Get()) != nullptr,
                 .MemoryChunkProvider = memoryChunkProvider,
                 .RequestFeatureFlags = &requestFeatureFlags,
@@ -163,7 +167,7 @@ private:
     TCGQueryInstance Codegen(
         TConstBaseQueryPtr query,
         TCGVariables& variables,
-        const std::vector<IJoinProfilerPtr>& joinProfilers,
+        const TJoinProfilerRegistry& joinProfilerRegistry,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const NWebAssembly::TModuleBytecode& sdk,
@@ -177,24 +181,28 @@ private:
     {
         llvm::FoldingSetNodeID id;
 
+        TQueryFoldingProfilerOptions options{
+            .UseCanonicalNullRelations = useCanonicalNullRelations,
+            .ExecutionBackend = executionBackend,
+            .OptimizationLevel = optimizationLevel,
+            .AllowUnorderedGroupByWithLimit = allowUnorderedGroupByWithLimit,
+            .MaxJoinBatchSize = maxJoinBatchSize,
+        };
+
         auto makeCodegenQuery = Profile(
             query,
             &id,
             &variables,
-            joinProfilers,
-            useCanonicalNullRelations,
-            executionBackend,
-            optimizationLevel,
+            joinProfilerRegistry,
+            options,
             functionProfilers,
             aggregateProfilers,
-            sdk,
-            allowUnorderedGroupByWithLimit,
-            maxJoinBatchSize);
+            sdk);
 
         auto Logger = MakeQueryLogger(query);
 
         // See condition in folding_profiler.cpp.
-        bool considerLimit = query->IsOrdered(allowUnorderedGroupByWithLimit) && !query->GroupClause;
+        bool considerLimit = (query->GetScanOrder(allowUnorderedGroupByWithLimit) != EScanOrder::Unordered) && !query->GroupClause;
 
         auto queryFingerprint = InferName(query, TInferNameOptions{
             .OmitValues = true,

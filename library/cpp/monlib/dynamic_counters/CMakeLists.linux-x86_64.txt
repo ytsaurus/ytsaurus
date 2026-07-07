@@ -22,6 +22,7 @@ target_link_libraries(cpp-monlib-dynamic_counters PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-containers-stack_vector
+  cpp-html-escape
   monlib-encode-json
   monlib-encode-spack
   monlib-encode-prometheus

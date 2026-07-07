@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "async_batcher.h"
 #endif
-#undef ASYNC_BATCHER_INL_H_
 
 #include "delayed_executor.h"
 #include "thread_affinity.h"

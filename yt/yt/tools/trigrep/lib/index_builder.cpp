@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <library/cpp/yt/memory/ref.h>
+
 #include <util/generic/algorithm.h>
 
 namespace NYT::NTrigrep {
@@ -20,60 +22,113 @@ constinit const auto Logger = TrigrepLogger;
 
 constexpr int PostingsPerBucketExtent = 15;
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TPostingMap
 {
 public:
     explicit TPostingMap(i64 extentBufferCapacity)
-        : BucketIndexes_(TotalTrigramCount, InvalidBucketIndex)
     {
+        // The trigram -> bucket-index map spans 64 MB and is probed randomly
+        // once per input character; on 4 KB pages this thrashes the dTLB (the
+        // dominant cost on older CPUs). Backing it with 2 MB transparent huge
+        // pages cuts the page count from ~16K to ~32, so it fits in the TLB.
+        BucketIndexesHolder_ = TSharedMutableRef::AllocateViaMmap(
+            TotalTrigramCount * sizeof(int),
+            {.InitializeStorage = false, .UseThp = true});
+        BucketIndexes_ = reinterpret_cast<int*>(BucketIndexesHolder_.Begin());
+        // InvalidBucketIndex (-1) is all-ones, so a byte-wise fill works.
+        static_assert(InvalidBucketIndex == -1);
+        ::memset(BucketIndexes_, 0xff, TotalTrigramCount * sizeof(int));
+
         Extents_.reserve(extentBufferCapacity);
     }
 
-    void AddPosting(TTrigram trigram, ui32 blockIndex, TLineFingerprint lineFingerprint)
+    // Adds all trigrams of a single line. Both the BucketIndexes_ lookup and the
+    // dependent Buckets_ access are random probes into multi-megabyte arrays, so
+    // a straight loop stalls on load-to-use latency for (almost) every trigram.
+    // We instead run a three-stage software pipeline that prefetches each probe
+    // well ahead of its use:
+    //   A: read trigram from text, prefetch BucketIndexes_[trigram]
+    //   B: resolve/allocate bucket index, prefetch Buckets_[bucketIndex]
+    //   C: apply the posting to the (now cache-hot) bucket
+    void AddLinePostings(const char* data, int trigramCount, ui32 blockIndex, TLineFingerprint lineFingerprint)
     {
-        int bucketIndex = BucketIndexes_[trigram.Underlying()];
-        if (bucketIndex == InvalidBucketIndex) [[unlikely]] {
-            bucketIndex = AllocateBucket(blockIndex);
-            BucketIndexes_[trigram.Underlying()] = bucketIndex;
-        }
+        // BucketIndexes_ lookup (stage A->B) is the longest-latency probe, so it
+        // gets the larger lookahead; the dependent Buckets_ probe (stage B->C)
+        // gets the smaller one.
+        constexpr int IndexPrefetchAhead = 32;
+        constexpr int BucketPrefetchAhead = 8;
+        constexpr int BucketRingMask = BucketPrefetchAhead - 1;
+        static_assert((BucketPrefetchAhead & BucketRingMask) == 0);
 
-        auto* bucket = &Buckets_[bucketIndex];
-        ++bucket->Count;
-
-        auto setBit = [&] {
-            bucket->FingerprintBitmap[lineFingerprint >> 6] |= (1ULL << (lineFingerprint & 63));
-        };
-
-        ui32 currentBlockIndex = bucket->CurrentBlockIndex;
-        if (currentBlockIndex == blockIndex) [[likely]] {
-            setBit();
+        if (trigramCount <= 0) {
             return;
         }
 
-        int extentIndex = bucket->FirstExtentIndex;
-        if (extentIndex == InvalidExtentIndex) [[unlikely]] {
-            extentIndex = AllocateBucketExtent();
-            bucket->FirstExtentIndex = extentIndex;
+        if (trigramCount <= IndexPrefetchAhead + BucketPrefetchAhead) [[unlikely]] {
+            for (int index = 0; index < trigramCount; ++index) {
+                AddPosting(ReadTrigram(data + index), blockIndex, lineFingerprint);
+            }
+            return;
         }
 
-        auto* extent = &Extents_[extentIndex];
-        auto addPosting = [&] (TLineFingerprint currentLineFingerprint) {
-            if (bucket->FirstExtentRemaining == 0) [[unlikely]] {
-                auto newExtentIndex = AllocateBucketExtent();
-                bucket->FirstExtentIndex = newExtentIndex;
-                bucket->FirstExtentRemaining = PostingsPerBucketExtent;
-                extent = &Extents_[newExtentIndex];
-                extent->NextExtentIndex = extentIndex;
-                extentIndex = newExtentIndex;
-            }
-            extent->Postings[--bucket->FirstExtentRemaining] = MakePosting(currentBlockIndex, currentLineFingerprint);
+        int bucketRing[BucketPrefetchAhead];
+        const auto* indexes = BucketIndexes_;
+
+        // Stage A: read a trigram and prefetch its (sparse) BucketIndexes_ slot.
+        auto stageA = [&] (int i) {
+            ui32 trigram = ReadTrigram(data + i).Underlying();
+            Y_PREFETCH_READ(indexes + trigram, 0);
+        };
+        // Stage B: resolve/allocate the bucket (its index slot is hot now) and
+        // prefetch the bucket itself.
+        auto stageB = [&] (int j) {
+            int bucketIndex = LocateBucketIndex(ReadTrigram(data + j), blockIndex);
+            bucketRing[j & BucketRingMask] = bucketIndex;
+            Y_PREFETCH_WRITE(Buckets_.data() + bucketIndex, 3);
         };
 
-        IterateBitmap(*bucket, addPosting);
+        // Prime the pipeline.
+        for (int a = 0; a < IndexPrefetchAhead + BucketPrefetchAhead; ++a) {
+            stageA(a);
+        }
+        for (int b = 0; b < BucketPrefetchAhead; ++b) {
+            stageB(b);
+        }
 
-        bucket->CurrentBlockIndex = blockIndex;
-        bucket->FingerprintBitmap = {};
-        setBit();
+        // Steady state: no bounds checks, all three stages fire every iteration.
+        int hotCount = trigramCount - IndexPrefetchAhead - BucketPrefetchAhead;
+        for (int c = 0; c < hotCount; ++c) {
+            DoAddPosting(bucketRing[c & BucketRingMask], blockIndex, lineFingerprint);
+            stageB(c + BucketPrefetchAhead);
+            stageA(c + IndexPrefetchAhead + BucketPrefetchAhead);
+        }
+
+        // Drain.
+        for (int c = hotCount; c < trigramCount; ++c) {
+            DoAddPosting(bucketRing[c & BucketRingMask], blockIndex, lineFingerprint);
+            int b = c + BucketPrefetchAhead;
+            if (b < trigramCount) {
+                stageB(b);
+            }
+        }
+    }
+
+    // Prefetches the bucket (and its first extent) for a trigram. Used to hide
+    // the random Buckets_/Extents_ probes during the compression walk, which
+    // visits trigrams in sorted (i.e. random bucket-index) order.
+    void PrefetchBucket(TTrigram trigram) const
+    {
+        int bucketIndex = BucketIndexes_[trigram.Underlying()];
+        if (bucketIndex == InvalidBucketIndex) {
+            return;
+        }
+        const auto& bucket = Buckets_[bucketIndex];
+        Y_PREFETCH_READ(&bucket, 1);
+        if (bucket.FirstExtentIndex != InvalidExtentIndex) {
+            Y_PREFETCH_READ(&Extents_[bucket.FirstExtentIndex], 1);
+        }
     }
 
     int GetPostingCount(TTrigram trigram) const
@@ -157,9 +212,70 @@ private:
 
     static_assert(sizeof(TBucketExtent) == 64);
 
-    std::vector<int> BucketIndexes_;
+    TSharedMutableRef BucketIndexesHolder_;
+    int* BucketIndexes_ = nullptr;
     std::vector<TBucket> Buckets_;
     std::vector<TBucketExtent> Extents_;
+
+    // Resolves the bucket for a trigram, allocating one on first occurrence.
+    // Split out from DoAddPosting so that the (long-latency) lookup into the
+    // sparse 64 MB BucketIndexes_ array can be software-prefetched ahead of the
+    // dependent access into Buckets_.
+    Y_FORCE_INLINE int LocateBucketIndex(TTrigram trigram, ui32 blockIndex)
+    {
+        int bucketIndex = BucketIndexes_[trigram.Underlying()];
+        if (bucketIndex == InvalidBucketIndex) [[unlikely]] {
+            bucketIndex = AllocateBucket(blockIndex);
+            BucketIndexes_[trigram.Underlying()] = bucketIndex;
+        }
+        return bucketIndex;
+    }
+
+    Y_FORCE_INLINE void DoAddPosting(int bucketIndex, ui32 blockIndex, TLineFingerprint lineFingerprint)
+    {
+        auto* bucket = &Buckets_[bucketIndex];
+        ++bucket->Count;
+
+        auto setBit = [&] {
+            bucket->FingerprintBitmap[lineFingerprint >> 6] |= (1ULL << (lineFingerprint & 63));
+        };
+
+        ui32 currentBlockIndex = bucket->CurrentBlockIndex;
+        if (currentBlockIndex == blockIndex) [[likely]] {
+            setBit();
+            return;
+        }
+
+        int extentIndex = bucket->FirstExtentIndex;
+        if (extentIndex == InvalidExtentIndex) [[unlikely]] {
+            extentIndex = AllocateBucketExtent();
+            bucket->FirstExtentIndex = extentIndex;
+        }
+
+        auto* extent = &Extents_[extentIndex];
+        auto addPosting = [&] (TLineFingerprint currentLineFingerprint) {
+            if (bucket->FirstExtentRemaining == 0) [[unlikely]] {
+                auto newExtentIndex = AllocateBucketExtent();
+                bucket->FirstExtentIndex = newExtentIndex;
+                bucket->FirstExtentRemaining = PostingsPerBucketExtent;
+                extent = &Extents_[newExtentIndex];
+                extent->NextExtentIndex = extentIndex;
+                extentIndex = newExtentIndex;
+            }
+            extent->Postings[--bucket->FirstExtentRemaining] = MakePosting(currentBlockIndex, currentLineFingerprint);
+        };
+
+        IterateBitmap(*bucket, addPosting);
+
+        bucket->CurrentBlockIndex = blockIndex;
+        bucket->FingerprintBitmap = {};
+        setBit();
+    }
+
+    void AddPosting(TTrigram trigram, ui32 blockIndex, TLineFingerprint lineFingerprint)
+    {
+        DoAddPosting(LocateBucketIndex(trigram, blockIndex), blockIndex, lineFingerprint);
+    }
 
     int AllocateBucket(ui32 blockIndex)
     {
@@ -635,12 +751,8 @@ private:
 
     void IndexLine(ui32 blockIndex, TLineFingerprint lineFingerprint, TStringBuf line)
     {
-        const char* __restrict__ currentPtr = line.data();
-        const char* __restrict__ endPtr = line.end() - 2;
-        while (currentPtr < endPtr) {
-            auto trigram = ReadTrigram(currentPtr++);
-            PostingMap_.AddPosting(trigram, blockIndex, lineFingerprint);
-        }
+        int trigramCount = static_cast<int>(line.size()) - 2;
+        PostingMap_.AddLinePostings(line.data(), trigramCount, blockIndex, lineFingerprint);
     }
 
     void SortTrigrams()
@@ -696,8 +808,19 @@ private:
 
         auto joinedIndexSegmentsLengthThreshold = static_cast<i64>(UncompressedInputSize_ * Options_.IndexSizeFactor);
 
-        for (auto trigram : SortedTrigrams_) {
+        constexpr int BucketPrefetchAhead = 8;
+        int trigramCount = std::ssize(SortedTrigrams_);
+        for (int index = 0; index < std::min(BucketPrefetchAhead, trigramCount); ++index) {
+            PostingMap_.PrefetchBucket(SortedTrigrams_[index]);
+        }
+
+        for (int index = 0; index < trigramCount; ++index) {
+            auto trigram = SortedTrigrams_[index];
             ++ChunkHeader_.IndexedTrigramCount;
+
+            if (int ahead = index + BucketPrefetchAhead; ahead < trigramCount) {
+                PostingMap_.PrefetchBucket(SortedTrigrams_[ahead]);
+            }
 
             auto postingList = PostingMap_.GetPostings(postingListBuffer.get(), trigram);
             IndexSegmentBuilder_.Add(postingList);

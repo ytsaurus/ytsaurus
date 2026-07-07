@@ -118,7 +118,7 @@ TYsonString NewMergeValueLists(std::vector<TAttributeValue> attributeValues, EYs
     return resultBuilder.Flush();
 }
 
-std::optional<std::tuple<TStringBuf, TStringBuf>> SplitByAsterisk(const NYPath::TYPath& path)
+std::optional<std::tuple<TStringBuf, TStringBuf>> SplitByAsterisk(NYPath::TYPathBuf path)
 {
     NYPath::TTokenizer tokenizer(path);
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
@@ -147,7 +147,7 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
             result.push_back(std::move(attributeValue));
             continue;
         }
-        auto [before, after] = split.value();
+        auto [before, after] = *split;
         attributesToExpand[before].push_back(TAttributeValue{
             .Path = NYPath::TYPath{after},
             .Value = std::move(attributeValue.Value),
@@ -190,7 +190,7 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
     return result;
 }
 
-void RemoveEntitiesOnPath(NYTree::INodePtr node, const NYPath::TYPath& path)
+void RemoveEntitiesOnPath(NYTree::INodePtr node, NYPath::TYPathBuf path)
 {
     NYTree::WalkNodeByYPath(node, path, {
         .MissingAttributeHandler = [] (const std::string& /*key*/) {
@@ -639,7 +639,7 @@ bool HasPrefixes(const std::vector<TAttributeValue>& attributeValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsOnePrefixOfAnother(const NYPath::TYPath& lhs, const NYPath::TYPath& rhs)
+bool IsOnePrefixOfAnother(NYPath::TYPathBuf lhs, NYPath::TYPathBuf rhs)
 {
     auto [lit, rit] = std::ranges::mismatch(lhs, rhs);
     if (lit == lhs.end() && (rit == rhs.end() || *rit == '/')) {
@@ -762,12 +762,12 @@ TYsonString MergeAttributes(
             }
             case EMergeAttributesMode::CompareCallback: {
                 auto oldResult = MergeAttributeValuesAsNodes(expandedAttributeValues, format, duplicatePolicy);
-                auto newResult = MergeAttributeValuesWithPrefixes(std::move(expandedAttributeValues), format, duplicatePolicy);
+                auto newResult = MergeAttributeValuesWithPrefixes(expandedAttributeValues, format, duplicatePolicy);
                 if (!NYTree::AreNodesEqual(NYTree::ConvertToNode(oldResult), NYTree::ConvertToNode(newResult))) {
                     std::vector<NYPath::TYPath> mismatchedPaths;
                     mismatchedPaths.reserve(expandedAttributeValues.size());
-                    for (const auto& attribute : expandedAttributeValues) {
-                        mismatchedPaths.push_back(attribute.Path);
+                    for (auto& attribute : expandedAttributeValues) {
+                        mismatchedPaths.push_back(std::move(attribute.Path));
                     }
                     mismatchCallback(/*expandWildcardsMismatched*/ false, std::move(mismatchedPaths));
                 }

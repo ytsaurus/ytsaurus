@@ -71,8 +71,10 @@ message TTimeStatistics
     optional int64 prepare_root_fs_duration = 4;
     optional int64 gpu_check_duration = 5;
     optional int64 prepare_gpu_check_fs_duration = 7;
-    optional int64 prepare_tmpfs_duration = 8;
+    optional int64 prepare_non_root_volumes_duration = 8;
     optional int64 validate_root_fs_duration = 9;
+    optional int64 link_volumes_duration = 10;
+    optional int64 prepare_layers_duration = 11;
 }
 
 // Describes the current job status.
@@ -193,6 +195,8 @@ message TSidecarJobSpec
     required int32 restart_policy = 5; // ESidecarRestartPolicy
 
     optional TGracefulShutdownSpec graceful_shutdown = 6;
+
+    repeated TVolumeMount sidecar_volume_mounts = 7;
 }
 
 message TVolume
@@ -203,6 +207,8 @@ message TVolume
         NYT.NScheduler.NProto.TTmpfsStorageRequest tmpfs_storage_request = 3;
         NYT.NScheduler.NProto.TNbdDiskRequest nbd_disk_request = 4;
     }
+    // If true, the volume can be reused between sequential jobs within the same allocation.
+    optional bool allow_reusing = 5 [default = false];
 }
 
 message TVolumeMount
@@ -478,6 +484,7 @@ message TJobSpecExt
     optional bool is_approximate = 9 [default = false];
 
     optional int64 job_proxy_memory_overcommit_limit = 16;
+    optional int64 estimated_job_proxy_memory = 48;
 
     // Deprecated = 11
 

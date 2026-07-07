@@ -73,3 +73,6 @@ You can override configuration for any component by using the appropriate config
 - `ytserver-scheduler.yson` - Schedulers
 - `ytserver-controller-agent.yson` - Controller agents
 - `ytserver-discovery.yson` - Discovery service
+{%if audience == "public" %}
+- `ytserver-yql-agent.yson` &mdash; YQL-agent
+{% endif %}

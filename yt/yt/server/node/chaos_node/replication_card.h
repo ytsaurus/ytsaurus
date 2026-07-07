@@ -53,8 +53,14 @@ public:
 
     bool IsNormalState() const override;
 
+    using TSecondaryIndices = std::vector<NTabletClient::TIndexInfo>;
+    DEFINE_BYREF_RW_PROPERTY(TSecondaryIndices, SecondaryIndices);
+    DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationCardId, IndexTo);
+
     NChaosClient::TReplicaInfo* FindReplica(NChaosClient::TReplicaId replicaId);
     NChaosClient::TReplicaInfo* GetReplicaOrThrow(NChaosClient::TReplicaId replicaId);
+
+    TReplicationCard::TSecondaryIndices::iterator FindSecondaryIndex(TReplicationCardId indexCardId);
 
 public:
     TReplicationCard(NObjectClient::TObjectId id);

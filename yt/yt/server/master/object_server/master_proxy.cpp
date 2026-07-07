@@ -46,6 +46,8 @@
 
 #include <yt/yt/core/rpc/message.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -314,7 +316,7 @@ private:
                 protoSubject->set_name(ToProto(subject->GetName()));
                 ToProto(protoSubject->mutable_aliases(), subject->Aliases());
                 for (auto group : subject->RecursiveMemberOf()) {
-                    ToProto(protoSubject->add_recursve_memeber_of(), group->GetName());
+                    ToProto(protoSubject->add_recursive_member_of(), group->GetName());
                 }
             };
 
@@ -544,7 +546,7 @@ private:
             auto schema = New<TCompactTableSchema>(entry.schema());
 
             // NB: Schema lifetime is managed by cross-cell copy transaction.
-            auto masterTableSchema = tableManager->GetOrCreateNativeMasterTableSchema(schema, transaction);
+            auto masterTableSchema = tableManager->GetOrCreateNativeMasterTableSchema(std::move(schema), transaction);
 
             auto* rspEntry = response->add_old_to_new_schema_id();
             ToProto(rspEntry->mutable_old_schema_id(), oldSchemaId);
@@ -721,6 +723,8 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto objectId : objectIds) {
             // It's impossible to clear response without wiping the whole context, so it has to be created anew for each node.
+            // Child trace context prevents tag collision on #NTracing::AnnotateTraceContext.
+            NTracing::TChildTraceContextGuard traceGuard("VectorizedRead:Subrequest");
             auto subcontext = CreateYPathContext(templateRequest, Logger());
 
             if (auto* object = objectManager->FindObject(objectId); IsObjectAlive(object)) {
@@ -775,7 +779,8 @@ private:
 
     void ValidateVectorizedRead(const std::string& templateMethod, const std::vector<TObjectId>& objectIds)
     {
-        static const int MaxVectorizedReadRequestSize = 100;
+        const auto& config = Bootstrap_->GetDynamicConfig()->ObjectService;
+
         static const THashSet<std::string> VectorizedReadMethodWhitelist = {
             "Get",
             "SerializeNode",
@@ -786,10 +791,10 @@ private:
             "Method %Qv is not supported as a template for \"VectorizedRead\"",
             templateMethod);
 
-        if (objectIds.size() > MaxVectorizedReadRequestSize) {
+        if (std::ssize(objectIds) > config->MaxVectorizedReadRequestSize) {
             THROW_ERROR_EXCEPTION("Too many objects in vectorized request: %v > %v",
                 objectIds.size(),
-                MaxVectorizedReadRequestSize);
+                config->MaxVectorizedReadRequestSize);
         }
     }
 
@@ -808,7 +813,7 @@ private:
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
         const auto& tableManager = Bootstrap_->GetTableManager();
-        auto result = tableManager->GetOrCreateNativeMasterTableSchema(schema, transaction);
+        auto result = tableManager->GetOrCreateNativeMasterTableSchema(std::move(schema), transaction);
         ToProto(response->mutable_schema_id(), result->GetId());
 
         context->SetResponseInfo(

@@ -71,7 +71,7 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
         prewhereReadPlan->GetReadColumnCount(),
         readPlan->GetReadColumnCount());
 
-    auto chunkReadOptions = CreateChunkReadOptions(queryContext->User, std::move(granuleFilter));
+    auto chunkReadOptions = CreateChunkReadOptions(TString(queryContext->User), std::move(granuleFilter));
     auto reader = CreateSourceReader(
         storageContext,
         subquerySpec,
@@ -117,7 +117,7 @@ public:
         IGranuleFilterPtr granuleFilter,
         TCallback<void(const TStatistics&)> statisticsCallback)
     : DB::ISource(
-        DeriveHeaderBlockFromReadPlan(readPlan, storageContext->Settings->Composite),
+        DeriveHeaderBlockFromReadPlan(readPlan, storageContext->Settings->Conversion),
         /*enable_auto_progress*/ false)
     , StorageContext_(storageContext)
     , QueryContext_(storageContext->QueryContext)

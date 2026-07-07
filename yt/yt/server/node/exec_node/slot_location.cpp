@@ -1,13 +1,11 @@
 #include "slot_location.h"
 
 #include "bootstrap.h"
-#include "slot_manager.h"
-#include "private.h"
 #include "job_directory_manager.h"
+#include "private.h"
+#include "slot_manager.h"
 #include "volume.h"
-
-#include <yt/yt/server/lib/exec_node/config.h>
-#include <yt/yt/server/lib/exec_node/helpers.h>
+#include "volume_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -16,18 +14,19 @@
 #include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/location.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
+
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 
 #include <yt/yt/server/lib/io/io_tracker.h>
 
-#include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/library/program/program.h>
-
-#include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/client/misc/io_tags.h>
 
@@ -39,6 +38,8 @@
 #include <yt/yt/core/yson/writer.h>
 
 #include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <util/system/fs.h>
 
@@ -61,67 +62,50 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TSlotLocation::TSandboxTmpfsData::IsInsideTmpfs(const TString& path, const NLogging::TLogger& Logger) const
+bool TSlotLocation::TSandboxTmpfsData::IsInsideTmpfs(const std::string& path, const NLogging::TLogger& Logger) const
 {
-    auto relativePath = TryGetPathRelativeToSandbox(path);
-    if (!relativePath) {
-        YT_LOG_DEBUG("Failed to get path relative to sandbox (Path: %v, SandboxPaths: %v)",
-            path,
-            SandboxPaths_);
-        return false;
-    }
-
-    YT_LOG_DEBUG("Checking if path is inside tmpfs (Path: %v, RelativePath: %v, TmpfsPaths: %v)",
+    YT_LOG_DEBUG(
+        "Checking if path is inside tmpfs volume (Path: %v, VolumePathToType: %v)",
         path,
-        relativePath,
-        TmpfsPaths_);
+        VolumePathToType_);
 
-    auto it = TmpfsPaths_.upper_bound(*relativePath);
-    if (it != TmpfsPaths_.begin()) {
-        --it;
-        if (*relativePath == *it || relativePath->StartsWith(NFS::CombinePaths(*it, "/"))) {
-            YT_LOG_DEBUG("Path is inside tmpfs (Path: %v, RelativePath: %v, TmpfsPath: %v, SandboxPaths: %v)",
-                path,
-                *relativePath,
-                *it,
-                SandboxPaths_);
-            return true;
+    bool isTmpfs = false;
+    std::optional<std::string_view> longestVolumePath;
+    for (const auto& [volumePath, type] : VolumePathToType_) {
+        if (volumePath.IsAncestorOf(path, /*treatEqualPathAsAncestor*/ true)) {
+            if (!longestVolumePath || volumePath.Path().native().size() > longestVolumePath->size()) {
+                longestVolumePath = volumePath.Path().native();
+                isTmpfs = type == EVolumeType::Tmpfs;
+            }
         }
     }
-    return false;
+
+    if (longestVolumePath) {
+        YT_LOG_DEBUG(
+            "Path %v inside tmpfs (Path: %v, VolumePath: %v, VolumePathToType: %v, SandboxPaths: %v)",
+            isTmpfs ? "is" : "isn't",
+            path,
+            *longestVolumePath,
+            VolumePathToType_,
+            SandboxPaths_);
+    } else {
+        YT_LOG_DEBUG(
+            "Path is inside root volume (Path: %v, VolumePathToType: %v, SandboxPaths: %v)",
+            path,
+            VolumePathToType_,
+            SandboxPaths_);
+    }
+    return isTmpfs;
 }
 
-void TSlotLocation::TSandboxTmpfsData::AddSandboxPath(TString&& sandboxPath)
+void TSlotLocation::TSandboxTmpfsData::AddSandboxPath(TAbsoluteNormalizedPath&& sandboxPath)
 {
-    // Remove trailing slash.
-    if (sandboxPath.EndsWith("/")) {
-        sandboxPath.pop_back();
-    }
-
     SandboxPaths_.insert(std::move(sandboxPath));
 }
 
-void TSlotLocation::TSandboxTmpfsData::AddTmpfsPath(TString&& tmpfsPath)
+void TSlotLocation::TSandboxTmpfsData::AddVolumeInfo(TAbsoluteNormalizedPath&& volumePath, EVolumeType volumeType)
 {
-    EmplaceOrCrash(TmpfsPaths_, std::move(tmpfsPath));
-}
-
-std::optional<TString> TSlotLocation::TSandboxTmpfsData::TryGetPathRelativeToSandbox(const TString& path) const
-{
-    auto fullPath = NFS::JoinPaths(path, "/");
-    for (const auto& sandboxPath : SandboxPaths_) {
-        auto fullSandboxPath = NFS::JoinPaths(sandboxPath, "/");
-        if (fullSandboxPath.empty() || fullPath.size() < fullSandboxPath.size() || !fullPath.starts_with(fullSandboxPath)) {
-            continue;
-        }
-
-        if (fullPath.size() == fullSandboxPath.size()) {
-            return "/";
-        }
-
-        return path.substr(sandboxPath.size());
-    }
-    return std::nullopt;
+    EmplaceOrCrash(VolumePathToType_, std::move(volumePath), volumeType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,7 +113,7 @@ std::optional<TString> TSlotLocation::TSandboxTmpfsData::TryGetPathRelativeToSan
 TSlotLocation::TSlotLocation(
     TSlotLocationConfigPtr config,
     IBootstrap* bootstrap,
-    const TString& id,
+    const std::string& id,
     IJobDirectoryManagerPtr jobDirectoryManager,
     int slotCount,
     std::function<int(int)> slotIndexToUserId)
@@ -137,6 +121,7 @@ TSlotLocation::TSlotLocation(
     , Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , SlotManagerStaticConfig_(Bootstrap_->GetConfig()->ExecNode->SlotManager)
+    , SlotManagerDynamicConfig_(Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager)
     , JobDirectoryManager_(std::move(jobDirectoryManager))
     , SlotCount_(slotCount)
     , SlotIndexToUserId_(slotIndexToUserId)
@@ -164,16 +149,38 @@ TSlotLocation::TSlotLocation(
         SlotManagerStaticConfig_->SlotLocationStatisticsUpdatePeriod))
     , LocationPath_(GetRealPath(Config_->Path))
     , MediumDescriptor_(New<NChunkClient::TDomesticMediumDescriptor>())
-{
-    ExecNodeProfiler().WithPrefix("/job_directory/artifacts")
+    , Profiler_(ExecNodeProfiler()
+        .WithPrefix("/slot_locations")
         .WithTag("device_name", Config_->DeviceName)
         .WithTag("disk_family", Config_->DiskFamily)
-        .AddProducer("", MakeCopyMetricBuffer_);
+        .WithTag("location_id", Id_))
+    , CopyRate_(Profiler_.Gauge("/copy/rate"))
+    , CopyRateEma_(Profiler_.Gauge("/copy/rate_ema"))
+    , CopyRateAggregator_(SlotManagerDynamicConfig_.Acquire()->CopyRateAggregatorHalfLife)
+{
+    InitializeDiskLocationProfiling(Profiler_);
+
+    Bootstrap_->SubscribePopulateAlerts(BIND(&TSlotLocation::PopulateAlerts, MakeWeak(this)));
 }
 
 void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    SlotManagerDynamicConfig_.Store(config);
+
+    TDiskLocation::Reconfigure(std::invoke([&] {
+        auto diskLocationConfig = CloneYsonStruct<TDiskLocationConfig>(Config_);
+        diskLocationConfig->ApplyDynamicInplace(*config->LocationConfigPatch);
+        return diskLocationConfig;
+    }));
+
+    {
+        auto guard = Guard(CopyRateAggregatorLock_);
+        CopyRateAggregator_.SetHalflife(
+            config->CopyRateAggregatorHalfLife,
+            /*resetOnNewHalflife*/ false);
+    }
 
     HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*config->DiskHealthChecker));
     JobDirectoryManager_->OnDynamicConfigChanged(config->JobDirectoryManager);
@@ -187,9 +194,10 @@ TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume,
         const auto& rootVolumeMountPath = rootVolume->GetPath();
         YT_VERIFY(NFS::Exists(rootVolumeMountPath));
 
-        struct TDirectory {
-            TString Path;
-            bool RemoveIfExists;
+        struct TDirectory
+        {
+            std::string Path;
+            bool RemoveIfExists = false;
         };
 
         static constexpr int DirectoryPermissions = 0777;
@@ -282,53 +290,13 @@ TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
         .Run();
 }
 
-TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(
-    const TString& userSandboxPath,
-    const std::vector<TTmpfsVolumeParams>& volumeParams,
-    const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) const
+TFuture<void> TSlotLocation::Initialize(IVolumeManagerPtr volumeManager)
 {
-    return BIND([userSandboxPath, volumeParams, volumeMounts] () {
-        // It is assumed that userSandboxPath already exists.
-        for (const auto& volume : volumeParams) {
-            // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
-            auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
-
-            auto tmpfsUserSandboxPath = NFS::GetRealPath(NFS::CombinePaths(userSandboxPath, mountPath));
-
-            const auto& Logger = ExecNodeLogger();
-            YT_LOG_DEBUG("Creating tmpfs directory (TmpfsPath: %v, UserSandboxPath: %v, TmpfsUserSandboxPath: %v)",
-                volume.VolumeId,
-                userSandboxPath,
-                tmpfsUserSandboxPath);
-
-            try {
-                if (tmpfsUserSandboxPath != userSandboxPath) {
-                    // If we mount directory inside sandbox, it should not exist.
-                    if (NFS::Exists(tmpfsUserSandboxPath)) {
-                        THROW_ERROR_EXCEPTION("Tmpfs path %v already exists",
-                            tmpfsUserSandboxPath);
-                    }
-                }
-                NFS::MakeDirRecursive(tmpfsUserSandboxPath);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to create directory %v for tmpfs in sandbox %v",
-                    tmpfsUserSandboxPath,
-                    userSandboxPath)
-                    << ex;
-            }
-        }
-    })
-    .AsyncVia(HeavyInvoker_)
-    .Run();
-}
-
-TFuture<void> TSlotLocation::Initialize()
-{
-    return BIND([=, this, this_ = MakeStrong(this)] {
+    return BIND([=, this, this_ = MakeStrong(this), volumeManager = std::move(volumeManager)] () mutable {
         ChangeState(ELocationState::Enabled, ELocationState::Enabling);
 
         try {
-            DoInitialize();
+            DoInitialize(std::move(volumeManager));
         } catch (const std::exception& ex) {
             auto error = TError("Failed to initialize slot location %v", Config_->Path)
                 << ex;
@@ -339,14 +307,12 @@ TFuture<void> TSlotLocation::Initialize()
         HealthChecker_->SubscribeFailed(BIND(&TSlotLocation::Disable, MakeWeak(this))
             .Via(HeavyInvoker_));
         HealthChecker_->Start();
-
-        Bootstrap_->SubscribePopulateAlerts(BIND(&TSlotLocation::PopulateAlerts, MakeWeak(this)));
     })
     .AsyncVia(HeavyInvoker_)
     .Run();
 }
 
-void TSlotLocation::DoInitialize()
+void TSlotLocation::DoInitialize(IVolumeManagerPtr volumeManager)
 {
     YT_ASSERT_INVOKER_AFFINITY(HeavyInvoker_);
 
@@ -359,6 +325,8 @@ void TSlotLocation::DoInitialize()
     ValidateMinimumSpace();
 
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+        RemoveVolumesFromPortoPlace(slotIndex, volumeManager);
+        RemoveLayersFromPortoPlace(slotIndex, volumeManager);
         BuildSlotRootDirectory(slotIndex);
     }
 
@@ -397,12 +365,13 @@ void TSlotLocation::DoRepair()
         Error_.Store(TError{});
         Alert_.Store(TError{});
 
-        DoInitialize();
+        auto volumeManager = Bootstrap_->GetSlotManager()->GetVolumeManager();
+        DoInitialize(std::move(volumeManager));
         ChangeState(ELocationState::Enabled);
 
         YT_LOG_DEBUG("Location repaired (Location: %v)", Id_);
     } catch (const std::exception& ex) {
-        ChangeState(ELocationState::Disabled);
+        ChangeState(ELocationState::Disabled, std::nullopt, ex);
 
         auto error = TError("Failed to repair slot location %v", Config_->Path)
             << ex;
@@ -483,48 +452,64 @@ void TSlotLocation::DoPrepareSandboxDirectories(
         slotIndex);
 }
 
+TFuture<void> TSlotLocation::CreateFakeNonRootVolumes(
+    const IVolumePtr& rootVolume,
+    int slotIndex,
+    const std::vector<TVolumeMountPtr>& volumeMounts)
+{
+    return BIND([rootVolume, slotIndex, volumeMounts, this, this_ = MakeStrong(this)] () {
+        const auto& Logger = ExecNodeLogger();
+        if (rootVolume) {
+            for (const auto& volumeMount : volumeMounts) {
+                if (volumeMount->MountPath.Path().native() == "/") {
+                    continue;
+                }
+                auto fullPath = NFS::JoinPaths(rootVolume->GetPath(), volumeMount->MountPath.Path().native());
+                YT_LOG_DEBUG("Creating fake non-root volume inside root volume (VolumeMount %v)", fullPath);
+                NFS::MakeDirRecursive(fullPath);
+            }
+        } else {
+            YT_LOG_DEBUG("");
+            for (const auto& volumeMount : volumeMounts) {
+                if (volumeMount->MountPath.Path().native() == "/") {
+                    continue;
+                }
+                auto fullPath = NFS::JoinPaths(GetSlotPath(slotIndex), volumeMount->MountPath.Path().native());
+                YT_LOG_DEBUG("Creating fake non-root volumes inside sandbox volume (VolumeMount %v)", fullPath);
+                NFS::MakeDirRecursive(fullPath);
+            }
+        }
+    })
+    .AsyncVia(HeavyInvoker_)
+    .Run();
+}
+
 TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
     bool ignoreQuota)
 {
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
+    auto sandboxInsideTmpfs = IsInsideTmpfs(slotIndex, sandboxPath);
 
-    return BIND([=, this_ = MakeStrong(this)] {
-            for (const auto& volumeParams : options.TmpfsVolumes) {
-                // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
-                // real path without filesystem access.
-                auto mountPath = GetVolumeMountPathByVolumeId(volumeParams.VolumeId, options.JobVolumeMounts);
-                auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, mountPath));
-                if (tmpfsPath == sandboxPath) {
-                    return true;
-                }
-            }
+    const auto& invoker = sandboxInsideTmpfs
+        ? LightInvoker_
+        : HeavyInvoker_;
 
-            return false;
-        })
-        .AsyncVia(LightInvoker_)
-        .Run()
-        .Apply(BIND([=, this, this_ = MakeStrong(this)] (bool sandboxInsideTmpfs) {
-            const auto& invoker = sandboxInsideTmpfs
-                ? LightInvoker_
-                : HeavyInvoker_;
-
-            return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
-                slotIndex,
-                options,
-                ignoreQuota,
-                sandboxInsideTmpfs)
-                .AsyncVia(invoker)
-                .Run();
-        }));
+    return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
+        slotIndex,
+        options,
+        ignoreQuota,
+        sandboxInsideTmpfs)
+        .AsyncVia(invoker)
+        .Run();
 }
 
 void TSlotLocation::TakeIntoAccountTmpfsVolumes(
     int slotIndex,
     const IVolumePtr& rootVolume,
-    const std::vector<TTmpfsVolumeResult>& volumeResults,
-    const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts)
+    const std::vector<TVolumeResultPtr>& volumeResults,
+    const std::vector<TVolumeMountPtr>& volumeMounts)
 {
     YT_LOG_DEBUG("Taking into account tmpfs volumes (SlotIndex: %v, VolumeCount: %v)",
         slotIndex,
@@ -535,27 +520,37 @@ void TSlotLocation::TakeIntoAccountTmpfsVolumes(
     auto& tmpfsData = SandboxTmpfsData_[slotIndex];
 
     if (rootVolume) {
-        tmpfsData.AddSandboxPath(NFS::CombinePaths(
+        tmpfsData.AddSandboxPath(TAbsoluteNormalizedPath(NFS::CombinePaths(
             rootVolume->GetPath(),
-            Format("slot/%v", GetSandboxRelPath(ESandboxKind::User))));
+            Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)))));
     }
 
     // TODO(yuryalekseev): it should be in the else clause of the above if.
-    tmpfsData.AddSandboxPath(GetSandboxPath(slotIndex, ESandboxKind::User));
+    tmpfsData.AddSandboxPath(TAbsoluteNormalizedPath(std::string(GetSandboxPath(slotIndex, ESandboxKind::User))));
 
-    for (const auto& volume: volumeResults) {
-        auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
-        tmpfsData.AddTmpfsPath(NFS::GetRealPath(NFS::CombinePaths("/", mountPath)));
+    for (const auto& volumeMount: volumeMounts) {
+        if (volumeMount->MountPath.Path() == "/") {
+            continue;
+        }
+
+        auto volumeIt = std::find_if(volumeResults.begin(), volumeResults.end(), [&volumeMount] (const auto& volume) {
+            return volumeMount->VolumeId == volume->VolumeId;
+        });
+
+        if (volumeIt == volumeResults.end()) {
+            continue;
+        }
+        tmpfsData.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(GetSlotPath(slotIndex), volumeMount->MountPath.Path().string())), (*volumeIt)->VolumeType);
     }
 }
 
 TFuture<void> TSlotLocation::DoMakeSandboxFile(
     TJobId jobId,
     int slotIndex,
-    const TString& artifactName,
+    const std::string& artifactName,
     ESandboxKind sandboxKind,
     const TCallback<void()>& callback,
-    const std::optional<TString>& destinationPath,
+    const std::optional<std::string>& destinationPath,
     bool canUseLightInvoker)
 {
     if (destinationPath) {
@@ -630,9 +625,9 @@ static THashMap<std::string, std::string> BuildSandboxCopyTags(
 TFuture<void> TSlotLocation::MakeSandboxCopy(
     TJobId jobId,
     int slotIndex,
-    const TString& artifactName,
+    const std::string& artifactName,
     ESandboxKind sandboxKind,
-    const TString& sourcePath,
+    const std::string& sourcePath,
     const TFile& destinationFile,
     const TCacheLocationPtr& sourceLocation)
 {
@@ -653,26 +648,36 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
 
             TFile sourceFile(sourcePath, OpenExisting | RdOnly | Seq | CloseOnExec);
 
-            auto copyFileStart = TInstant::Now().MicroSeconds();
+            auto copyFileStart = TInstant::Now();
 
-            if (SlotManagerStaticConfig_->EnableReadWriteCopy) {
-                ReadWriteCopySync(
-                    sourceFile,
-                    destinationFile,
-                    SlotManagerStaticConfig_->FileCopyChunkSize);
+            i64 bytesTransferred = 0;
+            TError transferError;
+
+            if (SlotManagerDynamicConfig_.Acquire()->EnableAsyncArtifactCopy) {
+                auto spliceResult = WaitFor(
+                    SpliceAsync(
+                        sourceFile,
+                        destinationFile,
+                        sourceLocation->GetAuxPoolInvoker(),
+                        Bootstrap_->GetAuxPoller()));
+
+                YT_VERIFY(spliceResult.IsOK());
+                bytesTransferred = spliceResult.Value().BytesSpliced;
+                transferError = std::move(spliceResult.Value().Error);
             } else {
                 SendfileChunkedCopy(
                     sourceFile,
                     destinationFile,
                     SlotManagerStaticConfig_->FileCopyChunkSize);
+                bytesTransferred = sourceFile.GetLength();
             }
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {
-                TString fullArtifactPath = CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);
+                std::string fullArtifactPath = CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);
 
                 Bootstrap_->GetIOTracker()->Enqueue(
                     TIOCounters{
-                        .Bytes = sourceFile.GetLength(),
+                        .Bytes = bytesTransferred,
                         .IORequests = 1,
                     },
                     /*tags*/ BuildSandboxCopyTags(
@@ -683,7 +688,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 if (!IsInsideTmpfs(slotIndex, fullArtifactPath)) {
                     Bootstrap_->GetIOTracker()->Enqueue(
                         TIOCounters{
-                            .Bytes = sourceFile.GetLength(),
+                            .Bytes = bytesTransferred,
                             .IORequests = 1,
                         },
                         /*tags*/ BuildSandboxCopyTags(
@@ -693,13 +698,24 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 }
             }
 
-            if (SlotManagerStaticConfig_->EnableArtifactCopyTracking) {
-                auto length = sourceFile.GetLength();
-                auto delta = TInstant::Now().MicroSeconds() - copyFileStart;
+            auto copyRate = bytesTransferred / ((TInstant::Now() - copyFileStart).NanoSeconds() * 1e-9);
+            CopyRate_.Update(copyRate);
 
-                MakeCopyMetricBuffer_->Update([=] (ISensorWriter* writer) {
-                    writer->AddGauge("/copy/rate", std::max(0.0, (1.0 * length / delta)));
-                });
+            {
+                auto guard = Guard(CopyRateAggregatorLock_);
+                CopyRateAggregator_.UpdateAt(TInstant::Now(), copyRate);
+                CopyRateEma_.Update(CopyRateAggregator_.GetAverage());
+            }
+
+            if (!transferError.IsOK()) {
+                YT_LOG_INFO(
+                    transferError,
+                    "Error copying file to sandbox "
+                    "(JobId: %v, ArtifactName: %v, SandboxKind: %v)",
+                    jobId,
+                    artifactName,
+                    sandboxKind);
+                transferError.ThrowOnError();
             }
 
             YT_LOG_DEBUG(
@@ -716,10 +732,10 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
 TFuture<void> TSlotLocation::MakeFileForSandboxBind(
     TJobId jobId,
     int slotIndex,
-    const TString& artifactName,
+    const std::string& artifactName,
     ESandboxKind sandboxKind,
-    const TString& targetPath,
-    const TString& bindPath,
+    const std::string& targetPath,
+    const std::string& bindPath,
     bool executable)
 {
     return DoMakeSandboxFile(
@@ -744,10 +760,10 @@ TFuture<void> TSlotLocation::MakeFileForSandboxBind(
 TFuture<void> TSlotLocation::MakeSandboxLink(
     TJobId jobId,
     int slotIndex,
-    const TString& artifactName,
+    const std::string& artifactName,
     ESandboxKind sandboxKind,
-    const TString& targetPath,
-    const TString& linkPath,
+    const std::string& targetPath,
+    const std::string& linkPath,
     bool executable)
 {
     return DoMakeSandboxFile(
@@ -800,7 +816,7 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
 TFuture<void> TSlotLocation::MakeSandboxFile(
     TJobId jobId,
     int slotIndex,
-    const TString& artifactName,
+    const std::string& artifactName,
     ESandboxKind sandboxKind,
     const std::function<void(IOutputStream*)>& producer,
     const TFile& destinationFile)
@@ -824,7 +840,7 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
             producer(&countingStream);
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {
-                TString fullArtifactPath = CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);
+                std::string fullArtifactPath = CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);
 
                 if (!IsInsideTmpfs(slotIndex, fullArtifactPath)) {
                     Bootstrap_->GetIOTracker()->Enqueue(
@@ -904,7 +920,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
         try {
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-                if (sandboxKind == ESandboxKind::Logs || !Exists(sandboxPath)) {
+                if (sandboxKind == ESandboxKind::Logs || sandboxKind == ESandboxKind::PortoPlace || !Exists(sandboxPath)) {
                     continue;
                 }
 
@@ -952,6 +968,53 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
     .Run();
 }
 
+TFuture<void> TSlotLocation::CleanPortoPlace(int slotIndex)
+{
+    return BIND([=, this, this_ = MakeStrong(this)] {
+        ValidateEnabled();
+
+        const auto& sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::PortoPlace);
+
+        try {
+            if (Exists(sandboxPath)) {
+                YT_LOG_DEBUG("Removing porto place job directories (SlotIndex: %v, Path: %v)", slotIndex, sandboxPath);
+
+                WaitFor(JobDirectoryManager_->CleanDirectories(sandboxPath))
+                    .ThrowOnError();
+
+                YT_LOG_DEBUG("Cleaning porto place directory (SlotIndex: %v, Path: %v)", slotIndex, sandboxPath);
+
+                if (Bootstrap_->IsSimpleEnvironment()) {
+                    RemoveRecursive(sandboxPath);
+                } else {
+                    auto future = BIND([=, this_ = MakeStrong(this)] {
+                            RunTool<TRemoveDirAsRootTool>(sandboxPath);
+                        })
+                        .AsyncVia(ToolInvoker_)
+                        .Run();
+                    WaitFor(future)
+                        .ThrowOnError();
+                }
+            }
+
+            // Recreate the porto place directory tree so the next allocation
+            // assigned to this slot finds the expected layout. Without this
+            // step the porto place removed above stays missing until the
+            // node restarts, since BuildSlotRootDirectory is otherwise only
+            // called from DoInitialize and from CleanSandboxes (which skips
+            // the porto place sandbox kind).
+            BuildSlotRootDirectory(slotIndex);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to clean porto place")
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    })
+    .AsyncVia(HeavyInvoker_)
+    .Run();
+}
+
 void TSlotLocation::IncreaseSessionCount()
 {
     ++SessionCount_;
@@ -962,14 +1025,14 @@ void TSlotLocation::DecreaseSessionCount()
     --SessionCount_;
 }
 
-void TSlotLocation::ValidateNotExists(const TString& path)
+void TSlotLocation::ValidateNotExists(const std::string& path)
 {
     if (Exists(path)) {
         THROW_ERROR_EXCEPTION("Path %v already exists", path);
     }
 }
 
-void TSlotLocation::EnsureNotInUse(const TString& path) const
+void TSlotLocation::EnsureNotInUse(const std::string& path) const
 {
     // Take exclusive lock in blocking fashion to ensure that no
     // forked process is holding an open descriptor to the source file.
@@ -977,12 +1040,12 @@ void TSlotLocation::EnsureNotInUse(const TString& path) const
     file.Flock(LOCK_EX);
 }
 
-TString TSlotLocation::GetConfigPath(int slotIndex) const
+std::string TSlotLocation::GetConfigPath(int slotIndex) const
 {
     return CombinePaths(GetSlotPath(slotIndex), ProxyConfigFileName);
 }
 
-TString TSlotLocation::GetSlotPath(int slotIndex) const
+std::string TSlotLocation::GetSlotPath(int slotIndex) const
 {
     return CombinePaths(LocationPath_, Format("%v", slotIndex));
 }
@@ -1009,7 +1072,7 @@ void TSlotLocation::SetMediumDescriptor(const NChunkClient::TMediumDescriptorPtr
     MediumDescriptor_.Store(descriptor);
 }
 
-TString TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const
+std::string TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const
 {
     return CombinePaths(GetSlotPath(slotIndex), GetSandboxRelPath(sandboxKind));
 }
@@ -1017,9 +1080,9 @@ TString TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) c
 void TSlotLocation::OnArtifactPreparationFailed(
     TJobId jobId,
     int slotIndex,
-    const TString& artifactName,
+    const std::string& artifactName,
     ESandboxKind sandboxKind,
-    const std::optional<TString>& destinationPath,
+    const std::optional<std::string>& destinationPath,
     const TError& error)
 {
     auto Logger = this->Logger
@@ -1103,7 +1166,7 @@ TFuture<void> TSlotLocation::Repair()
         .Run();
 }
 
-bool TSlotLocation::IsInsideTmpfs(int slotIndex, const TString& path) const
+bool TSlotLocation::IsInsideTmpfs(int slotIndex, const std::string& path) const
 {
     auto guard = ReaderGuard(SlotsLock_);
 
@@ -1118,7 +1181,7 @@ bool TSlotLocation::IsInsideTmpfs(int slotIndex, const TString& path) const
     return it->second.IsInsideTmpfs(path, Logger);
 }
 
-void TSlotLocation::ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const
+void TSlotLocation::ForceSubdirectories(const std::string& filePath, const std::string& sandboxPath) const
 {
     auto dirPath = GetDirectoryName(filePath);
     if (!dirPath.starts_with(sandboxPath)) {
@@ -1138,10 +1201,18 @@ void TSlotLocation::ValidateEnabled() const
     }
 }
 
+std::string TSlotLocation::GetPath() const
+{
+    return Config_->Path;
+}
+
 void TSlotLocation::Disable(const TError& error)
 {
     // TODO(don-dron): Research and fix unconditional Disabled.
     if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
+        YT_LOG_DEBUG(
+            "Cannot disable not enabled slot location (Path: %v)",
+            Config_->Path);
         return;
     }
 
@@ -1167,7 +1238,7 @@ void TSlotLocation::Disable(const TError& error)
             YT_LOG_FATAL(alert);
         }
 
-        YT_VERIFY(ChangeState(ELocationState::Disabled, ELocationState::Disabling));
+        YT_VERIFY(ChangeState(ELocationState::Disabled, ELocationState::Disabling, error));
     })
     .AsyncVia(HeavyInvoker_)
     .Run());
@@ -1206,18 +1277,13 @@ void TSlotLocation::UpdateDiskResources()
         THashMap<int, TDiskStatistics> diskStatisticsPerSlot;
 
         for (const auto& [slotIndex, sandboxOptions] : sandboxOptionsPerSlot) {
-            std::vector<TString> pathsInsideTmpfs;
+            std::vector<std::string> pathsInsideTmpfs;
 
             auto config = New<TGetDirectorySizesAsRootConfig>();
             config->IgnoreUnavailableFiles = true;
             config->DeduplicateByINodes = true;
             config->CheckDeviceId = true;
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-                if (sandboxKind == ESandboxKind::PortoPlace) {
-                    // Skip porto place since it is complicated to properly account its used space.
-                    continue;
-                }
-
                 auto path = GetSandboxPath(slotIndex, sandboxKind);
                 if (Exists(path)) {
                     if (IsInsideTmpfs(slotIndex, path)) {
@@ -1230,22 +1296,25 @@ void TSlotLocation::UpdateDiskResources()
 
             i64 slotDiskUsage = 0;
             if (Bootstrap_->IsSimpleEnvironment()) {
-                for (const auto& path : config->Paths) {
-                    slotDiskUsage += GetDirectorySize(path, /*ignoreUnavailableFiles*/ true, /*deduplicateByINodes*/ true);
-                }
+                slotDiskUsage = GetDirectoriesSize(config->Paths, /*ignoreUnavailableFiles*/ true, /*deduplicateByINodes*/ true);
             } else {
                 // We have to calculate user directory sizes as root,
                 // because user job could have set restricted permissions for files and
                 // directories inside sandbox.
 
                 auto future = BIND([=, this_ = MakeStrong(this)] {
-                        return RunTool<TGetDirectorySizesAsRootTool>(std::move(config));
+                        return RunTool<TGetTotalDirectoriesSizeAsRootTool>(std::move(config));
                     })
                     .AsyncVia(ToolInvoker_)
                     .Run();
-                auto sizes = WaitFor(future)
-                    .ValueOrThrow();
-                slotDiskUsage = std::accumulate(sizes.begin(), sizes.end(), 0ll);
+                try {
+                    slotDiskUsage = WaitFor(future)
+                        .ValueOrThrow();
+                } catch (const std::exception& ex) {
+                    YT_LOG_WARNING(ex, "Failed to get directories size for slot %v", slotIndex);
+                    // Skip this attempt, do not disable slot location.
+                    return;
+                }
             }
 
             diskStatisticsPerSlot.insert(std::pair(
@@ -1378,6 +1447,11 @@ void TSlotLocation::PopulateAlerts(std::vector<TError>* alerts)
     }
 }
 
+TError TSlotLocation::GetDisableError() const
+{
+    return Error_.Load();
+}
+
 NNodeTrackerClient::NProto::TDiskLocationResources TSlotLocation::GetDiskResources() const
 {
     auto guard = ReaderGuard(DiskResourcesLock_);
@@ -1407,6 +1481,98 @@ NNodeTrackerClient::NProto::TSlotLocationStatistics TSlotLocation::GetSlotLocati
 {
     auto guard = ReaderGuard(SlotLocationStatisticsLock_);
     return SlotLocationStatistics_;
+}
+
+void TSlotLocation::RemoveVolumesFromPortoPlace(
+    int slotIndex,
+    const IVolumeManagerPtr& volumeManager,
+    const THashSet<std::string>& preservedVolumePaths)
+{
+    auto portoPlacePath = GetSandboxPath(slotIndex, ESandboxKind::PortoPlace);
+
+    if (!volumeManager) {
+        YT_LOG_DEBUG(
+            "Volume manager is not available, skipping porto place cleanup (PortoPlace: %v)",
+            portoPlacePath);
+        return;
+    }
+
+    if (!NFS::Exists(portoPlacePath)) {
+        YT_LOG_DEBUG(
+            "Porto place directory does not exist, skipping volume cleanup (PortoPlace: %v)",
+            portoPlacePath);
+        return;
+    }
+
+    auto timeout = SlotManagerDynamicConfig_.Acquire()->RemoveVolumesFromPortoPlaceTimeout;
+
+    YT_LOG_DEBUG(
+        "Cleaning up volumes from porto place (SlotIndex: %v, PortoPlace: %v, Timeout: %v, PreservedVolumePaths: %v)",
+        slotIndex,
+        portoPlacePath,
+        timeout,
+        preservedVolumePaths);
+
+    auto removeVolumesResult = WaitFor(volumeManager->RemoveVolumes(portoPlacePath, timeout, preservedVolumePaths));
+    if (!removeVolumesResult.IsOK()) {
+        auto error = TError("Failed to remove volumes from porto place")
+            << TErrorAttribute("porto_place", portoPlacePath)
+            << TErrorAttribute("slot_index", slotIndex)
+            << removeVolumesResult;
+        YT_LOG_ERROR(error);
+        // It would be nice to disable just this particular slot index, not the whole slot.
+        Disable(error);
+        THROW_ERROR error;
+    }
+
+    YT_LOG_DEBUG(
+        "Cleaned up volumes from porto place (SlotIndex: %v, PortoPlace: %v)",
+        slotIndex,
+        portoPlacePath);
+}
+
+void TSlotLocation::RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager)
+{
+    auto portoPlacePath = GetSandboxPath(slotIndex, ESandboxKind::PortoPlace);
+
+    if (!volumeManager) {
+        YT_LOG_DEBUG(
+            "Volume manager is not available, skipping porto place layer cleanup (PortoPlace: %v)",
+            portoPlacePath);
+        return;
+    }
+
+    if (!NFS::Exists(portoPlacePath)) {
+        YT_LOG_DEBUG(
+            "Porto place directory does not exist, skipping layer cleanup (PortoPlace: %v)",
+            portoPlacePath);
+        return;
+    }
+
+    auto timeout = SlotManagerDynamicConfig_.Acquire()->RemoveLayersFromPortoPlaceTimeout;
+
+    YT_LOG_DEBUG(
+        "Cleaning up layers from porto place (SlotIndex: %v, PortoPlace: %v, Timeout: %v)",
+        slotIndex,
+        portoPlacePath,
+        timeout);
+
+    auto removeLayersResult = WaitFor(volumeManager->RemoveLayers(portoPlacePath, timeout));
+    if (!removeLayersResult.IsOK()) {
+        auto error = TError("Failed to remove layers from porto place")
+            << TErrorAttribute("porto_place", portoPlacePath)
+            << TErrorAttribute("slot_index", slotIndex)
+            << removeLayersResult;
+        YT_LOG_ERROR(error);
+        // It would be nice to disable just this particular slot index, not the whole slot.
+        Disable(error);
+        THROW_ERROR error;
+    }
+
+    YT_LOG_DEBUG(
+        "Cleaned up layers from porto place (SlotIndex: %v, PortoPlace: %v)",
+        slotIndex,
+        portoPlacePath);
 }
 
 void TSlotLocation::BuildSlotRootDirectory(int slotIndex)
@@ -1442,7 +1608,7 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
     config->UserId = nodeUid;
     config->Permissions = 0755;
 
-    auto getDirectory = [] (TString path, std::optional<int> userId, int permissions, bool removeIfExists) {
+    auto getDirectory = [] (std::string path, std::optional<int> userId, int permissions, bool removeIfExists) {
         auto directory = New<TDirectoryConfig>();
 
         directory->Path = path;
@@ -1496,19 +1662,51 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
         /*permissions*/ 0755,
         /*removeIfExists*/ false));
 
-    // Create directory for root volume overlay.
-    config->Directories.push_back(getDirectory(
-        GetSandboxPath(slotIndex, ESandboxKind::RootVolumeOverlay),
-        uid,
-        /*permissions*/ 0777,
-        /*removeIfExists*/ true));
-
     // Create directory that porto uses to create volumes and import layers inside container.
+    // Do not remove it during slot root directory rebuild: reusable root volumes may be
+    // stored there for the whole allocation lifetime. User-imported Porto resources are
+    // cleaned explicitly before regular volume removal.
     config->Directories.push_back(getDirectory(
         GetSandboxPath(slotIndex, ESandboxKind::PortoPlace),
         uid,
         /*permissions*/ 0777,
-        /*removeIfExists*/ true));
+        /*removeIfExists*/ false));
+
+    config->Directories.push_back(getDirectory(
+        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), VolumesName),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ false));
+
+    config->Directories.push_back(getDirectory(
+        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), VolumesMetaName),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ false));
+
+    config->Directories.push_back(getDirectory(
+        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), LayersName),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ false));
+
+    config->Directories.push_back(getDirectory(
+        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), LayersMetaName),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ false));
+
+    config->Directories.push_back(getDirectory(
+        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), "porto_volumes"),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ false));
+
+    config->Directories.push_back(getDirectory(
+        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), "porto_storage"),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ false));
 
     return config;
 }

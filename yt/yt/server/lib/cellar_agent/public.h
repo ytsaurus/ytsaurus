@@ -28,7 +28,6 @@ DECLARE_REFCOUNTED_STRUCT(ICellarOccupierProvider)
 
 DECLARE_REFCOUNTED_STRUCT(ICellarBootstrapProxy)
 
-// COMPAT(danilalexeev)
 inline const NYPath::TYPath TabletCellCypressPrefix("//sys/tablet_cells");
 inline const NYPath::TYPath ChaosCellCypressPrefix("//sys/chaos_cells");
 

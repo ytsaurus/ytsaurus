@@ -26,7 +26,7 @@ public:
         , Logger(Host_->GetLogger())
         , AnalyzeExecutor_(New<TPeriodicExecutor>(
             Host_->GetCancelableInvoker(EOperationControllerQueue::Default),
-            BIND(&TAlertManager::Analyze, MakeWeak(this)),
+            BIND_NO_PROPAGATE(&TAlertManager::Analyze, MakeWeak(this)),
             Config_->Period))
     { }
 
@@ -54,6 +54,7 @@ public:
         AnalyzeControllerQueues();
         AnalyzeInvalidatedJobs();
         AnalyzeTasksUnavailableNetworkBandwidthToClustersDuration();
+        AnalyzeJobsThreadCount();
     }
 
 private:
@@ -76,16 +77,19 @@ private:
         PHOENIX_DECLARE_TYPE(TGpuPowerUsageRecord, 0x67ef02c2);
     };
 
-    THashMap<TString, std::deque<TGpuPowerUsageRecord>> AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
+    THashMap<std::string, std::deque<TGpuPowerUsageRecord>> AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
+
+    //! Last fingerprint from host; refresh alert only when violating task set or formula changes.
+    int LastHighJobThreadCountAlertFingerprint_ = 0;
 
     void AnalyzeProcessingUnitUsage(
         const std::vector<TStatisticPath>& usageStatistics,
         const std::vector<EJobState>& jobStates,
         const std::function<double(const TUserJobSpecPtr&)>& getLimit,
         const std::function<bool(TDuration, double, i64, double)>& needSetAlert,
-        const TString& name,
+        const std::string& name,
         EOperationAlertType alertType,
-        const TString& message)
+        const std::string& message)
     {
         std::vector<TError> errors;
         for (const auto& task : Host_->GetTasks()) {
@@ -451,7 +455,7 @@ private:
                        ratio < Config_->LowCpuUsageAlertCpuUsageThreshold;
             };
 
-            const TString alertMessage =
+            const std::string alertMessage =
                 "Average CPU usage of some of your job types is significantly lower than requested 'cpu_limit'. "
                 "Consider decreasing cpu_limit in spec of your operation";
 
@@ -472,7 +476,7 @@ private:
                        ratio > Config_->HighCpuWaitAlertThreshold;
             };
 
-            const TString alertMessage = Format(
+            const std::string alertMessage = Format(
                 "Average CPU wait time of some of your job types is significantly high (average CPU wait time ratio greater than %v%%). "
                 "Investigate your process.",
                 Config_->HighCpuWaitAlertThreshold);
@@ -504,7 +508,7 @@ private:
                     ratio < Config_->LowGpuUsageAlertGpuUsageThreshold;
             };
 
-            static const TString alertMessage =
+            static const std::string alertMessage =
                 "Average gpu usage of some of your job types is significantly lower than requested 'gpu_limit'. "
                 "Consider optimizing your GPU utilization";
 
@@ -524,7 +528,7 @@ private:
                     ratio < Config_->LowGpuUsageAlertGpuUtilizationPowerThreshold;
             };
 
-            static const TString alertMessage = Format(
+            static const std::string alertMessage = Format(
                 "Average GPU power usage is significantly lower than %v percents. "
                 "Consider optimizing your GPU process",
                 Config_->LowGpuUsageAlertGpuUtilizationPowerThreshold * 100.0);
@@ -545,7 +549,7 @@ private:
                     ratio < Config_->LowGpuUsageAlertGpuUtilizationSMThreshold;
             };
 
-            static const TString alertMessage = Format(
+            static const std::string alertMessage = Format(
                 "Average GPU SM usage is significantly lower than %v percents. "
                 "Consider optimizing your GPU process",
                 Config_->LowGpuUsageAlertGpuUtilizationSMThreshold * 100.0);
@@ -809,7 +813,7 @@ private:
 
     void AnalyzeTasksUnavailableNetworkBandwidthToClustersDuration()
     {
-        std::optional<TString> taskWithLongUnavailableNetworkBandwidthTime;
+        std::optional<std::string> taskWithLongUnavailableNetworkBandwidthTime;
         for (const auto& task : Host_->GetTasks()) {
             auto totalDuration = task->GetTotalDuration();
             auto unavailableNetworkBandwidthDuration = task->GetUnavailableNetworkBandwidthDuration();
@@ -835,6 +839,25 @@ private:
                 EOperationAlertType::UnavailableNetworkBandwidthToClusters,
                 error);
         }
+    }
+
+    void AnalyzeJobsThreadCount()
+    {
+        const auto fingerprint = Host_->GetHighJobThreadCountAlertFingerprint();
+        if (fingerprint == LastHighJobThreadCountAlertFingerprint_) {
+            return;
+        }
+        LastHighJobThreadCountAlertFingerprint_ = fingerprint;
+
+        const auto& formula = Host_->GetConfig()->MaxJobThreadCountFormula;
+        if (formula.IsEmpty()) {
+            Host_->SetOperationAlert(EOperationAlertType::HighJobThreadCount, TError{});
+            return;
+        }
+
+        Host_->SetOperationAlert(
+            EOperationAlertType::HighJobThreadCount,
+            Host_->BuildHighJobThreadCountAlert());
     }
 
     PHOENIX_DECLARE_FRIEND();

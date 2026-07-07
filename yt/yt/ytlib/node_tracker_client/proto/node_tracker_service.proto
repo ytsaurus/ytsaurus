@@ -54,7 +54,7 @@ message TRspRegisterNode
 {
     required uint32 node_id = 1;
     repeated string tags = 3;
-    repeated NCellMasterClient.NProto.TCellDirectoryItem secondary_masters_configs = 4;
+    repeated NCellMasterClient.NProto.TMasterCellConnectionConfig secondary_masters_configs = 4;
 
     extensions 100 to max;
     reserved 2;
@@ -108,7 +108,7 @@ message TRspHeartbeat
 
     optional bool decommissioned = 5;
 
-    repeated NCellMasterClient.NProto.TCellDirectoryItem secondary_masters_configs = 7;
+    repeated NCellMasterClient.NProto.TMasterCellConnectionConfig secondary_masters_configs = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

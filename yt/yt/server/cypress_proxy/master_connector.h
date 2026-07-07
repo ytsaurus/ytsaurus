@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/ytlib/sequoia_client/transaction_options.h>
+
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,6 +25,8 @@ struct IMasterConnector
 
     virtual std::shared_ptr<const std::vector<std::string>> GetSupportedInheritableAttributeKeys() const = 0;
     virtual std::shared_ptr<const std::vector<std::string>> GetSupportedInheritableDuringCopyAttributeKeys() const = 0;
+
+    virtual NSequoiaClient::TSequoiaTransactionFeatures GetSequoiaTransactionFeatures() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

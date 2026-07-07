@@ -20,6 +20,8 @@ public:
         std::vector<IReaderFactoryPtr> readerFactories,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
+    void InitializeRefCounted();
+
     TMultiReaderManagerUnreadState GetUnreadState() const override;
 
 private:
@@ -60,7 +62,10 @@ TSequentialMultiReaderManager::TSequentialMultiReaderManager(
     for (int i = 0; i < std::ssize(ReaderFactories_); ++i) {
         NextReaders_.push_back(NewPromise<IReaderBasePtr>());
     }
+}
 
+void TSequentialMultiReaderManager::InitializeRefCounted()
+{
     UncancelableCompletionError_.Subscribe(
         BIND(&TSequentialMultiReaderManager::PropagateError, MakeWeak(this))
             .Via(ReaderInvoker_));

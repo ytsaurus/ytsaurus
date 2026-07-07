@@ -1,6 +1,6 @@
 #include "environment.h"
-#include "private.h"
 #include "job.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/gpu_helpers.h>
@@ -9,8 +9,8 @@
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
 
-#include <yt/yt/ytlib/job_proxy/private.h>
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
+#include <yt/yt/ytlib/job_proxy/private.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
@@ -18,11 +18,13 @@
 
 #include <util/system/fs.h>
 #include <util/system/user.h>
+
 #include <util/string/split.h>
 
 #ifdef _linux_
-#include <yt/yt/library/containers/cgroup.h>
-#include <yt/yt/library/containers/cgroups_new.h>
+#include <yt/yt/library/cgroup/process.h>
+#include <yt/yt/library/cgroup/statistics.h>
+
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
 #endif
@@ -41,11 +43,11 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <library/cpp/yt/assert/assert.h>
-
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/yt/system/exit.h>
+
+#include <library/cpp/yt/assert/assert.h>
 
 #include <sys/stat.h>
 
@@ -273,7 +275,7 @@ public:
         TJobId jobId,
         TPortoJobEnvironmentConfigPtr config,
         const TUserJobEnvironmentOptions& options,
-        const TString& slotContainerName,
+        const std::string& slotContainerName,
         IPortoExecutorPtr portoExecutor)
         : JobId_(jobId)
         , Config_(std::move(config))
@@ -287,7 +289,8 @@ public:
             Environment_.push_back(Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile));
         }
         for (const auto& networkAddress : Options_.NetworkAddresses) {
-            Environment_.push_back(Format("YT_IP_ADDRESS_%v=%v", to_upper(networkAddress->Name), networkAddress->Address));
+            // TODO(babenko): migrate to std::string
+            Environment_.push_back(Format("YT_IP_ADDRESS_%v=%v", to_upper(TString(networkAddress->Name)), networkAddress->Address));
         }
     }
 
@@ -352,7 +355,7 @@ public:
         }
     }
 
-    TString HandleVolumeCreationError(TErrorOr<TString> volumeCreationResult)
+    std::string HandleVolumeCreationError(TErrorOr<std::string> volumeCreationResult)
     {
         if (!volumeCreationResult.IsOK()) {
             THROW_ERROR_EXCEPTION(
@@ -365,9 +368,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto jobIdAsGuid = JobId_.Underlying();
         auto containerName = Config_->UseShortContainerNames
@@ -384,12 +387,13 @@ public:
             launcher->SetRoot(*Options_.RootFS);
         }
 
+        // TODO(severovv): List not only nvidia devices by calling to GpuManager
         std::vector<TDevice> devices;
-        for (const auto& descriptor : ListGpuDevices()) {
+        for (const auto& descriptor : ListNvidiaGpuDevices()) {
             int deviceIndex = descriptor.DeviceIndex;
             if (std::find(Options_.GpuIndexes.begin(), Options_.GpuIndexes.end(), deviceIndex) == Options_.GpuIndexes.end()) {
                 devices.push_back(TDevice{
-                    .DeviceName = GetGpuDeviceName(deviceIndex),
+                    .DeviceName = GetNvidiaGpuDeviceName(deviceIndex),
                     .Access = "-",
                 });
             }
@@ -473,7 +477,7 @@ public:
             launcher->SetIPAddresses(addresses, Options_.EnableNat64);
         }
 
-        launcher->SetNetworkInterface(TString(JobNetworkInterface));
+        launcher->SetNetworkInterface(std::string(JobNetworkInterface));
 
         launcher->SetEnablePorto(Options_.EnablePorto);
         launcher->SetIsolate(Options_.EnablePorto != NContainers::EEnablePorto::Full);
@@ -514,7 +518,7 @@ public:
         return Instance_.Acquire();
     }
 
-    const std::vector<TString>& GetEnvironmentVariables() const override
+    const std::vector<std::string>& GetEnvironmentVariables() const override
     {
         return Environment_;
     }
@@ -561,10 +565,10 @@ private:
     const TJobId JobId_;
     const TPortoJobEnvironmentConfigPtr Config_;
     const TUserJobEnvironmentOptions Options_;
-    const TString SlotContainerName_;
+    const std::string SlotContainerName_;
     const IPortoExecutorPtr PortoExecutor_;
 
-    std::vector<TString> Environment_;
+    std::vector<std::string> Environment_;
 
     TAtomicIntrusivePtr<IInstance> Instance_;
     TAtomicIntrusivePtr<TPortoResourceTracker> ResourceTracker_;
@@ -632,7 +636,7 @@ public:
 
 private:
     IInstancePtr Instance_;
-    const TString CurrentWorkDirectory_;
+    std::string CurrentWorkDirectory_;
     IInstanceLauncherPtr Launcher_;
     TFuture<void> SidecarFinished_;
     TFutureCallbackCookie FutureSidecarFinishedCallbackCookie_;
@@ -740,17 +744,17 @@ public:
 
     void SetCpuGuarantee(double value) override
     {
-        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_guarantee", ToString(value) + "c"))
+        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_guarantee", Format("%v%v", value, 'c')))
             .ThrowOnError();
     }
 
     void SetCpuLimit(double value) override
     {
-        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_limit", ToString(value) + "c"))
+        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_limit", Format("%v%v", value, 'c')))
             .ThrowOnError();
     }
 
-    void SetCpuPolicy(const TString& policy) override
+    void SetCpuPolicy(const std::string& policy) override
     {
         WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_policy", policy))
             .ThrowOnError();
@@ -826,7 +830,7 @@ private:
     const IPortoExecutorPtr PortoExecutor_;
     const IInstancePtr Self_;
     const TPortoResourceTrackerPtr ResourceTracker_;
-    const TString SlotContainerName_;
+    const std::string SlotContainerName_;
     const IInvokerPtr Invoker_;
     const std::string JobProxyContainerPath_;
 
@@ -905,9 +909,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, false);
         process->AddArguments(arguments);
@@ -946,9 +950,9 @@ public:
     }
 
     //! Returns the list of environment-specific environment variables in key=value format.
-    const std::vector<TString>& GetEnvironmentVariables() const override
+    const std::vector<std::string>& GetEnvironmentVariables() const override
     {
-        static std::vector<TString> emptyEnvironment;
+        static std::vector<std::string> emptyEnvironment;
         return emptyEnvironment;
     }
 
@@ -990,7 +994,7 @@ public:
         YT_LOG_WARNING("CPU limits are not supported in simple job environment");
     }
 
-    void SetCpuPolicy(const TString& /*value*/) override
+    void SetCpuPolicy(const std::string& /*value*/) override
     {
         YT_LOG_WARNING("CPU policy is not supported in simple job environment");
     }
@@ -1193,9 +1197,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, /*copyEnv*/ false);
         process->AddArguments(arguments);
@@ -1234,7 +1238,7 @@ public:
     }
 
     //! Returns the list of environment-specific environment variables in key=value format.
-    const std::vector<TString>& GetEnvironmentVariables() const override
+    const std::vector<std::string>& GetEnvironmentVariables() const override
     {
         return Environment_;
     }
@@ -1257,7 +1261,7 @@ public:
 private:
     const IJobProxyEnvironmentPtr JobProxyEnvironment_;
     TAtomicIntrusivePtr<TProcessBase> Process_;
-    std::vector<TString> Environment_;
+    std::vector<std::string> Environment_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TCriUserJobEnvironment)
@@ -1274,8 +1278,8 @@ struct TCriJobProxyConfig
         , Binds(config->Binds)
     { }
 
-    std::optional<TString> DockerImage;
-    TString SlotPath;
+    std::optional<std::string> DockerImage;
+    std::string SlotPath;
     std::vector<TBindConfigPtr> Binds;
 };
 
@@ -1283,7 +1287,7 @@ struct TSidecarCriConfig
 {
     TSidecarJobSpecPtr JobSpec;
     NCri::TCriContainerSpecPtr ContainerSpec;
-    TString Command;
+    std::string Command;
 };
 
 class TCriJobProxyEnvironment
@@ -1299,7 +1303,7 @@ public:
         : CriJobProxyConfig_(std::move(criJobProxyConfig))
         , CriJobEnvironmentConfig_(std::move(criJobEnvironmentConfig))
         , Invoker_(std::move(invoker))
-        , ProcessWorkingDirectory_(NFS::CombinePaths(TString(jobProxySlotPath), GetSandboxRelPath(ESandboxKind::User)))
+        , ProcessWorkingDirectory_(NFS::CombinePaths(jobProxySlotPath, GetSandboxRelPath(ESandboxKind::User)))
         , FailedSidecarCallback_(std::move(failedSidecarCallback))
         , Executor_(CreateCriExecutor(CriJobEnvironmentConfig_->CriExecutor))
         , ImageCache_(NContainers::NCri::CreateCriImageCache(CriJobEnvironmentConfig_->CriImageCache, Executor_))
@@ -1315,7 +1319,7 @@ public:
         YT_LOG_WARNING("CPU limits are not supported in CRI job environment");
     }
 
-    void SetCpuPolicy(const TString& /*value*/) override
+    void SetCpuPolicy(const std::string& /*value*/) override
     {
         YT_LOG_WARNING("CPU policy is not supported in CRI job environment");
     }
@@ -1332,7 +1336,7 @@ public:
 
     std::optional<TJobEnvironmentMemoryStatistics> GetJobMemoryStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetMemoryStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetMemoryStatistics();
         return TJobEnvironmentMemoryStatistics{
             .ResidentAnon = statistics.ResidentAnon,
             .TmpfsUsage = statistics.TmpfsUsage,
@@ -1343,7 +1347,7 @@ public:
 
     std::optional<TJobEnvironmentBlockIOStatistics> GetJobBlockIOStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetBlockIOStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetIOStatistics();
         return TJobEnvironmentBlockIOStatistics{
             .IOReadByte = statistics.IOReadByte,
             .IOWriteByte = statistics.IOWriteByte,
@@ -1354,7 +1358,7 @@ public:
 
     std::optional<TJobEnvironmentCpuStatistics> GetJobCpuStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetCpuStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetCpuStatistics();
         return TJobEnvironmentCpuStatistics{
             .UserUsageTime = statistics.UserTime,
             .SystemUsageTime = statistics.SystemTime,
@@ -1364,7 +1368,7 @@ public:
     std::optional<i64> GetJobOomKillCount() const noexcept override
     {
         try {
-            return StatisticsFetcher_.GetOomKillCount();
+            return NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetOomKillCount();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get OOM kill count");
             return std::nullopt;
@@ -1467,8 +1471,8 @@ public:
 
             for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
                 containerSpec->BindDevices.push_back(NCri::TCriBindDevice{
-                    .ContainerPath = TString(devicePath),
-                    .HostPath = TString(devicePath),
+                    .ContainerPath = devicePath,
+                    .HostPath = devicePath,
                     .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
                 });
             }
@@ -1519,7 +1523,7 @@ public:
             CriJobEnvironmentConfig_->PodDescriptor,
             CriJobEnvironmentConfig_->PodSpec
         );
-        process->AddArguments(std::vector<TString>{"-c", sidecar.Config.Command});
+        process->AddArguments(std::vector<std::string>{"-c", sidecar.Config.Command});
         process->SetWorkingDirectory(ProcessWorkingDirectory_);
         sidecar.Process = process;
 
@@ -1609,7 +1613,7 @@ private:
     const TCriJobProxyConfig CriJobProxyConfig_;
     const TCriJobEnvironmentConfigPtr CriJobEnvironmentConfig_;
     const IInvokerPtr Invoker_;
-    const TString ProcessWorkingDirectory_;
+    const std::string ProcessWorkingDirectory_;
     const std::function<void(TError)> FailedSidecarCallback_;
     const NContainers::NCri::ICriExecutorPtr Executor_;
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
@@ -1622,9 +1626,7 @@ private:
         TFutureCallbackCookie FutureCallbackCookie;
     };
 
-    THashMap<TString, TRunningSidecar> RunningSidecars_;
-
-    NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
+    THashMap<std::string, TRunningSidecar> RunningSidecars_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TCriJobProxyEnvironment)

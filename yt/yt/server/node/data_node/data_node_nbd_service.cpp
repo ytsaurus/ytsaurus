@@ -130,8 +130,7 @@ private:
         auto session = GetSessionOrThrow(sessionId);
         auto future = session->Read(offset, length, cookie).Apply(BIND([response] (const TBlock& block) {
             SetRpcAttachedBlocks(response, {block});
-        })
-        .AsyncVia(Bootstrap_->GetStorageLightInvoker()));
+        }));
 
         response->set_cookie(cookie);
         auto shouldCloseSession = ShouldCloseSession(session);
@@ -167,7 +166,7 @@ private:
         auto shouldCloseSession = ShouldCloseSession(session);
         response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %x ShouldCloseSession: %v",
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
             sessionId,
             cookie,
             shouldCloseSession);
@@ -182,10 +181,19 @@ private:
         context->SetRequestInfo("SessionId: %v",
             sessionId);
 
-        auto session = GetSessionOrThrow(sessionId);
-        session->Ping();
+        bool shouldCloseSession = false;
+        try {
+            auto session = GetSessionOrThrow(sessionId);
+            session->Ping();
+            shouldCloseSession = ShouldCloseSession(session);
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(
+                ex,
+                "Failed to get session (SessionId: %v)",
+                sessionId);
+            shouldCloseSession = true;
+        }
 
-        auto shouldCloseSession = ShouldCloseSession(session);
         response->set_should_close_session(shouldCloseSession);
 
         context->SetResponseInfo("SessionId: %v, ShouldCloseSession: %v",

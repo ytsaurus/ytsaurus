@@ -139,12 +139,12 @@ public:
     {
         OnDynamicConfigChanged(nullptr, DynamicConfigManager_->GetConfig());
 
-        DynamicConfigManager_->SubscribeConfigChanged(DynamicConfigCallback_);
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(DynamicConfigCallback_);
     }
 
     ~TMediumThrottlerManager()
     {
-        DynamicConfigManager_->UnsubscribeConfigChanged(DynamicConfigCallback_);
+        DynamicConfigManager_->UnsubscribeBeforeConfigChanged(DynamicConfigCallback_);
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(

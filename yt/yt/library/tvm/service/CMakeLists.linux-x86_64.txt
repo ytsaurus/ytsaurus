@@ -15,6 +15,7 @@
 find_package(linux-headers-generic REQUIRED)
 
 add_subdirectory(mock)
+add_subdirectory(unittests)
 
 add_library(library-tvm-service)
 
@@ -26,15 +27,17 @@ target_compile_options(library-tvm-service PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(library-tvm-service PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-library-tvm
+  yt-yt-core
   cpp-yt-memory
   cpp-yt-logging
-  yt-yt-core
 )
 
 target_sources(library-tvm-service PRIVATE

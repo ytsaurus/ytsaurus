@@ -142,7 +142,7 @@ public:
         LastLocalUpdateTime_ = now;
     }
 
-    THashMap<TString, TResourceVolume> ExtractPoolResourceUsages()
+    THashMap<std::string, TResourceVolume> ExtractPoolResourceUsages()
     {
         YT_VERIFY(AccumulateForPools_);
 
@@ -183,13 +183,13 @@ private:
     const bool AccumulateForOperations_;
 
     // This maps is updated regularly from some thread pool, no parallel updates are possible.
-    THashMap<TString, TResourceVolume> LocalPoolToAccumulatedResourceUsage_;
+    THashMap<std::string, TResourceVolume> LocalPoolToAccumulatedResourceUsage_;
     THashMap<TOperationId, TAccumulatedResourceDistribution> LocalOperationIdToAccumulatedResourceDistribution_;
     TInstant LastLocalUpdateTime_;
 
     // This maps is updated rarely and accessed from Control thread.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    THashMap<TString, TResourceVolume> PoolToAccumulatedResourceUsage_;
+    THashMap<std::string, TResourceVolume> PoolToAccumulatedResourceUsage_;
     THashMap<TOperationId, TAccumulatedResourceDistribution> OperationIdToAccumulatedResourceDistribution_;
     TInstant LastUpdateTime_;
 };
@@ -227,9 +227,9 @@ void Serialize(const TAccumulatedResourceDistribution& volume, NYson::IYsonConsu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters)
+THashMap<std::string, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters)
 {
-    THashMap<TString, TPoolName> pools;
+    THashMap<std::string, TPoolName> pools;
     for (const auto& [treeId, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
         pools.emplace(treeId, options->Pool);
     }
@@ -241,6 +241,19 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
 static const auto EmptyListYsonString = BuildYsonStringFluently()
     .List(std::vector<TString>())
     .ToString();
+
+////////////////////////////////////////////////////////////////////////////////
+
+auto GetSchedulingPolicyBuilder(const TStrategyTreeConfigPtr& config)
+{
+    switch (config->PolicyKind) {
+        case EPolicyKind::Classic:
+            return CreateSchedulingPolicy;
+        case EPolicyKind::Gpu:
+            return NPolicy::NGpu::CreateAllocatingSchedulingPolicy;
+    }
+    YT_ABORT();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -290,7 +303,7 @@ public:
                 .WithGlobal()
                 .WithProducerRemoveSupport()
                 .WithRequiredTag("tree", TreeId_))
-        , SchedulingPolicy_(CreateSchedulingPolicy(
+        , SchedulingPolicy_(GetSchedulingPolicyBuilder(Config_)(
             TreeId_,
             Logger,
             MakeWeak(this),
@@ -298,12 +311,14 @@ public:
             StrategyHost_,
             Config_,
             Profiler_))
-        , GpuSchedulingPolicy_(NPolicy::NGpu::CreateSchedulingPolicy(
-            MakeWeak(this),
-            StrategyHost_,
+        , DryRunGpuSchedulingPolicy_(NPolicy::NGpu::CreateDryRunOrNoopSchedulingPolicy(
             TreeId_,
+            Logger,
+            MakeWeak(this),
+            Host_,
+            StrategyHost_,
             Config_,
-            Profiler_.WithPrefix("/gpu_policy")))
+            Profiler_))
         , ProfileManager_(New<TPoolTreeProfileManager>(
             Profiler_,
             Config_->SparsifyFairShareProfiling,
@@ -330,7 +345,7 @@ public:
         ProfileManager_->RegisterPool(RootElement_);
 
         SchedulingPolicy_->Initialize();
-        GpuSchedulingPolicy_->Initialize();
+        DryRunGpuSchedulingPolicy_->Initialize();
 
         YT_LOG_INFO("Pool tree created");
     }
@@ -389,7 +404,7 @@ public:
         ResourceTree_->UpdateConfig(Config_);
 
         SchedulingPolicy_->UpdateConfig(Config_);
-        GpuSchedulingPolicy_->UpdateConfig(Config_);
+        DryRunGpuSchedulingPolicy_->UpdateConfig(Config_);
 
         auto pool = FindPool(Config_->DefaultParentPool);
         if (!pool && Config_->DefaultParentPool != RootPoolName) {
@@ -498,7 +513,7 @@ public:
             Logger);
 
         SchedulingPolicy_->RegisterOperation(operationElement.Get());
-        GpuSchedulingPolicy_->RegisterOperation(operationElement.Get());
+        DryRunGpuSchedulingPolicy_->RegisterOperation(operationElement.Get());
 
         YT_VERIFY(OperationIdToElement_.emplace(operationId, operationElement).second);
 
@@ -538,14 +553,14 @@ public:
         ProfileManager_->ProfileOperationUnregistration(pool, state->GetHost()->GetState());
 
         SchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
-        GpuSchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
+        DryRunGpuSchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
         operationElement->DetachParent();
 
         ReleaseOperationSlotIndex(state, pool->GetId());
         OnOperationRemovedFromPool(state, operationElement, pool);
 
         SchedulingPolicy_->UnregisterOperation(operationElement.Get());
-        GpuSchedulingPolicy_->UnregisterOperation(operationElement.Get());
+        DryRunGpuSchedulingPolicy_->UnregisterOperation(operationElement.Get());
 
         EraseOrCrash(OperationIdToElement_, operationId);
 
@@ -564,7 +579,7 @@ public:
         operationElement->GetMutableParent()->EnableChild(operationElement);
 
         SchedulingPolicy_->EnableOperation(operationElement.Get());
-        GpuSchedulingPolicy_->EnableOperation(operationElement.Get());
+        DryRunGpuSchedulingPolicy_->EnableOperation(operationElement.Get());
     }
 
     void DisableOperation(const TStrategyOperationStatePtr& state) override
@@ -573,7 +588,7 @@ public:
 
         auto operationElement = GetOperationElement(state->GetHost()->GetId());
         SchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
-        GpuSchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
+        DryRunGpuSchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
 
         operationElement->GetMutableParent()->DisableChild(operationElement);
     }
@@ -651,7 +666,7 @@ public:
         NodeIdToAddress_.emplace(nodeId, nodeAddress);
 
         SchedulingPolicy_->RegisterNode(nodeId, nodeAddress);
-        GpuSchedulingPolicy_->RegisterNode(nodeId, nodeAddress);
+        DryRunGpuSchedulingPolicy_->RegisterNode(nodeId, nodeAddress);
     }
 
     void UnregisterNode(TNodeId nodeId) override
@@ -662,7 +677,7 @@ public:
         NodeIdToAddress_.erase(nodeId);
 
         SchedulingPolicy_->UnregisterNode(nodeId);
-        GpuSchedulingPolicy_->UnregisterNode(nodeId);
+        DryRunGpuSchedulingPolicy_->UnregisterNode(nodeId);
     }
 
     const std::string& GetId() const override
@@ -672,7 +687,7 @@ public:
         return TreeId_;
     }
 
-    TError CheckOperationIsStuck(
+    TError CheckIsOperationStuck(
         TOperationId operationId,
         const TOperationStuckCheckOptionsPtr& options) override
     {
@@ -748,8 +763,7 @@ public:
             }
         }
 
-        auto schedulingPolicyError = NPolicy::TSchedulingPolicy::CheckOperationIsStuck(
-            GetTreeSnapshot(),
+        auto schedulingPolicyError = GetTreeSnapshot()->CheckIsOperationStuck(
             element,
             now,
             activationTime,
@@ -800,20 +814,18 @@ public:
         }
     }
 
-    TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const std::string& user) const override
+    TPoolName CreatePoolName(const std::optional<std::string>& poolFromSpec, const std::string& user) const override
     {
-        // TODO(babenko): switch to std::string
-        auto poolName = poolFromSpec.value_or(TString(user));
+        auto poolName = poolFromSpec.value_or(user);
 
         auto pool = FindPool(poolName);
         if (pool && pool->GetConfig()->CreateEphemeralSubpools) {
-            // TODO(babenko): switch to std::string
-            return TPoolName(TString(user), poolName);
+            return TPoolName(user, poolName);
         }
         return TPoolName(poolName, std::nullopt);
     }
 
-    const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const std::string& user) const override
+    const TOffloadingSettings& GetOffloadingSettingsFor(const std::string& poolName, const std::string& user) const override
     {
         const TPoolTreeCompositeElement* pool = FindPool(poolName).Get();
         if (!pool) {
@@ -842,8 +854,8 @@ public:
 
         LastPoolsNodeUpdate_ = poolsNode;
 
-        THashMap<TString, TString> poolToParentMap;
-        THashSet<TString> ephemeralPools;
+        THashMap<std::string, std::string> poolToParentMap;
+        THashSet<std::string> ephemeralPools;
         for (const auto& [poolId, pool] : Pools_) {
             poolToParentMap[poolId] = pool->GetParent()->GetId();
             if (pool->IsDefaultConfigured()) {
@@ -928,7 +940,7 @@ public:
 
         std::vector<TPoolTreePoolElementPtr> staleEphemeralPools;
         for (const auto& [poolName, pool] : Pools_) {
-            if (pool->IsDefaultConfigured() && pool->GetId().Contains(TPoolName::Delimiter) && !pool->GetParent()->IsEphemeralHub()) {
+            if (pool->IsDefaultConfigured() && pool->GetId().contains(TPoolName::Delimiter) && !pool->GetParent()->IsEphemeralHub()) {
                 staleEphemeralPools.push_back(pool);
             }
         }
@@ -949,7 +961,7 @@ public:
         return {LastPoolsNodeUpdateError_, true};
     }
 
-    TError ValidateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) override
+    TError ValidateUserToDefaultPoolMap(const THashMap<std::string, std::string>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -957,14 +969,17 @@ public:
             return TError();
         }
 
-        THashSet<TString> uniquePoolNames;
+        THashSet<std::string> uniquePoolNames;
         for (const auto& [userName, poolName] : userToDefaultPoolMap) {
             uniquePoolNames.insert(poolName);
         }
 
         for (const auto& poolName : uniquePoolNames) {
             if (!FindPool(poolName)) {
-                return TError("User default parent pool is missing in pool tree")
+                return TError(
+                    "User default parent pool %Qv is missing in pool tree %Qv",
+                    poolName,
+                    TreeId_)
                     << TErrorAttribute("pool", poolName)
                     << TErrorAttribute("pool_tree", TreeId_);
             }
@@ -1007,7 +1022,7 @@ public:
             .Run(operationId, user, permissions);
     }
 
-    void EnsureOperationPoolExistence(const TString& poolName) const override
+    void EnsureOperationPoolExistence(const std::string& poolName) const override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1068,7 +1083,7 @@ public:
         }
 
         result->SchedulingPolicyState = SchedulingPolicy_->BuildPersistentState();
-        result->GpuSchedulingPolicyState = GpuSchedulingPolicy_->BuildPersistentState();
+        result->GpuSchedulingPolicyState = DryRunGpuSchedulingPolicy_->BuildPersistentState();
 
         return result;
     }
@@ -1095,20 +1110,20 @@ public:
         }
 
         SchedulingPolicy_->InitPersistentState(persistentState->SchedulingPolicyState);
-        GpuSchedulingPolicy_->InitPersistentState(persistentState->GpuSchedulingPolicyState);
+        DryRunGpuSchedulingPolicy_->InitPersistentState(persistentState->GpuSchedulingPolicyState);
     }
 
-    TError OnOperationMaterialized(TOperationId operationId) override
+    TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
-        auto error = SchedulingPolicy_->OnOperationMaterialized(element.Get());
+        auto error = SchedulingPolicy_->OnOperationMaterialized(element.Get(), revivedFromSnapshot);
 
-        auto gpuPolicyError = GpuSchedulingPolicy_->OnOperationMaterialized(element.Get());
+        auto gpuPolicyError = DryRunGpuSchedulingPolicy_->OnOperationMaterialized(element.Get(), revivedFromSnapshot);
         YT_LOG_DEBUG_UNLESS(gpuPolicyError.IsOK(),
             gpuPolicyError,
-            "Error occurred while processing materialized operation in GPU scheduling policy (OperationId: %v)",
+            "Error occurred while processing materialized operation in DryRun GPU scheduling policy (OperationId: %v)",
             operationId);
 
         return error;
@@ -1140,9 +1155,9 @@ public:
         return SchedulingPolicy_->CheckOperationSchedulingInSeveralTreesAllowed(element.Get());
     }
 
-    std::vector<TString> GetAncestorPoolNames(const TPoolTreeOperationElement* element) const
+    std::vector<std::string> GetAncestorPoolNames(const TPoolTreeOperationElement* element) const
     {
-        std::vector<TString> result;
+        std::vector<std::string> result;
         const auto* current = element->GetParent();
         while (!current->IsRoot()) {
             result.push_back(current->GetId());
@@ -1252,62 +1267,38 @@ public:
         dynamicOrchidService->AddChild("child_pools_by_pool", New<TChildPoolsByPoolOrchidService>(MakeStrong(this))
             ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
-        dynamicOrchidService->AddChild("operations", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
-            auto treeSnapshot = GetTreeSnapshotForOrchid();
-
-            const auto buildOperationInfo = [&] (TFluentMap fluent, const TPoolTreeOperationElement* const operation) {
-                fluent
-                    .Item(operation->GetId()).BeginMap()
-                        .Do(BIND(
-                            &TPoolTree::DoBuildOperationProgress,
-                            ConstRef(treeSnapshot),
-                            Unretained(operation),
-                            StrategyHost_))
-                    .EndMap();
-            };
-
-            BuildYsonFluently(consumer).BeginMap()
-                    .Do([&] (TFluentMap fluent) {
-                        for (const auto& [operationId, operation] : treeSnapshot->EnabledOperationMap()) {
-                            buildOperationInfo(fluent, operation);
-                        }
-
-                        for (const auto& [operationId, operation] : treeSnapshot->DisabledOperationMap()) {
-                            buildOperationInfo(fluent, operation);
-                        }
-                    })
-                .EndMap();
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        dynamicOrchidService->AddChild("operations", New<TOperationsOrchidService>(MakeStrong(this))
+            ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("config", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(treeSnapshot->TreeConfig());
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("resource_usage", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(treeSnapshot->ResourceUsage());
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("resource_limits", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(treeSnapshot->ResourceLimits());
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("node_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(std::ssize(treeSnapshot->NodeAddresses()));
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("node_addresses", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
 
             BuildYsonFluently(consumer).Value(GetValues(treeSnapshot->NodeAddresses()));
-        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         // TODO(eshcherbin): Why not use tree snapshot here as well?
         dynamicOrchidService->AddChild("pool_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
@@ -1325,7 +1316,7 @@ public:
         }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         SchedulingPolicy_->PopulateOrchidService(dynamicOrchidService);
-        GpuSchedulingPolicy_->PopulateOrchidService(dynamicOrchidService);
+        DryRunGpuSchedulingPolicy_->PopulateOrchidService(dynamicOrchidService);
 
         return dynamicOrchidService;
     }
@@ -1385,7 +1376,7 @@ private:
 
     const NProfiling::TProfiler Profiler_;
     const NPolicy::ISchedulingPolicyPtr SchedulingPolicy_;
-    const NPolicy::NGpu::ISchedulingPolicyPtr GpuSchedulingPolicy_;
+    const NPolicy::ISchedulingPolicyPtr DryRunGpuSchedulingPolicy_;
     const TPoolTreeProfileManagerPtr ProfileManager_;
 
     const std::vector<IInvokerPtr> FeasibleInvokers_;
@@ -1398,10 +1389,10 @@ private:
 
     std::optional<TInstant> LastFairShareUpdateTime_;
 
-    THashMap<std::string, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
+    THashMap<std::string, THashSet<std::string>> UserToEphemeralPoolsInDefaultPool_;
 
-    THashMap<TString, THashSet<int>> PoolToSpareSlotIndices_;
-    THashMap<TString, int> PoolToMinUnusedSlotIndex_;
+    THashMap<std::string, THashSet<int>> PoolToSpareSlotIndices_;
+    THashMap<std::string, int> PoolToMinUnusedSlotIndex_;
 
     TOperationElementMap OperationIdToElement_;
 
@@ -1464,7 +1455,7 @@ private:
             return ResolveSelf("/@" + path, context);
         }
 
-        virtual IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const TString& poolName) = 0;
+        virtual IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const std::string& poolName) = 0;
 
         TResolveResult ResolveRecursive(
             const TYPath& path,
@@ -1476,7 +1467,7 @@ private:
             tokenizer.Advance();
             tokenizer.Expect(NYPath::ETokenType::Literal);
 
-            const auto& poolName = tokenizer.GetLiteralValue();
+            std::string poolName(tokenizer.GetLiteralValue());
             if (poolName != RootPoolName && !poolTreeSnapshot->PoolMap().contains(poolName)) {
                 // TODO(omgronny): rewrite it properly
                 if (context->GetMethod() == "Exists") {
@@ -1516,7 +1507,7 @@ private:
             bool incomplete = false;
             const auto& poolMap = poolTreeSnapshot->PoolMap();
 
-            std::vector<TString> result;
+            std::vector<std::string> result;
             result.reserve(std::ssize(poolMap) + 1);
             result.push_back(RootPoolName);
             for (const auto& [name, _] : poolMap) {
@@ -1579,7 +1570,7 @@ private:
                 }));
         }
 
-        IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const TString& poolName) override
+        IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const std::string& poolName) override
         {
             return TPoolTree::FromProducer(BIND(
                 [poolTreeSnapshot = std::move(poolTreeSnapshot), poolName]
@@ -1632,7 +1623,7 @@ private:
                 }));
         }
 
-        IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const TString& poolName) override
+        IYPathServicePtr GetRecursiveServiceProducer(TPoolTreeSnapshotPtr&& poolTreeSnapshot, const std::string& poolName) override
         {
             return TPoolTree::FromProducer(BIND(
                 [poolTreeSnapshot = std::move(poolTreeSnapshot), poolName]
@@ -1731,7 +1722,102 @@ private:
         TIntrusivePtr<const TPoolTree> PoolTree_;
     };
 
+    class TOperationsOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TOperationsOrchidService(TIntrusivePtr<const TPoolTree> tree)
+            : PoolTree_(std::move(tree))
+        { }
+
+        i64 GetSize() const final
+        {
+            YT_ASSERT_INVOKER_AFFINITY(PoolTree_->StrategyHost_->GetOrchidWorkerInvoker());
+
+            const auto treeSnapshot = PoolTree_->GetTreeSnapshotForOrchid();
+
+            return std::ssize(treeSnapshot->EnabledOperationMap()) + std::ssize(treeSnapshot->DisabledOperationMap());
+        }
+
+        std::vector<std::string> GetKeys(const i64 limit) const final
+        {
+            YT_ASSERT_INVOKER_AFFINITY(PoolTree_->StrategyHost_->GetOrchidWorkerInvoker());
+
+            if (!limit) {
+                return {};
+            }
+
+            const auto treeSnapshot = PoolTree_->GetTreeSnapshotForOrchid();
+
+            std::vector<std::string> result;
+            result.reserve(std::min(
+                limit,
+                std::ssize(treeSnapshot->EnabledOperationMap()) + std::ssize(treeSnapshot->DisabledOperationMap())));
+
+            const auto appendOperationIds = [&] (const TNonOwningOperationElementMap& operationMap) {
+                for (const auto& [operationId, _] : operationMap) {
+                    if (std::ssize(result) >= limit) {
+                        break;
+                    }
+                    result.push_back(ToString(operationId));
+                }
+            };
+            appendOperationIds(treeSnapshot->EnabledOperationMap());
+            appendOperationIds(treeSnapshot->DisabledOperationMap());
+
+            return result;
+        }
+
+        IYPathServicePtr FindItemService(const std::string& key) const final
+        {
+            YT_ASSERT_INVOKER_AFFINITY(PoolTree_->StrategyHost_->GetOrchidWorkerInvoker());
+
+            auto treeSnapshot = PoolTree_->GetTreeSnapshotForOrchid();
+
+            TGuid operationGuid;
+            if (!TGuid::FromString(key, &operationGuid)) {
+                return nullptr;
+            }
+            const auto operationId = TOperationId(operationGuid);
+
+            const auto findOperationElement = [&] () -> const TPoolTreeOperationElement* {
+                if (const auto it = treeSnapshot->EnabledOperationMap().find(operationId); it != std::cend(treeSnapshot->EnabledOperationMap())) {
+                    return it->second;
+                }
+                if (const auto it = treeSnapshot->DisabledOperationMap().find(operationId); it != std::cend(treeSnapshot->DisabledOperationMap())) {
+                    return it->second;
+                }
+                return nullptr;
+            };
+
+            const auto* operation = findOperationElement();
+            if (!operation) {
+                return nullptr;
+            }
+
+            return IYPathService::FromProducer(BIND([
+                treeSnapshot = std::move(treeSnapshot),
+                operation,
+                strategyHost = PoolTree_->StrategyHost_
+            ] (IYsonConsumer* consumer) {
+                BuildYsonFluently(consumer)
+                    .BeginMap()
+                        .Do(std::bind(
+                            &TPoolTree::DoBuildOperationProgress,
+                            std::cref(treeSnapshot),
+                            operation,
+                            strategyHost,
+                            std::placeholders::_1))
+                    .EndMap();
+            }));
+        }
+
+    private:
+        TIntrusivePtr<const TPoolTree> PoolTree_;
+    };
+
     friend class TOperationsByPoolOrchidService;
+    friend class TOperationsOrchidService;
 
     // Thread affinity: Control.
     TPoolTreeSnapshotPtr TreeSnapshot_;
@@ -1806,7 +1892,6 @@ private:
             TEventTimerGuard timer(FairSharePreUpdateTimer_);
             rootElement->InitializeFairShareUpdate(now);
         }
-
         auto schedulingPolicyPostUpdateContext = SchedulingPolicy_->CreatePostUpdateContext(rootElement.Get());
 
         auto asyncUpdate =
@@ -1844,6 +1929,8 @@ private:
                             .EnableImprovedFairShareByFitFactorComputation = config->EnableImprovedFairShareByFitFactorComputation,
                             .EnableImprovedFairShareByFitFactorComputationDistributionGap =
                                 config->EnableImprovedFairShareByFitFactorComputationDistributionGap,
+                            .EnableFastFifoFairShareByFitFactorComputation =
+                                config->EnableFastFifoFairShareByFitFactorComputation,
                         },
                         fairShareUpdateResult.ResourceLimits,
                         now,
@@ -2125,7 +2212,7 @@ private:
         targetConfig->ResourceLimits = source->ResourceLimits;
     }
 
-    bool TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
+    bool TryAllocatePoolSlotIndex(const std::string& poolName, int slotIndex)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2146,7 +2233,7 @@ private:
         }
     }
 
-    int AllocateOperationSlotIndex(const TStrategyOperationStatePtr& state, const TString& poolName)
+    int AllocateOperationSlotIndex(const TStrategyOperationStatePtr& state, const std::string& poolName)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2184,7 +2271,7 @@ private:
         return newSlotIndex;
     }
 
-    void ReleaseOperationSlotIndex(const TStrategyOperationStatePtr& state, const TString& poolName)
+    void ReleaseOperationSlotIndex(const TStrategyOperationStatePtr& state, const std::string& poolName)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2250,7 +2337,10 @@ private:
         YT_UNUSED_FUTURE(StrategyHost_->SetOperationAlert(
             state->GetHost()->GetId(),
             EOperationAlertType::OperationPending,
-            TError("Max running operation count violated")
+            TError(
+                "Max running operation count in pool %Qv of tree %Qv is violated ",
+                violatedPool->GetId(),
+                TreeId_)
                 << TErrorAttribute("pool", violatedPool->GetId())
                 << TErrorAttribute("limit", violatedPool->GetMaxRunningOperationCount())
                 << TErrorAttribute("pool_tree", TreeId_)));
@@ -2353,7 +2443,7 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto tryGetValidPool = [&] (const TString& poolName, const char* poolCaption, const std::string& loggedAttributes) -> TPoolTreeCompositeElementPtr {
+        auto tryGetValidPool = [&] (const std::string& poolName, const char* poolCaption, const std::string& loggedAttributes) -> TPoolTreeCompositeElementPtr {
             auto pool = FindPool(poolName);
             if (pool) {
                 if (pool->GetMode() != ESchedulingMode::Fifo) {
@@ -2383,12 +2473,12 @@ private:
             return pool;
         }
 
-        YT_LOG_INFO("Using %v as default parent pool", RootPoolName);
+        YT_LOG_INFO("Using root pool as default parent pool (PoolName: %v)", RootPoolName);
 
         return RootElement_;
     }
 
-    void ActualizeEphemeralPoolParents(const THashMap<std::string, TString>& userToDefaultPoolMap) override
+    void ActualizeEphemeralPoolParents(const THashMap<std::string, std::string>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2450,11 +2540,17 @@ private:
         bool lightweightInNewPool = operationElement->IsLightweightEligible() && newPoolElement->GetEffectiveLightweightOperationsEnabled();
         for (const auto* currentPool : GetPoolsToValidateOperationCountsOnPoolChange(operationElement, newPoolElement)) {
             if (currentPool->OperationCount() >= currentPool->GetMaxOperationCount()) {
-                THROW_ERROR_EXCEPTION("Max operation count of pool %Qv violated", currentPool->GetId());
+                THROW_ERROR_EXCEPTION(
+                    "Max operation count in pool %Qv of tree %Qv is violated",
+                    currentPool->GetId(),
+                    currentPool->GetTreeId());
             }
 
             if (!lightweightInNewPool && currentPool->RunningOperationCount() >= currentPool->GetMaxRunningOperationCount()) {
-                THROW_ERROR_EXCEPTION("Max running operation count of pool %Qv violated", currentPool->GetId());
+                THROW_ERROR_EXCEPTION(
+                    "Max running operation count in pool %Qv of tree %Qv is violated",
+                    currentPool->GetId(),
+                    currentPool->GetTreeId());
             }
         }
     }
@@ -2648,7 +2744,7 @@ private:
         return Pools_.size();
     }
 
-    TPoolTreePoolElementPtr FindPool(const TString& id) const
+    TPoolTreePoolElementPtr FindPool(const std::string& id) const
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2656,7 +2752,7 @@ private:
         return it == Pools_.end() ? nullptr : it->second;
     }
 
-    TPoolTreePoolElementPtr GetPool(const TString& id) const
+    TPoolTreePoolElementPtr GetPool(const std::string& id) const
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2694,12 +2790,6 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        StrategyHost_->GetControlInvoker(EControlQueue::Strategy)->Invoke(BIND(
-            &NGpu::ISchedulingPolicy::UpdateNodeDescriptor,
-            GpuSchedulingPolicy_,
-            schedulingHeartbeatContext->GetNodeDescriptor()->Id,
-            schedulingHeartbeatContext->GetNodeDescriptor()));
-
         if (auto traceContext = NTracing::TryGetCurrentTraceContext()) {
             traceContext->AddTag("tree", TreeId_);
         }
@@ -2708,14 +2798,15 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        auto processSchedulingHeartbeatFuture = BIND(
-            &NPolicy::ISchedulingPolicy::ProcessSchedulingHeartbeat,
-            SchedulingPolicy_,
+        Y_UNUSED(DryRunGpuSchedulingPolicy_->ProcessSchedulingHeartbeat(
             schedulingHeartbeatContext,
             treeSnapshot,
-            skipScheduleAllocations)
-            .AsyncVia(GetCurrentInvoker())
-            .Run();
+            skipScheduleAllocations));
+
+        auto processSchedulingHeartbeatFuture = SchedulingPolicy_->ProcessSchedulingHeartbeat(
+            schedulingHeartbeatContext,
+            treeSnapshot,
+            skipScheduleAllocations);
 
         return processSchedulingHeartbeatFuture
             .Apply(BIND(
@@ -2736,10 +2827,8 @@ private:
         return treeSnapshot->RootElement()->SchedulableElementCount();
     }
 
-    void ProcessAllocationUpdates(
-        const std::vector<TAllocationUpdate>& allocationUpdates,
-        THashSet<TAllocationId>* allocationsToPostpone,
-        THashMap<TAllocationId, EAbortReason>* allocationsToAbort) override
+    TFuture<std::vector<NPolicy::TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
+        const std::vector<TAllocationUpdate>& allocationUpdates) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -2747,69 +2836,7 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        for (const auto& allocationUpdate : allocationUpdates) {
-            std::optional<EAbortReason> maybeAbortReason;
-            bool updateSuccessful = ProcessAllocationUpdate(treeSnapshot, allocationUpdate, &maybeAbortReason);
-
-            if (!updateSuccessful) {
-                YT_LOG_DEBUG(
-                    "Postpone allocation update since operation is disabled or missing in snapshot (OperationId: %v, AllocationId: %v)",
-                    allocationUpdate.OperationId,
-                    allocationUpdate.AllocationId);
-
-                allocationsToPostpone->insert(allocationUpdate.AllocationId);
-            } else if (maybeAbortReason) {
-                EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *maybeAbortReason);
-                // NB(eshcherbin): We want the node shard to send us an allocation finished update,
-                // this is why we have to postpone the allocation here. This is very ad-hoc, but I hope it'll
-                // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
-                allocationsToPostpone->insert(allocationUpdate.AllocationId);
-            }
-        }
-    }
-
-    bool ProcessAllocationUpdate(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TAllocationUpdate& allocationUpdate,
-        std::optional<EAbortReason>* maybeAbortReason)
-    {
-        auto* operationElement = treeSnapshot->FindEnabledOperationElement(allocationUpdate.OperationId);
-        if (!operationElement) {
-            return false;
-        }
-
-        if (allocationUpdate.Finished) {
-            // NB: Should be filtered out on large clusters.
-            YT_LOG_DEBUG(
-                "Processing allocation finish (OperationId: %v, AllocationId: %v)",
-                allocationUpdate.OperationId,
-                allocationUpdate.AllocationId);
-
-            return SchedulingPolicy_->ProcessFinishedAllocation(
-                treeSnapshot,
-                operationElement,
-                allocationUpdate.AllocationId);
-        }
-
-        YT_VERIFY(allocationUpdate.ResourceUsageUpdated || allocationUpdate.ResetPreemptibleProgress);
-
-        // NB: Should be filtered out on large clusters.
-        YT_LOG_DEBUG(
-            "Processing allocation update (OperationId: %v, AllocationId: %v, ResetPreemptibleProgress: %v, Resources: %v)",
-            allocationUpdate.OperationId,
-            allocationUpdate.AllocationId,
-            allocationUpdate.ResetPreemptibleProgress,
-            allocationUpdate.AllocationResources);
-
-        return SchedulingPolicy_->ProcessAllocationUpdate(
-            treeSnapshot,
-            operationElement,
-            allocationUpdate.AllocationId,
-            allocationUpdate.AllocationResources,
-            allocationUpdate.ResetPreemptibleProgress,
-            allocationUpdate.AllocationDataCenter,
-            allocationUpdate.AllocationInfinibandCluster,
-            maybeAbortReason);
+        return SchedulingPolicy_->ProcessAllocationUpdates(treeSnapshot, allocationUpdates);
     }
 
     bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const override
@@ -2907,7 +2934,7 @@ private:
         return treeSnapshot->ResourceLimits();
     }
 
-    std::optional<TPoolTreeElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override
+    std::optional<TPoolTreeElementStateSnapshot> GetMaybeStateSnapshotForPool(const std::string& poolId) const override
     {
         auto treeSnapshot = GetTreeSnapshot();
 
@@ -2924,7 +2951,7 @@ private:
 
     void BuildResourceMetering(
         TMeteringMap* meteringMap,
-        THashMap<TString, TString>* customMeteringTags) const override
+        THashMap<std::string, std::string>* customMeteringTags) const override
     {
         auto treeSnapshot = GetTreeSnapshot();
 
@@ -2937,9 +2964,15 @@ private:
         *customMeteringTags = treeSnapshot->TreeConfig()->MeteringTags;
     }
 
-    void BuildSchedulingAttributesStringForNode(TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+    void BuildSchedulingAttributesStringForNode(
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        TNodeId nodeId,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const override
     {
-        SchedulingPolicy_->BuildSchedulingAttributesStringForNode(nodeId, delimitedBuilder);
+        SchedulingPolicy_->BuildSchedulingAttributesStringForNode(
+            schedulingHeartbeatContext,
+            nodeId,
+            delimitedBuilder);
     }
 
     void BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const override
@@ -3026,7 +3059,7 @@ private:
         }
     }
 
-    void LogAccumulatedUsage() const override
+    void LogAccumulatedResourceDistribution() const override
     {
         auto treeSnapshot = GetAtomicTreeSnapshot();
 
@@ -3038,7 +3071,7 @@ private:
                 .Do(BIND(&TPoolTree::DoBuildPoolsStructureInfo, Unretained(this), ConstRef(treeSnapshot)))
             .EndMap()
             .Item("operations").BeginMap()
-                .Do(BIND(&TPoolTree::DoBuildOperationsAccumulatedUsageInfo, Unretained(this), ConstRef(treeSnapshot)))
+                .Do(BIND(&TPoolTree::DoBuildOperationsAccumulatedResourceDistribution, Unretained(this), ConstRef(treeSnapshot)))
             .EndMap();
     }
 
@@ -3305,7 +3338,7 @@ private:
     static void BuildChildPoolsByPoolInfo(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const TFieldFilter& filter,
-        const TString& parentPoolName,
+        const std::string& parentPoolName,
         TFluentMap fluent)
     {
         auto* parentPool = [&] () -> TPoolTreeCompositeElement* {
@@ -3382,7 +3415,7 @@ private:
             .EndMap();
     }
 
-    void DoBuildOperationsAccumulatedUsageInfo(const TPoolTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const
+    void DoBuildOperationsAccumulatedResourceDistribution(const TPoolTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const
     {
         auto operationIdToAccumulatedResourceDistribution = AccumulatedOperationsResourceDistributionForLogging_.ExtractOperationResourceDistributionVolumes();
 
@@ -3455,7 +3488,7 @@ private:
             .Item("user").Value(element->GetUserName())
             .Item("type").Value(element->GetOperationType())
             .Item("title").Value(element->GetTitle())
-            .Do(BIND(&NPolicy::TSchedulingPolicy::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
+            .Do(BIND(&TPoolTreeSnapshot::BuildOperationProgress, treeSnapshot, Unretained(element), strategyHost))
             .Do(BIND(&TPoolTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldFilter{}));
     }
 
@@ -3535,6 +3568,9 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "limited_demand_share", element->LimitedDemandShare())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_limited_demand_share", MaxComponent(element->LimitedDemandShare()))
 
+            // NB: Operations never receive a strong guarantee, so all of the strong guarantee fields below
+            // are always zero for operation elements.
+            // COMPAT(eshcherbin): Stop exporting strong guarantee fields for operations entirely.
             // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share", attributes.StrongGuaranteeShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_share", attributes.StrongGuaranteeShare)
@@ -3577,7 +3613,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "schedulable", element->IsSchedulable())
-            .Do(BIND(&NPolicy::TSchedulingPolicy::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
+            .Do(BIND(&TPoolTreeSnapshot::BuildElementYson, treeSnapshot, Unretained(element), filter));
     }
 
     void DoBuildEssentialFairShareInfo(const TPoolTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const

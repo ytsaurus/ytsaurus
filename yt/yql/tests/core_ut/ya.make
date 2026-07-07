@@ -6,6 +6,8 @@ SRCS(
     yql_expr_providers_ut.cpp
     yql_rewrite_io_ut.cpp
     yql_qplayer_ut.cpp
+    yql_view_ut.cpp
+    yql_walk_folders_ut.cpp
 )
 
 PEERDIR(
@@ -19,6 +21,7 @@ PEERDIR(
     yql/essentials/core/services/mounts
     yql/essentials/core/file_storage
     yql/essentials/core/qplayer/storage/memory
+    yql/essentials/minikql/runtime_settings
     yql/essentials/providers/common/udf_resolve
     yql/essentials/public/udf
     yql/essentials/public/udf/service/exception_policy

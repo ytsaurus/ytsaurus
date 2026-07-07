@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/lib/hydra/config.h>
 
-#include <yt/yt/server/lib/distributed_chunk_session_server/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/server/lib/node/config.h>
@@ -32,13 +30,13 @@
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
+#include <yt/yt/core/ypath/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NDataNode {
 
 using namespace NNode;
-
-////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,8 +63,8 @@ struct TP2PConfig
     TSlruCacheDynamicConfigPtr RequestCacheOverride;
 
     TDuration ChunkCooldownTimeout;
-    int MaxDistributedBytes;
-    int MaxBlockSize;
+    i64 MaxDistributedBytes;
+    i64 MaxBlockSize;
     int BlockCounterResetTicks;
     int HotBlockThreshold;
     int SecondHotBlockThreshold;
@@ -117,12 +115,6 @@ struct TChunkLocationConfig
     //! If the tracked memory is close to the limit, new sessions will not be started.
     double MemoryLimitFractionForStartingNewSessions;
 
-    //! Enables defining a dynamic location IO weight given by a formula, which
-    //! is re-evaluated periodically to determine the current value.
-    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
-    //! Supported variables: available_space, used_space
-    std::optional<std::string> IOWeightFormula;
-
     void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TChunkLocationConfig);
@@ -147,12 +139,6 @@ struct TChunkLocationDynamicConfig
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     std::optional<double> MemoryLimitFractionForStartingNewSessions;
-
-    //! Enables defining a dynamic location IO weight given by a formula, which
-    //! is re-evaluated periodically to determine the current value.
-    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
-    //! Supported variables: available_space, used_space
-    std::optional<std::string> IOWeightFormula;
 
     REGISTER_YSON_STRUCT(TChunkLocationDynamicConfig);
 
@@ -196,6 +182,12 @@ struct TStoreLocationConfig
     //! Per-location configuration of per-chunk changelog that is being written directly (w/o multiplexing).
     NYTree::INodePtr LowLatencySplitChangelog;
 
+    //! Enables defining a dynamic location IO weight given by a formula, which
+    //! is re-evaluated periodically to determine the current value.
+    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
+    //! Supported variables: available_space, used_space
+    std::optional<std::string> IOWeightFormula;
+
     TStoreLocationConfigPtr ApplyDynamic(const TStoreLocationDynamicConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TStoreLocationDynamicConfig& dynamicConfig);
 
@@ -218,6 +210,8 @@ struct TStoreLocationDynamicConfig
     std::optional<TDuration> MaxTrashTtl;
     std::optional<i64> TrashCleanupWatermark;
     std::optional<TDuration> TrashCheckPeriod;
+
+    std::optional<std::string> IOWeightFormula;
 
     REGISTER_YSON_STRUCT(TStoreLocationDynamicConfig);
 
@@ -347,7 +341,7 @@ struct TTmpfsLayerCacheConfig
     : public NYTree::TYsonStruct
 {
     i64 Capacity;
-    std::optional<TString> LayersDirectoryPath;
+    std::optional<NYPath::TYPath> LayersDirectoryPath;
     TDuration LayersUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TTmpfsLayerCacheConfig);
@@ -527,6 +521,10 @@ struct TDataNodeTestingOptions
     //! to return all blocks read up to moment (in case at least one block is read; otherwise
     //! it still tries to read at least one block).
     double BlockReadTimeoutFraction;
+
+    //! Artificial delay injected before issuing underlying blob chunk read.
+    //! Used to deterministically exceed ReadBlocksDeadline in unit/integration tests.
+    std::optional<TDuration> DelayBeforeBlobChunkRead;
 
     //! Fraction of the GetColumnarStatistics RPC timeout, after which early exit is performed and currently uncompleted
     //! chunk fetches are failed with a timeout error.
@@ -977,6 +975,12 @@ struct TDataNodeConfig
     //! If |true| then IO requests in one session are proccessed sequentially.
     bool EnableSequentialIORequests;
 
+    //! If |true| then if error occuried during chunk's blocks reading, already read blocks are returned.
+    bool ReturnBlocksIfSessionFails;
+
+    //! If |true| then read session will be failed if it is not completed before deadline.
+    bool FailSessionAtReadBlocksDeadline;
+
     //! Regular storage locations.
     std::vector<TStoreLocationConfigPtr> StoreLocations;
 
@@ -1046,9 +1050,6 @@ struct TDataNodeConfig
 
     //! Config for the new P2P implementation.
     TP2PConfigPtr P2P;
-
-    //! Distributed chunk session service config.
-    NDistributedChunkSessionServer::TDistributedChunkSessionServiceConfigPtr DistributedChunkSessionService;
 
     //! Blocks trash scan for test purpose.
     //! Have to be static, because dynamic config loads after initialization.
@@ -1153,6 +1154,10 @@ struct TDataNodeDynamicConfig
     std::optional<bool> SkipWriteThrottlingLocations;
 
     std::optional<bool> EnableSequentialIORequests;
+
+    std::optional<bool> ReturnBlocksIfSessionFails;
+
+    std::optional<bool> FailSessionAtReadBlocksDeadline;
 
     std::optional<bool> EnableSendBlocksNetThrottling;
 

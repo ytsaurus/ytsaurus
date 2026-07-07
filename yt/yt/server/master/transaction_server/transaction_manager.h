@@ -49,11 +49,18 @@ struct ITransactionManager
     virtual void Initialize() = 0;
 
     virtual TTransaction* StartSystemTransaction(
-        const NObjectClient::TCellTagList& replicatedToCellTags,
+        const NObjectClient::TCellTagSet& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::string& title,
         const NYTree::IAttributeDictionary& attributes,
         TTransactionId hintId = NullTransactionId) = 0;
+
+    virtual TTransaction* StartSequoiaTransaction(
+        TTransactionId transactionId,
+        std::optional<TDuration> timeout,
+        const std::string& title,
+        const NYTree::IAttributeDictionary& attributes,
+        const std::vector<std::string>& barrierTags = {}) = 0;
 
     //! Starts Cypress transaction which is not mirrored to Sequoia.
     /*!
@@ -61,7 +68,7 @@ struct ITransactionManager
      *  CommitMasterTransaction() or AbortMasterTransaction().
      */
     virtual TTransaction* StartNonMirroredCypressTransaction(
-        const NObjectClient::TCellTagList& replicatedToCellTags,
+        const NObjectClient::TCellTagSet& replicatedToCellTags,
         const std::string& title) = 0;
 
     virtual void CommitMasterTransaction(
@@ -74,13 +81,13 @@ struct ITransactionManager
     virtual TTransaction* StartUploadTransaction(
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
-        const NObjectClient::TCellTagList& replicatedToCellTags,
+        const NObjectClient::TCellTagSet& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::optional<std::string>& title,
         TTransactionId hintId) = 0;
     virtual TTransactionId ExternalizeTransaction(
         TTransaction* transaction,
-        NObjectClient::TCellTagList dstCellTags) = 0;
+        NObjectClient::TCellTagSet dstCellTags) = 0;
     virtual TTransactionId GetNearestExternalizedTransactionAncestor(
         TTransaction* transaction,
         NObjectClient::TCellTag dstCellTag) = 0;
@@ -91,7 +98,7 @@ struct ITransactionManager
         TTransaction* transaction,
         TTransactionId transactionId,
         TTransactionId parentTransactionId,
-        NObjectClient::TCellTagList dstCellTags,
+        NObjectClient::TCellTagSet dstCellTags,
         TTransaction* transactionAttributeHolderOverride = nullptr) = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
@@ -134,11 +141,6 @@ struct ITransactionManager
         NObjectServer::TObject* object,
         bool recursive) = 0;
 
-    //! Registers (and references) the node with the transaction.
-    virtual void StageNode(
-        TTransaction* transaction,
-        NCypressServer::TCypressNode* trunkNode) = 0;
-
     //! Registers and references the object with the transaction.
     //! The reference is dropped if the transaction aborts
     //! but is preserved if the transaction commits.
@@ -159,6 +161,24 @@ struct ITransactionManager
         TTransaction* transaction,
         NElection::TCellId cellId,
         THashSet<TTransactionId>* cellLeaseTransactionIds) = 0;
+
+    //! Returns a future which is set once all currently prepared transactions
+    //! whose tags intersect with the given set of tags are finished.
+    /*!
+     *  The main usage of this function is to ensure that effects of committed
+     *  (from client's point of view) Sequoia transaction will be observed:
+     *  coordinator replies to commit request after transaction is prepared on
+     *  every participant but not necessary committed.
+     *
+     *  Note that effects of transactions coordinated by current cell are
+     *  instantaneously visible on said cell when late prepare mode is used.
+     */
+    virtual TFuture<void> WaitUntilPreparedTransactionsFinished(
+        const std::vector<std::string>& barrierTags) = 0;
+
+    //! Same as the above, but the future is set when all currently prepared
+    //! transactions are finished.
+    virtual TFuture<void> WaitUntilAllPreparedTransactionsFinished() = 0;
 
     virtual void RegisterTransactionActionHandlers(
         TTypeErasedTransactionActionDescriptor descriptor) = 0;
@@ -229,6 +249,9 @@ struct ITransactionManager
     virtual void AbortCypressTransaction(const TCtxAbortCypressTransactionPtr& context) = 0;
 
     virtual TTransaction* GetAndValidatePrerequisiteTransaction(TTransactionId transactionId) = 0;
+
+    // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions
+    bool NeedUnrefStagedNodes_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)

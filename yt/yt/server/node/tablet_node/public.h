@@ -169,8 +169,6 @@ DECLARE_REFCOUNTED_CLASS(TReplicatedStoreManager)
 DECLARE_REFCOUNTED_CLASS(TLockManager)
 using TLockManagerEpoch = i64;
 
-DECLARE_REFCOUNTED_CLASS(TSecurityManager)
-
 DECLARE_REFCOUNTED_CLASS(TPreloadedBlockCache)
 
 DECLARE_REFCOUNTED_STRUCT(TInMemoryChunkData)
@@ -184,9 +182,7 @@ DECLARE_REFCOUNTED_CLASS(TTableReplicator)
 DECLARE_REFCOUNTED_STRUCT(ITablePuller)
 DECLARE_REFCOUNTED_STRUCT(IChaosAgent)
 DECLARE_REFCOUNTED_STRUCT(IAlienClusterClientCache)
-
-DECLARE_REFCOUNTED_CLASS(TStatisticsReporter)
-
+DECLARE_REFCOUNTED_STRUCT(IStatisticsReporter)
 DECLARE_REFCOUNTED_STRUCT(IStoreCompactor)
 DECLARE_REFCOUNTED_STRUCT(IStoreFlusher)
 DECLARE_REFCOUNTED_STRUCT(TFlushTaskInfo)
@@ -203,6 +199,8 @@ DECLARE_REFCOUNTED_STRUCT(IStructuredLogger)
 DECLARE_REFCOUNTED_STRUCT(IPerTabletStructuredLogger)
 
 DECLARE_REFCOUNTED_CLASS(TRowCache)
+
+DECLARE_REFCOUNTED_CLASS(TRowCacheController)
 
 DECLARE_REFCOUNTED_STRUCT(IDistributedThrottlerManager)
 
@@ -244,7 +242,9 @@ DECLARE_REFCOUNTED_STRUCT(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_STRUCT(TBackupManagerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TStatisticsReporterConfig)
+DECLARE_REFCOUNTED_STRUCT(TOverloadReporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TErrorManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TRowCacheControllerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TMediumThrottlersConfig)
 DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderConfig)
 DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderDynamicConfig)
@@ -282,6 +282,8 @@ DECLARE_REFCOUNTED_STRUCT(IHunkTabletManager)
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletScanner)
 
 DECLARE_REFCOUNTED_CLASS(THunkStore)
+
+DECLARE_REFCOUNTED_STRUCT(IOverloadReporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

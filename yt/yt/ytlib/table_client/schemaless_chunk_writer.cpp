@@ -190,7 +190,7 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        if (RowCount_ == 0) {
+        if (RowCount_.load(std::memory_order::relaxed) == 0) {
             // Empty chunk.
             return OKFuture;
         }
@@ -234,7 +234,7 @@ public:
     TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
-        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_row_count(RowCount_.load(std::memory_order::relaxed));
         return dataStatistics;
     }
 
@@ -255,7 +255,7 @@ public:
 
     i64 GetDataWeight() const override
     {
-        return DataWeight_;
+        return DataWeight_.load(std::memory_order::relaxed);
     }
 
     std::optional<TRowsDigest> GetDigest() const override
@@ -277,8 +277,8 @@ protected:
     const i64 BlockSize_;
     const i64 BufferSize_;
 
-    i64 RowCount_ = 0;
-    i64 DataWeight_ = 0;
+    std::atomic<i64> RowCount_ = 0;
+    std::atomic<i64> DataWeight_ = 0;
     i64 DataWeightSinceLastBlockFlush_ = 0;
 
     TEncodingChunkWriterPtr EncodingChunkWriter_;
@@ -339,8 +339,8 @@ protected:
         auto& miscExt = EncodingChunkWriter_->MiscExt();
         miscExt.set_sorted(IsSorted());
         miscExt.set_unique_keys(Schema_->IsUniqueKeys());
-        miscExt.set_row_count(RowCount_);
-        miscExt.set_data_weight(DataWeight_);
+        miscExt.set_row_count(RowCount_.load(std::memory_order::relaxed));
+        miscExt.set_data_weight(DataWeight_.load(std::memory_order::relaxed));
         miscExt.set_is_compatible_with_dynamic_table_constraints(IsCompatibleWithDynamicTableConstraints_);
 
         if (ChunkTimestamps_.MinTimestamp != NullTimestamp) {
@@ -460,7 +460,7 @@ protected:
         }
 
         ValidateRowWeight(weight, Config_, Options_);
-        DataWeight_ += weight;
+        DataWeight_.fetch_add(weight, std::memory_order::relaxed);
         DataWeightSinceLastBlockFlush_ += weight;
 
         return weight;
@@ -598,7 +598,7 @@ public:
 
         for (auto row : rows) {
             UpdateDataWeight(row);
-            ++RowCount_;
+            i64 rowCount = RowCount_.fetch_add(1, std::memory_order::relaxed) + 1;
             BlockWriter_->WriteRow(row);
 
             if (BlockWriter_->GetBlockSize() >= BlockSize_ ||
@@ -606,7 +606,7 @@ public:
             {
                 DataWeightSinceLastBlockFlush_ = 0;
                 auto block = BlockWriter_->FlushBlock();
-                block.Meta.set_chunk_row_count(RowCount_);
+                block.Meta.set_chunk_row_count(rowCount);
                 RegisterBlock(block, row);
                 BlockWriter_ = std::make_unique<THorizontalBlockWriter>(Schema_, Options_->MemoryUsageTracker);
             }
@@ -633,7 +633,7 @@ private:
     {
         if (BlockWriter_->GetRowCount() > 0) {
             auto block = BlockWriter_->FlushBlock();
-            block.Meta.set_chunk_row_count(RowCount_);
+            block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order::relaxed));
             RegisterBlock(block, LastKey_.Get());
         }
 
@@ -739,7 +739,7 @@ public:
                 columnWriter->WriteUnversionedValues(range);
             }
 
-            RowCount_ += range.Size();
+            RowCount_.fetch_add(range.Size(), std::memory_order::relaxed);
 
             startRowIndex = rowIndex;
 
@@ -822,8 +822,8 @@ private:
     void FinishBlock(int blockWriterIndex, TUnversionedRow lastRow)
     {
         DataWeightSinceLastBlockFlush_ = 0;
-        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.data_blocks_size(), RowCount_);
-        block.Meta.set_chunk_row_count(RowCount_);
+        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.data_blocks_size(), RowCount_.load(std::memory_order::relaxed));
+        block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order::relaxed));
         RegisterBlock(block, lastRow);
     }
 
@@ -941,11 +941,12 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        RowCount_ += block.Meta.row_count();
-        block.Meta.set_chunk_row_count(RowCount_);
+        i64 blockRowCount = block.Meta.row_count();
+        i64 rowCount = RowCount_.fetch_add(blockRowCount, std::memory_order::relaxed) + blockRowCount;
+        block.Meta.set_chunk_row_count(rowCount);
 
         // For partition chunks we may assume that data weight is equal to uncompressed data size.
-        DataWeight_ += block.Meta.uncompressed_size();
+        DataWeight_.fetch_add(block.Meta.uncompressed_size(), std::memory_order::relaxed);
 
         PartitionsExt_.set_row_counts(
             block.Meta.partition_index(),
@@ -1307,7 +1308,7 @@ private:
             auto& idMark = IdValidationMarks_[id];
             if (idMark == mark) {
                 auto name = NameTable_->GetNameOrThrow(id);
-                THROW_ERROR_EXCEPTION("Duplicate %Qv column in unversioned row", name)
+                THROW_ERROR_EXCEPTION("Duplicate column %Qv in unversioned row", name)
                     << TErrorAttribute("id", id);
             }
             idMark = mark;
@@ -1681,7 +1682,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    auto writer = New<TPartitionMultiChunkWriter>(
+    return New<TPartitionMultiChunkWriter>(
         std::move(config),
         std::move(options),
         std::move(client),
@@ -1698,10 +1699,6 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         std::move(blockCache),
         dataSink,
         std::move(writeBlocksOptions));
-
-    writer->Init();
-
-    return writer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1921,7 +1918,7 @@ public:
             std::move(createChunkWriter),
             std::move(nameTable),
             schema->ToUnversionedUpdate(),
-            std::move(schema),
+            schema,
             std::move(lastKey),
             std::move(trafficMeter),
             std::move(throttler),
@@ -2130,7 +2127,7 @@ public:
             std::move(createChunkWriter),
             std::move(nameTable),
             ToLatestTimestampSchema(schema),
-            std::move(schema),
+            schema,
             std::move(lastKey),
             std::move(trafficMeter),
             std::move(throttler),
@@ -2207,7 +2204,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TCallback<void(TKey, TKey)> boundaryKeysProcessor)
 {
     auto createSuitableSchemalessMultiChunkWriter = [&] <class TWriter> (auto createChunkWriter) {
-        auto writer = New<TWriter>(
+        return New<TWriter>(
             std::move(config),
             std::move(options),
             std::move(client),
@@ -2224,10 +2221,6 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             std::move(throttler),
             std::move(blockCache),
             std::move(boundaryKeysProcessor));
-
-        writer->Init();
-
-        return writer;
     };
 
     switch (options->VersionedWriteOptions.WriteMode) {
@@ -2341,7 +2334,7 @@ TTableSchemaPtr GetChunkSchema(
     if (chunkSchema->IsUniqueKeys() && !chunkSchema->IsSorted()) {
         THROW_ERROR_EXCEPTION(
             NTableClient::EErrorCode::InvalidSchemaValue,
-            "Non-sorted schema can't have unique keys requirement");
+            "Non-sorted schema cannot have unique keys requirement");
     }
 
     return chunkSchema;

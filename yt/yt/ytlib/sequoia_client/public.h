@@ -27,6 +27,7 @@ DEFINE_ENUM(ESequoiaTransactionType,
     (GroundUpdateQueueFlush)
     (ObjectDestruction)
     (GlobalRefresh)
+    (LocationRefresh)
 );
 
 DEFINE_ENUM(ESequoiaTable,
@@ -90,12 +91,12 @@ DECLARE_REFCOUNTED_STRUCT(ISequoiaTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_STRONG_TYPEDEF(TMangledSequoiaPath, TString);
+YT_DEFINE_STRONG_TYPEDEF(TMangledSequoiaPath, std::string);
 //! A canonical absolute path. The canonical path format restricts the YPath grammar,
 //! allowing only a sequence of segments without additional YPath features.
-YT_DEFINE_STRONG_TYPEDEF(TRealPath, TString);
+YT_DEFINE_STRONG_TYPEDEF(TRealPath, std::string);
 
-YT_DEFINE_STRONG_TYPEDEF(TRawYPath, TString);
+YT_DEFINE_STRONG_TYPEDEF(TRawYPath, std::string);
 
 //! The following classes are the wrappers for the canonical path representation.
 template <bool Absolute>
@@ -115,6 +116,7 @@ struct TResolvedPrerequisiteRevision;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSequoiaTransactionFeatures;
 struct TSequoiaTransactionOptions;
 
 ////////////////////////////////////////////////////////////////////////////////

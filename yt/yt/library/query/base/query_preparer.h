@@ -45,16 +45,6 @@ std::unique_ptr<TParsedSource> ParseSource(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPreparePlanFragmentOptions
-{
-    int SyntaxVersion = 1;
-    int BuilderVersion = 1;
-    NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
-    bool ShouldRewriteCardinalityIntoHyperLogLog = false; // COMPAT(dtorilov): Remove after 25.4.
-    int HyperLogLogPrecision = 14;
-    bool AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = false; // COMPAT(dtorilov): Remove after 26.1.
-};
-
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
@@ -94,6 +84,22 @@ TConstExpressionPtr PrepareExpression(
     int builderVersion = 1,
     const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
     THashSet<std::string>* references = nullptr);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExpressionBuilder;
+
+TJoinClausePtr BuildJoinClause(
+    const TDataSplit& foreignDataSplit,
+    const NAst::TJoin& tableJoin,
+    TStringBuf source,
+    const NAst::TAliasMap& aliasMap,
+    const TConstTypeInferrerMapPtr& functions,
+    size_t* globalCommonKeyPrefix,
+    const TTableSchemaPtr& tableSchema,
+    const std::optional<std::string>& tableAlias,
+    TExpressionBuilder* builder,
+    const TPreparePlanFragmentContext& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

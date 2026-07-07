@@ -19,7 +19,7 @@ from yt_commands import (
     start_transaction,
 )
 
-from yt.common import YtResponseError, YtError
+from yt.common import YtResponseError
 import yt.packages.requests as requests
 import yt.yson as yson
 import yt_error_codes
@@ -703,8 +703,25 @@ class TestHttpProxy(HttpProxyTestBase):
         else:
             raise AssertionError(f"Request {correlation_id} doesn't seem to be canceled")
 
+    @authors("dagorokhov")
+    @pytest.mark.parametrize("yson_format", ["yson", "<format=binary>yson", "<format=text>yson", "<format=pretty>yson"])
+    def test_header_format_yson(self, yson_format):
+        create("table", "//tmp/test")
 
-@pytest.mark.enabled_multidaemon
+        headers_text = {
+            "X-YT-Header-Format": yson_format,
+        }
+        rsp = requests.request(
+            "GET",
+            "{}/api/v4/read_table?path=//tmp/test".format(self._get_proxy_address()),
+            headers=headers_text,
+        )
+        yson_string = rsp.headers['X-YT-Response-Parameters']
+        yson_decoded = yson.loads(bytes(yson_string, 'utf-8'))
+        yson_encoded = yson.dumps(yson_decoded)
+        assert yson_string == yson_encoded.decode('utf-8')
+
+
 class TestHttpProxyMemoryDrop(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -731,21 +748,7 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         self._execute_command("GET", "get", {"path": "//@"})
         self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
-        total_memory_limit_ratio = 0.001
-        set("//sys/http_proxies/@config", {
-            "api": {
-                "default_memory_limit_ratios": {
-                    "total_memory_limit_ratio": total_memory_limit_ratio
-                }
-            }
-        })
-        wait(lambda: config_updated(total_memory_limit_ratio))
-
-        # Total memory limit was not reached.
-        self._execute_command("GET", "get", {"path": "//@"})
-        self._execute_command("GET", "read_table", {"path": "//tmp/test"})
-
-        total_memory_limit_ratio = 0.0005
+        total_memory_limit_ratio = 0.5
         heavy_request_memory_limit_ratio = 0.0
         set("//sys/http_proxies/@config", {
             "api": {
@@ -765,7 +768,7 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
         assert err[0].is_rpc_unavailable()
 
-        total_memory_limit_ratio = 0.0000001
+        total_memory_limit_ratio = 0.0
         set("//sys/http_proxies/@config", {
             "api": {
                 "default_memory_limit_ratios": {
@@ -787,12 +790,12 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
             config = requests.get(config_url).json()
             return config.get("api", {}).get("role_to_memory_limit_ratios", {}).get("data", {}).get("total_memory_limit_ratio", 0.0) == expected_total_memory_limit_ratio
 
-        total_memory_limit_ratio = 0.001
-        heavy_request_memory_limit_ratio = 0.001
+        total_memory_limit_ratio = 0.9
+        heavy_request_memory_limit_ratio = 0.9
         set("//sys/http_proxies/@config", {
             "api": {
                 "default_memory_limit_ratios": {
-                    "total_memory_limit_ratio": 0.0000001
+                    "total_memory_limit_ratio": 0.0
                 },
                 "role_to_memory_limit_ratios": {
                     "data": {
@@ -809,7 +812,6 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1031,7 +1033,6 @@ class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyPoolMetrics(HttpProxyTestBase):
     @authors("nadya02")
     @pytest.mark.timeout(120)
@@ -1126,7 +1127,6 @@ class TestFullDiscoverVersions(HttpProxyTestBase):
         assert counts["replicated_table_tracker"] == 1
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1338,7 +1338,6 @@ class TestSolomonProxy(HttpProxyTestBase):
             self.get_sensors(params={"period": "5s"})
 
 
-@pytest.mark.enabled_multidaemon
 class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "access_checker": {
@@ -1425,7 +1424,6 @@ class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
         wait(lambda: not check_access(proxy_address, "u"))
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyAccessChecker(HttpProxyAccessCheckerTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1439,7 +1437,6 @@ class TestHttpProxyAccessChecker(HttpProxyAccessCheckerTestBase):
         set(f"//sys/http_proxy_roles/{role}/@acl", acl)
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyAccessCheckerWithAco(HttpProxyAccessCheckerTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1461,7 +1458,6 @@ class TestHttpProxyAccessCheckerWithAco(HttpProxyAccessCheckerTestBase):
         set(f"//sys/access_control_object_namespaces/http_proxy_roles/{role}/principal/@acl", acl)
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "role": "ab"
@@ -1487,7 +1483,6 @@ class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
         assert get_yson(self._get_proxy_address() + "/hosts?role=ab") == [proxy]
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyAuth(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1565,7 +1560,6 @@ class TestHttpProxyAuth(HttpProxyTestBase):
         wait(lambda: check_access(proxy_address, status_code=401, token=test_user_token, user="root"))
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyFraming(HttpProxyTestBase):
     SUSPENDING_TABLE = "//tmp/suspending_table"
     DELAY_BEFORE_COMMAND = 10 * 1000
@@ -1759,7 +1753,6 @@ class TestHttpProxyFraming(HttpProxyTestBase):
             self._execute_command("GET", "get_table_columnar_statistics", params, extra_headers=headers)
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyJobShellAudit(HttpProxyTestBase):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1863,7 +1856,6 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
         op.abort()
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
     NUM_TEST_PARTITIONS = 6
     ENABLE_MULTIDAEMON = True
@@ -2020,7 +2012,6 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
         self._test_format_defaults_operations(format, user, content, expected_content_operation)
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
     NUM_SCHEDULERS = 0
 
@@ -2098,7 +2089,6 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
             wait(_check_read_only)
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyBuildSnapshotNoReadonly(TestHttpProxyBuildSnapshotBase):
     ENABLE_MULTIDAEMON = True
 
@@ -2164,7 +2154,6 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyHeapUsageStatisticsBase(HttpProxyTestBase):
     NUM_HTTP_PROXIES = 1
     ENABLE_MULTIDAEMON = True
@@ -2259,7 +2248,6 @@ class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
@@ -2497,7 +2485,6 @@ class TestHttpsProxy(HttpProxyTestBase):
         rsp.raise_for_status()
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyDiscovery(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
@@ -2565,7 +2552,7 @@ class TestHttpProxyDiscovery(YTEnvSetup):
 
     @authors("nadya73")
     def test_invalid_address_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             discover_proxies(type_="http", driver=self.driver, address_type="invalid")
 
     @authors("nadya73")
@@ -2579,7 +2566,6 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         assert len(proxies) != 0
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
@@ -2617,7 +2603,6 @@ class TestHttpProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
         assert sorted(proxies) == configured_proxy_addresses
 
 
-@pytest.mark.enabled_multidaemon
 class TestHttpProxyDiscoveryBalancers(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
@@ -2665,7 +2650,7 @@ class TestHttpProxyDiscoveryBalancers(YTEnvSetup):
 
     @authors("nadya73")
     def test_invalid_address_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             discover_proxies(type_="http", driver=self.driver, address_type="invalid")
 
     @authors("nadya73")

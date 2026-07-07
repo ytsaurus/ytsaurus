@@ -1,15 +1,11 @@
 from . import default_config
 from .helpers import canonize_uuid
+from .api import LogLevel
 
 from yt.wrapper.common import MB, GB
 from yt.common import update, update_inplace
 
 from yt.yson import to_yson_type
-
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
 
 import random
 import os
@@ -297,6 +293,19 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         logs_dir,
     )
 
+    offshore_data_gateway_configs = _build_offshore_data_gateway_configs(
+        yt_config,
+        multidaemon_config,
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_config),
+        discovery_configs,
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        cypress_proxy_rpc_ports,
+        ports_generator,
+        logs_dir,
+    )
+
     cluster_configuration = {
         "master": master_configs,
         "clock": clock_configs,
@@ -318,6 +327,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         "tablet_balancer": tablet_balancer_configs,
         "cypress_proxy": cypress_proxy_configs,
         "replicated_table_tracker": replicated_table_tracker_configs,
+        "offshore_data_gateway": offshore_data_gateway_configs,
         "cluster_connection": _build_cluster_connection_config(
             yt_config,
             master_connection_configs,
@@ -346,7 +356,7 @@ def _build_master_configs(yt_config,
     ports = []
 
     cell_tags = [str(yt_config.primary_cell_tag + index)
-                 for index in xrange(yt_config.secondary_cell_count + 1)]
+                 for index in range(yt_config.secondary_cell_count + 1)]
     random_part = random.randint(0, 2 ** 32 - 1)
     cell_ids = [canonize_uuid("%x-ffffffff-%x0259-ffffffff" % (random_part, int(tag)))
                 for tag in cell_tags]
@@ -354,12 +364,12 @@ def _build_master_configs(yt_config,
     nonvoting_master_count = yt_config.nonvoting_master_count
 
     connection_configs = {}
-    for cell_index in xrange(yt_config.secondary_cell_count + 1):
+    for cell_index in range(yt_config.secondary_cell_count + 1):
         cell_ports = []
         cell_addresses = []
         peer_configs = []
 
-        for i in xrange(yt_config.master_count):
+        for i in range(yt_config.master_count):
             rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
             address = "{0}:{1}".format(yt_config.fqdn, rpc_port)
             peer_config = {}
@@ -395,10 +405,10 @@ def _build_master_configs(yt_config,
             queue_agent_rpc_ports=queue_agent_rpc_ports)
 
     configs = {}
-    for cell_index in xrange(yt_config.secondary_cell_count + 1):
+    for cell_index in range(yt_config.secondary_cell_count + 1):
         cell_configs = []
 
-        for master_index in xrange(yt_config.master_count):
+        for master_index in range(yt_config.master_count):
             config = default_config.get_master_config()
 
             singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -473,7 +483,7 @@ def _build_master_configs(yt_config,
 def _allocate_queue_agent_rpc_ports(yt_config, ports_generator):
     rpc_ports = []
 
-    for i in xrange(yt_config.queue_agent_count):
+    for i in range(yt_config.queue_agent_count):
         rpc_port = next(ports_generator)
         rpc_ports.append(rpc_port)
 
@@ -489,7 +499,7 @@ def _build_clock_configs(yt_config, multidaemon_config_output, clock_dirs, clock
     cell_addresses = []
     peer_configs = []
 
-    for i in xrange(yt_config.clock_count):
+    for i in range(yt_config.clock_count):
         rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
         address = to_yson_type("{0}:{1}".format(yt_config.fqdn, rpc_port))
         cell_addresses.append(address)
@@ -508,7 +518,7 @@ def _build_clock_configs(yt_config, multidaemon_config_output, clock_dirs, clock
     configs = {}
     instance_configs = []
 
-    for clock_index in xrange(yt_config.clock_count):
+    for clock_index in range(yt_config.clock_count):
         config = default_config.get_clock_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -564,7 +574,7 @@ def _build_discovery_server_configs(yt_config, multidaemon_config_output, ports_
     server_addresses = []
     ports = []
 
-    for i in xrange(yt_config.discovery_server_count):
+    for i in range(yt_config.discovery_server_count):
         rpc_port = yt_config.discovery_server_ports[i] if yt_config.discovery_server_ports else next(ports_generator)
         monitoring_port = next(ports_generator)
         address = to_yson_type("{0}:{1}".format(yt_config.fqdn, rpc_port))
@@ -572,7 +582,7 @@ def _build_discovery_server_configs(yt_config, multidaemon_config_output, ports_
         ports.append((rpc_port, monitoring_port))
 
     configs = []
-    for index in xrange(yt_config.discovery_server_count):
+    for index in range(yt_config.discovery_server_count):
         discovery_server_config = {}
         discovery_server_config["server_addresses"] = server_addresses
 
@@ -618,7 +628,7 @@ def _build_queue_agent_configs(multidaemon_config_output,
                                logs_dir,
                                yt_config):
     configs = []
-    for index in xrange(yt_config.queue_agent_count):
+    for index in range(yt_config.queue_agent_count):
         config = default_config.get_queue_agent_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -672,7 +682,7 @@ def _build_kafka_proxy_configs(multidaemon_config_output,
                                logs_dir,
                                yt_config):
     configs = []
-    for index in xrange(yt_config.kafka_proxy_count):
+    for index in range(yt_config.kafka_proxy_count):
         config = default_config.get_kafka_proxy_config()
 
         config["port"] = next(ports_generator)
@@ -723,7 +733,7 @@ def _build_timestamp_provider_configs(yt_config,
     configs = []
     addresses = []
 
-    for index in xrange(yt_config.timestamp_provider_count):
+    for index in range(yt_config.timestamp_provider_count):
         config = default_config.get_timestamp_provider_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -776,7 +786,7 @@ def _build_cell_balancer_configs(yt_config,
     configs = []
     addresses = []
 
-    for index in xrange(yt_config.cell_balancer_count):
+    for index in range(yt_config.cell_balancer_count):
         config = default_config.get_cell_balancer_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -808,6 +818,7 @@ def _build_cell_balancer_configs(yt_config,
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
+        config["dynamic_config_manager"] = {"update_period": "100ms"}
 
         config["enable_bundle_controller"] = yt_config.enable_bundle_controller
 
@@ -849,7 +860,7 @@ def _build_master_cache_configs(yt_config,
     configs = []
     addresses = []
 
-    for index in xrange(yt_config.master_cache_count):
+    for index in range(yt_config.master_cache_count):
         config = default_config.get_master_cache_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -903,7 +914,7 @@ def _build_scheduler_configs(multidaemon_config_output,
                              yt_config):
     configs = []
 
-    for index in xrange(yt_config.scheduler_count):
+    for index in range(yt_config.scheduler_count):
         config = default_config.get_scheduler_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -956,7 +967,7 @@ def _build_controller_agent_configs(multidaemon_config_output,
                                     yt_config):
     configs = []
 
-    for index in xrange(yt_config.controller_agent_count):
+    for index in range(yt_config.controller_agent_count):
         config = default_config.get_controller_agent_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -968,7 +979,7 @@ def _build_controller_agent_configs(multidaemon_config_output,
                           singletons_config.setdefault("logging", {}),
                           yt_config,
                           has_structured_logs=True,
-                          debug_logging_min_level="trace")
+                          log_level=LogLevel.TRACE)
 
         init_jaeger_collector(singletons_config, "controller_agent", {"controller_agent_index": str(index)})
 
@@ -1012,7 +1023,7 @@ def _build_node_configs(multidaemon_config_output,
     configs = []
     addresses = []
 
-    for index in xrange(yt_config.node_count):
+    for index in range(yt_config.node_count):
         config = default_config.get_node_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -1162,7 +1173,7 @@ def _build_node_configs(multidaemon_config_output,
 
         set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 
-        # COMPAT
+        # COMPAT(ignat)
         log_name = "job_proxy-{0}-slot-%slot_index%".format(index) if yt_config.enable_legacy_logging_scheme else "job_proxy-{0}".format(index)
 
         set_at(
@@ -1186,27 +1197,40 @@ def _build_node_configs(multidaemon_config_output,
             use_name_in_writer_name=False,
         )
 
-        # COMPAT
+        # COMPAT(ignat)
         for key in config["exec_node"]["job_proxy"]["job_proxy_logging"]["log_manager_template"]:
             config["exec_node"]["job_proxy"]["job_proxy_logging"][key] = config["exec_node"]["job_proxy"]["job_proxy_logging"]["log_manager_template"][key]
 
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_logging/job_proxy_stderr_path",
-            # COMPAT
-            os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index))
-            if yt_config.enable_legacy_logging_scheme
-            else os.path.join(logs_dir, "job_proxy-{0}-stderr".format(index)),
-        )
-        set_at(
-            config,
             "exec_node/job_proxy/job_proxy_logging/executor_stderr_path",
-            # COMPAT
+            # COMPAT(ignat)
             os.path.join(logs_dir, "ytserver_exec-{0}-stderr-slot-%slot_index%".format(index))
             if yt_config.enable_legacy_logging_scheme
             else os.path.join(logs_dir, "ytserver_exec-{0}-stderr".format(index))
         )
-
+        set_at(
+            config,
+            "exec_node/job_proxy_log_manager/sharding_key_length",
+            yt_config.job_proxy_log_manager["sharding_key_length"]
+        )
+        if yt_config.job_proxy_logging["mode"] == "per_job_directory":
+            set_at(
+                config,
+                "exec_node/job_proxy_log_manager/job_proxy_log_symlinks_path",
+                os.path.join(logs_dir, "job-proxy-logs"),
+            )
+            set_at(
+                config,
+                "exec_node/job_proxy_log_manager/locations",
+                [
+                    {
+                        "path": os.path.join(logs_dir, "job-proxy-log-location-{0}/job_proxy-{1}".format(num, index)),
+                    }
+                    for num in range(yt_config.job_proxy_log_location_count)
+                ]
+            )
+        # COMPAT(epsilond1): remove after 26.1
         set_at(
             config,
             "exec_node/job_proxy_log_manager/directory",
@@ -1214,9 +1238,13 @@ def _build_node_configs(multidaemon_config_output,
         )
         set_at(
             config,
-            "exec_node/job_proxy_log_manager/sharding_key_length",
-            yt_config.job_proxy_log_manager["sharding_key_length"]
+            "exec_node/job_proxy/job_proxy_logging/job_proxy_stderr_path",
+            # COMPAT(epsilond1): remove after 26.1
+            os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index))
+            if yt_config.enable_legacy_logging_scheme
+            else os.path.join(logs_dir, "job_proxy-{0}-stderr".format(index)),
         )
+
         set_at(
             config,
             "exec_node/job_proxy_log_manager/logs_storage_period",
@@ -1260,7 +1288,7 @@ def _build_node_configs(multidaemon_config_output,
             set_at(config, "job_resource_manager/start_port", port_start)
             set_at(config, "job_resource_manager/port_count", port_end - port_start)
         else:
-            ports = [next(ports_generator) for _ in xrange(yt_config.node_port_set_size)]
+            ports = [next(ports_generator) for _ in range(yt_config.node_port_set_size)]
             set_at(config, "job_resource_manager/port_set", ports)
 
         multidaemon_config_output["daemons"][f"node_{index}"] = {
@@ -1284,7 +1312,7 @@ def _build_chaos_node_configs(multidaemon_config_output,
                               yt_config):
     configs = []
 
-    for index in xrange(yt_config.chaos_node_count):
+    for index in range(yt_config.chaos_node_count):
         config = default_config.get_chaos_node_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -1371,7 +1399,7 @@ def _build_http_proxy_config(multidaemon_config_output,
 
     proxy_configs = []
 
-    for index in xrange(yt_config.http_proxy_count):
+    for index in range(yt_config.http_proxy_count):
         config = default_config.get_proxy_config()
         config["port"] = \
             yt_config.http_proxy_ports[index] if yt_config.http_proxy_ports else next(ports_generator)
@@ -1462,7 +1490,7 @@ def _build_native_driver_configs(master_connection_configs,
     primary_cell_tag = master_connection_configs["primary_cell_tag"]
 
     configs = {}
-    for cell_index in xrange(yt_config.secondary_cell_count + 1):
+    for cell_index in range(yt_config.secondary_cell_count + 1):
         config = default_config.get_driver_config()
         init_chunk_client_dispatcher(config)
         config["start_queue_consumer_registration_manager"] = True
@@ -1597,7 +1625,7 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
                              yt_config):
     configs = []
 
-    for index in xrange(yt_config.rpc_proxy_count):
+    for index in range(yt_config.rpc_proxy_count):
         grpc_server_config = {
             "addresses": [
                 {
@@ -1614,8 +1642,6 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
             },
             "grpc_server": grpc_server_config,
             "monitoring_port": next(ports_generator),
-            "yt_alloc_dump_period": 15000,
-            "ref_counted_tracker_dump_period": 15000,
             "enable_authentication": False,
             "api_service": {
                 # COMPAT(babenko): rename to user_access_validator
@@ -1645,7 +1671,8 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
                 logs_dir,
                 "rpc-proxy-{}".format(index),
                 singletons_config.setdefault("logging", {}),
-                yt_config)
+                yt_config,
+                has_structured_logs=True)
 
         init_jaeger_collector(singletons_config, "rpc_proxy", {"rpc_proxy_index": str(index)})
 
@@ -1938,7 +1965,7 @@ def _build_tablet_balancer_configs(yt_config,
     configs = []
     addresses = []
 
-    for index in xrange(yt_config.tablet_balancer_count):
+    for index in range(yt_config.tablet_balancer_count):
         config = default_config.get_tablet_balancer_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -1989,7 +2016,7 @@ def _build_replicated_table_tracker_configs(yt_config,
                                             logs_dir):
     configs = []
 
-    for index in xrange(yt_config.replicated_table_tracker_count):
+    for index in range(yt_config.replicated_table_tracker_count):
         config = default_config.get_replicated_table_tracker_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -2028,10 +2055,59 @@ def _build_replicated_table_tracker_configs(yt_config,
     return configs
 
 
+def _build_offshore_data_gateway_configs(yt_config,
+                                         multidaemon_config_output,
+                                         master_connection_configs,
+                                         clock_connection_config,
+                                         discovery_configs,
+                                         timestamp_provider_addresses,
+                                         master_cache_addresses,
+                                         cypress_proxy_rpc_ports,
+                                         ports_generator,
+                                         logs_dir):
+    configs = []
+
+    for index in range(yt_config.offshore_data_gateway_count):
+        config = default_config.get_offshore_data_gateway_config()
+
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        if not yt_config.enable_multidaemon:
+            init_singletons(singletons_config, yt_config)
+
+            _init_logging(logs_dir,
+                          "offshore-data-gateway-" + str(index),
+                          singletons_config.setdefault("logging", {}),
+                          yt_config,
+                          has_structured_logs=True)
+
+        init_jaeger_collector(config, "offshore_data_gateway", {"offshore_data_gateway_index": str(index)})
+
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_config,
+                discovery_configs,
+                timestamp_provider_addresses,
+                master_cache_addresses,
+                cypress_proxy_rpc_ports)
+
+        config["rpc_port"] = next(ports_generator)
+        config["monitoring_port"] = next(ports_generator)
+
+        multidaemon_config_output["daemons"][f"offshore_data_gateway_{index}"] = {
+            "type": "offshore_data_gateway",
+            "config": config,
+        }
+        configs.append(config)
+
+    return configs
+
+
 def _allocate_cypress_proxy_rpc_ports(yt_config, ports_generator):
     rpc_ports = []
 
-    for i in xrange(yt_config.cypress_proxy_count):
+    for i in range(yt_config.cypress_proxy_count):
         rpc_port = next(ports_generator)
         rpc_ports.append(rpc_port)
 
@@ -2050,7 +2126,7 @@ def _build_cypress_proxy_configs(yt_config,
                                  logs_dir):
     configs = []
 
-    for index in xrange(yt_config.cypress_proxy_count):
+    for index in range(yt_config.cypress_proxy_count):
         config = default_config.get_cypress_proxy_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -2094,32 +2170,38 @@ def _init_logging(path, name, logging_config, yt_config,
                   has_structured_logs=False,
                   enable_log_compression=None,
                   use_name_in_writer_name=True,
-                  debug_logging_min_level="debug"):
+                  log_level=None):
     if enable_log_compression is None:
         enable_log_compression = yt_config.enable_log_compression
+
+    effective_log_level = yt_config.log_level
+    if yt_config.enable_debug_logging:
+        effective_log_level = min(effective_log_level, LogLevel.DEBUG)
+    if log_level is not None:
+        effective_log_level = min(effective_log_level, log_level)
+
     return init_logging(
         path,
         name,
         logging_config,
-        enable_debug_logging=yt_config.enable_debug_logging,
+        log_level=effective_log_level,
         enable_log_compression=enable_log_compression,
         log_compression_method=yt_config.log_compression_method,
         enable_structured_logging=yt_config.enable_structured_logging and has_structured_logs,
         log_errors_to_stderr=log_errors_to_stderr,
         use_name_in_writer_name=use_name_in_writer_name,
-        debug_logging_min_level=debug_logging_min_level)
+        abort_on_alert=yt_config.default_abort_on_alert)
 
 
 def init_logging(path, name,
                  logging_config=None,
-                 enable_debug_logging=False,
+                 log_level=LogLevel.INFO,
                  enable_log_compression=False,
                  log_compression_method="gzip",
                  enable_structured_logging=False,
                  abort_on_alert=None,
                  log_errors_to_stderr=False,
-                 use_name_in_writer_name=True,
-                 debug_logging_min_level="debug"):
+                 use_name_in_writer_name=True):
     def _get_writer_name(writer_name):
         if use_name_in_writer_name:
             return f"{writer_name}-{name}"
@@ -2153,10 +2235,10 @@ def init_logging(path, name,
     if "compression_thread_count" not in logging_config:
         logging_config["compression_thread_count"] = 4
 
-    # Info logs.
-    writer_name = _get_writer_name("info")
+    default_log_level = max(log_level, LogLevel.INFO)
+    writer_name = _get_writer_name(default_log_level.to_str())
     logging_config.setdefault("rules", []).append({
-        "min_level": "info",
+        "min_level": default_log_level.to_str(),
         "writers": [writer_name],
         "family": "plain_text",
     })
@@ -2181,10 +2263,10 @@ def init_logging(path, name,
         }
 
     # Debug logs.
-    if enable_debug_logging:
+    if log_level <= LogLevel.DEBUG:
         writer_name = _get_writer_name("debug")
         logging_config["rules"].append({
-            "min_level": debug_logging_min_level,
+            "min_level": log_level.to_str(),
             "family": "plain_text",
             "exclude_categories": ["Bus", "Concurrency"],
             "writers": [writer_name],

@@ -162,7 +162,7 @@ public:
         , ReadBlocksOptions_(std::move(readOptions))
         , WriteBlocksOptions_(std::move(writeOptions))
     {
-        YT_VERIFY(erasedIndices.size() == writers.size());
+        YT_VERIFY(ErasedIndices_.size() == Writers_.size());
     }
 
     TFuture<void> Run()
@@ -342,7 +342,7 @@ public:
     {
         for (int index = 0; index < std::ssize(Ranges_); ++index) {
             auto size = Ranges_[index].Size();
-            Blocks_[index] = TSharedMutableRef::Allocate<TPartBlockSaverTag>(size);
+            Blocks_[index] = TSharedMutableRef::Allocate<TPartBlockSaverTag>(size, {.InitializeStorage = false});
             TotalBytes_ += size;
         }
     }
@@ -663,7 +663,7 @@ public:
         return OKFuture;
     }
 
-    TFuture<void> Close(const IChunkWriter::TWriteBlocksOptions&, const TWorkloadDescriptor&, const TDeferredChunkMetaPtr&, std::optional<int>) override
+    TFuture<void> Close(const IChunkWriter::TWriteBlocksOptions&, const TWorkloadDescriptor&, const TDeferredChunkMetaPtr&) override
     {
         return OKFuture;
     }

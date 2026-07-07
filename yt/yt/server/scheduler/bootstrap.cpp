@@ -2,7 +2,6 @@
 
 #include "allocation_tracker_service.h"
 #include "private.h"
-#include "private.h"
 #include "scheduler.h"
 #include "scheduler_service.h"
 #include "controller_agent_tracker_service.h"
@@ -13,8 +12,6 @@
 #include <yt/yt/server/lib/admin/admin_service.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
-
-#include <yt/yt/server/lib/scheduler/config.h>
 
 #include <yt/yt/library/fusion/service_locator.h>
 
@@ -52,6 +49,8 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -76,6 +75,7 @@ namespace NYT::NScheduler {
 
 using namespace NAdmin;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NElection;
 using namespace NHydra;
 using namespace NMonitoring;
@@ -155,6 +155,9 @@ void TBootstrap::DoInitialize()
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+    if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+        HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+    }
 
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
 
@@ -166,6 +169,7 @@ void TBootstrap::DoInitialize()
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
+        HttpsServer_,
         ServiceLocator_->GetServiceOrThrow<TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
@@ -201,6 +205,10 @@ void TBootstrap::DoStart()
 {
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
+    if (HttpsServer_) {
+        YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+        HttpsServer_->Start();
+    }
 
     YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
@@ -217,17 +225,10 @@ const NNative::IClientPtr& TBootstrap::GetClient() const
     return Client_;
 }
 
-const NNative::IClientPtr& TBootstrap::GetRemoteClient(TCellTag tag) const
+NNative::IClientPtr TBootstrap::GetRemoteClient(TCellTag tag) const
 {
-    auto it = RemoteClients_.find(tag);
-    if (it == RemoteClients_.end()) {
-        auto connection = NNative::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
-        auto client = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
-        auto result = RemoteClients_.emplace(tag, client);
-        YT_VERIFY(result.second);
-        it = result.first;
-    }
-    return it->second;
+    auto connection = NNative::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
+    return connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
 }
 
 TAddressMap TBootstrap::GetLocalAddresses() const
@@ -267,6 +268,8 @@ void TBootstrap::Reconfigure(const TSchedulerConfigPtr& config)
     TSingletonManager::Reconfigure(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
+
+    Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(config->MasterCellDirectorySynchronizer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

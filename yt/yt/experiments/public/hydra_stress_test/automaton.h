@@ -32,6 +32,11 @@ using TCtxSequence = NYT::NRpc::TTypedServiceContext<
     NYT::NProto::TRspSequence>;
 using TCtxSequencePtr = NYT::TIntrusivePtr<TCtxSequence>;
 
+using TCtxThrowException = NYT::NRpc::TTypedServiceContext<
+    NYT::NProto::TReqThrowException,
+    NYT::NProto::TRspThrowException>;
+using TCtxThrowExceptionPtr = NYT::TIntrusivePtr<TCtxThrowException>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAutomatonPart
@@ -48,6 +53,7 @@ public:
 
     std::unique_ptr<NHydra::TMutation> CreateCasMutation(TCtxCasPtr context);
     std::unique_ptr<NHydra::TMutation> CreateSequenceMutation(TCtxSequencePtr context);
+    std::unique_ptr<NHydra::TMutation> CreateThrowExceptionMutation(TCtxThrowExceptionPtr context);
 
 private:
     const TLinearizabilityCheckerPtr LinearizabilityChecker_;
@@ -77,6 +83,11 @@ private:
         const TCtxSequencePtr& context,
         NProto::TReqSequence* request,
         NProto::TRspSequence* response);
+
+    void HydraThrowException(
+        const TCtxThrowExceptionPtr& context,
+        NProto::TReqThrowException* request,
+        NProto::TRspThrowException* response);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAutomatonPart)

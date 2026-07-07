@@ -34,6 +34,8 @@
 #include <yt/yt/server/master/security_server/user.h>
 #include <yt/yt/server/master/security_server/account.h>
 
+#include <yt/yt/server/master/sequoia_server/revision.h>
+
 #include <yt/yt/server/master/transaction_server/boomerang_tracker.h>
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -87,6 +89,7 @@
 #include <yt/yt/core/ypath/tokenizer.h>
 
 #include <yt/yt/core/misc/codicil.h>
+#include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -109,6 +112,7 @@ using namespace NProfiling;
 using namespace NRpc;
 using namespace NSecurityServer;
 using namespace NSequoiaClient;
+using namespace NSequoiaServer;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
 using namespace NYPath;
@@ -121,8 +125,6 @@ using NYT::ToProto;
 
 constinit const auto Logger = ObjectServerLogger;
 static const IObjectTypeHandlerPtr NullTypeHandler;
-static const std::string NullService;
-static const std::string NullMethod;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -379,6 +381,7 @@ private:
 
     void OnRecoveryStarted() override;
     void OnRecoveryComplete() override;
+    void SetZeroState() override;
     void Clear() override;
     void OnLeaderActive() override;
     void OnStopLeading() override;
@@ -434,6 +437,7 @@ private:
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/);
 
     void InitSchemas();
+    void ClearTypeToEntrySchemas();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -534,26 +538,7 @@ public:
                 auto* prerequisite = prerequisitesExt->mutable_revisions(index);
                 const auto& prerequisitePath = prerequisite->path();
                 auto prerequisiteResolveResult = ResolvePath(Bootstrap_, prerequisitePath, context);
-                // TODO(cherepashka): Unite std::get_if with Visit below after 25.1.
                 const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectRedirectPayload>(&prerequisiteResolveResult.Payload);
-                if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
-                    auto optionalPrerequisiteObjectId = Visit(
-                        prerequisiteResolveResult.Payload,
-                        [] (const TPathResolver::TLocalObjectPayload& payload) {
-                            return std::make_optional(payload.Object->GetId());
-                        },
-                        [] (const TPathResolver::TRemoteObjectRedirectPayload& payload) {
-                            return std::make_optional(payload.ObjectId);
-                        },
-                        [] (const auto&) -> std::optional<TObjectId> {
-                            return std::nullopt;
-                        });
-
-                    if (optionalPrerequisiteObjectId) {
-                        ValidatePrerequisiteRevisionPaths(forwardedRequestHeader, ObjectId_, additionalObjectIds, *optionalPrerequisiteObjectId)
-                            .ThrowOnError();
-                    }
-                }
                 if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != ForwardedCellTag_) {
                     TError error(
                         NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
@@ -573,6 +558,11 @@ public:
                     }
 
                     THROW_ERROR(error);
+                }
+
+                if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
+                    ValidatePrerequisiteRevisionPaths(forwardedRequestHeader, ObjectId_, additionalObjectIds, prerequisitePayload->ObjectId)
+                        .ThrowOnError();
                 }
 
                 auto prerequisitePathRewrite = MakeYPathRewrite(
@@ -1017,7 +1007,6 @@ const IObjectTypeHandlerPtr& TObjectManager::GetHandlerOrThrow(EObjectType type)
 const IObjectTypeHandlerPtr& TObjectManager::GetHandler(const TObject* object) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
-
     return GetHandler(object->GetType());
 }
 
@@ -1035,6 +1024,13 @@ TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
     ++CreatedObjects_;
 
     if (hintId) {
+        YT_LOG_ALERT_UNLESS(
+            type == TypeFromId(hintId),
+            "Provided object id does not match the provided type (Type: %v, TypeFromId: %v, Id: %v)",
+            type,
+            TypeFromId(hintId),
+            hintId);
+
         return hintId;
     }
 
@@ -1189,6 +1185,8 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
 void TObjectManager::OnAfterSnapshotLoaded()
 {
+    GarbageCollector_->OnAfterSnapshotLoaded();
+
     auto dropSchema = [&] (EObjectType schemaType) {
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         auto schemaId = MakeSchemaObjectId(schemaType, primaryCellTag);
@@ -1213,6 +1211,15 @@ void TObjectManager::OnAfterSnapshotLoaded()
     }
 }
 
+void TObjectManager::SetZeroState()
+{
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::SetZeroState();
+
+    InitSchemas();
+}
+
 void TObjectManager::Clear()
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1224,13 +1231,11 @@ void TObjectManager::Clear()
 
     MasterProxy_ = GetHandler(EObjectType::Master)->GetProxy(MasterObject_.get(), nullptr);
 
+    ClearTypeToEntrySchemas();
     SchemaMap_.Clear();
-
-    InitSchemas();
 
     CreatedObjects_ = 0;
     DestroyedObjects_ = 0;
-
 
     DropListNodeSchema_ = false;
 
@@ -1238,13 +1243,16 @@ void TObjectManager::Clear()
     MutationIdempotizer_->Clear();
 }
 
-void TObjectManager::InitSchemas()
+void TObjectManager::ClearTypeToEntrySchemas()
 {
     for (auto& [_, entry] : TypeToEntry_) {
         entry.SchemaObject = nullptr;
         entry.SchemaProxy.Reset();
     }
+}
 
+void TObjectManager::InitSchemas()
+{
     auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
     for (auto type : RegisteredTypes_) {
         if (!HasSchema(type)) {
@@ -1752,8 +1760,8 @@ TObject* TObjectManager::ResolvePathToLocalObject(
 {
     TPathResolver resolver(
         Bootstrap_,
-        service.value_or(NullService),
-        method.value_or(NullMethod),
+        service,
+        method,
         path,
         transaction);
 
@@ -1778,8 +1786,8 @@ TObject* TObjectManager::ResolvePathToObject(
 {
     TPathResolver resolver(
         Bootstrap_,
-        service.value_or(NullService),
-        method.value_or(NullMethod),
+        service,
+        method,
         path,
         transaction);
 
@@ -1812,8 +1820,8 @@ TObjectId TObjectManager::ResolvePathToObjectId(
 {
     TPathResolver resolver(
         Bootstrap_,
-        service.value_or(NullService),
-        method.value_or(NullMethod),
+        service,
+        method,
         path,
         transaction);
 
@@ -2071,7 +2079,7 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
         object->GetId());
 
     auto replicationCellTags = handler->GetReplicationCellTags(object);
-    auto shouldReplicate = std::ranges::find(replicationCellTags, cellTag) != replicationCellTags.end();
+    auto shouldReplicate = replicationCellTags.contains(cellTag);
     if (object->IsBuiltin()) {
         if (!shouldReplicate) {
             YT_LOG_DEBUG("Skipped replicating builtin object mandatory attributes since destination cell is absent from replication cells "
@@ -2120,7 +2128,7 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
         object->GetId());
 
     auto replicationCellTags = handler->GetReplicationCellTags(object);
-    if (std::ranges::find(replicationCellTags, cellTag) == replicationCellTags.end()) {
+    if (!replicationCellTags.contains(cellTag)) {
         YT_LOG_DEBUG("Skipped replicating object attributes since destination cell is absent from replication cells "
             "(ObjectId: %v, CellTag: %v, ReplicationCellTags: %v)",
             object->GetId(),
@@ -2190,7 +2198,7 @@ void TObjectManager::HydraExecuteLeader(
         // interval. If the boomerang's "begin" has been lost due to a recent
         // leader change, we get here.
 
-        auto errorResponse = TError("Mutation is already applied")
+        auto errorResponse = TError("Mutation is already applied, probably the request kept retrying for too long")
             << TErrorAttribute("mutation_id", mutationId);
 
         rpcContext->Reply(errorResponse);
@@ -2212,6 +2220,13 @@ void TObjectManager::HydraExecuteLeader(
         traceContextGuard.emplace(
             traceContext,
             ConcatToString(TStringBuf("YPathWrite:"), rpcContext->GetService(), TStringBuf("."), rpcContext->GetMethod()));
+    }
+
+    const auto& sequoiaConfig = Bootstrap_->GetDynamicConfig()->SequoiaManager;
+
+    std::optional<TSequoiaRevisionGuard> sequoiaRevisionGuard;
+    if (!sequoiaConfig->ShouldUseSequoiaRevisions() && !GetCurrentSequoiaRevision()) {
+        sequoiaRevisionGuard.emplace(TSequoiaRevisionDisabled{});
     }
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -2730,6 +2745,8 @@ void TObjectManager::OnProfiling()
 
     TSensorBuffer buffer;
     buffer.AddGauge("/zombie_object_count", GarbageCollector_->GetZombieCount());
+    buffer.AddGauge("/zombie_cypress_node_count", GarbageCollector_->GetZombieCypressNodeCount());
+    buffer.AddGauge("/zombie_chunk_count", GarbageCollector_->GetZombieChunkCount());
     buffer.AddGauge("/ephemeral_ghost_object_count", GarbageCollector_->GetEphemeralGhostCount());
     buffer.AddGauge("/ephemeral_unref_queue_size", GarbageCollector_->GetEphemeralGhostUnrefQueueSize());
     buffer.AddGauge("/weak_ghost_object_count", GarbageCollector_->GetWeakGhostCount());

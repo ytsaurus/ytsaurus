@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v3.24.2)
+VERSION(v3.24.5)
 
 SRCS(
     net.go
@@ -45,6 +45,12 @@ IF (OS_ANDROID)
     GO_TEST_SRCS(
         net_linux_netlink_test.go
         net_linux_test.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        net_fallback.go
     )
 ENDIF()
 

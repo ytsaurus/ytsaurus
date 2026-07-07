@@ -420,6 +420,10 @@ func (c *Client) GetNodes(ctx context.Context) (NodeMap, error) {
 
 	grouped := make(NodeMap)
 	for _, n := range nodes {
+		if n.Annotations == nil {
+			return nil, yterrors.Err("missing annotations attribute",
+				yterrors.Attr("addr", n.Addr.String()))
+		}
 		grouped[*n.Addr] = n
 		if n.Statistics == nil {
 			n.Statistics = &NodeStatistics{}
@@ -474,6 +478,10 @@ func (c *Client) GetHTTPProxies(ctx context.Context) (HTTPProxyMap, error) {
 
 	grouped := make(HTTPProxyMap)
 	for _, p := range proxies {
+		if p.Annotations == nil {
+			return nil, yterrors.Err("missing annotations attribute",
+				yterrors.Attr("addr", p.Addr.String()))
+		}
 		grouped[*p.Addr] = p
 		if p.Role == "" {
 			p.Role = DefaultHTTPProxyRole
@@ -505,6 +513,10 @@ func (c *Client) GetRPCProxies(ctx context.Context) (RPCProxyMap, error) {
 	}
 
 	for addr, p := range proxies {
+		if p.Annotations == nil {
+			return nil, yterrors.Err("missing annotations attribute",
+				yterrors.Attr("addr", p.Addr.String()))
+		}
 		addrCopy := addr
 		p.Addr = &addrCopy
 		if p.Role == "" {
@@ -537,6 +549,10 @@ func (c *Client) GetSchedulers(ctx context.Context) (SchedulerMap, error) {
 
 	grouped := make(SchedulerMap)
 	for _, s := range schedulers {
+		if s.Annotations == nil {
+			return nil, yterrors.Err("missing annotations attribute",
+				yterrors.Attr("addr", s.Addr.String()))
+		}
 		grouped[*s.Addr] = s
 
 		p := SchedulersPath.
@@ -579,6 +595,10 @@ func (c *Client) GetControllerAgents(ctx context.Context) (ControllerAgentMap, e
 
 	grouped := make(ControllerAgentMap)
 	for _, a := range agents {
+		if a.Annotations == nil {
+			return nil, yterrors.Err("missing annotations attribute",
+				yterrors.Attr("addr", a.Addr.String()))
+		}
 		grouped[*a.Addr] = a
 
 		p := ControllerAgentsPath.
@@ -625,6 +645,10 @@ func (c *Client) GetQueueAgents(ctx context.Context) (QueueAgentMap, error) {
 
 	grouped := make(QueueAgentMap)
 	for _, a := range agents {
+		if a.Annotations == nil {
+			return nil, yterrors.Err("missing annotations attribute",
+				yterrors.Attr("addr", a.Addr.String()))
+		}
 		grouped[*a.Addr] = a
 	}
 

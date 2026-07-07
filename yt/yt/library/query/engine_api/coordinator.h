@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_common.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
@@ -9,6 +10,16 @@
 #include <yt/yt/core/actions/future.h>
 
 namespace NYT::NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TSubplanFutureHolders)
+
+struct TSubplanFutureHolders final
+    : public std::vector<TFutureHolder<TQueryStatistics>> // Use TFutureHolder to prevent leaking subqueries.
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TSubplanFutureHolders)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,19 +67,32 @@ struct TEvaluateResult
 
 using TSubQueryEvaluator = std::function<TEvaluateResult()>;
 
+using TMiddleQueryEvaluator = std::function<TEvaluateResult(
+    ISchemafulUnversionedReaderPtr /*reader*/,
+    TFuture<TFeatureFlags> /*responseFeatureFlags*/)>;
+
 using TTopQueryEvaluator = std::function<TQueryStatistics(
     const ISchemafulUnversionedReaderPtr& /*reader*/,
     TFuture<TFeatureFlags> /*responseFeatureFlags*/)>;
 
 TQueryStatistics CoordinateAndExecute(
-    bool ordered,
+    EScanOrder scanOrder,
     bool prefetch,
     int splitCount,
     i64 offset,
     i64 limit,
     bool useAdaptiveOrderedSchemafulReader,
     TSubQueryEvaluator evaluateSubQuery,
-    TTopQueryEvaluator evaluateTopQuery);
+    TTopQueryEvaluator evaluateTopQuery,
+    TSubplanFutureHoldersPtr subplanHolders = nullptr);
+
+TQueryStatistics CoordinateAndExecuteWithShuffle(
+    int splitCount,
+    int groupKeyPrefix,
+    TSubQueryEvaluator evaluateSubQuery,
+    TMiddleQueryEvaluator evaluateMiddleQuery,
+    TTopQueryEvaluator evaluateTopQuery,
+    const IMemoryChunkProviderPtr& memoryChunkProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

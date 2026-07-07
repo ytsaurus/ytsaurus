@@ -49,6 +49,9 @@ void TGlobalChunkScanner::ScheduleGlobalScan(TGlobalChunkScanDescriptor descript
         return;
     }
 
+    // Global scans don't happen often, so it is ok to reset global scan start time.
+    GlobalScanStarted_ = GetCpuInstant();
+
     auto& globalScanShard = GlobalChunkScanShards_[descriptor.ShardIndex];
     globalScanShard.Iterator = descriptor.FrontChunk;
     globalScanShard.ChunkCount = descriptor.ChunkCount;
@@ -110,6 +113,11 @@ bool TGlobalChunkScanner::HasUnscannedChunk(NProfiling::TCpuInstant deadline) co
     }
 
     return ActiveGlobalChunkScanIndex_ != -1;
+}
+
+TCpuInstant TGlobalChunkScanner::GetGlobalScanStartTime() const
+{
+    return GlobalScanStarted_;
 }
 
 int TGlobalChunkScanner::GetQueueSize() const

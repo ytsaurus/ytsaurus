@@ -1043,7 +1043,7 @@ void ToProto(
         return;
     }
     std::string allDigests;
-    allDigests.reserve(TColumnarHyperLogLogDigest::RegisterCount);
+    allDigests.reserve(TColumnarHyperLogLogDigest::RegisterCount * std::ssize(statistics.ColumnHyperLogLogDigests));
     for (const auto& digest : statistics.ColumnHyperLogLogDigests) {
         allDigests += TStringBuf(
             digest.Data().begin(),

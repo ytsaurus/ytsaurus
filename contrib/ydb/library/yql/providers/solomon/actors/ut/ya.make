@@ -1,6 +1,6 @@
 UNITTEST_FOR(contrib/ydb/library/yql/providers/solomon/actors)
 
-IF (SANITIZER_TYPE OR WITH_VALGRIND)
+IF (SANITIZER_TYPE)
     SIZE(MEDIUM)
 ELSE()
     SIZE(SMALL)
@@ -16,7 +16,6 @@ SRCS(
 PEERDIR(
     library/cpp/http/simple
     library/cpp/retry
-    contrib/ydb/core/testlib/basics
     contrib/ydb/library/testlib/solomon_helpers
     contrib/ydb/library/yql/providers/common/ut_helpers
     yql/essentials/minikql/computation/llvm16

@@ -133,7 +133,7 @@ TMaybe<TJoinInputDesc> BuildDqJoin(
     TExprContext& ctx,
     const TTypeAnnotationContext& typeCtx,
     TVector<TString>& subtreeLabels,
-    const NYql::TOptimizerHints& hints,
+    const TEquiJoinCallbacks& callbacks,
     bool useCBO
 )
 {
@@ -147,7 +147,7 @@ TMaybe<TJoinInputDesc> BuildDqJoin(
         leftLabel = joinTuple.LeftScope().Cast<TCoAtom>().Value();
         YQL_ENSURE(left, "unknown scope " << joinTuple.LeftScope().Cast<TCoAtom>().Value());
     } else {
-        left = BuildDqJoin(joinTuple.LeftScope().Cast<TCoEquiJoinTuple>(), inputs, mode, ctx, typeCtx, lhsLabels, hints, useCBO);
+        left = BuildDqJoin(joinTuple.LeftScope().Cast<TCoEquiJoinTuple>(), inputs, mode, ctx, typeCtx, lhsLabels, callbacks, useCBO);
         if (!left) {
             return {};
         }
@@ -161,7 +161,7 @@ TMaybe<TJoinInputDesc> BuildDqJoin(
         rightLabel = joinTuple.RightScope().Cast<TCoAtom>().Value();
         YQL_ENSURE(right, "unknown scope " << joinTuple.RightScope().Cast<TCoAtom>().Value());
     } else {
-        right = BuildDqJoin(joinTuple.RightScope().Cast<TCoEquiJoinTuple>(), inputs, mode, ctx, typeCtx, rhsLabels, hints, useCBO);
+        right = BuildDqJoin(joinTuple.RightScope().Cast<TCoEquiJoinTuple>(), inputs, mode, ctx, typeCtx, rhsLabels, callbacks, useCBO);
         if (!right) {
             return {};
         }
@@ -172,20 +172,20 @@ TMaybe<TJoinInputDesc> BuildDqJoin(
 
     auto options = joinTuple.Options();
     auto linkSettings = GetEquiJoinLinkSettings(options.Ref());
-    for (auto& hint: hints.JoinAlgoHints->Hints) {
-        if (
-            std::unordered_set<std::string>(hint.JoinLabels.begin(), hint.JoinLabels.end()) ==
-            std::unordered_set<std::string>(subtreeLabels.begin(), subtreeLabels.end())
-        ) {
-            linkSettings.JoinAlgo = hint.Algo;
-            hint.Applied = true;
+    if (callbacks.GetAlgoHint) {
+        auto algo = callbacks.GetAlgoHint(subtreeLabels);
+        if (algo != EJoinAlgoType::Undefined) {
+            linkSettings.JoinAlgo = algo;
+            if (callbacks.OnAlgoHintApplied) {
+                callbacks.OnAlgoHintApplied(subtreeLabels);
+            }
         }
     }
     YQL_ENSURE(linkSettings.JoinAlgo != EJoinAlgoType::StreamLookupJoin || typeCtx.StreamLookupJoin, "Unsupported join strategy: streamlookup");
 
     if (linkSettings.JoinAlgo == EJoinAlgoType::MapJoin) {
         mode = EHashJoinMode::Map;
-    } else if (linkSettings.JoinAlgo == EJoinAlgoType::GraceJoin) {
+    } else if (linkSettings.JoinAlgo == EJoinAlgoType::GraceJoin || linkSettings.JoinAlgo == EJoinAlgoType::ReverseBlockJoin) {
         mode = EHashJoinMode::GraceAndSelf;
     }
 
@@ -522,10 +522,10 @@ TExprBase DqRewriteEquiJoin(
     bool useCBO,
     TExprContext& ctx,
     TTypeAnnotationContext& typeCtx,
-    const TOptimizerHints& hints
+    const TEquiJoinCallbacks& callbacks
 ) {
     int dummyJoinCounter = 0;
-    return DqRewriteEquiJoin(node, mode, useCBO, ctx, typeCtx, dummyJoinCounter, hints);
+    return DqRewriteEquiJoin(node, mode, useCBO, ctx, typeCtx, dummyJoinCounter, callbacks);
 }
 
 /**
@@ -540,7 +540,7 @@ TExprBase DqRewriteEquiJoin(
     TExprContext& ctx,
     TTypeAnnotationContext& typeCtx,
     int& joinCounter,
-    const TOptimizerHints& hints
+    const TEquiJoinCallbacks& callbacks
 ) {
     if (!node.Maybe<TCoEquiJoin>()) {
         return node;
@@ -561,13 +561,17 @@ TExprBase DqRewriteEquiJoin(
 
     auto joinTuple = equiJoin.Arg(equiJoin.ArgCount() - 2).Cast<TCoEquiJoinTuple>();
     TVector<TString> dummy;
-    auto result = BuildDqJoin(joinTuple, inputs, mode, ctx, typeCtx, dummy, hints, useCBO);
+    auto result = BuildDqJoin(joinTuple, inputs, mode, ctx, typeCtx, dummy, callbacks, useCBO);
     if (!result) {
         return node;
     }
 
-    auto equiJoinStats = typeCtx.GetStats(equiJoin.Raw());
-    typeCtx.SetStats(result->Input.Raw(), equiJoinStats);
+    if (callbacks.TransferStats) {
+        callbacks.TransferStats(equiJoin.Raw(), result->Input.Raw());
+    } else {
+        auto equiJoinStats = typeCtx.GetStats(equiJoin.Raw());
+        typeCtx.SetStats(result->Input.Raw(), equiJoinStats);
+    }
 
     THashMap<TStringBuf, TVector<TStringBuf>> columnsToRename;
     THashSet<TStringBuf> columnsToDrop;
@@ -1326,10 +1330,18 @@ TExprBase DqBuildHashJoin(
     IOptimizationContext& optCtx,
     bool shuffleElimination,
     bool shuffleEliminationWithMap,
-    bool useBlockHashJoin
+    bool useBlockHashJoin,
+    bool blockHashJoinBuildSideLeft
 ) {
+
+    Y_UNUSED(blockHashJoinBuildSideLeft);
+
     const auto joinType = join.JoinType().Value();
+    const auto joinAlgo = FromString<EJoinAlgoType>(join.JoinAlgo().StringValue());
     YQL_ENSURE(joinType != "Cross"sv);
+
+    useBlockHashJoin = useBlockHashJoin
+        && (joinType == "Inner"sv || joinType == "Left"sv || joinType == "LeftSemi"sv || joinType == "LeftOnly"sv);
 
     auto leftIn = join.LeftInput().Cast<TDqCnUnionAll>().Output();
     auto rightIn = join.RightInput().Cast<TDqCnUnionAll>().Output();
@@ -1377,15 +1389,17 @@ TExprBase DqBuildHashJoin(
             }
 
             if (commonType) {
-                if (!IsSameAnnotation(*keyType1, *commonType)) {
-                    TString rename = (TString("_yql_dq_key_left_") + ToString(i));
-                    leftColumnRemap[leftJoinKeys[i].StringValue()] = rename;
-                    remapLeft.emplace_back(leftJoinKeys[i], ctx.NewAtom(leftJoinKeys[i].Pos(), std::move(rename), TNodeFlags::Default), i, commonType);
-                }
-                if (!IsSameAnnotation(*keyType2, *commonType)) {
-                    TString rename = TString("_yql_dq_key_right_") + ToString(i);
-                    rightColumnRemap[rightJoinKeys[i].StringValue()] = rename;
-                    remapRight.emplace_back(rightJoinKeys[i], ctx.NewAtom(rightJoinKeys[i].Pos(), rename, TNodeFlags::Default), i, commonType);
+                if (!useBlockHashJoin) {
+                    if (!IsSameAnnotation(*keyType1, *commonType)) {
+                        TString rename = (TString("_yql_dq_key_left_") + ToString(i));
+                        leftColumnRemap[leftJoinKeys[i].StringValue()] = rename;
+                        remapLeft.emplace_back(leftJoinKeys[i], ctx.NewAtom(leftJoinKeys[i].Pos(), std::move(rename), TNodeFlags::Default), i, commonType);
+                    }
+                    if (!IsSameAnnotation(*keyType2, *commonType)) {
+                        TString rename = TString("_yql_dq_key_right_") + ToString(i);
+                        rightColumnRemap[rightJoinKeys[i].StringValue()] = rename;
+                        remapRight.emplace_back(rightJoinKeys[i], ctx.NewAtom(rightJoinKeys[i].Pos(), rename, TNodeFlags::Default), i, commonType);
+                    }
                 }
             } else
                 badKey = true;
@@ -1554,13 +1568,13 @@ TExprBase DqBuildHashJoin(
     std::transform(leftJoinKeys.cbegin(), leftJoinKeys.cend(), std::back_inserter(leftKeys), [&](const std::string_view& name) { return leftNames[name]; });
     std::transform(rightJoinKeys.cbegin(), rightJoinKeys.cend(), std::back_inserter(rightKeys), [&](const std::string_view& name) { return rightNames[name]; });
 
-    const auto buildShuffle = [&ctx, &join](const TDqOutput& input, const TVector<TCoAtom>& keys) {
+    const auto buildShuffle = [&ctx, &join, useBlockHashJoin](const TDqOutput& input, const TVector<TCoAtom>& keys) {
         return Build<TDqCnHashShuffle>(ctx, join.Pos())
                 .Output(input)
                 .KeyColumns()
                     .Add(keys)
                     .Build()
-                .UseSpilling().Build(true)
+                .UseSpilling().Build(!useBlockHashJoin)
                 .Done().Ptr();
     };
 
@@ -1689,8 +1703,15 @@ TExprBase DqBuildHashJoin(
         case EHashJoinMode::GraceAndSelf:
         case EHashJoinMode::Grace:
             if (useBlockHashJoin) {
-                // Create TDqPhyBlockHashJoin node with structured inputs - peephole will handle conversion
-                // Pass the original structured inputs, not wide flows
+                TVector<TCoNameValueTuple> joinSettings;
+                if (joinAlgo == EJoinAlgoType::ReverseBlockJoin) {
+                    joinSettings.push_back(
+                        Build<TCoNameValueTuple>(ctx, join.Pos())
+                            .Name().Build("BuildSide")
+                            .Value<TCoAtom>().Build("Left")
+                            .Done());
+                }
+
                 hashJoin = Build<TDqPhyBlockHashJoin>(ctx, join.Pos())
                     .LeftInput(leftInputArg)
                     .RightInput(rightInputArg)
@@ -1700,6 +1721,9 @@ TExprBase DqBuildHashJoin(
                     .JoinKeys(join.JoinKeys())
                     .LeftJoinKeyNames(join.LeftJoinKeyNames())
                     .RightJoinKeyNames(join.RightJoinKeyNames())
+                    .Settings()
+                        .Add(joinSettings)
+                        .Build()
                     .Done().Ptr();
                 break;
             }
@@ -2077,7 +2101,7 @@ bool IsStreamLookup(const TCoEquiJoinTuple& joinTuple) {
             if (auto maybeForceStreamLookupOption = inner.Maybe<TCoAtom>()) {
                 if (maybeForceStreamLookupOption.Cast().StringValue() == "forceStreamLookup") {
                     return true;
-                } 
+                }
             }
         }
     }
@@ -2159,7 +2183,7 @@ ui32 RewriteStreamJoinTuple(ui32 idx, const TCoEquiJoin& equiJoin, const TCoEqui
     return idx + 1;
 }
 
-} // anonymous namespace 
+} // anonymous namespace
 
 TExprBase DqRewriteStreamEquiJoinWithLookup(const TExprBase& node, TExprContext& ctx, TTypeAnnotationContext& typeCtx) {
     const auto equiJoin = node.Cast<TCoEquiJoin>();

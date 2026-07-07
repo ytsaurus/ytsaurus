@@ -40,12 +40,13 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunHydraTest(const TString& configFile)
+void RunHydraTest(const std::string& configFile)
 {
     const auto& Logger = HydraStressTestLogger;
     TConfigPtr config;
     try {
-        TIFStream configStream(configFile);
+        // TODO(babenko): drop TString cast once TIFStream accepts std::string.
+        TIFStream configStream{TString(configFile)};
         auto configNode = ConvertToNode(&configStream);
         config = New<TConfig>();
         config->Load(configNode);
@@ -163,7 +164,7 @@ int main(int argc, const char** argv)
     try {
         NLastGetopt::TOpts opts;
 
-        TString Config;
+        std::string Config;
         opts.AddLongOption("config", "Config").StoreResult(&Config);
         NLastGetopt::TOptsParseResult results(&opts, argc, argv);
 

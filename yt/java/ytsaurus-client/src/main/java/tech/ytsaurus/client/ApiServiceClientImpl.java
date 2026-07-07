@@ -1,3 +1,5 @@
+//CHECKSTYLE:OFF: checkstyle:FileLength
+
 package tech.ytsaurus.client;
 
 import java.io.ByteArrayInputStream;
@@ -41,6 +43,7 @@ import tech.ytsaurus.client.request.AlterQuery;
 import tech.ytsaurus.client.request.AlterTable;
 import tech.ytsaurus.client.request.AlterTableReplica;
 import tech.ytsaurus.client.request.Atomicity;
+import tech.ytsaurus.client.request.AttachTransaction;
 import tech.ytsaurus.client.request.BaseOperation;
 import tech.ytsaurus.client.request.BuildSnapshot;
 import tech.ytsaurus.client.request.CheckClusterLiveness;
@@ -63,6 +66,7 @@ import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
+import tech.ytsaurus.client.request.GetCurrentUser;
 import tech.ytsaurus.client.request.GetFileFromCache;
 import tech.ytsaurus.client.request.GetFileFromCacheResult;
 import tech.ytsaurus.client.request.GetFlowView;
@@ -151,6 +155,7 @@ import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.client.request.TrimTable;
 import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
+import tech.ytsaurus.client.request.UnregisterQueueConsumer;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
@@ -187,7 +192,9 @@ import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpcproxy.EAtomicity;
 import tech.ytsaurus.rpcproxy.EOperationType;
 import tech.ytsaurus.rpcproxy.ETableReplicaMode;
+import tech.ytsaurus.rpcproxy.ETransactionType;
 import tech.ytsaurus.rpcproxy.TCheckPermissionResult;
+import tech.ytsaurus.rpcproxy.TReqAttachTransaction;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
 import tech.ytsaurus.rpcproxy.TReqReadShuffleData;
 import tech.ytsaurus.rpcproxy.TReqReadTablePartition;
@@ -195,6 +202,7 @@ import tech.ytsaurus.rpcproxy.TReqStartTransaction;
 import tech.ytsaurus.rpcproxy.TReqWriteFile;
 import tech.ytsaurus.rpcproxy.TReqWriteShuffleData;
 import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
+import tech.ytsaurus.rpcproxy.TRspAttachTransaction;
 import tech.ytsaurus.rpcproxy.TRspLookupRows;
 import tech.ytsaurus.rpcproxy.TRspMultiLookup;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
@@ -637,9 +645,66 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                         .collect(Collectors.toList())));
     }
 
-    // TODO: TReqAttachTransaction
+    /**
+     * Attach to an existing master or tablet transaction.
+     *
+     * @see AttachTransaction
+     */
+    @Override
+    public CompletableFuture<ApiServiceTransaction> attachTransaction(AttachTransaction req) {
+        RpcClientRequestBuilder<TReqAttachTransaction.Builder, TRspAttachTransaction> builder =
+                ApiServiceMethodTable.ATTACH_TRANSACTION.createRequestBuilder(rpcOptions);
+        return onStarted(req, RpcUtil.apply(sendRequest(req, builder), response -> {
+            GUID id = req.getTransactionId();
+            YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
+            boolean sticky = response.body().getType() == ETransactionType.TT_TABLET;
+            RpcClient sender = response.sender();
+            ApiServiceTransaction result;
 
-    /* */
+            if (sticky && (rpcClient == null || !rpcClient.equals(sender))) {
+                logger.trace("Attach to sticky transaction with new client to proxy {}", sender.getAddressString());
+                result = new ApiServiceTransaction(
+                        new ApiServiceClientImpl(
+                                Objects.requireNonNull(sender), config, heavyExecutor,
+                                executorService, serializationResolver),
+                        id,
+                        startTimestamp,
+                        req.getPing(),
+                        req.getPingAncestors(),
+                        sticky,
+                        req.getPingPeriod().orElse(null),
+                        req.getFailedPingRetryPeriod().orElse(null),
+                        sender.executor(),
+                        req.getOnPingFailed().orElse(null));
+            } else {
+                if (sticky) {
+                    logger.trace("Attach to sticky transaction with client {} to proxy {}", this,
+                            sender.getAddressString());
+                } else {
+                    logger.trace("Attach to non-sticky transaction with client {}", this);
+                }
+
+                result = new ApiServiceTransaction(
+                        this,
+                        id,
+                        startTimestamp,
+                        req.getPing(),
+                        req.getPingAncestors(),
+                        sticky,
+                        req.getPingPeriod().orElse(null),
+                        req.getFailedPingRetryPeriod().orElse(null),
+                        sender.executor(),
+                        req.getOnPingFailed().orElse(null));
+            }
+
+            sender.ref();
+            result.getTransactionCompleteFuture().whenComplete((ignored, ex) -> sender.unref());
+
+            logger.debug("Attached to transaction {} by {}", id, builder);
+            return result;
+        }));
+    }
+
 
     @Override
     public CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?, ?> request) {
@@ -1458,6 +1523,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
+    public CompletableFuture<Void> unregisterQueueConsumer(UnregisterQueueConsumer req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.UNREGISTER_QUEUE_CONSUMER.createRequestBuilder(rpcOptions)),
+                response -> null
+        ));
+    }
+
+    @Override
     public CompletableFuture<GUID> startQuery(StartQuery req) {
         return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.START_QUERY.createRequestBuilder(rpcOptions)),
@@ -1946,6 +2019,13 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         req.writeHeaderTo(builder.header());
         req.writeTo(builder);
         return invoke(builder);
+    }
+
+    @Override
+    public CompletableFuture<String> getCurrentUser(GetCurrentUser req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.GET_CURRENT_USER.createRequestBuilder(rpcOptions)),
+                response -> response.body().getUser()));
     }
 
     @Override

@@ -1,5 +1,5 @@
-#include "speculative_job_manager.h"
 #include "job_info.h"
+#include "speculative_job_manager.h"
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
@@ -89,6 +89,7 @@ std::optional<EAbortReason> TSpeculativeJobManager::ShouldAbortCompletingJob(con
 
     auto competition = GetCompetition(joblet);
     if (competition->Status == ECompetitionStatus::HasCompletedJob) {
+        // Abort reason names the competition outcome, not the aborted job role.
         return joblet->CompetitionType == EJobCompetitionType::Speculative
             ? EAbortReason::SpeculativeRunLost
             : EAbortReason::SpeculativeRunWon;

@@ -209,10 +209,10 @@ public:
             }
         } else {
             for (auto [bundleId, bundle] : Provider_->CellBundles()) {
-                if (!IsObjectAlive(bundle)) {
-                    continue;
-                }
-                if (bundle->CellBalancerConfig()->EnableTabletCellSmoothing) {
+                if (IsObjectAlive(bundle) &&
+                    bundle->CellBalancerConfig()->EnableTabletCellSmoothing &&
+                    Provider_->IsTabletCellSmoothingEnabled())
+                {
                     RebalanceBundle(bundle);
                 }
             }

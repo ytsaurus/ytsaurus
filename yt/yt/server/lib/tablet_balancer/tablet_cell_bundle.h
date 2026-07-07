@@ -19,17 +19,18 @@ struct TTabletCellBundle final
         i64 MemoryUsed;
     };
 
-    const TString Name;
+    const std::string Name;
     TBundleTabletBalancerConfigPtr Config;
     THashMap<TTabletCellId, TTabletCellPtr> TabletCells;
     THashMap<TTableId, TTablePtr> Tables;
+    THashMap<NYPath::TYPath, TTablePtr> TablesByPath;
     THashMap<TNodeAddress, TNodeStatistics> NodeStatistics;
     THashMap<TTabletId, TTabletPtr> Tablets;
 
     NTableClient::TTableSchemaPtr PerformanceCountersTableSchema;
     THashMap<TClusterName, NTableClient::TTableSchemaPtr> PerClusterPerformanceCountersTableSchemas;
 
-    TTabletCellBundle(TString name);
+    TTabletCellBundle(std::string name);
 
     std::vector<TTabletCellPtr> GetAliveCells() const;
     THashSet<TGroupName> GetBalancingGroups() const;

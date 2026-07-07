@@ -1,15 +1,14 @@
-from helpers import get_scheduling_options
 
 from yt_commands import (create, create_access_control_object, create_access_control_object_namespace,
-                         write_file, ls, start_op, get, exists, update_op_parameters, create_user,
-                         sync_create_cells, print_debug, get_driver, remove, make_ace, set as yt_set, select_rows)
+                         write_file, ls, start_op, get, exists, create_user, sync_create_cells, print_debug,
+                         get_driver, remove, make_ace, set as yt_set, select_rows, patch_op_spec)
 
 from yt.clickhouse import get_clique_spec_builder
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config
 
 from yt.environment import arcadia_interop
 
-from yt_env_setup import YTEnvSetup, is_asan_build
+from yt_env_setup import YTEnvSetup, is_asan_build, is_tsan_build
 
 from yt.wrapper import YtClient
 from yt.wrapper.common import simplify_structure, GB
@@ -22,6 +21,11 @@ import yt.packages.requests as requests
 
 import yt.yson as yson
 
+if is_tsan_build():
+    import yatest.common
+
+from gdb_helpers import attach_gdb
+
 from threading import Thread
 import os
 import errno
@@ -29,6 +33,7 @@ import time
 import json
 import random
 import copy
+import re
 import string
 import pathlib
 
@@ -88,7 +93,14 @@ class Clique(object):
     query_log_table_path = None
     dictionaries_path = None
 
-    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, alias=None, export_query_log=False, **kwargs):
+    def __init__(self, instance_count,
+                 max_failed_job_count=0,
+                 config_patch=None,
+                 cpu_limit=None,
+                 alias=None,
+                 export_query_log=False,
+                 enable_dictionary_repository=True,
+                 **kwargs):
         """
         alias: str
             Alias for the database. With or without asterisk: both forms are legal.
@@ -162,12 +174,13 @@ class Clique(object):
         config["yt"]["user_defined_sql_objects_storage"]["path"] = self.sql_udf_path
         config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
 
-        config["yt"]["dictionary_repository"] = dict()
-        self.dictionaries_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
-        config["yt"]["dictionary_repository"]["root_path"] = self.dictionaries_path
-        create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
-            "acl": [ace],
-        })
+        if enable_dictionary_repository:
+            config["yt"]["dictionary_repository"] = dict()
+            self.dictionaries_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
+            config["yt"]["dictionary_repository"]["root_path"] = self.dictionaries_path
+            create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
+                "acl": [ace],
+            })
 
         spec = {"pool": None}
         self.is_tracing = False
@@ -210,6 +223,17 @@ class Clique(object):
                 "log_tailer_config.yson",
             )
 
+        if is_tsan_build():
+            llvm_symbolizer_path = "//tmp/llvm-symbolizer"
+
+            self._upload_llvm_symbolizer(llvm_symbolizer_path)
+
+            # XXX: It is not a config. However there is no requirements to be config.
+            cypress_config_paths["llvm-symbolizer"] = (
+                llvm_symbolizer_path,
+                None,
+            )
+
         core_dump_destination = os.environ.get("YT_CORE_DUMP_DESTINATION")
 
         spec_builder = get_clique_spec_builder(
@@ -239,9 +263,41 @@ class Clique(object):
 
         self.spec["alias"] = "*" + self.alias
 
+        if is_tsan_build():
+            def _patch_external_symbolizer_path(options: str, path: str) -> str:
+                patch = f"external_symbolizer_path={path}"
+
+                if "external_symbolizer_path" not in options:
+                    return options + " " + patch
+
+                pattern = r"external_symbolizer_path=\S+"
+                result = re.sub(pattern, patch, options)
+                assert result != options, "external_symbolizer_path is either empty or badly formatted"
+
+                return result
+
+            if "tasks" not in spec:
+                spec["tasks"] = {"instances": {}}
+
+            for task_key in spec["tasks"]:
+                task = spec["tasks"][task_key]
+                environment = task.get("environment", {})
+
+                environment["TSAN_OPTIONS"] = _patch_external_symbolizer_path(
+                    environment.get("TSAN_OPTIONS", ""),
+                    "./llvm-symbolizer",
+                )
+
+                task["environment"] = environment
+
         self.instance_count = instance_count
 
         create_access_control_object(name=self.alias, namespace="chyt")
+
+    def _upload_llvm_symbolizer(self, llvm_symbolizer_path):
+        with open(yatest.common.binary_path("contrib/libs/llvm20/tools/llvm-symbolizer/llvm-symbolizer"), 'rb') as f:
+            self.yt_client.create("file", llvm_symbolizer_path, attributes={"executable": True})
+            self.yt_client.write_file(llvm_symbolizer_path, f)
 
     def get_active_instances_for_discovery_v1(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
@@ -312,12 +368,10 @@ class Clique(object):
 
         block_rows = 0
         for row in query_log_rows:
-            statistics = row['chyt_query_statistics']
-            if "secondary_query_source" not in statistics:
-                continue
-            if "block_rows" not in statistics["secondary_query_source"]:
-                continue
-            block_rows += statistics["secondary_query_source"]["block_rows"]["sum"]
+            statistics = row.get('chyt_query_statistics', {})
+            source = statistics.get("secondary_query_source", {})
+            block = source.get("block_rows", {})
+            block_rows += block.get("sum", 0)
 
         if exact is not None:
             assert block_rows == exact, f"Expected {exact} rows count, but get {block_rows}"
@@ -695,7 +749,7 @@ class Clique(object):
         return get(orchid_path + path, verbose=verbose)
 
     def get_profiler(self, instance_id=None):
-        if not instance_id:
+        if instance_id is None:
             instance_id = self.get_active_instances()[0].attributes["job_cookie"]
 
         sensors_path = "//sys/clickhouse/orchids/{}/{}/sensors".format(self.op.id, instance_id)
@@ -709,7 +763,7 @@ class Clique(object):
         return self.get_profiler(instance_id).gauge(sensor)
 
     def resize(self, size):
-        update_op_parameters(self.op.id, parameters=get_scheduling_options(user_slots=size))
+        patch_op_spec(self.op.id, patches=[{"path": "/tasks/instances/job_count", "value": size}])
         wait(lambda: self.get_active_instance_count() == size)
 
     def get_clique_id(self):
@@ -770,6 +824,13 @@ class Clique(object):
         wait(get_and_validate_query_log_rows)
 
         return result
+
+    def attach_gdb(self, ex, instance_cookie=0, autoresume=True):
+        instances = self.get_active_instances()
+
+        for inst in instances:
+            if inst.attributes['job_cookie'] == instance_cookie:
+                attach_gdb(inst.attributes['pid'], ex, autoresume=autoresume)
 
 
 class ClickHouseTestBase(YTEnvSetup):
@@ -917,6 +978,7 @@ class ClickHouseTestBase(YTEnvSetup):
 
         create_user("yt-clickhouse-cache")
         create_user("yt-clickhouse")
+        create_user("yt-clickhouse-dictionaries")
 
         create_user("chyt-sql-objects")
         yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", "chyt-sql-objects", "use"))
@@ -937,27 +999,6 @@ def enable_sequoia(test_class):
         "12": {"roles": ["sequoia_node_host"]},
         "13": {"roles": ["chunk_host"]},
     }
-    return test_class
-
-
-def enable_sequoia_acls(test_class):
-    if not hasattr(test_class, "DELTA_CYPRESS_PROXY_CONFIG"):
-        test_class.DELTA_CYPRESS_PROXY_CONFIG = {}
-    test_class.DELTA_CYPRESS_PROXY_CONFIG.update({
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
-    })
-
-    if not hasattr(test_class, "DELTA_DYNAMIC_MASTER_CONFIG"):
-        test_class.DELTA_DYNAMIC_MASTER_CONFIG = {}
-    test_class.DELTA_DYNAMIC_MASTER_CONFIG.update({
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    })
-
     return test_class
 
 

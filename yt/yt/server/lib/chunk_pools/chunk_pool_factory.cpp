@@ -34,9 +34,11 @@ public:
     TPartitionTablesJobSizeConstraints() = default;
 
     TPartitionTablesJobSizeConstraints(
-        i64 dataWeightPerPartition,
+        std::optional<i64> dataWeightPerPartition,
+        std::optional<i64> compressedDataSizePerPartition,
         std::optional<int> maxPartitionCount)
         : DataWeightPerPartition_(dataWeightPerPartition)
+        , CompressedDataSizePerPartition_(compressedDataSizePerPartition)
         , MaxPartitionCount_(maxPartitionCount)
     { }
 
@@ -62,13 +64,14 @@ public:
 
     i64 GetDataWeightPerJob() const override
     {
+        auto requestedDataWeight = DataWeightPerPartition_.value_or(InfiniteWeight);
         if (MaxPartitionCount_) {
             if (InputDataWeight_ > 0) {
-                return DivCeil<i64>(InputDataWeight_, *MaxPartitionCount_);
+                return std::max(requestedDataWeight, DivCeil<i64>(InputDataWeight_, *MaxPartitionCount_));
             }
             return InfiniteWeight;
         }
-        return DataWeightPerPartition_;
+        return requestedDataWeight;
     }
 
     i64 GetPrimaryDataWeightPerJob() const override
@@ -93,7 +96,14 @@ public:
 
     i64 GetCompressedDataSizePerJob() const override
     {
-        return InfiniteSize;
+        auto requestedSize = CompressedDataSizePerPartition_.value_or(InfiniteSize);
+        if (MaxPartitionCount_) {
+            if (InputCompressedDataSize_ > 0) {
+                return std::max(requestedSize, DivCeil<i64>(InputCompressedDataSize_, *MaxPartitionCount_));
+            }
+            return InfiniteSize;
+        }
+        return requestedSize;
     }
 
     i64 GetPrimaryCompressedDataSizePerJob() const override
@@ -113,7 +123,9 @@ public:
 
     i64 GetInputSliceDataWeight() const override
     {
-        return std::clamp<i64>(SliceDataWeightMultiplier * DataWeightPerPartition_, 1, DataWeightPerPartition_);
+        return DataWeightPerPartition_
+            ? std::clamp<i64>(SliceDataWeightMultiplier * (*DataWeightPerPartition_), 1, (*DataWeightPerPartition_))
+            : InfiniteWeight;
     }
 
     i64 GetInputSliceRowCount() const override
@@ -166,9 +178,9 @@ public:
         YT_ABORT();
     }
 
-    void UpdateInputCompressedDataSize(i64 /*compressedDataSize*/) override
+    void UpdateInputCompressedDataSize(i64 compressedDataSize) override
     {
-        YT_ABORT();
+        InputCompressedDataSize_ = compressedDataSize;
     }
 
     void UpdateInputPrimaryCompressedDataSize(i64 /*compressedDataSize*/) override
@@ -176,31 +188,34 @@ public:
         YT_ABORT();
     }
 
+    void Save(TSaveContext& /*context*/) const override
+    {
+        YT_ABORT();
+    }
+
+    void Load(TLoadContext& /*context*/) override
+    {
+        YT_ABORT();
+    }
+
 private:
     i64 InputDataWeight_ = 0;
-    i64 DataWeightPerPartition_;
+    i64 InputCompressedDataSize_ = 0;
+    std::optional<i64> DataWeightPerPartition_;
+    std::optional<i64> CompressedDataSizePerPartition_;
     std::optional<int> MaxPartitionCount_;
-
-    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TPartitionTablesJobSizeConstraints, 0x25335b8e);
 };
 
-void TPartitionTablesJobSizeConstraints::RegisterMetadata(auto&& registrar)
-{
-    PHOENIX_REGISTER_FIELD(1, InputDataWeight_);
-    PHOENIX_REGISTER_FIELD(2, DataWeightPerPartition_);
-    PHOENIX_REGISTER_FIELD(3, MaxPartitionCount_);
-}
-
-PHOENIX_DEFINE_TYPE(TPartitionTablesJobSizeConstraints);
 
 DEFINE_REFCOUNTED_TYPE(TPartitionTablesJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeConstraintsPtr CreateJobSizeConstraints(i64 dataWeightPerPartition, std::optional<int> maxPartitionCount)
+IJobSizeConstraintsPtr CreateJobSizeConstraints(std::optional<i64> dataWeightPerPartition, std::optional<i64> compressedDataSizePerPartition, std::optional<int> maxPartitionCount)
 {
     return New<TPartitionTablesJobSizeConstraints>(
         dataWeightPerPartition,
+        compressedDataSizePerPartition,
         maxPartitionCount);
 }
 
@@ -210,11 +225,12 @@ IJobSizeConstraintsPtr CreateJobSizeConstraints(i64 dataWeightPerPartition, std:
 
 IChunkPoolPtr CreateChunkPool(
     ETablePartitionMode partitionMode,
-    i64 dataWeightPerPartition,
+    std::optional<i64> dataWeightPerPartition,
+    std::optional<i64> compressedDataSizePerPartition,
     std::optional<int> maxPartitionCount,
     TLogger logger)
 {
-    auto jobSizeConstraints = CreateJobSizeConstraints(dataWeightPerPartition, maxPartitionCount);
+    auto jobSizeConstraints = CreateJobSizeConstraints(dataWeightPerPartition, compressedDataSizePerPartition, maxPartitionCount);
 
     switch (partitionMode) {
         case ETablePartitionMode::Ordered:

@@ -8,6 +8,8 @@
 
 namespace NYT::NChaosClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct IChaosObjectChannelFactory
     : public virtual TRefCounted
 {

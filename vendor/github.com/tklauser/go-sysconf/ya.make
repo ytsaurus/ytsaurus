@@ -80,6 +80,12 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        sysconf_unsupported.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

@@ -3,8 +3,6 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 
 namespace NYT::NTabletNode {
@@ -20,7 +18,7 @@ TTableDynamicConfigManager::TTableDynamicConfigManager(
             .ConfigPath = "//sys/@config/tablet_manager",
             .Name = "MountConfig",
         },
-        bootstrap->GetConfig()->TabletNode->TableConfigManager,
+        bootstrap->GetTabletNodeConfig()->TableConfigManager,
         bootstrap->GetClient(),
         bootstrap->GetControlInvoker())
 { }

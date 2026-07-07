@@ -3,23 +3,14 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "error_reporting_service_base.h"
-#include "hunk_store.h"
 #include "hunk_tablet_manager.h"
 #include "private.h"
-#include "security_manager.h"
-#include "slot_manager.h"
-#include "store_manager.h"
 #include "tablet.h"
 #include "tablet_cell_write_manager.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
-#include "transaction.h"
 #include "transaction_manager.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/hydra_service.h>
@@ -28,6 +19,8 @@
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
@@ -53,17 +46,16 @@ namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
 using namespace NChunkClient;
-using namespace NClusterNode;
 using namespace NCompression;
 using namespace NConcurrency;
-using namespace NJournalClient;
 using namespace NHydra;
+using namespace NJournalClient;
 using namespace NRpc;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
-using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -112,7 +104,7 @@ public:
         DeclareServerFeature(ETabletServiceFeatures::SharedWriteLocks);
     }
 
-    void Initialize()
+    void InitializeRefCounted()
     {
         SubscribeLoadAdjusted();
     }
@@ -131,8 +123,7 @@ private:
             return;
         }
 
-        auto throttlersConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()
-            ->TabletNode->MediumThrottlers;
+        auto throttlersConfig = Bootstrap_->GetTabletNodeDynamicConfig()->MediumThrottlers;
 
         if (!throttlersConfig->EnableChangelogThrottling) {
             return;
@@ -397,22 +388,27 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
-        auto signature = request->signature();
+        auto prepareSignature = request->prepare_signature();
+        auto commitSignature = request->has_commit_signature()
+            ? request->commit_signature()
+            : prepareSignature;
 
         context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %v, TransactionTimeout: %v, "
-            "ActionCount: %v, Signature: %x",
+            "ActionCount: %v, PrepareSignature: %x, CommitSignature: %x",
             transactionId,
             transactionStartTimestamp,
             transactionTimeout,
             request->actions_size(),
-            signature);
+            prepareSignature,
+            commitSignature);
 
         const auto& transactionManager = Slot_->GetTransactionManager();
         auto future = transactionManager->RegisterTransactionActions(
             transactionId,
             transactionStartTimestamp,
             transactionTimeout,
-            signature,
+            prepareSignature,
+            commitSignature,
             std::move(*request->mutable_actions()));
 
         context->ReplyFrom(std::move(future));
@@ -520,9 +516,7 @@ private:
 
 IServicePtr CreateTabletService(ITabletSlotPtr slot, IBootstrap* bootstrap)
 {
-    auto service = New<TTabletService>(std::move(slot), bootstrap);
-    service->Initialize();
-    return service;
+    return New<TTabletService>(std::move(slot), bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

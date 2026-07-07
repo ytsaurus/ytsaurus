@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/public.h>
 
+#include <yt/yt/ytlib/hive/public.h>
+
 #include <yt/yt/client/cell_master_client/public.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -77,11 +79,6 @@ struct ICellDirectory
     //! Reconfigures master connection directory.
     virtual void ReconfigureMasterCellDirectory(
         const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs) = 0;
-
-    // TODO(cherepashka): make it static function or just separate from ICellDirectory.
-    virtual bool ClusterMasterCompositionChanged(
-        const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs,
-        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellDirectory)
@@ -92,14 +89,8 @@ ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
     NApi::NNative::TConnectionOptions options,
     NRpc::IChannelFactoryPtr channelFactory,
-    TWeakPtr<NApi::NNative::IConnection> connection,
+    NHiveClient::ICellDirectoryPtr hiveCellDirectory,
     NLogging::TLogger logger);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(cherepashka): move into helpers file.
-NObjectClient::TCellTagList GetMasterCellTags(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs);
-THashSet<NObjectClient::TCellId> GetMasterCellIds(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

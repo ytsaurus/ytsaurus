@@ -1,8 +1,9 @@
 UNITTEST()
 
+REQUIREMENTS(cpu:4)
 IF (SANITIZER_TYPE == "thread")
     SIZE(LARGE)
-    TAG(ya:fat)
+    INCLUDE(${ARCADIA_ROOT}/contrib/ydb/tests/large.inc)
 ELSE()
     SIZE(MEDIUM)
 ENDIF()
@@ -28,6 +29,7 @@ PEERDIR(
     contrib/ydb/library/actors/interconnect/ut/protos
     contrib/ydb/library/actors/testlib
     library/cpp/digest/md5
+    library/cpp/logger
     library/cpp/testing/unittest
 )
 

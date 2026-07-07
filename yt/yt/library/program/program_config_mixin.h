@@ -25,7 +25,7 @@ protected:
     explicit TProgramConfigMixin(
         NLastGetopt::TOpts& opts,
         bool required = true,
-        const TString& argumentName = "config")
+        const std::string& argumentName = "config")
         : ArgumentName_(argumentName)
     {
         auto opt = opts
@@ -73,7 +73,7 @@ protected:
                     JoinToString(
                         TEnumTraits<NYTree::EUnrecognizedStrategy>::GetDomainValues(),
                         [] (TStringBuilderBase* builder, NYTree::EUnrecognizedStrategy strategy) {
-                            builder->AppendFormat(FormatEnum(strategy));
+                            builder->AppendString(FormatEnum(strategy));
                         },
                         TStringBuf(", "))))
             .DefaultValue(FormatEnum(UnrecognizedStrategy_))
@@ -124,23 +124,23 @@ protected:
         return ConfigNode_;
     }
 
-    const TString& GetConfigPath() const
+    const std::string& GetConfigPath() const
     {
         return ConfigPath_;
     }
 
 private:
-    const TString ArgumentName_;
+    const std::string ArgumentName_;
 
     bool ConfigFlag_;
-    TString ConfigPath_;
+    std::string ConfigPath_;
     bool ConfigSchemaFlag_ = false;
-    TString ConfigSchema_;
+    std::string ConfigSchema_;
     bool ConfigTemplateFlag_;
     bool ConfigActualFlag_;
     bool ConfigUnrecognizedFlag_;
     bool DynamicConfigSchemaFlag_ = false;
-    TString DynamicConfigSchema_;
+    std::string DynamicConfigSchema_;
     bool DynamicConfigTemplateFlag_ = false;
     NYTree::EUnrecognizedStrategy UnrecognizedStrategy_ = NYTree::EUnrecognizedStrategy::KeepRecursive;
 
@@ -158,7 +158,8 @@ private:
         }
 
         try {
-            TIFStream stream(ConfigPath_);
+            // NB: TIFStream's buffered wrapper does not accept std::string.
+            TIFStream stream{TString(ConfigPath_)};
             ConfigNode_ = ConvertToNode(&stream);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing %v file %v",
@@ -202,7 +203,7 @@ private:
             Cout << Endl;
         };
 
-        auto printSchema = [] (const auto& config, TString format) {
+        auto printSchema = [] (const auto& config, const std::string& format) {
             if (format == YsonSchemaFormat_) {
                 using namespace NYson;
                 TYsonWriter writer(&Cout, EYsonFormat::Pretty);

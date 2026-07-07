@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "shuffle_controller.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -17,20 +18,18 @@ struct IShuffleManager
 {
     virtual TFuture<NObjectClient::TTransactionId> StartShuffle(
         int partitionCount,
-        NObjectClient::TTransactionId parentTransactionId) = 0;
+        NObjectClient::TTransactionId parentTransactionId,
+        bool usePushBasedShuffle,
+        std::string account,
+        std::string medium,
+        int replicationFactor,
+        NPushBasedShuffleClient::TPushShuffleConfigPtr pushConfig) = 0;
 
     virtual TFuture<void> FinishShuffle(NObjectClient::TTransactionId transactionId) = 0;
 
-    virtual TFuture<void> RegisterChunks(
-        NObjectClient::TTransactionId transactionId,
-        std::vector<NChunkClient::TInputChunkPtr> chunks,
-        std::optional<int> writerIndex,
-        bool overwriteExistingWriterData) = 0;
-
-    virtual TFuture<std::vector<NChunkClient::TInputChunkSlicePtr>> FetchChunks(
-        NObjectClient::TTransactionId transactionId,
-        int partitionIndex,
-        std::optional<std::pair<int, int>> writerIndexRange) = 0;
+    //! Returns the controller for a shuffle; callers downcast it to
+    //! IPullBasedShuffleController or IPushBasedShuffleController as appropriate.
+    virtual TFuture<IShuffleControllerPtr> GetController(NObjectClient::TTransactionId transactionId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IShuffleManager)

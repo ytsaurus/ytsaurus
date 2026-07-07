@@ -2,9 +2,9 @@
 
 #include "competitive_job_manager.h"
 
-#include <yt/yt/server/lib/controller_agent/helpers.h>
-
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
+
+#include <yt/yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/yt/server/lib/scheduler/structs.h>
 

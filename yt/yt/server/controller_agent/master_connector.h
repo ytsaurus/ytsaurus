@@ -62,7 +62,7 @@ public:
     //! and |false| otherwise.
     bool TagsLoaded() const;
 
-    const std::vector<TString>& GetTags() const;
+    const std::vector<std::string>& GetTags() const;
 
     void SetControllerAgentAlert(EControllerAgentAlertType alertType, const TError& alert);
 

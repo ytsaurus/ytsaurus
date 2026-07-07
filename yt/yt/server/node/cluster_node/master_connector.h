@@ -103,6 +103,23 @@ struct IMasterConnector
     *  Thread affinity: any
     */
     virtual THashSet<NObjectClient::TCellTag> GetMasterCellTags() const = 0;
+
+    //! Given a list of cell tags, returns a future which becomes set
+    //! when at least one heartbeat to each of the master cells is fully executed.
+    //! Note: if the heartbeat executor to a certain cell has not been created,
+    //! the future will not wait for the heartbeat to that cell.
+    /*!
+    *  \note
+    *  Thread affinity: Control
+    */
+    virtual TFuture<std::vector<TError>> GetExecutedEvents(const THashSet<NObjectClient::TCellTag>& masterCellTags) = 0;
+
+    //! Requests immediate cluster node heartbeat.
+    /*!
+    *  \note
+    *  Thread affinity: Control
+    */
+    virtual void ScheduleMasterHeartbeats(const THashSet<NObjectClient::TCellTag>& masterCellTags) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

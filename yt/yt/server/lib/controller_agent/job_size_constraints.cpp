@@ -269,13 +269,13 @@ void TExplicitJobSizeConstraints::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(21, PrimaryCompressedDataSizePerJob_,
         .SinceVersion(ESnapshotVersion::PrimaryCompressedDataSizePerJob)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            this_->CompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
+            this_->PrimaryCompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
         }));
 
     PHOENIX_REGISTER_FIELD(22, MaxPrimaryCompressedDataSizePerJob_,
         .SinceVersion(ESnapshotVersion::PrimaryCompressedDataSizePerJob)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            this_->CompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
+            this_->MaxPrimaryCompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
         }));
 
     // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty
@@ -290,6 +290,60 @@ void TExplicitJobSizeConstraints::RegisterMetadata(auto&& registrar)
 PHOENIX_DEFINE_TYPE(TExplicitJobSizeConstraints);
 
 DEFINE_REFCOUNTED_TYPE(TExplicitJobSizeConstraints)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, const IJobSizeConstraintsPtr& constraints, TStringBuf /*spec*/)
+{
+    builder->AppendChar('{');
+
+    #define FORMAT_CONSTRAINT(name) \
+        Format(#name ": %v", constraints->Get##name())
+    #define FORMAT_CONSTRAINT_RAW(name) \
+        Format(#name ": %v", constraints->name())
+
+    // NB(coteeq): Sampling getters will usually YT_VERIFY that sampling rate is non-null.
+    auto samplingRate = constraints->GetSamplingRate();
+    #define FORMAT_SAMPLING_CONSTRAINT(name) \
+        Format( \
+            #name ": %v", \
+            samplingRate \
+                ? std::optional(constraints->Get##name()) \
+                : std::nullopt)
+
+    auto parts = std::to_array({
+        FORMAT_CONSTRAINT_RAW(CanAdjustDataWeightPerJob),
+        FORMAT_CONSTRAINT_RAW(IsExplicitJobCount),
+        FORMAT_CONSTRAINT(JobCount),
+        FORMAT_CONSTRAINT_RAW(ForceAllowJobInterruption),
+        FORMAT_CONSTRAINT(DataWeightPerJob),
+        FORMAT_CONSTRAINT(MaxDataSlicesPerJob),
+        FORMAT_CONSTRAINT(MaxDataWeightPerJob),
+        FORMAT_CONSTRAINT(MaxPrimaryDataWeightPerJob),
+        FORMAT_CONSTRAINT(CompressedDataSizePerJob),
+        FORMAT_CONSTRAINT(MaxCompressedDataSizePerJob),
+        FORMAT_CONSTRAINT(MaxPrimaryCompressedDataSizePerJob),
+        FORMAT_CONSTRAINT(InputSliceDataWeight),
+        FORMAT_CONSTRAINT(InputSliceRowCount),
+        FORMAT_CONSTRAINT(BatchRowCount),
+        FORMAT_CONSTRAINT(ForeignSliceDataWeight),
+        FORMAT_CONSTRAINT(PrimaryDataWeightPerJob),
+        FORMAT_CONSTRAINT(PrimaryCompressedDataSizePerJob),
+        FORMAT_SAMPLING_CONSTRAINT(SamplingRate),
+        FORMAT_SAMPLING_CONSTRAINT(SamplingDataWeightPerJob),
+        FORMAT_SAMPLING_CONSTRAINT(SamplingPrimaryDataWeightPerJob),
+        FORMAT_CONSTRAINT(DataWeightPerJobRetryFactor),
+        FORMAT_CONSTRAINT(MaxBuildRetryCount),
+    });
+
+    #undef FORMAT_CONSTRAINT
+    #undef FORMAT_CONSTRAINT_RAW
+    #undef FORMAT_SAMPLING_CONSTRAINT
+
+    JoinToString(builder, parts.begin(), parts.end(), TDefaultFormatter());
+
+    builder->AppendChar('}');
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

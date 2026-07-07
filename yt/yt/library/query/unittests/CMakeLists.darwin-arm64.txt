@@ -28,6 +28,7 @@ target_compile_options(library-query-unittests INTERFACE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(library-query-unittests INTERFACE
@@ -64,6 +65,7 @@ target_compile_options(library-query-unittests.global PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(library-query-unittests.global PRIVATE
@@ -86,6 +88,7 @@ target_link_libraries(library-query-unittests.global PUBLIC
 
 target_sources(library-query-unittests.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ast_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/join_profilers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_distributed_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_expressions_ut.cpp

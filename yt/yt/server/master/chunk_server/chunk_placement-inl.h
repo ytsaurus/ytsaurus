@@ -323,14 +323,14 @@ TNodeList TChunkPlacement::GetWriteTargets(
     }
 
     const TLoadFactorToNodeMap* loadFactorToNodeMap = nullptr;
-    TNodeToLoadFactorMap* nodeToLoadFactorMap = nullptr;
+    TWeightedRandomNodeChooser* nodeChooser = nullptr;
 
     if (EnableTwoRandomChoicesWriteTargetAllocation_) {
-        auto it = MediumToNodeToLoadFactor_.find(medium);
-        if (it == MediumToNodeToLoadFactor_.end()) {
+        auto it = MediumToNodeChooser_.find(medium);
+        if (it == MediumToNodeChooser_.end()) {
             return TNodeList();
         } else {
-            nodeToLoadFactorMap = &it->second;
+            nodeChooser = &it->second;
         }
     } else {
         auto it = MediumToLoadFactorToNode_.find(medium);
@@ -394,7 +394,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
         bool hasProgress = false;
         if (EnableTwoRandomChoicesWriteTargetAllocation_) {
-            auto allocationSession = nodeToLoadFactorMap->StartAllocationSession(NodesToCheckBeforeGivingUpOnWriteTargetAllocation_);
+            auto allocationSession = nodeChooser->StartAllocationSession(NodesToCheckBeforeGivingUpOnWriteTargetAllocation_);
             while (!allocationSession.HasFailed() && !hasEnoughTargets()) {
                 auto nodeId = allocationSession.PickRandomNode();
                 auto* node = nodeTracker->GetNode(nodeId);

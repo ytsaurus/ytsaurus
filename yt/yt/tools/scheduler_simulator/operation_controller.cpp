@@ -209,14 +209,15 @@ public:
         const TJobResources& nodeLimits,
         const TDiskResources& diskResourceLimits,
         const std::string& /* treeId */,
-        const TString& /* poolPath */,
-        std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */) override;
+        const NYPath::TYPath& /* poolPath */,
+        std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */,
+        std::optional<std::string> /* allocationGroupName */) override;
 
     void UpdateGroupedNeededResources() override;
     TAllocationGroupResourcesMap GetGroupedNeededResources() const override;
     TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const override;
 
-    TString GetLoggingProgress() const override;
+    std::string GetLoggingProgress() const override;
 
 private:
     using TJobBuckets = THashMap<EJobType, std::unique_ptr<TJobBucket>>;
@@ -450,8 +451,9 @@ TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::S
     const TJobResources& nodeLimits,
     const TDiskResources& /*diskResourceLimits*/,
     const std::string& /* treeId */,
-    const TString& /* poolPath */,
-    std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */)
+    const NYPath::TYPath& /* poolPath */,
+    std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */,
+    std::optional<std::string> /* allocationGroupName */)
 {
     MaybeDelay(ScheduleJobDelay_);
 
@@ -520,7 +522,7 @@ TAllocationGroupResourcesMap  TSimulatorOperationController::GetInitialGroupedNe
     return InitialGroupedNeededResources_;
 }
 
-TString TSimulatorOperationController::GetLoggingProgress() const
+std::string TSimulatorOperationController::GetLoggingProgress() const
 {
     return Format(
         "Buckets = {T: %v, R: %v}, Jobs = {T: %v, R: %v, C: %v, P: %v, A: %v}",

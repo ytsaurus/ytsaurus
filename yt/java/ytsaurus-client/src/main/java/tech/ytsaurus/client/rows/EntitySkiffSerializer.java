@@ -3,6 +3,7 @@ package tech.ytsaurus.client.rows;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Type;
@@ -24,12 +25,15 @@ import java.util.Set;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
+import com.google.protobuf.MessageLite;
 import tech.ytsaurus.client.request.Format;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.common.Decimal;
 import tech.ytsaurus.core.rows.YsonSerializable;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.core.utils.ClassUtils;
+import tech.ytsaurus.core.utils.ProtoUtils;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.skiff.SkiffParser;
@@ -300,6 +304,8 @@ public class EntitySkiffSerializer<T> {
             serializer.serializeString((byte[]) object);
         } else if (object.getClass().equals(String.class) || Enum.class.isAssignableFrom(object.getClass())) {
             serializeUtf8(object, serializer);
+        } else if (MessageLite.class.isAssignableFrom(object.getClass())) {
+            serializeProtobuf(object, serializer);
         } else {
             throwIncorrectFieldTypeException("string", object.getClass());
         }
@@ -321,6 +327,23 @@ public class EntitySkiffSerializer<T> {
         consumer.close();
         byte[] bytes = byteOutputStreamForYson.toByteArray();
         serializer.serializeString(bytes);
+    }
+
+    private <ProtobufType> void serializeProtobuf(
+            ProtobufType object,
+            SkiffSerializer serializer
+    ) {
+        var outputStream = new ByteArrayOutputStream();
+        if (MessageLite.class.isAssignableFrom(object.getClass())) {
+            try {
+                ((MessageLite) object).writeTo(outputStream);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        } else {
+            throwIncorrectFieldTypeException("protobuf", object.getClass());
+        }
+        serializer.serializeString(outputStream.toByteArray());
     }
 
     private <ObjectType> void serializeComplexObject(
@@ -803,6 +826,9 @@ public class EntitySkiffSerializer<T> {
         if (clazz.equals(String.class) || Enum.class.isAssignableFrom(clazz)) {
             return deserializeUtf8(clazz, parser);
         }
+        if (MessageLite.class.isAssignableFrom(clazz)) {
+            return deserializeProtobuf(clazz, parser);
+        }
         throwIncorrectFieldTypeException("string", clazz);
         return null;
     }
@@ -832,6 +858,16 @@ public class EntitySkiffSerializer<T> {
             return castToType(ysonSerializable);
         }
         throwIncorrectFieldTypeException("yson", clazz);
+        return null;
+    }
+
+    private <ProtobufType> ProtobufType deserializeProtobuf(Class<ProtobufType> clazz, SkiffParser parser) {
+        if (MessageLite.class.isAssignableFrom(clazz)) {
+            BufferReference ref = parser.parseString32();
+            var byteString = ByteString.copyFrom(ref.getBuffer(), ref.getOffset(), ref.getLength());
+            return castToType(ProtoUtils.parseFrom(castToType(clazz), byteString));
+        }
+        throwIncorrectFieldTypeException("protobuf", clazz);
         return null;
     }
 

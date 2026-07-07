@@ -158,10 +158,10 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"$key": "link&", "key": "link", "type": "link"},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select key from ytNodeAttributes()')
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select key from ytNodeAttributes('//this_table_does_not_exist')")
 
     @authors("dakovalkov")
@@ -248,11 +248,19 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"$path": "//tmp/dir2/30min/2021-01-03T02:00:00"},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select $path from ytListLogTables('//this_dir_does_not_exist')")
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select $path from ytListLogTables('//tmp/dir3')")
+
+            # Passing unix timestamps via toDateTime() should work correctly regardless of session timezone.
+            # Range [1609624800, 1609639200] = [2021-01-02T22:00:00Z, 2021-01-03T02:00:00Z].
+            query = "select $path from ytListLogTables('//tmp/dir1', toDateTime(1609624800), toDateTime(1609639200)) order by $key"
+            assert clique.make_query(query, settings={"session_timezone": "Europe/Moscow"}) == [
+                {"$path": "//tmp/dir1/1d/2021-01-02"},
+                {"$path": "//tmp/dir1/1d/2021-01-03"},
+            ]
 
     @authors("dakovalkov", "buyval01")
     def test_yt_tables(self):
@@ -305,19 +313,22 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"a": 2},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * form ytTables()')
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 # dir1 contains subdir.
                 clique.make_query("select * from ytTables(ytListNodes('//tmp/dir1'))")
+
+            with raises_yt_error("No tables to read from"):
+                clique.make_query("select * from ytTables(ytListNodes('//tmp/dir1/subdir'))")
 
             subquery = "select $path from ytListTables('//tmp/dir1') where splitByChar('/',assumeNotNull($path))[-1] = 't0'"
             assert clique.make_query(subquery) == [
                 {"$path": "//tmp/dir1/t0"},
             ]
             # The new CH analyzer does not work with subqueries not wrapped in a table view function as function arguments.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query(f"select * from ytTables({subquery})")
             assert clique.make_query(f"select * from ytTables(view({subquery})) order by a") == [
                 {"a": 0},

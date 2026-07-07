@@ -67,7 +67,7 @@ public:
 
     TCGValue(TCGValue&& other) noexcept;
 
-    TCGValue& operator=(TCGValue&& other);
+    TCGValue& operator=(TCGValue&& other) noexcept;
 
     TCGValue&& Steal();
 

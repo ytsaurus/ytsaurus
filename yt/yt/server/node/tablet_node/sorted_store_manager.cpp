@@ -1,22 +1,19 @@
 #include "sorted_store_manager.h"
 
-#include "automaton.h"
 #include "config.h"
 #include "in_memory_manager.h"
 #include "private.h"
+#include "serialize.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
 #include "store_flusher.h"
 #include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
-#include "tablet_slot.h"
-#include "transaction_manager.h"
 #include "versioned_chunk_meta_manager.h"
 #include "write_commands.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -83,7 +80,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr i64 CriticalUnleashedStoreCount = 10;
+static constexpr i64 CriticalUnleashedStoreCount = 20;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -958,7 +955,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     auto sortedDynamicStore = store->AsSortedDynamic();
     auto reader = sortedDynamicStore->CreateFlushReader();
     // NB: Memory store reader is always synchronous.
-    YT_VERIFY(reader->Open().Get().IsOK());
+    YT_VERIFY(reader->Open().GetOrCrash().IsOK());
 
     auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
 
@@ -974,8 +971,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 
         auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
-        auto enableCollocatedDatNodeThrottling = TabletContext_->GetDynamicConfigManager()
-            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
+        auto enableCollocatedDatNodeThrottling = TabletContext_->GetDynamicConfig()
+            ->EnableCollocatedDatNodeThrottling;
 
         auto memoryUsageTracker = TabletContext_->GetNodeMemoryUsageTracker()->WithCategory(
             EMemoryCategory::TabletBackground);
@@ -985,9 +982,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         storeWriterConfig->MinUploadReplicationFactor = storeWriterConfig->UploadReplicationFactor;
         storeWriterConfig->EnableLocalThrottling = enableCollocatedDatNodeThrottling;
 
-        if (mountConfig->MinHashDigestCompaction->Enable) {
-            storeWriterConfig->MinHashDigest = mountConfig->MinHashDigestCompaction->ChunkWriter;
-        }
+        PatchChunkWriterConfigByMountConfig(storeWriterConfig, mountConfig);
 
         storeWriterConfig->Postprocess();
 
@@ -1108,6 +1103,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                             .ChunkId = storeWriter->GetChunkId(),
                             .TableSchemaKeyColumnCount = tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
                             .PreparedColumnarMeta = true,
+                            .CompressedBlockLastKeys = tabletSnapshot->Settings.MountConfig->CompressBlockLastKeys,
                         },
                         New<TRefCountedChunkMeta>(*finalizedMeta));
                 }
@@ -1197,9 +1193,11 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto rowsInStore = 0;
         TUpdateCacheStatistics cacheUpdateStatistics;
 
+        // TODO(akozhikhov): Add hunk statistics too?
         auto updateWriterStatistics = [&] {
             auto guard = Guard(task->RuntimeData.SpinLock);
-            task->RuntimeData.ProcessedWriterStatistics = TBackgroundActivityTaskInfoBase::TWriterStatistics(storeWriter->GetDataStatistics());
+            task->RuntimeData.ProcessedWriterStatistics =
+                TBackgroundActivityTaskInfoBase::TWriterStatistics(storeWriter->GetDataStatistics());
         };
 
         THazardPtrReclaimOnContextSwitchGuard reclaimGuard;
@@ -1305,7 +1303,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto totalDiskSpace = getDiskSpace(storeWriter, tabletSnapshot->Settings.StoreWriterOptions) +
             getDiskSpace(hunkChunkWriter, tabletSnapshot->Settings.HunkWriterOptions);
         auto mediumThrottler = GetBlobMediumWriteThrottler(
-            TabletContext_->GetDynamicConfigManager(),
+            TabletContext_->GetDynamicConfig(),
             tabletSnapshot);
 
         YT_LOG_DEBUG("Throttling blobs media write in sorted store flush (DiskSpace: %v)",
@@ -1805,6 +1803,13 @@ TSortedDynamicStore::TRowBlockedWaitingResult TSortedStoreManager::WaitOnBlocked
         conflictInfo.ReadTimestamp,
         timeout);
 
+    // When waiting for a per-row serializing transaction row can become ready to read
+    // even if transaction is not totally finished.
+    if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
+        const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+        timeout = std::min(timeout, mountConfig->PerRowSerializationBlockedRowWaitQuantum);
+    }
+
     auto waitResult = WaitFor(transaction->GetFinished().WithTimeout(timeout));
     if (!waitResult.IsOK() && waitResult.GetCode() != NYT::EErrorCode::Timeout) {
         THROW_ERROR(std::move(waitResult));
@@ -1859,7 +1864,9 @@ void TSortedStoreManager::AddUnleashedBackingStore(TSortedDynamicStorePtr unleas
         CriticalUnleashedStoreCount);
 }
 
-void TSortedStoreManager::ReleaseUnleashedBackingStore(TDynamicStoreId unleashedBackingStoreId)
+void TSortedStoreManager::ReleaseUnleashedBackingStore(
+    TDynamicStoreId unleashedBackingStoreId,
+    TRevision expectedMountRevision)
 {
     auto it = UnleashedBackingStores_.find(unleashedBackingStoreId);
 
@@ -1875,7 +1882,7 @@ void TSortedStoreManager::ReleaseUnleashedBackingStore(TDynamicStoreId unleashed
         return;
     }
 
-    Tablet_->AdvanceTransientConflictHorizonTimestamp(it->second->GetMaxTimestamp());
+    Tablet_->AdvanceTransientConflictHorizonTimestamp(it->second->GetMaxTimestamp(), expectedMountRevision);
 
     UnleashedBackingStores_.erase(it);
 

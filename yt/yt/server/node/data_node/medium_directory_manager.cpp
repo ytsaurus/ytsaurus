@@ -24,13 +24,12 @@ TMediumDirectoryManager::TMediumDirectoryManager(
     const NLogging::TLogger& logger)
     : Bootstrap_(bootstrap)
     , Logger(logger)
-    , MediumDirectory_()
 { }
 
 TMediumDirectoryPtr TMediumDirectoryManager::GetMediumDirectory() const
 {
-    if (MediumDirectory_) {
-        return MediumDirectory_;
+    if (auto mediumDirectory = MediumDirectory_.Acquire()) {
+        return mediumDirectory;
     }
 
     const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
@@ -47,7 +46,7 @@ void TMediumDirectoryManager::UpdateMediumDirectory(const NProto::TMediumDirecto
 {
     auto newMediumDirectory = New<TMediumDirectory>();
     newMediumDirectory->LoadFrom(mediumDirectory);
-    MediumDirectory_ = std::move(newMediumDirectory);
+    MediumDirectory_.Store(std::move(newMediumDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

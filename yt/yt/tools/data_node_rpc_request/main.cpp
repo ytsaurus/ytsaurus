@@ -105,19 +105,19 @@ struct TOpts
 
     NLastGetopt::TOpts Opts;
 
-    TString DataNodeRequest;
+    std::string DataNodeRequest;
 
-    TString HostAddress;
-    TString ChunkId;
+    std::string HostAddress;
+    std::string ChunkId;
 
     // LookupRows stuff.
-    TString Key;
-    TString TableId;
+    std::string Key;
+    std::string TableId;
     ui64 TableRevision;
-    TString TableSchema;
+    std::string TableSchema;
 
     // GetChunkFragmentSet stuff.
-    TString ReadSessionId;
+    std::string ReadSessionId;
     bool UseDirectIO = false;
     i32 FragmentLength = -1;
     i32 BlockIndex = -1;
@@ -136,7 +136,7 @@ void LookupRows(const TOpts& opts)
     auto tableRevision = opts.TableRevision;
     auto tableSchemaString = opts.TableSchema;
 
-    auto channel = NRpc::NBus::CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())->CreateChannel(addr);
+    auto channel = NRpc::NBus::CreateTcpBusChannelFactory(New<NYT::NBus::NTcp::TBusConfig>())->CreateChannel(addr);
     TDataNodeServiceProxy proxy(channel);
 
     auto req = proxy.LookupRows();
@@ -199,7 +199,7 @@ void GetChunkFragmentSet(const TOpts& opts)
             "GetChunkFragmentSet request and must be nonnegative");
     }
 
-    auto channel = NRpc::NBus::CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())->CreateChannel(addr);
+    auto channel = NRpc::NBus::CreateTcpBusChannelFactory(New<NYT::NBus::NTcp::TBusConfig>())->CreateChannel(addr);
     TDataNodeServiceProxy proxy(channel);
 
     auto req = proxy.GetChunkFragmentSet();

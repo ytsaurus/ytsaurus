@@ -12,19 +12,20 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(yt-yt-library-heavy_hitters-unittests)
+add_executable(unittester-library-heavy-hitters)
 
 
-target_compile_options(yt-yt-library-heavy_hitters-unittests PRIVATE
+target_compile_options(unittester-library-heavy-hitters PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
-target_link_libraries(yt-yt-library-heavy_hitters-unittests PUBLIC
+target_link_libraries(unittester-library-heavy-hitters PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
@@ -33,11 +34,11 @@ target_link_libraries(yt-yt-library-heavy_hitters-unittests PUBLIC
   yt-library-heavy_hitters
 )
 
-target_allocator(yt-yt-library-heavy_hitters-unittests
+target_allocator(unittester-library-heavy-hitters
   system_allocator
 )
 
-target_link_options(yt-yt-library-heavy_hitters-unittests PRIVATE
+target_link_options(unittester-library-heavy-hitters PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -45,21 +46,21 @@ target_link_options(yt-yt-library-heavy_hitters-unittests PRIVATE
   CoreFoundation
 )
 
-target_sources(yt-yt-library-heavy_hitters-unittests PRIVATE
+target_sources(unittester-library-heavy-hitters PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/heavy_hitters/unittests/misra_gries_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-library-heavy_hitters-unittests
+  unittester-library-heavy-hitters
   COMMAND
-  yt-yt-library-heavy_hitters-unittests
+  unittester-library-heavy-hitters
 )
 
 set_property(
   TEST
-  yt-yt-library-heavy_hitters-unittests
+  unittester-library-heavy-hitters
   PROPERTY
   LABELS
   SMALL
@@ -67,16 +68,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-library-heavy_hitters-unittests
+  unittester-library-heavy-hitters
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-library-heavy_hitters-unittests)
+vcs_info(unittester-library-heavy-hitters)
 
 set_property(
   TEST
-  yt-yt-library-heavy_hitters-unittests
+  unittester-library-heavy-hitters
   PROPERTY
   PROCESSORS
   1

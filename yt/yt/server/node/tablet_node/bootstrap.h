@@ -48,6 +48,7 @@ struct IBootstrap
     virtual const IInvokerPtr& GetTabletLookupPoolInvoker() const = 0;
     virtual const IInvokerPtr& GetTabletFetchPoolInvoker() const = 0;
     virtual const IInvokerPtr& GetTableRowFetchPoolInvoker() const = 0;
+    virtual const IInvokerPtr& GetTabletStatisticsInvoker() const = 0;
 
     virtual IInvokerPtr GetQueryPoolInvoker(
         const std::string& poolName,
@@ -71,12 +72,23 @@ struct IBootstrap
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
     virtual const NCellarNode::IMasterConnectorPtr& GetCellarNodeMasterConnector() const = 0;
 
+    // Config stuff.
+    virtual const TTabletNodeConfigPtr& GetTabletNodeConfig() const = 0;
+    virtual TTabletNodeDynamicConfigPtr GetTabletNodeDynamicConfig() const = 0;
+    DECLARE_INTERFACE_SIGNAL(
+        void(
+            const TTabletNodeDynamicConfigPtr& oldConfig,
+            const TTabletNodeDynamicConfigPtr& newConfig),
+        TabletNodeConfigChanged);
+
     // Data Node stuff for local chunk readers.
     // NB: Might be null if node is not a Data Node.
     // TODO(gritukan): Remove it after node split.
     const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const override = 0;
 
     virtual const NRpc::IOverloadControllerPtr& GetOverloadController() const = 0;
+
+    virtual const TRowCacheControllerPtr& GetRowCacheController() const = 0;
 
     virtual const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const = 0;
     virtual const IAlienClusterClientCachePtr& GetReplicatorClientCache() const = 0;

@@ -76,6 +76,9 @@ def get_master_config():
 
 
 # COMPAT(koloshmet) cypress_manager/enable_preserve_acl_during_move
+# TODO(buyval01): switch use_location_indexes_in_sequoia_chunk_confirmation,
+# use_location_indexes_to_search_location_on_confirmation
+# and check_location_convergence_by_index_and_uuid_on_confirmation to True once CHYT 2.19 version migration is run.
 def get_dynamic_master_config():
     return {
         "chunk_manager": {
@@ -89,16 +92,28 @@ def get_dynamic_master_config():
 
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
-                "enable_chunk_replicas_throttling_in_heartbeats": True,
                 "enable_location_indexes_in_data_node_heartbeats": True,
-                "use_location_indexes_in_sequoia_chunk_confirmation": True,
-                "use_location_indexes_to_search_location_on_confirmation": True,
-                "check_location_convergence_by_index_and_uuid_on_confirmation": True,
+                "use_location_indexes_in_sequoia_chunk_confirmation": False,
+                "use_location_indexes_to_search_location_on_confirmation": False,
+                "check_location_convergence_by_index_and_uuid_on_confirmation": False,
                 "enable_validation_full_heartbeats": True,
                 "validation_full_heartbeat_period": 1000,
                 "validation_full_heartbeat_splay": 200,
                 "validate_sequoia_replicas": True,
+                "ignore_replicas_with_changed_state_during_validation": False,
             },
+
+            "sequoia_chunk_replicas": {
+                "sequoia_chunk_refresh_period": 100,
+                "max_unsuccessful_sequoia_chunk_refresh_iterations": 1000,
+                "global_sequoia_chunk_refresh_period": 100,
+                "max_unsuccessful_global_sequoia_chunk_refresh_iterations": 1000,
+                "enable_location_refresh": True,
+                "location_refresh_period": 100,
+                "batch_incremental_heartbeat": True,
+                "batch_incremental_heartbeat_period": 300,
+                "max_requests_in_incremental_heartbeat_batch": 5,
+            }
         },
 
         "node_tracker": {
@@ -114,8 +129,6 @@ def get_dynamic_master_config():
             "enable_node_cpu_statistics": True,
             "forbid_maintenance_attribute_writes": False,
             "node_disposal_tick_period": 100,
-            "return_master_cells_connection_configs_on_node_registration": True,
-            "return_master_cells_connection_configs_on_node_heartbeat": True,
         },
 
         "object_manager": {
@@ -199,7 +212,13 @@ def get_dynamic_master_config():
             "enable_smooth_tablet_movement": True,
         },
 
-        "sequoia_manager": {},
+        "sequoia_manager": {
+            "enable_async_sequoia_transaction_start": True,
+            "use_shared_write_locks_for_cypress_transactions": False,
+            "coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator": True,
+            "wrap_object_service_execute_into_sequoia_transaction": True,
+            "enable_sequoia_revisions": True,
+        },
 
         "cell_master": {
             "alert_update_period": 500,
@@ -261,6 +280,7 @@ def get_scheduler_config():
                         "enable_step_function_for_gang_operations": True,
                         "enable_improved_fair_share_by_fit_factor_computation": True,
                         "consider_single_allocation_vanilla_operations_as_gang": False,
+                        "enable_fast_fifo_fair_share_by_fit_factor_computation": True,
                     },
                 },
             },
@@ -377,27 +397,8 @@ def get_controller_agent_config():
                 }
             },
 
-            "sorted_merge_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                }
-            },
-
-            "reduce_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                }
-            },
-
-            "join_reduce_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                }
-            },
-
             "sort_operation_options": {
                 "spec_template": {
-                    "use_new_sorted_pool": True,
                     "merge_job_io": {
                         "table_writer": {
                             "enable_large_columnar_statistics": True,
@@ -418,7 +419,6 @@ def get_controller_agent_config():
 
             "map_reduce_operation_options": {
                 "spec_template": {
-                    "use_new_sorted_pool": True,
                     "map_job_io": {
                         "table_writer": {
                             "enable_large_columnar_statistics": True,
@@ -808,7 +808,7 @@ def get_dynamic_node_config():
                 },
             },
             "job_resource_manager": {
-                "check_user_jobs_category_limit_on_resources_updating": True,
+                "check_user_jobs_category_limit_on_resource_update": True,
             },
             "node_memory_tracker": {
                 "check_per_category_limit_overcommit": True,
@@ -937,7 +937,19 @@ def get_dynamic_cypress_proxy_config():
     return {}
 
 
+def get_dynamic_rpc_proxy_config():
+    return {}
+
+
 def get_replicated_table_tracker_config():
+    return {
+        "dynamic_config_manager": {
+            "update_period": 100,
+        },
+    }
+
+
+def get_offshore_data_gateway_config():
     return {
         "dynamic_config_manager": {
             "update_period": 100,

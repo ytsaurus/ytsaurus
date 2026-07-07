@@ -112,10 +112,11 @@ std::vector<TExecNodePtr> CreateExecNodesFromNode(const INodePtr& nodeGroupsNode
     return CreateExecNodes(nodeGroups);
 }
 
-std::vector<TExecNodePtr> CreateExecNodesFromFile(const TString& nodeGroupsFilename)
+std::vector<TExecNodePtr> CreateExecNodesFromFile(const std::string& nodeGroupsFilename)
 {
     try {
-        TIFStream configStream(nodeGroupsFilename);
+        // TODO(babenko): migrate to std::string
+        TIFStream configStream{TString(nodeGroupsFilename)};
         return CreateExecNodesFromNode(ConvertToNode(&configStream));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error reading node groups") << ex;
@@ -129,10 +130,11 @@ TSchedulerConfigPtr LoadSchedulerConfigFromNode(const INodePtr& schedulerConfigN
     return schedulerConfig;
 }
 
-TSchedulerConfigPtr LoadSchedulerConfigFromFile(const TString& schedulerConfigFilename)
+TSchedulerConfigPtr LoadSchedulerConfigFromFile(const std::string& schedulerConfigFilename)
 {
     try {
-        TIFStream configStream(schedulerConfigFilename);
+        // TODO(babenko): migrate to std::string
+        TIFStream configStream{TString(schedulerConfigFilename)};
         return LoadSchedulerConfigFromNode(ConvertToNode(&configStream));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error reading scheduler config") << ex;
@@ -164,10 +166,11 @@ std::vector<TOperationDescription> LoadOperations(bool shiftOperationsToStart)
     return operations;
 }
 
-TYsonString LoadPoolTreesYson(const TString& poolTreesFilename)
+TYsonString LoadPoolTreesYson(const std::string& poolTreesFilename)
 {
     try {
-        TIFStream configStream(poolTreesFilename);
+        // TODO(babenko): migrate to std::string
+        TIFStream configStream{TString(poolTreesFilename)};
         return ConvertToYsonString(&configStream);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error reading pool trees") << ex;
@@ -306,7 +309,8 @@ private:
         const auto operations = LoadOperations(config->ShiftOperationsToStart);
         const TInstant earliestTime = FindEarliestTime(operations);
 
-        TFixedBufferFileOutput eventLogOutputStream(config->EventLogFilename);
+        // TODO(babenko): migrate to std::string
+        TFixedBufferFileOutput eventLogOutputStream(TString(config->EventLogFilename));
 
         auto schedulerConfig = LoadSchedulerConfigFromFile(config->SchedulerConfigFilename);
         auto poolTreesYson = LoadPoolTreesYson(config->PoolTreesFilename);
@@ -341,7 +345,7 @@ public:
     }
 
 private:
-    TString Destination_;
+    std::string Destination_;
 
     TLogger Logger = TLogger("Converter");
 
@@ -361,7 +365,8 @@ private:
             extractor.Finish();
 
             int extractedCount = extractor.GetExtractedCount();
-            TUnbufferedFileOutput output(Destination_);
+            // TODO(babenko): drop cast once TUnbufferedFileOutput accepts std::string
+            TUnbufferedFileOutput output{TString(Destination_)};
             output.Write(&extractedCount, sizeof(extractedCount));
 
             context.Finish();
@@ -378,7 +383,7 @@ private:
 
 int main(int argc, const char** argv)
 {
-    if (TString(argv[1]) == "convert-operations-to-binary-format") {
+    if (std::string(argv[1]) == "convert-operations-to-binary-format") {
         return NYT::TConvertOperationsToBinaryFormatProgram().Run(argc - 1, argv + 1);
     }
     return NYT::TSchedulerSimulatorProgram().Run(argc, argv);

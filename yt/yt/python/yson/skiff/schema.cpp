@@ -70,12 +70,12 @@ TFieldDescription TSkiffSchema::GetSparseField(ui16 index)
     return TableDescription_.SparseFieldDescriptionList[index];
 }
 
-ui16 TSkiffSchema::GetFieldIndex(const TString& name)
+ui16 TSkiffSchema::GetFieldIndex(const std::string& name)
 {
     return FieldIndices_[name];
 }
 
-bool TSkiffSchema::HasField(const TString& name)
+bool TSkiffSchema::HasField(const std::string& name)
 {
     return FieldIndices_.find(name) != FieldIndices_.end();
 }
@@ -123,11 +123,11 @@ TSkiffSchemaPython::TSkiffSchemaPython(Py::PythonClassInstance* self, Py::Tuple&
             throw Py::ValueError("\"table_skiff_schema\" list should contain exactly one element");
         }
 
-        TString rangeIndexColumnName = "@range_index";
+        std::string rangeIndexColumnName = "@range_index";
         if (HasArgument(args, kwargs, "range_index_column_name")) {
             rangeIndexColumnName = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "range_index_column_name"));
         }
-        TString rowIndexColumnName = "@row_index";
+        std::string rowIndexColumnName = "@row_index";
         if (HasArgument(args, kwargs, "row_index_column_name")) {
             rowIndexColumnName = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "row_index_column_name"));
         }

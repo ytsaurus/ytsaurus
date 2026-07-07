@@ -34,6 +34,7 @@ func TestContentTypeConsts(t *testing.T) {
 	assert.Equal(t, headers.TypeImageSVG, headers.ContentType("image/svg+xml"))
 	assert.Equal(t, headers.TypeImageTIFF, headers.ContentType("image/tiff"))
 	assert.Equal(t, headers.TypeImageWebP, headers.ContentType("image/webp"))
+	assert.Equal(t, headers.TypeImageAVIF, headers.ContentType("image/avif"))
 
 	assert.Equal(t, headers.TypeVideoMPEG, headers.ContentType("video/mpeg"))
 	assert.Equal(t, headers.TypeVideoMP4, headers.ContentType("video/mp4"))

@@ -14,8 +14,8 @@ public:
     TCopyGuard(IWebAssemblyCompartment* compartment, uintptr_t offset);
 
     Y_WEAK ~TCopyGuard();
-    TCopyGuard(TCopyGuard&& other);
-    TCopyGuard& operator=(TCopyGuard&& other);
+    TCopyGuard(TCopyGuard&& other) noexcept;
+    TCopyGuard& operator=(TCopyGuard&& other) noexcept;
 
     uintptr_t GetCopiedOffset() const;
 

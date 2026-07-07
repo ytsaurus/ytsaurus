@@ -93,7 +93,7 @@ private:
         DoNotOptimizeAway(bootstrap);
 
         if (IsDryRunMode()) {
-            NBus::TTcpDispatcher::Get()->DisableNetworking();
+            NBus::NTcp::TDispatcher::Get()->DisableNetworking();
 
             bootstrap->Initialize();
 
@@ -109,7 +109,7 @@ private:
         }
 
         bootstrap->Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         SleepForever();
     }
@@ -118,7 +118,7 @@ private:
     bool DumpSnapshotFlag_ = false;
     ESerializationDumpMode SnapshotDumpMode_ = ESerializationDumpMode::Content;
     bool ValidateSnapshotFlag_ = false;
-    TString LoadSnapshotPath_;
+    std::string LoadSnapshotPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

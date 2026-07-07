@@ -24,6 +24,8 @@ public:
 
     TCellManagerPtr GetCellManager() override;
 
+    void Discombobulate() override;
+
     void SetUnderlying(IElectionManagerPtr underlying);
 
 private:

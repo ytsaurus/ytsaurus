@@ -32,6 +32,8 @@ using TRspIssueLeases = NTransactionClient::NProto::TRspIssueLeases;
 using TReqRegisterLockableDynamicTables = NTransactionClient::NProto::TReqRegisterLockableDynamicTables;
 using TRspRegisterLockableDynamicTables = NTransactionClient::NProto::TRspRegisterLockableDynamicTables;
 
+class TTransactionFinishRequest;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +71,17 @@ DEFINE_ENUM(ETransactionLeasesState,
     ((Revoking)              (1))
     // Leases are revoked and new leases cannot be issued.
     ((Revoked)               (2))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETransactionType,
+    ((Unknown)          (0))
+    ((Cypress)          (1))
+    ((Externalized)     (2))
+    ((Upload)           (3))
+    ((System)           (4))
+    ((Sequoia)          (5))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -202,12 +202,6 @@ public:
     void Commit() noexcept override
     {
         TTransactionalNodeFactoryBase::Commit();
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        if (Transaction_) {
-            for (auto* node : CreatedNodes_) {
-                transactionManager->StageNode(Transaction_, node);
-            }
-        }
 
         const auto& portalManager = Bootstrap_->GetPortalManager();
         for (const auto& entrance : CreatedPortalEntrances_) {
@@ -260,7 +254,13 @@ public:
             multicellManager->PostToMaster(protoRequest, externalNode.ExternalCellTag);
         }
 
+        // It's OK to unref nodes here, because nodes also have ref from the parent node or
+        // from the branched node in case of transactions and MaterializeNode.
         ReleaseStagedObjects();
+
+        for (auto* node : CreatedNodes_) {
+            YT_VERIFY(IsObjectAlive(node));
+        }
     }
 
     void Rollback() noexcept override
@@ -672,10 +672,8 @@ public:
             auto sourceNodeNativeCellTag = CellTagFromId(sourceNodeId);
             auto sourceNodeExternalizedTransactionId = transactionId;
 
-            if (CellTagFromId(transactionId) != sourceNodeNativeCellTag || Transaction_->IsNativeTxExternalizationEnabled()) {
-                sourceNodeExternalizedTransactionId =
-                    NTransactionClient::MakeExternalizedTransactionId(transactionId, sourceNodeNativeCellTag);
-            }
+            sourceNodeExternalizedTransactionId =
+                NTransactionClient::MakeExternalizedTransactionId(transactionId, sourceNodeNativeCellTag);
 
             TMasterTableSchemaId schemaId;
             if (IsTableType(clonedTrunkNode->GetType())) {
@@ -857,10 +855,10 @@ private:
     TCypressManager* const Owner_;
     const INodeTypeHandlerPtr UnderlyingHandler_;
 
-    TCellTagList DoGetReplicationCellTags(const TCypressNode* node) override
+    TCellTagSet DoGetReplicationCellTags(const TCypressNode* node) override
     {
         auto externalCellTag = node->GetExternalCellTag();
-        return externalCellTag == NotReplicatedCellTagSentinel ? TCellTagList() : TCellTagList{externalCellTag};
+        return externalCellTag == NotReplicatedCellTagSentinel ? EmptyCellTags() : TCellTagSet{externalCellTag};
     }
 
     std::string DoGetName(const TCypressNode* node) override;
@@ -1190,7 +1188,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraCloneForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraLockForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetAttributeOnTransactionCommit, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraDestroyForeignNodeBeingCreated, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetTableSchemas, Unretained(this)));
     }
@@ -1204,11 +1202,6 @@ public:
         transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(
             &TCypressManager::OnTransactionAborted,
             MakeStrong(this)));
-
-        transactionManager->RegisterTransactionActionHandlers<NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit>({
-            .Prepare = BIND_NO_PROPAGATE(&TCypressManager::HydraPrepareSetAttributeOnTransactionCommit, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TCypressManager::HydraCommitSetAttributeOnTransactionCommit, Unretained(this)),
-        });
 
         transactionManager->RegisterTransactionActionHandlers<NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode>({
             .Commit = BIND_NO_PROPAGATE(&TCypressManager::HydraCommitMergeToTrunkAndUnlockNode, Unretained(this)),
@@ -1853,7 +1846,7 @@ public:
 
         RemoveTransactionNodeLocks(trunkNode, transaction, explicitOnly);
 
-        if (trunkNode->IsExternal() && trunkNode->IsNative()) {
+        if (trunkNode->IsExternal()) {
             PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
         }
 
@@ -2725,7 +2718,7 @@ public:
         return FromObjectId(portalExit->GetId()) + *optionalSuffix;
     }
 
-    void ValidateNoExternalizedNodesOnRemovedMasters(const THashSet<TCellTag>& removedMasterCellTags) const override
+    void ValidateNoExternalizedNodesOnRemovedMasters(const TCellTagSet& removedMasterCellTags) const override
     {
         YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
 
@@ -2773,6 +2766,9 @@ public:
                     nodeId,
                     sequenceNumber);
             }
+            YT_LOG_DEBUG("Ground update queue manager sequence number inserted (NodeId: %v, SequenceNumber: %v)",
+                nodeId,
+                sequenceNumber);
         } else {
             auto oldSequenceNumber = nodeIt->second;
             if (oldSequenceNumber < sequenceNumber) {
@@ -2807,6 +2803,9 @@ public:
                 }
 
                 nodeIt->second = sequenceNumber;
+                YT_LOG_DEBUG("Ground update queue manager sequence number updated (NodeId: %v, SequenceNumber: %v)",
+                    nodeId,
+                    sequenceNumber);
             } else {
                 YT_LOG_DEBUG("Node has a greater sequence number than a new one, keeping the old one "
                     "(NodeId: %v, OldSequenceNumber: %v, NewSequenceNumber: %v)",
@@ -2855,7 +2854,7 @@ public:
         }
     }
 
-    i64 GetGroundUpdateQueueManagerSequenceNumber(TCypressNode* node) const override
+    i64 GetGroundUpdateQueueManagerSequenceNumber(const TCypressNode* node) const override
     {
         auto it = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(node->GetVersionedId());
         if (it == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {
@@ -2864,6 +2863,11 @@ public:
         }
 
         return it->second;
+    }
+
+    void DestroyNodeBeingCreated(TVersionedNodeId versionedNodeId) override
+    {
+        DoDestroyNodeBeingCreated(versionedNodeId);
     }
 
 private:
@@ -2904,14 +2908,6 @@ private:
 
     using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
     const TIntrusivePtr<TRecursiveResourceUsageCache> RecursiveResourceUsageCache_;
-
-    // COMPAT(shakurov)
-    bool NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
-    // COMPAT(shakurov)
-    bool NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
-
-    // COMPAT(danilalexeev): YT-21862.
-    bool DropLegacyCellMapsOnSnapshotLoaded_ = false;
 
     // COMPAT(h0pless): FixSchemaDivergence.
     bool RecalculateSchemas_ = false;
@@ -3020,26 +3016,7 @@ private:
             Load(context, GroundUpdateQueueManagerSequenceNumberToNodeIds_);
         }
 
-        // COMPAT(shakurov)
-        YT_VERIFY(EMasterReign::ResetHunkMediaOnBranchedNodes < EMasterReign::ResetHunkMediaOnBranchedNodesOnly);
-        if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodes) {
-            NeedResetHunkSpecificMediaOnTrunkNodes_ = true;
-            NeedResetHunkSpecificMediaOnBranchedNodes_ = true;
-        } else if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodesOnly) {
-            YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_); // Check and leave it false.
-            NeedResetHunkSpecificMediaOnBranchedNodes_ = true;
-        } // Else leave both of them false.
-
-        // COMPAT(danilalexeev): YT-21862.
-        if (context.GetVersion() < EMasterReign::DropLegacyCellMap) {
-            DropLegacyCellMapsOnSnapshotLoaded_ = true;
-        }
-
-        auto normalClustersNeedSchemaRecalculation = context.GetVersion() >= EMasterReign::AddSchemaRevision &&
-            context.GetVersion() < EMasterReign::FixSchemaDivergence;
-        auto otherClustersNeedSchemaRecalculation = context.GetVersion() >= EMasterReign::Start_25_4 &&
-            context.GetVersion() < EMasterReign::FixSchemaDivergence_25_4;
-        if (normalClustersNeedSchemaRecalculation || otherClustersNeedSchemaRecalculation) {
+        if (context.GetVersion() < EMasterReign::FixSchemaDivergence_25_4) {
             RecalculateSchemas_ = true;
         }
 
@@ -3134,11 +3111,7 @@ private:
 
         RecursiveResourceUsageCache_->Clear();
 
-        NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
-        NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
-        DropLegacyCellMapsOnSnapshotLoaded_ = false;
         RecalculateSchemas_ = false;
-        ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_ = false;
     }
 
     void SetZeroState() override
@@ -3230,76 +3203,6 @@ private:
 
         InitBuiltins();
 
-        // COMPAT(shakurov)
-        YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_ || NeedResetHunkSpecificMediaOnBranchedNodes_);
-        if (NeedResetHunkSpecificMediaOnTrunkNodes_ ||
-            NeedResetHunkSpecificMediaOnBranchedNodes_)
-        {
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            for (auto [nodeId, node] : NodeMap_) {
-                if (!IsObjectAlive(node) && node->IsTrunk()) {
-                    continue;
-                }
-
-                if (!IsChunkOwnerType(node->GetType())) {
-                    continue;
-                }
-
-                if (node->IsTrunk() && !NeedResetHunkSpecificMediaOnTrunkNodes_) {
-                    continue;
-                }
-
-                // Just a reminder - already checked above.
-                YT_VERIFY(NeedResetHunkSpecificMediaOnBranchedNodes_);
-
-                auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
-                chunkOwnerNode->ResetHunkPrimaryMediumIndex();
-                chunkOwnerNode->HunkReplication().ClearEntries();
-                tabletManager->OnNodeStorageParametersUpdated(chunkOwnerNode);
-
-                // NB: resetting hunk media-related settings on branches won't
-                // reproduce invariants maintained by a running system. But since
-                // those settings cannot be modified under transaction, aren't
-                // merged back in and simply dropped at tx commit, the only
-                // thing affected by this is the decision, at commit time,
-                // to schedule (or not) a requisition update. This is hardly
-                // significant, seeing as the feature is still very fresh.
-            }
-        }
-
-        // COMPAT(danilalexeev): YT-21862.
-        if (DropLegacyCellMapsOnSnapshotLoaded_) {
-            for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
-                auto cellMapNodeProxy = ResolvePathToNodeProxy(
-                    NCellarAgent::GetCellarTypeCypressPathPrefix(cellarType),
-                    /*service*/ "",
-                    /*method*/ "",
-                    /*transaction*/ nullptr);
-                if (cellMapNodeProxy->GetType() != ENodeType::Map) {
-                    continue;
-                }
-
-                auto descendants = ListSubtreeNodes(
-                    cellMapNodeProxy->GetTrunkNode(),
-                    /*transaction*/ nullptr,
-                    /*includeRoot*/ false);
-
-                for (auto* node : descendants) {
-                    THROW_ERROR_EXCEPTION_IF(
-                        node->GetType() == EObjectType::Journal ||
-                        node->GetType() == EObjectType::File,
-                        "Failed to migrate to new cell map nodes: found legacy"
-                        " object %v at %v. Before updating, ensure all data is"
-                        " migrated and legacy storage is empty.",
-                        node->GetId(),
-                        GetNodePath(node, /*transaction*/ nullptr));
-                }
-
-                cellMapNodeProxy->GetParent()->RemoveChild(cellMapNodeProxy);
-                // Virtual Cell Map creation is delegated to World Initializer.
-            }
-        }
-
         // COMPAT(h0pless): FixSchemaDivergence.
         if (RecalculateSchemas_) {
             THashMap<TVersionedNodeId, TMasterTableSchemaId> nodeIdToSchemaId;
@@ -3362,36 +3265,6 @@ private:
 
                 if (batchSize > 0) {
                     sendRequestAndLog(cellTag, req);
-                }
-            }
-        }
-
-        // COMPAT(h0pless): FixSecurityTagsMessingWithChunkListStructure.
-        if (ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_) {
-            for (auto [nodeId, node] : NodeMap_) {
-                if (!IsChunkOwnerType(node->GetType())) {
-                    continue;
-                }
-
-                auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
-
-                auto chunkOwnerUpdateMode = chunkOwnerNode->GetUpdateMode();
-                if (node->IsTrunk() && chunkOwnerNode->GetUpdateMode() != NChunkClient::EUpdateMode::None) {
-                    YT_LOG_ALERT("Resetting update mode on a trunk node (NodeId: %v, OldUpdateMode: %v, NewUpdateMode: %v)",
-                        nodeId,
-                        chunkOwnerNode->GetUpdateMode(),
-                        NChunkClient::EUpdateMode::None);
-                    chunkOwnerNode->SetUpdateMode(NChunkClient::EUpdateMode::None);
-
-                    // No need to set non-trivial security tags update mode on trunk nodes.
-                    continue;
-                }
-
-                // Migrate to security tags update mode.
-                if (chunkOwnerUpdateMode == NChunkClient::EUpdateMode::Append) {
-                    chunkOwnerNode->SetSecurityTagsUpdateMode(ESecurityTagsUpdateMode::Append);
-                } else if (chunkOwnerUpdateMode == NChunkClient::EUpdateMode::Overwrite) {
-                    chunkOwnerNode->SetSecurityTagsUpdateMode(ESecurityTagsUpdateMode::Overwrite);
                 }
             }
         }
@@ -4084,7 +3957,7 @@ private:
                 dontLockForeign);
         }
 
-        if (trunkNode->IsExternal() && trunkNode->IsNative() && !dontLockForeign) {
+        if (trunkNode->IsExternal() && !dontLockForeign) {
             PostLockForeignNodeRequest(lock);
         }
 
@@ -4301,9 +4174,28 @@ private:
 
         TCompactVector<TCypressNode*, 1> lockedNodes{trunkNode};
         TCompactVector<TLock*, 16> locks;
-        locks.reserve(transaction->Locks().size());
-        for (auto lock : transaction->Locks()) {
-            if (lock->GetTrunkNode() == trunkNode) {
+
+        const auto& lockingState = trunkNode->LockingState();
+
+        auto exclusiveLockRange = lockingState.TransactionToExclusiveLocks.equal_range(transaction);
+        for (auto it = exclusiveLockRange.first; it != exclusiveLockRange.second; ++it) {
+            locks.push_back(it->second);
+        }
+
+        auto sharedLockRange = lockingState.TransactionAndKeyToSharedLocks.equal_range(transaction);
+        for (auto it = sharedLockRange.first; it != sharedLockRange.second; ++it) {
+            auto existingLock = get<TLockRawPtr>(*it);
+            locks.push_back(existingLock);
+        }
+
+        auto snapshotLockRange = lockingState.TransactionToSnapshotLocks.equal_range(transaction);
+        for (auto it = snapshotLockRange.first; it != snapshotLockRange.second; ++it) {
+            locks.push_back(it->second);
+        }
+
+        // There's no transaction-to-pending lock map so let's hope linear search is ok because there aren't too many pending locks.
+        for (auto lock : lockingState.PendingLocks) {
+            if (lock->GetTransaction() == transaction) {
                 locks.push_back(lock);
             }
         }
@@ -4496,6 +4388,21 @@ private:
         multicellManager->PostToMaster(request, externalCellTag);
     }
 
+    void PostDestroyForeignNodeBeingCreatedRequest(TCypressNode* trunkNode, TTransaction* transaction)
+    {
+        auto externalCellTag = trunkNode->GetExternalCellTag();
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, {externalCellTag});
+
+        NProto::TReqDestroyForeignNodeBeingCreated request;
+        ToProto(request.mutable_transaction_id(), externalizedTransactionId);
+        ToProto(request.mutable_node_id(), trunkNode->GetId());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(request, externalCellTag);
+    }
+
     template <CInvocable<bool(TCypressNode*)> TFilter>
     void ListSubtreeNodes(
         TCypressNode* trunkNode,
@@ -4597,6 +4504,8 @@ private:
             if (trunkNode == RootNode_ && !transaction->GetParent() && trunkNode->GetCreationTime() == TInstant::Zero()) {
                 originatingNode->SetCreationTime(originatingNode->GetModificationTime());
             }
+
+            SetGroundUpdateQueueManagerSequenceNumberFromNode(originatingNode, branchedNode);
         } else {
             // Destroy the branched copy.
             handler->Zombify(branchedNode);
@@ -4604,8 +4513,6 @@ private:
 
             YT_LOG_DEBUG("Node snapshot destroyed (NodeId: %v)", branchedNodeId);
         }
-
-        SetGroundUpdateQueueManagerSequenceNumberFromNode(originatingNode, branchedNode);
 
         if (originatingNode &&
             originatingNode->IsSequoia() &&
@@ -4811,6 +4718,77 @@ private:
         Bootstrap_->GetExpirationTracker()->OnNodeTouched(trunkNode);
     }
 
+    void DoDestroyNodeBeingCreated(TVersionedNodeId versionedNodeId)
+    {
+        auto nodeId = versionedNodeId.ObjectId;
+        auto transactionId = versionedNodeId.TransactionId;
+
+        YT_VERIFY(transactionId);
+
+        auto* currentNode = FindNode(versionedNodeId);
+
+        if (!currentNode) {
+            YT_LOG_ALERT("Trying to destroy branched node, but node does not exist (NodeId: %v, TransactionId: %v)",
+                nodeId,
+                transactionId);
+            return;
+        }
+
+        auto* trunkNode = currentNode->GetTrunkNode();
+
+        YT_VERIFY(trunkNode->IsForeign() || currentNode->MutableSequoiaProperties()->BeingCreated);
+
+        auto* transaction = currentNode->GetTransaction();
+
+        if (!IsObjectAlive(transaction)) {
+            YT_LOG_ALERT("Trying to destroy branched node, but transaction is not alive (NodeId: %v, TransactionId: %v)",
+                nodeId,
+                transactionId);
+            return;
+        }
+
+        for (auto nestedTransaction : transaction->NestedTransactions()) {
+            if (FindNode({nodeId, nestedTransaction->GetId()})) {
+                YT_LOG_ALERT("Cannot destroy branched node because it has deeper branches "
+                    "(NodeId: %v, TargetTransactionId: %v, NestedTransactionId: %v)",
+                    nodeId,
+                    transactionId,
+                    nestedTransaction->GetId());
+                return;
+            }
+        }
+
+        // Trunk should destroy all branches before the native cell sends TReqRemoveObject.
+        if (trunkNode->IsExternal()) {
+            PostDestroyForeignNodeBeingCreatedRequest(trunkNode, transaction);
+        }
+
+        // It's ok to release all locks, because node has just been created.
+        while (currentNode && currentNode != trunkNode) {
+            auto* currentTransaction = currentNode->GetTransaction();
+            auto* originatingNode = currentNode->GetOriginator();
+
+            currentTransaction->BranchedNodes().EraseOrCrash(currentNode);
+            DestroyBranchedNode(currentTransaction, currentNode);
+
+            ForceRemoveAllLocksForNode(currentTransaction, trunkNode);
+
+            currentNode = originatingNode;
+        }
+
+        if (trunkNode->IsNative()) {
+            YT_LOG_ALERT_IF(trunkNode->GetObjectRefCounter(/*flushUnrefs*/ true) > 0,
+                "Trunk node has a non-zero reference counter on native cell after branches have been destroyed (NodeId: %v, RefCounter: %v)",
+                nodeId,
+                trunkNode->GetObjectRefCounter());
+        } else {
+            YT_LOG_ALERT_IF(trunkNode->GetObjectRefCounter(/*flushUnrefs*/ true) != 1,
+                "Trunk node's reference counter is not equal to 1 on foreign cell after branches have been destroyed (NodeId: %v, RefCounter: %v)",
+                nodeId,
+                trunkNode->GetObjectRefCounter());
+        }
+    }
+
     void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) noexcept
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -4947,15 +4925,6 @@ private:
             tableManager->SetTableSchemaOrCrash(table, schemaId);
         }
 
-        // TODO(danilalexeev): Refactor this.
-        if (IsTableType(sourceNode->GetType())) {
-            YT_VERIFY(IsTableType(clonedTrunkNode->GetType()));
-            const auto& tableManager = Bootstrap_->GetTableManager();
-            auto* sourceTable = sourceNode->As<TTableNode>();
-            auto* clonedTable = clonedTrunkNode->As<TTableNode>();
-            tableManager->OnTableCopied(sourceTable, clonedTable);
-        }
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(clonedTrunkNode);
 
@@ -5072,105 +5041,6 @@ private:
         DoUnlockNode(trunkNode, transaction, explicitOnly);
     }
 
-    void HydraPrepareSetAttributeOnTransactionCommit(
-        TTransaction* /*transaction*/,
-        NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit* request,
-        const TTransactionPrepareOptions& /*prepareOptions*/)
-    {
-        auto nodeId = FromProto<TObjectId>(request->node_id());
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (CellTagFromId(nodeId) == multicellManager->GetCellTag()) {
-            GetNodeOrThrow(TVersionedNodeId(nodeId));
-        }
-
-        // NB: We cannot run this transaction action on native cell because this
-        // leads to distributed transaction commit which can not be done with
-        // preprequisite transactions. So just check in those rare cases where
-        // transaction coordinator is also a native cell for this map node.
-    }
-
-    void SetAttributeOnTransactionCommit(
-        TTransactionId transactionId,
-        TNodeId nodeId,
-        const std::string& attribute,
-        const TYsonString& value)
-    {
-        YT_VERIFY(HasMutationContext());
-
-        auto* node = FindNode(TVersionedNodeId(nodeId));
-        if (!IsObjectAlive(node)) {
-            YT_LOG_ALERT(
-                "Failed to set attribute on transaction commit: no such node "
-                "(TransactionId: %v, NodeId: %v, Attribute: %v)",
-                transactionId,
-                nodeId,
-                attribute);
-            return;
-        }
-
-        try {
-            node->GetMutableAttributes()->Set(attribute, value);
-        } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to set attribute on transaction commit "
-                "(TransactionId: %v, NodeId: %v, Attribute: %v)",
-                transactionId,
-                nodeId,
-                attribute);
-        }
-    }
-
-    void HydraCommitSetAttributeOnTransactionCommit(
-        TTransaction* transaction,
-        NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit* request,
-        const TTransactionCommitOptions& /*commitOptions*/)
-    {
-        auto nodeId = FromProto<TNodeId>(request->node_id());
-        auto cellTag = CellTagFromId(nodeId);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        if (cellTag == multicellManager->GetCellTag()) {
-            SetAttributeOnTransactionCommit(
-                transaction->GetId(),
-                nodeId,
-                request->attribute(),
-                TYsonString(request->value()));
-            return;
-        }
-
-        NProto::TReqSetAttributeOnTransactionCommit message;
-        ToProto(message.mutable_transaction_id(),  transaction->GetId());
-        ToProto(message.mutable_node_id(), nodeId);
-        message.set_attribute(request->attribute());
-        message.set_value(request->value());
-
-        multicellManager->PostToMaster(message, cellTag);
-    }
-
-    void HydraSetAttributeOnTransactionCommit(
-        NProto::TReqSetAttributeOnTransactionCommit* request)
-    {
-        auto nodeId = FromProto<TNodeId>(request->node_id());
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (CellTagFromId(nodeId) != multicellManager->GetCellTag()) {
-            YT_LOG_ALERT(
-                "Failed to set attribute on transaction commit: not a native cell "
-                "(TransactionId: %v, NodeId: %v, Attribute: %v)",
-                transactionId,
-                nodeId,
-                request->attribute());
-            return;
-        }
-
-        SetAttributeOnTransactionCommit(
-            transactionId,
-            nodeId,
-            request->attribute(),
-            TYsonString(request->value()));
-    }
-
     void HydraCommitMergeToTrunkAndUnlockNode(
         TTransaction* /*transaction*/,
         NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode* request,
@@ -5186,9 +5056,14 @@ private:
             return;
         }
 
+        if (currentNode->IsExternal()) {
+            YT_LOG_ALERT("Manual node unbranching failed: node is external (NodeId: %v)", versionedId);
+            return;
+        }
+
         auto* transaction = currentNode->GetTransaction();
         if (!transaction) {
-            YT_LOG_ALERT("Skipping manual node unbranching: node is already trunk (NodeId: %v)", versionedId);
+            YT_LOG_DEBUG("Manual node unbranching failed: no such transaction (NodeId: %v)", versionedId);
             return;
         }
 
@@ -5263,13 +5138,33 @@ private:
         }
     }
 
-    void ResetCypressNodeReachability()
+    void HydraDestroyForeignNodeBeingCreated(NProto::TReqDestroyForeignNodeBeingCreated* request)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        for (auto [nodeId, node] : NodeMap_) {
-            node->SetReachable(false);
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            YT_LOG_ALERT("Failed to find transaction to remove branched node (NodeId: %v, TransactionId: %v)",
+                nodeId,
+                transactionId);
+            return;
         }
+
+        auto* trunkNode = FindNode(TVersionedObjectId(nodeId));
+        YT_VERIFY(trunkNode->IsForeign());
+
+        if (!IsObjectAlive(trunkNode)) {
+            YT_LOG_ALERT("Failed to find trunk node to remove branched node (NodeId: %v, TransactionId: %v)",
+                nodeId,
+                transactionId);
+            return;
+        }
+
+        DoDestroyNodeBeingCreated(TVersionedNodeId(nodeId, transactionId));
     }
 
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig() const
@@ -5278,22 +5173,10 @@ private:
         return configManager->GetConfig()->CypressManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         RecursiveResourceUsageCache_->SetExpirationTimeout(
             GetDynamicConfig()->RecursiveResourceUsageCacheExpirationTimeout);
-
-        if (!oldConfig->CypressManager->DisableCypressNodeReachability &&
-            GetDynamicConfig()->DisableCypressNodeReachability)
-        {
-            ResetCypressNodeReachability();
-        }
-
-        if (oldConfig->CypressManager->DisableCypressNodeReachability &&
-            !GetDynamicConfig()->DisableCypressNodeReachability)
-        {
-            YT_LOG_ALERT("Cypress node reachability is enabled again");
-        }
     }
 };
 

@@ -54,7 +54,7 @@ public:
 
             TCgiParameters params(req->GetUrl().RawQuery);
             auto profile = BuildProfile(params);
-            Symbolize(&profile, true);
+            Symbolize(&profile, { .SymbolizeExistingFunctions = false });
             AddBuildInfo(&profile, BuildInfo_);
 
             if (auto it = params.Find("symbolize"); it == params.end() || it->second != "0") {
@@ -211,7 +211,7 @@ public:
     {
         auto stat = tcmalloc::MallocExtension::GetStats();
         rsp->SetStatus(EStatusCode::OK);
-        WaitFor(rsp->WriteBody(TSharedRef::FromString(TString{stat})))
+        WaitFor(rsp->WriteBody(TSharedRef::FromString(std::string{stat})))
             .ThrowOnError();
     }
 };
@@ -281,7 +281,7 @@ public:
 
 void Register(
     const NHttp::IServerPtr& server,
-    const TString& prefix,
+    const std::string& prefix,
     const TBuildInfo& buildInfo)
 {
     Register(server->GetPathMatcher(), prefix, buildInfo);
@@ -289,7 +289,7 @@ void Register(
 
 void Register(
     const IRequestPathMatcherPtr& handlers,
-    const TString& prefix,
+    const std::string& prefix,
     const TBuildInfo& buildInfo)
 {
     handlers->Add(prefix + "/cpu/profile", New<TCpuProfilerHandler>(buildInfo));

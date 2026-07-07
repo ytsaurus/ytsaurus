@@ -153,7 +153,7 @@ class TypeTester(object):
         self._helper.write(path, value)
 
     def check_bad_value(self, logical_type, value):
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             self.check_good_value(logical_type, value)
 
     def check_conversion_error(self, logical_type, value):
@@ -178,7 +178,7 @@ class SingleColumnTable(object):
         tx_write_table(self.path, [{"column": value}], input_format=POSITIONAL_YSON)
 
     def check_bad_value(self, value):
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             self.check_good_value(value)
 
 
@@ -206,7 +206,6 @@ def type_v3_to_type_v1(type_v3):
 
 @authors("ermolovd")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-@pytest.mark.enabled_multidaemon
 class TestComplexTypes(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -283,13 +282,13 @@ class TestComplexTypes(YTEnvSetup):
             path="//tmp/test_3",
         )
 
-        with raises_yt_error("Struct field name \"a\" is used twice"):
+        with raises_yt_error("Struct field name .* is used twice"):
             SingleColumnTable(
                 type_constructor([("a", "int64"), ("b", "int64"), ("a", "int64")]),
                 optimize_for,
             )
 
-        with raises_yt_error("Struct field stable name \"stable_a\" is used twice"):
+        with raises_yt_error("Struct field stable name .* is used twice"):
             SingleColumnTable(
                 type_constructor([
                     ("a", "stable_a", "int64"),
@@ -315,13 +314,13 @@ class TestComplexTypes(YTEnvSetup):
             path="//tmp/test_2",
         )
 
-        with raises_yt_error("Removed field stable name \"b\" is used twice"):
+        with raises_yt_error("Removed field stable name .* is used twice"):
             SingleColumnTable(
                 struct_type([("a", "int64")], removed_field_stable_names=["b", "c", "b"]),
                 optimize_for,
             )
 
-        with raises_yt_error("Removed field stable name \"stable_a\" cannot be used as a stable name"):
+        with raises_yt_error("Removed field stable name .* cannot be used as a stable name"):
             SingleColumnTable(
                 struct_type([("a", "stable_a", "int64")], removed_field_stable_names=["stable_a"]),
                 optimize_for,
@@ -461,7 +460,7 @@ class TestComplexTypes(YTEnvSetup):
 
         # no exception
         tx_write_table("//tmp/table", [{}, {"column": None}])
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": 0}])
 
         with raises_yt_error("Null type cannot be required"):
@@ -499,7 +498,7 @@ class TestComplexTypes(YTEnvSetup):
         )
         tx_write_table("//tmp/table", [{"column": []}, {"column": [None]}])
         tx_write_table("//tmp/table", [{"column": []}, {"column": [None, None]}])
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": [0]}])
 
         create(
@@ -510,10 +509,10 @@ class TestComplexTypes(YTEnvSetup):
         )
         tx_write_table("//tmp/table", [{"column": None}, {"column": [None]}])
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": []}])
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": []}])
 
     @authors("ermolovd")
@@ -548,7 +547,7 @@ class TestComplexTypes(YTEnvSetup):
         )
 
         def check_bad(value):
-            with raises_yt_error(yt_error_codes.SchemaViolation):
+            with raises_yt_error(code=yt_error_codes.SchemaViolation):
                 tx_write_table(
                     "//tmp/table",
                     [
@@ -646,7 +645,6 @@ class TestComplexTypes(YTEnvSetup):
 
 
 @authors("ermolovd")
-@pytest.mark.enabled_multidaemon
 class TestComplexTypesMisc(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -1013,7 +1011,7 @@ class TestComplexTypesMisc(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("option enable_merge_schemas_during_schema_infer is disabled"):
+        with raises_yt_error("Cannot infer output schema from input"):
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],
                 out="//tmp/output",
@@ -1063,7 +1061,7 @@ class TestComplexTypesMisc(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("option enable_merge_schemas_during_schema_infer is disabled"):
+        with raises_yt_error("Cannot infer output schema from input"):
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],
                 out="//tmp/output",
@@ -1078,7 +1076,6 @@ class TestComplexTypesMisc(YTEnvSetup):
         )
 
 
-@pytest.mark.enabled_multidaemon
 class TestLogicalType(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1296,7 +1293,7 @@ class TestLogicalType(YTEnvSetup):
             create("table", "//tmp/test-alter-table", attributes={"schema": schema_before})
             # Make table nonempty, since empty table allows any alter
             tx_write_table("//tmp/test-alter-table", [{}])
-            with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+            with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
                 alter_table("//tmp/test-alter-table", schema=schema_after)
 
         for (source_type, bad_destination_type_list) in [
@@ -1336,7 +1333,6 @@ class TestLogicalType(YTEnvSetup):
             )
 
 
-@pytest.mark.enabled_multidaemon
 class TestRequiredOption(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1359,11 +1355,11 @@ class TestRequiredOption(YTEnvSetup):
         )
 
         tx_write_table("//tmp/required_table", [{"value": "foo"}])
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/required_table", [{"value": 100500}])
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/required_table", [{"value": None}])
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/required_table", [{}])
 
     @authors("ermolovd")
@@ -1419,7 +1415,7 @@ class TestRequiredOption(YTEnvSetup):
             },
         )
         tx_write_table(table, [{"column": None}])
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table(
                 table,
                 schema=[
@@ -1474,7 +1470,7 @@ class TestRequiredOption(YTEnvSetup):
         )
         tx_write_table(table, [{"column1": "foo"}])
 
-        with raises_yt_error("Cannot insert a new required column "):
+        with raises_yt_error("Cannot insert a new required column"):
             alter_table(
                 table,
                 schema=[
@@ -1556,7 +1552,7 @@ class TestRequiredOption(YTEnvSetup):
 
         create("table", "//tmp/output")
 
-        with raises_yt_error("option enable_merge_schemas_during_schema_infer is disabled"):
+        with raises_yt_error("Cannot infer output schema from input"):
             # Schemas are incompatible
             merge(
                 in_=["//tmp/input1", "//tmp/input2"],
@@ -1602,7 +1598,7 @@ class TestRequiredOption(YTEnvSetup):
         # Old column cannot become required
         bad_schema = [i.copy() for i in schema]
         bad_schema[3]["required"] = True
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema)
 
         # Removing 'required' attribute is OK
@@ -1611,7 +1607,6 @@ class TestRequiredOption(YTEnvSetup):
         alter_table("//tmp/t", schema=good_schema)
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchemaDeduplication(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -1652,13 +1647,11 @@ class TestSchemaDeduplication(YTEnvSetup):
         assert get("//tmp/table/@schema") == get("//tmp/schema_holder/@schema")
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchemaDeduplicationRpcProxy(TestSchemaDeduplication):
     ENABLE_MULTIDAEMON = True
     NUM_RPC_PROXIES = 1
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchemaObjects(TestSchemaDeduplication):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1738,11 +1731,11 @@ class TestSchemaObjects(TestSchemaDeduplication):
         assert get("//tmp/table3/@schema") == schema
 
         # Invalid @schema_id only.
-        with raises_yt_error("No such schema"):
+        with raises_yt_error("No such schema .*"):
             create("table", "//tmp/table4", attributes={"schema_id": "a-b-c-d"})
 
         # @schema and invalid @schema_id.
-        with raises_yt_error("No such schema"):
+        with raises_yt_error("No such schema .*"):
             create("table", "//tmp/table5", attributes={"schema_id": "a-b-c-d", "schema": schema})
 
         other_schema = make_schema([make_column("some_column", "int8")], unique_keys=False, strict=True)
@@ -1840,11 +1833,11 @@ class TestSchemaObjects(TestSchemaDeduplication):
         schema = get("//tmp/schema_holder/@schema")
         assert get("#{}".format(schema_id)) == schema
         assert get("#{}/@value".format(schema_id)) == schema
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             set("#{}/@value".format(schema_id), self._get_schema(True))
-        with pytest.raises(YtError):
+        with raises_yt_error(".* method is not supported"):
             set("#{}".format(schema_id), self._get_schema(True))
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* cannot be removed"):
             remove("#{}/@value".format(schema_id))
 
     @authors("h0pless")
@@ -1869,7 +1862,6 @@ class TestSchemaObjects(TestSchemaDeduplication):
         wait(lambda: get("#{}/@export_ref_counter".format(schema_id)) == {})
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchemaValidation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -1905,7 +1897,7 @@ class TestSchemaValidation(YTEnvSetup):
             remove("//tmp/t")
 
         def check_not_comparable(type):
-            with raises_yt_error("Key column cannot be of"):
+            with raises_yt_error("Key column cannot be of .* type"):
                 check_comparable(type)
 
         for t in [
@@ -1971,13 +1963,12 @@ class TestSchemaValidation(YTEnvSetup):
             create("table", "//tmp/t", attributes={"schema": schema})
             remove("//tmp/t")
 
-        with raises_yt_error("empty"):
+        with raises_yt_error("Column name cannot be empty"):
             schema = make_schema([make_column("a", "int64", stable_name="")])
             check_schema(schema)
 
 
 @authors("ermolovd")
-@pytest.mark.enabled_multidaemon
 class TestErrorCodes(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1997,7 +1988,7 @@ class TestErrorCodes(YTEnvSetup):
         create("table", "//tmp/t", attributes={"schema": schema, "dynamic": True})
 
         sync_mount_table("//tmp/t")
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             insert_rows("//tmp/t", [{"baz": 1}])
         sync_unmount_table("//tmp/t")
 
@@ -2006,7 +1997,7 @@ class TestErrorCodes(YTEnvSetup):
 
         create("table", "//tmp/t", attributes={"schema": schema})
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/t", [{"foo": -1}])
 
 
@@ -2109,7 +2100,7 @@ class AlterTableSetup(YTEnvSetup):
         # Check that table is still readable after alter.
         self.check_table_readable(old_schema, dynamic)
 
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table(self._TABLE_PATH, schema=old_schema)
 
     def check_bad_alter_type(self, old_type_v3, new_type_v3, dynamic=False):
@@ -2120,7 +2111,7 @@ class AlterTableSetup(YTEnvSetup):
         new_schema = self._create_test_schema_with_type(new_type_v3)
         self.prepare_table(old_schema, dynamic=dynamic)
 
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table(self._TABLE_PATH, schema=new_schema)
 
     def check_bad_both_ways_alter_type(self, lhs_type_v3, rhs_type_v3, dynamic=False):
@@ -2129,7 +2120,6 @@ class AlterTableSetup(YTEnvSetup):
 
 
 @authors("ermolovd")
-@pytest.mark.enabled_multidaemon
 class TestAlterTable(AlterTableSetup):
     USE_DYNAMIC_TABLES = True
 
@@ -2399,7 +2389,6 @@ class TestAlterTable(AlterTableSetup):
             dynamic=dynamic)
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchemaDepthLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     YSON_DEPTH_LIMIT = 256
@@ -2426,14 +2415,14 @@ class TestSchemaDepthLimit(YTEnvSetup):
         })
 
         bad_schema = self._create_schema(self.SCHEMA_DEPTH_LIMIT + 1)
-        with raises_yt_error("depth limit"):
+        with raises_yt_error("Logical type exceeds depth limit during parsing"):
             create("table", "//tmp/t2", force=True, attributes={
                 "schema": bad_schema,
             })
 
         bad_schema = self._create_schema(self.VERY_LARGE_DEPTH)
         # No crash here.
-        with raises_yt_error("depth limit"):
+        with raises_yt_error("Logical type exceeds depth limit during parsing"):
             create("table", "//tmp/t3", force=True, attributes={
                 "schema": bad_schema,
             })
@@ -2482,31 +2471,26 @@ class DisableStructFieldRemovalSetup(DisabledStructFieldManipulationSetup):
         )
 
 
-@pytest.mark.enabled_multidaemon
 class TestDisableStructFieldRenaminglStatic(DisableStructFieldRenamingSetup):
     USE_DYNAMIC_TABLES = False
     ENABLE_STATIC_STRUCT_FIELD_RENAMING = False
 
 
-@pytest.mark.enabled_multidaemon
 class TestDisableStructFieldRenamingDynamic(DisableStructFieldRenamingSetup):
     USE_DYNAMIC_TABLES = True
     ENABLE_DYNAMIC_STRUCT_FIELD_RENAMING = False
 
 
-@pytest.mark.enabled_multidaemon
 class TestDisableStructFieldRemovalStatic(DisableStructFieldRemovalSetup):
     USE_DYNAMIC_TABLES = False
     ENABLE_STATIC_STRUCT_FIELD_REMOVAL = False
 
 
-@pytest.mark.enabled_multidaemon
 class TestDisableStructFieldRemovalDynamic(DisableStructFieldRemovalSetup):
     USE_DYNAMIC_TABLES = True
     ENABLE_DYNAMIC_STRUCT_FIELD_REMOVAL = False
 
 
-@pytest.mark.enabled_multidaemon
 class TestRenameColumnsStatic(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -2731,7 +2715,6 @@ class TestRenameColumnsStatic(YTEnvSetup):
             alter_table(self._TABLE_PATH, dynamic=True)
 
 
-@pytest.mark.enabled_multidaemon
 class TestRenameColumnsDynamic(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     _TABLE_PATH = "//tmp/test-alter-table"
@@ -2977,7 +2960,6 @@ class TestRenameColumnsDynamic(YTEnvSetup):
         assert read_table(self._TABLE_PATH) == rows4
 
 
-@pytest.mark.enabled_multidaemon
 class TestDeleteColumnsDisabledStatic(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -3011,7 +2993,6 @@ class TestDeleteColumnsDisabledStatic(YTEnvSetup):
             alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
 
 
-@pytest.mark.enabled_multidaemon
 class TestDeleteColumnsDisabledDynamic(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -3142,7 +3123,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("b", "string"),
             make_column("cc", "bool", stable_name="c"),
         ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("c"))
-        with raises_yt_error("Duplicate column stable name \"c\""):
+        with raises_yt_error("Duplicate column stable name"):
             alter_table(self._TABLE_PATH, schema=schema6, verbose=True)
 
     @authors("orlovorlov")
@@ -3175,7 +3156,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("a", "int64", sort_order="ascending"),
             make_column("c", "bool"),
         ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("bb"))
-        with raises_yt_error("Column \"bb\" (stable name \"b\") is missing in strict schema"):
+        with raises_yt_error("Column .* is missing in strict schema"):
             alter_table(self._TABLE_PATH, schema=schema3, verbose=True)
 
         schema4 = make_schema([
@@ -3214,7 +3195,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("c", "bool"),
             make_column("b", "string"),
         ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("b"))
-        with raises_yt_error("Duplicate column stable name \"b\""):
+        with raises_yt_error("Duplicate column stable name"):
             alter_table(self._TABLE_PATH, schema=schema3, verbose=True)
 
         schema4 = make_schema([
@@ -3250,7 +3231,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("d", "int64"),
         ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("b"))
 
-        with raises_yt_error("Key column \"b\" may not be deleted"):
+        with raises_yt_error("Key column .* may not be deleted"):
             alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
 
     @authors("orlovorlov")

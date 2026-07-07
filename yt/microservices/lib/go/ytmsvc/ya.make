@@ -1,6 +1,7 @@
 GO_LIBRARY()
 
 SRCS(
+    batchedsort.go
     common.go
     crypto.go
     http.go

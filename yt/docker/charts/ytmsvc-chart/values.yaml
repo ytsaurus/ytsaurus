@@ -94,6 +94,7 @@ microservices:
       failedJobsHistoryLimit: 2
       startingDeadlineSeconds: 5
       ttlSecondsAfterFinished: 43200
+      pool: null
     removeExcessive:
       enabled: true
       schedule: "0 0 * * *"
@@ -133,6 +134,7 @@ microservices:
       tmpPath: "//sys/admin/yt-microservices/tmp/id_to_path_updater"
       outputTable: "//sys/admin/yt-microservices/node_id_dict/data"
       inputTablesSource: "//sys/admin/logs/export/master-access"
+      maxInputTableCount: 256
     preprocessing:
       enabled: true
       schedule: "0 * * * *"
@@ -156,6 +158,7 @@ microservices:
         port: 80
       config:
         chytAlias: "ch_public"
+        logsTimezone: "UTC"
     rawLogPreprocessing:
       enabled: true
       schedule: "*/15 * * * *"
@@ -167,6 +170,11 @@ microservices:
         lockPath: "//sys/admin/yt-microservices/raw_master_access_log_processing/lock"
         workPath: "//sys/admin/yt-microservices/raw_master_access_log_processing"
         maxInputTables: 16
+        processings:
+          30min:
+            expirationTimeout: 168h
+          # 1d:
+          #   expirationTimeout: 672h
     preprocessing:
       enabled: true
       schedule: "*/15 * * * *"
@@ -180,4 +188,5 @@ microservices:
         maxParallelOps: 1
         maxTables: 100
         networkProject: null
+        recomputeStale: true
     secretRefs: []

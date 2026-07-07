@@ -15,9 +15,9 @@ TDownloadOperationParams downloadOperationParams{
     .Output = TFmrTableRef{{"Cluster", "Path"}}
 };
 
-TStartOperationRequest CreateOperationRequest(ETaskType taskType = ETaskType::Download, TOperationParams operationParams = downloadOperationParams) {
+TStartOperationRequest CreateOperationRequest(EOperationType operationType = EOperationType::Download, TOperationParams operationParams = downloadOperationParams) {
     return TStartOperationRequest{
-        .TaskType = taskType,
+        .OperationType = operationType,
         .OperationParams = operationParams,
         .SessionId = "test-session-id",
         .IdempotencyKey = "IdempotencyKey",

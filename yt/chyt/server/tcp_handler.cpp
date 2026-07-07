@@ -1,6 +1,5 @@
 #include "tcp_handler.h"
 
-#include "helpers.h"
 #include "host.h"
 #include "query_context.h"
 #include "secondary_query_header.h"
@@ -83,13 +82,9 @@ DBPoco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
             traceContext->AddTag("chyt.instance_cookie", Host_->GetInstanceCookie());
             traceContext->AddTag("chyt.instance_address", Host_->GetConfig()->Address);
 
-            YT_LOG_DEBUG("Registering new user (UserName: %v)", user);
-            RegisterNewUser(
-                context->getAccessControl(),
-                TString(user),
-                Host_->GetUserDefinedDatabaseNames(),
-                Host_->HasUserDefinedSqlObjectStorage());
-            YT_LOG_DEBUG("User registered");
+            YT_LOG_DEBUG("Preparing new user (UserName: %v)", user);
+            Host_->PrepareClickHouseUser(user);
+            YT_LOG_DEBUG("User prepared");
 
             SetupHostContext(
                 Host_,

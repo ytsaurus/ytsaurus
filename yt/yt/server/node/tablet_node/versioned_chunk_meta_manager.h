@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/core/misc/async_slru_cache.h>
 
 namespace NYT::NTabletNode {
@@ -15,6 +13,7 @@ struct TVersionedChunkMetaCacheKey
     NChunkClient::TChunkId ChunkId;
     int TableSchemaKeyColumnCount;
     bool PreparedColumnarMeta;
+    bool CompressedBlockLastKeys;
 
     bool operator==(const TVersionedChunkMetaCacheKey& other) const;
 
@@ -47,7 +46,8 @@ struct IVersionedChunkMetaManager
         const NTableClient::TTableSchemaPtr& schema,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::optional<i64> metaSize,
-        bool prepareColumnarMeta = false) = 0;
+        bool prepareColumnarMeta = false,
+        bool compressBlockLastKeys = false) = 0;
 
     virtual bool InsertMeta(
         const TVersionedChunkMetaCacheKey& key,

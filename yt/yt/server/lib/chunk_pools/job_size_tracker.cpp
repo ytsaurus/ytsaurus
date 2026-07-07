@@ -201,7 +201,7 @@ private:
 
     TLogger Logger;
 
-    static TString FormatToken(const TJobSizeTracker::TOverflowToken& token)
+    static std::string FormatToken(const TJobSizeTracker::TOverflowToken& token)
     {
         return Format("{R: %v, L: %v, I: %v}", token.OverflownResource, token.IsLocal, token.FlushIndex);
     }

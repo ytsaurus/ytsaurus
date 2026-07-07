@@ -11,7 +11,6 @@ package asynczap
 
 import (
 	"fmt"
-	"sync/atomic"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -49,6 +48,7 @@ func NewCore(enc zapcore.Encoder, ws zapcore.WriteSyncer, enab zapcore.LevelEnab
 		LevelEnabler: enab,
 		enc:          enc,
 		w:            w,
+		options:      options,
 	}
 }
 
@@ -101,8 +101,8 @@ func (c *Core) Sync() error {
 
 func (c *Core) Stat() Stats {
 	return Stats{
-		DroppedRecords: int(atomic.LoadInt64(&c.w.droppedRecords)),
-		WriteErrors:    int(atomic.LoadInt64(&c.w.writeErrors)),
+		DroppedRecords: int(c.w.droppedRecords.Load()),
+		WriteErrors:    int(c.w.writeErrors.Load()),
 		QueueSize:      int(c.w.q.loadSize()),
 	}
 }

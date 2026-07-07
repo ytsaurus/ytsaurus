@@ -220,7 +220,7 @@ public:
 
     bool OnBetween(const TBetweenExpressionPtr betweenExpr)
     {
-        return IsAnyExprATargetReference(betweenExpr->Expr, Reference_) && AllowValueRange_;
+        return AllowValueRange_ && IsAnyExprATargetReference(betweenExpr->Expr, Reference_);
     }
 
     bool OnTransform(const TTransformExpressionPtr /*transformExpr*/)

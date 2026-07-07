@@ -89,7 +89,7 @@ private:
         std::vector<NChunkClient::TBlock> blocks,
         i64 cumulativeBlockSize,
         bool enableCaching) override;
-    TFuture<void> PreparePutBlocks(
+    void PreparePutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         bool useCumulativeBlockSize,
@@ -115,8 +115,7 @@ private:
 
     TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount,
-        bool truncateExtraBlocks) override;
+        std::optional<int> blockCount) override;
     TFinishResult OnFinished(
         NNode::TLocationFairShareSlotPtr fairShareQueueSlot,
         const TError& error);

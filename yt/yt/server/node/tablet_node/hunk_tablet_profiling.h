@@ -78,7 +78,7 @@ public:
 
 private:
     const bool Disabled_ = true;
-    const NProfiling::TProfiler Profiler_ = {};
+    const NProfiling::TProfiler Profiler_;
 
     TUserTaggedCounter<THunkWriteCounters> WriteCounters_;
     TUserTaggedCounter<THunkTabletServiceCounters> TabletServiceCounters_;

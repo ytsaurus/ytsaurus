@@ -17,6 +17,7 @@ namespace NYT::NQueueAgent {
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentLogger, "QueueAgent");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueControllerLogger, "QueueController");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ConsumerControllerLogger, "ConsumerController");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, MultiConsumerControllerLogger, "MultiConsumerController");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExporterLogger, "QueueExporter");
 // COMPAT(apachee): For old queue export implementation.
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueStaticTableExporterLogger, "QueueStaticTableExporterLogger");
@@ -47,6 +48,8 @@ YT_DEFINE_ERROR_ENUM(
     ((QueueAgentQueueControllerStaticExportMisconfiguration)        (3037))
 
     ((QueueAgentShardingManagerPassFailed)                          (3050))
+
+    ((QueueAgentMultiConsumerControllerPassFailed)                  (3060))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +59,7 @@ YT_DEFINE_ERROR_ENUM(
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TQueueAgent)
+DECLARE_REFCOUNTED_STRUCT(TQueueExportManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueControllerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueExportManagerDynamicConfig)
@@ -83,7 +87,7 @@ DECLARE_REFCOUNTED_STRUCT(IQueueExportManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TAgentId = TString;
+using TAgentId = std::string;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,6 +101,7 @@ DECLARE_REFCOUNTED_CLASS(TQueueAgentClientDirectory)
 DEFINE_ENUM(EObjectKind,
     (Queue)
     (Consumer)
+    (MultiConsumer)
 );
 
 DEFINE_ENUM(EQueueFamily,
@@ -110,6 +115,7 @@ DECLARE_REFCOUNTED_STRUCT(TObjectSnapshotBase)
 DECLARE_REFCOUNTED_STRUCT(TQueueSnapshot)
 using TQueueSnapshotConstPtr = TIntrusivePtr<const TQueueSnapshot>;
 DECLARE_REFCOUNTED_STRUCT(TQueuePartitionSnapshot)
+DECLARE_REFCOUNTED_STRUCT(TMultiConsumerSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TConsumerSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TSubConsumerSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TConsumerPartitionSnapshot)
@@ -150,6 +156,7 @@ DEFINE_ENUM(EConsumerPartitionDisposition,
 
 inline const std::string NoneQueueAgentStage = "none";
 inline const std::string NoneObjectType = "none";
+inline const std::string NoneProfilingTag = "none";
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -42,6 +42,9 @@ struct TUnbufferedFileChangelogHeaderTag
 struct TUnbufferedFileChangelogRecordHeadersTag
 { };
 
+struct TUnbufferedFileChangelogRecordRangeTag
+{ };
+
 struct TUnbufferedFileChangelogWipeTag
 { };
 
@@ -119,6 +122,7 @@ public:
                         FileHeaderSize_ = sizeof(TChangelogHeader_5);
                         RecordHeaderSize_ = sizeof(TChangelogRecordHeader_5);
                         break;
+
                     default:
                         THROW_ERROR_EXCEPTION(
                             NHydra::EErrorCode::BrokenChangelog,
@@ -161,7 +165,8 @@ public:
                         std::max(guessedRecordReadSize, Config_->RecoveryBufferSize),
                         dataFileLength - currentDataOffset);
 
-                    YT_LOG_DEBUG("Recovering records (CurrentRecordIndex: %v, CurrentDataOffset: %v, DataFileLength: %v, GuessedRecordReadSize: %v, BlockSize: %v)",
+                    YT_LOG_DEBUG("Recovering records "
+                        "(CurrentRecordIndex: %v, CurrentDataOffset: %v, DataFileLength: %v, GuessedRecordReadSize: %v, BlockSize: %v)",
                         currentRecordIndex,
                         currentDataOffset,
                         dataFileLength,
@@ -299,6 +304,8 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        ValidateOpen();
+
         return Meta_;
     }
 
@@ -306,12 +313,16 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        ValidateOpen();
+
         return RecordCount_.load();
     }
 
     i64 GetDataSize() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        ValidateOpen();
 
         return CurrentFileOffset_.load();
     }
@@ -342,6 +353,7 @@ public:
             case EFileChangelogFormat::V5:
                 DoAppend<TChangelogRecordHeader_5>(firstRecordIndex, records);
                 break;
+
             default:
                 YT_ABORT();
         }
@@ -365,7 +377,8 @@ public:
             if (withIndex) {
                 Index_->SyncFlush();
                 indexFlushed = true;
-            } else if (AppendedDataSizeSinceLastIndexFlush_ >= Config_->IndexFlushSize &&  Index_->CanFlush())
+            } else if (AppendedDataSizeSinceLastIndexFlush_ >= Config_->IndexFlushSize &&
+                Index_->CanFlush())
             {
                 Index_->AsyncFlush();
                 indexFlushed = true;
@@ -396,6 +409,7 @@ public:
         switch (Format_) {
             case EFileChangelogFormat::V5:
                 return DoRead<TChangelogRecordHeader_5>(firstRecordIndex, maxRecords, maxBytes);
+
             default:
                 YT_ABORT();
         }
@@ -406,9 +420,12 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        ValidateOpen();
+
         switch (Format_) {
             case EFileChangelogFormat::V5:
                 return DoMakeChunkFragmentReadRequest<TChangelogRecordHeader_5>(fragmentDescriptor);
+
             default:
                 YT_ABORT();
         }
@@ -527,7 +544,8 @@ private:
         auto amplification = static_cast<double>(MediaWrittenBytes_) / PayloadWrittenBytes_;
         WriteAmplificationRatio_.store(amplification, std::memory_order::relaxed);
 
-        YT_LOG_DEBUG("Updating write amplification (PayloadWrittenBytes: %v, MediaWrittenBytes: %v, WriteAmplification: %v)",
+        YT_LOG_DEBUG("Updating write amplification "
+            "(PayloadWrittenBytes: %v, MediaWrittenBytes: %v, WriteAmplification: %v)",
             PayloadWrittenBytes_,
             MediaWrittenBytes_,
             amplification);
@@ -555,7 +573,6 @@ private:
             EWorkloadCategory::UserBatch);
     }
 
-
     void Cleanup()
     {
         Open_ = false;
@@ -568,7 +585,7 @@ private:
         CurrentFileSize_ = -1;
     }
 
-    void ValidateOpen()
+    void ValidateOpen() const
     {
         if (!Open_) {
             THROW_ERROR_EXCEPTION(
@@ -577,7 +594,7 @@ private:
         }
     }
 
-    void ValidateNotOpen()
+    void ValidateNotOpen() const
     {
         if (Open_) {
             THROW_ERROR_EXCEPTION(
@@ -592,7 +609,11 @@ private:
         while (true) {
             YT_LOG_DEBUG("Locking data file");
 
-            auto error = WaitFor(IOEngine_->Lock({.Handle = DataFileHandle_, .Mode = ELockFileMode::Exclusive, .Nonblocking = true}));
+            auto error = WaitFor(IOEngine_->Lock({
+                .Handle = DataFileHandle_,
+                .Mode = ELockFileMode::Exclusive,
+                .Nonblocking = true
+            }));
             if (error.IsOK()) {
                 break;
             }
@@ -677,6 +698,7 @@ private:
             case EFileChangelogFormat::V5:
                 DoCreateDataFile<TChangelogHeader_5, TChangelogRecordHeader_5>();
                 break;
+
             default:
                 YT_ABORT();
         }
@@ -703,7 +725,8 @@ private:
             std::vector<TSharedRef> buffers;
             buffers.reserve(records.size() * 3);
 
-            auto headersBuffer = TSharedMutableRef::Allocate<TUnbufferedFileChangelogRecordHeadersTag>(records.size() * sizeof(TRecordHeader));
+            auto headersBuffer = TSharedMutableRef::Allocate<TUnbufferedFileChangelogRecordHeadersTag>(
+                records.size() * sizeof(TRecordHeader));
             auto* currentHeader = reinterpret_cast<TRecordHeader*>(headersBuffer.Begin());
 
             for (int index = 0; index < std::ssize(records); ++index) {
@@ -713,7 +736,9 @@ private:
                     AlignUpSpace<i64>(std::ssize(record), ChangelogQWordAlignment);
 
                 i64 pagePaddingSize = index == std::ssize(records) - 1
-                    ? AlignUpSpace<i64>(currentFileOffset + sizeof(TRecordHeader) + std::ssize(record) + qwordPaddingSize, ChangelogPageAlignment)
+                    ? AlignUpSpace<i64>(
+                        currentFileOffset + sizeof(TRecordHeader) + std::ssize(record) + qwordPaddingSize,
+                        ChangelogPageAlignment)
                     : 0;
                 YT_VERIFY(pagePaddingSize <= std::numeric_limits<i16>::max());
 
@@ -892,6 +917,7 @@ private:
         switch (Format_) {
             case EFileChangelogFormat::V5:
                 return DoGuessRecordReadSize<TChangelogRecordHeader_5>(offset, dataFileLength);
+
             default:
                 YT_ABORT();
         }
@@ -942,6 +968,7 @@ private:
         switch (Format_) {
             case EFileChangelogFormat::V5:
                 return DoReadAndParseRange<TChangelogRecordHeader_5>(range, firstRecordIndex, throwOnError);
+
             default:
                 YT_ABORT();
         }
@@ -958,7 +985,7 @@ private:
                 {{.Handle = DataFileHandle_, .Offset = range.first, .Size = range.second - range.first}},
                 // TODO(babenko): better workload category?
                 EWorkloadCategory::UserBatch,
-                GetRefCountedTypeCookie<TUnbufferedFileChangelogHeaderTag>()))
+                GetRefCountedTypeCookie<TUnbufferedFileChangelogRecordRangeTag>()))
             .ValueOrThrow()
             .OutputBuffers[0];
 

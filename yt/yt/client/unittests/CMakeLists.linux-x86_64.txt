@@ -33,6 +33,7 @@ target_compile_options(unittester-client PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(unittester-client PUBLIC
@@ -43,6 +44,7 @@ target_link_libraries(unittester-client PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  cpp-type_info-tz
   yt-yt-build
   yt-core-test_framework
   yt-yt-core
@@ -92,11 +94,13 @@ target_sources(unittester-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/query_builder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/queue_static_export_config_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/read_limit_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/replication_card_serialization_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/replication_card_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/replication_progress_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/row_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/schema_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/table_consumer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/table_mount_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/unordered_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/unversioned_row_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/validate_logical_type_ut.cpp

@@ -18,6 +18,7 @@ struct TRequestExecutedPayload
 struct TForwardToMasterPayload
 {
     std::optional<NYson::TYsonString> EffectiveAcl;
+    bool HasRowLevelAce = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +65,13 @@ struct TAccessControlDescriptor
     NSecurityClient::TSerializableAccessControlList Acl;
     bool Inherit = true;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMissingNodeTag
+{ };
+
+using TNodeIdToAttributes = THashMap<NCypressClient::TNodeId, std::variant<TMissingNodeTag, NYTree::IAttributeDictionaryPtr, NYTree::INodePtr>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

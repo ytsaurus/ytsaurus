@@ -62,6 +62,7 @@ SRCS(
     exec_node/artifact.cpp
     exec_node/artifact.proto
     exec_node/artifact_cache.cpp
+    exec_node/artifact_description.cpp
     exec_node/bootstrap.cpp
     exec_node/controller_agent_connector.cpp
     exec_node/cache_location.cpp
@@ -70,6 +71,7 @@ SRCS(
     exec_node/gpu_manager.cpp
     exec_node/job_environment.cpp
     exec_node/job.cpp
+    exec_node/job_fs_secretary.cpp
     exec_node/job_info.cpp
     exec_node/job_directory_manager.cpp
     exec_node/job_gpu_checker.cpp
@@ -82,6 +84,9 @@ SRCS(
     exec_node/job_input_cache.cpp
     exec_node/proxying_data_node_service.cpp
     exec_node/orchid.cpp
+    exec_node/pending_downloads_tracker.cpp
+    exec_node/preparation_options.cpp
+    exec_node/private.cpp
     exec_node/public.cpp
     exec_node/scheduler_connector.cpp
     exec_node/slot.cpp
@@ -92,6 +97,7 @@ SRCS(
     exec_node/volume.proto
     exec_node/volume.cpp
     exec_node/volume_artifact.cpp
+    exec_node/volume_helpers.cpp
     exec_node/volume_cache.cpp
     exec_node/volume_counters.cpp
     exec_node/volume_manager.cpp
@@ -159,6 +165,7 @@ SRCS(
     tablet_node/ordered_chunk_store.cpp
     tablet_node/ordered_dynamic_store.cpp
     tablet_node/ordered_store_manager.cpp
+    tablet_node/overload_reporter.cpp
     tablet_node/partition.cpp
     tablet_node/partition_balancer.cpp
     tablet_node/puller_replica_cache.cpp
@@ -168,7 +175,7 @@ SRCS(
     tablet_node/revision_provider.cpp
     tablet_node/row_cache.cpp
     tablet_node/row_digest_compaction_hint.cpp
-    tablet_node/security_manager.cpp
+    tablet_node/row_cache_controller.cpp
     tablet_node/serialize.cpp
     tablet_node/slot_provider.cpp
     tablet_node/slot_manager.cpp
@@ -192,7 +199,6 @@ SRCS(
     tablet_node/table_puller_helpers.cpp
     tablet_node/tablet.cpp
     tablet_node/tablet_cell_service.cpp
-    tablet_node/tablet_cell_snapshot_validator.cpp
     tablet_node/tablet_manager.cpp
     tablet_node/tablet_memory_statistics.cpp
     tablet_node/tablet_cell_write_manager.cpp
@@ -212,6 +218,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/core/https
     yt/yt/core/service_discovery/yp
 
     yt/yt/library/containers
@@ -229,6 +236,8 @@ PEERDIR(
     yt/yt/library/tcmalloc
     yt/yt/library/tracing/baggage_manager
     yt/yt/library/tracing/jaeger
+
+    yt/yt/orm/library/query/heavy
 
     yt/yt/ytlib/distributed_throttler
 
@@ -250,6 +259,7 @@ PEERDIR(
     yt/yt/server/lib/nbd
     yt/yt/server/lib/node
     yt/yt/server/lib/rpc
+    yt/yt/server/lib/tablet_balancer
     yt/yt/server/lib/tablet_server
 
     # TODO(max42): Eliminate.

@@ -24,6 +24,7 @@ target_compile_options(server-lib-chaos_cache PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(server-lib-chaos_cache PUBLIC

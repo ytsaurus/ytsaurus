@@ -520,11 +520,15 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     bool hasAcd = acd;
     bool hasOwner = acd && acd->GetOwner();
     bool isForeign = Object_->IsForeign();
+    bool isSequoia = Object_->IsSequoia();
 
     descriptors->push_back(EInternedAttributeKey::Id);
     descriptors->push_back(EInternedAttributeKey::Type);
     descriptors->push_back(EInternedAttributeKey::Builtin);
     descriptors->push_back(EInternedAttributeKey::Sequoia);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SequoiaAcl)
+        .SetPresent(isSequoia)
+        .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::RefCounter);
     descriptors->push_back(EInternedAttributeKey::EphemeralRefCounter);
     descriptors->push_back(EInternedAttributeKey::WeakRefCounter);
@@ -653,6 +657,14 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
 
         case EInternedAttributeKey::Acl:
             if (!acd) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(acd->Acl());
+            return true;
+
+        case EInternedAttributeKey::SequoiaAcl:
+            if (!Object_->IsSequoia()) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -931,7 +943,7 @@ void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permissio
     securityManager->ValidatePermission(object, user, permission);
 }
 
-std::unique_ptr<TObjectProxyBase::IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
+std::unique_ptr<IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
 {
     return std::make_unique<TPermissionValidator>(this);
 }
@@ -997,7 +1009,7 @@ void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
         TCrossCellMessage(object->GetId(), GetObjectId(transaction), std::move(context)));
 }
 
-void TObjectProxyBase::ExternalizeToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
+void TObjectProxyBase::ExternalizeToMasters(IServiceContextPtr context, const NObjectClient::TCellTagSet& cellTags)
 {
     auto* object = GetObject();
     YT_VERIFY(object->IsNative());

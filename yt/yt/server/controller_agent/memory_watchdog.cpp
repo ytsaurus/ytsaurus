@@ -1,11 +1,10 @@
 #include "memory_watchdog.h"
 
-#include "private.h"
-
 #include "config.h"
 #include "controller_agent.h"
-#include "operation.h"
 #include "master_connector.h"
+#include "operation.h"
+#include "private.h"
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -146,4 +145,4 @@ void TMemoryWatchdog::UpdateConfig(TMemoryWatchdogConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} //namespace NYT::NControllerAgent
+} // namespace NYT::NControllerAgent

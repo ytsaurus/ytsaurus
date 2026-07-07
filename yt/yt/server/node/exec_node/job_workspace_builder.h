@@ -2,8 +2,9 @@
 
 #include "artifact.h"
 #include "artifact_cache.h"
-#include "job_gpu_checker.h"
 #include "job.h"
+#include "job_gpu_checker.h"
+#include "helpers.h"
 #include "private.h"
 
 #include <yt/yt/server/node/data_node/chunk.h>
@@ -16,11 +17,11 @@
 
 #include <yt/yt/library/containers/cri/public.h>
 
-#include <yt/yt/core/actions/public.h>
 #include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -43,15 +44,12 @@ struct TJobWorkspaceBuildingContext
 
     TArtifactDownloadOptions ArtifactDownloadOptions;
 
-    std::vector<TArtifactDescription> Artifacts;
+    TJobFSSecretaryPtr FSSecretary;
     std::vector<NContainers::TBind> Binds;
-    std::vector<TArtifactKey> RootVolumeLayerArtifactKeys;
-    std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys;
     std::vector<TShellCommandConfigPtr> SetupCommands;
-    std::optional<TString> DockerImage;
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;
-    IVolumePtr RootVolume;
-    std::vector<TTmpfsVolumeResult> PreparedTmpfsVolumes;
+    std::vector<TVolumeResultPtr> PreparedNonRootVolumes;
+    std::vector<TVolumeResultPtr> ReusedNonRootVolumes;
 
     bool NeedGpu = false;
     std::optional<TGpuCheckOptions> GpuCheckOptions;
@@ -65,9 +63,9 @@ struct TJobWorkspaceBuildingResult
 {
     IVolumePtr RootVolume;
     IVolumePtr GpuCheckVolume;
-    std::optional<TString> DockerImage;
-    std::optional<TString> DockerImageId;
-    std::vector<TTmpfsVolumeResult> TmpfsVolumes;
+    std::optional<std::string> DockerImage;
+    std::optional<std::string> DockerImageId;
+    std::vector<TVolumeResultPtr> PreparedNonRootVolumes;
     std::vector<NContainers::TBind> RootBinds;
     int SetupCommandCount = 0;
 
@@ -78,14 +76,17 @@ struct TJobWorkspaceBuildingResult
 
 struct TJobWorkspaceBuilderTimePoints
 {
+    std::optional<TInstant> PrepareLayersStartTime;
+    std::optional<TInstant> PrepareLayersFinishTime;
+
     std::optional<TInstant> PrepareRootVolumeStartTime;
     std::optional<TInstant> PrepareRootVolumeFinishTime;
 
     std::optional<TInstant> ValidateRootFSStartTime;
     std::optional<TInstant> ValidateRootFSFinishTime;
 
-    std::optional<TInstant> PrepareTmpfsVolumesStartTime;
-    std::optional<TInstant> PrepareTmpfsVolumesFinishTime;
+    std::optional<TInstant> PrepareNonRootVolumesStartTime;
+    std::optional<TInstant> PrepareNonRootVolumesFinishTime;
 
     std::optional<TInstant> PrepareGpuCheckVolumeStartTime;
     std::optional<TInstant> PrepareGpuCheckVolumeFinishTime;
@@ -93,8 +94,8 @@ struct TJobWorkspaceBuilderTimePoints
     std::optional<TInstant> GpuCheckStartTime;
     std::optional<TInstant> GpuCheckFinishTime;
 
-    std::optional<TInstant> LinkTmpfsVolumesStartTime;
-    std::optional<TInstant> LinkTmpfsVolumesFinishTime;
+    std::optional<TInstant> LinkVolumesStartTime;
+    std::optional<TInstant> LinkVolumesFinishTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,15 +132,17 @@ protected:
 
     const NLogging::TLogger& Logger;
 
+    virtual TFuture<void> DoPrepareLayers() = 0;
+
     virtual TFuture<void> DoPrepareRootVolume() = 0;
 
-    virtual TFuture<void> DoPrepareTmpfsVolumes() = 0;
+    virtual TFuture<void> DoPrepareNonRootVolumes() = 0;
 
     virtual TFuture<void> DoPrepareGpuCheckVolume() = 0;
 
     virtual TFuture<void> DoBindRootVolume() = 0;
 
-    virtual TFuture<void> DoLinkTmpfsVolumes() = 0;
+    virtual TFuture<void> DoLinkVolumes() = 0;
 
     virtual TFuture<void> DoValidateRootFS() = 0;
 

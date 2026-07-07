@@ -55,7 +55,6 @@ import datetime
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteOperationCommandsBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
@@ -665,7 +664,7 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
     @authors("coteeq")
     def test_disallow(self):
         create_user("user-not-allowed")
-        with raises_yt_error("not allowed to start operations"):
+        with raises_yt_error("User .* is not allowed to start operations reading from cluster .*"):
             map(
                 in_=self.to_remote_path("//tmp/t"),
                 out_="//tmp/out",
@@ -673,7 +672,7 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
                 command="cat"
             )
 
-        with raises_yt_error("not allowed to be an input remote cluster"):
+        with raises_yt_error("Cluster .* is not allowed to be an input remote cluster"):
             map(
                 # NB: Cluster 'not-allowed' does not need to exist
                 in_="""<cluster="not-allowed">//tmp/t""",
@@ -820,7 +819,6 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
             )
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteOperationNetworks(TestSchedulerRemoteOperationCommandsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -862,7 +860,6 @@ class TestSchedulerRemoteOperationNetworks(TestSchedulerRemoteOperationCommandsB
             run_and_assert()
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteOperationCommandsBase):
     ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {

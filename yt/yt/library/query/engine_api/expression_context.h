@@ -19,8 +19,8 @@ public:
     explicit TExpressionContext(TRowBufferPtr rowBuffer);
 
     ~TExpressionContext() = default;
-    TExpressionContext(TExpressionContext&& other);
-    TExpressionContext& operator=(TExpressionContext&& other);
+    TExpressionContext(TExpressionContext&& other) noexcept;
+    TExpressionContext& operator=(TExpressionContext&& other) noexcept;
 
     void Clear();
     void ClearWebAssemblyPool();

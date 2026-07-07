@@ -1,6 +1,7 @@
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/core/bus/bus.h>
+#include <yt/yt/core/bus/message_handler.h>
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -13,6 +14,7 @@
 namespace NYT {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 
 static const auto Logger = NLogging::TLogger("BusEchoServer");
 
@@ -24,7 +26,9 @@ class TBusEchoMessageHandler
 public:
     virtual void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
+        IBusPtr replyBus,
+        IDirectPlacementTransferPtr /*transfer*/,
+        TPacketId /*packetId*/) noexcept override
     {
         const auto& peer = replyBus->GetEndpointDescription();
         auto id = Counter_++;
@@ -96,6 +100,7 @@ protected:
 
         server->Start(handler);
 
+        // TODO(babenko): drop TString once TInputStream::ReadLine accepts std::string.
         TString line;
         for (;;) {
             if (!Cin.ReadLine(line)) {
@@ -108,10 +113,10 @@ protected:
 
 private:
     int Port_;
-    TString EncryptionMode_;
-    TString CertChainFile_;
-    TString PrivateKeyFile_;
-    TString CipherList_;
+    std::string EncryptionMode_;
+    std::string CertChainFile_;
+    std::string PrivateKeyFile_;
+    std::string CipherList_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

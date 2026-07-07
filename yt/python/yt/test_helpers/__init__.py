@@ -3,7 +3,9 @@ try:
 except ImportError:
     yatest_common = None
 
+from contextlib import contextmanager
 import os
+
 
 try:
     from unittest.util import unorderable_list_difference
@@ -171,3 +173,13 @@ def prepare_yt_environment():
     environment_paths = os.environ.get("PATH", "").split(os.pathsep)
     if path not in environment_paths:
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+
+
+@contextmanager
+def log_level_override(logger_instance, level):
+    old_level = logger_instance.level
+    logger_instance.setLevel(level)
+    try:
+        yield
+    finally:
+        logger_instance.setLevel(old_level)

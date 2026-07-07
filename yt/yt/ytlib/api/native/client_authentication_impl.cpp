@@ -2,14 +2,22 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/library/auth_server/config.h>
+#include <yt/yt/library/auth_server/credentials.h>
+#include <yt/yt/library/auth_server/cypress_token_authenticator.h>
+#include <yt/yt/library/auth_server/token_authenticator.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/core/crypto/crypto.h>
+
+#include <library/cpp/yt/string/string.h>
 
 #include <util/string/hex.h>
 
 namespace NYT::NApi::NNative {
 
+using namespace NAuth;
 using namespace NConcurrency;
 using namespace NCrypto;
 using namespace NObjectClient;
@@ -33,9 +41,9 @@ static std::string GenerateToken()
     constexpr int TokenBodyBytesLength = 16;
     constexpr int TokenPrefixBytesLength = 2;
     auto tokenBodyBytes = GenerateCryptoStrongRandomString(TokenBodyBytesLength);
-    auto tokenBody = to_lower(HexEncode(tokenBodyBytes.data(), tokenBodyBytes.size()));
+    auto tokenBody = AsciiStringToLower(HexEncode(tokenBodyBytes.data(), tokenBodyBytes.size()));
     auto tokenPrefixBytes = GenerateCryptoStrongRandomString(TokenPrefixBytesLength);
-    auto tokenPrefix = Format("ytct-%v-", to_lower(HexEncode(tokenPrefixBytes.data(), tokenPrefixBytes.size())));
+    auto tokenPrefix = Format("ytct-%v-", AsciiStringToLower(HexEncode(tokenPrefixBytes.data(), tokenPrefixBytes.size())));
     return tokenPrefix + tokenBody;
 }
 
@@ -43,8 +51,8 @@ static std::string GenerateToken()
 
 void TClient::DoSetUserPassword(
     const std::string& user,
-    const TString& currentPasswordSha256,
-    const TString& newPasswordSha256,
+    const std::string& currentPasswordSha256,
+    const std::string& newPasswordSha256,
     const TSetUserPasswordOptions& options)
 {
     ValidateAuthenticationCommandPermissions(
@@ -84,7 +92,7 @@ void TClient::DoSetUserPassword(
 
 TIssueTokenResult TClient::DoIssueToken(
     const std::string& user,
-    const TString& passwordSha256,
+    const std::string& passwordSha256,
     const TIssueTokenOptions& options)
 {
     ValidateAuthenticationCommandPermissions(
@@ -240,54 +248,21 @@ void TClient::DoRefreshTemporaryToken(
 
 void TClient::DoRevokeToken(
     const std::string& user,
-    const TString& passwordSha256,
-    const TString& tokenSha256,
+    const std::string& passwordSha256,
+    const std::string& tokenSha256,
     const TRevokeTokenOptions& options)
 {
     auto rootClient = CreateRootClient();
 
-    auto path = Format("//sys/cypress_tokens/%v", ToYPathLiteral(tokenSha256));
+    auto config = New<TCypressTokenAuthenticatorConfig>();
+    auto cypressTokenAuthenticator = CreateCypressTokenAuthenticator(std::move(config), rootClient);
 
-    TGetNodeOptions getOptions;
-    static_cast<TTimeoutOptions&>(getOptions) = options;
-    getOptions.Attributes = TAttributeFilter({"user", "user_id"});
-
-    auto tokenNodeOrError = WaitFor(rootClient->GetNode(path, getOptions));
-    if (!tokenNodeOrError.IsOK()) {
-        YT_LOG_DEBUG(tokenNodeOrError, "Failed to get token (TokenHash: %v)",
-            tokenSha256);
-        THROW_ERROR_EXCEPTION("Failed to get token")
-            << tokenNodeOrError;
-    }
-    auto tokenNode = ConvertTo<INodePtr>(tokenNodeOrError.Value());
-    const auto& tokenAttributes = tokenNode->Attributes();
-
-    getOptions.Attributes = {};
-    TString tokenUser;
-    auto userIdAttribute = tokenAttributes.Find<TObjectId>("user_id");
-    if (userIdAttribute) {
-        // Resolve the username with the retrieved user_id.
-        auto tokenUsernameOrError = WaitFor(rootClient->GetNode(
-            Format("%v/@name", FromObjectId(*userIdAttribute)),
-            getOptions));
-        if (!tokenUsernameOrError.IsOK()) {
-            YT_LOG_DEBUG(tokenUsernameOrError, "Failed to get user for token (TokenHash: %v)",
-                tokenSha256);
-            THROW_ERROR_EXCEPTION("Failed to get user for token")
-                << tokenUsernameOrError;
-        }
-        tokenUser = ConvertTo<TString>(tokenUsernameOrError.Value());
-    } else {
-        // This case means that the token was issued using the old schema (with @user attribute), and we already have the name.
-        auto userAttribute = tokenAttributes.Find<TString>("user");
-        if (userAttribute) {
-            tokenUser = *userAttribute;
-        } else {
-            YT_LOG_DEBUG("Failed to get both attributes of the token (TokenHash: %v)",
-                tokenSha256);
-            THROW_ERROR_EXCEPTION("Failed to get both attributes of the token");
-        }
-    }
+    auto tokenCredentials = TTokenCredentials{
+        .TokenSha256 = tokenSha256,
+    };
+    auto tokenUser = WaitFor(cypressTokenAuthenticator->Authenticate(std::move(tokenCredentials)))
+        .ValueOrThrow()
+        .Login;
 
     if (tokenUser != user) {
         THROW_ERROR_EXCEPTION("Provided token is not recognized as a valid token for user %Qv", user);
@@ -302,6 +277,7 @@ void TClient::DoRevokeToken(
     TRemoveNodeOptions removeOptions;
     static_cast<TTimeoutOptions&>(removeOptions) = options;
 
+    auto path = Format("//sys/cypress_tokens/%v", ToYPathLiteral(tokenSha256));
     auto error = WaitFor(rootClient->RemoveNode(path, removeOptions));
     if (!error.IsOK()) {
         YT_LOG_DEBUG(error, "Failed to remove token (User: %v, TokenHash: %v)",
@@ -318,7 +294,7 @@ void TClient::DoRevokeToken(
 
 TListUserTokensResult TClient::DoListUserTokens(
     const std::string& user,
-    const TString& passwordSha256,
+    const std::string& passwordSha256,
     const TListUserTokensOptions& options)
 {
     ValidateAuthenticationCommandPermissions(
@@ -362,8 +338,8 @@ TListUserTokensResult TClient::DoListUserTokens(
     }
     auto userId = ConvertTo<std::string>(userIdRspOrError.Value());
 
-    std::vector<TString> userTokens;
-    THashMap<TString, NYson::TYsonString> tokenMetadata;
+    std::vector<std::string> userTokens;
+    THashMap<std::string, NYson::TYsonString> tokenMetadata;
 
     auto tokens = ConvertTo<IListNodePtr>(rspOrError.Value());
     for (const auto& tokenNode : tokens->GetChildren()) {
@@ -380,7 +356,7 @@ TListUserTokensResult TClient::DoListUserTokens(
                         .Item("creation_time").Value(attributes.Find<std::string>("creation_time"))
                         .Item("effective_expiration").Value(attributes.GetYson("effective_expiration"))
                     .EndMap();
-                tokenMetadata[ConvertTo<TString>(tokenNode)] = ConvertToYsonString(metadata);
+                tokenMetadata[ConvertTo<std::string>(tokenNode)] = ConvertToYsonString(metadata);
             }
         }
     }
@@ -394,7 +370,7 @@ TListUserTokensResult TClient::DoListUserTokens(
 void TClient::ValidateAuthenticationCommandPermissions(
     TStringBuf action,
     const std::string& user,
-    const TString& passwordSha256,
+    const std::string& passwordSha256,
     const TTimeoutOptions& options)
 {
     static const std::string HashedPasswordAttribute = "hashed_password";
@@ -455,8 +431,8 @@ void TClient::ValidateAuthenticationCommandPermissions(
             auto rspNode = ConvertToNode(rsp);
             const auto& attributes = rspNode->Attributes();
 
-            auto hashedPassword = attributes.Get<TString>(HashedPasswordAttribute);
-            auto passwordSalt = attributes.Get<TString>(PasswordSaltAttribute);
+            auto hashedPassword = attributes.Get<std::string>(HashedPasswordAttribute);
+            auto passwordSalt = attributes.Get<std::string>(PasswordSaltAttribute);
             auto passwordRevision = attributes.Get<ui64>(PasswordRevisionAttribute);
 
             if (HashPasswordSha256(passwordSha256, passwordSalt) != hashedPassword) {

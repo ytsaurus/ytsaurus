@@ -83,6 +83,7 @@ struct TYtTableMetaInfo: public TThrRefBase {
     bool YqlCompatibleScheme = false;
     bool InferredScheme = false;
     bool IsDynamic = false;
+    bool HasRLS = false;
     TString SqlView;
     ui16 SqlViewSyntaxVersion = 1;
 
@@ -286,6 +287,8 @@ struct TYtColumnsInfo: public TThrRefBase {
         }
         Renames.ConstructInPlace(renames);
     }
+
+    void Apply(const TYtColumnsInfo& other);
 
     const TMaybe<TVector<TColumn>>& GetColumns() const {
         return Columns;

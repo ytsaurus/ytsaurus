@@ -16,20 +16,20 @@ EFmrErrorReason ParseFmrReasonFromErrorMessage(const TString& errorMessage) {
     return EFmrErrorReason::Unknown;
 }
 
+void TFmrWriterSettings::Save(IOutputStream* buffer) const {
+    ::SaveMany(buffer, ChunkSize, MaxInflightChunks, MaxRowWeight, SkipSortedCheck);
+}
+
+void TFmrWriterSettings::Load(IInputStream* buffer) {
+    ::LoadMany(buffer, ChunkSize, MaxInflightChunks, MaxRowWeight, SkipSortedCheck);
+}
+
 void TFmrUserJobSettings::Save(IOutputStream* buffer) const {
-    ::SaveMany(
-        buffer,
-        ThreadPoolSize,
-        QueueSizeLimit
-    );
+    ::SaveMany(buffer, ThreadPoolSize, QueueSizeLimit, WriterSettings);
 }
 
 void TFmrUserJobSettings::Load(IInputStream* buffer) {
-    ::LoadMany(
-        buffer,
-        ThreadPoolSize,
-        QueueSizeLimit
-    );
+    ::LoadMany(buffer, ThreadPoolSize, QueueSizeLimit, WriterSettings);
 }
 
 void TFmrTvmJobSettings::Save(IOutputStream* buffer) const {
@@ -166,6 +166,7 @@ void TFmrTableInputRef::Save(IOutputStream* buffer) const {
         Columns,
         SerializedColumnGroups,
         IsFirstRowInclusive,
+        IsLastRowInclusive,
         FirstRowKeys,
         LastRowKeys
     );
@@ -179,6 +180,7 @@ void TFmrTableInputRef::Load(IInputStream* buffer) {
         Columns,
         SerializedColumnGroups,
         IsFirstRowInclusive,
+        IsLastRowInclusive,
         FirstRowKeys,
         LastRowKeys
     );
@@ -285,6 +287,37 @@ NYT::TRichYPath DeserializeRichPath(const TString& serializedRichPath) {
     NYT::TRichYPath richPath;
     NYT::Deserialize(richPath, node);
     return richPath;
+}
+
+void TReduceOperationSpec::Save(IOutputStream* buffer) const {
+    ::SaveMany(
+        buffer,
+        ReduceBy,
+        SortBy,
+        ReduceType
+    );
+}
+
+void TReduceOperationSpec::Load(IInputStream* buffer) {
+    ::LoadMany(
+        buffer,
+        ReduceBy,
+        SortBy,
+        ReduceType
+    );
+}
+
+TSortingColumns MakeMapReduceIntermediateSortColumns(const TSortingColumns& reduceBy) {
+    Y_ENSURE(reduceBy.Columns.size() == reduceBy.SortOrders.size(),
+        "reduceBy columns and sort orders must have equal length");
+    TSortingColumns result;
+    result.Columns.push_back(TString(YqlKeyHashColumn));
+    result.SortOrders.push_back(ESortOrder::Ascending);
+    for (size_t i = 0; i < reduceBy.Columns.size(); ++i) {
+        result.Columns.push_back(reduceBy.Columns[i]);
+        result.SortOrders.push_back(reduceBy.SortOrders[i]);
+    }
+    return result;
 }
 
 } // namespace NYql::NFmr

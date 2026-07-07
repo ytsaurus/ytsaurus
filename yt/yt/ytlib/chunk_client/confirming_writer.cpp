@@ -116,9 +116,8 @@ public:
         const std::vector<TBlock>& blocks) override
     {
         YT_VERIFY(Initialized_.load());
-        YT_VERIFY(OpenFuture_.IsSet());
 
-        if (!OpenFuture_.Get().IsOK()) {
+        if (!OpenFuture_.GetOrCrash().IsOK()) {
             return false;
         } else {
             return UnderlyingWriter_->WriteBlocks(options, workloadDescriptor, blocks);
@@ -128,8 +127,7 @@ public:
     TFuture<void> GetReadyEvent() override
     {
         YT_VERIFY(Initialized_.load());
-        YT_VERIFY(OpenFuture_.IsSet());
-        if (!OpenFuture_.Get().IsOK()) {
+        if (!OpenFuture_.GetOrCrash().IsOK()) {
             return OpenFuture_;
         } else {
             return UnderlyingWriter_->GetReadyEvent();
@@ -139,12 +137,9 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlockCount) override
+        const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(Initialized_.load());
-        YT_VERIFY(OpenFuture_.IsSet());
-        YT_VERIFY(!truncateBlockCount.has_value());
 
         ChunkMeta_ = chunkMeta;
 
@@ -183,6 +178,10 @@ public:
 
     TChunkId GetChunkId() const override
     {
+        // Protects from race with concurrent Initialize().
+        if (!Initialized_.load()) {
+            return {};
+        }
         return SessionId_.ChunkId;
     }
 
@@ -253,7 +252,7 @@ private:
                 TransactionId_,
                 ParentChunkListId_,
                 Logger);
-            YT_LOG_DEBUG("Chunk created");
+            YT_LOG_DEBUG("Chunk created (ChunkId: %v)", SessionId_.ChunkId);
         }
 
         Logger.AddTag("ChunkId: %v", SessionId_);
@@ -332,7 +331,7 @@ private:
         auto replicas = UnderlyingWriter_->GetWrittenChunkReplicasInfo().Replicas;
         YT_VERIFY(!replicas.empty());
 
-        YT_LOG_DEBUG("Confirming chunk (Replicas: %v)",replicas);
+        YT_LOG_DEBUG("Confirming chunk (Replicas: %v)", replicas);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);

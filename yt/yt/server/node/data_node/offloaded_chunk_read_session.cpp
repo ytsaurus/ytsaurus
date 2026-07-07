@@ -131,7 +131,7 @@ public:
 
         auto metaFuture = chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_, Options_, /*metaSize*/ {});
         if (metaFuture.IsSet()) {
-            const auto& metaOrError = metaFuture.Get();
+            const auto& metaOrError = metaFuture.GetOrCrash();
             return metaOrError.IsOK()
                 ? OnGotMeta(/*timer*/ std::nullopt, std::move(keys), metaOrError.Value())
                 : MakeFuture<TSharedRef>(TError(metaOrError));

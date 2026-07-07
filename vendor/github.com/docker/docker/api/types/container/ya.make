@@ -2,19 +2,29 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v25.0.6+incompatible)
+VERSION(v28.2.2+incompatible)
 
 SRCS(
     change_type.go
     change_types.go
+    commit.go
     config.go
-    container_top.go
-    container_update.go
+    container.go
+    create_request.go
     create_response.go
+    disk_usage.go
     errors.go
+    exec.go
     filesystem_change.go
+    health.go
     hostconfig.go
+    network_settings.go
     options.go
+    port.go
+    state.go
+    stats.go
+    top_response.go
+    update_response.go
     wait_exit_error.go
     wait_response.go
     waitcondition.go
@@ -39,6 +49,12 @@ IF (OS_WINDOWS)
 ENDIF()
 
 IF (OS_ANDROID)
+    SRCS(
+        hostconfig_unix.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
     SRCS(
         hostconfig_unix.go
     )

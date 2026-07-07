@@ -2,10 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/job_proxy/config.h>
-
-#include <yt/yt/server/lib/misc/config.h>
-
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/core/concurrency/config.h>
@@ -96,7 +92,7 @@ struct TJobResourceManagerConfig
     TResourceLimitsConfigPtr ResourceLimits;
 
     std::optional<double> CpuToVCpuFactor;
-    std::optional<TString> CpuModel;
+    std::optional<std::string> CpuModel;
 
     REGISTER_YSON_STRUCT(TJobResourceManagerConfig);
 
@@ -113,9 +109,11 @@ struct TJobResourceManagerDynamicConfig
     std::optional<double> CpuToVCpuFactor;
     bool EnableCpuToVCpuFactor;
 
-    std::optional<THashMap<TString, double>> CpuModelToCpuToVCpuFactor;
+    std::optional<THashMap<std::string, double>> CpuModelToCpuToVCpuFactor;
 
     TDuration ProfilingPeriod;
+
+    TDuration ResourceAvailabilityCheckPeriod;
 
     i64 FreeMemoryWatermark;
 
@@ -127,7 +125,7 @@ struct TJobResourceManagerDynamicConfig
 
     bool ConsiderUserJobFreeMemoryWatermarkInResourceAcquisition;
 
-    bool CheckUserJobsCategoryLimitOnResourcesUpdating;
+    bool CheckUserJobsCategoryLimitOnResourceUpdate;
 
     REGISTER_YSON_STRUCT(TJobResourceManagerDynamicConfig);
 

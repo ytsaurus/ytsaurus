@@ -1,8 +1,7 @@
 #include "archive_iterator.h"
 
-#include <sys/types.h>
 #include <sys/stat.h>
-#include "archive_windows.h"
+#include "archive_windows.h"  // IWYU pragma: keep(S_IS* macros)
 
 #include <contrib/libs/libarchive/libarchive/archive.h>
 #include <contrib/libs/libarchive/libarchive/archive_entry.h>
@@ -15,7 +14,7 @@ using namespace NTar;
 
 class TArchiveIterator::TImpl {
 public:
-    TImpl(const TString& path);
+    TImpl(TZtStringBuf path);
     ~TImpl();
 private:
     void CheckErrno();
@@ -107,7 +106,7 @@ void TArchiveIterator::TArchiveEntry::EnsureValid() const {
     Y_ENSURE(Master != nullptr && Master->PImpl->CurIterator.Get() == this, "Invalided archive iterator");
 }
 
-TArchiveIterator::TImpl::TImpl(const TString& path) {
+TArchiveIterator::TImpl::TImpl(TZtStringBuf path) {
     Archive = archive_read_new();
     Y_ENSURE(Archive != nullptr);
     archive_read_support_filter_all(Archive);
@@ -141,7 +140,7 @@ TAtomicSharedPtr<TArchiveIterator::TArchiveEntry> TArchiveIterator::Next() {
     }
 }
 
-TArchiveIterator::TArchiveIterator(const TString& path)
+TArchiveIterator::TArchiveIterator(TZtStringBuf path)
                 : PImpl(new TImpl(path)) {}
 
 TArchiveIterator::~TArchiveIterator() {}

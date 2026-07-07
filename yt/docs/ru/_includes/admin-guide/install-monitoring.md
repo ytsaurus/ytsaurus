@@ -4,6 +4,8 @@
 
 Для сбора метрик используется [Prometheus](https://prometheus.io/). Для просмотра метрик можно использовать [Grafana](https://grafana.com/), а также встроенные дашборды в UI {{product-name}}.
 
+Автоматизированная настройка дашбордов и алертов осуществляется с помощью специального Helm-чарта `monitoring-chart`.
+
 ## Установка и настройка Prometheus {#setup-prometheus}
 
 Для сбора метрик используется [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator). Компоненты {{product-name}} и [Odin](../../admin-guide/install-odin.md) автоматически размечаются метками для сбора метрик. Helm-чарт Odin при установке самостоятельно создает ресурс ServiceMonitor для своих метрик. Для сбора метрик с компонентов кластера мы создадим отдельный ServiceMonitor вручную.
@@ -317,51 +319,6 @@
 
 Готово! Prometheus установлен и настроен для сбора качественных и количественных метрик с Odin и компонентов {{product-name}}.
 
-## Установка дашбордов в {{product-name}} UI {#setup-ui}
-
-{{product-name}} предоставляет готовые дашборды для мониторинга. Их можно отображать непосредственно в веб-интерфейсе {{product-name}}.
-
-1. Передайте в UI переменную окружения `PROMETHEUS_BASE_URL` с внутренним адресом Prometheus:
-
-    Для настройки интеграции необходим UI, установленный через [Helm-чарт](../../admin-guide/install-ytsaurus.md#ui).
-
-    В переменную окружения `PROMETHEUS_BASE_URL` надо передать внутренний URL Prometheus, например: `http://prometheus-operated.<namespace>.svc.cluster.local:9090/`. Добавьте переменную в секцию `ui.env` вашего файла `values.yaml`:
-    
-    ```yaml
-    ui:
-      env:
-        - name: PROMETHEUS_BASE_URL
-          value: "http://prometheus-operated.<namespace>.svc.cluster.local:9090/"
-    ```
-    
-    Обновите настройки чарта:
-
-    ```bash
-    helm upgrade --install yt-ui ytsaurus-ui/packages/ui-helm-chart/ -f values.yaml
-    ```
-
-2. Дашборды, отображаемые в UI, хранятся в Кипарисе в `//sys/interface_monitoring`. Для их создания и загрузки используется утилита `generate_dashboards`. Перейдите в директорию с утилитой и скомпилируйте ее:
-
-    ```bash
-    git clone https://github.com/ytsaurus/ytsaurus
-    cd ytsaurus/yt/admin/dashboards/yt_dashboards/bin
-    ../../../../../ya make
-    ```
-
-3. Указав прокси кластера и токен, создайте ноду `//sys/interface_monitoring` и загрузите дашборд `master-accounts` в Кипарис:
-
-    ```bash
-    export YT_PROXY=<proxy>
-    export YT_TOKEN=<token>
-
-    yt create map_node //sys/interface_monitoring
-    ./generate_dashboards submit-cypress master-accounts --backend grafana
-    ```
-
-    После этого дашборд появится в веб-интерфейсе {{product-name}}.
-
-Для отображения некоторых дашбордов необходимы права доступа к просматриваемым объектам. Например, для работы дашборда `master-accounts` требуется право `use` на запрашиваемый аккаунт.
-
 ## Установка и настройка Grafana {#setup-grafana}
 
 1. Создайте файл `grafana.yaml`:
@@ -505,7 +462,7 @@
     Откройте доступ к UI:
 
     ```bash
-    kubectl -n <namespace> port-forward service/grafana 3000:80
+    kubectl -n <namespace> port-forward service/grafana 3000:3000
     ```
 
     Зайдите в UI: [http://localhost:3000](http://localhost:3000).
@@ -528,47 +485,192 @@
 
     {% endcut %}
 
-    Генератор дашбордов взаимодействует с Grafana при помощи сервисного аккаунта. Получить токен можно в `Administration` -> `Users and access` -> `Service accounts`. Роль сервисного аккаунта должна быть не ниже "Editor". Сохраняем токен сервисного аккаунта, например, `glsa_bk1LYYY`.
-
-5. При помощи [собранной в прошлом разделе](#setup-ui) утилиты  `generate_dashboards` сгенерируем и загрузим дашборд `master-accounts` в Grafana:
+    Генератор дашбордов взаимодействует с Grafana при помощи сервисного аккаунта. Получить токен можно в `Administration` -> `Users and access` -> `Service accounts`. Роль сервисного аккаунта должна быть не ниже "Editor". Сохраните токен сервисного аккаунта в переменную окружения (он понадобится на [шаге создания Secret](#create-secret)):
 
     ```bash
-    ./generate_dashboards \
-        --dashboard-id ytsaurus-master-accounts \
-        --grafana-api-key glsa_bk1LYYY \
-        --grafana-base-url http://localhost:3000/ \
-        --grafana-datasource '{"type":"prometheus","uid":"prometheus"}' \
-        submit master-accounts \
-        --backend grafana
+    export GRAFANA_TOKEN="<ваш-grafana-token>" # например, glsa_bk1LYYY
     ```
 
-    В параметр `--dashboard-id` рекомендуется передавать название дашборда с префиксом `ytsaurus-`. Это потребуется для дальнейшей связки {{product-name}} UI с Grafana.
+5. Чтобы пользователи вашего кластера могли переходить в интерфейс Grafana, настройте к ней сетевой доступ:
 
-    В разделе `Dashboards` будет видно загруженный дашборд.
+    {% note warning %}
 
-## Редиректы с {{product-name}} UI в Grafana {#redirects-to-grafana}
+    Дашборды Grafana, в отличие от дашбордов в UI {{product-name}}, не проверяют права доступа к объектам кластера. Настраивайте права доступа и учетные записи на стороне самой Grafana.
 
-1. Откройте публичный доступ к Grafana, допустим по адресу `https://grafana.ytsaurus.tech/`.
+    Если вы ограничили круг пользователей Grafana, вы можете скрыть саму кнопку Grafana в UI {{product-name}} для всех остальных, чтобы не перегружать интерфейс. Как настроить видимость кнопки по ACL — описано в разделе [Отображение кнопки перехода в Grafana](#grafana-button).
 
-2. Передайте в {{product-name}} UI переменную окружения `GRAFANA_BASE_URL` с внешним адресом Grafana таким же способом, как и в [прошлом разделе документации](#setup-ui).
+    {% endnote %}
 
-3. Справа от выбора временного диапазона появится кнопка "Grafana", перейдя по которой пользователь попадет на тот же самый дашборд с теми же параметрами за тот же промежуток времени.
+    - Через Ingress / LoadBalancer:
 
-    ![{{product-name}} UI](../../../images/monitoring-install-redirects-to-grafana-1.png)
+        Настройте публичный доступ к сервису `grafana` средствами вашего кластера (например, привяжите домен `https://grafana.ytsaurus.tech`).
 
-    Рис. 3. Демонстрация кнопки во внутреннем UI кластера.
+    - Локально:
+    
+        Если вы просто проверяете работу системы локально, публичным адресом будет являться тот же адрес, что и при пробросе портов: `http://localhost:3000/`. При этом проброс портов должен быть активен во время использования UI.
 
-    ![Grafana UI](../../../images/monitoring-install-redirects-to-grafana-2.png)
+## Настройка интерфейса {{product-name}} {#setup-ui}
 
-    Рис. 4. Интерфейс Grafana с теми же параметрами, что и во внутреннем UI с рис. 3.
+Для корректной работы мониторинга и интеграции с Grafana необходимо передать нужные адреса в UI {{product-name}}, установленный через [Helm-чарт](../../admin-guide/install-ytsaurus.md#ui). При установке чарта мониторинга будет производиться автоматическая проверка наличия этих переменных.
 
-По умолчанию кнопка доступна всем пользователям кластера.
+Укажите переменные `PROMETHEUS_BASE_URL` и `GRAFANA_BASE_URL` в секцию `ui.env` вашего файла `values.yaml` для helm-чарта UI {{product-name}}:
 
-Если создать документ `//sys/interface_monitoring/allow_grafana_url`, то кнопка будет видна только пользователям, которые имеют право `use` на этот документ.
+```yaml
+ui:
+  env:
+    # Внутренний адрес Prometheus, к которому будет обращаться UI
+    - name: PROMETHEUS_BASE_URL
+      value: "http://prometheus-operated.<namespace>.svc.cluster.local:9090/"
+    # Публичный адрес Grafana для перехода из UI
+    - name: GRAFANA_BASE_URL
+      value: "https://grafana.ytsaurus.tech" # или http://localhost:3000
+```
+
+Обновите настройки helm-чарта UI {{product-name}}.
+
+## Установка дашбордов и алертов (`monitoring-chart`) {#setup-monitoring-chart}
+
+Для автоматической загрузки предсобранных дашбордов в Кипарис и Grafana, а также для создания стандартных алертов, используется Helm-чарт `monitoring-chart`.
+
+### Шаг 1: Подготовка пользователя и выдача прав
+
+Создайте пользователя-робота `robot-monitoring` в {{product-name}}:
+
+```bash
+yt create user --attr "{name=robot-monitoring}"
+```
+
+Создайте директорию в Кипарисе, куда будут загружены дашборды (по умолчанию `//sys/interface_monitoring`), и выдайте права на запись и использование аккаунта, владеющего директорией (по умолчанию `sys`) пользователю `robot-monitoring`:
+
+{% note info %}
+
+Если у вас версия UI 3.12.2 и ниже, то вместо `interface_monitoring` необходимо создавать `interface-monitoring`.
+
+{% endnote %}
+
+```bash
+yt create map_node //sys/interface_monitoring --ignore-existing
+yt set //sys/interface_monitoring/@acl/end '{action=allow; subjects=[robot-monitoring;]; permissions=[read;write;remove;];}'
+yt set //sys/accounts/sys/@acl/end '{action=allow; subjects=[robot-monitoring]; permissions=[use]}'
+```
+
+### Шаг 2: Создание Kubernetes Secret с токенами {#create-secret}
+
+Чарт использует Kubernetes Job для загрузки дашбордов. Ему требуются токены для авторизации в Grafana и {{product-name}}.
+
+Создайте Secret, подставив токен {{product-name}} и токен Grafana (сохранённый в переменную `GRAFANA_TOKEN` на этапе [настройки Grafana](#setup-grafana)):
+
+```bash
+kubectl create secret generic ytsaurus-monitoring \
+    --from-literal=YT_TOKEN=$(yt issue-token robot-monitoring) \
+    --from-literal=GRAFANA_TOKEN="$GRAFANA_TOKEN" \
+    -n <namespace>
+```
+
+### Шаг 3: Подготовка `values.yaml` для monitoring-chart
+
+Создайте файл `values.yaml` со следующими настройками. Укажите ваши данные:
+
+```yaml
+cluster:
+  # Внутренний адрес HTTP-прокси кластера для загрузки дашбордов
+  proxy: "http://http-proxies.<namespace>.svc.cluster.local"
+  name: "ytsaurus"
+
+dashboards:
+  grafana:
+    # Внутренний адрес для загрузки дашбордов
+    url: "http://grafana.<namespace>.svc.cluster.local:3000"
+    datasource:
+      # UID, полученный на этапе настройки Grafana
+      uid: <ваш-uid, например, PBFA97CFB590B2093>
+
+ui:
+  chart:
+    name: "ytsaurus-ui"
+    namespace: "default"
+
+  # Данные адреса используются для проверки корректности настроек UI
+  prometheusInternalUrl: "http://prometheus-operated.<namespace>.svc.cluster.local:9090/"
+  grafanaPublicUrl: "https://grafana.ytsaurus.tech"
+```
+
+Полный список параметров можно посмотреть в [`values.yaml`](https://github.com/ytsaurus/ytsaurus/blob/main/yt/docker/charts/monitoring-chart/values.yaml).
+
+{% note info %}
+
+Если вы используете директорию `//sys/interface-monitoring` (для версий UI 3.12.2 и ниже), то в `values.yaml` необходимо дополнительно указать путь до нее:
+
+```yaml
+dashboards:
+  cypress:
+    path: "//sys/interface-monitoring"
+```
+
+{% endnote %}
+
+### Шаг 4: Установка чарта
+
+Установите чарт мониторинга:
+
+```bash
+helm install ytsaurus-monitoring oci://ghcr.io/ytsaurus/monitoring-chart \
+    --version {{monitoring-version}} \
+    -f values.yaml \
+    -n <namespace>
+```
+
+При установке чарт автоматически создаст ресурсы `PrometheusRule` с алертами и запустит `Job`, который загрузит все дашборды в Grafana и UI {{product-name}}. После этого вы сможете видеть вкладки мониторинга в интерфейсе кластера.
+
+{% note info %}
+
+Для отображения некоторых дашбордов необходимы права доступа к просматриваемым объектам. Например, для работы дашборда `master-accounts` требуется право `use` на запрашиваемый аккаунт.
+
+{% endnote %}
+
+## Настройка алертов {#alerts-configuration}
+
+Чарт `monitoring-chart` поставляется с готовым набором алертов (PrometheusRule).
+
+Вы можете использовать значения по умолчанию или точечно переопределять их в `values.yaml`. Полный список алертов можно посмотреть в [`values.yaml`](https://github.com/ytsaurus/ytsaurus/blob/main/yt/docker/charts/monitoring-chart/values.yaml).
+
+Например, чтобы отключить группу алертов целиком или изменить порог срабатывания для конкретного правила:
+
+```yaml
+alerts:
+  groups:
+    master:
+      rules:
+        # Отключение конкретного правила
+        MasterAutomatonThreadOverload:
+          enabled: false  
+        # Переопределение времени срабатывания (for)
+        MediumAlmostOutOfSpace:
+          for: 30m  
+    # Отключение всей группы алертов для Controller Agent
+    controllerAgent:
+      enabled: false  
+```
+
+## Отображение кнопки перехода в Grafana {#grafana-button}
+
+Так как на этапе настройки UI вы уже добавили переменную `GRAFANA_BASE_URL`, в интерфейсе {{product-name}} (справа от выбора временного диапазона) появится кнопка **Grafana**. 
+
+Перейдя по ней, пользователь попадет на тот же самый дашборд с теми же параметрами за тот же промежуток времени напрямую в интерфейсе Grafana.
+
+![{{product-name}} UI](../../../images/monitoring-install-redirects-to-grafana-1.png)
+
+Рис. 3. Демонстрация кнопки во внутреннем UI кластера.
+
+![Grafana UI](../../../images/monitoring-install-redirects-to-grafana-2.png)
+
+Рис. 4. Интерфейс Grafana с теми же параметрами, что и во внутреннем UI с рис. 3.
+
+По умолчанию кнопка доступна всем пользователям кластера. Если создать документ `//sys/interface_monitoring/allow_grafana_url` (или `//sys/interface-monitoring/allow_grafana_url` для версий UI 3.12.2 и ниже), то кнопка будет видна только пользователям, которые имеют право `use` на этот документ.
 
 ## Поддержанные дашборды {#supported-dashboards}
 
-В данный момент поддерживаются следующие дашборды:
+В данный момент автоматически загружаются и поддерживаются следующие дашборды:
 
 <!-- TODO: Добавить описания дашбордов -->
 

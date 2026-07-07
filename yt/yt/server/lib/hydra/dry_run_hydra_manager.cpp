@@ -55,17 +55,12 @@ public:
             YT_UNIMPLEMENTED();
         }
 
-        void OnDiscombobulate(i64 /*leaderSequenceNumber*/) override
-        {
-            YT_UNIMPLEMENTED();
-        }
-
         TPeerPriority GetPriority() override
         {
             YT_UNIMPLEMENTED();
         }
 
-        TString FormatPriority(TPeerPriority /*priority*/) override
+        std::string FormatPriority(TPeerPriority /*priority*/) override
         {
             YT_UNIMPLEMENTED();
         }
@@ -320,6 +315,16 @@ public:
         return OKFuture;
     }
 
+    ELogLevel GetMutationHandlerFailureLogLevel(TStringBuf mutationType) const override
+    {
+        auto config = Config_->Get();
+
+        return GetOrDefault(
+            config->MutationHandlerFailureLogLevelOverrides,
+            mutationType,
+            config->MutationHandlerFailureLogLevel);
+    }
+
     DEFINE_SIGNAL_OVERRIDE(void(), StartLeading);
     DEFINE_SIGNAL_OVERRIDE(void(), AutomatonLeaderRecoveryComplete);
     DEFINE_SIGNAL_OVERRIDE(void(), ControlLeaderRecoveryComplete);
@@ -421,6 +426,11 @@ public:
     }
 
     i64 GetSequenceNumber() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TError GetLastRestartError() const override
     {
         YT_UNIMPLEMENTED();
     }

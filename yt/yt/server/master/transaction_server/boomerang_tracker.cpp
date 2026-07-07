@@ -220,7 +220,10 @@ void TBoomerangTracker::ApplyBoomerangMutation(NProto::TReqReturnBoomerang* requ
     {
         TMutationContextGuard mutationContextGuard(&mutationContext);
 
-        TInverseHiveMutationGuard inverseHiveMutationGuard;
+        std::optional<TInverseHiveMutationGuard> inverseHiveMutationGuard;
+        if (IsHiveMutation()) {
+            inverseHiveMutationGuard.emplace();
+        }
 
         const auto& automaton = hydraFacade->GetAutomaton();
         StaticPointerCast<IAutomaton>(automaton)->ApplyMutation(&mutationContext);

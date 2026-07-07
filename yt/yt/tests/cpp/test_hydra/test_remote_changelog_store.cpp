@@ -109,7 +109,6 @@ protected:
             Config_,
             Options_,
             GetChangelogsPath(),
-            GetChangelogsPath(),
             Client_,
             New<TDummyResourceLimitsManager>(),
             prerequisiteTransactionId);

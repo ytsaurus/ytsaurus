@@ -22,17 +22,23 @@ target_compile_options(cpp-yt-system PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(cpp-yt-system PUBLIC
   contrib-libs-cxxsupp
   yutil
+  cpp-yt-cpu_clock
+  cpp-yt-exception
   cpp-yt-misc
 )
 
 target_sources(cpp-yt-system PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/system/cpu_id.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/system/env.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/system/exit.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/system/process_id.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/system/thread_id.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/system/thread_name.cpp
 )
 

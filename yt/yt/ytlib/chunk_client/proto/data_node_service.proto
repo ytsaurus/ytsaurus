@@ -6,6 +6,7 @@ import "yt_proto/yt/client/misc/proto/workload.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/chunk_client/proto/chunk_info.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
 import "yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto";
 import "yt/ytlib/chunk_client/proto/chunk_slice.proto";
@@ -76,8 +77,8 @@ message TReqFinishChunk
     optional TChunkMeta chunk_meta = 2;
     optional int32 block_count = 3;
     optional bool ignore_missing_session = 5 [default = false];
-    // If this option is true, block_count must be specified.
-    optional bool truncate_extra_blocks = 6;
+
+    reserved 6;
 }
 
 message TRspFinishChunk
@@ -283,6 +284,8 @@ message TReqGetBlockSet
     optional bool enable_p2p = 14 [default = true];
     optional bool fetch_node_descriptors = 15 [default = false];
 
+    optional TChunkReplicaSpec replica_spec = 16;
+
     reserved 3, 4, 9;
 }
 
@@ -313,6 +316,7 @@ message TReqGetBlockRange
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
     optional bool populate_cache = 5 [default = true];
     optional NYT.NProto.TGuid read_session_id = 6;
+    optional TChunkReplicaSpec replica_spec = 7;
 }
 
 message TRspGetBlockRange
@@ -469,6 +473,8 @@ message TReqGetChunkMeta
     // If requested chunk uses features that are not supported by client,
     // an error is returned.
     optional uint64 supported_chunk_features = 8;
+
+    optional TChunkReplicaSpec replica_spec = 10;
 }
 
 message TRspGetChunkMeta

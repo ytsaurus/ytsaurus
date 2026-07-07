@@ -19,12 +19,12 @@ void FromProto(
     const NProto::TServiceDiscoveryEndpointsConfig& protoServiceDiscoveryEndpointsConfig);
 
 void ToProto(
-    NProto::TCellDirectoryItem* protoCellDirectoryItem,
+    NProto::TMasterCellConnectionConfig* protoCellDirectoryItem,
     const NApi::NNative::TMasterConnectionConfigPtr& masterConnectionConfig);
 
 void FromProto(
     NApi::NNative::TMasterConnectionConfigPtr* masterConnectionConfig,
-    const NProto::TCellDirectoryItem& protoCellDirectoryItem);
+    const NProto::TMasterCellConnectionConfig& protoCellDirectoryItem);
 
 ////////////////////////////////////////////////////////////////////////////////
 

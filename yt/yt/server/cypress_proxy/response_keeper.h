@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/cypress_proxy/config.h>
+
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,8 +19,6 @@ struct ISequoiaResponseKeeper
         const NSequoiaClient::ISequoiaTransactionPtr& transaction,
         NRpc::TMutationId mutationId,
         TSharedRefArray responseMessage) const = 0;
-
-    virtual const TSequoiaResponseKeeperDynamicConfigPtr& GetDynamicConfig() const = 0;
 
     virtual void Reconfigure(const TSequoiaResponseKeeperDynamicConfigPtr& newConfig) = 0;
 };

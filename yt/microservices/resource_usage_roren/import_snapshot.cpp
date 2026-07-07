@@ -243,6 +243,7 @@ struct TRowAfterMap
     std::optional<TString> PrimaryMedium;
     std::optional<i64> ApproximateRowCount;
     std::optional<bool> PathPatched;
+    std::optional<bool> Orphaned;
     TResourceUsage ResourceUsage;
     TVersionedResourceUsage VersionedResourceUsage;
 
@@ -264,6 +265,7 @@ struct TRowAfterMap
         PrimaryMedium,
         ApproximateRowCount,
         PathPatched,
+        Orphaned,
         CypressTransactionId,
         CypressTransactionTitle,
         OriginatorCypressTransactionId,
@@ -745,6 +747,9 @@ public:
         TVersionedResourceUsageMap versionedResourceUsageMap;
         i64 directChildCount = 0;
 
+        bool isOrphaned = false;
+        TVersionedResourceUsageMap heldTransactions;
+
         for (const auto& row : kv.Value()) { // Rows are NOT sorted.
             ++directChildCount;
 
@@ -758,12 +763,25 @@ public:
                     versionedResourceUsageMap[id].MergeWith(row.VersionedResourceUsage);
                 } else if (IsNonZero(row.VersionedResourceUsage)) { // Zeros transactions are not wtitten to disk
                     versionedResourceUsageMap[id] = row.VersionedResourceUsage;
+                } else if (!heldTransactions.contains(id)) {
+                    heldTransactions[id] = row.VersionedResourceUsage;
                 }
             } else {
                 resourceAggregator.Update(row);
+                if (row.Orphaned.value_or(false)) {
+                    isOrphaned = true;
+                }
             }
         }
         --directChildCount;
+
+        if (isOrphaned) {
+            for (auto& [id, vru] : heldTransactions) {
+                if (!versionedResourceUsageMap.contains(id)) {
+                    versionedResourceUsageMap[id] = std::move(vru);
+                }
+            }
+        }
 
         // Set data in row
         newRow.SetDirectChildCount(directChildCount);
@@ -832,6 +850,9 @@ TPipeline CreateEmptyPipeline(TString cluster,
     TYtPipelineConfig config;
     config.SetCluster(cluster);
     config.SetWorkingDir(tmpDir);
+    if (pool) {
+        config.SetPool(pool.value());
+    }
 
     TNode specPatch;
     if (pool) {
@@ -884,6 +905,9 @@ TRowAfterMap MapDo(const TInputMessage& row)
     if (row.HasOwner()) {
         result.Owner = row.GetOwner();
     }
+    if (row.HasOrphaned()) {
+        result.Orphaned = row.GetOrphaned();
+    }
 
     if (row.HasResourceUsage()) {
         TNode NodeResourceUsage = NodeFromYsonString(row.GetResourceUsage());
@@ -906,6 +930,7 @@ void ExpandForEachPathLevel(const TRowAfterMap& row, TOutput<TRowAfterMap>& outp
     output.Add(result);
     result.IsOriginal = false;
     result.Type = "map_node";
+    result.Orphaned = false;
     if (result.CypressTransactionId.has_value()) {
         result.VersionedResourceUsage.IsOriginal = false;
     }
@@ -944,7 +969,7 @@ void AddImportSnapshotToPipeline(
     })
     | GroupByKey()
     | "AggregatePathStatistic" >> MakeParDo<TFinalParDo>(media)
-    | YtSortedWrite(NYT::TRichYPath{destinationTable}.OptimizeFor(EOptimizeForAttr::OF_LOOKUP_ATTR), outputSchema);
+    | YtSortedWrite(destinationTable, outputSchema);
 }
 
 
@@ -1002,6 +1027,7 @@ void ImportSnapshotMain(int argc, const char** argv)
     opts.AddLongOption("force").NoArgument();
     opts.AddLongOption("cluster-to-lookup"); // This is only needed for testing
     opts.AddLongOption("memory-limit").DefaultValue(8_GB);
+    opts.AddLongOption("destination-table-chunk-size").DefaultValue(100_MB);
 
     NLastGetopt::TOptsParseResult r(&opts, argc, argv);
 
@@ -1025,6 +1051,7 @@ void ImportSnapshotMain(int argc, const char** argv)
     bool force = r.Has("force");
     TString clusterToLookup = r.GetOrElse("cluster-to-lookup", cluster); // This is only needed for testing
     i64 memoryLimit = FromString<i64>(r.Get("memory-limit"));
+    i64 destinationTableChunkSize = FromString<i64>(r.Get("destination-table-chunk-size"));
 
     NYT::TConfig::Get()->Token = LoadResourceUsageToken();
 
@@ -1094,6 +1121,18 @@ void ImportSnapshotMain(int argc, const char** argv)
     pipeline.Run();
 
     for (const auto& [snapshotId, tmpDestinationTable, realDestinationTable] : Zip(snapshots, tmpDestinationTablesNames, realDestinationTablesNames)) {
+        auto mergeTableOutput = NYT::TMergeOperationSpec()
+            .Mode(EMergeMode::MM_ORDERED)
+            .ForceTransform(true)
+            .AddInput(tmpDestinationTable)
+            .Output(tmpDestinationTable)
+            .DataSizePerJob(destinationTableChunkSize)
+            .Title(NYT::Format("[Resource Usage Roren] Reducing destination table chunk size %v", snapshotId));
+        if (pool) {
+            mergeTableOutput.Pool(pool.value());
+        }
+        client->Merge(mergeTableOutput);
+
         auto alterTableOptions = NYT::TAlterTableOptions().Dynamic(true);
         client->AlterTable(tmpDestinationTable, alterTableOptions);
 

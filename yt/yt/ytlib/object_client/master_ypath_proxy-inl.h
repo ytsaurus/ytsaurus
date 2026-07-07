@@ -16,10 +16,6 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int VectorizedReadSubbatchSize = 100;
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TRequest, class TResponse>
 class TMasterYPathProxy::TVectorizedRequestBatcher
 {
@@ -34,11 +30,13 @@ public:
         const NApi::NNative::IClientPtr& client,
         const TTypedRequestPtr& templateRequest,
         TRange<TObjectId> objectIds,
-        TTransactionId cypressTransactionId = NullTransactionId)
+        TTransactionId cypressTransactionId,
+        int subbatchSize = DefaultVectorizedSubbatchSize)
         : ObjectCount_(objectIds.size())
         , SerializedTemplateRequest_(templateRequest->Serialize())
         , Client_(client)
         , CypressTransactionId_(cypressTransactionId)
+        , SubbatchSize_(subbatchSize)
     {
         // Transaction in request template is ignored and shouldn't be set.
         // Rationale:
@@ -109,6 +107,7 @@ private:
     const TSharedRefArray SerializedTemplateRequest_;
     const NApi::NNative::IClientPtr Client_;
     const TTransactionId CypressTransactionId_;
+    const int SubbatchSize_;
 
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> AsyncResults_;
 
@@ -123,7 +122,7 @@ private:
         auto objectIdsRange = TRange(objectIds);
         int startOffset = 0;
         while (startOffset < std::ssize(objectIds)) {
-            auto endOffset = std::min<int>(startOffset + VectorizedReadSubbatchSize, std::ssize(objectIds));
+            auto endOffset = std::min<int>(startOffset + SubbatchSize_, std::ssize(objectIds));
             auto subrequest = MakeVectorizedReadRequest(objectIdsRange.Slice(startOffset, endOffset));
             startOffset = endOffset;
 

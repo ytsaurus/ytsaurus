@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
+
 namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
@@ -204,7 +206,7 @@ TMutableVersionedRow TSlimVersionedBlockReader::ReadRowSingleVersion(TChunkedMem
                 ValueDictionary_,
                 ptr,
                 [&] (int /*chunkSchemaId*/) {
-                    if (Y_UNLIKELY(value == endValue)) {
+                    if (value == endValue) [[unlikely]] {
                         int oldValueCount = row.GetValueCount();
                         int newValueCount = oldValueCount * 2;
                         row = IncreaseRowValueCount(row, newValueCount, memoryPool);

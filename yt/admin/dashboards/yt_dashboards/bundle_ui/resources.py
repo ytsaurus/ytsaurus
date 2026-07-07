@@ -205,7 +205,6 @@ About the difference between CPU and vCPU:
             .cell("Memory Total", MultiSensor(
                     memory_guarantee.alias("Container Memory Guarantee") if has_porto else None,
                     anon_memory_limit.alias("Anon Memory Limit") if has_porto else None,
-                    oom_tracker_threshold.alias("OOM tracker threshold"),
                     anon_memory_usage.alias("Anon Memory Usage") if has_porto else None,
                     MonitoringExpr(TabNode("yt.cluster_node.memory_usage.used")
                         .sensor_stack()

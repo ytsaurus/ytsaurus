@@ -69,6 +69,8 @@
 
 #include <library/cpp/json/json_writer.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <util/string/join.h>
 
 namespace NYT::NApi::NNative {
@@ -102,7 +104,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 // All job's attributes.
-static const THashSet<TString> SupportedJobsAttributes = {
+static const THashSet<std::string> SupportedJobsAttributes = {
     "operation_id",
     "job_id",
     "type",
@@ -144,7 +146,7 @@ static const THashSet<TString> SupportedJobsAttributes = {
 // Some attributes are required for 'list_jobs' command regardless of user's demand.
 // They are used for internal operations (e.g. sorting, calculating other attributes).
 // So we always fetch these lightweight attributes but exclude them at the end (if necessary).
-static const THashSet<TString> LightAttributes = {
+static const THashSet<std::string> LightAttributes = {
     "job_id",
     "type",
     "state",
@@ -156,12 +158,12 @@ static const THashSet<TString> LightAttributes = {
 };
 
 // Attributes which we return for every job in 'list_jobs' command.
-static const THashSet<TString> RequiredListJobsAttributes = {
+static const THashSet<std::string> RequiredListJobsAttributes = {
     "job_id",
 };
 
 // COMPAT(bystrovserg)
-static const THashSet<TString> DefaultListJobsAttributes = {
+static const THashSet<std::string> DefaultListJobsAttributes = {
     "job_id",
     "type",
     "state",
@@ -195,7 +197,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "gang_rank",
 };
 
-static const THashSet<TString> DefaultGetJobAttributes = [] {
+static const THashSet<std::string> DefaultGetJobAttributes = [] {
     auto attributes = DefaultListJobsAttributes;
     attributes.insert("operation_id");
     attributes.insert("statistics");
@@ -240,9 +242,10 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"controller_start_time", 58},
     {"controller_finish_time", 58},
     {"gang_rank", 60},
+    {"controller_error", 67},
 };
 
-static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion)
+static bool DoesArchiveContainAttribute(const std::string& attribute, int archiveVersion)
 {
     auto it = JobAttributeToMinArchiveVersion.find(attribute);
     if (it == JobAttributeToMinArchiveVersion.end()) {
@@ -255,7 +258,7 @@ static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVer
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto FinishedJobStatesString = [] {
-    TCompactVector<TString, TEnumTraits<EJobState>::GetDomainSize()> finishedJobStates;
+    TCompactVector<std::string, TEnumTraits<EJobState>::GetDomainSize()> finishedJobStates;
     for (const auto& jobState : TEnumTraitsImpl_EJobState::GetDomainValues()) {
         if (IsJobFinished(jobState)) {
             finishedJobStates.push_back("\"" + FormatEnum(jobState) + "\"");
@@ -679,7 +682,7 @@ TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
     auto records = ToRecords<NRecords::TJobSpec>(rowset);
     YT_VERIFY(records.size() <= 1);
 
-    std::optional<TString> jobSpecStr;
+    std::optional<std::string> jobSpecStr;
     if (!records.empty()) {
         jobSpecStr = records[0].Spec;
     }
@@ -1112,8 +1115,8 @@ TYsonString TClient::DoGetJobSpec(
         jobSpecExt->clear_output_table_specs();
     }
 
-    TString jobSpecYsonBytes;
-    TStringOutput jobSpecYsonBytesOutput(jobSpecYsonBytes);
+    std::string jobSpecYsonBytes;
+    TStdStringOutput jobSpecYsonBytesOutput(jobSpecYsonBytes);
     TYsonWriter jobSpecYsonWriter(&jobSpecYsonBytesOutput);
 
     TProtobufParserOptions parserOptions{
@@ -1717,8 +1720,8 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
 
         builder->AddWhereConjunct(Format(
             "(collective_id_hi, collective_id_lo) = (%vu, %vu)",
-            collectiveId.Parts64[0],
-            collectiveId.Parts64[1]));
+            collectiveId.Underlying().Parts64[0],
+            collectiveId.Underlying().Parts64[1]));
     }
 
     if (options.WithCompetitors) {
@@ -1831,13 +1834,14 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
 
 static std::vector<TJob> ParseJobsFromArchiveResponse(
     TOperationId operationId,
-    const std::vector<NRecords::TJobPartial>& records,
+    std::vector<NRecords::TJobPartial>&& records,
     const NRecords::TJobPartial::TRecordDescriptor::TPartialIdMapping& responseIdMapping,
     bool needFullStatistics)
 {
+    // TODO(bystrovserg): Move objects from records to jobs.
     std::vector<TJob> jobs;
     jobs.reserve(records.size());
-    for (const auto& record : records) {
+    for (auto&& record : std::move(records)) {
         auto jobType = record.Type;
         if (!jobType) {
             jobType = record.JobType;
@@ -1920,6 +1924,14 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.FinishTime = TInstant::MicroSeconds(*record.FinishTime);
         }
 
+        // We use node's error (record.Error) as default value.
+        // If it's empty we switch to controller's error.
+        if (record.Error) {
+            job.Error = std::move(*record.Error);
+        } else if (record.ControllerError) {
+            job.Error = std::move(*record.ControllerError);
+        }
+
         if (responseIdMapping.HasSpec) {
             // This field previously was non-optional.
             job.HasSpec = record.HasSpec.value_or(false);
@@ -1940,9 +1952,9 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
         }
 
         if (record.CollectiveIdHi) {
-            job.CollectiveId = TGuid(
+            job.CollectiveId = TCollectiveId(TGuid(
                 *record.CollectiveIdHi,
-                *record.CollectiveIdLo);
+                *record.CollectiveIdLo));
         }
 
         if (record.CollectiveMemberRank) {
@@ -1997,7 +2009,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
 
 void TClient::AddSelectExpressions(
     TQueryBuilder* builder,
-    const THashSet<TString>& attributes,
+    const THashSet<std::string>& attributes,
     int archiveVersion)
 {
     bool needFullStatisticsForBriefStatistics = GetNativeConnection()->GetConfig()->RequestFullStatisticsForBriefStatisticsInListJobs;
@@ -2009,7 +2021,7 @@ void TClient::AddSelectExpressions(
         if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id" || attribute == "collective_id") {
             builder->AddSelectExpression(attribute + "_hi");
             builder->AddSelectExpression(attribute + "_lo");
-        } else if (attribute == "start_time" || attribute == "finish_time") {
+        } else if (attribute == "start_time" || attribute == "finish_time" || attribute == "error") {
             auto controllerAttribute = "controller_" + attribute;
             if (DoesArchiveContainAttribute(controllerAttribute, archiveVersion)) {
                 builder->AddSelectExpression(
@@ -2070,7 +2082,7 @@ static void AddOrderByExpression(TQueryBuilder* builder, const TListJobsOptions&
         }
         YT_ABORT();
     }();
-    auto orderByFieldExpressions = [&] () -> std::vector<TString> {
+    auto orderByFieldExpressions = [&] () -> std::vector<std::string> {
         switch (options.SortField) {
             case EJobSortField::Type:
                 return {"job_type"};
@@ -2105,7 +2117,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     TOperationId operationId,
     TInstant deadline,
     const TListJobsOptions& options,
-    const THashSet<TString>& attributes)
+    const THashSet<std::string>& attributes)
 {
     auto builder = GetListJobsQueryBuilder(archiveVersion, operationId, options);
 
@@ -2129,7 +2141,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
             auto records = ToRecords<NRecords::TJobPartial>(result.Rowset->GetRows(), idMapping);
             return ParseJobsFromArchiveResponse(
                 operationId,
-                records,
+                std::move(records),
                 idMapping,
                 /*needFullStatistics*/ attributes.contains("statistics"));
         }));
@@ -2139,7 +2151,7 @@ static void ParseJobsFromControllerAgentResponse(
     TOperationId operationId,
     const std::vector<std::pair<std::string, INodePtr>>& jobNodes,
     const std::function<bool(const INodePtr&)>& filter,
-    const THashSet<TString>& attributes,
+    const THashSet<std::string>& attributes,
     std::vector<TJob>* jobs)
 {
     auto needJobId = attributes.contains("job_id");
@@ -2234,7 +2246,7 @@ static void ParseJobsFromControllerAgentResponse(
             }
         }
         if (needTaskName) {
-            job.TaskName = jobMapNode->GetChildValueOrThrow<TString>("task_name");
+            job.TaskName = jobMapNode->GetChildValueOrThrow<std::string>("task_name");
         }
         if (needCoreInfos) {
             if (auto childNode = jobMapNode->FindChild("core_infos")) {
@@ -2247,19 +2259,19 @@ static void ParseJobsFromControllerAgentResponse(
         if (needCollectiveMemberRank) {
             auto collectiveInfo = jobMapNode->FindChild("collective_info");
             if (collectiveInfo) {
-                job.CollectiveMemberRank = collectiveInfo->AsMap()->FindChildValue<ui64>("rank");
+                job.CollectiveMemberRank = collectiveInfo->AsMap()->FindChildValue<int>("rank");
             }
         }
         if (needCollectiveId) {
             auto collectiveInfo = jobMapNode->FindChild("collective_info");
             if (collectiveInfo) {
                 if (auto collectiveId = collectiveInfo->AsMap()->FindChildValue<TJobId>("collective_id")) {
-                    job.CollectiveId = collectiveId->Underlying();
+                    job.CollectiveId = TCollectiveId(collectiveId->Underlying());
                 }
             }
         }
         if (needMonitoringDescriptor) {
-            job.MonitoringDescriptor = jobMapNode->FindChildValue<TString>("monitoring_descriptor");
+            job.MonitoringDescriptor = jobMapNode->FindChildValue<std::string>("monitoring_descriptor");
         }
         if (needOperationIncarnation) {
             job.OperationIncarnation = jobMapNode->FindChildValue<std::string>("operation_incarnation");
@@ -2278,7 +2290,7 @@ static void ParseJobsFromControllerAgentResponse(
     TOperationId operationId,
     const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
     const std::string& key,
-    const THashSet<TString>& attributes,
+    const THashSet<std::string>& attributes,
     const TListJobsOptions& options,
     std::vector<TJob>* jobs,
     int* totalCount,
@@ -2313,17 +2325,17 @@ static void ParseJobsFromControllerAgentResponse(
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
         auto failContextSize = jobMap->GetChildValueOrDefault<i64>("fail_context_size", 0);
-        std::optional<TGuid> collectiveId;
+        std::optional<TCollectiveId> collectiveId;
         if (auto collectiveInfo = jobMap->FindChild("collective_info")) {
             if (auto maybeCollectiveId = collectiveInfo->AsMap()->FindChildValue<TJobId>("collective_id")) {
-                collectiveId = maybeCollectiveId->Underlying();
+                collectiveId = TCollectiveId(maybeCollectiveId->Underlying());
             }
         }
         auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");
         auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
-        auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
-        auto monitoringDescriptor = jobMap->FindChildValue<TString>("monitoring_descriptor");
-        auto interruptionInfo = jobMap->FindChildValue<TString>("interruption_info");
+        auto taskName = jobMap->GetChildValueOrThrow<std::string>("task_name");
+        auto monitoringDescriptor = jobMap->FindChildValue<std::string>("monitoring_descriptor");
+        auto interruptionInfo = jobMap->FindChildValue<std::string>("interruption_info");
         auto startTime = jobMap->GetChildValueOrThrow<TInstant>("start_time");
         auto operationIncarnation = jobMap->FindChildValue<std::string>("operation_incarnation");
         return
@@ -2357,7 +2369,7 @@ TFuture<TListJobsFromControllerAgentResult> TClient::DoListJobsFromControllerAge
     const std::optional<std::string>& controllerAgentAddress,
     TInstant deadline,
     const TListJobsOptions& options,
-    const THashSet<TString>& attributes)
+    const THashSet<std::string>& attributes)
 {
     if (!controllerAgentAddress) {
         return MakeFuture(TListJobsFromControllerAgentResult{});
@@ -2454,7 +2466,7 @@ static TJobComparator GetJobsComparator(
 
     switch (sortField) {
         case EJobSortField::Type:
-            return makeLessBy([] (const TJob& job) -> std::optional<TString> {
+            return makeLessBy([] (const TJob& job) -> std::optional<std::string> {
                 if (auto type = job.Type) {
                     return FormatEnum(*type);
                 } else {
@@ -2462,7 +2474,7 @@ static TJobComparator GetJobsComparator(
                 }
             });
         case EJobSortField::State:
-            return makeLessBy([] (const TJob& job) -> std::optional<TString> {
+            return makeLessBy([] (const TJob& job) -> std::optional<std::string> {
                 if (auto state = job.GetState()) {
                     return FormatEnum(*state);
                 } else {
@@ -2597,7 +2609,7 @@ static TError TryFillJobPools(
             operationId);
     }
 
-    auto schedulingOptionPerPoolTree = ConvertTo<THashMap<TString, INodePtr>>(
+    auto schedulingOptionPerPoolTree = ConvertTo<THashMap<std::string, INodePtr>>(
         TYsonStringBuf(*schedulingOptionsPerPoolTreeYson));
 
     for (auto& job : jobs) {
@@ -2613,7 +2625,7 @@ static TError TryFillJobPools(
         if (!poolNode) {
             return TError("%Qv field is missing in scheduling_options_per_pool_tree for tree %Qv", "pool", *job.PoolTree);
         }
-        job.Pool = ConvertTo<TString>(poolNode);
+        job.Pool = ConvertTo<std::string>(poolNode);
     }
 
     return TError();
@@ -2630,7 +2642,7 @@ static void FillIsStale(bool operationFinished, std::vector<TJob>* jobs)
     }
 }
 
-static void ValidateRequestedAttributes(const THashSet<TString>& attributes)
+static void ValidateRequestedAttributes(const THashSet<std::string>& attributes)
 {
     for (const auto& attribute : attributes) {
         if (!SupportedJobsAttributes.contains(attribute)) {
@@ -2642,7 +2654,7 @@ static void ValidateRequestedAttributes(const THashSet<TString>& attributes)
     }
 }
 
-static void RemoveUnneededLightAttributes(const THashSet<TString>& attributes, std::vector<TJob>* jobs)
+static void RemoveUnneededLightAttributes(const THashSet<std::string>& attributes, std::vector<TJob>* jobs)
 {
     for (auto& job : *jobs) {
         auto filterAttribute = [&] (std::string attributeName, auto TJob::* attribute) {
@@ -2818,9 +2830,9 @@ TListJobsResult TClient::DoListJobs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes, int archiveVersion)
+static std::vector<std::string> MakeJobArchiveAttributes(const THashSet<std::string>& attributes, int archiveVersion)
 {
-    std::vector<TString> result;
+    std::vector<std::string> result;
     for (const auto& attribute : attributes) {
         if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
             continue;
@@ -2839,7 +2851,7 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         } else if (attribute == "contoller_state" && !attributes.contains("state")){
             // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
             result.emplace_back("controller_state");
-        } else if (attribute == "start_time" || attribute == "finish_time") {
+        } else if (attribute == "start_time" || attribute == "finish_time" || attribute == "error") {
             auto controllerAttribute = "controller_" + attribute;
             if (DoesArchiveContainAttribute(controllerAttribute, archiveVersion)) {
                 result.emplace_back(controllerAttribute);
@@ -2859,7 +2871,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     TOperationId operationId,
     TJobId jobId,
     TInstant deadline,
-    const THashSet<TString>& attributes)
+    const THashSet<std::string>& attributes)
 {
     auto operationIdAsGuid = operationId.Underlying();
     auto jobIdAsGuid = jobId.Underlying();
@@ -2903,7 +2915,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     auto records = ToRecords<NRecords::TJobPartial>(rowset->GetRows(), idMapping);
     auto jobs = ParseJobsFromArchiveResponse(
         operationId,
-        records,
+        std::move(records),
         idMapping,
         /*needFullStatistics*/ true);
     if (jobs.empty()) {
@@ -2917,7 +2929,7 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
     TOperationId operationId,
     TJobId jobId,
     TInstant deadline,
-    const THashSet<TString>& attributes)
+    const THashSet<std::string>& attributes)
 {
     auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
         operationId,

@@ -74,6 +74,16 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        ioctl.go
+        ioctl_inner.go
+        pty_unsupported.go
+        start.go
+        winsize_unix.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

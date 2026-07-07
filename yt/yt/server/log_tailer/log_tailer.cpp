@@ -32,7 +32,7 @@ void TLogTailer::Run()
 {
     LogReaders_.reserve(Config_->LogFiles.size());
 
-    std::vector<std::pair<TString, TString>> extraLogTableColumns = {
+    std::vector<std::pair<std::string, std::string>> extraLogTableColumns = {
         {"job_id", GetEnv("YT_JOB_ID")},
         {"operation_id", GetEnv("YT_OPERATION_ID")}};
 

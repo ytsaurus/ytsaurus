@@ -40,7 +40,6 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     ("tornado", "tornado/tornado-4"),
     ("tqdm", "tqdm/py2"),
     ("idna", "idna/py2"),
-    ("six", "six/py2"),
     ("attr", "attrs/py2"),
 ]
 
@@ -65,24 +64,8 @@ YT_TEST_DEPENDENCIES = [
 ]
 
 
-def cp_r_755(src, dst):
-    cp_r(src, dst, permissions=0o755, ignore=ignore_patterns("*.pyc"))
-
-
-def fix_type_info_package(type_info_path):
-    for root, dirs, files in os.walk(type_info_path):
-        for file in files:
-            try:
-                with open(os.path.join(root, file)) as fin:
-                    data = fin.read()
-                data = data.replace(
-                    "import six\n",
-                    "import yt.packages.six as six\n")
-                with open(os.path.join(root, file), "w") as fout:
-                    fout.write(data)
-            except BaseException as ex:
-                logger.error("Failed while patching file %s %s", os.path.join(root, file), ex)
-                raise
+def cp_r_755(src, dst, dirs_exist_ok=False):
+    cp_r(src, dst, permissions=0o755, ignore=ignore_patterns("*.pyc"), dirs_exist_ok=dirs_exist_ok)
 
 
 def patch_os_files(patcheable_files, to_os=True):
@@ -113,9 +96,12 @@ def prepare_python_modules(
         prepare_bindings=True,
         prepare_bindings_libraries=True,
         bindings_libraries=None,
-        should_fix_type_info_package=True,
+        should_fix_type_info_package=False,
         should_patch_os_files=False):
     """Prepares python libraries"""
+
+    if should_fix_type_info_package:
+        logger.warning("should_fix_type_info_package is deprecated and no longer needed")
 
     python_root = os.path.join(source_root, "yt/python")
 
@@ -143,7 +129,7 @@ def prepare_python_modules(
             lib_path,
             os.path.join(output_path, "{path}/{name}.so".format(path=os.path.basename(module_path), name=name)))
 
-    cp_r_755(os.path.join(python_root, "yt"), output_path)
+    cp_r_755(os.path.join(python_root, "yt"), output_path, dirs_exist_ok=True)
     yt_data_path = os.path.join(python_root, "yt", "data")
     if os.path.exists(yt_data_path):
         rm_rf(yt_data_path)
@@ -153,9 +139,6 @@ def prepare_python_modules(
         cp_r_755(os.path.join(source_root, dependency), output_path)
 
     packages_dir = os.path.join(output_path, "yt", "packages")
-
-    if should_fix_type_info_package:
-        fix_type_info_package(os.path.join(output_path, "yt", "type_info"))
 
     if should_patch_os_files:
         patch_os_files([os.path.join(output_path, "yt/wrapper/client.py")], to_os=True)
@@ -263,6 +246,9 @@ def main():
                         choices=["yson_lib", "driver_lib", "driver_rpc_lib"], default=None)
     args = parser.parse_args()
 
+    if args.fix_type_info_package:
+        logger.warning("--fix-type-info-package is deprecated and no longer needed")
+
     logger.addHandler(logging.StreamHandler())
     logger.setLevel(logging.INFO)
 
@@ -271,7 +257,6 @@ def main():
         output_path=args.output_path,
         build_root=args.build_root,
         use_modules_from_contrib=args.use_modules_from_contrib,
-        should_fix_type_info_package=args.fix_type_info_package,
         should_patch_os_files=args.patch_os_files,
         prepare_bindings_libraries=args.prepare_bindings_libraries,
         bindings_libraries=args.bindings_library,

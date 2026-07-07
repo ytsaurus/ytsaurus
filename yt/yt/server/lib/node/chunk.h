@@ -19,6 +19,9 @@ struct TChunkDescriptor
     // For journal chunks only.
     i64 RowCount = 0;
     bool Sealed = false;
+    // Sealed chunks are not opened upon location scan, we only do it on demand.
+    // As a consequence in order to access journal's row count we need to explicitly open it.
+    bool OpeningDelayed = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,15 +30,15 @@ class TLockedChunkGuard
 {
 public:
     TLockedChunkGuard() = default;
-    TLockedChunkGuard(TLockedChunkGuard&& other);
+    TLockedChunkGuard(TLockedChunkGuard&& other) noexcept;
     ~TLockedChunkGuard();
 
     //! This method loses pointer to location and chunk for exclude
     //! Location::UnlockChunk call in destructor. This is necessary to preserve
     //! eternal (while the location is alive) lock on the chunk.
-    void Release();
+    void Release() &&;
 
-    TLockedChunkGuard& operator=(TLockedChunkGuard&& other);
+    TLockedChunkGuard& operator=(TLockedChunkGuard&& other) noexcept;
 
     explicit operator bool() const;
 
@@ -44,6 +47,7 @@ private:
 
     TLockedChunkGuard(TChunkLocationBasePtr location, TChunkId chunkId);
 
+    void Unlock();
     void MoveFrom(TLockedChunkGuard&& other);
 
     TChunkLocationBasePtr Location_;

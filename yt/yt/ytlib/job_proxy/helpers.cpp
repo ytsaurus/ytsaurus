@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include <yt/yt/library/query/base/join_profiler.h>
 #include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/query/engine_api/evaluator.h>
@@ -77,7 +78,7 @@ void RunQuery(
         query,
         reader,
         writer,
-        /*joinProfilers*/ {},
+        TJoinProfilerRegistry({}, {}, GetDefaultMemoryChunkProvider(), Logger()),
         functionGenerators,
         aggregateGenerators,
         /*sdk*/ {},

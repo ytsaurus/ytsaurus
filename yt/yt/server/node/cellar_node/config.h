@@ -57,12 +57,34 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBundleControllerConnectorDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
+
+    TDuration HeartbeatTimeout;
+
+    REGISTER_YSON_STRUCT(TBundleControllerConnectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleControllerConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCellarNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
     NCellarAgent::TCellarManagerDynamicConfigPtr CellarManager;
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
+
+    TBundleControllerConnectorDynamicConfigPtr BundleControllerConnector;
+
+    std::optional<bool> DeduceProfilingTagFromBundleName;
 
     REGISTER_YSON_STRUCT(TCellarNodeDynamicConfig);
 
@@ -81,6 +103,8 @@ struct TCellarNodeConfig
     TMasterConnectorConfigPtr MasterConnector;
 
     NTransactionSupervisor::TTransactionLeaseTrackerConfigPtr TransactionLeaseTracker;
+
+    bool DeduceProfilingTagFromBundleName;
 
     REGISTER_YSON_STRUCT(TCellarNodeConfig);
 

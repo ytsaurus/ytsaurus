@@ -38,6 +38,7 @@ target_compile_options(server-lib-tablet_node PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(server-lib-tablet_node PUBLIC
@@ -53,6 +54,7 @@ target_link_libraries(server-lib-tablet_node PUBLIC
   yt-yt-ytlib
   server-lib-hive
   server-lib-election
+  server-lib-tablet_balancer
   server-lib-transaction_supervisor
   contrib-libs-protobuf
 )

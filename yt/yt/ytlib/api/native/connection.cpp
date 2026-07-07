@@ -74,8 +74,12 @@
 
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_channel.h>
 
+#include <yt/yt/ytlib/offshore_data_gateway/offshore_data_gateway_channel.h>
+
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 #include <yt/yt/ytlib/security_client/user_attribute_cache.h>
+
+#include <yt/yt/ytlib/tablet_balancer_client/tablet_balancer_channel.h>
 
 #include <yt/yt/ytlib/tablet_client/native_table_mount_cache.h>
 
@@ -123,6 +127,8 @@
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NAuth;
@@ -158,7 +164,7 @@ using std::placeholders::_1;
 
 namespace {
 
-TString MakeConnectionClusterId(const TConnectionStaticConfigPtr& config)
+std::string MakeConnectionClusterId(const TConnectionStaticConfigPtr& config)
 {
     if (config->ClusterName) {
         return Format("Native(Name=%v)", *config->ClusterName);
@@ -278,12 +284,8 @@ public:
             config->TvmId,
             Options_.TvmService);
 
-        MasterCellDirectory_ = NCellMasterClient::CreateCellDirectory(
-            StaticConfig_,
-            Options_,
-            ChannelFactory_,
-            MakeWeak(this),
-            Logger);
+        InitializeConnectionDirectories();
+
         MasterCellDirectorySynchronizer_ = NCellMasterClient::CreateCellDirectorySynchronizer(
             StaticConfig_->MasterCellDirectorySynchronizer,
             MasterCellDirectory_);
@@ -308,6 +310,17 @@ public:
             ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
+
+        TabletBalancerChannel_ = NTabletBalancerClient::CreateTabletBalancerChannel(
+            config->TabletBalancer,
+            ChannelFactory_,
+            GetMasterChannelOrThrow(EMasterChannelKind::Follower),
+            GetNetworks());
+
+        OffshoreDataGatewayChannel_ = NOffshoreDataGateway::CreateOffshoreDataGatewayChannel(
+            config->OffshoreDataGateway,
+            ChannelFactory_,
+            this);
 
         InitializeQueueAgentChannels();
 
@@ -338,38 +351,15 @@ public:
             MakeWeak(this),
             CreateNodeChannelFactory(ChannelFactory_, GetNetworks()));
 
-        auto clusterDirectoryOptions = Options_;
-        clusterDirectoryOptions.SignatureGenerator =
-            New<NSignature::TProvidedSignatureGenerator>(
-                BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
-                    if (auto this_ = weakThis.Lock()) {
-                        return this_->GetSignatureGenerator();
-                    }
-                    return GetDummySignatureGenerator();
-                }));
-
-        // NB(apachee): We only use queue consumer registration manager from the bootstrapped connection (exception are multi proxies).
-        // TODO(apachee): Fix this for multi proxies.
-        clusterDirectoryOptions.CreateQueueConsumerRegistrationManager = false;
-
-        ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
         ClusterDirectorySynchronizer_ = CreateClusterDirectorySynchronizer(
             config->ClusterDirectorySynchronizer,
             this,
             ClusterDirectory_);
 
-        MediumDirectory_ = New<TMediumDirectory>();
         MediumDirectorySynchronizer_ = New<TMediumDirectorySynchronizer>(
             config->MediumDirectorySynchronizer,
             this,
             MediumDirectory_);
-
-        CellDirectory_ = NHiveClient::CreateCellDirectory(
-            config->CellDirectory,
-            ChannelFactory_,
-            GetClusterDirectory(),
-            GetNetworks(),
-            Logger);
         ConfigureMasterCells();
 
         CellDirectorySynchronizer_ = CreateCellDirectorySynchronizer(
@@ -452,7 +442,6 @@ public:
             this,
             Logger);
 
-        NodeDirectory_ = New<TNodeDirectory>();
         NodeDirectorySynchronizer_ = CreateNodeDirectorySynchronizer(
             MakeStrong(this),
             NodeDirectory_);
@@ -465,6 +454,7 @@ public:
                 : GetNullMemoryUsageTracker());
 
         SetupTvmIdSynchronization();
+        SetupSequoiaConnectionSynchronization();
     }
 
     void InitializeDiscoveryServerAddressPool() override
@@ -704,6 +694,11 @@ public:
         return kind;
     }
 
+    const IChannelPtr& GetCypressProxyChannel() override
+    {
+        return CypressProxyChannel_;
+    }
+
     const IChannelPtr& GetSchedulerChannel() override
     {
         return SchedulerChannel_;
@@ -712,6 +707,16 @@ public:
     const IChannelPtr& GetBundleControllerChannel() override
     {
         return BundleControllerChannel_;
+    }
+
+    const IChannelPtr& GetTabletBalancerChannel() override
+    {
+        return TabletBalancerChannel_;
+    }
+
+    const IChannelPtr& GetOffshoreDataGatewayChannel() override
+    {
+        return OffshoreDataGatewayChannel_;
     }
 
     IChannelPtr GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind) override
@@ -1086,8 +1091,11 @@ private:
 
     IChannelPtr SchedulerChannel_;
     IChannelPtr BundleControllerChannel_;
+    IChannelPtr TabletBalancerChannel_;
 
-    THashMap<TString, IChannelPtr> QueueAgentChannels_;
+    IChannelPtr OffshoreDataGatewayChannel_;
+
+    THashMap<std::string, IChannelPtr> QueueAgentChannels_;
     IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;
@@ -1219,6 +1227,45 @@ private:
                 BIND(&CreateTimestampProviderChannelFromAddresses, timestampProviderConfig, ChannelFactory_)) :
             CreateTimestampProviderChannel(timestampProviderConfig, ChannelFactory_);
         TimestampProvider_ = CreateBatchingRemoteTimestampProvider(timestampProviderConfig, TimestampProviderChannel_);
+    }
+
+    void InitializeConnectionDirectories()
+    {
+        auto config = Config_.Acquire();
+
+        auto clusterDirectoryOptions = Options_;
+        clusterDirectoryOptions.SignatureGenerator =
+            New<NSignature::TProvidedSignatureGenerator>(
+                BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
+                    if (auto this_ = weakThis.Lock()) {
+                        return this_->GetSignatureGenerator();
+                    }
+                    return GetDummySignatureGenerator();
+                }));
+
+        // NB(apachee): We only use queue consumer registration manager from the bootstrapped connection (exception are multi proxies).
+        // TODO(apachee): Fix this for multi proxies.
+        clusterDirectoryOptions.CreateQueueConsumerRegistrationManager = false;
+
+        ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
+
+        MediumDirectory_ = New<TMediumDirectory>();
+
+        CellDirectory_ = NHiveClient::CreateCellDirectory(
+            config->CellDirectory,
+            ChannelFactory_,
+            GetClusterDirectory(),
+            GetNetworks(),
+            Logger);
+
+        MasterCellDirectory_ = NCellMasterClient::CreateCellDirectory(
+            StaticConfig_,
+            Options_,
+            ChannelFactory_,
+            CellDirectory_,
+            Logger);
+
+        NodeDirectory_ = New<TNodeDirectory>();
     }
 
     void InitializeCypressProxyChannel()
@@ -1461,6 +1508,44 @@ private:
     {
         SignatureGenerator_.Store(signatureGenerator);
     }
+
+    void SetupSequoiaConnectionSynchronization()
+    {
+        ClusterDirectory_->SubscribeOnClusterUpdated(
+            BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (const std::string& clusterName, INodePtr /*config*/) {
+                if (auto strongThis = weakThis.Lock()) {
+                    strongThis->MaybeReconfigureSequoiaConnection(clusterName);
+                }
+            }));
+        ClusterDirectory_->SubscribeOnClusterUnregistered(
+            BIND_NO_PROPAGATE(&TConnection::MaybeReconfigureSequoiaConnection, MakeWeak(this)));
+    }
+
+    void MaybeReconfigureSequoiaConnection(const std::string& updatedClusterName)
+    {
+        // Sequoia transaction uses cell directory in 2 different places:
+        // 1) Ground client uses cell directory associated with Ground cluster
+        //    connection to send rows to tablet cells;
+        // 2) transaction manager takes Ground cluster connection from (local
+        //    connection's) cluster directory and uses cell directory associated
+        //    with it to send transaction abort to tablet cells.
+        // (1) uses mount cache which is responsible for populating cell
+        // directory. In contrast, (2) just tries to find tablet cell channel
+        // and does nothing if there is no such channel. (2) usually can find
+        // the channel because (2) happens strictly after (1). So current
+        // behavior heavily relies on the fact that (1) and (2) use the same cell
+        // directory. Since ground client caches remote connection on creation
+        // it has to be manually reconfigured on cluster directory change.
+        // Otherwise, (1) and (2) end up using different cell directories, which
+        // leads to failures of sending of transaction abort requests to tablet
+        // cells.
+
+        if (auto sequoiaConnectionConfig = Config_.Acquire()->SequoiaConnection) {
+            if (sequoiaConnectionConfig->GroundClusterName == updatedClusterName) {
+                SequoiaConnection_->Reconfigure(sequoiaConnectionConfig);
+            }
+        }
+    }
 };
 
 TConnectionOptions::TConnectionOptions(IInvokerPtr invoker)
@@ -1566,8 +1651,8 @@ IConnectionPtr FindRemoteConnection(
 }
 
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
-    const IConnectionPtr& connection,
-    const std::string& clusterName,
+    IConnectionPtr connection,
+    std::string clusterName,
     EInsistentGetRemoteConnectionMode mode)
 {
     // Fast path.
@@ -1579,17 +1664,112 @@ TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     TFuture<void> waitDone = [&] {
         switch (mode)  {
             case EInsistentGetRemoteConnectionMode::Sync:
-                return connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true);
+                return connection->GetClusterDirectorySynchronizer()->TrySync(/*force*/ true)
+                    .Apply(BIND_NO_PROPAGATE([clusterName] (const TErrorOr<TClusterDirectoryUpdateResult>& result) {
+                        if (!result.IsOK()) {
+                            return TError(result);
+                        }
+                        const auto& clusterToErrorMapping = result.Value().ClusterToErrorMapping;
+                        auto it = clusterToErrorMapping.find(clusterName);
+                        if (it != clusterToErrorMapping.end() && !it->second.IsOK()) {
+                            return it->second;
+                        }
+                        return TError();
+                    }));
             case EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync:
-                return connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulSyncFuture();
+                return connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulClusterSyncFuture(clusterName);
         }
-        // NB: we don't put YT_ABORT in `default:` case, because we want compiler to check that all enum values are handled.
-        YT_ABORT();
+
+        auto Logger = ApiLogger();
+        TError error = TError("Unknown insistent get remote connection mode %v", mode);
+        YT_LOG_ALERT(error);
+        return MakeFuture(error);
     }();
 
-    return waitDone.Apply(BIND([=] {
-        return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
-    }));
+    return waitDone.Apply(BIND([
+            connection = std::move(connection),
+            clusterName = std::move(clusterName)
+        ] {
+            return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
+        }));
+}
+
+TFuture<std::vector<IConnectionPtr>> InsistentGetMultipleRemoteConnections(
+    NApi::NNative::IConnectionPtr connection,
+    std::vector<std::string> clusterNames,
+    EInsistentGetRemoteConnectionMode mode)
+{
+    std::vector<IConnectionPtr> result(clusterNames.size());
+    std::vector<std::pair<i64, std::string>> missingConnections;
+
+    // Fast path.
+    {
+        for (const auto& [index, clusterName] : Enumerate(clusterNames)) {
+            if (auto remoteConnection = connection->GetClusterDirectory()->FindConnection(clusterName)) {
+                result[index] = remoteConnection;
+            } else {
+                missingConnections.emplace_back(index, clusterName);
+            }
+        }
+        if (missingConnections.empty()) {
+            return MakeFuture(result);
+        }
+    }
+
+    // Slow path.
+    TFuture<void> waitDone = [&] {
+        switch (mode)  {
+            case EInsistentGetRemoteConnectionMode::Sync: {
+                return connection->GetClusterDirectorySynchronizer()->TrySync(/*force*/ true)
+                    .Apply(BIND_NO_PROPAGATE([clusterNames] (const TErrorOr<TClusterDirectoryUpdateResult>& result) {
+                        if (!result.IsOK()) {
+                            return TError(result);
+                        }
+                        std::vector<TError> errors;
+                        const auto& clusterToErrorMapping = result.Value().ClusterToErrorMapping;
+                        for (const auto& clusterName : clusterNames) {
+                            auto it = clusterToErrorMapping.find(clusterName);
+                            if (it != clusterToErrorMapping.end() && !it->second.IsOK()) {
+                                errors.push_back(it->second);
+                            }
+                        }
+
+                        if (errors.empty()) {
+                            return TError();
+                        }
+
+                        return TError("Failed to get remote connections for some clusters")
+                            << std::move(errors);
+                    }));
+            }
+            case EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync: {
+                std::vector<TFuture<void>> futures;
+                for (const auto& clusterName : clusterNames) {
+                    futures.push_back(connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulClusterSyncFuture(clusterName));
+                }
+                return AllSucceeded(std::move(futures));
+            }
+        }
+
+        auto Logger = ApiLogger();
+        TError error = TError("Unknown insistent get remote connection mode %v", mode);
+        YT_LOG_ALERT(error);
+        return MakeFuture(error);
+    }();
+
+    return waitDone.Apply(BIND([
+            connection = std::move(connection),
+            clusterNames = std::move(clusterNames),
+            result = std::move(result),
+            missingConnections = std::move(missingConnections)
+        ] () mutable {
+            for (const auto& [index, clusterName] : missingConnections) {
+                YT_VERIFY(!result[index]);
+                result[index] = connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
+            }
+
+            return std::move(result);
+        }));
 }
 
 IConnectionPtr FindRemoteConnection(
@@ -1617,40 +1797,6 @@ IConnectionPtr GetRemoteConnectionOrThrow(
         THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
     }
     return remoteConnection;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<TTableMountInfoPtr> GetTableMountInfo(const TRichYPath& objectPath, const IConnectionPtr& connection)
-{
-    const auto& objectCluster = objectPath.GetCluster();
-    // NB: For better cache locality, use the provided connection when its cluster is equal to the object's cluster.
-    auto objectConnection = ((objectCluster && objectCluster == connection->GetClusterName())
-        ? connection
-        : FindRemoteConnection(connection, objectPath.GetCluster()));
-    YT_VERIFY(objectConnection);
-    auto objectTableMountCache = objectConnection->GetTableMountCache();
-    return objectTableMountCache->GetTableInfo(objectPath.GetPath());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<bool> IsSuperuser(const IConnectionPtr& connection, const std::string& user)
-{
-    return connection->GetUserAttributeCache()->Get(user)
-        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
-            YT_VERIFY(attributes);
-            return attributes->MemberOfClosure.contains(SuperusersGroupName);
-        }));
-}
-
-TFuture<bool> IsUserBanned(const IConnectionPtr& connection, const std::string& user)
-{
-    return connection->GetUserAttributeCache()->Get(user)
-        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
-            YT_VERIFY(attributes);
-            return attributes->Banned;
-        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

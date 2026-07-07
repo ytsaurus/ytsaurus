@@ -118,6 +118,11 @@ struct TDynamicTabletCellBalancerMasterConfig
     bool EnableVerboseLogging;
     TDuration RebalanceWaitTime;
 
+    //! If set, leaders of multipeer cells will be redistributed across nodes
+    //! to ensure even distribution. This helps avoid situations where some nodes
+    //! host significantly more leaders than others.
+    bool EnableLeaderSmoothing;
+
     REGISTER_YSON_STRUCT(TDynamicTabletCellBalancerMasterConfig);
 
     static void Register(TRegistrar registrar);
@@ -176,6 +181,20 @@ struct TDynamicCellHydraPersistenceSynchronizerConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicCellHydraPersistenceSynchronizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicTabletManagerTestingConfig
+    : public NYTree::TYsonStruct
+{
+    bool MountViaOrphanedTabletActions;
+
+    REGISTER_YSON_STRUCT(TDynamicTabletManagerTestingConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTabletManagerTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -331,15 +350,18 @@ struct TDynamicTabletManagerConfig
     // COMPAT(shakurov)
     bool EnableHunkSpecificMedia;
 
-    // COMPAT(danilalexeev)
-    bool SafeCheckSecondaryCellStorage;
-
     bool EnableSmoothTabletMovement;
 
     bool EnableClockCellTagValidationOnChaosReplicaMount;
 
     // COMPAT(akozhikhov)
     bool EnableAlterToStaticWithHunks;
+
+    i64 MaxReshardComplexity;
+
+    bool UpdateTableContentRevisionOnHeartbeat;
+
+    TDynamicTabletManagerTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 

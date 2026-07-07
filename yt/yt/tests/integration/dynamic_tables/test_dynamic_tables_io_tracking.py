@@ -210,6 +210,14 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
         sync_create_cells(1)
         self._create_sorted_table("//tmp/table")
         self._prefer_remote_replicas("//tmp/table")
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "max_concurrent_compactions": 1,
+                    "max_concurrent_partitionings": 1,
+                }
+            }
+        })
         set("//tmp/table/@enable_compaction_and_partitioning", False)
         set("//tmp/table/@max_partition_data_size", 640)
         set("//tmp/table/@desired_partition_data_size", 512)
@@ -241,7 +249,7 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
         new_chunk_ids = [store["chunk_id"] for store in end_partitioning_events[0]["stores_to_add"]]
 
         # Check io log.
-        read_events = self.wait_for_raw_events(count=len(old_chunk_ids), from_barrier=from_barrier, check_event_count=True,
+        read_events = self.wait_for_raw_events(count=len(old_chunk_ids), from_barrier=from_barrier, check_event_count=False,
                                                filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
         write_events = self.wait_for_raw_events(count=len(new_chunk_ids), from_barrier=from_barrier, check_event_count=True,
                                                 filter=lambda event: event.get("data_node_method@") == "FinishChunk")

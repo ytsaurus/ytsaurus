@@ -1,5 +1,5 @@
 #include "file_system_block_device.h"
-#include "block_device.h"
+#include "block_device_detail.h"
 #include "config.h"
 #include "image_reader.h"
 #include "profiler.h"
@@ -37,11 +37,11 @@ using namespace NTracing;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileSystemBlockDevice
-    : public TBaseBlockDevice
+    : public TBlockDeviceBase
 {
 public:
     TFileSystemBlockDevice(
-        TString exportId,
+        std::string exportId,
         TFileSystemBlockDeviceConfigPtr config,
         IImageReaderPtr reader,
         IInvokerPtr invoker,
@@ -82,12 +82,12 @@ public:
         return true;
     }
 
-    TString DebugString() const override
+    std::string DebugString() const override
     {
         return Format("{CypressPath: %v}", Reader_->GetPath());
     }
 
-    TString GetProfileSensorTag() const override
+    std::string GetProfileSensorTag() const override
     {
         return Reader_->GetPath();
     }
@@ -99,17 +99,8 @@ public:
     {
         auto guard = TCurrentTraceContextGuard(TraceContext_);
 
-        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_count").Increment(1);
-        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_bytes").Increment(length);
-
-        NProfiling::TEventTimerGuard readTimeGuard(TNbdProfilerCounters::Get()->GetTimer(TagSet_, "/device/read_time"));
-
         return Reader_->Read(offset, length, options)
-            .Apply(BIND([this, this_ = MakeStrong(this), readTimeGuard = std::move(readTimeGuard), tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
-                if (!result.IsOK()) {
-                    TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_errors").Increment(1);
-                }
-
+            .Apply(BIND([this, this_ = MakeStrong(this), tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
                 auto statistics = Reader_->GetStatistics();
                 TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_cache")
                     .Increment(statistics.DataBytesReadFromCache);
@@ -148,7 +139,7 @@ public:
     }
 
 private:
-    const TString ExportId_;
+    const std::string ExportId_;
     const TFileSystemBlockDeviceConfigPtr Config_;
     const IImageReaderPtr Reader_;
     const IInvokerPtr Invoker_;
@@ -158,7 +149,7 @@ private:
 
     void DoInitialize()
     {
-        YT_LOG_INFO("Initializing File system block divice (Path: %v)", Reader_->GetPath());
+        YT_LOG_INFO("Initializing File system block device (Path: %v)", Reader_->GetPath());
 
         Reader_->Initialize();
 
@@ -175,7 +166,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateFileSystemBlockDevice(
-    TString exportId,
+    std::string exportId,
     TFileSystemBlockDeviceConfigPtr config,
     IImageReaderPtr reader,
     IInvokerPtr invoker,

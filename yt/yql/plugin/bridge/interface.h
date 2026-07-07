@@ -32,11 +32,20 @@ struct TBridgeYqlPluginOptions
     const char* PqGatewayConfig = nullptr;
     size_t PqGatewayConfigLength = 0;
 
+    const char* SolomonGatewayConfig = nullptr;
+    size_t SolomonGatewayConfigLength = 0;
+
     const char* DqManagerConfig = nullptr;
     size_t DqManagerConfigLength = 0;
 
     const char* FileStorageConfig = nullptr;
     size_t FileStorageConfigLength = 0;
+
+    const char* TvmConfig = nullptr;
+    size_t TvmConfigLength = 0;
+
+    const char* YtAccessProviderConfig = nullptr;
+    size_t YtAccessProviderConfigLength = 0;
 
     const char* OperationAttributes = nullptr;
     size_t OperationAttributesLength = 0;
@@ -182,6 +191,9 @@ using TFuncBridgeGetDeclaredParametersInfo = TBridgeGetDeclaredParametersInfoRes
     const char* credentials,
     int credentialsLength);
 
+using TFuncBridgeRegisterQuery = void(TBridgeYqlPlugin* plugin, const char* queryId);
+using TFuncBridgeUnregisterQuery = void(TBridgeYqlPlugin* plugin, const char* queryId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define FOR_EACH_BRIDGE_INTERFACE_FUNCTION(XX) \
@@ -198,6 +210,8 @@ using TFuncBridgeGetDeclaredParametersInfo = TBridgeGetDeclaredParametersInfoRes
     XX(BridgeFreeAbortResult) \
     XX(BridgeOnDynamicConfigChanged) \
     XX(BridgeGetDeclaredParametersInfo) \
-    XX(BridgeFreeGetDeclaredParametersInfoResult)
+    XX(BridgeFreeGetDeclaredParametersInfoResult) \
+    XX(BridgeRegisterQuery) \
+    XX(BridgeUnregisterQuery)
 
 ////////////////////////////////////////////////////////////////////////////////

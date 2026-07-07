@@ -5,6 +5,7 @@ TEST_SRCS(
 )
 
 PEERDIR(
+    library/python/port_manager
     yt/python/yt/yson
     yt/python/yt/local
     yt/python/yt/environment
@@ -28,7 +29,7 @@ SPLIT_FACTOR(16)
 IF (YT_TEAMCITY)
     TAG(ya:yt)
 
-    YT_SPEC(yt/yt/tests/integration/spec.yson)
+    YT_SPEC(yt/yt/tests/integration/spec_teamcity.yson)
 
     REQUIREMENTS(
         ram_disk:32

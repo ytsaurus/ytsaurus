@@ -156,18 +156,18 @@ class TestChunkMerger(YTEnvSetup):
         set("//tmp/t/@chunk_merger_mode", "auto")
         assert get("//tmp/t/@chunk_merger_mode") == "auto"
 
-        with raises_yt_error("Error parsing EChunkMergerMode"):
+        with raises_yt_error("Error parsing .* value"):
             set("//tmp/t/@chunk_merger_mode", "sdjkfhdskj")
 
         create_account("a")
 
         set("//sys/accounts/a/@merge_job_rate_limit", 7)
-        with raises_yt_error("cannot be negative"):
+        with raises_yt_error(".* cannot be negative"):
             set("//sys/accounts/a/@merge_job_rate_limit", -1)
         assert get("//sys/accounts/a/@merge_job_rate_limit") == 7
 
         set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", 12)
-        with raises_yt_error("cannot be negative"):
+        with raises_yt_error(".* cannot be negative"):
             set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", -1)
         assert get("//sys/accounts/a/@chunk_merger_node_traversal_concurrency") == 12
 
@@ -177,7 +177,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/accounts/d/@chunk_merger_criteria", data)
         assert get("//sys/accounts/d/@chunk_merger_criteria") == data
 
-        with raises_yt_error("must be positive"):
+        with raises_yt_error(".* must be positive"):
             set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", -1)
         set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", 2)
         assert get("//sys/accounts/d/@chunk_merger_criteria/max_row_count") == 2
@@ -476,6 +476,31 @@ class TestChunkMerger(YTEnvSetup):
 
         wait(lambda: get("//tmp/t1/@chunk_count") == 1)
 
+        self._abort_chunk_merger_txs()
+
+    @authors("cherepashka")
+    def test_chunk_accounting_on_merge(self):
+        create_account("a")
+        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 0)
+        create("table", "//tmp/t1", attributes={"account": "a"})
+        self._remove_merge_quotas("//tmp/t1")
+
+        write_table("<append=true>//tmp/t1", {"a": "b"})
+        write_table("<append=true>//tmp/t1", {"b": "c"})
+        write_table("<append=true>//tmp/t1", {"c": "d"})
+
+        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == get("//tmp/t1/@chunk_count"))
+
+        copy("//tmp/t1", "//tmp/t2", preserve_account=True)
+        assert get("//tmp/t1/@chunk_ids") == get("//tmp/t2/@chunk_ids")
+        assert get("//tmp/t1/@chunk_count") > 1
+        assert get("//tmp/t2/@chunk_count") > 1
+        assert get("//sys/accounts/a/@resource_usage/chunk_count") == get("//tmp/t1/@chunk_count")
+
+        _wait_for_merge("//tmp/t1", "auto")
+        _wait_for_merge("//tmp/t2", "auto")
+
+        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 2)
         self._abort_chunk_merger_txs()
 
     @authors("aleksandra-zh")
@@ -1582,7 +1607,6 @@ class TestChunkMergerPortal(TestChunkMergerMulticell):
         _wait_for_merge("//home/t2", None)
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkMergerSequoia(TestChunkMergerMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1597,7 +1621,6 @@ class TestChunkMergerSequoia(TestChunkMergerMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestTableDataStatisticsConsistency(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1

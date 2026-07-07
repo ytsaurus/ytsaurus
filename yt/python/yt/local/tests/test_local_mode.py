@@ -594,7 +594,7 @@ class TestLocalMode(object):
 
     @pytest.mark.skipif("yatest_common is None")
     def test_ports(self, enable_multidaemon):
-        from yatest.common.network import PortManager
+        from library.python.port_manager import PortManager
         with PortManager() as port_manager:
             http_proxy_port = port_manager.get_port()
             rpc_proxy_port = port_manager.get_port()
@@ -603,11 +603,15 @@ class TestLocalMode(object):
                 assert environment.configs["rpc_proxy"][0]["rpc_port"] == rpc_proxy_port
 
     def test_structured_logging(self, enable_multidaemon):
-        with local_yt(id=_get_id("test_structured_logging"), enable_structured_logging=True, enable_multidaemon=enable_multidaemon) as environment:
+        with local_yt(id=_get_id("test_structured_logging"), rpc_proxy_count=1, enable_structured_logging=True, enable_multidaemon=enable_multidaemon) as environment:
             client = environment.create_client()
             client.get("/")
-            filename = "http-proxy-0.json.log" if not enable_multidaemon else "multi.json.log"
-            wait(lambda: os.path.exists(os.path.join(environment.logs_path, filename)))
+            if enable_multidaemon:
+                filenames = ["multi.json.log"]
+            else:
+                filenames = ["http-proxy-0.json.log", "rpc-proxy-0.json.log"]
+            for filename in filenames:
+                wait(lambda filename=filename: os.path.exists(os.path.join(environment.logs_path, filename)))
 
     def test_one_node_configuration(self, enable_multidaemon):
         row_count = 100

@@ -14,6 +14,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/microservices/access_log_viewer/raw_access_log_preprocessing/internal/config"
 	"go.ytsaurus.tech/yt/microservices/access_log_viewer/raw_access_log_preprocessing/internal/consts"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 type Merger struct {
@@ -58,6 +59,9 @@ func (m *Merger) Run(ctx context.Context) error {
 			defer func() { _ = tx.Abort() }()
 			if err := m.mergePartition(ctx, tx, processingName, partition); err != nil {
 				return xerrors.Errorf("failed to merge partition %q: %w", partition, err)
+			}
+			if err := m.setExpirationTimeout(ctx, tx, processingConfig, partition); err != nil {
+				return xerrors.Errorf("failed to set expiration_timeout: %w", err)
 			}
 			if err := tx.RemoveNode(ctx, partitionsParent.Child(processingName).Child(partition), &yt.RemoveNodeOptions{Recursive: true}); err != nil {
 				return xerrors.Errorf("failed to remove chunks: %w", err)
@@ -128,15 +132,21 @@ func (m *Merger) mergePartition(ctx context.Context, tx yt.Tx, processingName st
 	sortSpec.Title = fmt.Sprintf("[Raw Access Log Preprocessing] Processing time partitions [%s]", spanID)
 
 	mr := mapreduce.New(m.yc).WithTx(tx)
-	sortOp, err := mr.Sort(sortSpec)
-	if err != nil {
-		return xerrors.Errorf("failed to create sort operation: %w", err)
+
+	if err := ytmsvc.BatchedSort(ctx, mr, tx, sortSpec, chunksParent); err != nil {
+		return xerrors.Errorf("batched sort failed for partition %q: %w", partition, err)
 	}
 
-	if err := sortOp.Wait(); err != nil {
-		return xerrors.Errorf("failed to wait for sort operation: %w", err)
-	}
+	return nil
+}
 
+func (m *Merger) setExpirationTimeout(ctx context.Context, tx yt.Tx, processingConfig *config.Processing, partition string) error {
+	if expirationTimeout := processingConfig.ExpirationTimeout; expirationTimeout != 0 {
+		outputPath := processingConfig.OutputPath.Child(partition)
+		if err := tx.SetNode(ctx, outputPath.Attr("expiration_timeout"), expirationTimeout.Milliseconds(), &yt.SetNodeOptions{}); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

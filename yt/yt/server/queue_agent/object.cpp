@@ -4,68 +4,60 @@
 
 namespace NYT::NQueueAgent {
 
-template <typename TRow, typename TSnapshot>
-TErrorController<TRow, TSnapshot>::TErrorController(
-    TRow row,
-    std::optional<NQueueClient::TReplicatedTableMappingTableRow> replicatedTableMappingRow,
-    TError error)
-    : Row_(std::move(row))
-    , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
-    , Error_(std::move(error))
-    , Snapshot_(New<TSnapshot>())
-{
-    Snapshot_->Error = Error_;
-}
+template <typename TSnapshot>
+TErrorController<TSnapshot>::TErrorController(
+    TSnapshotPtr snapshot)
+    : Snapshot_(std::move(snapshot))
+{ }
 
-template <typename TRow, typename TSnapshot>
-void TErrorController<TRow, TSnapshot>::OnDynamicConfigChanged(
+template <typename TSnapshot>
+void TErrorController<TSnapshot>::OnDynamicConfigChanged(
     const TQueueControllerDynamicConfigPtr& /*oldConfig*/,
     const TQueueControllerDynamicConfigPtr& /*newConfig*/)
 { }
 
-template <typename TRow, typename TSnapshot>
-void TErrorController<TRow, TSnapshot>::OnRowUpdated(std::any /*row*/)
+template <typename TSnapshot>
+void TErrorController<TSnapshot>::OnRowUpdated(std::any /*row*/)
 {
     // Row update is handled in Update Controller.
 }
 
-template <typename TRow, typename TSnapshot>
-void TErrorController<TRow, TSnapshot>::OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& /*row*/)
+template <typename TSnapshot>
+void TErrorController<TSnapshot>::OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& /*row*/)
 {
     // Row update is handled in Update Controller.
 }
 
-template <typename TRow, typename TSnapshot>
-void TErrorController<TRow, TSnapshot>::Stop()
+template <typename TSnapshot>
+void TErrorController<TSnapshot>::Stop()
 { }
 
-template <typename TRow, typename TSnapshot>
-TRefCountedPtr TErrorController<TRow, TSnapshot>::GetLatestSnapshot() const
+template <typename TSnapshot>
+TRefCountedPtr TErrorController<TSnapshot>::GetLatestSnapshot() const
 {
     return Snapshot_;
 }
 
-template <typename TRow, typename TSnapshot>
-void TErrorController<TRow, TSnapshot>::BuildOrchid(NYson::IYsonConsumer* consumer) const
+template <typename TSnapshot>
+void TErrorController<TSnapshot>::BuildOrchid(NYson::IYsonConsumer* consumer) const
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("row").Value(Row_)
-            .Item("replicated_table_mapping_row").Value(ReplicatedTableMappingRow_)
+            .Item("row").Value(Snapshot_->Row)
+            .Item("replicated_table_mapping_row").Value(Snapshot_->ReplicatedTableMappingRow)
             .Item("status").BeginMap()
-                .Item("error").Value(Error_)
+                .Item("error").Value(Snapshot_->Error)
             .EndMap()
             .Item("partitions").BeginList().EndList()
         .EndMap();
 }
 
-template <typename TRow, typename TSnapshot>
-bool TErrorController<TRow, TSnapshot>::IsLeading() const
+template <typename TSnapshot>
+bool TErrorController<TSnapshot>::IsLeading() const
 {
     return false;
 }
 
-template class TErrorController<NQueueClient::TConsumerTableRow, TConsumerSnapshot>;
-template class TErrorController<NQueueClient::TQueueTableRow, TQueueSnapshot>;
+template class TErrorController<TQueueSnapshot>;
 
 } // namespace NYT::NQueueAgent

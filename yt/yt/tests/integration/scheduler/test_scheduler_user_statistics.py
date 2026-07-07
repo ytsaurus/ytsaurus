@@ -1,19 +1,16 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    assert_statistics, authors, extract_deprecated_statistic, extract_statistic_v2, update_controller_agent_config,
+    assert_statistics, authors, extract_deprecated_statistic, extract_statistic_v2, raises_yt_error, update_controller_agent_config,
     wait, wait_no_assert,
     get, create, write_table, map, run_test_vanilla,
     with_breakpoint, wait_breakpoint, release_breakpoint)
-
-from yt.common import YtError
 
 import pytest
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerUserStatistics(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -89,7 +86,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             summary_type="max") == 42
 
         # But the empty keys are not ok (as well as for any other map nodes).
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -105,7 +102,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
 
         long_name = "a" * 2048
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -124,7 +121,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         for i in range(custom_statistics_count_limit + 1):
             write_line += 'echo "{ name' + str(i) + '=42};">&5;'
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",

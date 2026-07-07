@@ -12,8 +12,6 @@
 #include <yt/yt/server/lib/rpc_proxy/private.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
-#include <yt/yt/server/lib/signature/components.h>
-
 #include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -60,12 +58,16 @@
 
 #include <yt/yt/library/fusion/service_locator.h>
 
+#include <yt/yt/library/signature/components/components.h>
+
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
 #include <yt/yt/core/rpc/grpc/config.h>
 #include <yt/yt/core/rpc/grpc/server.h>
 
 #include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/https/server.h>
 
 #include <yt/yt/core/bus/public.h>
 #include <yt/yt/core/bus/server.h>
@@ -96,6 +98,7 @@ using namespace NAdmin;
 using namespace NApi;
 using namespace NAuth;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NMonitoring;
@@ -170,7 +173,8 @@ void TBootstrap::DoInitialize()
         New<TNodeMemoryTrackerConfig>(),
         /*limits*/ {},
         Logger(),
-        RpcProxyProfiler().WithPrefix("/memory_usage"));
+        RpcProxyProfiler().WithPrefix("/memory_usage"),
+        GetControlInvoker());
 
     ReconfigureMemoryLimits(Config_->MemoryLimits);
 
@@ -241,9 +245,9 @@ void TBootstrap::DoInitialize()
         Config_->BusServer,
         GetYTPacketTranscoderFactory(),
         MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
-        TCertProfiler{
-            RpcProxyProfiler().WithPrefix("/bus_server"),
-            GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+        NCrypto::TCertProfiler{
+            .Profiler = RpcProxyProfiler().WithPrefix("/bus_server"),
+            .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
         });
 
     if (Config_->PublicRpcPort) {
@@ -251,9 +255,9 @@ void TBootstrap::DoInitialize()
             Config_->PublicBusServer,
             GetYTPacketTranscoderFactory(),
             MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
-            TCertProfiler{
-                RpcProxyProfiler().WithPrefix("/public_bus_server"),
-                GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+            NCrypto::TCertProfiler{
+                .Profiler = RpcProxyProfiler().WithPrefix("/public_bus_server"),
+                .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
             });
     }
 
@@ -264,9 +268,9 @@ void TBootstrap::DoInitialize()
             busConfigCopy,
             GetYTPacketTranscoderFactory(),
             GetNullMemoryUsageTracker(),
-            TCertProfiler{
-                RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
-                GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+            NCrypto::TCertProfiler{
+                .Profiler = RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
+                .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
             });
     }
 
@@ -282,10 +286,13 @@ void TBootstrap::DoInitialize()
     }
 
     // Cycles are fine for bootstrap.
-    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
-    BundleDynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
+    DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+    BundleDynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+    if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+        HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+    }
 }
 
 void TBootstrap::DoStart()
@@ -293,6 +300,7 @@ void TBootstrap::DoStart()
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
+        HttpsServer_,
         ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
@@ -390,6 +398,8 @@ void TBootstrap::DoStart()
     BundleDynamicConfigManager_->Initialize();
     BundleDynamicConfigManager_->Start();
 
+    MemoryUsageTracker_->Start();
+
     // NB: We must apply the first dynamic config before ApiService_ starts.
     YT_LOG_INFO("Loading dynamic config for the first time");
 
@@ -450,6 +460,10 @@ void TBootstrap::DoStart()
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
+    if (HttpsServer_) {
+        YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+        HttpsServer_->Start();
+    }
 
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Start();
@@ -555,12 +569,13 @@ void TBootstrap::OnDynamicConfigChanged(
 
     ApiService_->OnDynamicConfigChanged(newConfig->Api);
 
-    BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
+    BusServer_->Reconfigure(newConfig->BusServer);
     RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
     QueryCorpusReporter_->Reconfigure(newConfig->Api->QueryCorpusReporter);
 
     ReconfigureMemoryLimits(newConfig->MemoryLimits);
+    MemoryUsageTracker_->Reconfigure(newConfig->MemoryTracker);
 
     ReconfigureConnection(newConfig, BundleDynamicConfigManager_->GetConfig());
 
@@ -568,10 +583,11 @@ void TBootstrap::OnDynamicConfigChanged(
         YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
     }
 
-    Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(
-        newConfig->MasterCellDirectorySynchronizer.value_or(Config_->ClusterConnection->Static->MasterCellDirectorySynchronizer));
+    Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
 
     WorkerWeightProvider_->SetOverrides(newConfig->WorkerPoolWeightOverrides);
+
+    WorkerPool_->SetThreadCount(newConfig->WorkerThreadPoolSize.value_or(Config_->WorkerThreadPoolSize));
 }
 
 void TBootstrap::OnBundleDynamicConfigChanged(

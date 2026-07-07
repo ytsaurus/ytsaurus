@@ -26,11 +26,12 @@ namespace NYT::NSchedulerSimulator {
 // TODO(max42): move to -inl.h
 
 template <class TConfig>
-TIntrusivePtr<TConfig> LoadConfig(const TString& configFilename)
+TIntrusivePtr<TConfig> LoadConfig(const std::string& configFilename)
 {
     NYTree::INodePtr configNode;
     try {
-        TIFStream configStream(configFilename);
+        // TODO(babenko): migrate to std::string
+        TIFStream configStream{TString(configFilename)};
         configNode = NYTree::ConvertToNode(&configStream);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error reading scheduler simulator configuration") << ex;
@@ -100,7 +101,7 @@ struct TRemoteEventLogConfig
 {
     NEventLog::TStaticTableEventLogManagerConfigPtr EventLogManager;
 
-    std::optional<TString> ConnectionFilename;
+    std::optional<std::string> ConnectionFilename;
     NApi::NNative::TConnectionCompoundConfigPtr Connection;
     std::string User;
 
@@ -139,11 +140,11 @@ struct TSchedulerSimulatorConfig
     , public TSingletonsConfig
 {
     int HeartbeatPeriod;
-    TString NodeGroupsFilename;
-    TString PoolTreesFilename;
-    TString OperationsStatsFilename;
-    TString EventLogFilename;
-    TString SchedulerConfigFilename;
+    std::string NodeGroupsFilename;
+    std::string PoolTreesFilename;
+    std::string OperationsStatsFilename;
+    std::string EventLogFilename;
+    std::string SchedulerConfigFilename;
 
     bool EnableFullEventLog;
 

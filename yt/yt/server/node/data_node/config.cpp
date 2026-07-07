@@ -43,14 +43,18 @@ void TP2PConfig::Register(TRegistrar registrar)
     registrar.Parameter("snooper_cache", &TThis::RequestCache)
         .DefaultNew();
     registrar.Parameter("snooper_cache_override", &TThis::RequestCacheOverride)
-        .DefaultNew();
+        .DefaultCtor([] {
+            auto requestCacheOverride = New<TSlruCacheDynamicConfig>();
+            requestCacheOverride->Capacity = 1_GB;
+            return requestCacheOverride;
+        });
 
     registrar.Parameter("chunk_cooldown_timeout", &TThis::ChunkCooldownTimeout)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("max_distributed_bytes", &TThis::MaxDistributedBytes)
         .Default(128_MB);
     registrar.Parameter("max_block_size", &TThis::MaxBlockSize)
-        .Default(128_MB);
+        .Default(2_GB);
     registrar.Parameter("block_counter_reset_ticks", &TThis::BlockCounterResetTicks)
         .GreaterThan(0)
         .Default(150);
@@ -103,17 +107,10 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     UpdateYsonStructField(CoalescedReadMaxGapSize, dynamicConfig.CoalescedReadMaxGapSize);
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
-        auto priority = dynamicConfig.FairShareWorkloadCategoryWeights[category];
-        if (priority) {
-            FairShareWorkloadCategoryWeights[category] = *priority;
-        } else {
-            FairShareWorkloadCategoryWeights[category] = DefaultFairShareWorkloadCategoryWeights[category];
-        }
+        UpdateYsonStructField(FairShareWorkloadCategoryWeights[category], dynamicConfig.FairShareWorkloadCategoryWeights[category]);
     }
 
     UpdateYsonStructField(MemoryLimitFractionForStartingNewSessions, dynamicConfig.MemoryLimitFractionForStartingNewSessions);
-
-    UpdateYsonStructField(IOWeightFormula, dynamicConfig.IOWeightFormula);
 }
 
 void TChunkLocationConfig::Register(TRegistrar registrar)
@@ -127,16 +124,13 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("uncategorized_throttler", &TThis::UncategorizedThrottler)
         .DefaultNew();
 
-    registrar.Parameter("fair_share_workload_category_priorities", &TThis::FairShareWorkloadCategoryWeights)
+    registrar.Parameter("fair_share_workload_category_weights", &TThis::FairShareWorkloadCategoryWeights)
         .Default();
 
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0)
         .Default(0.9);
-
-    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
-        .Optional();
 
     registrar.Parameter("throttle_duration", &TThis::ThrottleDuration)
         .Default(TDuration::Seconds(30));
@@ -181,12 +175,12 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Optional();
 
+    registrar.Parameter("fair_share_workload_category_weights", &TThis::FairShareWorkloadCategoryWeights)
+        .Default();
+
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0)
-        .Optional();
-
-    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
         .Optional();
 
     registrar.Postprocessor([] (TThis* config) {
@@ -217,6 +211,8 @@ void TStoreLocationConfig::ApplyDynamicInplace(
     UpdateYsonStructField(MaxTrashTtl, dynamicConfig.MaxTrashTtl);
     UpdateYsonStructField(TrashCleanupWatermark, dynamicConfig.TrashCleanupWatermark);
     UpdateYsonStructField(TrashCheckPeriod, dynamicConfig.TrashCheckPeriod);
+
+    UpdateYsonStructField(IOWeightFormula, dynamicConfig.IOWeightFormula);
 }
 
 void TStoreLocationConfig::Register(TRegistrar registrar)
@@ -245,6 +241,9 @@ void TStoreLocationConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("low_latency_split_changelog", &TThis::LowLatencySplitChangelog)
         .Default();
+
+    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
+        .Optional();
 
     registrar.BaseClassParameter("medium_name", &TThis::MediumName)
         .Default(NChunkClient::DefaultStoreMediumName);
@@ -282,6 +281,9 @@ void TStoreLocationDynamicConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Optional();
     registrar.Parameter("trash_check_period", &TThis::TrashCheckPeriod)
+        .Optional();
+
+    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
         .Optional();
 }
 
@@ -380,7 +382,7 @@ void TLayerLocationConfig::Register(TRegistrar registrar)
 void TTmpfsLayerCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("capacity", &TThis::Capacity)
-        .Default(10 * 1_GB)
+        .Default(10_GB)
         .GreaterThan(0);
 
     registrar.Parameter("layers_directory_path", &TThis::LayersDirectoryPath)
@@ -532,6 +534,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("block_read_timeout_fraction", &TThis::BlockReadTimeoutFraction)
         .Default(0.75);
 
+    registrar.Parameter("delay_before_blob_chunk_read", &TThis::DelayBeforeBlobChunkRead)
+        .Default();
+
     registrar.Parameter("delay_before_blob_session_block_free", &TThis::DelayBeforeBlobSessionBlockFree)
         .Default();
 
@@ -643,7 +648,7 @@ void TReplicateChunkJobDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("use_block_cache", &TThis::UseBlockCache)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("replication_range_size", &TThis::ReplicationRangeSize)
         .Optional();
@@ -685,7 +690,7 @@ void TMergeChunksJobDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("track_writer_memory", &TThis::TrackWriterMemory)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
         .Default(false);
     registrar.Parameter("fail_chunk_meta_validation", &TThis::FailChunkMetaValidation)
@@ -727,6 +732,9 @@ void TRepairChunkJobDynamicConfig::Register(TRegistrar registrar)
         // Don't populate caches in chunk jobs.
         config->Reader->PopulateCache = false;
         config->Reader->RetryTimeout = TDuration::Minutes(15);
+
+        config->Reader->ReplicationReaderSpeedLimitPerSec = 262144.;
+        config->Reader->ReplicationReaderTimeout = TDuration::Minutes(6);
     });
 }
 
@@ -787,19 +795,35 @@ void TSealChunkJobDynamicConfig::Register(TRegistrar registrar)
 void TJournalManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("multiplexed_changelog", &TThis::MultiplexedChangelog)
-        .DefaultNew();
+        .DefaultCtor([] {
+            // Assumes journal placement on a fast medium (SSD, NVME), consider changing
+            // these settings if you use HDD.
+            auto multiplexedChangelog = New<TMultiplexedChangelogConfig>();
+            multiplexedChangelog->FlushQuantum = TDuration::MilliSeconds(1);
+            multiplexedChangelog->FlushPeriod = TDuration::MilliSeconds(1);
+
+            return multiplexedChangelog;
+        });
     registrar.Parameter("high_latency_split_changelog", &TThis::HighLatencySplitChangelog)
-        .DefaultNew();
+        .DefaultCtor([] {
+            // Assumes journal placement on a fast medium (SSD, NVME), consider changing
+            // these settings if you use HDD.
+            auto highLatencySplitChangelog = New<NHydra::TFileChangelogConfig>();
+            // Expect many splits -- adjust configuration.
+            highLatencySplitChangelog->FlushPeriod = TDuration::Seconds(1);
+
+            return highLatencySplitChangelog;
+        });
     registrar.Parameter("low_latency_split_changelog", &TThis::LowLatencySplitChangelog)
-        .DefaultNew();
+        .DefaultCtor([] {
+            // Assumes journal placement on a fast medium (SSD, NVME), consider changing
+            // these settings if you use HDD.
+            auto lowLatencySplitChangelog = New<NHydra::TFileChangelogConfig>();
+            // Turn off batching for non-multiplexed split changelogs.
+            lowLatencySplitChangelog->FlushPeriod = TDuration::MilliSeconds(1);
 
-    registrar.Preprocessor([] (TThis* config) {
-        // Expect many splits -- adjust configuration.
-        config->HighLatencySplitChangelog->FlushPeriod = TDuration::Seconds(15);
-
-        // Turn off batching for non-multiplexed split changelogs.
-        config->LowLatencySplitChangelog->FlushPeriod = TDuration::Zero();
-    });
+            return lowLatencySplitChangelog;
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -821,7 +845,7 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 void TDataNodeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("lease_transaction_timeout", &TThis::LeaseTransactionTimeout)
-        .Default(TDuration::Seconds(120));
+        .Default(TDuration::Minutes(2));
     registrar.Parameter("lease_transaction_ping_period", &TThis::LeaseTransactionPingPeriod)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("incremental_heartbeat_period", &TThis::IncrementalHeartbeatPeriod)
@@ -833,9 +857,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("register_retry_splay", &TThis::RegisterRetrySplay)
         .Default(TDuration::Seconds(3));
     registrar.Parameter("register_timeout", &TThis::RegisterTimeout)
-        .Default(TDuration::Seconds(60));
+        .Default(TDuration::Minutes(1));
     registrar.Parameter("incremental_heartbeat_timeout", &TThis::IncrementalHeartbeatTimeout)
-        .Default(TDuration::Seconds(60));
+        .Default(TDuration::Minutes(1));
     registrar.Parameter("incremental_heartbeat_throttler", &TThis::IncrementalHeartbeatThrottler)
         .DefaultCtor([] {
             auto result = TThroughputThrottlerConfig::Create(1);
@@ -844,33 +868,47 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         });
 
     registrar.Parameter("full_heartbeat_timeout", &TThis::FullHeartbeatTimeout)
-        .Default(TDuration::Seconds(60));
+        .Default(TDuration::Minutes(2));
     registrar.Parameter("job_heartbeat_timeout", &TThis::JobHeartbeatTimeout)
-        .Default(TDuration::Seconds(60));
+        .Default(TDuration::Minutes(1));
 
     registrar.Parameter("chunk_meta_cache", &TThis::ChunkMetaCache)
-        .DefaultNew();
+        .DefaultCtor([] {
+            return TSlruCacheConfig::CreateWithCapacity(5_GB, 16);
+        });
     registrar.Parameter("blocks_ext_cache", &TThis::BlocksExtCache)
-        .DefaultNew();
+        .DefaultCtor([] {
+            return TSlruCacheConfig::CreateWithCapacity(3_GB, 16);
+        });
     registrar.Parameter("block_meta_cache", &TThis::BlockMetaCache)
-        .DefaultNew();
+        .DefaultCtor([] {
+            return TSlruCacheConfig::CreateWithCapacity(1_GB, 16);
+        });
     registrar.Parameter("block_cache", &TThis::BlockCache)
-        .DefaultNew();
+        .DefaultCtor([] {
+            auto blockCache = New<NChunkClient::TBlockCacheConfig>();
+            blockCache->CompressedData = TSlruCacheConfig::CreateWithCapacity(6_GB, 16);
+            return blockCache;
+        });
     registrar.Parameter("blob_reader_cache", &TThis::BlobReaderCache)
-        .DefaultNew();
+        .DefaultCtor([] {
+            return TSlruCacheConfig::CreateWithCapacity(1_MB, 16);
+        });
     registrar.Parameter("changelog_reader_cache", &TThis::ChangelogReaderCache)
-        .DefaultNew();
+        .DefaultCtor([] {
+            return TSlruCacheConfig::CreateWithCapacity(256, 16);
+        });
     registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
         .DefaultNew();
 
     registrar.Parameter("session_timeout", &TThis::SessionTimeout)
-        .Default(TDuration::Seconds(120));
+        .Default(TDuration::Minutes(2));
     registrar.Parameter("long_live_read_session_threshold", &TThis::LongLiveReadSessionThreshold)
-        .Default(TDuration::Minutes(60));
+        .Default(TDuration::Hours(1));
     registrar.Parameter("session_block_reorder_timeout", &TThis::SessionBlockReorderTimeout)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("node_rpc_timeout", &TThis::NodeRpcTimeout)
-        .Default(TDuration::Seconds(120));
+        .Default(TDuration::Minutes(2));
     registrar.Parameter("peer_update_period", &TThis::PeerUpdatePeriod)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("peer_update_expiration_time", &TThis::PeerUpdateExpirationTime)
@@ -878,7 +916,7 @@ void TDataNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)
         .GreaterThan(0)
-        .Default(512_MB);
+        .Default(4_GB);
     registrar.Parameter("net_out_throttling_duration", &TThis::NetOutThrottlingDuration)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("enable_send_blocks_net_throttling", &TThis::EnableSendBlocksNetThrottling)
@@ -893,6 +931,12 @@ void TDataNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_sequential_io_requests", &TThis::EnableSequentialIORequests)
         .Default(true);
+
+    registrar.Parameter("return_blocks_if_session_fails", &TThis::ReturnBlocksIfSessionFails)
+        .Default(false);
+
+    registrar.Parameter("fail_session_at_read_blocks_deadline", &TThis::FailSessionAtReadBlocksDeadline)
+        .Default(false);
 
     registrar.Parameter("store_locations", &TThis::StoreLocations)
         .Default();
@@ -909,13 +953,15 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("read_rps_out_throttler", &TThis::ReadRpsOutThrottler)
         .DefaultNew();
     registrar.Parameter("announce_chunk_replica_rps_out_throttler", &TThis::AnnounceChunkReplicaRpsOutThrottler)
-        .DefaultNew();
+        .DefaultCtor([] {
+            return TThroughputThrottlerConfig::Create(200.);
+        });
 
     registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)
         .Default(true);
 
     registrar.Parameter("max_write_sessions", &TThis::MaxWriteSessions)
-        .Default(1000)
+        .Default(std::numeric_limits<int>::max())
         .GreaterThanOrEqual(1);
 
     registrar.Parameter("max_blocks_per_read", &TThis::MaxBlocksPerRead)
@@ -939,13 +985,13 @@ void TDataNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("storage_heavy_thread_count", &TThis::StorageHeavyThreadCount)
         .GreaterThan(0)
-        .Default(2);
+        .Default(10);
     registrar.Parameter("storage_light_thread_count", &TThis::StorageLightThreadCount)
         .GreaterThan(0)
-        .Default(2);
+        .Default(4);
     registrar.Parameter("storage_lookup_thread_count", &TThis::StorageLookupThreadCount)
         .GreaterThan(0)
-        .Default(2);
+        .Default(4);
 
     registrar.Parameter("max_replication_errors_in_heartbeat", &TThis::MaxReplicationErrorsInHeartbeat)
         .GreaterThan(0)
@@ -974,23 +1020,8 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("p2p", &TThis::P2P)
         .DefaultNew();
 
-    registrar.Parameter("distributed_chunk_session_service", &TThis::DistributedChunkSessionService)
-        .DefaultNew();
-
     registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
         .Default(false);
-
-    registrar.Preprocessor([] (TThis* config) {
-        config->ChunkMetaCache->Capacity = 1_GB;
-        config->BlocksExtCache->Capacity = 1_GB;
-        config->BlockMetaCache->Capacity = 1_GB;
-        config->BlockCache->CompressedData->Capacity = 1_GB;
-        config->BlockCache->UncompressedData->Capacity = 1_GB;
-
-        config->BlobReaderCache->Capacity = 256;
-
-        config->ChangelogReaderCache->Capacity = 256;
-    });
 
     registrar.Postprocessor([] (TThis* config) {
         for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
@@ -998,6 +1029,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
                 config->Throttlers[kind] = New<TRelativeThroughputThrottlerConfig>();
             }
         }
+
+        config->StorageHeavyThreadCount = 2 * ssize(config->StoreLocations);
+        config->StorageLightThreadCount = ssize(config->StoreLocations);
 
         // COMPAT(gritukan)
         if (!config->MasterConnector->IncrementalHeartbeatPeriod) {
@@ -1091,7 +1125,7 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("enable_get_chunk_fragment_set_throttling", &TThis::EnableGetChunkFragmentSetThrottling)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_get_chunk_fragment_set_memory_tracking", &TThis::EnableGetChunkFragmentSetMemoryTracking)
         .Default(false);
@@ -1140,7 +1174,14 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("merge_chunks_job", &TThis::MergeChunksJob)
         .DefaultNew();
     registrar.Parameter("repair_chunk_job", &TThis::RepairChunkJob)
-        .DefaultNew();
+        .DefaultCtor([] {
+            auto repairChunkJob = New<TRepairChunkJobDynamicConfig>();
+
+            repairChunkJob->Reader->ReplicationReaderSpeedLimitPerSec = 262144.;
+            repairChunkJob->Reader->ReplicationReaderTimeout = TDuration::Minutes(6);
+
+            return repairChunkJob;
+        });
     registrar.Parameter("autotomize_chunk_job", &TThis::AutotomizeChunkJob)
         .DefaultNew();
     registrar.Parameter("reincarnate_chunk_job", &TThis::ReincarnateChunkJob)
@@ -1174,6 +1215,12 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_sequential_io_requests", &TThis::EnableSequentialIORequests)
         .Optional();
 
+    registrar.Parameter("return_blocks_if_session_fails", &TThis::ReturnBlocksIfSessionFails)
+        .Optional();
+
+    registrar.Parameter("fail_session_at_read_blocks_deadline", &TThis::FailSessionAtReadBlocksDeadline)
+        .Optional();
+
     registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 
@@ -1181,7 +1228,7 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
-        .Default();
+        .Default(0.9);
 
     registrar.Parameter("overload_controller", &TThis::OverloadController)
         .DefaultNew();

@@ -1,7 +1,5 @@
 #include "tablet.h"
 
-#include "automaton.h"
-#include "bootstrap.h"
 #include "config.h"
 #include "compaction_hint_controllers.h"
 #include "compression_dictionary_manager.h"
@@ -10,22 +8,18 @@
 #include "hunk_chunk.h"
 #include "hunk_lock_manager.h"
 #include "partition.h"
+#include "row_cache_controller.h"
 #include "serialize.h"
-#include "sorted_chunk_store.h"
-#include "sorted_dynamic_store.h"
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "table_puller.h"
-#include "tablet_manager.h"
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
-#include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
+
+#include <yt/yt/server/lib/tablet_balancer/config.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -36,6 +30,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
@@ -65,6 +61,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/random.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
@@ -72,11 +69,11 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <library/cpp/iterator/enumerate.h>
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NTabletNode {
 
-using namespace NClusterNode;
 using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -144,6 +141,87 @@ void ValidateTabletMounted(TTablet* tablet)
             << TErrorAttribute("tablet_id", tablet->GetId())
             << TErrorAttribute("table_path", tablet->GetTablePath())
             << TErrorAttribute("is_tablet_unmounted", tablet->GetState() == ETabletState::Unmounted);
+    }
+}
+
+void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmedRowCount, TTimestamp timestamp)
+{
+    YT_VERIFY(
+        tablet->GetCommitOrdering() == ECommitOrdering::Strong,
+        "Table MUST have strong commit ordering to check stores boundaries by timestamp");
+
+    if (trimmedRowCount == tablet->GetTrimmedRowCount()) {
+        // Trim is no-op.
+        return;
+    }
+
+    const auto& storeRowIndexMap = tablet->StoreRowIndexMap();
+    if (storeRowIndexMap.empty()) {
+        // No stores.
+        return;
+    }
+
+    auto it = storeRowIndexMap.upper_bound(trimmedRowCount);
+    if (it == storeRowIndexMap.begin()) {
+        // trimmedRowCount is before the first store start row index, nothing to trim.
+        return;
+    }
+
+    auto storeIt = it;
+    --storeIt;
+
+    // Check that we are not trimming more than the table size.
+    if (it == storeRowIndexMap.end()) {
+        if (i64 storeStartingRowIndex = storeIt->second->GetStartingRowIndex();
+            trimmedRowCount > storeStartingRowIndex + storeIt->second->GetRowCount())
+        {
+            THROW_ERROR_EXCEPTION("Could not trim tablet since trimmed row count is greater than current row count")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+                << TErrorAttribute("timestamp", timestamp)
+                << TErrorAttribute("last_store_starting_row_index", storeStartingRowIndex)
+                << TErrorAttribute("last_store_row_count", storeIt->second->GetRowCount());
+        }
+    }
+
+    // Last store could be empty and have min_timestamp == MaxTimestamp, so check the last non-empty one
+    // it should have valid timestamp.
+    if (storeIt->second->GetMinTimestamp() == MaxTimestamp) {
+        // Check for trim row count mismatch.
+        if (storeIt == storeRowIndexMap.begin()) {
+            i64 storeStartingRowIndex = storeIt->second->GetStartingRowIndex();
+            if (trimmedRowCount != storeStartingRowIndex) {
+                THROW_ERROR_EXCEPTION(
+                    "Could not fully trim tablet since trimmed row count is greater than current row count")
+                    << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+                    << TErrorAttribute("store_starting_row_index", storeStartingRowIndex);
+            }
+
+            // The only remaining store is empty and it's a full trim.
+            return;
+        }
+
+        --storeIt;
+    }
+
+    const auto& store = storeIt->second;
+    auto minTimestampBound = store->GetMinTimestamp();
+    if (storeIt != storeRowIndexMap.begin()) {
+        auto previousStoreIt = storeIt;
+        --previousStoreIt;
+        minTimestampBound = previousStoreIt->second->GetMaxTimestamp();
+    }
+
+    if (timestamp < minTimestampBound ||
+        (trimmedRowCount > store->GetStartingRowIndex() && timestamp < store->GetMaxTimestamp()))
+    {
+        THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
+            << TErrorAttribute("tablet_id", tablet->GetId())
+            << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+            << TErrorAttribute("store_starting_row_index", store->GetStartingRowIndex())
+            << TErrorAttribute("timestamp", timestamp)
+            << TErrorAttribute("store_max_timestamp", store->GetMaxTimestamp())
+            << TErrorAttribute("store_min_timestamp", store->GetMinTimestamp());
     }
 }
 
@@ -328,7 +406,7 @@ void TTabletSnapshot::ValidateMountRevision(NHydra::TRevision mountRevision)
     }
 }
 
-void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirectory)
+TError TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirectory)
 {
     const auto& smoothMovementData = TabletRuntimeData->SmoothMovementData;
 
@@ -344,9 +422,9 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
         if (!siblingCellId || !siblingMountRevision) {
             // This may happen if movement finishes concurrently with the request.
             if (smoothMovementData.IsActiveServant.load()) {
-                return;
+                return {};
             } else {
-                THROW_ERROR error;
+                return error;
             }
         }
 
@@ -364,13 +442,16 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
                     LoggingTag);
             }
 
-            THROW_ERROR error
+            return error
                 << TErrorAttribute("redirection_hint", hint);
         } else if (smoothMovementData.TargetActivationFuture) {
             YT_LOG_DEBUG("Started waiting for target servant activation future (%v)",
                 LoggingTag);
-            WaitFor(smoothMovementData.TargetActivationFuture)
-                .ThrowOnError();
+            if (auto activationError = WaitFor(smoothMovementData.TargetActivationFuture);
+                !activationError.IsOK())
+            {
+                return activationError;
+            }
             YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
                 LoggingTag);
 
@@ -383,9 +464,11 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
         }
 
         if (!smoothMovementData.IsActiveServant.load()) {
-            THROW_ERROR error;
+            return error;
         }
     }
+
+    return {};
 }
 
 void TTabletSnapshot::MaybeReplyWithReshardRedirectionHint()
@@ -696,7 +779,7 @@ void FromProto(TIdGenerator* idGenerator, const NProto::TIdGenerator& protoIdGen
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSmoothMovementData::ValidateWriteToTablet() const
+void TSmoothMovementData::ValidateWriteToTablet(TTabletId tabletId) const
 {
     if (Role_ == ESmoothMovementRole::Source) {
         switch (Stage_) {
@@ -721,10 +804,13 @@ void TSmoothMovementData::ValidateWriteToTablet() const
         return;
     }
 
-    THROW_ERROR_EXCEPTION("Cannot write into tablet since it is a "
+    THROW_ERROR_EXCEPTION(
+        NTabletClient::EErrorCode::ReadOnlySmoothMovementStage,
+        "Cannot write into tablet since it is a "
         "smooth movement %lv in stage %Qlv",
         Role_,
-        Stage_);
+        Stage_)
+        << TErrorAttribute("tablet_id", tabletId);
 }
 
 bool TSmoothMovementData::IsTabletStoresUpdateAllowed(bool isCommonFlush) const
@@ -774,6 +860,12 @@ void TSmoothMovementData::Persist(const TPersistenceContext& context)
     Persist(context, SiblingCellId_);
     Persist(context, SiblingMountRevision_);
     Persist(context, SiblingAvenueEndpointId_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::SmoothMovementReignValidation) {
+        Persist(context, Reign_);
+    }
+
     Persist(context, CommonDynamicStoreIds_);
 
     // COMPAT(ifsmirnov)
@@ -790,6 +882,7 @@ void TSmoothMovementData::BuildOrchidYson(TFluentMap fluent) const
         .Item("sibling_cell_id").Value(GetSiblingCellId())
         .Item("sibling_mount_revision").Value(GetSiblingMountRevision())
         .Item("sibling_avenue_endpoint_id").Value(GetSiblingAvenueEndpointId())
+        .Item("reign").Value(GetReign())
         .Item("common_dynamic_store_ids").Value(CommonDynamicStoreIds())
         .Item("stage_change_scheduled").Value(GetStageChangeScheduled())
         .Item("last_stage_change_time").Value(GetLastStageChangeTime());
@@ -1284,7 +1377,6 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
             using NYT::Save;
 
             // Save effective settings.
-            Save(context, *snapshot->Settings.MountConfig);
             Save(context, *snapshot->Settings.StoreReaderConfig);
             Save(context, *snapshot->Settings.HunkReaderConfig);
             Save(context, *snapshot->Settings.StoreWriterConfig);
@@ -1309,6 +1401,7 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
                 Save(context, *providedSettings.StoreWriterOptions);
                 Save(context, *providedSettings.HunkWriterConfig);
                 Save(context, *providedSettings.HunkWriterOptions);
+                Save(context, ConvertToYsonString(providedSettings.TabletBalancerConfig));
 
                 Save(context, *snapshot->RawSettings.GlobalPatch);
                 Save(context, ConvertToYsonString(snapshot->RawSettings.Experiments));
@@ -1337,7 +1430,11 @@ void TTablet::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, *Settings_.MountConfig);
+    // COMPAT(dave11ar)
+    if (context.GetVersion() < ETabletReign::DropMaterializedMountConfigPersistence) {
+        auto oldMountConfig = New<TTableMountConfig>();
+        Load(context, *oldMountConfig);
+    }
     Load(context, *Settings_.StoreReaderConfig);
     Load(context, *Settings_.HunkReaderConfig);
     Load(context, *Settings_.StoreWriterConfig);
@@ -1360,10 +1457,24 @@ void TTablet::AsyncLoad(TLoadContext& context)
     Load(context, *providedSettings.HunkWriterConfig);
     Load(context, *providedSettings.HunkWriterOptions);
 
+    // COMPAT(navasardianna)
+    if (context.GetVersion() >= ETabletReign::SendTableTabletBalancerConfigToTablet) {
+        providedSettings.TabletBalancerConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+    } else {
+        providedSettings.TabletBalancerConfig = GetEphemeralNodeFactory()->CreateMap();
+    }
+
     RawSettings_.GlobalPatch = New<TTableConfigPatch>();
     Load(context, *RawSettings_.GlobalPatch);
     RawSettings_.Experiments = ConvertTo<decltype(RawSettings_.Experiments)>(
         Load<TYsonString>(context));
+
+    {
+        std::vector<TError> errors;
+        auto effectiveSettings = RawSettings_.BuildEffectiveSettings(&errors, nullptr);
+        Settings_.MountConfig = effectiveSettings.MountConfig;
+        Settings_.TabletBalancerConfig = effectiveSettings.TabletBalancerConfig;
+    }
 
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
@@ -1484,13 +1595,14 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
     mergedPartition->SetAllowedSplitTime(TInstant::Now() + splitDelay);
 
     std::vector<TLegacyKey> mergedSampleKeys;
-    auto nodeMemoryTracker = MaybeGetNodeMemoryUsageTracker();
+    auto nodeMemoryTracker = TryGetNodeMemoryUsageTracker();
     auto rowBuffer = New<TRowBuffer>(
         TSampleKeyListTag(),
         TChunkedMemoryPool::DefaultStartChunkSize,
         nodeMemoryTracker
             ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletFootprint)
-            : nullptr);
+            : nullptr,
+        /*allowMemoryOvercommit*/ true);
 
     std::vector<TLegacyOwningKey> immediateSplitKeys;
     int immediateSplitKeyCount = 0;
@@ -1587,13 +1699,14 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
         YT_VERIFY(sampleKeyIndex >= std::ssize(existingSampleKeys) || existingSampleKeys[sampleKeyIndex] > thisPivotKey);
 
         std::vector<TLegacyKey> sampleKeys;
-        auto nodeMemoryTracker = MaybeGetNodeMemoryUsageTracker();
+        auto nodeMemoryTracker = TryGetNodeMemoryUsageTracker();
         auto rowBuffer = New<TRowBuffer>(
             TSampleKeyListTag(),
             TChunkedMemoryPool::DefaultStartChunkSize,
             nodeMemoryTracker
                 ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletFootprint)
-                : nullptr);
+                : nullptr,
+            /*allowMemoryOvercommit*/ true);
 
         while (sampleKeyIndex < std::ssize(existingSampleKeys) && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
             sampleKeys.push_back(rowBuffer->CaptureRow(existingSampleKeys[sampleKeyIndex]));
@@ -2157,6 +2270,10 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
 
     snapshot->CustomRuntimeData = CustomRuntimeData_;
 
+    snapshot->TabletSizeMetrics = TabletSizeMetrics_;
+
+    snapshot->OriginatorTablets = OriginatorTablets_;
+
     return snapshot;
 }
 
@@ -2257,8 +2374,6 @@ void TTablet::Initialize()
         Id_,
         TableId_,
         TablePath_);
-
-    HunkLockManager_->Initialize();
 }
 
 void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
@@ -2271,12 +2386,17 @@ void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
     double lookupCacheRowsRatio = Settings_.MountConfig->LookupCacheRowsRatio;
 
     if (lookupCacheRowsRatio > 0) {
+        double scaleFactor = 1.0;
+        if (auto controller = Context_->GetRowCacheController()) {
+            scaleFactor = controller->GetCategoryMemoryLimitScaleFactor();
+        }
+
         i64 unmergedRowCount = NonActiveStoresUnmergedRowCount_;
         if (ActiveStore_) {
             unmergedRowCount += ActiveStore_->GetRowCount();
         }
 
-        lookupCacheCapacity = std::max<i64>(lookupCacheRowsRatio * unmergedRowCount, 1);
+        lookupCacheCapacity = std::max<i64>(lookupCacheRowsRatio * scaleFactor * unmergedRowCount, 1);
     }
 
     if (lookupCacheCapacity == 0) {
@@ -2335,7 +2455,7 @@ void TTablet::ReconfigureCompressionDictionaries()
 
 void TTablet::ReconfigureProfiling()
 {
-    TableProfiler_ = GetTabletProfilerManager()->CreateTableProfiler(
+    TableProfiler_ = TTabletProfilerManager::Get()->CreateTableProfiler(
         Settings_.MountConfig->ProfilingMode,
         Context_->GetTabletCellBundleName(),
         TablePath_,
@@ -2368,7 +2488,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
 
     const auto& throttlerManager = slot->GetDistributedThrottlerManager();
 
-    auto getThrottlerConfig = [&] (const TString& key) {
+    auto getThrottlerConfig = [&] (const std::string& key) {
         auto it = Settings_.MountConfig->Throttlers.find(key);
         return it != Settings_.MountConfig->Throttlers.end()
             ? it->second
@@ -2649,15 +2769,30 @@ void TTablet::AdvancePersistentConflictHorizonTimestamp(TTimestamp timestamp)
     PersistentConflictHorizonTimestamp_ = std::max(PersistentConflictHorizonTimestamp_, timestamp);
 }
 
-void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp)
+void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp, std::optional<TRevision> expectedMountRevision)
 {
+    if (expectedMountRevision && *expectedMountRevision != MountRevision_) {
+        YT_LOG_DEBUG("Mount revision mismatch during advancement of the transient conflict horizon timestamp, "
+            "skipping update (%v, ExpectedMountRevision: %v, CurrentMountRevision: %v, "
+            "CurrentPersistentConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, AdvancingTimestamp: %v)",
+            GetLoggingTag(),
+            *expectedMountRevision,
+            MountRevision_,
+            PersistentConflictHorizonTimestamp_,
+            TransientConflictHorizonTimestamp_,
+            timestamp);
+
+        return;
+    }
+
     YT_VERIFY(TransientConflictHorizonTimestamp_ <= PersistentConflictHorizonTimestamp_);
 
     // NB: This verify assumes that store's max timestamp provided to PersistentConflictHorizonTimestamp_
     // in the past by flusher cannot be exceeded until unleashed backing store is released.
     YT_LOG_FATAL_IF(timestamp > PersistentConflictHorizonTimestamp_,
         "Advancing TransientConflictHorizonTimestamp would cause it to exceed TransientConflictHorizonTimestamp "
-        "(NextTransientConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, PersistentConflictHorizonTimestamp: %v)",
+        "(%v, NextTransientConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, PersistentConflictHorizonTimestamp: %v)",
+        GetLoggingTag(),
         timestamp,
         TransientConflictHorizonTimestamp_,
         PersistentConflictHorizonTimestamp_);
@@ -2667,7 +2802,9 @@ void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp)
 
 void TTablet::ResetTransientConflictHorizonTimestamp()
 {
-    AdvanceTransientConflictHorizonTimestamp(PersistentConflictHorizonTimestamp_);
+    AdvanceTransientConflictHorizonTimestamp(
+        PersistentConflictHorizonTimestamp_,
+        /*expectedMountRevision*/ std::nullopt);
 }
 
 bool TTablet::IsActiveServant() const
@@ -2711,6 +2848,10 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
         replicatableContent->set_custom_runtime_data(ToProto(CustomRuntimeData_));
     }
     ToProto(request->mutable_allocated_dynamic_store_ids(), this->DynamicStoreIdPool_);
+    for (auto reason : TEnumTraits<EDynamicStoreIdReservationReason>::GetDomainValues()) {
+        request->add_reserved_dynamic_store_id_count(
+            ReservedDynamicStoreIdCount_[reason]);
+    }
 
     request->set_last_commit_timestamp(GetLastCommitTimestamp());
     request->set_last_write_timestamp(GetLastWriteTimestamp());
@@ -2811,6 +2952,23 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
     FromProto(&OriginatorTablets_, replicatableContent.originator_tablets());
 
     FromProto(&DynamicStoreIdPool_, request->allocated_dynamic_store_ids());
+    for (auto [index, count] : Enumerate(request->reserved_dynamic_store_id_count())) {
+        if (count == 0) {
+            continue;
+        }
+
+        auto reason = static_cast<EDynamicStoreIdReservationReason>(index);
+        if (TEnumTraits<EDynamicStoreIdReservationReason>::IsKnownValue(reason)) {
+            ReservedDynamicStoreIdCount_[reason] = count;
+        } else {
+            YT_LOG_ALERT("Replicated content concains nonzero reserved "
+                "dynamic store count with unknown reason "
+                "(%v, Reason: %v, Count: %v)",
+                GetLoggingTag(),
+                reason,
+                count);
+        }
+    }
 
     RuntimeData_->LastCommitTimestamp = request->last_commit_timestamp();
     RuntimeData_->LastWriteTimestamp = request->last_write_timestamp();
@@ -3037,7 +3195,7 @@ void TTablet::ThrottleTabletStoresUpdate(
 
     auto asyncResult = throttler->Throttle(1);
     auto result = asyncResult.IsSet()
-        ? asyncResult.Get()
+        ? asyncResult.GetOrCrash()
         : WaitFor(asyncResult);
     result.ThrowOnError();
 
@@ -3123,18 +3281,23 @@ void TTablet::UpdateUnmergedRowCount()
         double lookupCacheRowsRatio = Settings_.MountConfig->LookupCacheRowsRatio;
 
         if (lookupCacheRowsRatio > 0) {
+            double scaleFactor = 1.0;
+            if (auto controller = Context_->GetRowCacheController()) {
+                scaleFactor = controller->GetCategoryMemoryLimitScaleFactor();
+            }
+
             i64 unmergedRowCount = NonActiveStoresUnmergedRowCount_;
             if (ActiveStore_) {
                 unmergedRowCount += ActiveStore_->GetRowCount();
             }
 
-            i64 lookupCacheCapacity = lookupCacheRowsRatio * unmergedRowCount;
+            i64 lookupCacheCapacity = lookupCacheRowsRatio * scaleFactor * unmergedRowCount;
             RowCache_->GetCache()->SetCapacity(std::max<i64>(lookupCacheCapacity, 1));
         }
     }
 }
 
-TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp()
+TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp() const
 {
     YT_VERIFY(!TableSchema_->IsSorted());
 
@@ -3333,10 +3496,13 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
             .Item("provided_extra_config").Value(RawSettings().Provided.ExtraMountConfig)
         .EndMap()
         .OptionalItem("custom_runtime_data", CustomRuntimeData())
-        .DoIf(IsPhysicallySorted(), [&] (auto fluent) {
+        .DoIf(TableSchema_->IsSorted(), [&] (auto fluent) {
             fluent
                 .Item("pivot_key").Value(GetPivotKey())
-                .Item("next_pivot_key").Value(GetNextPivotKey())
+                .Item("next_pivot_key").Value(GetNextPivotKey());
+        })
+        .DoIf(IsPhysicallySorted(), [&] (auto fluent) {
+            fluent
                 .Item("eden").DoMap(BIND(&TPartition::BuildOrchidYson, GetEden()))
                 .Item("partitions").DoListFor(
                     PartitionList(), [&] (auto fluent, const std::unique_ptr<TPartition>& partition) {
@@ -3444,7 +3610,16 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
                     BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().RowCount))
                 .Item("data_weight").DoList(
                     BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().DataWeight))
-            .EndMap();
+            .EndMap()
+        .DoIf(IsPhysicallySorted(), [&] (auto fluent) {
+            auto minEdenTimestamp = MaxTimestamp;
+            for (const auto& store : GetEden()->Stores()) {
+                minEdenTimestamp = std::min(minEdenTimestamp, store->GetMinTimestamp());
+            }
+
+            fluent
+                .Item("min_eden_timestamp").Value(minEdenTimestamp);
+        });
 }
 
 void TTablet::ResetRowCache(const ITabletSlotPtr& slot)
@@ -3454,15 +3629,15 @@ void TTablet::ResetRowCache(const ITabletSlotPtr& slot)
     ReconfigureRowCache(slot);
 }
 
-INodeMemoryTrackerPtr TTablet::MaybeGetNodeMemoryUsageTracker() const
+INodeMemoryTrackerPtr TTablet::TryGetNodeMemoryUsageTracker() const
 {
     return Context_ ? Context_->GetNodeMemoryUsageTracker() : nullptr;
 }
 
 void TTablet::OnDynamicConfigChanged(
     const ITabletSlotPtr& slot,
-    const TClusterNodeDynamicConfigPtr& oldConfig,
-    const TClusterNodeDynamicConfigPtr& newConfig)
+    const TTabletNodeDynamicConfigPtr& oldConfig,
+    const TTabletNodeDynamicConfigPtr& newConfig)
 {
     for (const auto& [_, store] : StoreIdMap_) {
         store->OnDynamicConfigChanged(oldConfig, newConfig);
@@ -3530,16 +3705,18 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
         .Item("store_reader_config")
             .Do(BIND(addMaybeOpaqueItem, options.StoreReaderConfig))
         .Item("hunk_reader_config")
-            .Do(BIND(addMaybeOpaqueItem, options.HunkReaderConfig));
+            .Do(BIND(addMaybeOpaqueItem, options.HunkReaderConfig))
+        .Item("tablet_balancer_config")
+            .Do(BIND(addMaybeOpaqueItem, options.TabletBalancerConfig));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
-    const TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletNodeDynamicConfigPtr& nodeDynamicConfig,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
-    auto mediumThrottlersConfig = dynamicConfigManager->GetConfig()->TabletNode->MediumThrottlers;
+    auto mediumThrottlersConfig = nodeDynamicConfig->MediumThrottlers;
     if (!mediumThrottlersConfig->EnableBlobThrottling) {
         return GetUnlimitedThrottler();
     }
@@ -3548,10 +3725,10 @@ IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
 }
 
 IThroughputThrottlerPtr GetBlobMediumReadThrottler(
-    const TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletNodeDynamicConfigPtr& nodeDynamicConfig,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
-    auto mediumThrottlersConfig = dynamicConfigManager->GetConfig()->TabletNode->MediumThrottlers;
+    auto mediumThrottlersConfig = nodeDynamicConfig->MediumThrottlers;
     if (!mediumThrottlersConfig->EnableBlobThrottling) {
         return GetUnlimitedThrottler();
     }

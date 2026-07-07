@@ -12,7 +12,7 @@ struct TSignalerConfig
     : public NYTree::TYsonStruct
 {
     std::vector<int> Pids;
-    TString SignalName;
+    std::string SignalName;
 
     REGISTER_YSON_STRUCT(TSignalerConfig);
 

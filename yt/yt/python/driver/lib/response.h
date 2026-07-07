@@ -85,7 +85,7 @@ public:
 
     virtual ~TDriverResponse();
 
-    static void InitType(const TString& moduleName);
+    static void InitType(const std::string& moduleName);
 
 private:
     TFuture<void> ResponseFuture_;
@@ -93,7 +93,7 @@ private:
     TIntrusivePtr<TDriverResponseHolder> Holder_;
     std::optional<NTracing::TTraceContextFinishGuard> TraceContextFinishGuard_;
 
-    static TString TypeName_;
+    static std::string TypeName_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -14,19 +14,20 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(yt-yt-library-pipe_io-unittests)
+add_executable(unittester-library-pipe-io)
 
 
-target_compile_options(yt-yt-library-pipe_io-unittests PRIVATE
+target_compile_options(unittester-library-pipe-io PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
-target_link_libraries(yt-yt-library-pipe_io-unittests PUBLIC
+target_link_libraries(unittester-library-pipe-io PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -41,12 +42,12 @@ target_link_libraries(yt-yt-library-pipe_io-unittests PUBLIC
   yt-library-signals
 )
 
-target_allocator(yt-yt-library-pipe_io-unittests
+target_allocator(unittester-library-pipe-io
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(yt-yt-library-pipe_io-unittests PRIVATE
+target_link_options(unittester-library-pipe-io PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -57,21 +58,21 @@ target_link_options(yt-yt-library-pipe_io-unittests PRIVATE
   -lutil
 )
 
-target_sources(yt-yt-library-pipe_io-unittests PRIVATE
+target_sources(unittester-library-pipe-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/pipe_io/unittests/pipes_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-library-pipe_io-unittests
+  unittester-library-pipe-io
   COMMAND
-  yt-yt-library-pipe_io-unittests
+  unittester-library-pipe-io
 )
 
 set_property(
   TEST
-  yt-yt-library-pipe_io-unittests
+  unittester-library-pipe-io
   PROPERTY
   LABELS
   MEDIUM
@@ -79,16 +80,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-library-pipe_io-unittests
+  unittester-library-pipe-io
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-library-pipe_io-unittests)
+vcs_info(unittester-library-pipe-io)
 
 set_property(
   TEST
-  yt-yt-library-pipe_io-unittests
+  unittester-library-pipe-io
   PROPERTY
   PROCESSORS
   1

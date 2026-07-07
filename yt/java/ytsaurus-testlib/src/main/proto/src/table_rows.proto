@@ -1,3 +1,5 @@
+import "yt/yt_proto/yt/formats/extension.proto";
+
 package tech.ytsaurus.testlib;
 
 option java_multiple_files = true;
@@ -25,4 +27,5 @@ message ProtoRow
     optional string key = 1;
     optional string value = 2;
     required int64 long_value = 3;
+    repeated string items = 4 [(NYT.flags) = SERIALIZATION_YT];
 }

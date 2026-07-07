@@ -40,7 +40,7 @@ class TFieldSerializer final
 {
 public:
     TFieldSerializer()
-        : TYsonWriter(static_cast<TStringStream*>(this))
+        : TYsonWriter(static_cast<TStringStream*>(this), EYsonFormat::Binary)
     { }
 
     TString Build() &&
@@ -233,7 +233,7 @@ public:
         for (const auto& value : Values_) {
             values.push_back(value);
         }
-        return TRange(std::move(values));
+        return TRange(values);
     }
 
 private:

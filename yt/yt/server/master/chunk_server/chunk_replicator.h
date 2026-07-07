@@ -104,8 +104,10 @@ public:
 
     void ScheduleChunkRefresh(TChunk* chunk, std::optional<TDuration> delay = {});
     void ScheduleNodeRefresh(TNode* node);
-    void ScheduleNodeRefreshSequoia(TNodeId nodeId);
+    void ScheduleLocationRefreshSequoia(const TChunkLocation* location);
     void ScheduleGlobalChunkRefresh();
+
+    const ISequoiaChunkRefresherPtr& GetSequoiaChunkRefresher() const;
 
     void ScheduleRequisitionUpdate(TChunk* chunk);
     void ScheduleRequisitionUpdate(TChunkList* chunkList);
@@ -213,6 +215,11 @@ private:
     NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
     const std::unique_ptr<TChunkRefreshScanner> BlobRefreshScanner_;
     const std::unique_ptr<TChunkRefreshScanner> JournalRefreshScanner_;
+
+    NProfiling::TTimeGauge BlobRefreshQueueWaitTime_;
+    NProfiling::TTimeGauge JournalRefreshQueueWaitTime_;
+
+    ISequoiaChunkRefresherPtr SequoiaChunkRefresher_;
 
     NConcurrency::TPeriodicExecutorPtr ScheduleChunkRequisitionUpdatesExecutor_;
     NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;
@@ -369,6 +376,9 @@ private:
 
     //! Same as corresponding #TChunk method but the result is capped by the medium-specific bound.
     int GetChunkAggregatedReplicationFactor(const TChunk* chunk, int mediumIndex);
+
+    // COMPAT(grphil)
+    void DoRefreshLocationSequoiaUnsafe(TNodeId nodeId, NNodeTrackerClient::TChunkLocationIndex locationIndex);
 
     void OnScheduleChunkRequisitionUpdatesFlush();
 

@@ -28,6 +28,14 @@ IF (OS_ANDROID)
     GO_TEST_SRCS(syslog_test.go)
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        syslog.go
+    )
+
+    GO_TEST_SRCS(syslog_test.go)
+ENDIF()
+
 END()
 
 RECURSE(

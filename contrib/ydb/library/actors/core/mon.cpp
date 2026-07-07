@@ -49,6 +49,10 @@ namespace NActors::NMon {
         }
     }
 
+    TString TEvRemoteHttpInfo::GetUserToken() const {
+        return ExtendedQuery ? ExtendedQuery->GetUserToken() : TString();
+    }
+
     HTTP_METHOD TEvRemoteHttpInfo::GetMethod() const {
         return ExtendedQuery ? static_cast<HTTP_METHOD>(ExtendedQuery->GetMethod()) : Method;
     }
@@ -69,6 +73,28 @@ namespace NActors::NMon {
             return res.release();
         } else {
             return new TEvRemoteHttpInfo(s);
+        }
+    }
+
+    TString BuildActorsLink(const TString& path, const TCgiParameters& currentParams, const std::initializer_list<std::pair<TString, TString>> newParams) {
+
+        TCgiParameters mergedParams;
+
+        for (auto param : currentParams) {
+            mergedParams.insert(param);
+        }
+
+        for (auto param : newParams) {
+            mergedParams.erase(param.first);
+            if (param.second) {
+                mergedParams.insert(param);
+            }
+        }
+
+        if (mergedParams.empty()) {
+            return path;
+        } else {
+            return TStringBuilder() << path << '?' << mergedParams.Print();
         }
     }
 

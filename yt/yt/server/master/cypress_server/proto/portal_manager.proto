@@ -16,9 +16,9 @@ message TReqCreatePortalExit
     required NYT.NProto.TGuid parent_id = 7;
     optional string key = 8;
 
-    required bytes effective_acl = 6;
-    optional bytes direct_acl = 11;
-    optional bool inherit_acl = 12;
+    required bytes inherited_acl = 6;
+    required bytes direct_acl = 11;
+    required bool inherit_acl = 12;
 
     optional string effective_annotation = 9;
     optional string effective_annotation_path = 10;
@@ -44,7 +44,7 @@ message TPortalExitInfo
 {
     required NYT.NProto.TGuid node_id = 1;
 
-    required bytes effective_acl = 2;
+    required bytes inherited_acl = 2;
 
     required bytes direct_acl = 3;
     required bool inherit_acl = 4;

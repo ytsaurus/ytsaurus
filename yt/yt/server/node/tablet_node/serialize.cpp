@@ -1,11 +1,16 @@
 #include "serialize.h"
 
+#include <yt/yt/server/lib/hive/hive_manager.h>
+
+#include <yt/yt/server/lib/hydra/mutation_context.h>
+
 #include <yt/yt/server/lib/tablet_node/private.h>
 
 #include <util/generic/cast.h>
 
 namespace NYT::NTabletNode {
 
+using namespace NHiveServer;
 using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,13 +33,23 @@ bool IsReignChangeAllowed()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// This option is set to some large value in tests to test code that triggers
+// on reign change.
+static TReign ReignOverride = InvalidReign;
+
 TReign GetCurrentReign()
 {
-    return ToUnderlying(TEnumTraits<ETabletReign>::GetMaxValue());
+    return ReignOverride != InvalidReign
+        ? ReignOverride
+        : ToUnderlying(TEnumTraits<ETabletReign>::GetMaxValue());
 }
 
 bool ValidateSnapshotReign(TReign reign)
 {
+    if (ReignOverride != InvalidReign && reign == ReignOverride) {
+        return true;
+    }
+
     for (auto value : TEnumTraits<ETabletReign>::GetDomainValues()) {
         if (ToUnderlying(value) == reign) {
             return true;
@@ -57,6 +72,44 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
     }
 
     return EFinalRecoveryAction::None;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NTesting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SetCurrentReignOverride(NHydra::TReign reign)
+{
+    if (ReignOverride != InvalidReign || reign != InvalidReign) {
+        YT_LOG_DEBUG("Overriding tablet reign for testing purposes "
+            "(PreviousReign: %v, NewReign: %v)",
+            GetCurrentReign(),
+            reign);
+
+        YT_LOG_FATAL_UNLESS(reign == InvalidReign || reign > ToUnderlying(TEnumTraits<ETabletReign>::GetMaxValue()),
+            "Reign override must be either %v or greater than any valid reign",
+            InvalidReign);
+
+        ReignOverride = reign;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTesting
+
+////////////////////////////////////////////////////////////////////////////////
+
+ETabletReign GetCurrentMutationEffectiveReign()
+{
+    auto hiveReign = GetHiveMutationSenderReign();
+    if (hiveReign && hiveReign >= MinTabletReign && hiveReign <= MaxTabletReign) {
+        return static_cast<ETabletReign>(hiveReign);
+    } else {
+        return static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

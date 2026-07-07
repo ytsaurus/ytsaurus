@@ -3,7 +3,6 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
-    aggregate_versioned_row_digest_compaction_hint.cpp
     chunk_view_size_compaction_hint.cpp
     compaction_hints.cpp
     lsm_backend.cpp

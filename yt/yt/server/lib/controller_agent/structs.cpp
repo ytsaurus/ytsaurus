@@ -258,6 +258,8 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
 
     summary.FinishTime = TInstant::Now();
 
+    UpdateAbortedJobError(eventSummary.AbortReason, GetPtr(eventSummary.Error));
+
     ToProto(summary.Result.emplace().mutable_error(), eventSummary.Error);
     summary.Error = std::move(eventSummary.Error);
 
@@ -283,6 +285,60 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
     summary.Error = std::move(error);
 
     summary.Scheduled = true;
+
+    return std::make_unique<TAbortedJobSummary>(std::move(summary));
+}
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    TJobId jobId,
+    EAbortReason abortReason)
+{
+    TAbortedJobSummary summary{jobId, abortReason};
+
+    summary.FinishTime = TInstant::Now();
+
+    TError error;
+    UpdateAbortedJobError(abortReason, GetPtr(error));
+
+    ToProto(summary.Result.emplace().mutable_error(), error);
+    summary.Error = std::move(error);
+
+    return std::make_unique<TAbortedJobSummary>(std::move(summary));
+}
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    const TJobSummary& other,
+    EAbortReason abortReason)
+{
+    TAbortedJobSummary summary{other, abortReason};
+
+    auto error = other.Error.value_or(TError());
+    UpdateAbortedJobError(abortReason, GetPtr(error));
+
+    ToProto(
+        summary.Result.emplace().mutable_error(),
+        error);
+    summary.Error = std::move(error);
+
+    return std::make_unique<TAbortedJobSummary>(std::move(summary));
+}
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    const TJobSummary& other,
+    EAbortReason abortReason,
+    TError outerError)
+{
+    TAbortedJobSummary summary{other, abortReason};
+
+    outerError <<= TErrorAttribute("abort_reason", abortReason);
+    if (other.Error && !other.Error->IsOK()) {
+        outerError <<= *other.Error;
+    }
+
+    ToProto(
+        summary.Result.emplace().mutable_error(),
+        outerError);
+    summary.Error = std::move(outerError);
 
     return std::make_unique<TAbortedJobSummary>(std::move(summary));
 }

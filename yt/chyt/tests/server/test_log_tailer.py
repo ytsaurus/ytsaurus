@@ -10,7 +10,7 @@ import copy
 import subprocess
 import os.path
 
-import yatest.common.network
+from library.python.port_manager import PortManager
 import yt.packages.requests as requests
 
 from yt_env_setup import YTEnvSetup
@@ -127,7 +127,7 @@ class TestLogTailer(YTEnvSetup):
         create_user("yt-log-tailer")
         add_member("yt-log-tailer", "superusers")
 
-        log_tailer_monitoring_port = yatest.common.network.PortManager().get_port()
+        log_tailer_monitoring_port = PortManager().get_port()
 
         dummy_logger = subprocess.Popen([HOST_PATHS["dummy-logger"], log_path, "5", "1000", "2000"])
         log_tailer = subprocess.Popen(

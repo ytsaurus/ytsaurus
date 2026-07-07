@@ -28,8 +28,10 @@ add_subdirectory(url_lister)
 add_subdirectory(credentials)
 add_subdirectory(url_preprocessing)
 add_subdirectory(cbo)
+add_subdirectory(qplayer)
 add_subdirectory(file_storage)
 add_subdirectory(layers)
+add_subdirectory(langver)
 add_subdirectory(minsketch)
 add_subdirectory(histogram)
 add_subdirectory(expr_nodes)
@@ -61,6 +63,7 @@ target_link_libraries(yql-essentials-core PUBLIC
   core-url_lister-interface
   core-url_preprocessing-interface
   essentials-core-layers
+  essentials-core-langver
   yql-essentials-minikql
   minikql-jsonpath-parser
   essentials-core-minsketch
@@ -74,6 +77,7 @@ target_link_libraries(yql-essentials-core PUBLIC
   essentials-utils-log
   essentials-core-expr_nodes
   providers-common-proto
+  essentials-minikql-runtime_settings
   tools-enum_parser-enum_serialization_runtime
 )
 
@@ -87,6 +91,7 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_csee.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_optimize.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_type_annotation.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_type_annotation_pg.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_func_stack.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_gc_transformer.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_graph_transformer.cpp
@@ -104,6 +109,8 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_rewrite_io.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_utils.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_window.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_window_stream_transformers.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_sql_combine_expander.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_type_annotation.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_type_helpers.cpp
@@ -115,6 +122,8 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_features.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_settings.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frames_collector_params_serializer.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_settings_pg.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_sqlselect.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_callable_transform.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_data_provider.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_default_valid_value.h
@@ -123,6 +132,7 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_csee.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_optimize.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_type_annotation.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_type_annotation_pg.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_func_stack.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_gc_transformer.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_graph_transformer.h
@@ -135,6 +145,8 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_rewrite_io.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_utils.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_window.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_window_stream_transformers.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_sql_combine_expander.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_type_annotation.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_type_helpers.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_udf_index.h
@@ -143,8 +155,10 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_user_data.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_user_data_storage.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_features.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_setting_bound.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_settings.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frames_collector_params_serializer.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_settings_pg.h
 )
 
 

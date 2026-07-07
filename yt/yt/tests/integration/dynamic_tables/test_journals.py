@@ -1,3 +1,4 @@
+from yt.sequoia_tools.descriptors import DESCRIPTORS
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, is_asan_build
 
 from yt_commands import (
@@ -12,6 +13,8 @@ from yt_commands import (
 from yt_helpers import (
     get_chunk_owner_master_cell_counters, get_chunk_owner_master_cell_gauges,
     master_exit_read_only_sync)
+
+from yt_sequoia_helpers import select_rows_from_ground
 
 import yt.yson as yson
 from yt.common import YtError
@@ -174,7 +177,7 @@ class TestJournals(TestJournalsBase):
 
     @authors("babenko")
     def test_explicit_compression_codec_forbidden(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Journal compression codec cannot be set"):
             create("journal", "//tmp/j", attributes={"compression_codec": "lz4"})
 
     @authors("babenko")
@@ -225,7 +228,7 @@ class TestJournals(TestJournalsBase):
             {"replication_factor": 4},
         ]
         for attributes in BAD_ATTRIBUTES:
-            with pytest.raises(YtError):
+            with raises_yt_error(".* cannot be greater than \"replication_factor\"|Read/write quorums are not safe"):
                 create("journal", "//tmp/j", attributes=attributes)
 
     @authors("babenko")
@@ -237,7 +240,7 @@ class TestJournals(TestJournalsBase):
             {"erasure_codec": "isa_lrc_12_2_2", "read_quorum": 14, "write_quorum": 14},
         ]
         for attributes in BAD_ATTRIBUTES:
-            with pytest.raises(YtError):
+            with raises_yt_error("\"replication_factor\" must be 1 for erasure journals"):
                 create("journal", "//tmp/j", attributes=attributes)
 
     @authors("babenko")
@@ -311,7 +314,7 @@ class TestJournals(TestJournalsBase):
         self._truncate_and_check("//tmp/j", 3)
         self._truncate_and_check("//tmp/j", 10)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Truncation desired row count .* is negative"):
             truncate_journal("//tmp/j", -2)
 
     @authors("aleksandra-zh")
@@ -381,7 +384,7 @@ class TestJournals(TestJournalsBase):
         self._truncate_and_check("//tmp/j", 7, prerequisite_transaction_ids=[tx])
 
         commit_transaction(tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Prerequisite check failed"):
             self._truncate_and_check("//tmp/j", 5, prerequisite_transaction_ids=[tx])
 
         self._truncate_and_check("//tmp/j", 5)
@@ -431,7 +434,7 @@ class TestJournals(TestJournalsBase):
             journal_writer={"dont_close": True}
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Journal is not sealed|lock is taken by concurrent transaction"):
             truncate_journal("//tmp/j", 1)
 
     @authors("babenko")
@@ -475,11 +478,11 @@ class TestJournals(TestJournalsBase):
             "//tmp/j",
             attributes={"replication_factor": 5, "read_quorum": 3, "write_quorum": 3},
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Changing storage settings for journal nodes is forbidden"):
             set("//tmp/j/@replication_factor", 6)
-        with pytest.raises(YtError):
+        with raises_yt_error("Changing storage settings for journal nodes is forbidden"):
             set("//tmp/j/@vital", False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Changing storage settings for journal nodes is forbidden"):
             set("//tmp/j/@primary_medium", "default")
 
     @authors("babenko")
@@ -690,7 +693,7 @@ class TestJournals(TestJournalsBase):
     def test_data_weight_for_journals_absent(self):
         create("journal", "//tmp/journal_without_data_weight")
         assert not exists("//tmp/journal_without_data_weight/@data_weight")
-        with raises_yt_error("Attribute \"data_weight\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/journal_without_data_weight/@data_weight")
 
 
@@ -726,7 +729,6 @@ class TestJournalsPortal(TestJournalsMulticell):
         assert read_journal("//portals/j") == PAYLOAD
 
 
-@pytest.mark.enabled_multidaemon
 class TestJournalsSequoia(TestJournalsMulticell):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
@@ -737,6 +739,109 @@ class TestJournalsSequoia(TestJournalsMulticell):
         "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host", "sequoia_node_host"]},
+    }
+
+
+class TestJournalsMasterAndSequoiaJournalReplicas(TestJournalsMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    USE_SEQUOIA = True
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "replica_approve_timeout": 5000,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "enable_sequoia_chunk_refresh": True,
+                "schedule_chunk_seal_in_sequoia_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "batch_chunk_confirmation": True,
+                "journal_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": True,
+                    "store_sequoia_replicas_on_master_percentage": 100,
+                    "validate_sequoia_replicas_fetch": True,
+                    "allow_extra_master_replicas_during_validation": False,
+                },
+            },
+        },
+    }
+
+    @authors("grphil")
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    @pytest.mark.parametrize("use_location_replacement", [False, True])
+    def test_replicas_are_stored_in_sequoia(self, enable_chunk_preallocation, use_location_replacement):
+        create("journal", "//tmp/j")
+        write_journal(
+            "//tmp/j",
+            PAYLOAD,
+            enable_chunk_preallocation=enable_chunk_preallocation,
+            journal_writer={
+                "dont_close": False,
+            },
+        )
+
+        def check():
+            chunk_ids = get("//tmp/j/@chunk_ids")
+            chunk_replicas_rows = select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")
+
+            for chunk_id in chunk_ids:
+                found = False
+                for chunk_replicas in chunk_replicas_rows:
+                    if chunk_replicas["chunk_id"] != chunk_id:
+                        continue
+                    found = True
+
+                    if len(chunk_replicas["stored_replicas"]) != len(get(f"#{chunk_id}/@stored_replicas")):
+                        return False
+
+                    for replica in chunk_replicas["stored_replicas"]:
+                        if replica[3] != 3:
+                            return False
+                if not found:
+                    return False
+            return True
+
+        wait(check)
+
+        if use_location_replacement:
+            set("//sys/@config/chunk_manager/sequoia_chunk_replicas/use_location_replacement_for_location_full_heartbeat", True)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(check)
+
+
+class TestJournalsOnlySequoiaJournalReplicas(TestJournalsMasterAndSequoiaJournalReplicas):
+    ENABLE_MULTIDAEMON = False
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "replica_approve_timeout": 5000,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "enable_sequoia_chunk_refresh": True,
+                "schedule_chunk_seal_in_sequoia_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "batch_chunk_confirmation": True,
+                "journal_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": False,
+                    "process_removed_sequoia_replicas_on_master": False,
+                    "validate_sequoia_replicas_fetch": False,
+                },
+            },
+        },
     }
 
 
@@ -816,7 +921,6 @@ class TestJournalsChangeMedia(TestJournalsBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestErasureJournals(TestJournalsBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
@@ -992,7 +1096,6 @@ class TestErasureJournals(TestJournalsBase):
         self._check_repair_jobs("//tmp/j", rows)
 
 
-@pytest.mark.enabled_multidaemon
 class TestErasureJournalsRpcProxy(TestErasureJournals):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1090,6 +1193,7 @@ class TestChunkAutotomizer(TestJournalsBase):
         )
 
         body_chunk_id = get("//tmp/j/@chunk_ids/0")
+        wait(lambda: len(self._find_replicas_with_length(body_chunk_id, 7)) > 0)
         replica = self._find_replicas_with_length(body_chunk_id, 7)[0]
 
         set_node_banned(replica, True)
@@ -1180,6 +1284,7 @@ class TestChunkAutotomizer(TestJournalsBase):
 
     @authors("gritukan")
     @pytest.mark.parametrize("build_snapshot", [False, True])
+    @pytest.mark.timeout(120)
     def test_master_restart(self, build_snapshot):
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
@@ -1198,7 +1303,7 @@ class TestChunkAutotomizer(TestJournalsBase):
         master_exit_read_only_sync()
 
         self._set_fail_jobs(False)
-        wait(lambda: self._check_simple_journal(), ignore_exceptions=True)
+        wait(lambda: self._check_simple_journal(), ignore_exceptions=True, timeout=90)
 
     @authors("gritukan")
     def test_abandon_autotomy(self):

@@ -4,7 +4,9 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "dictionary_compression_session.h"
+#include "performance_counters.h"
 #include "schemaless_chunk_reader.h"
+#include "schemaless_chunk_writer.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "versioned_chunk_writer.h"
 
@@ -14,8 +16,6 @@
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/yt/ytlib/table_client/performance_counters.h>
 
 #include <yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h>
 
@@ -276,6 +276,13 @@ void FromProto(THunkChunkMeta* meta, const NProto::THunkChunkMeta& protoMeta)
 {
     meta->ChunkId = FromProto<TChunkId>(protoMeta.chunk_id());
     meta->BlockSizes = FromProto<std::vector<i64>>(protoMeta.block_sizes());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 ComputeHunkDataSize(const NProto::THunkChunkRef& ref)
+{
+    return ref.total_hunk_length() + sizeof(THunkPayloadHeader) * ref.hunk_count();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -631,13 +638,37 @@ public:
         statistics.RefValueWeight += newStatistics.RefValueWeight;
     }
 
+protected:
+    // For cloning.
+    THunkChunkStatisticsBase() = default;
+
+    void CloneEmptyColumnarStatisticsTo(THunkChunkStatisticsBase* target) const
+    {
+        if (ColumnIdToStatistics_) {
+            target->ColumnIdToStatistics_.emplace();
+            for (const auto& [columnId, _] : *ColumnIdToStatistics_) {
+                target->ColumnIdToStatistics_->emplace(columnId, TAtomicColumnarStatistics{});
+            }
+        }
+    }
+
+    void AddColumnarStatisticsFrom(const THunkChunkStatisticsBase* from)
+    {
+        if (ColumnIdToStatistics_) {
+            YT_VERIFY(from->HasColumnarStatistics());
+            for (const auto& [columnId, _] : *ColumnIdToStatistics_) {
+                UpdateColumnarStatistics(columnId, from->GetColumnarStatistics(columnId));
+            }
+        }
+    }
+
 private:
     struct TAtomicColumnarStatistics
     {
         TAtomicColumnarStatistics()
         { }
 
-        TAtomicColumnarStatistics(TAtomicColumnarStatistics&& other)
+        TAtomicColumnarStatistics(TAtomicColumnarStatistics&& other) noexcept
             : InlineValueCount(other.InlineValueCount.load(std::memory_order::relaxed))
             , RefValueCount(other.RefValueCount.load(std::memory_order::relaxed))
             , InlineValueWeight(other.InlineValueWeight.load(std::memory_order::relaxed))
@@ -767,6 +798,38 @@ public:
     {
         return BackendProbingRequestCount_;
     }
+
+    IHunkChunkReaderStatisticsPtr CloneEmpty() const override
+    {
+        auto result = New<THunkChunkReaderStatistics>();
+        CloneEmptyColumnarStatisticsTo(result.Get());
+        return result;
+    }
+
+    void AddFrom(const IHunkChunkReaderStatisticsPtr& from) override
+    {
+        ChunkReaderStatistics_->AddFrom(from->GetChunkReaderStatistics());
+
+        auto onField = [&] (auto field) {
+            (this->*field)().fetch_add(
+                (from.Get()->*field)().load(std::memory_order::relaxed),
+                std::memory_order::relaxed);
+        };
+
+        onField(&IHunkChunkReaderStatistics::DataWeight);
+        onField(&IHunkChunkReaderStatistics::DroppedDataWeight);
+        onField(&IHunkChunkReaderStatistics::InlineValueCount);
+        onField(&IHunkChunkReaderStatistics::RefValueCount);
+        onField(&IHunkChunkReaderStatistics::BackendReadRequestCount);
+        onField(&IHunkChunkReaderStatistics::BackendHedgingReadRequestCount);
+        onField(&IHunkChunkReaderStatistics::BackendProbingRequestCount);
+
+        AddColumnarStatisticsFrom(dynamic_cast<THunkChunkStatisticsBase*>(from.Get()));
+    }
+
+protected:
+    // For cloning.
+    THunkChunkReaderStatistics() = default;
 
 private:
     const TChunkReaderStatisticsPtr ChunkReaderStatistics_ = New<TChunkReaderStatistics>();
@@ -1289,8 +1352,7 @@ private:
 
         void OnSessionFutureSet()
         {
-            YT_VERIFY(SessionFuture.IsSet());
-            auto sessionOrError = SessionFuture.Get();
+            auto sessionOrError = SessionFuture.GetOrCrash();
             if (sessionOrError.IsOK()) {
                 Session = std::move(sessionOrError.Value());
 
@@ -1536,7 +1598,6 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TUnversionedValue*> values)
 {
     std::optional<TColumnarStatisticsThunk> columnarStatisticsThunk;
@@ -1647,9 +1708,11 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                 }
             }
 
+            auto initialQueryKind = options.InitialQueryKind;
+
             if (compressedValues.empty()) {
                 performanceCounters->IncrementHunkDataWeight(
-                    requestType,
+                    initialQueryKind,
                     dataWeight,
                     options.WorkloadDescriptor.Category);
             }
@@ -1672,7 +1735,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                         result = std::move(result),
                         hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics),
                         performanceCounters = std::move(performanceCounters),
-                        requestType,
+                        initialQueryKind,
                         workloadCategory
                     ] (std::vector<TSharedRef>&& decompressionResults) {
                         auto dataWeight = GetByteSize(decompressionResults);
@@ -1680,7 +1743,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                             hunkChunkReaderStatistics->DataWeight() += dataWeight;
                         }
                         performanceCounters->IncrementHunkDataWeight(
-                            requestType,
+                            initialQueryKind,
                             dataWeight,
                             workloadCategory);
 
@@ -1735,7 +1798,6 @@ TFuture<TSharedRange<TRow>> DecodeHunksInRows(
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TRow> rows,
     const TRowVisitor& rowVisitor)
 {
@@ -1745,7 +1807,6 @@ TFuture<TSharedRange<TRow>> DecodeHunksInRows(
             std::move(dictionaryCompressionFactory),
             std::move(options),
             std::move(performanceCounters),
-            requestType,
             CollectHunkValues(rows, rowVisitor))
         .AsUnique().Apply(BIND(
             [rows = std::move(rows)]
@@ -1762,7 +1823,6 @@ TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedR
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TMutableUnversionedRow> rows)
 {
     return DecodeHunksInRows(
@@ -1770,7 +1830,6 @@ TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedR
         std::move(dictionaryCompressionFactory),
         std::move(options),
         std::move(performanceCounters),
-        requestType,
         std::move(rows),
         TSchemafulUnversionedRowVisitor(schema, columnFilter));
 }
@@ -1780,7 +1839,6 @@ TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TMutableVersionedRow> rows)
 {
     return DecodeHunksInRows(
@@ -1788,7 +1846,6 @@ TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
         std::move(dictionaryCompressionFactory),
         std::move(options),
         std::move(performanceCounters),
-        requestType,
         std::move(rows),
         TVersionedRowVisitor());
 }
@@ -1949,7 +2006,6 @@ protected:
                 DictionaryCompressionFactory_,
                 Options_,
                 PerformanceCounters_,
-                NTableClient::EPerformanceCountedRequestType::Read,
                 MakeSharedRange(std::move(values), DecodableRows_))
             .AsUnique().Apply(
                 BIND(&TBatchHunkReader::OnHunksRead, MakeStrong(this)));

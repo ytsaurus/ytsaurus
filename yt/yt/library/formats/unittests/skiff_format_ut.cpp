@@ -25,16 +25,20 @@
 #include <library/cpp/skiff/skiff.h>
 #include <library/cpp/skiff/skiff_schema.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <util/stream/null.h>
 #include <util/string/hex.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 namespace NYT {
 
 namespace {
 
+using namespace NConcurrency;
 using namespace NFormats;
 using namespace NNamedValue;
 using namespace NSkiff;
@@ -50,7 +54,7 @@ std::string ConvertToSkiffSchemaShortDebugString(INodePtr node)
 {
     auto skiffFormatConfig = ConvertTo<TSkiffFormatConfigPtr>(std::move(node));
     auto skiffSchemas = ParseSkiffSchemas(skiffFormatConfig->SkiffSchemaRegistry, skiffFormatConfig->TableSkiffSchemas);
-    TStringStream result;
+    TStdStringStream result;
     result << '{';
     for (const auto& schema : skiffSchemas) {
         result <<  GetShortDebugString(schema);
@@ -62,9 +66,9 @@ std::string ConvertToSkiffSchemaShortDebugString(INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ConvertToYsonTextStringStable(const INodePtr& node)
+std::string ConvertToYsonTextStringStable(const INodePtr& node)
 {
-    TStringStream out;
+    TStdStringStream out;
     TYsonWriter writer(&out, EYsonFormat::Text);
     VisitTree(node, &writer, true, TAttributeFilter());
     writer.Flush();
@@ -370,7 +374,7 @@ std::string TableToSkiff(
 
     auto nameTable = New<TNameTable>();
 
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {schema});
 
     Y_UNUSED(writer->Write({
@@ -378,14 +382,13 @@ std::string TableToSkiff(
             {"value", value}
         }).Get(),
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto result = resultStream.Str();
     if (!TStringBuf(result).StartsWith(std::string(2, '\0'))) {
         THROW_ERROR_EXCEPTION("Expected skiff value to start with \\x00\\x00, but prefix is %Qv",
-                EscapeC(result.substr(0, 2)));
+                EscapeC(TStringBuf(result.substr(0, 2))));
     }
 
     return result.substr(2);
@@ -492,9 +495,9 @@ void TestAllWireTypes(bool useSchema)
         tableSchemas.push_back(New<TTableSchema>());
     }
     auto nameTable = New<TNameTable>();
-    TString result;
+    std::string result;
     {
-        TStringOutput resultStream(result);
+        TStdStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, tableSchemas);
 
         auto isWriterReady = writer->Write({
@@ -517,7 +520,7 @@ void TestAllWireTypes(bool useSchema)
             }).Get(),
         });
         if (!isWriterReady) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
 
         Y_UNUSED(writer->Write({
@@ -540,12 +543,11 @@ void TestAllWireTypes(bool useSchema)
             }).Get()
         }));
 
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
     }
 
-    TStringInput resultInput(result);
+    TMemoryInput resultInput(result);
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     // Row 0.
@@ -668,13 +670,12 @@ TEST_P(TSkiffYsonWireTypeP, Test)
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("column"),
     });
     auto nameTable = New<TNameTable>();
-    TStringStream actualSkiffDataStream;
+    TStdStringStream actualSkiffDataStream;
     auto writer = CreateSkiffWriter(skiffTableSchema, nameTable, &actualSkiffDataStream, {tableSchema});
     Y_UNUSED(writer->Write({
         MakeRow(nameTable, {{"column", value}})
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto actualSkiffData = actualSkiffDataStream.Str();
@@ -707,14 +708,14 @@ TEST(TSkiffWriterTest, TestYsonWireType)
         })->SetName("opt_yson32"),
     });
     auto nameTable = New<TNameTable>();
-    TString result;
+    std::string result;
     {
-        TStringOutput resultStream(result);
+        TStdStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
         auto write = [&] (TUnversionedRow row) {
             if (!writer->Write({row})) {
-                writer->GetReadyEvent().Get().ThrowOnError();
+                WaitForFast(writer->GetReadyEvent()).ThrowOnError();
             }
         };
 
@@ -795,12 +796,11 @@ TEST(TSkiffWriterTest, TestYsonWireType)
             }).Get(),
         });
 
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
     }
 
-    TStringInput resultInput(result);
+    TMemoryInput resultInput(result);
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     auto parseYson = [] (TCheckedSkiffParser* parser) {
@@ -1031,7 +1031,7 @@ TEST_P(TSkiffFormatSmallIntP, Test)
 
     const auto nameTable = New<TNameTable>();
 
-    TStringStream actualSkiffData;
+    TStdStringStream actualSkiffData;
     auto skiffTableSchema = CreateTupleSchema({
         skiffValueSchema->SetName("column")
     });
@@ -1042,8 +1042,7 @@ TEST_P(TSkiffFormatSmallIntP, Test)
     Y_UNUSED(writer->Write({
         MakeRow(nameTable, {{"column", value}})
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
     EXPECT_EQ(actualSkiffData.Str(), expectedSkiffData);
 
@@ -1064,7 +1063,7 @@ TEST(TSkiffWriterTest, TestBadSmallIntegers)
         TLogicalTypePtr logicalType,
         TNamedValue::TValue value)
     {
-        TStringStream result;
+        TStdStringStream result;
         auto skiffSchema = CreateTupleSchema({
             typeSchema->SetName("column")
         });
@@ -1076,8 +1075,7 @@ TEST(TSkiffWriterTest, TestBadSmallIntegers)
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {{"column", std::move(value)}})
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
         return result.Str();
     };
@@ -1178,8 +1176,6 @@ public:
             },
             std::string(2, '\0').append(uint128UuidValue));
 
-        auto n = TString() + TStringBuf();
-
         result.emplace_back(
             nameTable,
             requiredTableSchema,
@@ -1253,14 +1249,14 @@ TEST_P(TSkiffFormatUuidTestP, Test)
 {
     const auto& [nameTable, tableSchema, skiffSchema, rows, skiffString] = GetParam();
 
-    TStringStream result;
+    TStdStringStream result;
     std::vector<TUnversionedRow> nonOwningRows;
     for (const auto& row : rows) {
         nonOwningRows.emplace_back(row);
     }
     auto skiffWriter = CreateSkiffWriter(skiffSchema, nameTable, &result, {tableSchema});
     Y_UNUSED(skiffWriter->Write(TRange(nonOwningRows)));
-    skiffWriter->Close().Get().ThrowOnError();
+    WaitForFast(skiffWriter->Close()).ThrowOnError();
     ASSERT_EQ(result.Str(), skiffString);
 
     TCollectingValueConsumer rowCollector(nameTable);
@@ -1282,12 +1278,12 @@ TEST(TSkiffFormatUuidTest, TestError)
         CreateSimpleTypeSchema(EWireType::Uint128)->SetName("uuid"),
     });
 
-    TStringStream result;
+    TStdStringStream result;
     auto skiffWriter = CreateSkiffWriter(skiffSchema, nameTable, &result, {tableSchema});
     Y_UNUSED(skiffWriter->Write({
         MakeRow(nameTable, {{"uuid", nullptr}}),
     }));
-    EXPECT_THROW_WITH_SUBSTRING(skiffWriter->Close().Get().ThrowOnError(),
+    EXPECT_THROW_WITH_SUBSTRING(WaitForFast(skiffWriter->Close()).ThrowOnError(),
         "Unexpected type");
 }
 
@@ -1319,9 +1315,9 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
         }),
     };
 
-    TString result;
+    std::string result;
     {
-        TStringOutput resultStream(result);
+        TStdStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, tableSchemas);
         // Row 0
         auto isReady = writer->Write({
@@ -1331,7 +1327,7 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
             }).Get(),
         });
         if (!isReady) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
         // Row 1
         Y_UNUSED(writer->Write({
@@ -1340,12 +1336,11 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
                 {"opt_null", EValueType::Composite, "[#]"},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
     }
 
-    TStringInput resultInput(result);
+    TMemoryInput resultInput(result);
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
@@ -1372,14 +1367,14 @@ TEST(TSkiffWriterTest, TestRearrange)
         })->SetName("rus"),
     });
     auto nameTable = New<TNameTable>();
-    TString result;
+    std::string result;
     {
-        TStringOutput resultStream(result);
+        TStdStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
         auto write = [&] (TUnversionedRow row) {
             if (!writer->Write({row})) {
-                writer->GetReadyEvent().Get().ThrowOnError();
+                WaitForFast(writer->GetReadyEvent()).ThrowOnError();
             }
         };
 
@@ -1404,12 +1399,11 @@ TEST(TSkiffWriterTest, TestRearrange)
             {"number", 3},
         }).Get());
 
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
     }
 
-    TStringInput resultInput(result);
+    TMemoryInput resultInput(result);
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     // Row 0.
@@ -1446,9 +1440,9 @@ TEST(TSkiffWriterTest, TestMissingRequiredField)
         CreateSimpleTypeSchema(EWireType::String32)->SetName("eng"),
     });
     auto nameTable = New<TNameTable>();
-    TString result;
+    std::string result;
     try {
-        TStringOutput resultStream(result);
+        TStdStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
         Y_UNUSED(writer->Write({
@@ -1457,8 +1451,7 @@ TEST(TSkiffWriterTest, TestMissingRequiredField)
                 {"number", 1},
             }).Get()
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const std::exception& e) {
@@ -1477,13 +1470,13 @@ TEST(TSkiffWriterTest, TestSparse)
     });
 
     auto nameTable = New<TNameTable>();
-    TString result;
-    TStringOutput resultStream(result);
+    std::string result;
+    TStdStringOutput resultStream(result);
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
     };
 
@@ -1515,11 +1508,10 @@ TEST(TSkiffWriterTest, TestSparse)
         {TableIndexColumnName, 0},
     }).Get());
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput resultInput(result);
+    TMemoryInput resultInput(result);
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     // Row 0.
@@ -1566,7 +1558,7 @@ TEST(TSkiffWriterTest, TestMissingFields)
     });
 
     try {
-        TStringStream resultStream;
+        TStdStringStream resultStream;
         auto nameTable = New<TNameTable>();
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
@@ -1576,8 +1568,7 @@ TEST(TSkiffWriterTest, TestMissingFields)
                 {"unknown_column", "four"},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const std::exception& e) {
@@ -1585,7 +1576,7 @@ TEST(TSkiffWriterTest, TestMissingFields)
     }
 
     try {
-        TStringStream resultStream;
+        TStdStringStream resultStream;
         auto nameTable = New<TNameTable>();
         auto unknownColumnId = nameTable->RegisterName("unknown_column");
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{New<TTableSchema>()});
@@ -1598,8 +1589,7 @@ TEST(TSkiffWriterTest, TestMissingFields)
                 {"unknown_column", "four"},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const std::exception& e) {
@@ -1617,14 +1607,14 @@ TEST(TSkiffWriterTest, TestOtherColumns)
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("$other_columns"),
     });
 
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     auto nameTable = New<TNameTable>();
     nameTable->RegisterName("string_column");
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
     };
 
@@ -1645,11 +1635,10 @@ TEST(TSkiffWriterTest, TestOtherColumns)
         {TableIndexColumnName, 0},
         {"other_string_column", "bar"},
     }).Get());
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput resultInput(resultStream.Str());
+    TMemoryInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     auto parseYson = [] (TCheckedSkiffParser* parser) {
@@ -1685,13 +1674,13 @@ TEST(TSkiffWriterTest, TestKeySwitch)
         CreateSimpleTypeSchema(EWireType::Boolean)->SetName("$key_switch"),
     });
 
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     auto nameTable = New<TNameTable>();
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1);
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
     };
 
@@ -1710,11 +1699,10 @@ TEST(TSkiffWriterTest, TestKeySwitch)
         {"value", "two"},
         {TableIndexColumnName, 0},
     }).Get());
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput resultInput(resultStream.Str());
+    TMemoryInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     std::string buf;
@@ -1745,13 +1733,13 @@ TEST(TSkiffWriterTest, TestEndOfStream)
         CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
     });
 
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     auto nameTable = New<TNameTable>();
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1, true);
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
     };
 
@@ -1765,11 +1753,10 @@ TEST(TSkiffWriterTest, TestEndOfStream)
         {"value", "one"},
         {TableIndexColumnName, 0},
     }).Get());
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput resultInput(resultStream.Str());
+    TMemoryInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     std::string buf;
@@ -1832,7 +1819,7 @@ TEST(TSkiffWriterTest, TestRowRangeIndex)
         }
 
 
-        TStringStream resultStream;
+        TStdStringStream resultStream;
         auto nameTable = New<TNameTable>();
         auto writer = CreateSkiffWriter(
             skiffSchema,
@@ -1842,11 +1829,10 @@ TEST(TSkiffWriterTest, TestRowRangeIndex)
 
         for (const auto& row : rows) {
             if (!writer->Write({generateUnversionedRow(row, nameTable)})) {
-                writer->GetReadyEvent().Get().ThrowOnError();
+                WaitForFast(writer->GetReadyEvent()).ThrowOnError();
             }
         }
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
         return HexEncode(resultStream.Str());
@@ -1993,7 +1979,7 @@ TEST(TSkiffWriterTest, TestRowIndexOnlyOrRangeIndexOnly)
             })->SetName(std::string(columnName)),
         });
 
-        TStringStream resultStream;
+        TStdStringStream resultStream;
         auto nameTable = New<TNameTable>();
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1);
 
@@ -2003,11 +1989,10 @@ TEST(TSkiffWriterTest, TestRowIndexOnlyOrRangeIndexOnly)
                 {std::string(columnName), 0},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
-        TStringInput resultInput(resultStream.Str());
+        TMemoryInput resultInput(resultStream.Str());
         TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
         // Row 0.
@@ -2035,7 +2020,7 @@ TEST(TSkiffWriterTest, TestComplexType)
     });
 
     {
-        TStringStream resultStream;
+        TStdStringStream resultStream;
         auto nameTable = New<TNameTable>();
         auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", StructLogicalType({
@@ -2060,11 +2045,10 @@ TEST(TSkiffWriterTest, TestComplexType)
                 {TableIndexColumnName, 0},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
-        TStringInput resultInput(resultStream.Str());
+        TMemoryInput resultInput(resultStream.Str());
         TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
         // Row 0.
@@ -2085,6 +2069,7 @@ TEST(TSkiffWriterTest, TestComplexType)
 
 TEST(TSkiffWriterTest, TestTzTime)
 {
+
     auto skiffSchema = CreateTupleSchema({
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::Uint16),
@@ -2112,7 +2097,7 @@ TEST(TSkiffWriterTest, TestTzTime)
         })->SetName("timestamp64Column")
     });
 
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     auto nameTable = New<TNameTable>();
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("dateColumn", ESimpleLogicalValueType::TzDate),
@@ -2125,12 +2110,14 @@ TEST(TSkiffWriterTest, TestTzTime)
 
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
-    auto dateValueString = MakeTzString<ui16>(42, "Europe/Moscow");
-    auto datetimeValueString = MakeTzString<ui32>(42, "Europe/Moscow");
-    auto timestampValueString = MakeTzString<ui64>(42, "Europe/Moscow");
-    auto date32ValueString = MakeTzString<i32>(42, "Europe/Moscow");
-    auto datetime64ValueString = MakeTzString<i64>(42, "Europe/Moscow");
-    auto timestamp64ValueString = MakeTzString<i64>(42, "Europe/Moscow");
+    constexpr ui16 tzEuropeMoscow = 1;
+
+    auto dateValueString = MakeTzString<ui16>(42, tzEuropeMoscow);
+    auto datetimeValueString = MakeTzString<ui32>(42, tzEuropeMoscow);
+    auto timestampValueString = MakeTzString<ui64>(42, tzEuropeMoscow);
+    auto date32ValueString = MakeTzString<i32>(42, tzEuropeMoscow);
+    auto datetime64ValueString = MakeTzString<i64>(42, tzEuropeMoscow);
+    auto timestamp64ValueString = MakeTzString<i64>(42, tzEuropeMoscow);
 
     // Row 0.
     Y_UNUSED(writer->Write({
@@ -2143,11 +2130,10 @@ TEST(TSkiffWriterTest, TestTzTime)
             {"timestamp64Column", timestamp64ValueString},
         }).Get(),
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput resultInput(resultStream.Str());
+    TMemoryInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     // Row 0.
@@ -2186,7 +2172,7 @@ TEST(TSkiffWriterTest, TestTimezoneString)
         CreateSimpleTypeSchema(EWireType::String32)->SetName("dateColumn")
     });
 
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     auto nameTable = New<TNameTable>();
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("dateColumn", ESimpleLogicalValueType::TzDate)
@@ -2194,18 +2180,18 @@ TEST(TSkiffWriterTest, TestTimezoneString)
 
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
-    auto dateValueString = MakeTzString<ui16>(42, "Europe/Moscow");
+    constexpr ui16 tzEuropeMoscow = 1;
+    auto dateValueString = MakeTzString<ui16>(42, tzEuropeMoscow);
     // Row 0.
     Y_UNUSED(writer->Write({
         MakeRow(nameTable, {
             {"dateColumn", dateValueString}
         }).Get(),
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput resultInput(resultStream.Str());
+    TMemoryInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     // Row 0.
@@ -2228,7 +2214,7 @@ TEST(TSkiffWriterTest, TestRemainingRowBytes)
         CreateSimpleTypeSchema(EWireType::String32)->SetName("data")
     });
 
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     auto nameTable = New<TNameTable>();
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("data", ESimpleLogicalValueType::String)
@@ -2248,11 +2234,10 @@ TEST(TSkiffWriterTest, TestRemainingRowBytes)
             {"data", dataValue2},
         }).Get(),
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput resultInput(resultStream.Str());
+    TMemoryInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
 
@@ -2285,7 +2270,7 @@ TEST(TSkiffWriterTest, TestRemainingRowBytesDuplicate)
         CreateSimpleTypeSchema(EWireType::String32)->SetName("data")
     });
 
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     auto nameTable = New<TNameTable>();
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("data", ESimpleLogicalValueType::String)
@@ -2309,7 +2294,7 @@ TEST(TSkiffWriterTest, TestEmptyComplexType)
     });
 
     {
-        TStringStream resultStream;
+        TStdStringStream resultStream;
         auto nameTable = New<TNameTable>();
         auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", OptionalLogicalType(
@@ -2327,11 +2312,10 @@ TEST(TSkiffWriterTest, TestEmptyComplexType)
                 {TableIndexColumnName, 0},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
-        TStringInput resultInput(resultStream.Str());
+        TMemoryInput resultInput(resultStream.Str());
         TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
         // Row 0.
@@ -2355,7 +2339,7 @@ TEST(TSkiffWriterTest, TestSparseComplexType)
     });
 
     {
-        TStringStream resultStream;
+        TStdStringStream resultStream;
         auto nameTable = New<TNameTable>();
         auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", OptionalLogicalType(
@@ -2373,11 +2357,10 @@ TEST(TSkiffWriterTest, TestSparseComplexType)
                 {TableIndexColumnName, 0},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
-        TStringInput resultInput(resultStream.Str());
+        TMemoryInput resultInput(resultStream.Str());
         TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
         // Row 0.
@@ -2406,7 +2389,7 @@ TEST(TSkiffWriterTest, TestSparseComplexTypeWithExtraOptional)
         })->SetName("$sparse_columns"),
     });
 
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     auto nameTable = New<TNameTable>();
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("value", OptionalLogicalType(
@@ -2425,11 +2408,10 @@ TEST(TSkiffWriterTest, TestSparseComplexTypeWithExtraOptional)
             {TableIndexColumnName, 0},
         }).Get(),
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput resultInput(resultStream.Str());
+    TMemoryInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     // Row 0.
@@ -2455,7 +2437,7 @@ TEST(TSkiffWriterTest, TestBadWireTypeForSimpleColumn)
         })->SetName("opt_yson32"),
     });
     auto nameTable = New<TNameTable>();
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     EXPECT_THROW_WITH_SUBSTRING(
         CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{New<TTableSchema>()}),
         "Unexpected wire type");
@@ -2482,7 +2464,7 @@ TEST(TSkiffWriterTest, TestMissingComplexColumn)
 
     {
         auto nameTable = New<TNameTable>();
-        TStringStream resultStream;
+        TStdStringStream resultStream;
         auto writer = CreateSkiffWriter(optionalSkiffSchema, nameTable, &resultStream, std::vector{New<TTableSchema>()});
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, { }).Get(),
@@ -2491,8 +2473,7 @@ TEST(TSkiffWriterTest, TestMissingComplexColumn)
             }).Get(),
             MakeRow(nameTable, { }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
         EXPECT_EQ(HexEncode(resultStream.Str()), "0000" "00" "0000" "00" "0000" "00");
@@ -2521,9 +2502,9 @@ TEST(TSkiffWriterTest, TestSkippedFields)
     });
 
     auto nameTable = New<TNameTable>();
-    TString result;
+    std::string result;
     {
-        TStringOutput resultStream(result);
+        TStdStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {tableSchema});
 
         if (!writer->Write({
@@ -2536,7 +2517,7 @@ TEST(TSkiffWriterTest, TestSkippedFields)
                 }).Get()
             }))
         {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
@@ -2546,11 +2527,10 @@ TEST(TSkiffWriterTest, TestSkippedFields)
                 {"double", 2.5},
             }).Get()
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
-        TStringInput resultInput(result);
+        TMemoryInput resultInput(result);
         TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
         // Row 0.
@@ -2588,9 +2568,9 @@ TEST(TSkiffWriterTest, TestSkippedFieldsOutOfRange)
     });
 
     auto nameTable = New<TNameTable>();
-    TString result;
+    std::string result;
     {
-        TStringOutput resultStream(result);
+        TStdStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {tableSchema});
 
         if (!writer->Write({
@@ -2600,18 +2580,17 @@ TEST(TSkiffWriterTest, TestSkippedFieldsOutOfRange)
                 }).Get()
             }))
         {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {RangeIndexColumnName, 5},
             }).Get()
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
-        TStringInput resultInput(result);
+        TMemoryInput resultInput(result);
         TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
         // Row 0.
@@ -2636,13 +2615,13 @@ TEST(TSkiffWriterTest, TestSkippedFieldsAndKeySwitch)
         CreateSimpleTypeSchema(EWireType::Boolean)->SetName("$key_switch"),
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("value1"),
     });
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     auto nameTable = New<TNameTable>();
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1);
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
     };
 
@@ -2664,11 +2643,10 @@ TEST(TSkiffWriterTest, TestSkippedFieldsAndKeySwitch)
         {"value1", 2},
         {TableIndexColumnName, 0},
     }).Get());
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput resultInput(resultStream.Str());
+    TMemoryInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     std::string buf;
@@ -2733,7 +2711,7 @@ TEST(TSkiffParserTest, Simple)
     TCollectingValueConsumer rowCollector;
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     checkedSkiffWriter.WriteVariant16Tag(0);
@@ -2794,7 +2772,7 @@ TEST(TSkiffParserTest, TestOptionalNull)
     TCollectingValueConsumer rowCollector(tableSchema);
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     checkedSkiffWriter.WriteVariant16Tag(0);
@@ -2826,7 +2804,7 @@ TEST(TSkiffParserTest, TestSparse)
     TCollectingValueConsumer rowCollector;
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     // Row 1.
@@ -2870,7 +2848,7 @@ TEST(TSkiffParserTest, TestYsonWireType)
     TCollectingValueConsumer rowCollector;
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     // Row 0.
@@ -2920,7 +2898,7 @@ TEST(TSkiffParserTest, TestBadYsonWireType)
     auto parseYsonUsingSkiff = [&] (TStringBuf ysonValue) {
         TCollectingValueConsumer rowCollector;
         auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
-        TStringStream dataStream;
+        TStdStringStream dataStream;
         ASSERT_NO_THROW({
             TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
@@ -2984,7 +2962,7 @@ TEST(TSkiffParserTest, TestOtherColumns)
     TCollectingValueConsumer rowCollector;
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     // Row 0.
@@ -3030,7 +3008,7 @@ TEST(TSkiffParserTest, TestComplexColumn)
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     // Row 0.
@@ -3089,7 +3067,7 @@ TEST(TSkiffParserTest, TestTimezoneTime)
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     // Row 0.
@@ -3120,12 +3098,12 @@ TEST(TSkiffParserTest, TestTimezoneTime)
 
     ASSERT_EQ(rowCollector.Size(), 1);
 
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "dateColumn")), MakeTzString<ui16>(DateUpperBound - 1, GetTzName(1)));
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "datetimeColumn")), MakeTzString<ui32>(DatetimeUpperBound - 1, GetTzName(2)));
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "timestampColumn")), MakeTzString<ui64>(TimestampUpperBound - 1, GetTzName(3)));
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "date32Column")), MakeTzString<i32>(Date32LowerBound, GetTzName(1)));
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "datetime64Column")), MakeTzString<i64>(Datetime64LowerBound, GetTzName(2)));
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "timestamp64Column")), MakeTzString<i64>(Timestamp64LowerBound, GetTzName(3)));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "dateColumn")), MakeTzString<ui16>(DateUpperBound - 1, 1));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "datetimeColumn")), MakeTzString<ui32>(DatetimeUpperBound - 1, 2));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "timestampColumn")), MakeTzString<ui64>(TimestampUpperBound - 1, 3));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "date32Column")), MakeTzString<i32>(Date32LowerBound, 1));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "datetime64Column")), MakeTzString<i64>(Datetime64LowerBound, 2));
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "timestamp64Column")), MakeTzString<i64>(Timestamp64LowerBound, 3));
 }
 
 TEST(TSkiffParserTest, TestTimezoneString)
@@ -3140,13 +3118,13 @@ TEST(TSkiffParserTest, TestTimezoneString)
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     // Row 0.
     checkedSkiffWriter.WriteVariant16Tag(0);
 
-    checkedSkiffWriter.WriteString32(MakeTzString<ui16>(DateUpperBound - 1, GetTzName(1)));
+    checkedSkiffWriter.WriteString32(MakeTzString<ui16>(DateUpperBound - 1, 1));
 
     checkedSkiffWriter.Finish();
 
@@ -3155,36 +3133,7 @@ TEST(TSkiffParserTest, TestTimezoneString)
 
     ASSERT_EQ(rowCollector.Size(), 1);
 
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "dateColumn")), MakeTzString<ui16>(DateUpperBound - 1, GetTzName(1)));
-}
-
-TEST(TSkiffParserTest, TestWrongTimezoneName)
-{
-    auto skiffSchema = CreateTupleSchema({
-        CreateTupleSchema({
-            CreateSimpleTypeSchema(EWireType::Uint16),
-            CreateSimpleTypeSchema(EWireType::Uint16),
-        })->SetName("dateColumn")
-    });
-
-    TCollectingValueConsumer rowCollector(
-        New<TTableSchema>(std::vector{
-            TColumnSchema("dateColumn", ESimpleLogicalValueType::TzDate)
-        }));
-    auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
-
-    TStringStream dataStream;
-    TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
-
-    // Row 0.
-    checkedSkiffWriter.WriteVariant16Tag(0);
-
-    checkedSkiffWriter.WriteUint16(42);
-    checkedSkiffWriter.WriteUint16(1000);
-
-    checkedSkiffWriter.Finish();
-
-    EXPECT_THROW_WITH_SUBSTRING(parser->Read(dataStream.Str()), "Invalid timezone index");
+    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "dateColumn")), MakeTzString<ui16>(DateUpperBound - 1, 1));
 }
 
 TEST(TSkiffParserTest, TestWrongTimezoneType)
@@ -3247,7 +3196,7 @@ TEST(TSkiffParserTest, ColumnIds)
     rowCollector.GetNameTable()->GetIdOrRegisterName("field_b");
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     checkedSkiffWriter.WriteVariant16Tag(0);
@@ -3286,7 +3235,7 @@ TEST(TSkiffParserTest, TestSparseComplexType)
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     // Row 0.
@@ -3334,7 +3283,7 @@ TEST(TSkiffParserTest, TestSparseComplexTypeWithExtraOptional)
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     // Row 0.
@@ -3418,7 +3367,7 @@ TEST(TSkiffFormatTest, ComplexTzType)
     TCollectingValueConsumer rowCollector(tableSchema);
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
-    TStringStream dataStream;
+    TStdStringStream dataStream;
     TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
 
     // Row 0.
@@ -3436,7 +3385,7 @@ TEST(TSkiffFormatTest, ComplexTzType)
     ASSERT_EQ(rowCollector.Size(), 1);
     auto compositeString = ConvertToYsonTextStringStable(GetComposite(rowCollector.GetRowValue(0, "column")));
 
-    TStringStream resultStream;
+    TStdStringStream resultStream;
     auto nameTable = New<TNameTable>();
 
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
@@ -3448,11 +3397,10 @@ TEST(TSkiffFormatTest, ComplexTzType)
         }).Get(),
     }));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
-    TStringInput resultInput(resultStream.Str());
+    TMemoryInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     // Row 0.

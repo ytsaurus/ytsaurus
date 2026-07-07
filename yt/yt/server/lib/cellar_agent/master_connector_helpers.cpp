@@ -6,6 +6,8 @@
 #include "private.h"
 #include "public.h"
 
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+
 #include <yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -24,6 +26,7 @@ using namespace NCellarClient;
 using namespace NCellarNodeTrackerClient::NProto;
 using namespace NObjectClient;
 using namespace NHiveClient;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,22 +50,30 @@ void AddCellarInfoToHeartbeatRequest(
     for (const auto& occupant : cellar->Occupants()) {
         auto* protoSlotInfo = request->add_cell_slots();
 
-        if (occupant) {
-            TCellInfo cellInfo {
-                .CellId = occupant->GetCellId(),
-                .ConfigVersion = occupant->GetConfigVersion()
-            };
-
-            ToProto(protoSlotInfo->mutable_cell_info(), cellInfo);
-            protoSlotInfo->set_peer_state(ToProto(occupant->GetControlState()));
-            protoSlotInfo->set_peer_id(occupant->GetPeerId());
-            protoSlotInfo->set_dynamic_config_version(occupant->GetDynamicConfigVersion());
-
-            if (const auto& responseKeeper = occupant->GetResponseKeeper()) {
-                protoSlotInfo->set_is_response_keeper_warming_up(responseKeeper->IsWarmingUp());
-            }
-        } else {
+        if (!occupant) {
             protoSlotInfo->set_peer_state(ToProto(NHydra::EPeerState::None));
+            continue;
+        }
+
+        TCellInfo cellInfo {
+            .CellId = occupant->GetCellId(),
+            .ConfigVersion = occupant->GetConfigVersion()
+        };
+
+        ToProto(protoSlotInfo->mutable_cell_info(), cellInfo);
+        protoSlotInfo->set_peer_state(ToProto(occupant->GetControlState()));
+        protoSlotInfo->set_peer_id(occupant->GetPeerId());
+        protoSlotInfo->set_dynamic_config_version(occupant->GetDynamicConfigVersion());
+
+        // Sending errors for active peers is useless: if the cell has recovered completely
+        // between two successive heartbeats then the master doesn't know that it was ever failed.
+        auto hydraManager = occupant->GetHydraManager();
+        if (hydraManager && !hydraManager->IsActive()) {
+            ToProto(protoSlotInfo->mutable_error(), hydraManager->GetLastRestartError());
+        }
+
+        if (const auto& responseKeeper = occupant->GetResponseKeeper()) {
+            protoSlotInfo->set_is_response_keeper_warming_up(responseKeeper->IsWarmingUp());
         }
     }
 }
@@ -137,7 +148,7 @@ void UpdateCellarFromHeartbeatResponse(
             continue;
         }
 
-        YT_LOG_DEBUG("Configuruing cell (CellId: %v)",
+        YT_LOG_DEBUG("Configuring cell (CellId: %v)",
             cellId);
 
         cellar->ConfigureOccupant(slot, info);

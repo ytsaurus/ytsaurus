@@ -85,8 +85,8 @@ public:
     TQueueExporterOld() = default;
 
     TQueueExporterOld(
-        TString exportName,
-        NQueueClient::TCrossClusterReference queue,
+        std::string exportName,
+        NQueueClient::TTablePath queue,
         const NQueueClient::TQueueStaticExportConfigPtr& exportConfig,
         const TQueueExporterDynamicConfig& dynamicConfig,
         NHiveClient::TClientDirectoryPtr clientDirectory,
@@ -107,10 +107,10 @@ public:
     EQueueExporterImplementation GetImplementationType() const override;
 
 private:
-    const TString ExportName_;
-    const NQueueClient::TCrossClusterReference Queue_;
+    const std::string ExportName_;
+    const NQueueClient::TTablePath Queue_;
 
-    NThreading::TSpinLock Lock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     NQueueClient::TQueueStaticExportConfigPtr ExportConfig_;
     TQueueExporterDynamicConfig DynamicConfig_;
     TQueueExportProgressOldPtr ExportProgress_;

@@ -79,7 +79,7 @@ public:
 
     TFuture<IChannelPtr> GetChannel() override
     {
-        if (auto future = ChannelFuture_.Load(); future && (!future.IsSet() || future.Get().IsOK())) {
+        if (auto future = ChannelFuture_.Load(); future && (!future.IsSet() || future.GetOrCrash().IsOK())) {
             return future;
         }
 
@@ -173,7 +173,7 @@ private:
         }
 
         YT_LOG_DEBUG(
-            "Unable to created chaos object channel due to cell tag absence in cell directory (CellTag: %v)",
+            "Unable to create chaos object channel due to cell tag absence in cell directory (CellTag: %v)",
             cellTag);
 
         return MakeFuture<IChannelPtr>(UnavailableError_);

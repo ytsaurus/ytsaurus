@@ -7,6 +7,7 @@ SRCS(
     core_watcher.cpp
     cpu_monitor.cpp
     environment.cpp
+    helpers.cpp
     job_throttler.cpp
     job_detail.cpp
     job_prober_service.cpp
@@ -47,6 +48,7 @@ PEERDIR(
 
     yt/yt/core/rpc/http
 
+    yt/yt/library/cgroup
     yt/yt/library/containers
     yt/yt/library/containers/cri
     yt/yt/library/orchid

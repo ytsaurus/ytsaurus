@@ -168,7 +168,7 @@ private:
                         return remoteUnderlying->GenerateTimestamps(count);
                 } else {
                     YT_LOG_WARNING(
-                        "Cannot generate timestamps via direct call (CloclClusterTag: %v)",
+                        "Cannot generate timestamps via direct call (ClockClusterTag: %v)",
                         clockClusterTag);
                     return MakeFuture<TTimestamp>(TError(
                         "Timestamp provider for clock cluster tag %v is unavailable at the moment",

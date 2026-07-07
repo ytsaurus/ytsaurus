@@ -8,17 +8,25 @@
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
+#include <util/generic/queue.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class TPayload>
+std::weak_ordering TChunkScanQueueWithPayload<TPayload>::TDelayedQueueEntry::operator<=>(const TDelayedQueueEntry& other) const
+{
+    return Deadline <=> other.Deadline;
+}
 
 template <class TPayload>
 void TChunkScanQueueWithPayload<TPayload>::Clear()
 {
     // Since queue may be huge, destruction is offloaded into separate thread.
     // Otherwise, queue is not changed.
-    auto doClear = [] <class T> (std::queue<T>& queue_) {
-        std::queue<T> queue;
+    auto doClear = [] <class T> (T& queue_) {
+        T queue;
         std::swap(queue_, queue);
         NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
             BIND([queue = std::move(queue)] { Y_UNUSED(queue); }));
@@ -29,15 +37,19 @@ void TChunkScanQueueWithPayload<TPayload>::Clear()
 }
 
 template <class TPayload>
-bool TChunkScanQueueWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay)
+bool TChunkScanQueueWithPayload<TPayload>::EnqueueChunk(
+    TQueuedChunk chunk,
+    std::optional<TCpuDuration> delay,
+    std::optional<NProfiling::TCpuInstant> originalInstant)
 {
     if (GetScanFlag(GetChunk(chunk))) {
         return false;
     }
     SetScanFlag(GetChunk(chunk));
 
-    auto instant = GetCpuInstant();
-    RequeueDelayedChunks(instant);
+    auto now = GetCpuInstant();
+    auto instant = originalInstant.value_or(now);
+    RequeueDelayedChunks(now);
 
     TQueueEntry queueEntry;
     if constexpr (WithPayload) {
@@ -93,6 +105,7 @@ auto TChunkScanQueueWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
         return None();
     }
 
+    LastDequeuedChunkEnqueueInstant_ = Queue_.front().Instant;
     Queue_.pop();
     ClearScanFlag(chunk);
     return front;
@@ -101,23 +114,40 @@ auto TChunkScanQueueWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
 template <class TPayload>
 void TChunkScanQueueWithPayload<TPayload>::RequeueDelayedChunks(NProfiling::TCpuInstant deadline)
 {
-    while (!DelayedQueue_.empty() && DelayedQueue_.front().Deadline < deadline) {
-        auto queueEntry = std::move(DelayedQueue_.front().QueueEntry);
-        queueEntry.Instant = DelayedQueue_.front().Deadline;
-        DelayedQueue_.pop();
+    static const auto Logger = ChunkServerLogger;
+
+    while (!DelayedQueue_.empty() && DelayedQueue_.top().Deadline < deadline) {
+        auto queueEntry = DelayedQueue_.PopValue().QueueEntry;
         Queue_.push(std::move(queueEntry));
+    }
+    if (!DelayedQueue_.empty()) {
+        YT_LOG_TRACE(
+            "First chunk in delayed queue "
+            "(ChunkId: %v, Deadline: %v)",
+            DelayedQueue_.top().QueueEntry.Chunk->GetId(),
+            CpuInstantToInstant(DelayedQueue_.top().Deadline));
     }
 }
 
 template <class TPayload>
 bool TChunkScanQueueWithPayload<TPayload>::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
 {
+    static const auto Logger = ChunkServerLogger;
+
     if (!Queue_.empty()) {
-        return Queue_.front().Instant < deadline;
+        if (Queue_.front().Instant < deadline) {
+            return true;
+        } else {
+            YT_LOG_TRACE(
+            "First chunk in queue "
+                "(ChunkId: %v, Instant: %v)",
+                Queue_.front().Chunk->GetId(),
+                CpuInstantToInstant(Queue_.front().Instant));
+        }
     }
 
     if (!DelayedQueue_.empty()) {
-        return DelayedQueue_.front().Deadline < deadline;
+        return DelayedQueue_.top().Deadline < deadline;
     }
 
     return false;
@@ -127,6 +157,12 @@ template <class TPayload>
 int TChunkScanQueueWithPayload<TPayload>::GetQueueSize() const
 {
     return std::ssize(Queue_) + std::ssize(DelayedQueue_);
+}
+
+template <class TPayload>
+std::optional<NProfiling::TCpuInstant> TChunkScanQueueWithPayload<TPayload>::GetLastDequeuedChunkEnqueueInstant() const
+{
+    return LastDequeuedChunkEnqueueInstant_;
 }
 
 template <class TPayload>
@@ -180,20 +216,28 @@ void TChunkScannerWithPayload<TPayload>::Stop(int shardIndex)
 }
 
 template <class TPayload>
-bool TChunkScannerWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk, std::optional<TCpuDuration> delay)
+bool TChunkScannerWithPayload<TPayload>::EnqueueChunk(
+    TQueuedChunk chunk,
+    std::optional<TCpuDuration> delay,
+    std::optional<NProfiling::TCpuInstant> originalInstant)
 {
     if (!TBase::IsRelevant(TChunkQueue::GetChunk(chunk))) {
         return false;
     }
 
-    return TChunkQueue::EnqueueChunk(std::move(chunk), delay);
+    return TChunkQueue::EnqueueChunk(std::move(chunk), delay, originalInstant);
 }
 
 template <class TPayload>
-auto TChunkScannerWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
+auto TChunkScannerWithPayload<TPayload>::DequeueChunk(NProfiling::TCpuInstant deadline) -> TQueuedChunk
 {
-    if (TBase::HasUnscannedChunk()) {
+    if (TBase::HasUnscannedChunk(deadline)) {
+        TChunkQueue::LastDequeuedChunkEnqueueInstant_ = std::nullopt;
         return TChunkQueue::WithoutPayload(TGlobalChunkScanner::DequeueChunk());
+    }
+
+    if (!TChunkQueue::HasUnscannedChunk(deadline)) {
+        return TChunkQueue::None();
     }
 
     auto front = TChunkQueue::DequeueChunk();

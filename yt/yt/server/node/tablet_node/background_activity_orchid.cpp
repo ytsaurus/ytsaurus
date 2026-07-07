@@ -73,7 +73,7 @@ TBackgroundActivityTaskInfoBase::TBackgroundActivityTaskInfoBase(
     TGuid taskId,
     TTabletId tabletId,
     NHydra::TRevision mountRevision,
-    TString tablePath,
+    NYPath::TYPath tablePath,
     std::string tabletCellBundle)
     : TaskId(taskId)
     , TabletId(tabletId)

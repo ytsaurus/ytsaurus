@@ -55,6 +55,8 @@ public:
 
     bool IsExhausted() const;
 
+    ui32 GetCurrentIndex() const;
+
 private:
     TRef Block_;
     TRange<TKeyMeta<Type>> SegmentsMeta_;
@@ -63,7 +65,6 @@ private:
     ui32 Position_ = 0;
 
     TReadSpan Span_;
-    TTmpBuffers LocalBuffers_;
 
     Y_FORCE_INLINE TUnversionedValue GetValue(ui32 position) const;
 
@@ -150,8 +151,6 @@ private:
 
     Y_FORCE_INLINE TReadSpan ShrinkRange(TReadSpan span);
 };
-
-using TRangeSliceAdapter =  TBoundsIterator<TRowRange>;
 
 template <EValueType Type, class TSliceAdapter>
 void BuildReadRowRanges(

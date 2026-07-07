@@ -16,7 +16,7 @@ from yt_commands import (
     suspend_op, resume_op, abort_op, update_op_parameters,
     abort_job, get_job, get_job_fail_context, list_jobs, list_operations, get_operation, clean_operations,
     abandon_job, sync_create_cells, update_controller_agent_config, update_scheduler_config,
-    make_ace, set_all_nodes_banned, PrepareTables, sorted_dicts)
+    make_ace, set_all_nodes_banned, PrepareTables, sorted_dicts, raises_yt_error)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_operation_path,
@@ -26,7 +26,7 @@ from yt_scheduler_helpers import (
 from yt_helpers import JobCountProfiler, get_current_time, parse_yt_time, profiler_factory, get_job_count_profiling
 
 from yt.yson import YsonEntity
-from yt.common import uuid_to_parts, YtResponseError, YtError, datetime_to_string
+from yt.common import uuid_to_parts, YtResponseError, datetime_to_string
 from yt.test_helpers import are_almost_equal
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.environment import arcadia_interop
@@ -208,7 +208,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             abort_transaction(transaction_id)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation .* aborted"):
             op.track()
 
     @authors("ignat")
@@ -257,7 +257,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         op.abort()
 
-        assert not exists("#" + input_tx)
+        # NB(eshcherbin): Aborting an orphaned operation triggers a fire-and-forget
+        # transaction abort (see TScheduler::AbortOperationWithoutRevival), so the
+        # transaction may still be alive when op.abort() returns.
+        wait(lambda: not exists("#" + input_tx))
 
     @authors("ignat")
     def test_suspend_during_revive(self):
@@ -492,7 +495,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
                         if i == 9:
                             raise
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Scheduler transactions .* have expired or were aborted"):
             op.track()
 
         set_all_nodes_banned(False)
@@ -607,7 +610,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         )
 
         # if all jobs failed then operation is also failed
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         for job_id in op.list_jobs():
@@ -759,7 +762,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
 
 # See: YT-22656.
-@pytest.mark.enabled_multidaemon
 class TestSuspendStopsSchedulingInCurrentSnapshot(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -810,7 +812,6 @@ class TestSuspendStopsSchedulingInCurrentSnapshot(YTEnvSetup):
         wait(lambda: len(op.get_running_jobs()) == 2)
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1210,7 +1211,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOperationOrchid(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1252,7 +1252,6 @@ class TestOperationOrchid(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1324,7 +1323,6 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerErrorTruncate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1476,7 +1474,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
             spec={"testing": {"controller_failure": "assertion_failure_in_prepare"}},
             command="cat",
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation controller crashed"):
             op.track()
 
         err = op.get_error()
@@ -1544,7 +1542,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
             spec={"testing": {"controller_failure": "exception_thrown_in_on_job_completed"}},
             command="cat",
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Exception thrown in operation controller"):
             op.track()
         print_debug(op.get_error())
         assert op.get_error().contains_code(213)  # NScheduler::EErrorCode::TestingError
@@ -1996,7 +1994,6 @@ class TestAsyncControllerActions(YTEnvSetup):
         op.track()
 
 
-@pytest.mark.enabled_multidaemon
 class TestControllerAgentPrerequisiteTxError(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2046,7 +2043,6 @@ class TestControllerAgentPrerequisiteTxError(YTEnvSetup):
         op.track()
 
 
-@pytest.mark.enabled_multidaemon
 class TestControllerAgentDisconnectionDuringUnregistration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2127,7 +2123,6 @@ class TestControllerAgentScheduleOperationInEmptyTree(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSuccessfulScheduleJobDurationEstimate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2151,7 +2146,6 @@ class TestSuccessfulScheduleJobDurationEstimate(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerPoolManageAcls(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2183,7 +2177,7 @@ class TestSchedulerPoolManageAcls(YTEnvSetup):
             authenticated_user="author",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation access denied"):
             update_op_parameters(
                 op.id,
                 parameters={
@@ -2196,7 +2190,7 @@ class TestSchedulerPoolManageAcls(YTEnvSetup):
                 authenticated_user="user",
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation access denied"):
             update_op_parameters(
                 op.id,
                 parameters={
@@ -2220,10 +2214,10 @@ class TestSchedulerPoolManageAcls(YTEnvSetup):
         suspend_op(op.id, authenticated_user="manager")
         resume_op(op.id, authenticated_user="manager")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access to perform .* of operation .* denied"):
             abort_op(op.id, authenticated_user="user")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation access denied"):
             abort_op(op.id, authenticated_user="manager")
 
         update_scheduler_config("operation_actions_allowed_for_pool_managers", ["abort"])

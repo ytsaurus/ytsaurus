@@ -83,12 +83,12 @@ public:
         struct TAggregatedAlert
         {
             std::optional<TErrorCode> ErrorCode;
-            std::optional<TString> Description;
+            std::optional<std::string> Description;
             std::vector<TError> Errors;
         };
-        THashMap<TString, TAggregatedAlert> categoryToAggregatedAlerts;
+        THashMap<std::string, TAggregatedAlert> categoryToAggregatedAlerts;
 
-        THashMap<TString, THashSet<TTagList>> uniqueAlerts;
+        THashMap<std::string, THashSet<TTagList>> uniqueAlerts;
 
         for (const auto& rawAlert : rawAlerts) {
             // Each category + tags combination should be unique.
@@ -111,7 +111,7 @@ public:
             aggregatedAlert.Errors.push_back(rawAlert.GetTaggedError());
         }
 
-        THashMap<TString, TError> alerts;
+        THashMap<std::string, TError> alerts;
         for (const auto& [category, aggregatedAlert] : categoryToAggregatedAlerts) {
             alerts.emplace(category, TError(*aggregatedAlert.ErrorCode, TRuntimeFormat(*aggregatedAlert.Description)) << aggregatedAlert.Errors);
         }
@@ -122,7 +122,7 @@ public:
         YT_LOG_DEBUG("Collected alerts (Count: %v)", Alerts_.size());
     }
 
-    THashMap<TString, TError> GetAlerts() const override
+    THashMap<std::string, TError> GetAlerts() const override
     {
         auto guard = ReaderGuard(SpinLock_);
 
@@ -159,7 +159,7 @@ private:
     const TPeriodicExecutorPtr AlertCollectionExecutor_;
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
-    THashMap<TString, TError> Alerts_;
+    THashMap<std::string, TError> Alerts_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAlertManager)
@@ -181,7 +181,7 @@ public:
         , Logger(alertManager->GetLogger())
     { }
 
-    void Initialize() const
+    void InitializeRefCounted()
     {
         // XXX(apachee): Kind of a waste since initialize is called right after ctor,
         // but otherwise it is even more awkward, and overhead is negligible.
@@ -217,7 +217,7 @@ public:
     {
         auto guard = WriterGuard(SpinLock_);
 
-        if (Y_UNLIKELY(Stopped_)) {
+        if (Stopped_) [[unlikely]] {
             return;
         }
 
@@ -233,7 +233,7 @@ public:
     {
         auto guard = WriterGuard(SpinLock_);
 
-        if (Y_UNLIKELY(Stopped_)) {
+        if (Stopped_) [[unlikely]] {
             return;
         }
 
@@ -268,8 +268,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     std::vector<TAlert> Alerts_;
-    THashMap<TString, THashMap<NProfiling::TTagList, TAlert>> StagedAlerts_;
-    THashMap<TString, THashMap<NProfiling::TTagList, NProfiling::TGauge>> CategoryToGauges_;
+    THashMap<std::string, THashMap<NProfiling::TTagList, TAlert>> StagedAlerts_;
+    THashMap<std::string, THashMap<NProfiling::TTagList, NProfiling::TGauge>> CategoryToGauges_;
     bool Stopped_ = false;
 
     void DoPopulateAlerts(std::vector<TAlert>* alerts)
@@ -284,9 +284,7 @@ DEFINE_REFCOUNTED_TYPE(TAlertCollector)
 
 IAlertCollectorPtr CreateAlertCollector(IAlertManagerPtr alertManager)
 {
-    auto alertCollector = New<TAlertCollector>(std::move(alertManager));
-    alertCollector->Initialize();
-    return alertCollector;
+    return New<TAlertCollector>(std::move(alertManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

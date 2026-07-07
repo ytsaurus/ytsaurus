@@ -24,6 +24,7 @@ target_compile_options(unittester-controller-agent PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(unittester-controller-agent PUBLIC
@@ -58,10 +59,12 @@ target_sources(unittester-controller-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/auto_merge_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/docker_image_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/job_monitoring_index_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/input_statistics_collector_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/job_splitter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/partition_keys_builder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/partitioning_parameters_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/partitions_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/universal_monitoring_descriptor_manager_ut.cpp
 )
 
 

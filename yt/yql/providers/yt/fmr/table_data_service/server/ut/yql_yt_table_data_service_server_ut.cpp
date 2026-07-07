@@ -19,11 +19,7 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
-        UNIT_ASSERT_EXCEPTION_CONTAINS(
-            tableDataServiceClient->Get(Group, ChunkId).GetValueSync(),
-            TFmrNonRetryableJobException,
-            "Failed to get group table_id_part_id: and chunkId 0 from table data service"
-        );
+        UNIT_ASSERT_EXCEPTION_CONTAINS(tableDataServiceClient->Get(Group, ChunkId).GetValueSync(), TFmrNonRetryableJobException, "Failed to get group");
     }
     Y_UNIT_TEST(SendGetRequestExistingKey) {
         TPortManager pm;
@@ -45,11 +41,7 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         UNIT_ASSERT(tableDataServiceClient->Put(Group, ChunkId, Value).GetValueSync());
         tableDataServiceClient->Delete(Group, ChunkId).Wait();
         Sleep(TDuration::Seconds(2)); // future returns only when deletion is registered, not completed, so have to sleep
-        UNIT_ASSERT_EXCEPTION_CONTAINS(
-            tableDataServiceClient->Get(Group, ChunkId).GetValueSync(),
-            TFmrNonRetryableJobException,
-            "Failed to get group table_id_part_id: and chunkId 0 from table data service"
-        );
+        UNIT_ASSERT_EXCEPTION_CONTAINS(tableDataServiceClient->Get(Group, ChunkId).GetValueSync(), TFmrNonRetryableJobException, "Failed to get group");
     }
     Y_UNIT_TEST(SeveralTableDataSerivceServerNodes) {
         ui64 workersNum = 10;
@@ -101,12 +93,7 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         tableDataServiceClient->RegisterDeletion({Group}).GetValueSync();
 
         for (ui64 i = 0; i < keysNum; ++i) {
-            TString expectedErrorMessage = "Failed to get group table_id_part_id: and chunkId " + ToString(i) + " from table data service";
-            UNIT_ASSERT_EXCEPTION_CONTAINS(
-                tableDataServiceClient->Get(Group, ToString(i)).GetValueSync(),
-                TFmrNonRetryableJobException,
-                expectedErrorMessage
-            );
+            UNIT_ASSERT_EXCEPTION_CONTAINS(tableDataServiceClient->Get(Group, ToString(i)).GetValueSync(), TFmrNonRetryableJobException, "Failed to get group");
         }
     }
     Y_UNIT_TEST(Clear) {
@@ -124,12 +111,7 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         tableDataServiceClient->Clear().GetValueSync();
         for (ui64 i = 0; i < requestNum; ++i) {
             for (ui64 j = 0; j < requestNum; ++j) {
-                TString expectedErrorMessage = "Failed to get group table_id_part_id:" + ToString(i) + " and chunkId " + ChunkId + ToString(j) + " from table data service";
-                UNIT_ASSERT_EXCEPTION_CONTAINS(
-                    tableDataServiceClient->Get(Group + ToString(i), ChunkId + ToString(j)).GetValueSync(),
-                    TFmrNonRetryableJobException,
-                    expectedErrorMessage
-                );
+                UNIT_ASSERT_EXCEPTION_CONTAINS(tableDataServiceClient->Get(Group + ToString(i), ChunkId + ToString(j)).GetValueSync(), TFmrNonRetryableJobException, "Failed to get group");
             }
         }
     }

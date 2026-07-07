@@ -9,6 +9,7 @@
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>
+
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <util/generic/algorithm.h>
@@ -128,8 +129,9 @@ bool TJobCollectiveManager::OnJobCompleted(const TJobletPtr& joblet)
         return true;
     }
 
-    auto collectiveIt = CookieToCollective_.find(joblet->OutputCookie);
-    if (collectiveIt != CookieToCollective_.end()) {
+    auto optionalCollectiveIt = FindCollective(joblet);
+    if (optionalCollectiveIt) {
+        auto collectiveIt = *optionalCollectiveIt;
         auto& collective = collectiveIt->second;
 
         if (joblet->CollectiveInfo.Rank != 0) {
@@ -217,6 +219,36 @@ bool TJobCollectiveManager::IsRelevant() const
     return GetCollectiveSize() > 1;
 }
 
+std::optional<TJobCollectiveManager::TCollectiveIterator> TJobCollectiveManager::FindCollective(const TJobletPtr& joblet)
+{
+    auto it = CookieToCollective_.find(joblet->OutputCookie);
+    if (it == CookieToCollective_.end()) {
+        YT_LOG_INFO(
+            "Job collective not found: (OutputCookie: %v, JobId: %v)",
+            joblet->OutputCookie,
+            joblet->JobId);
+        return std::nullopt;
+    }
+    if (!joblet->CollectiveInfo) {
+        YT_LOG_INFO(
+            "Job collective not found: missing CollectiveInfo (OutputCookie: %v, JobId: %v)",
+            joblet->OutputCookie,
+            joblet->JobId);
+        return std::nullopt;
+    }
+    if (it->second.MasterJobId.Underlying() != joblet->CollectiveInfo.CollectiveId) {
+        YT_LOG_INFO(
+            "Job collective not found: master job epoch mismatch (OutputCookie: %v, JobletCollectiveId: %v, MapMasterJobId: %v, JobId: %v, Rank: %v)",
+            joblet->OutputCookie,
+            joblet->CollectiveInfo.CollectiveId,
+            it->second.MasterJobId,
+            joblet->JobId,
+            joblet->CollectiveInfo.Rank);
+        return std::nullopt;
+    }
+    return it;
+}
+
 bool TJobCollectiveManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet, EAbortReason abortReason)
 {
     if (!IsRelevant()) {
@@ -226,9 +258,8 @@ bool TJobCollectiveManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet, EA
 
     const bool isMasterJob = joblet->CollectiveInfo.Rank == 0;
 
-    if (auto collectiveIt = CookieToCollective_.find(joblet->OutputCookie);
-        collectiveIt != end(CookieToCollective_))
-    {
+    if (auto optionalCollectiveIt = FindCollective(joblet)) {
+        auto collectiveIt = *optionalCollectiveIt;
         auto& collective = collectiveIt->second;
 
         if (!collective.Finished) {
@@ -267,11 +298,13 @@ bool TJobCollectiveManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet, EA
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
         }
 
+        bool collectiveFinished = collective.Finished;
+
         if (!collective.Finished || !collective.HasRunningSlaves()) {
             CookieToCollective_.erase(collectiveIt);
         }
 
-        return !collective.Finished;
+        return !collectiveFinished;
     }
     return false;
 }

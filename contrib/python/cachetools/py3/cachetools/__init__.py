@@ -5,7 +5,6 @@ __all__ = (
     "FIFOCache",
     "LFUCache",
     "LRUCache",
-    "MRUCache",
     "RRCache",
     "TLRUCache",
     "TTLCache",
@@ -13,7 +12,7 @@ __all__ = (
     "cachedmethod",
 )
 
-__version__ = "5.5.2"
+__version__ = "7.1.4"
 
 import collections
 import collections.abc
@@ -23,20 +22,24 @@ import random
 import time
 
 from . import keys
-from ._decorators import _cached_wrapper
 
 
 class _DefaultSize:
+    """A minimal "fake" dict that returns a constant size 1 for any key."""
+
     __slots__ = ()
 
-    def __getitem__(self, _):
+    def __getitem__(self, _key):
         return 1
 
-    def __setitem__(self, _, value):
-        assert value == 1
+    def __setitem__(self, _key, _value):
+        pass
 
-    def pop(self, _):
+    def pop(self, _key):
         return 1
+
+    def clear(self):
+        pass
 
 
 class Cache(collections.abc.MutableMapping):
@@ -57,7 +60,7 @@ class Cache(collections.abc.MutableMapping):
 
     def __repr__(self):
         return "%s(%s, maxsize=%r, currsize=%r)" % (
-            self.__class__.__name__,
+            type(self).__name__,
             repr(self.__data),
             self.__maxsize,
             self.__currsize,
@@ -102,6 +105,12 @@ class Cache(collections.abc.MutableMapping):
     def __len__(self):
         return len(self.__data)
 
+    # Note that we cannot simply inherit get(), pop() and setdefault()
+    # from MutableMapping, since these rely on __getitem__ throwing a
+    # KeyError on cache miss.  This is not the case if __missing__ is
+    # implemented for a Cache subclass, so we have to roll our own,
+    # somewhat less elegant versions.
+
     def get(self, key, default=None):
         if key in self:
             return self[key]
@@ -124,6 +133,17 @@ class Cache(collections.abc.MutableMapping):
         else:
             self[key] = value = default
         return value
+
+    # Although the MutableMapping.clear() default implementation works
+    # perfectly well, it calls popitem() in a loop until the cache is
+    # empty, resulting in O(n) complexity.  For large caches, this
+    # becomes a significant performance bottleneck, so we provide an
+    # optimized version for each Cache subclass.
+
+    def clear(self):
+        self.__data.clear()
+        self.__size.clear()
+        self.__currsize = 0
 
     @property
     def maxsize(self):
@@ -150,9 +170,9 @@ class FIFOCache(Cache):
 
     def __setitem__(self, key, value, cache_setitem=Cache.__setitem__):
         cache_setitem(self, key, value)
-        try:
+        if key in self.__order:
             self.__order.move_to_end(key)
-        except KeyError:
+        else:
             self.__order[key] = None
 
     def __delitem__(self, key, cache_delitem=Cache.__delitem__):
@@ -168,36 +188,93 @@ class FIFOCache(Cache):
         else:
             return (key, self.pop(key))
 
+    def clear(self):
+        Cache.clear(self)
+        self.__order.clear()
+
 
 class LFUCache(Cache):
     """Least Frequently Used (LFU) cache implementation."""
 
+    class _Link:
+        __slots__ = ("count", "keys", "next", "prev")
+
+        def __init__(self, count):
+            self.count = count
+            self.keys = set()
+
+        def unlink(self):
+            next = self.next
+            prev = self.prev
+            prev.next = next
+            next.prev = prev
+
     def __init__(self, maxsize, getsizeof=None):
         Cache.__init__(self, maxsize, getsizeof)
-        self.__counter = collections.Counter()
+        self.__root = root = LFUCache._Link(0)  # sentinel
+        root.prev = root.next = root
+        self.__links = {}
 
     def __getitem__(self, key, cache_getitem=Cache.__getitem__):
         value = cache_getitem(self, key)
         if key in self:  # __missing__ may not store item
-            self.__counter[key] -= 1
+            self.__touch(key)
         return value
 
     def __setitem__(self, key, value, cache_setitem=Cache.__setitem__):
         cache_setitem(self, key, value)
-        self.__counter[key] -= 1
+        if key in self.__links:
+            self.__touch(key)
+            return
+        root = self.__root
+        link = root.next
+        if link.count != 1:
+            link = LFUCache._Link(1)
+            link.next = root.next
+            root.next = link.next.prev = link
+            link.prev = root
+        link.keys.add(key)
+        self.__links[key] = link
 
     def __delitem__(self, key, cache_delitem=Cache.__delitem__):
         cache_delitem(self, key)
-        del self.__counter[key]
+        link = self.__links.pop(key)
+        link.keys.remove(key)
+        if not link.keys:
+            link.unlink()
 
     def popitem(self):
         """Remove and return the `(key, value)` pair least frequently used."""
-        try:
-            ((key, _),) = self.__counter.most_common(1)
-        except ValueError:
+        root = self.__root
+        curr = root.next
+        if curr is root:
             raise KeyError("%s is empty" % type(self).__name__) from None
-        else:
-            return (key, self.pop(key))
+        key = next(iter(curr.keys))  # remove an arbitrary element
+        return (key, self.pop(key))
+
+    def clear(self):
+        Cache.clear(self)
+        root = self.__root
+        root.prev = root.next = root
+        self.__links.clear()
+
+    def __touch(self, key):
+        """Increment use count"""
+        link = self.__links[key]
+        curr = link.next
+        if curr.count != link.count + 1:
+            if len(link.keys) == 1:
+                link.count += 1
+                return
+            curr = LFUCache._Link(link.count + 1)
+            curr.next = link.next
+            link.next = curr.next.prev = curr
+            curr.prev = link
+        curr.keys.add(key)
+        link.keys.remove(key)
+        if not link.keys:
+            link.unlink()
+        self.__links[key] = curr
 
 
 class LRUCache(Cache):
@@ -210,12 +287,12 @@ class LRUCache(Cache):
     def __getitem__(self, key, cache_getitem=Cache.__getitem__):
         value = cache_getitem(self, key)
         if key in self:  # __missing__ may not store item
-            self.__update(key)
+            self.__touch(key)
         return value
 
     def __setitem__(self, key, value, cache_setitem=Cache.__setitem__):
         cache_setitem(self, key, value)
-        self.__update(key)
+        self.__touch(key)
 
     def __delitem__(self, key, cache_delitem=Cache.__delitem__):
         cache_delitem(self, key)
@@ -230,50 +307,14 @@ class LRUCache(Cache):
         else:
             return (key, self.pop(key))
 
-    def __update(self, key):
+    def clear(self):
+        Cache.clear(self)
+        self.__order.clear()
+
+    def __touch(self, key):
+        """Mark as recently used"""
         try:
             self.__order.move_to_end(key)
-        except KeyError:
-            self.__order[key] = None
-
-
-class MRUCache(Cache):
-    """Most Recently Used (MRU) cache implementation."""
-
-    def __init__(self, maxsize, getsizeof=None):
-        from warnings import warn
-
-        warn("MRUCache is deprecated", DeprecationWarning, stacklevel=2)
-
-        Cache.__init__(self, maxsize, getsizeof)
-        self.__order = collections.OrderedDict()
-
-    def __getitem__(self, key, cache_getitem=Cache.__getitem__):
-        value = cache_getitem(self, key)
-        if key in self:  # __missing__ may not store item
-            self.__update(key)
-        return value
-
-    def __setitem__(self, key, value, cache_setitem=Cache.__setitem__):
-        cache_setitem(self, key, value)
-        self.__update(key)
-
-    def __delitem__(self, key, cache_delitem=Cache.__delitem__):
-        cache_delitem(self, key)
-        del self.__order[key]
-
-    def popitem(self):
-        """Remove and return the `(key, value)` pair most recently used."""
-        try:
-            key = next(iter(self.__order))
-        except StopIteration:
-            raise KeyError("%s is empty" % type(self).__name__) from None
-        else:
-            return (key, self.pop(key))
-
-    def __update(self, key):
-        try:
-            self.__order.move_to_end(key, last=False)
         except KeyError:
             self.__order[key] = None
 
@@ -284,20 +325,42 @@ class RRCache(Cache):
     def __init__(self, maxsize, choice=random.choice, getsizeof=None):
         Cache.__init__(self, maxsize, getsizeof)
         self.__choice = choice
+        self.__index = {}
+        self.__keys = []
 
     @property
     def choice(self):
         """The `choice` function used by the cache."""
         return self.__choice
 
+    def __setitem__(self, key, value, cache_setitem=Cache.__setitem__):
+        cache_setitem(self, key, value)
+        if key not in self.__index:
+            self.__index[key] = len(self.__keys)
+            self.__keys.append(key)
+
+    def __delitem__(self, key, cache_delitem=Cache.__delitem__):
+        cache_delitem(self, key)
+        index = self.__index.pop(key)
+        if index != len(self.__keys) - 1:
+            last = self.__keys[-1]
+            self.__keys[index] = last
+            self.__index[last] = index
+        self.__keys.pop()
+
     def popitem(self):
         """Remove and return a random `(key, value)` pair."""
         try:
-            key = self.__choice(list(self))
+            key = self.__choice(self.__keys)
         except IndexError:
             raise KeyError("%s is empty" % type(self).__name__) from None
         else:
             return (key, self.pop(key))
+
+    def clear(self):
+        Cache.clear(self)
+        self.__index.clear()
+        del self.__keys[:]
 
 
 class _TimedCache(Cache):
@@ -331,7 +394,7 @@ class _TimedCache(Cache):
         def __getattr__(self, name):
             return getattr(self.__timer, name)
 
-    def __init__(self, maxsize, timer=time.monotonic, getsizeof=None):
+    def __init__(self, maxsize, timer, getsizeof=None):
         Cache.__init__(self, maxsize, getsizeof)
         self.__timer = _TimedCache._Timer(timer)
 
@@ -356,11 +419,6 @@ class _TimedCache(Cache):
         """The timer function used by the cache."""
         return self.__timer
 
-    def clear(self):
-        with self.__timer as time:
-            self.expire(time)
-            Cache.clear(self)
-
     def get(self, *args, **kwargs):
         with self.__timer:
             return Cache.get(self, *args, **kwargs)
@@ -372,6 +430,15 @@ class _TimedCache(Cache):
     def setdefault(self, *args, **kwargs):
         with self.__timer:
             return Cache.setdefault(self, *args, **kwargs)
+
+    def clear(self):
+        # Subclasses must override to also reset their own time-tracking
+        # structures; we do not call expire() here since clear() should
+        # be O(1) regardless of cache contents.
+        Cache.clear(self)
+
+    def expire(self, time=None):  # pragma: no cover
+        raise NotImplementedError
 
 
 class TTLCache(_TimedCache):
@@ -503,6 +570,12 @@ class TTLCache(_TimedCache):
             else:
                 return (key, self.pop(key))
 
+    def clear(self):
+        _TimedCache.clear(self)
+        root = self.__root
+        root.prev = root.next = root
+        self.__links.clear()
+
     def __getlink(self, key):
         value = self.__links[key]
         self.__links.move_to_end(key)
@@ -511,6 +584,8 @@ class TTLCache(_TimedCache):
 
 class TLRUCache(_TimedCache):
     """Time aware Least Recently Used (TLRU) cache implementation."""
+
+    __HEAP_CLEANUP_FACTOR = 2  # clean up the heap if size > N * len(items)
 
     @functools.total_ordering
     class _Item:
@@ -597,7 +672,7 @@ class TLRUCache(_TimedCache):
         items = self.__items
         order = self.__order
         # clean up the heap if too many items are marked as removed
-        if len(order) > len(items) * 2:
+        if len(order) > len(items) * self.__HEAP_CLEANUP_FACTOR:
             self.__order = order = [item for item in order if not item.removed]
             heapq.heapify(order)
         expired = []
@@ -621,9 +696,14 @@ class TLRUCache(_TimedCache):
             try:
                 key = next(iter(self.__items))
             except StopIteration:
-                raise KeyError("%s is empty" % self.__class__.__name__) from None
+                raise KeyError("%s is empty" % type(self).__name__) from None
             else:
                 return (key, self.pop(key))
+
+    def clear(self):
+        _TimedCache.clear(self)
+        self.__items.clear()
+        del self.__order[:]
 
     def __getitem(self, key):
         value = self.__items[key]
@@ -631,16 +711,19 @@ class TLRUCache(_TimedCache):
         return value
 
 
+# note that the runtime __name__ is "CacheInfo", as in stdlib:
+# https://github.com/python/cpython/blob/3.14/Lib/functools.py#L520
 _CacheInfo = collections.namedtuple(
     "CacheInfo", ["hits", "misses", "maxsize", "currsize"]
 )
 
 
-def cached(cache, key=keys.hashkey, lock=None, info=False):
+def cached(cache, key=keys.hashkey, lock=None, condition=None, info=False):
     """Decorator to wrap a function with a memoizing callable that saves
     results in a cache.
 
     """
+    from ._cached import _wrapper
 
     def decorator(func):
         if info:
@@ -659,80 +742,33 @@ def cached(cache, key=keys.hashkey, lock=None, info=False):
                 def make_info(hits, misses):
                     return _CacheInfo(hits, misses, 0, 0)
 
-            wrapper = _cached_wrapper(func, cache, key, lock, make_info)
+            return _wrapper(func, cache, key, lock, condition, info=make_info)
         else:
-            wrapper = _cached_wrapper(func, cache, key, lock, None)
-
-        wrapper.cache = cache
-        wrapper.cache_key = key
-        wrapper.cache_lock = lock
-
-        return functools.update_wrapper(wrapper, func)
+            return _wrapper(func, cache, key, lock, condition)
 
     return decorator
 
 
-def cachedmethod(cache, key=keys.methodkey, lock=None):
-    """Decorator to wrap a class or instance method with a memoizing
-    callable that saves results in a cache.
+def cachedmethod(cache, key=keys.methodkey, lock=None, condition=None, info=False):
+    """Decorator to wrap a method with a memoizing callable that saves
+    results in a cache.
 
     """
+    from ._cachedmethod import _wrapper
 
     def decorator(method):
-        if lock is None:
+        if info:
 
-            def wrapper(self, *args, **kwargs):
-                c = cache(self)
-                if c is None:
-                    return method(self, *args, **kwargs)
-                k = key(self, *args, **kwargs)
-                try:
-                    return c[k]
-                except KeyError:
-                    pass  # key not found
-                v = method(self, *args, **kwargs)
-                try:
-                    c[k] = v
-                except ValueError:
-                    pass  # value too large
-                return v
+            def make_info(cache, hits, misses):
+                if isinstance(cache, Cache):
+                    return _CacheInfo(hits, misses, cache.maxsize, cache.currsize)
+                elif isinstance(cache, collections.abc.Mapping):
+                    return _CacheInfo(hits, misses, None, len(cache))
+                else:
+                    raise TypeError("cache(self) must return a mutable mapping")
 
-            def clear(self):
-                c = cache(self)
-                if c is not None:
-                    c.clear()
-
+            return _wrapper(method, cache, key, lock, condition, info=make_info)
         else:
-
-            def wrapper(self, *args, **kwargs):
-                c = cache(self)
-                if c is None:
-                    return method(self, *args, **kwargs)
-                k = key(self, *args, **kwargs)
-                try:
-                    with lock(self):
-                        return c[k]
-                except KeyError:
-                    pass  # key not found
-                v = method(self, *args, **kwargs)
-                # in case of a race, prefer the item already in the cache
-                try:
-                    with lock(self):
-                        return c.setdefault(k, v)
-                except ValueError:
-                    return v  # value too large
-
-            def clear(self):
-                c = cache(self)
-                if c is not None:
-                    with lock(self):
-                        c.clear()
-
-        wrapper.cache = cache
-        wrapper.cache_key = key
-        wrapper.cache_lock = lock
-        wrapper.cache_clear = clear
-
-        return functools.update_wrapper(wrapper, method)
+            return _wrapper(method, cache, key, lock, condition)
 
     return decorator

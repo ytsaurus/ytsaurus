@@ -18,46 +18,18 @@ void TDiscoveryBaseConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDiscoveryV1Config::Register(TRegistrar registrar)
+void TDiscoveryConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("directory", &TThis::Directory)
-        .Default();
+    registrar.Parameter("version", &TThis::Version)
+        .InRange(1, 2)
+        .Default(2);
 
-    registrar.Parameter("transaction_timeout", &TThis::TransactionTimeout)
-        .Default(TDuration::Seconds(15));
-    registrar.Parameter("transaction_ping_period", &TThis::TransactionPingPeriod)
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("skip_unlocked_participants", &TThis::SkipUnlockedParticipants)
-        .Default(true);
-
-    registrar.Parameter("lock_node_timeout", &TThis::LockNodeTimeout)
-        .Default(TDuration::Minutes(5));
-
-    registrar.Parameter("read_from", &TThis::ReadFrom)
-        .Default(NApi::EMasterChannelKind::Follower);
-    registrar.Parameter("master_cache_expire_time", &TThis::MasterCacheExpireTime)
-        .Default(TDuration::Seconds(15));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TDiscoveryV2Config::Register(TRegistrar registrar)
-{
     registrar.Parameter("discovery_readiness_timeout", &TThis::DiscoveryReadinessTimeout)
         .Default(TDuration::Seconds(1));
     registrar.Preprocessor([] (TThis* config) {
         config->ReadQuorum = 1;
         config->WriteQuorum = 1;
     });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TDiscoveryConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("version", &TThis::Version)
-        .InRange(1, 2)
-        .Default(2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

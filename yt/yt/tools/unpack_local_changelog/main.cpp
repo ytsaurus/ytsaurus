@@ -47,8 +47,8 @@ public:
     }
 
 private:
-    TString InputFile_;
-    TString OutputFile_;
+    std::string InputFile_;
+    std::string OutputFile_;
     std::optional<int> FirstRecordIndex_;
     std::optional<int> LastRecordIndex_;
 
@@ -65,7 +65,7 @@ private:
 
         auto changelogDispatcher = CreateFileChangelogDispatcher(
             ioEngine,
-            /*memoryUsageTracker*/ nullptr,
+            /*indexMemoryUsageTracker*/ nullptr,
             changelogDispatcherConfig,
             "Dispatcher");
 

@@ -333,7 +333,8 @@ TResolveIterationResult ResolveByObjectId(
             auto resolvedPath = ResolveByPath(
                 session,
                 method,
-                resolvedNode->Path.Underlying(),
+                // TODO(babenko): think about proper cast
+                TYPath(resolvedNode->Path.Underlying()),
                 pathIsAdditional);
 
             auto* resolveHere = std::get_if<TResolveHere>(&resolvedPath);
@@ -501,6 +502,13 @@ TMaybeUnreachableResolveResult ResolvePathWithUnreachableResultAllowed(
     TStringBuf method)
 {
     return DoResolvePath(session, path, /*pathIsAdditional*/ false, service, method, /*history*/ nullptr);
+}
+
+TNodeId TryParseTargetObjectId(NYPath::TYPath path)
+{
+    return Visit(GetRootDesignator(path).first,
+        [] (TNodeId id) { return id; },
+        [] (auto) { return NullObjectId; });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

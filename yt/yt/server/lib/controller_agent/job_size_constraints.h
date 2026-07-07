@@ -97,6 +97,8 @@ struct IJobSizeConstraints
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(IJobSizeConstraints, 0x1cf8445b);
 };
 
+void FormatValue(TStringBuilderBase* builder, const IJobSizeConstraintsPtr& constraints, TStringBuf spec);
+
 DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////

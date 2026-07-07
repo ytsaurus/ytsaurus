@@ -5,9 +5,13 @@
 
 #include <yt/yt/client/api/cypress_client.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+
+#include <util/generic/hash.h>
 
 #include <DBPoco/Util/LayeredConfiguration.h>
 #include <DBPoco/Util/XMLConfiguration.h>
@@ -20,6 +24,8 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYPath;
+
+constinit const auto Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,52 +68,129 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCypressDictionaryConfigRepository::TDictionaryConfigSnapshot
+{
+    struct TEntry
+    {
+        DBPoco::Timestamp UpdateTime;
+        std::string ConfigXml;
+    };
+
+    THashMap<std::string, TEntry> Entries;
+    std::set<std::string> Names;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressDictionaryConfigRepository::TCypressDictionaryConfigRepository(
     NNative::IClientPtr client,
-    TDictionaryRepositoryConfigPtr config)
-    : Client_(client)
+    TDictionaryRepositoryConfigPtr config,
+    IInvokerPtr invoker)
+    : Client_(std::move(client))
     , RootPath_(config->RootPath)
+    , SnapshotExecutor_(New<TPeriodicExecutor>(
+        std::move(invoker),
+        BIND(&TCypressDictionaryConfigRepository::RefreshSnapshot, MakeWeak(this)),
+        config->UpdatePeriod))
 { }
+
+void TCypressDictionaryConfigRepository::Start()
+{
+    SnapshotExecutor_->Start();
+}
+
+TCypressDictionaryConfigRepository::TDictionaryConfigSnapshotPtr TCypressDictionaryConfigRepository::GetSnapshot()
+{
+    auto guard = ReaderGuard(SnapshotLock_);
+    return Snapshot_;
+}
+
+TCypressDictionaryConfigRepository::TDictionaryConfigSnapshotPtr TCypressDictionaryConfigRepository::BuildSnapshot()
+{
+    TListNodeOptions options;
+    options.Attributes = {"key", "value", "modification_time"};
+
+    auto listYson = WaitFor(Client_->ListNode(RootPath_, options))
+        .ValueOrThrow();
+    auto listNode = ConvertTo<IListNodePtr>(listYson);
+
+    auto snapshot = std::make_shared<TDictionaryConfigSnapshot>();
+    for (const auto& child : listNode->GetChildren()) {
+        const auto& attributes = child->Attributes();
+        auto name = attributes.Get<std::string>("key");
+
+        auto configXml = attributes.Find<std::string>("value");
+        if (!configXml) {
+            YT_LOG_WARNING("Dictionary config node is missing \"value\" attribute, skipping (Name: %v)",
+                name);
+            continue;
+        }
+
+        TDictionaryConfigSnapshot::TEntry entry;
+        entry.ConfigXml = std::move(*configXml);
+        if (auto modificationTime = attributes.Find<TInstant>("modification_time")) {
+            entry.UpdateTime = DBPoco::Timestamp::fromEpochTime(modificationTime->TimeT());
+        }
+
+        snapshot->Names.insert(name);
+        snapshot->Entries.emplace(std::move(name), std::move(entry));
+    }
+
+    YT_LOG_DEBUG("Cypress dictionary config snapshot built (RootPath: %v, DictionaryCount: %v)",
+        RootPath_,
+        snapshot->Names.size());
+
+    return snapshot;
+}
+
+void TCypressDictionaryConfigRepository::RefreshSnapshot()
+{
+    try {
+        auto snapshot = BuildSnapshot();
+        auto guard = WriterGuard(SnapshotLock_);
+        Snapshot_ = std::move(snapshot);
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to refresh Cypress dictionary config snapshot (RootPath: %v)",
+            RootPath_);
+    }
+}
 
 std::set<std::string> TCypressDictionaryConfigRepository::GetAllDictionaryNames()
 {
-    TListNodeOptions options;
-    options.Attributes = {"key"};
-    auto resultOrError = WaitFor(Client_->ListNode(RootPath_, options));
-    if (!resultOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while loading dictionaries from Cypress") << resultOrError;
+    if (auto snapshot = GetSnapshot()) {
+        return snapshot->Names;
     }
-    auto node = ConvertTo<IListNodePtr>(resultOrError.Value());
-    std::set<std::string> names;
-    for (const auto& child : node->GetChildren()) {
-        names.insert(child->Attributes().Get<std::string>("key"));
-    }
-    return names;
+    return {};
 }
 
 bool TCypressDictionaryConfigRepository::DictionaryExists(const std::string& dictionaryName)
 {
-    return WaitFor(Client_->NodeExists(GetPathToConfig(dictionaryName))).ValueOrDefault(false);
+    auto snapshot = GetSnapshot();
+    return snapshot && snapshot->Entries.contains(dictionaryName);
 }
 
 std::optional<DBPoco::Timestamp> TCypressDictionaryConfigRepository::GetDictionaryUpdateTime(const std::string& dictionaryName)
 {
-    auto attrYson = WaitFor(Client_->GetNode(Format("%v/@modification_time", GetPathToConfig(dictionaryName))))
-        .ValueOrThrow();
-    auto modificationTime = ConvertTo<TInstant>(attrYson);
-
-    return DBPoco::Timestamp::fromEpochTime(modificationTime.TimeT());
+    if (auto snapshot = GetSnapshot()) {
+        if (auto it = snapshot->Entries.find(dictionaryName); it != snapshot->Entries.end()) {
+            return it->second.UpdateTime;
+        }
+    }
+    return std::nullopt;
 }
 
 DB::LoadablesConfigurationPtr TCypressDictionaryConfigRepository::LoadDictionary(const std::string& dictionaryName)
 {
-    TGetNodeOptions options;
-    options.Attributes = {"value"};
+    auto snapshot = GetSnapshot();
+    if (!snapshot) {
+        THROW_ERROR_EXCEPTION("Cypress dictionary config snapshot is not ready yet");
+    }
+    auto it = snapshot->Entries.find(dictionaryName);
+    if (it == snapshot->Entries.end()) {
+        THROW_ERROR_EXCEPTION("Dictionary %Qv is not found in Cypress config repository", dictionaryName);
+    }
 
-    auto configYson = WaitFor(Client_->GetNode(GetPathToConfig(dictionaryName), options))
-        .ValueOrThrow();
-
-    std::stringstream configStream(ConvertTo<IStringNodePtr>(configYson)->GetValue());
+    std::stringstream configStream(it->second.ConfigXml);
 
     DBPoco::AutoPtr<DBPoco::Util::XMLConfiguration> config(new DBPoco::Util::XMLConfiguration);
     config->load(configStream);
@@ -116,28 +199,31 @@ DB::LoadablesConfigurationPtr TCypressDictionaryConfigRepository::LoadDictionary
 
 void TCypressDictionaryConfigRepository::WriteDictionary(
     const DB::ContextPtr& context,
-    const std::string& name,
+    const DB::StorageID& storageId,
     const DB::LoadablesConfigurationPtr& config)
 {
     const auto* queryContext = GetQueryContext(context);
     const auto& client = queryContext->Client();
     const auto* host = queryContext->Host;
-
     host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
+
+    auto configName = storageId.table_name;
 
     std::stringstream parsedConfigStream;
     config.cast<DBPoco::Util::XMLConfiguration>()->save(parsedConfigStream);
-    auto path = GetPathToConfig(name);
+    auto path = GetPathToConfig(configName);
     NApi::TCreateNodeOptions options;
     options.Attributes = CreateEphemeralAttributes();
     options.Attributes->Set("value", parsedConfigStream.str());
 
     auto resultOrError = WaitFor(client->CreateNode(path, NCypressClient::EObjectType::Document, options));
     if (!resultOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while writing dictionary %Qv", name) << resultOrError;
+        THROW_ERROR_EXCEPTION("Error while writing dictionary %Qv", configName) << resultOrError;
     }
 
-    host->ReloadDictionaryGlobally(name);
+    RefreshSnapshot();
+
+    host->ReloadDictionaryGlobally(configName);
 }
 
 void TCypressDictionaryConfigRepository::DeleteDictionary(
@@ -147,7 +233,7 @@ void TCypressDictionaryConfigRepository::DeleteDictionary(
     const auto* queryContext = GetQueryContext(context);
     const auto& client = queryContext->Client();
     const auto* host = queryContext->Host;
-    host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
+    host->ValidateCliquePermission(context->getClientInfo().initial_user, EPermission::Manage);
 
     const auto& externalDictionariesLoader = context->getExternalDictionariesLoader();
     if (!externalDictionariesLoader.has(storageId.getInternalDictionaryName())) {
@@ -159,6 +245,8 @@ void TCypressDictionaryConfigRepository::DeleteDictionary(
     if (!resultOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Error while deleting dictionary %Qv", storageId.table_name) << resultOrError;
     }
+
+    RefreshSnapshot();
 
     // Global reload may fail, but eventually all instances will notice that the dictionary has been deleted
     // due to periodic updates to ExternalLoader.

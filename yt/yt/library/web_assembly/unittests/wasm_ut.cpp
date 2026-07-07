@@ -7,10 +7,13 @@
 #include <yt/yt/library/web_assembly/engine/wavm_private_imports.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/test_framework/framework.h>
+
+#include <library/cpp/resource/resource.h>
 
 namespace NYT::NWebAssembly {
 
@@ -1602,7 +1605,7 @@ TEST_F(TWebAssemblyTest, InfiniteRecursion)
     });
 
     auto runInFiberContext = [&] {
-        BIND([&] {
+        NConcurrency::WaitFor(BIND([&] {
             SetCurrentCompartment(compartment.get());
             auto unsetCompartment = Finally([] {
                 SetCurrentCompartment(nullptr);
@@ -1611,8 +1614,7 @@ TEST_F(TWebAssemblyTest, InfiniteRecursion)
             recurse(1000000);
         })
             .AsyncVia(actionQueue->GetInvoker())
-            .Run()
-            .Get()
+            .Run())
             .ThrowOnError();
     };
 
@@ -1644,8 +1646,6 @@ static const TStringBuf InfiniteLoopModule = R"(
 
 TEST_F(TWebAssemblyTest, InfiniteLoop)
 {
-    Y_UNUSED(InfiniteLoopModule);
-
     auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(InfiniteLoopModule);
 
@@ -1726,6 +1726,28 @@ TEST_F(TWebAssemblyTest, SpinlockDeadlock)
     } catch (WAVM::Runtime::Exception* exception) {
         WAVM::Runtime::destroyException(exception);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TWebAssemblyTest, Yt28418)
+{
+    static constexpr auto File = "libdtorilov-YT-28418.so";
+
+    auto bytecode = ::NResource::Has(File)
+        ? TSharedRef::FromString(::NResource::Find(File))
+        : TSharedRef();
+
+    if (!bytecode) {
+        return;
+    }
+
+    auto compartment = CreateMinimalRuntimeImage();
+    compartment->AddModule(bytecode);
+
+    auto echo = TCompartmentFunction<i64(i64)>(compartment.get(), "echo");
+
+    EXPECT_EQ(42, echo(42));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

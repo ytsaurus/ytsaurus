@@ -1,6 +1,6 @@
 #include "versioned_row_digest.h"
-#include "config.h"
 
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
@@ -17,20 +17,67 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TVersionedRowDigest::TVersionedRowDigest(const TTDigestConfigPtr& config)
+    : LastTimestampDigest(CreateTDigest(config))
+    , AllButLastTimestampDigest(CreateTDigest(config))
+    , FirstTimestampDigest(CreateTDigest(config))
+{ }
+
+void TVersionedRowDigest::MergeWith(const TVersionedRowDigestPtr& other)
+{
+    LastTimestampDigest->MergeWith(other->LastTimestampDigest);
+    AllButLastTimestampDigest->MergeWith(other->AllButLastTimestampDigest);
+    if (FirstTimestampDigest && other->FirstTimestampDigest) {
+        FirstTimestampDigest->MergeWith(other->FirstTimestampDigest);
+    }
+
+    auto mergeEarliestNthTimestamps = [](std::vector<i64>* destination, const std::vector<i64>& source) {
+        destination->reserve(source.size());
+        for (int index = 0; index < ssize(source); ++index) {
+            if (ssize(*destination) > index) {
+                (*destination)[index] = std::min((*destination)[index], source[index]);
+            } else {
+                destination->push_back(source[index]);
+            }
+        }
+    };
+
+    mergeEarliestNthTimestamps(
+        &EarliestNthTimestamp,
+        other->EarliestNthTimestamp);
+    mergeEarliestNthTimestamps(
+        &EarliestAggregateOrDeleteNthTimestamp,
+        other->EarliestAggregateOrDeleteNthTimestamp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVersionedRowDigestBuilder
     : public IVersionedRowDigestBuilder
 {
 public:
-    explicit TVersionedRowDigestBuilder(const TVersionedRowDigestConfigPtr& config)
-        : Digest_(New<TVersionedRowDigest>())
-    {
-        Digest_->LastTimestampDigest = CreateTDigest(config->TDigest);
-        Digest_->AllButLastTimestampDigest = CreateTDigest(config->TDigest);
-        Digest_->FirstTimestampDigest = CreateTDigest(config->TDigest);
-    }
+    TVersionedRowDigestBuilder(const TTDigestConfigPtr& config, const TTableSchemaPtr& schema)
+        : Digest_(New<TVersionedRowDigest>(config))
+        , Schema_(schema)
+    { }
 
     void OnRow(TVersionedRow row) override
     {
+        auto updateEarliestNthTimestamp = [&] (
+            std::vector<i64>* earliestNthTimestamp,
+            auto getTimestamp,
+            int timestampCount)
+        {
+            for (int logIndex = 0; (1 << logIndex) - 1 < timestampCount; ++logIndex) {
+                if (logIndex == ssize(*earliestNthTimestamp)) {
+                    earliestNthTimestamp->push_back(TimestampToSecond(MaxTimestamp));
+                }
+                (*earliestNthTimestamp)[logIndex] = std::min(
+                    (*earliestNthTimestamp)[logIndex],
+                    getTimestamp(timestampCount - (1 << logIndex)));
+            }
+        };
+
         auto* currentValueBegin = row.BeginValues();
         auto* currentValueEnd = row.BeginValues();
         while (currentValueBegin != row.EndValues()) {
@@ -47,26 +94,23 @@ public:
             Digest_->FirstTimestampDigest->AddValue(TimestampToSecond(std::prev(currentValueEnd)->Timestamp));
 
             int timestampCount = currentValueEnd - currentValueBegin;
-            for (int logIndex = 0; (1 << logIndex) - 1 < timestampCount; ++logIndex) {
-                if (logIndex == ssize(Digest_->EarliestNthTimestamp)) {
-                    Digest_->EarliestNthTimestamp.push_back(TimestampToSecond(MaxTimestamp));
-                }
-                Digest_->EarliestNthTimestamp[logIndex] = std::min(
-                    Digest_->EarliestNthTimestamp[logIndex],
-                    TimestampToSecond(currentValueBegin[(1 << logIndex) - 1].Timestamp));
-            }
+            auto* earliestNthTimestamp = Schema_->Columns()[currentValueBegin->Id].Aggregate()
+                ? &Digest_->EarliestAggregateOrDeleteNthTimestamp
+                : &Digest_->EarliestNthTimestamp;
+
+            updateEarliestNthTimestamp(
+                earliestNthTimestamp,
+                [&] (int index) { return TimestampToSecond(currentValueBegin[index].Timestamp); },
+                timestampCount);
 
             currentValueBegin = currentValueEnd;
         }
 
-        for (int logIndex = 0; (1 << logIndex) - 1 < row.GetDeleteTimestampCount(); ++logIndex) {
-            if (logIndex == ssize(Digest_->EarliestNthTimestamp)) {
-                Digest_->EarliestNthTimestamp.push_back(TimestampToSecond(MaxTimestamp));
-            }
-            Digest_->EarliestNthTimestamp[logIndex] = std::min(
-                Digest_->EarliestNthTimestamp[logIndex],
-                TimestampToSecond(row.DeleteTimestamps()[(1 << logIndex) - 1]));
-        }
+        auto deleteTimestampCount = row.GetDeleteTimestampCount();
+        updateEarliestNthTimestamp(
+            &Digest_->EarliestAggregateOrDeleteNthTimestamp,
+            [&] (int index) { return TimestampToSecond(row.DeleteTimestamps()[index]); },
+            deleteTimestampCount);
     }
 
     TVersionedRowDigestPtr FlushDigest() override
@@ -76,6 +120,7 @@ public:
 
 private:
     TVersionedRowDigestPtr Digest_;
+    TTableSchemaPtr Schema_;
 
     static i64 TimestampToSecond(TTimestamp timestamp)
     {
@@ -86,12 +131,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedRowDigestBuilderPtr CreateVersionedRowDigestBuilder(
-    const TVersionedRowDigestConfigPtr& config)
+    const TTDigestConfigPtr& config,
+    const TTableSchemaPtr& schema)
 {
-    if (!config->Enable) {
+    if (!config) {
         return nullptr;
     }
-    return New<TVersionedRowDigestBuilder>(config);
+
+    return New<TVersionedRowDigestBuilder>(config, schema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +148,10 @@ void ToProto(NProto::TVersionedRowDigestExt* protoDigest, const TVersionedRowDig
     using NYT::ToProto;
 
     ToProto(protoDigest->mutable_earliest_nth_timestamp(), digest.EarliestNthTimestamp);
+    ToProto(
+        protoDigest->mutable_earliest_aggregate_or_delete_nth_timestamp(),
+        digest.EarliestAggregateOrDeleteNthTimestamp);
+
     ToProto(
         protoDigest->mutable_last_timestamp_digest(),
         digest.LastTimestampDigest->Serialize());
@@ -117,6 +168,8 @@ void FromProto(TVersionedRowDigest* digest, const NProto::TVersionedRowDigestExt
     using NYT::FromProto;
 
     FromProto(&digest->EarliestNthTimestamp, protoDigest.earliest_nth_timestamp());
+    FromProto(&digest->EarliestAggregateOrDeleteNthTimestamp,
+        protoDigest.earliest_aggregate_or_delete_nth_timestamp());
 
     {
         auto serialized = TStringBuf(

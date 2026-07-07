@@ -5,7 +5,7 @@ PY_SRCS(
 )
 
 PEERDIR(
-    contrib/python/python-dateutil
+    yt/python/client_with_admin
 )
 
 END()

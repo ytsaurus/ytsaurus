@@ -1,6 +1,6 @@
 module go.ytsaurus.tech/yt/go
 
-go 1.23.8
+go 1.24.0
 
 require (
 	github.com/andybalholm/brotli v1.1.1
@@ -10,13 +10,13 @@ require (
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/protobuf v1.5.4
 	github.com/golang/snappy v1.0.0
-	github.com/google/tink/go v1.7.0
 	github.com/klauspost/compress v1.18.0
 	github.com/mitchellh/copystructure v1.2.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.33.0
+	github.com/tink-crypto/tink-go/v2 v2.6.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	go.opentelemetry.io/otel/bridge/opentracing v1.28.0
 	go.opentelemetry.io/otel/sdk v1.36.0
@@ -26,14 +26,14 @@ require (
 	go.uber.org/zap v1.27.0
 	go.ytsaurus.tech/library/go/blockcodecs v0.0.3
 	go.ytsaurus.tech/library/go/core/buildinfo v0.0.0-20250809130132-fa050e73ac17
-	go.ytsaurus.tech/library/go/core/log v0.0.4
+	go.ytsaurus.tech/library/go/core/log v0.0.5
 	go.ytsaurus.tech/library/go/core/xerrors v0.0.4
 	go.ytsaurus.tech/library/go/httputil/middleware/httpmetrics v0.0.2
 	go.ytsaurus.tech/library/go/ptr v0.0.2
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394
 	golang.org/x/sync v0.15.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/protobuf v1.36.6
+	google.golang.org/protobuf v1.36.8
 )
 
 require (
@@ -76,7 +76,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.2 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/shoenig/test v1.7.1 // indirect

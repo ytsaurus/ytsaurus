@@ -6,20 +6,19 @@
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
 
-
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/yt/ytlib/scheduler/public.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
-
-#include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/client/security_client/acl.h>
+
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NControllerAgent {
 
@@ -32,6 +31,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
+    DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, ProvidedSpec);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RO_PROPERTY(std::string, AuthenticatedUser);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
@@ -54,7 +54,7 @@ public:
 
     void UpdateJobShellOptions(const NScheduler::TJobShellOptionsUpdateMap& update);
 
-    std::optional<NScheduler::TJobShellInfo> GetJobShellInfo(const TString& jobShellName);
+    std::optional<NScheduler::TJobShellInfo> GetJobShellInfo(const std::string& jobShellName);
 
     NScheduler::TAccessControlRule GetAccessControlRule() const;
 };

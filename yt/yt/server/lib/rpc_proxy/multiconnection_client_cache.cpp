@@ -32,7 +32,7 @@ NNative::IClientPtr TMulticonnectionClientCache::Get(
     const NNative::IConnectionPtr& connection,
     const NApi::NNative::TClientOptions& options)
 {
-    auto key = TMultiConnectionClientCacheKey{targetCluster, identity};
+    auto key = TMultiConnectionClientCacheKey{targetCluster, identity, reinterpret_cast<intptr_t>(connection.Get())};
     auto cachedClient = Find(key);
     if (!cachedClient) {
         cachedClient = New<TMulticonnectionCachedClient>(key, connection->CreateNativeClient(options));

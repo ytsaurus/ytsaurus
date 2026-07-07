@@ -76,7 +76,8 @@ public:
         YT_VERIFY(barrierLockGuard);
 
         return StateLock_->AsyncAcquire(1)
-            .AsUnique().Apply(BIND(
+            .AsUnique()
+            .Apply(BIND(
                 [
                     progressUpdate = std::move(progressUpdate),
                     barrierLockGuard = std::move(barrierLockGuard),
@@ -196,7 +197,7 @@ public:
 private:
     const TPromise<TReplicationCardPtr> CardPromise_ = NewPromise<TReplicationCardPtr>();
 
-    YT_DECLARE_SPIN_LOCK(TSpinLock, StateLock_) ;
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StateLock_);
     // Replica count is usually small so use plain vector.
     std::vector<std::pair<TReplicaId, std::unique_ptr<TReplicationProgressUpdatesSerializer>>> ReplicaProgressUpdates_;
     std::optional<TReplicationCardFetchOptions> FetchOptions_;
@@ -290,7 +291,7 @@ public:
         matchedEntries.reserve(replicationCardProgressUpdates.size());
 
         std::vector<TReplicationCardProgressUpdate> missingEntries;
-        matchedEntries.reserve(replicationCardProgressUpdates.size());
+        missingEntries.reserve(replicationCardProgressUpdates.size());
 
         {
             auto readerGuard = ReaderGuard(UpdatesLock_);
@@ -315,7 +316,7 @@ public:
         }
 
         TBulkUpdateResult result;
-        result.resize(replicationCardProgressUpdateBatch.ReplicationCardProgressUpdates.size());
+        result.reserve(replicationCardProgressUpdateBatch.ReplicationCardProgressUpdates.size());
         for (auto& [batchingEntry, replicationCardProgressUpdate] : matchedEntries) {
             auto replicationCardId = replicationCardProgressUpdate.ReplicationCardId;
             result.emplace_back(
@@ -407,7 +408,7 @@ public:
         auto barrierGuard = New<TBarrierLockGuard>(this, WorkerBarrier_);
         ValidateRunning(barrierGuard);
 
-        return Accumulator_->AddBulkReplicationCardProgressesUpdate(
+        return Accumulator_.Acquire()->AddBulkReplicationCardProgressesUpdate(
             std::move(replicationCardProgressUpdateBatch),
             std::move(barrierGuard),
             Logger);
@@ -419,7 +420,7 @@ public:
         auto barrierGuard = New<TBarrierLockGuard>(this, WorkerBarrier_);
         ValidateRunning(barrierGuard);
 
-        return Accumulator_->AddReplicationCardProgressesUpdate(
+        return Accumulator_.Acquire()->AddReplicationCardProgressesUpdate(
             std::move(replicationCardProgressUpdate),
             std::move(barrierGuard),
             Logger);
@@ -433,7 +434,7 @@ public:
         auto barrierGuard = New<TBarrierLockGuard>(this, WorkerBarrier_);
         ValidateRunning(barrierGuard);
 
-        return Accumulator_->AddReplicaProgressesUpdate(
+        return Accumulator_.Acquire()->AddReplicaProgressesUpdate(
             replicationCardId,
             replicaId,
             std::move(tabletReplicationProgress),
@@ -487,7 +488,7 @@ private:
     const TPeriodicExecutorPtr SubmittingExecutor_;
 
     std::atomic<bool> Stopped_ = true;
-    TReplicationCardsUpdatesAccumulatorPtr Accumulator_;
+    TAtomicIntrusivePtr<TReplicationCardsUpdatesAccumulator> Accumulator_;
     TAsyncBarrier WorkerBarrier_;
 
     void SubmitBatch()
@@ -496,12 +497,12 @@ private:
 
         auto connection = Connection_.Lock();
         if (!connection) {
-            YT_LOG_DEBUG("Connections is not available");
+            YT_LOG_DEBUG("Connection is not available");
             return;
         }
 
-        auto previousAccumulator = Accumulator_;
-        Accumulator_ = previousAccumulator->CreateNext();
+        auto previousAccumulator = Accumulator_.Acquire();
+        Accumulator_.Store(previousAccumulator->CreateNext());
         WaitFor(WorkerBarrier_.GetBarrierFuture())
             .ThrowOnError();
 
@@ -538,7 +539,7 @@ public:
             connection,
             replicationCardProgressUpdatesEntries);
 
-        YT_LOG_DEBUG("Updates grouping finishe (BatchSize: %v, ChaosCellsCount: %v, ResolvingErrorCount: %v)",
+        YT_LOG_DEBUG("Updates grouping finished (BatchSize: %v, ChaosCellsCount: %v, ResolvingErrorCount: %v)",
             replicationCardProgressUpdatesEntries.size(),
             replicationCardUpdateByChaosCells.ReplicationCardIdsByChaosCells.size(),
             replicationCardUpdateByChaosCells.ResolvingErrors.size());
@@ -562,7 +563,7 @@ public:
     }
 
 private:
-    struct TRepicationCardUpdatesByChaosCells
+    struct TReplicationCardUpdatesByChaosCells
     {
         THashMap<TCellTag, std::vector<TReplicationCardId>> ReplicationCardIdsByChaosCells;
         THashMap<TReplicationCardId, TError> ResolvingErrors;
@@ -633,7 +634,7 @@ private:
                 }));
     }
 
-    TRepicationCardUpdatesByChaosCells GroupRepicationCardUpdatesByChaosCells(
+    TReplicationCardUpdatesByChaosCells GroupRepicationCardUpdatesByChaosCells(
         const IConnectionPtr& connection,
         const TMultipleReplicationCardProgressesUpdates& batch) const
     {
@@ -653,9 +654,9 @@ private:
         WaitForFast(AllSet(std::move(futures)))
             .ThrowOnError();
 
-        TRepicationCardUpdatesByChaosCells result;
+        TReplicationCardUpdatesByChaosCells result;
         for (const auto& [replicationCardId, future] : futureTagById) {
-            if (auto cellTagOrError = future.Get(); !cellTagOrError.IsOK()) {
+            if (auto cellTagOrError = future.GetOrCrash(); !cellTagOrError.IsOK()) {
                 YT_LOG_DEBUG(cellTagOrError,
                     "Failed to get cell tag for replication card, update skipped (ReplicationCardId: %v)",
                     replicationCardId);
@@ -694,7 +695,7 @@ public:
             update.ReplicaProgressUpdates = entry.ExtractProgressByReplicaId();
             update.FetchOptions = entry.ExtractFetchOptions();
 
-            YT_LOG_DEBUG("Sending update for replication card (ReplicationCardId: %v, ProgressUpdates: %v",
+            YT_LOG_DEBUG("Sending update for replication card (ReplicationCardId: %v, ProgressUpdates: %v)",
                 replicationCardId,
                 update.ReplicaProgressUpdates);
 

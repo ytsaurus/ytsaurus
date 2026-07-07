@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(5.5.2)
+VERSION(7.1.4)
 
 LICENSE(MIT)
 
@@ -11,15 +11,20 @@ NO_LINT()
 PY_SRCS(
     TOP_LEVEL
     cachetools/__init__.py
-    cachetools/_decorators.py
+    cachetools/__init__.pyi
+    cachetools/_cached.py
+    cachetools/_cachedmethod.py
     cachetools/func.py
+    cachetools/func.pyi
     cachetools/keys.py
+    cachetools/keys.pyi
 )
 
 RESOURCE_FILES(
     PREFIX contrib/python/cachetools/py3/
     .dist-info/METADATA
     .dist-info/top_level.txt
+    cachetools/py.typed
 )
 
 END()

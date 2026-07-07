@@ -102,7 +102,7 @@ TStringBuf TPathVisitorMixin::GetToken() const
     return Tokenizer_.GetToken();
 }
 
-const TString& TPathVisitorMixin::GetLiteralValue() const
+const std::string& TPathVisitorMixin::GetLiteralValue() const
 {
     return Tokenizer_.GetLiteralValue();
 }

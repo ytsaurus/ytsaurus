@@ -23,7 +23,7 @@ namespace NYT::NHydra {
 struct TMutationRequest
 {
     TReign Reign = 0;
-    TString Type;
+    std::string Type;
     TSharedRef Data;
     TCallback<void(TMutationContext*)> Handler;
     bool AllowLeaderForwarding = false;
@@ -43,6 +43,7 @@ struct TMutationResponse
 {
     EMutationResponseOrigin Origin = EMutationResponseOrigin::Commit;
     TSharedRefArray Data;
+    std::optional<i64> GroundUpdateQueueSequenceNumber = std::nullopt;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,6 +99,9 @@ public:
     void SetResponseKeeperSuppressed(bool value);
     bool GetResponseKeeperSuppressed();
 
+    std::optional<i64> GetGroundUpdateQueueSequenceNumber() const;
+    void SetGroundUpdateQueueSequenceNumber(i64 groundUpdateQueueSequenceNumber);
+
     template <class... Ts>
     void CombineStateHash(const Ts&... ks);
 
@@ -113,6 +117,8 @@ private:
     bool ResponseKeeperSuppressed_ = false;
 
     int CumulativeVersionDelta_ = 0;
+
+    std::optional<i64> GroundUpdateQueueSequenceNumber_ = std::nullopt;
 
     TLogicalVersion GetLastUsedVersion() const;
     friend TDecoratedAutomaton;

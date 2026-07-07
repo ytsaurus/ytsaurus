@@ -1,6 +1,7 @@
 LIBRARY()
 
 SRCS(
+    config.cpp
     min_hash_digest.cpp
 )
 

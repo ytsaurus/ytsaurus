@@ -114,10 +114,6 @@ protected:
         MockBuilder_.reset();
         Fetchers_.clear();
 
-        // MinTeleportChunkSize is only relevant for the legacy sorted chunk pool.
-        // In the new sorted pool, chunk teleportability is determined by size checks
-        // in TSortedController (see TLegacyDataSlice::IsTeleportable).
-        Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.Logger = GetTestLogger();
@@ -3069,6 +3065,172 @@ TEST_F(TSortedChunkPoolNewKeysTest, SplitMustRespectSingleJobness)
     jobSummary.SplitJobCount = 1;
     jobSummary.Statistics = std::make_shared<TStatistics>();
     ChunkPool_->Completed(ExtractedCookies_[0], jobSummary);
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 1);
+
+    ExtractOutputCookiesWhilePossible();
+}
+
+class TSortedChunkPoolSingleJobSplit
+    : public TSortedChunkPoolNewKeysTest
+{
+protected:
+    std::vector<TLegacyDataSlicePtr> MakeFirstSliceSingleton(
+        const TChunkStripeListPtr& stripeList) const
+    {
+        std::vector<TLegacyDataSlicePtr> unreadDataSlices;
+        i64 minKeyValue = Inf64;
+        for (const auto& stripe: stripeList->Stripes()) {
+            for (const auto& dataSlice : stripe->DataSlices()) {
+                YT_VERIFY(!dataSlice->IsLegacy);
+                const auto& lowerKey = dataSlice->LowerLimit().KeyBound.Prefix;
+                YT_VERIFY(lowerKey.Begin()->Type == EValueType::Int64);
+                minKeyValue = std::min(minKeyValue, lowerKey.Begin()->Data.Int64);
+            }
+        }
+        // Just a sanity check.
+        bool didPartiallyReadSlice = false;
+        for (const auto& stripe : stripeList->Stripes()) {
+            if (stripe->IsForeign()) {
+                // Foreign slices do not appear in an interrupt descriptor.
+                continue;
+            }
+            for (const auto& dataSlice : stripe->DataSlices()) {
+                const auto lowerKey = dataSlice->LowerLimit().KeyBound.Prefix;
+                if (lowerKey.Begin()->Data.Int64 == minKeyValue) {
+                    auto upperKeyBound = dataSlice->UpperLimit().KeyBound;
+                    YT_VERIFY(upperKeyBound.IsUpper && upperKeyBound.IsInclusive);
+
+                    auto newDataSlice = NChunkClient::CreateInputDataSlice(
+                        dataSlice,
+                        PrimaryComparator_,
+                        upperKeyBound.Invert().ToggleInclusiveness());
+
+                    // Just for sanity.
+                    newDataSlice->LowerLimit().RowIndex = 10;
+                    auto chunkSlice = newDataSlice->GetSingleUnversionedChunkSlice();
+                    chunkSlice->OverrideSize(
+                        chunkSlice->GetRowCount() - 10,
+                        std::floor(0.9 * chunkSlice->GetDataWeight()),
+                        std::floor(0.9 * chunkSlice->GetCompressedDataSize()),
+                        std::floor(0.9 * chunkSlice->GetUncompressedDataSize()));
+
+                    unreadDataSlices.push_back(newDataSlice);
+                    YT_VERIFY(!didPartiallyReadSlice);
+                    didPartiallyReadSlice = true;
+                } else {
+                    unreadDataSlices.push_back(dataSlice);
+                }
+            }
+        }
+
+        YT_VERIFY(didPartiallyReadSlice);
+        return unreadDataSlices;
+    }
+
+    TLegacyDataSlicePtr AddSlice(int lowerKey, int upperKey, int table)
+    {
+        auto chunk = CreateChunk(BuildRow({lowerKey}), BuildRow({upperKey}), table, 1_KB, 100, 1_KB);
+        auto slice = CreateDataSlice(chunk);
+        CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(slice);
+        return slice;
+    }
+
+    void DoSingleJobSplit(std::vector<TLegacyDataSlicePtr> unreadDataSlices)
+    {
+        TCompletedJobSummary jobSummary;
+        jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
+        jobSummary.UnreadInputDataSlices = unreadDataSlices;
+        jobSummary.SplitJobCount = 1;
+        jobSummary.Statistics = std::make_shared<TStatistics>();
+        ChunkPool_->Completed(ExtractedCookies_[0], jobSummary);
+    }
+};
+
+TEST_F(TSortedChunkPoolSingleJobSplit, SplitMustRespectSingleJobnessWithSingletons)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    DataWeightPerJob_ = 10_KB;
+    CompressedDataSizePerJob_ = 10_KB;
+    InitTables(
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(1);
+    InitJobConstraints();
+    PrepareNewMock();
+
+    std::vector<TLegacyDataSlicePtr> dataSlices;
+
+    dataSlices.push_back(AddSlice(0, 1, 0));
+    dataSlices.push_back(AddSlice(1, 2, 0));
+    dataSlices.push_back(AddSlice(1, 2, 1)); // This slice will prevent row slicing.
+    dataSlices.push_back(AddSlice(2, 3, 0));
+
+    CreateChunkPool();
+
+    for (const auto& slice : dataSlices) {
+        AddDataSlice(slice);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    ASSERT_EQ(ExtractedCookies_.size(), 1u);
+    ASSERT_EQ(stripeLists[0]->Stripes().size(), 2u);
+
+    auto unreadDataSlices = MakeFirstSliceSingleton(stripeLists[0]);
+    ASSERT_EQ(unreadDataSlices.size(), 4u);
+    DoSingleJobSplit(std::move(unreadDataSlices));
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 1);
+
+    ExtractOutputCookiesWhilePossible();
+}
+
+
+TEST_F(TSortedChunkPoolSingleJobSplit, SplitMustRespectSingleJobnessWithSingletonsAndForeign1)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    DataWeightPerJob_ = 10_KB;
+    CompressedDataSizePerJob_ = 10_KB;
+    InitTables(
+        /*isForeign*/ {false, false, true},
+        /*isTeleportable*/ {false, false, false},
+        /*isVersioned*/ {false, false, false});
+    InitPrimaryComparator(1);
+    InitForeignComparator(1);
+    InitJobConstraints();
+    PrepareNewMock();
+
+    std::vector<TLegacyDataSlicePtr> dataSlices;
+
+    dataSlices.push_back(AddSlice(0, 1, 0));
+    dataSlices.push_back(AddSlice(1, 2, 0));
+    dataSlices.push_back(AddSlice(1, 2, 1)); // This slice will prevent row slicing.
+    dataSlices.push_back(AddSlice(2, 3, 0));
+
+    // Foreign.
+    dataSlices.push_back(AddSlice(0, 1, 2));
+    dataSlices.push_back(AddSlice(1, 3, 2));
+
+    CreateChunkPool();
+
+    for (const auto& slice : dataSlices) {
+        AddDataSlice(slice);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    ASSERT_EQ(ExtractedCookies_.size(), 1u);
+    ASSERT_EQ(stripeLists[0]->Stripes().size(), 3u);
+
+    auto unreadDataSlices = MakeFirstSliceSingleton(stripeLists[0]);
+    ASSERT_EQ(unreadDataSlices.size(), 4u);
+    DoSingleJobSplit(std::move(unreadDataSlices));
 
     EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 1);
 

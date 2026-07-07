@@ -8,8 +8,6 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
-#include <yt/yt/server/lib/signature/public.h>
-
 #include <yt/yt/ytlib/api/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -29,6 +27,8 @@
 #include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/library/disk_manager/public.h>
+
+#include <yt/yt/library/signature/components/public.h>
 
 #include <yt/yt/core/bus/public.h>
 
@@ -106,6 +106,7 @@ private:
 
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr MonitoringServer_;
+    NHttp::IServerPtr MonitoringHttpsServer_;
 
     NApi::NNative::IConnectionPtr Connection_;
     NApi::IClientPtr RootClient_;
@@ -122,7 +123,7 @@ private:
 
     TProxyHeapUsageProfilerPtr HttpProxyHeapUsageProfiler_;
 
-    NBus::IBusServerPtr BusServer_;
+    NBus::NTcp::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
 
     NHttp::IServerPtr ApiHttpServer_;
@@ -163,7 +164,10 @@ private:
         const TProxyDynamicConfigPtr& /*oldConfig*/,
         const TProxyDynamicConfigPtr& newConfig);
 
-    void ReconfigureMemoryUsageTracker(i64 memoryLimit, const TMemoryLimitRatiosConfigPtr& memoryLimitRatios);
+    void ReconfigureMemoryUsageTracker(
+        i64 memoryLimit,
+        const TMemoryLimitRatiosConfigPtr& memoryLimitRatios,
+        const TNodeMemoryTrackerConfigPtr& newConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBootstrap)

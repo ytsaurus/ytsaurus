@@ -1,0 +1,150 @@
+package NYql.NProto;
+option java_package = "ru.yandex.yql.proto";
+
+import "yql/essentials/protos/yql_mount.proto";
+import "contrib/ydb/library/yql/providers/dq/config/config.proto";
+import "yql/essentials/utils/log/proto/logger_config.proto";
+import "yt/yql/providers/yt/lib/access_provider/proto/access_provider.proto";
+import "yt/yql/providers/yt/lib/tvm_client/proto/tvm_client.proto";
+
+message TWorkerServerConfig {
+    optional uint32 PortStart = 1;
+    optional uint32 PortFinish = 2;
+    repeated string Bind = 3; // not supported by MessageBus
+    optional uint32 Threads = 4;
+    optional uint32 MaxInFlight = 5;
+    optional uint32 SendTimeoutSeconds = 6;
+    optional uint32 TotalTimeoutSeconds = 7;
+}
+
+message TInspectorConfig {
+    repeated string Hosts = 1;
+    optional uint32 Port = 2;
+    optional uint32 MaxInFlight = 3;
+    optional uint32 SendTimeoutSeconds = 4;
+    optional uint32 TotalTimeoutSeconds = 5;
+    optional uint32 MaxSendRetries = 6;
+    optional uint32 RetryIntervalMillis = 7;
+}
+
+enum TProcessMode {
+    SINGLE_PROCESS = 0;
+    MULTI_PROCESS = 1;
+}
+
+enum TGatewayType {
+    NATIVE = 0;
+    MIXED = 1;
+}
+
+message TCredential {
+    optional string Alias = 1;
+    optional string Category = 2;
+    optional string Subcategory = 3;
+    optional string Path = 4;
+    repeated string AllowedGroups = 5; // Additional allowed groups for outstaff
+}
+
+message TQPlayerConfig {
+    required string Directory = 1;
+    required uint64 OperationBytesLimit = 2;
+    required uint64 OperationItemsLimit = 3;
+}
+
+message TQueuePerUserLimit {
+    optional string Username = 1;
+    optional uint32 Limit = 2;
+    optional bool IgnoreQueueMaxSize = 3 [default = false];
+}
+
+message TFmrConfig {
+    optional string FmrJobPath = 1; // Path to fmrjob executable
+    optional string FmrJobPathMd5 = 2; // MD5 checksum of fmrjob executable. Should not be specified directly
+}
+
+message TTaskExecutorConfig {
+    optional uint32 Threads = 1;
+    optional uint32 QueueMaxSize = 2;
+    optional string LoadUdfsDir = 3;
+    repeated string LoadUdfFiles = 4;
+    optional string SystemUdfsDir = 5;
+    optional string UdfResolverPath = 6;
+    optional NYqlMountConfig.TMountConfig MountConfig = 7;
+    optional uint32 QueuePerUserMaxSize = 8 [default = 0];
+    optional bool ScanUdfs = 9 [default = true];
+    optional string UdfResolverUser = 10;
+    optional string UdfResolverGroup = 11;
+    optional uint32 TaskGracefulExitTimeoutSeconds = 12 [default = 30];
+    optional string LogLimit = 13;
+    optional string UdfDependencyStubPath = 14;
+    optional bool UdfResolverFilterSyscalls = 15;
+    optional string TaskProcessTrackDir = 16;
+    optional string MaxRunningTasksRss = 17;
+    optional string RssStatFile = 18;
+    optional string MaxRunningTasksRssDelta = 19;
+    optional string CGroupPrefix = 20;
+    optional string RunDir = 21;
+    repeated TCredential DefaultCredentials = 22;
+    optional TQPlayerConfig QPlayerConfig = 23;
+    optional string PgExtConfigPath = 24;
+    optional uint64 ConvertAstMemoryLimit = 25;
+    optional uint32 MemoryLimitMb = 26;
+    optional TGatewayType GatewayType = 27;
+    repeated string MrJobSystemLibs = 28;
+    optional string UdfResolverAnalyticsLogfile = 29;
+    repeated TQueuePerUserLimit QueuePerUserLimit = 30;
+    optional TYtAccessProviderConfig YtAccessProvider = 31;
+    optional TYtTvmConfig YtTvm = 32;
+    optional TFmrConfig Fmr = 33;
+}
+
+message TSolomonAgentConnectionConfig {
+    required string EndPoint = 1; // https://<agent-host>/<path> for V2 API
+    optional uint32 Port = 3;
+
+    required string Project = 4;
+    required string Cluster = 5;
+    required string Service = 6;
+    optional string Host = 7;
+
+    optional uint64 RetryCount = 8;
+    optional uint64 RetrySleepMs = 9;
+    optional uint64 TimeoutSocketMs = 10;
+    optional uint64 TimeoutConnectionMs = 11;
+}
+
+message TLabelDescriptor {
+    optional string Name = 1;
+    optional string Value = 2;
+}
+
+message TSolomonAgentClientConfig {
+    required TSolomonAgentConnectionConfig Connection = 1;
+    required uint64 UpdatePeriodMs = 2;
+    repeated TLabelDescriptor CommonLabels = 3;
+    required uint64 MetricsVersion = 4;
+}
+
+message TQtWorkerConfig {
+    optional string SocketDir = 1;           // used by QT master process to pass Ipc endpoins to core & forker
+    optional uint32 CorePort = 2;            // core listens this port for external commands
+    optional uint32 CoreTaskPort = 3;        // core listens this port to communicate with task process
+    optional uint32 DqInterconnectPort = 4;
+    optional uint32 DqGrpcPort = 5;
+}
+
+message TWorkerConfig {
+    optional TProcessMode ProcessMode = 1 [default = SINGLE_PROCESS];
+    optional string User = 2;
+    optional string Group = 3;
+    optional TLoggingConfig Logging = 4;
+    optional TWorkerServerConfig Server = 5;
+    optional TInspectorConfig Inspector = 6;
+    optional TTaskExecutorConfig Executor = 7;
+    optional TDqConfig Dq = 9;
+    optional string CoreUser = 10;
+    optional string CoreGroup = 11;
+    optional TSolomonAgentClientConfig SolomonAgentClient = 12;
+    optional bool DisableUnwinding = 13 [default = false];
+    optional TQtWorkerConfig Qt = 14;
+}

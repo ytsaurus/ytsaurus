@@ -64,13 +64,13 @@ TTableSchemaPtr GetTableSchema()
     return ConvertTo<TTableSchemaPtr>(yson);
 }
 
-IChunkReaderAllowingRepairPtr GetChunkReader(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
+IChunkReaderAllowingRepairPtr GetChunkReader(const IIOEnginePtr& ioEngine, const std::string& chunkFileName)
 {
     auto chunkId = TChunkId::FromString(NFS::GetFileName(chunkFileName));
     return CreateChunkFileReaderAdapter(New<TChunkFileReader>(
         ioEngine,
         chunkId,
-        TString(chunkFileName),
+        chunkFileName,
         true /*validateBlocksChecksums*/));
 }
 
@@ -103,7 +103,7 @@ struct TBlockProvider
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReaderData::TReaderData(const IIOEnginePtr& ioEngine, TTableSchemaPtr /*schema*/, TString chunkFileName)
+TReaderData::TReaderData(const IIOEnginePtr& ioEngine, TTableSchemaPtr /*schema*/, std::string chunkFileName)
 {
     Cout << Format("Loading chunk: %v", chunkFileName) << Endl;
 
@@ -354,7 +354,7 @@ TTableSchemaPtr GetSchemaFromChunkMeta(const NChunkClient::NProto::TChunkMeta& m
     return tableSchema;
 }
 
-TTableSchemaPtr GetMergedSchema(const IIOEnginePtr& ioEngine, const std::vector<TString>& chunkFileNames)
+TTableSchemaPtr GetMergedSchema(const IIOEnginePtr& ioEngine, const std::vector<std::string>& chunkFileNames)
 {
     std::vector<TTableSchemaPtr> schemas;
 
@@ -373,7 +373,7 @@ ISchemafulUnversionedReaderPtr CreateMergingReader(
     const IIOEnginePtr& ioEngine,
     TTableSchemaPtr schema,
     TSharedRange<TItem> readItems,
-    const std::vector<TString>& chunkFileNames,
+    const std::vector<std::string>& chunkFileNames,
     TReaderOptions options)
 {
     if (!schema) {
@@ -431,7 +431,7 @@ ISchemafulUnversionedReaderPtr CreateMergingReader(
     const IIOEnginePtr& ioEngine,
     TTableSchemaPtr schema,
     TSharedRange<TRowRange> readItems,
-    const std::vector<TString>& chunkFileNames,
+    const std::vector<std::string>& chunkFileNames,
     TReaderOptions options);
 
 template
@@ -439,13 +439,13 @@ ISchemafulUnversionedReaderPtr CreateMergingReader(
     const IIOEnginePtr& ioEngine,
     TTableSchemaPtr schema,
     TSharedRange<TLegacyKey> readItems,
-    const std::vector<TString>& chunkFileNames,
+    const std::vector<std::string>& chunkFileNames,
     TReaderOptions options);
 
 IVersionedReaderPtr CreateCompactionReader(
     const IIOEnginePtr& ioEngine,
     TTableSchemaPtr schema,
-    const std::vector<TString>& chunkFileNames,
+    const std::vector<std::string>& chunkFileNames,
     TReaderOptions options)
 {
     if (!schema) {

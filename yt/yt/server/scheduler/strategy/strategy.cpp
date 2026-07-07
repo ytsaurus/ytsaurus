@@ -24,6 +24,7 @@
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -82,10 +83,10 @@ public:
             BIND(&TStrategy::OnFairShareLogging, MakeWeak(this)),
             Config_->FairShareLogPeriod);
 
-        AccumulatedUsageLoggingExecutor_ = New<TPeriodicExecutor>(
+        AccumulatedResourceDistributionLoggingExecutor_ = New<TPeriodicExecutor>(
             Host_->GetFairShareLoggingInvoker(),
-            BIND(&TStrategy::OnLogAccumulatedUsage, MakeWeak(this)),
-            Config_->AccumulatedUsageLogPeriod);
+            BIND(&TStrategy::OnLogAccumulatedResourceDistribution, MakeWeak(this)),
+            Config_->AccumulatedResourceDistributionLogPeriod);
 
         GroupedNeededResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
             Host_->GetControlInvoker(EControlQueue::Strategy),
@@ -138,7 +139,7 @@ public:
         FairShareProfilingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
         FairShareLoggingExecutor_->Start();
-        AccumulatedUsageLoggingExecutor_->Start();
+        AccumulatedResourceDistributionLoggingExecutor_->Start();
         GroupedNeededResourcesUpdateExecutor_->Start();
         ResourceMeteringExecutor_->Start();
         ResourceUsageUpdateExecutor_->Start();
@@ -154,7 +155,7 @@ public:
         YT_UNUSED_FUTURE(FairShareProfilingExecutor_->Stop());
         YT_UNUSED_FUTURE(FairShareUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(YT_UNUSED_FUTURE(FairShareLoggingExecutor_->Stop()));
-        YT_UNUSED_FUTURE(AccumulatedUsageLoggingExecutor_->Stop());
+        YT_UNUSED_FUTURE(AccumulatedResourceDistributionLoggingExecutor_->Stop());
         YT_UNUSED_FUTURE(GroupedNeededResourcesUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(ResourceMeteringExecutor_->Stop());
         YT_UNUSED_FUTURE(ResourceUsageUpdateExecutor_->Stop());
@@ -205,7 +206,7 @@ public:
         OnFairShareLoggingAt(TInstant::Now());
     }
 
-    void OnLogAccumulatedUsage()
+    void OnLogAccumulatedResourceDistribution()
     {
         YT_ASSERT_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
 
@@ -216,7 +217,7 @@ public:
             return;
         }
         for (const auto& tree : snapshot->Trees()) {
-            tree->LogAccumulatedUsage();
+            tree->LogAccumulatedResourceDistribution();
         }
     }
 
@@ -471,7 +472,7 @@ public:
         LastTemplatePoolTreeConfigMapYson_ = ConvertToYsonString(templatePoolTreeConfigMap);
     }
 
-    TError UpdateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) override
+    TError UpdateUserToDefaultPoolMap(const THashMap<std::string, std::string>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -534,7 +535,7 @@ public:
             TError operationError("Operation scheduling is stuck");
 
             for (const auto& [treeId, _] : operationState->TreeIdToPoolNameMap()) {
-                auto error = GetTree(treeId)->CheckOperationIsStuck(operationId, Config_->OperationStuckCheck);
+                auto error = GetTree(treeId)->CheckIsOperationStuck(operationId, Config_->OperationStuckCheck);
                 if (error.IsOK()) {
                     hasTreeWithProgress = true;
                     break;
@@ -568,7 +569,7 @@ public:
         FairShareProfilingExecutor_->SetPeriod(Config_->FairShareProfilingPeriod);
         FairShareUpdateExecutor_->SetPeriod(Config_->FairShareUpdatePeriod);
         FairShareLoggingExecutor_->SetPeriod(Config_->FairShareLogPeriod);
-        AccumulatedUsageLoggingExecutor_->SetPeriod(Config_->AccumulatedUsageLogPeriod);
+        AccumulatedResourceDistributionLoggingExecutor_->SetPeriod(Config_->AccumulatedResourceDistributionLogPeriod);
         GroupedNeededResourcesUpdateExecutor_->SetPeriod(Config_->MinNeededResourcesUpdatePeriod);
         ResourceMeteringExecutor_->SetPeriod(Config_->ResourceMeteringPeriod);
         ResourceUsageUpdateExecutor_->SetPeriod(Config_->ResourceUsageSnapshotUpdatePeriod);
@@ -608,7 +609,7 @@ public:
             .Item("accumulated_resource_distribution_per_tree").Value(accumulatedResourceDistributionPerTree)
             .Item("accumulated_resource_usage_per_tree").DoMapFor(
                 accumulatedResourceDistributionPerTree,
-                [] (TFluentMap fluent, const std::pair<TString, TAccumulatedResourceDistribution>& pair) {
+                [] (TFluentMap fluent, const std::pair<std::string, TAccumulatedResourceDistribution>& pair) {
                     const auto& [treeId, distribution] = pair;
                     fluent.Item(treeId).Value(distribution.Usage());
                 });
@@ -652,7 +653,7 @@ public:
             auto treeParams = New<TOperationPoolTreeRuntimeParameters>();
             auto specIt = spec->SchedulingOptionsPerPoolTree.find(poolTreeDescription.Id);
             auto tree = GetTree(poolTreeDescription.Id);
-            std::optional<TString> poolFromSpec;
+            std::optional<std::string> poolFromSpec;
             if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
                 treeParams->Weight = specIt->second->Weight ? specIt->second->Weight : spec->Weight;
                 treeParams->ResourceLimits = specIt->second->ResourceLimits->IsNonTrivial() ? specIt->second->ResourceLimits : spec->ResourceLimits;
@@ -726,7 +727,7 @@ public:
         YT_VERIFY(origin);
 
         for (auto& [poolTree, treeParams] : origin->SchedulingOptionsPerPoolTree) {
-            std::optional<TString> newPoolName = update->Pool;
+            std::optional<std::string> newPoolName = update->Pool;
             auto treeUpdateIt = update->SchedulingOptionsPerPoolTree.find(poolTree);
             if (treeUpdateIt != update->SchedulingOptionsPerPoolTree.end()) {
                 newPoolName = treeUpdateIt->second->Pool;
@@ -884,7 +885,7 @@ public:
         return ValidateOperationPoolsCanBeUsed(operation, operation->GetRuntimeParameters());
     }
 
-    THashMap<TString, TError> GetPoolLimitViolations(
+    THashMap<std::string, TError> GetPoolLimitViolations(
         const IOperation* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
     {
@@ -892,7 +893,7 @@ public:
 
         auto pools = GetOperationPools(runtimeParameters);
 
-        THashMap<TString, TError> result;
+        THashMap<std::string, TError> result;
 
         for (const auto& [treeId, pool] : pools) {
             auto tree = GetTree(treeId);
@@ -1038,9 +1039,9 @@ public:
         }
     }
 
-    THashMap<TString, TAccumulatedResourceDistribution> ExtractAccumulatedResourceDistributionForLogging(TOperationId operationId)
+    THashMap<std::string, TAccumulatedResourceDistribution> ExtractAccumulatedResourceDistributionForLogging(TOperationId operationId)
     {
-        THashMap<TString, TAccumulatedResourceDistribution> result;
+        THashMap<std::string, TAccumulatedResourceDistribution> result;
 
         const auto& state = GetOperationState(operationId);
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
@@ -1076,27 +1077,73 @@ public:
             return;
         }
 
-        for (const auto& [treeId, treeAllocationUpdates] : allocationUpdatesPerTree) {
-            auto it = idToTree.find(treeId);
-            if (it == idToTree.end()) {
-                for (const auto& allocationUpdates : treeAllocationUpdates) {
-                    if (allocationUpdates.Finished) {
-                        // Allocation is finished but tree does not exist, nothing to do.
-                        YT_LOG_DEBUG(
-                            "Dropping allocation update since pool tree is missing (OperationId: %v, AllocationId: %v)",
-                            allocationUpdates.OperationId,
-                            allocationUpdates.AllocationId);
-                    } else {
-                        // Allocation is orphaned (does not belong to any tree), aborting it.
-                        EmplaceOrCrash(*allocationsToAbort, allocationUpdates.AllocationId, EAbortReason::NonexistentPoolTree);
+        THashMap<std::string, TFuture<std::vector<NPolicy::TProcessAllocationUpdateResult>>> treeIdToUpdateFuture;
+        treeIdToUpdateFuture.reserve(allocationUpdatesPerTree.size());
+
+        {
+            // Process every per-tree batch before this fiber can be suspended: per-allocation update
+            // ordering relies on batches being applied (classic policy, synchronously here) or enqueued to
+            // the control invoker (GPU policy) in drain order. A context switch here would let a later
+            // batch overtake this one.
+            TForbidContextSwitchGuard contextSwitchGuard;
+
+            for (const auto& [treeId, treeAllocationUpdates] : allocationUpdatesPerTree) {
+                auto it = idToTree.find(treeId);
+                if (it == idToTree.end()) {
+                    for (const auto& allocationUpdate : treeAllocationUpdates) {
+                        if (allocationUpdate.Finished) {
+                            // Allocation is finished but tree does not exist, nothing to do.
+                            YT_LOG_DEBUG(
+                                "Dropping allocation update since pool tree is missing (OperationId: %v, AllocationId: %v)",
+                                allocationUpdate.OperationId,
+                                allocationUpdate.AllocationId);
+                        } else {
+                            // Allocation is orphaned (does not belong to any tree), aborting it.
+                            EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, EAbortReason::NonexistentPoolTree);
+                        }
                     }
+
+                    continue;
                 }
 
-                continue;
+                const auto& tree = it->second;
+                EmplaceOrCrash(treeIdToUpdateFuture, treeId, tree->ProcessAllocationUpdates(treeAllocationUpdates));
             }
+        }
 
-            const auto& tree = it->second;
-            tree->ProcessAllocationUpdates(treeAllocationUpdates, allocationsToPostpone, allocationsToAbort);
+        for (const auto& [treeId, future] : treeIdToUpdateFuture) {
+            const auto& treeAllocationUpdates = GetOrCrash(allocationUpdatesPerTree, treeId);
+            auto updateResults = WaitForFast(future)
+                .ValueOrThrow();
+            YT_VERIFY(updateResults.size() == treeAllocationUpdates.size());
+
+            for (int index = 0; index < std::ssize(treeAllocationUpdates); ++index) {
+                const auto& allocationUpdate = treeAllocationUpdates[index];
+                const auto& updateResult = updateResults[index];
+
+                if (updateResult.NeedToAbort) {
+                    YT_LOG_DEBUG(
+                        "Aborting allocation update "
+                        "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, AbortReason: %v)",
+                        allocationUpdate.OperationId,
+                        allocationUpdate.AllocationId,
+                        updateResult.Status,
+                        updateResult.AbortReason);
+                    YT_VERIFY(updateResult.AbortReason.has_value());
+                    EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *updateResult.AbortReason);
+                }
+
+                if (updateResult.NeedToPostpone) {
+                    YT_LOG_DEBUG(
+                        "Postpone allocation update since operation is disabled or missing in snapshot "
+                        "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, NeedToAbort: %v)",
+                        allocationUpdate.OperationId,
+                        allocationUpdate.AllocationId,
+                        updateResult.Status,
+                        updateResult.NeedToAbort);
+                    allocationsToPostpone->insert(allocationUpdate.AllocationId);
+                }
+            }
         }
     }
 
@@ -1380,7 +1427,7 @@ public:
 
         for (const auto& [treeId, _] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
-            auto error = tree->OnOperationMaterialized(operationId);
+            auto error = tree->OnOperationMaterialized(operationId, revivedFromSnapshot);
             if (!error.IsOK()) {
                 return error;
             }
@@ -1564,7 +1611,7 @@ private:
     TPeriodicExecutorPtr FairShareProfilingExecutor_;
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
-    TPeriodicExecutorPtr AccumulatedUsageLoggingExecutor_;
+    TPeriodicExecutorPtr AccumulatedResourceDistributionLoggingExecutor_;
     TPeriodicExecutorPtr GroupedNeededResourcesUpdateExecutor_;
     TPeriodicExecutorPtr ResourceMeteringExecutor_;
     TPeriodicExecutorPtr ResourceUsageUpdateExecutor_;
@@ -1584,7 +1631,7 @@ private:
     TAtomicIntrusivePtr<TPoolTreeSetSnapshot> TreeSetSnapshot_;
 
     // Topology describes set of trees and their node filters.
-    using TTreeSetTopology = std::vector<std::pair<TString, TSchedulingTagFilter>>;
+    using TTreeSetTopology = std::vector<std::pair<std::string, TSchedulingTagFilter>>;
     TTreeSetTopology TreeSetTopology_;
     int TreeSetTopologyVersion_ = 0;
 
@@ -1844,7 +1891,7 @@ private:
 
         fluent
             .Item("scheduling_info_per_pool_tree")
-                .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<TString, TPoolName>& value) {
+                .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<std::string, TPoolName>& value) {
                     const auto& treeId = value.first;
                     auto tree = GetTree(treeId);
 
@@ -1931,9 +1978,7 @@ private:
         THashSet<std::string>* treeIdsWithChangedFilter,
         THashMap<std::string, TSchedulingTagFilter>* treeIdToFilter) const
     {
-        for (const auto& key_ : poolsMap->GetKeys()) {
-            // TODO(babenko): migrate to std::string
-            auto key = TString(key_);
+        for (const auto& key : poolsMap->GetKeys()) {
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treeIdsToAdd->insert(key);
                 try {
@@ -2166,7 +2211,8 @@ private:
             treeId = treeIds[0];
         } else {
             THROW_ERROR_EXCEPTION("Node belongs to more than one pool tree")
-                    << TErrorAttribute("matched_pool_trees", treeIds);
+                << TErrorAttribute("node_address", nodeAddress)
+                << TErrorAttribute("matched_pool_trees", treeIds);
         }
 
         auto it = NodeIdToDescriptor_.find(nodeId);
@@ -2357,7 +2403,7 @@ private:
 
         for (const auto& tree : snapshot->Trees()) {
             TMeteringMap newStatisticsPerTree;
-            THashMap<TString, TString> customMeteringTags;
+            THashMap<std::string, std::string> customMeteringTags;
             tree->BuildResourceMetering(&newStatisticsPerTree, &customMeteringTags);
 
             for (auto& [key, value] : newStatisticsPerTree) {
@@ -2479,7 +2525,6 @@ private:
         {
             YT_ASSERT_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
 
-            // TODO(babenko): switch to std::string
             const auto it = Strategy_->IdToTree_.find(treeId);
             if (it == std::cend(Strategy_->IdToTree_)) {
                 return nullptr;
@@ -2521,10 +2566,11 @@ private:
         }
 
         void BuildSchedulingAttributesString(
+            const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
             TDelimitedStringBuilderWrapper& delimitedBuilder) const override
         {
             if (Tree_) {
-                Tree_->BuildSchedulingAttributesStringForNode(NodeId_, delimitedBuilder);
+                Tree_->BuildSchedulingAttributesStringForNode(schedulingHeartbeatContext, NodeId_, delimitedBuilder);
             }
         }
 
@@ -2560,7 +2606,10 @@ private:
         TJobResources GetMinSpareResourcesForScheduling() const override
         {
             if (Tree_) {
-                if (const auto& minSpareResourcesConfig = Tree_->GetSnapshottedConfig()->MinSpareAllocationResourcesOnNode) {
+                // NB: Store the config in a local variable to keep it alive while
+                // |minSpareResourcesConfig| (which references its field) is used.
+                auto treeConfig = Tree_->GetSnapshottedConfig();
+                if (const auto& minSpareResourcesConfig = treeConfig->MinSpareAllocationResourcesOnNode) {
                     return ToJobResources(minSpareResourcesConfig, TJobResources());
                 }
             }

@@ -57,15 +57,15 @@ TEST(TDsvParserTest, BinaryData)
 {
     StrictMock<TMockYsonConsumer> Mock;
 
-    auto a = TString("\0\0\0\0", 4);
-    auto b = TString("\x80\0\x16\xC8", 4);
+    auto a = std::string("\0\0\0\0", 4);
+    auto b = std::string("\x80\0\x16\xC8", 4);
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("ntr"));
-        EXPECT_CALL(Mock, OnStringScalar(a));
+        EXPECT_CALL(Mock, OnStringScalar(TStringBuf(a)));
         EXPECT_CALL(Mock, OnKeyedItem("xrp"));
-        EXPECT_CALL(Mock, OnStringScalar(b));
+        EXPECT_CALL(Mock, OnStringScalar(TStringBuf(b)));
     EXPECT_CALL(Mock, OnEndMap());
 
     std::string input = "ntr=\\0\\0\\0\\0\txrp=\x80\\0\x16\xC8\n";
@@ -132,13 +132,13 @@ TEST(TDsvParserTest, ZerosAreNotTerminals)
     StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
-    TString key = TString("a\0b", 3);
-    TString value = TString("c\0d", 3);
+    std::string key = std::string("a\0b", 3);
+    std::string value = std::string("c\0d", 3);
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem(key));
-        EXPECT_CALL(Mock, OnStringScalar(value));
+        EXPECT_CALL(Mock, OnKeyedItem(TStringBuf(key)));
+        EXPECT_CALL(Mock, OnStringScalar(TStringBuf(value)));
     EXPECT_CALL(Mock, OnEndMap());
 
     std::string input = "a\\0b=c\\0d\n";

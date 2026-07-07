@@ -49,7 +49,7 @@ TBootstrapPtr InitializeMasterBootstrap(
         NFusion::CreateServiceDirectory());
     DoNotOptimizeAway(bootstrap);
 
-    NBus::TTcpDispatcher::Get()->DisableNetworking();
+    NBus::NTcp::TDispatcher::Get()->DisableNetworking();
 
     bootstrap->Initialize();
 
@@ -102,7 +102,7 @@ void ReconstructSequoia(
     BIND(&DoReconstructSequoia, Unretained(bootstrap.get()), reconstructorConfig)
         .AsyncVia(bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     FinishRun(bootstrap);

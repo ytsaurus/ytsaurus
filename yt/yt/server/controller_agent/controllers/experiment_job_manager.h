@@ -56,7 +56,7 @@ public:
     TLayerJobExperiment();
 
     TLayerJobExperiment(
-        TString defaultBaseLayerPath,
+        NYPath::TYPath defaultBaseLayerPath,
         TUserFile baseLayer,
         bool enableBypassArtifactCache,
         const NLogging::TLogger& logger);
@@ -73,7 +73,7 @@ public:
     TError GetAlert(const TOperationSpecBasePtr& operationSpec) const override;
 
 private:
-    TString DefaultBaseLayerPath_;
+    NYPath::TYPath DefaultBaseLayerPath_;
     TUserFile BaseLayer_;
     NLogging::TSerializableLogger Logger;
     bool EnableBypassArtifactCache_;
@@ -167,7 +167,7 @@ private:
     int FailedControlJobCount_ = 0;
     int FailedTreatmentJobCount_ = 0;
     int SucceededTreatmentJobCount_ = 0;
-    EJobExperimentStatus ExperimentStatus_ = EJobExperimentStatus::NoTreatmentSuccessesYet;
+    std::atomic<EJobExperimentStatus> ExperimentStatus_ = EJobExperimentStatus::NoTreatmentSuccessesYet;
 
     virtual bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,

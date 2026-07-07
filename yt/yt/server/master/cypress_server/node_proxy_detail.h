@@ -10,12 +10,11 @@
 #include <yt/yt/server/master/chunk_server/chunk_owner_data_statistics.h>
 
 #include <yt/yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/permission_validator.h>
 
 #include <yt/yt/server/master/security_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
-
-#include <yt/yt/server/lib/object_server/permission_validator.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
@@ -29,7 +28,7 @@ namespace NYT::NCypressServer {
 class TNontemplateCypressNodeProxyBase
     : public virtual NYTree::TNodeBase
     , public NObjectServer::TObjectProxyBase
-    , public NObjectServer::THierarchicPermissionValidator<TCypressNode*, NObjectServer::TObject*>
+    , public NObjectServer::THierarchicPermissionValidator<TCypressNode>
     , public ICypressNodeProxy
 {
 public:
@@ -113,8 +112,9 @@ protected:
     bool AccessTrackingSuppressed_ = false;
     bool ExpirationTimeoutRenewalSuppressed_ = false;
 
-    std::optional<TStringBuf> SequoiaNodeEffectiveAcl_;
+    NYson::TYsonStringBuf SequoiaNodeEffectiveAcl_;
     std::optional<NSecurityServer::TAccessControlList> SequoiaNodeDeserializedEffectiveAcl_;
+    bool SequoiaNodeHasRowLevelAce_ = false;
 
     struct TLockResult
     {
@@ -206,8 +206,8 @@ protected:
 
     ICypressNodeProxyPtr GetProxy(TCypressNode* trunkNode) const;
 
-    TCompactVector<NObjectServer::TObject*, 1> ListDescendantsForPermissionValidation(TCypressNode* node) override;
-    NObjectServer::TObject* GetParentForPermissionValidation(TCypressNode* node) override;
+    TCompactVector<TCypressNode*, 1> ListDescendantsForPermissionValidation(TCypressNode* node) override;
+    TCypressNode* GetParentForPermissionValidation(TCypressNode* node) override;
 
     void SetReachableSubtreeNodes(TCypressNode* node);
     void SetUnreachableSubtreeNodes(TCypressNode* node);
@@ -433,9 +433,9 @@ private:
             node); \
     }
 
-BEGIN_DEFINE_SCALAR_TYPE(String, TString)
+BEGIN_DEFINE_SCALAR_TYPE(String, std::string)
     protected:
-        void ValidateValue(const TString& value) override
+        void ValidateValue(const std::string& value) override
         {
             auto length = std::ssize(value);
             auto limit = GetDynamicCypressManagerConfig()->MaxStringNodeLength;
@@ -447,7 +447,7 @@ BEGIN_DEFINE_SCALAR_TYPE(String, TString)
                     limit);
             }
         }
-END_DEFINE_SCALAR_TYPE(String, TString)
+END_DEFINE_SCALAR_TYPE(String, std::string)
 
 BEGIN_DEFINE_SCALAR_TYPE(Int64, i64)
 END_DEFINE_SCALAR_TYPE(Int64, i64)
@@ -482,14 +482,14 @@ public:
 
     void Clear() override;
     int GetChildCount() const override;
-    std::vector<std::pair<std::string, NYTree::INodePtr>> GetChildren() const override;
-    std::vector<std::string> GetKeys() const override;
-    NYTree::INodePtr FindChild(const std::string& key) const override;
-    bool AddChild(const std::string& key, const NYTree::INodePtr& child) override;
-    bool RemoveChild(const std::string& key) override;
+    std::vector<std::pair<TKey, TValue>> GetChildren() const override;
+    std::vector<TKey> GetKeys() const override;
+    TValue FindChild(TKeyView key) const override;
+    bool AddChild(TKeyView key, const TValue& child) override;
+    bool RemoveChild(TKeyView key) override;
     void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     void RemoveChild(const NYTree::INodePtr& child) override;
-    std::optional<std::string> FindChildKey(const NYTree::IConstNodePtr& child) const override;
+    std::optional<TKey> FindChildKey(const NYTree::IConstNodePtr& child) const override;
 
 protected:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
@@ -555,6 +555,7 @@ public:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
+    // NB: Used at Cypress Proxies to trace access.
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
     void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
 

@@ -21,9 +21,6 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
-#include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
-
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/chunk_fragment.h>
 #include <yt/yt/server/lib/io/io_engine.h>
@@ -261,6 +258,8 @@ public:
             .SetInvoker(Bootstrap_->GetControlInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AnnounceChunkReplicas)
             .SetInvoker(Bootstrap_->GetStorageLightInvoker()));
+
+        DeclareServerFeature(EChunkClientFeature::MultiplePartitionTags);
     }
 
 private:
@@ -362,7 +361,7 @@ private:
         auto meta = request->has_chunk_meta()
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
             : nullptr;
-        session->Finish(meta, blockCount, request->truncate_extra_blocks())
+        session->Finish(meta, blockCount)
             .Subscribe(BIND([
                 =,
                 this,
@@ -1047,6 +1046,8 @@ private:
         options.FetchFromCache = fetchFromCache;
         options.FetchFromDisk = fetchFromDisk;
         options.EnableSequentialIORequests = GetDynamicConfig()->EnableSequentialIORequests.value_or(Config_->EnableSequentialIORequests);
+        options.ReturnBlocksIfSessionFails = GetDynamicConfig()->ReturnBlocksIfSessionFails.value_or(Config_->ReturnBlocksIfSessionFails);
+        options.FailSessionAtReadBlocksDeadline = GetDynamicConfig()->FailSessionAtReadBlocksDeadline.value_or(Config_->FailSessionAtReadBlocksDeadline);
         options.ChunkReaderStatistics = chunkReaderStatistics;
         options.ReadSessionId = FromProto<TReadSessionId>(request->read_session_id());
         options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
@@ -2245,7 +2246,7 @@ private:
                         columnStableNames->reserve(chunkRequest.column_filter().indexes_size());
 
                         for (auto columnIndex : chunkRequest.column_filter().indexes()) {
-                            columnStableNames->push_back(TColumnStableName(TString{nameTable->GetName(columnIndex)}));
+                            columnStableNames->push_back(TColumnStableName(std::string(nameTable->GetName(columnIndex))));
                         }
                     }
 
@@ -2689,7 +2690,7 @@ private:
             std::vector<TColumnStableName> columnStableNames;
             columnStableNames.reserve(columnIds.size());
             for (auto id : columnIds) {
-                columnStableNames.emplace_back(TString(nameTable->GetNameOrThrow(id)));
+                columnStableNames.emplace_back(std::string(nameTable->GetNameOrThrow(id)));
             }
 
             auto options = BuildReadMetaOption(context);

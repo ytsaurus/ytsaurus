@@ -15,8 +15,6 @@
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
-#include <yt/yt/ytlib/discovery_client/helpers.h>
-
 namespace NYT::NDiscoveryClient {
 
 using namespace NConcurrency;
@@ -181,10 +179,12 @@ private:
         NYTree::IAttributeDictionaryPtr attributes;
         auto now = TInstant::Now();
         THeartbeatSessionPtr session;
+        bool attributesUpdated = false;
         {
             auto guard = ReaderGuard(Lock_);
             if (now - LastAttributesUpdateTime_ > ClientConfig_->AttributeUpdatePeriod) {
                 attributes = ThreadSafeAttributes_->Clone();
+                attributesUpdated = true;
             }
 
             session = New<THeartbeatSession>(
@@ -212,7 +212,7 @@ private:
             }
         } else {
             YT_LOG_DEBUG("Successfully reported heartbeat (Revision: %v)", Revision_);
-            if (attributes) {
+            if (attributesUpdated) {
                 LastAttributesUpdateTime_ = now;
             }
             FirstSuccessPromise_.TrySet();

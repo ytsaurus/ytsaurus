@@ -17,44 +17,40 @@ namespace NYT::NClickHouseServer {
 
 DB::DataTypePtr ToDataType(
     const NTableClient::TComplexTypeFieldDescriptor& descriptor,
-    const TCompositeSettingsPtr& settings,
-    bool isLowCardinality,
+    const TConversionSettingsPtr& settings,
     bool isReadConversions = true);
 
 DB::DataTypePtr ToDataType(
     const NTableClient::TColumnSchema& columnSchema,
-    const TCompositeSettingsPtr& settings,
-    bool isLowCardinality,
+    const TConversionSettingsPtr& settings,
     bool isReadConversions = true);
 
 DB::DataTypes ToDataTypes(
     const std::vector<NTableClient::TColumnSchema>& schemas,
-    const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes,
-    const TCompositeSettingsPtr& settings,
+    const TConversionSettingsPtr& settings,
     bool isReadConversions = true);
 
 DB::DataTypes ToDataTypes(
     const NTableClient::TTableSchema& schema,
-    const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes,
-    const TCompositeSettingsPtr& settings,
+    const TConversionSettingsPtr& settings,
     bool isReadConversions = true);
 
-DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<NTableClient::TColumnSchema>& schemas, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings);
+DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<NTableClient::TColumnSchema>& schemas, const TConversionSettingsPtr& settings);
 
-DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings);
+DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema, const TConversionSettingsPtr& settings);
 
-DB::Block ToHeaderBlock(const std::vector<NTableClient::TColumnSchema>& schemas, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings);
+DB::Block ToHeaderBlock(const std::vector<NTableClient::TColumnSchema>& schemas, const TConversionSettingsPtr& settings);
 
-DB::Block ToHeaderBlock(const NTableClient::TTableSchema& schema, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings);
+DB::Block ToHeaderBlock(const NTableClient::TTableSchema& schema, const TConversionSettingsPtr& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::TLogicalTypePtr ToLogicalType(const DB::DataTypePtr& type, const TCompositeSettingsPtr& settings);
+NTableClient::TLogicalTypePtr ToLogicalType(const DB::DataTypePtr& type, const TConversionSettingsPtr& settings);
 
 NTableClient::TTableSchema ToTableSchema(
     const DB::ColumnsDescription& columns,
     const NTableClient::TKeyColumns& keyColumns,
-    const TCompositeSettingsPtr& settings);
+    const TConversionSettingsPtr& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +74,7 @@ void ToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue*
 NTableClient::TUnversionedOwningValue ToUnversionedOwningValue(
     const DB::Field& field,
     const DB::DataTypePtr& dataType,
-    const TCompositeSettingsPtr& settings);
+    const TConversionSettingsPtr& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,13 +88,13 @@ TSharedRange<NTableClient::TUnversionedRow> ToRowRange(
     const DB::Block& block,
     const std::vector<DB::DataTypePtr>& dataTypes,
     const std::vector<int>& columnIndexToId,
-    const TCompositeSettingsPtr& settings);
+    const TConversionSettingsPtr& settings);
 
 TSharedMutableRange<NTableClient::TMutableUnversionedRow> ToMutableRowRange(
     const DB::Block& block,
     const std::vector<DB::DataTypePtr>& dataTypes,
     const std::vector<int>& columnIndexItId,
-    const TCompositeSettingsPtr& settings,
+    const TConversionSettingsPtr& settings,
     int extraColumnCapacity = 0);
 
 ////////////////////////////////////////////////////////////////////////////////

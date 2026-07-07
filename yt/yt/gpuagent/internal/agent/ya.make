@@ -13,5 +13,12 @@ PEERDIR(
 END()
 
 RECURSE(
+    factory
     nv
 )
+
+IF (YT_CUSTOM_INTERNAL_BUILD)
+    RECURSE(
+        mx
+    )
+ENDIF()

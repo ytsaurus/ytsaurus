@@ -45,9 +45,10 @@ message TReqStartTransaction
 
     optional TAuthenticationIdentity identity = 6;
 
-    // COMPAT(kvk1920): make it required after 25.1.
     optional int32 sequoia_reign = 7; // ESequoiaReign
     repeated NYT.NProto.TGuid prerequisite_transaction_ids = 8;
+
+    repeated string barrier_tags = 10;
 
     extensions 100 to max;
 }
@@ -62,5 +63,13 @@ message TReqSyncWithGroundUpdateQueue
 
 message TRspSyncWithGroundUpdateQueue
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSequoiaTransactionFeatures
+{
+    optional bool use_shared_write_locks_for_cypress_transactions = 1 [default = true];
+    optional bool coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator = 2 [default = false];
+}
 
 ////////////////////////////////////////////////////////////////////////////////

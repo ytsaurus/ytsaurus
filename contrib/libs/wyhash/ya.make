@@ -9,8 +9,8 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(2024-06-07)
+VERSION(2026-03-23)
 
-ORIGINAL_SOURCE(https://github.com/wangyi-fudan/wyhash/archive/46cebe9dc4e51f94d0dca287733bc5a94f76a10d.tar.gz)
+ORIGINAL_SOURCE(https://github.com/wangyi-fudan/wyhash/archive/e4764a0b637d34d3421a7760affada9288b625a8.tar.gz)
 
 END()

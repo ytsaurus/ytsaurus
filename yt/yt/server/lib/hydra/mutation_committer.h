@@ -40,7 +40,6 @@ struct TMutationDraft
 };
 
 using TMutationDraftQueue = TMpscQueue<TMutationDraft>;
-using TMutationDraftQueuePtr = TIntrusivePtr<TMutationDraftQueue>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +113,6 @@ public:
         const TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TLeaderLeasePtr leaderLease,
-        TMutationDraftQueuePtr mutationDraftQueue,
         IChangelogPtr changelog,
         TReachableState reachableState,
         TEpochContext* epochContext,
@@ -136,17 +134,21 @@ public:
     void Start();
     void Stop();
 
-    void SerializeMutations();
+    //! True between Start() and Stop(): the manager's pump only forwards drafts to an
+    //! active committer (otherwise it drops them).
+    bool IsActive() const;
+
+    void SerializeMutations(TMutationDraftQueue* mutationDraftQueue);
 
     void BuildMonitoring(NYTree::TFluentMap fluent);
 
 private:
-    const TMutationDraftQueuePtr MutationDraftQueue_;
     const TLeaderLeasePtr LeaderLease_;
 
     const NConcurrency::TPeriodicExecutorPtr FlushMutationsExecutor_;
-    const NConcurrency::TPeriodicExecutorPtr SerializeMutationsExecutor_;
     const NConcurrency::TPeriodicExecutorPtr CheckpointCheckExecutor_;
+
+    bool Active_ = false;
 
     struct TPeerState
     {
@@ -263,11 +265,15 @@ public:
 
     i64 GetLoggedSequenceNumber() const;
     i64 GetExpectedSequenceNumber() const;
+    i64 GetCommittedSequenceNumber() const;
     void SetSequenceNumber(i64 number);
 
     void BuildMonitoring(NYTree::TFluentMap fluent);
 
     void CatchUp();
+
+    //! Drops uncommitted mutations before restart. Unsafe!
+    TFuture<void> TruncateChangelog(i64 lastSequenceNumber);
 
     //! Cleans things up, aborts all pending mutations with a human-readable error.
     void Stop();

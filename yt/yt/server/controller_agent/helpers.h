@@ -17,6 +17,8 @@
 
 #include <yt/yt/library/query/base/public.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +33,7 @@ TOptions CreateOperationOptions(const TOptions& options, const NYTree::INodePtr&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TrimCommandForBriefSpec(const TString& command);
+std::string TrimCommandForBriefSpec(const std::string& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +84,7 @@ void BuildFileSpecs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetIntermediatePath(int streamIndex);
+NYPath::TYPath GetIntermediatePath(int streamIndex);
 
 NChunkClient::TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     const std::string& intermediateAccount,
@@ -184,6 +186,22 @@ TFuture<std::optional<T>> WithSoftTimeout(
 NScheduler::TDiskQuota CreateDiskQuota(
     const NScheduler::TDiskRequestConfigPtr& diskRequestConfig,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateAndEnrichVolumeSpec(
+    const TControllerAgentConfigPtr& config,
+    const TOperationSpecBasePtr& operationSpec,
+    const IOperationControllerHostPtr& host,
+    TNonNullPtr<NScheduler::TUserJobSpec> spec,
+    TNonNullPtr<NScheduler::TUserJobSpec> providedSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NControllerAgent::NProto::TVolume* volumeProto,
+    const NScheduler::TVolume& volume,
+    const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile);
 
 ////////////////////////////////////////////////////////////////////////////////
 

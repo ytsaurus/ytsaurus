@@ -29,4 +29,10 @@ void ExtPq(
     TVector<NYql::TDataProviderInitializer>& dataProvidersInit,
     const NYql::TFileStoragePtr& fileStorage);
 
+void ExtSolomon(
+    const NYql::TGatewaysConfig& gatewaysConfig,
+    const NKikimr::NMiniKQL::IFunctionRegistry* funcRegistry,
+    TVector<NYql::TDataProviderInitializer>& dataProvidersInit,
+    const NYql::TFileStoragePtr& fileStorage);
+
 } // namespace NYT::NYqlPlugin

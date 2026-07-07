@@ -57,14 +57,27 @@ Y_WEAK std::pair<TDataSource, TConstQueryPtr> InferRanges(
 }
 
 Y_WEAK TQueryStatistics CoordinateAndExecute(
-    bool /*ordered*/,
+    EScanOrder /*scanOrder*/,
     bool /*prefetch*/,
     int /*splitCount*/,
     i64 /*offset*/,
     i64 /*limit*/,
     bool /*useAdaptiveOrderedSchemafulReader*/,
     TSubQueryEvaluator /*evaluateSubQuery*/,
-    TTopQueryEvaluator /*evaluateTopQuery*/)
+    TTopQueryEvaluator /*evaluateTopQuery*/,
+    TSubplanFutureHoldersPtr /*subplanFutureHolders*/)
+{
+    // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
+    YT_ABORT();
+}
+
+TQueryStatistics CoordinateAndExecuteWithShuffle(
+    int /*splitCount*/,
+    int /*groupKeyPrefix*/,
+    TSubQueryEvaluator /*evaluateSubQuery*/,
+    TMiddleQueryEvaluator /*evaluateMiddleQuery*/,
+    TTopQueryEvaluator /*evaluateTopQuery*/,
+    const IMemoryChunkProviderPtr& /*memoryChunkProvider*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
     YT_ABORT();

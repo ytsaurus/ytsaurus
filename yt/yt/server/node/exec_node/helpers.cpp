@@ -1,20 +1,20 @@
-#include "helpers.h"
 #include "bootstrap.h"
+#include "private.h"
+#include "helpers.h"
 
 #include <yt/yt/server/node/exec_node/job_controller.h>
 
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
-
-#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -211,8 +211,8 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const auto& attributes = *attributeDictionaryPtr;
 
     auto [accessMethod, filesystem] = GetAccessMethodAndFilesystemFromStrings(
-        attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local)),
-        attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
+        attributes.Find<std::string>("access_method").value_or(ToString(ELayerAccessMethod::Local)),
+        attributes.Find<std::string>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
 
     // Create artifact key.
     TArtifactKey layerKey;
@@ -350,7 +350,7 @@ TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts)
+const TAbsoluteNormalizedPath& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<TVolumeMountPtr>& volumeMounts)
 {
     auto volumeMountIt = std::find_if(volumeMounts.begin(), volumeMounts.end(), [&] (const auto& volumeMount) {
         return volumeMount->VolumeId == volumeId;
@@ -360,6 +360,16 @@ const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, con
     // Therefore, there must not be a single tmpfs that is not listed in volumeMounts.
     YT_VERIFY(volumeMountIt != volumeMounts.end());
     return volumeMountIt->Get()->MountPath;
+}
+
+const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volumeId, const std::vector<TVolumeResultPtr>& volumes)
+{
+    auto volumeIt = std::find_if(volumes.begin(), volumes.end(), [&] (const auto& volume) {
+        return volume->VolumeId == volumeId;
+    });
+
+    YT_VERIFY(volumeIt != volumes.end());
+    return *volumeIt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -380,6 +390,7 @@ void FromProto(TSandboxNbdRootVolumeData* nbd, const NScheduler::NProto::TNbdDis
     nbd->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_make_timeout());
     nbd->MinDataNodeCount = nbdDisk.min_data_node_count();
     nbd->MaxDataNodeCount = nbdDisk.max_data_node_count();
+    nbd->MultiplexingParallelism = nbdDisk.multiplexing_parallelism();
 }
 
 void FromProto(TTmpfsVolumeParams* tmpfs, const NScheduler::NProto::TTmpfsStorageRequest& protoTmpfs)

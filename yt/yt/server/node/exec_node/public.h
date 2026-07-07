@@ -29,7 +29,7 @@ DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString ProxyConfigFileName;
+extern const std::string ProxyConfigFileName;
 
 DECLARE_REFCOUNTED_STRUCT(IJobController)
 
@@ -69,6 +69,16 @@ DECLARE_REFCOUNTED_STRUCT(IJobProxyLogManager)
 
 DECLARE_REFCOUNTED_CLASS(IThrottlerManager)
 
+DECLARE_REFCOUNTED_STRUCT(IVolumeArtifact)
+DECLARE_REFCOUNTED_STRUCT(IVolumeArtifactCache)
+
+DECLARE_REFCOUNTED_CLASS(TLayer)
+DECLARE_REFCOUNTED_CLASS(TLayerLocation)
+
+DECLARE_REFCOUNTED_CLASS(TSimpleTmpfsVolume)
+
+DECLARE_REFCOUNTED_CLASS(TPendingDownloadsTracker)
+
 DEFINE_ENUM(ESlotType,
     //! With cpu_policy=normal
     ((Common)    (0))
@@ -85,10 +95,10 @@ struct TNumaNodeInfo
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EVolumeType,
-    ((Local)    (0))
-    ((Nbd)      (1))
-    // Reserved (2))
-    ((Tmpfs)    (3))
+    ((LocalDisk)    (0))
+    ((Nbd)          (1))
+    // Reserved     (2))
+    ((Tmpfs)        (3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

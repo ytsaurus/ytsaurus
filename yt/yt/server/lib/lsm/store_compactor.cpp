@@ -296,6 +296,14 @@ private:
             return {};
         }
 
+        if (eden->GetTablet()->GetMountConfig()->InMemoryMode != EInMemoryMode::None) {
+            for (const auto& store : eden->Stores()) {
+                if (store->GetPreloadState() != EStorePreloadState::Complete) {
+                    return {};
+                }
+            }
+        }
+
         // We aim to improve OSC; partitioning unconditionally improves OSC (given at least two stores).
         // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
         const int overlappingStoreLimit = GetOverlappingStoreLimit(mountConfig);
@@ -405,6 +413,14 @@ private:
         auto [reason, stores] = PickStoresForCompaction(partition, allowForcedCompaction, edenMajorTimestamp);
         if (stores.empty()) {
             return {};
+        }
+
+        if (partition->GetTablet()->GetMountConfig()->InMemoryMode != EInMemoryMode::None) {
+            for (const auto& store : stores) {
+                if (store->GetPreloadState() != EStorePreloadState::Complete) {
+                    return {};
+                }
+            }
         }
 
         auto [hunkChunks, hunkChunkCountByReason] = PickCompactableHunkChunks(tablet, stores);
@@ -724,7 +740,11 @@ private:
             return {EStoreCompactionReason::Regular, std::move(finalists)};
         }
 
-        auto [hintReason, hintStoreIds] = partition->CompactionHints().GetStoresForCompaction(CurrentTime_, edenMajorTimestamp);
+        auto [hintReason, hintStoreIds] = partition->CompactionHints().GetStoresForCompaction(
+            CurrentTime_,
+            edenMajorTimestamp,
+            mountConfig);
+
         if (hintReason != EStoreCompactionReason::None) {
             YT_VERIFY(!partition->IsEden());
 

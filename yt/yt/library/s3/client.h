@@ -28,16 +28,16 @@ DEFINE_ENUM(EBucketAcl,
 struct TBucket
 {
     TInstant CreationDate;
-    TString Name;
+    std::string Name;
 
     void Deserialize(const Poco::XML::Node& node);
 };
 
 struct TObject
 {
-    TString Key;
+    std::string Key;
     TInstant LastModified;
-    TString ETag;
+    std::string ETag;
     i64 Size;
 
     void Deserialize(const Poco::XML::Node& node);
@@ -45,17 +45,31 @@ struct TObject
 
 struct TOwner
 {
-    TString DisplayName;
-    TString Id;
+    std::string DisplayName;
+    std::string Id;
 
     void Deserialize(const Poco::XML::Node& node);
 };
 
 struct TDeleteError
 {
-    TString Key;
-    TString Code;
-    TString Message;
+    std::string Key;
+    std::string Code;
+    std::string Message;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct THeadBucketRequest
+{
+    std::string Bucket;
+
+    void Serialize(THttpRequest* request) const;
+};
+
+struct THeadBucketResponse
+{
+    void Deserialize(const NHttp::IResponsePtr& response);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,15 +92,15 @@ struct TListBucketsResponse
 
 struct TListObjectsRequest
 {
-    TString Prefix;
-    TString Bucket;
-    std::optional<TString> ContinuationToken;
+    std::string Prefix;
+    std::string Bucket;
+    std::optional<std::string> ContinuationToken;
     void Serialize(THttpRequest* request) const;
 };
 
 struct TListObjectsResponse
 {
-    std::optional<TString> NextContinuationToken;
+    std::optional<std::string> NextContinuationToken;
     std::vector<TObject> Objects;
     void Deserialize(const NHttp::IResponsePtr& response);
 };
@@ -95,7 +109,7 @@ struct TListObjectsResponse
 
 struct TPutBucketRequest
 {
-    TString Bucket;
+    std::string Bucket;
     EBucketAcl Acl = EBucketAcl::Private;
 
     void Serialize(THttpRequest* request) const;
@@ -110,19 +124,19 @@ struct TPutBucketResponse
 
 struct TPutObjectRequest
 {
-    TString Bucket;
-    TString Key;
+    std::string Bucket;
+    std::string Key;
 
     TSharedRef Data;
 
-    std::optional<TString> ContentMd5;
+    std::optional<std::string> ContentMd5;
 
     void Serialize(THttpRequest* request) const;
 };
 
 struct TPutObjectResponse
 {
-    TString ETag;
+    std::string ETag;
 
     void Deserialize(const NHttp::IResponsePtr& response);
 };
@@ -131,22 +145,22 @@ struct TPutObjectResponse
 
 struct TUploadPartRequest
 {
-    TString Bucket;
-    TString Key;
+    std::string Bucket;
+    std::string Key;
 
-    TString UploadId;
+    std::string UploadId;
     int PartIndex;
 
     TSharedRef Data;
 
-    std::optional<TString> ContentMd5;
+    std::optional<std::string> ContentMd5;
 
     void Serialize(THttpRequest* request) const;
 };
 
 struct TUploadPartResponse
 {
-    TString ETag;
+    std::string ETag;
 
     void Deserialize(const NHttp::IResponsePtr& response);
 };
@@ -155,9 +169,9 @@ struct TUploadPartResponse
 
 struct TGetObjectRequest
 {
-    TString Bucket;
-    TString Key;
-    std::optional<TString> Range;
+    std::string Bucket;
+    std::string Key;
+    std::optional<std::string> Range;
 
     void Serialize(THttpRequest* request) const;
 };
@@ -173,9 +187,9 @@ struct TGetObjectResponse
 
 struct TGetObjectStreamRequest
 {
-    TString Bucket;
-    TString Key;
-    std::optional<TString> Range;
+    std::string Bucket;
+    std::string Key;
+    std::optional<std::string> Range;
 
     void Serialize(THttpRequest* request) const;
 };
@@ -191,7 +205,7 @@ struct TGetObjectStreamResponse
 
 struct TDeleteBucketRequest
 {
-    TString Bucket;
+    std::string Bucket;
 
     void Serialize(THttpRequest* request) const;
 };
@@ -205,8 +219,8 @@ struct TDeleteBucketResponse
 
 struct TDeleteObjectRequest
 {
-    TString Bucket;
-    TString Object;
+    std::string Bucket;
+    std::string Object;
 
     void Serialize(THttpRequest* request) const;
 };
@@ -220,8 +234,8 @@ struct TDeleteObjectResponse
 
 struct TDeleteObjectsRequest
 {
-    TString Bucket;
-    std::vector<TString> Objects;
+    std::string Bucket;
+    std::vector<std::string> Objects;
 
     void Serialize(THttpRequest* request) const;
 };
@@ -237,18 +251,18 @@ struct TDeleteObjectsResponse
 
 struct TCreateMultipartUploadRequest
 {
-    TString Bucket;
-    TString Key;
+    std::string Bucket;
+    std::string Key;
 
     void Serialize(THttpRequest* request) const;
 };
 
 struct TCreateMultipartUploadResponse
 {
-    TString Bucket;
-    TString Key;
+    std::string Bucket;
+    std::string Key;
 
-    TString UploadId;
+    std::string UploadId;
 
     void Deserialize(const NHttp::IResponsePtr& response);
 };
@@ -257,10 +271,10 @@ struct TCreateMultipartUploadResponse
 
 struct TAbortMultipartUploadRequest
 {
-    TString Bucket;
-    TString Key;
+    std::string Bucket;
+    std::string Key;
 
-    TString UploadId;
+    std::string UploadId;
 
     void Serialize(THttpRequest* request) const;
 };
@@ -274,16 +288,16 @@ struct TAbortMultipartUploadResponse
 
 struct TCompleteMultipartUploadRequest
 {
-    TString Bucket;
-    TString Key;
+    std::string Bucket;
+    std::string Key;
 
-    TString UploadId;
+    std::string UploadId;
 
     struct TPart
     {
         int PartIndex;
 
-        TString ETag;
+        std::string ETag;
     };
     std::vector<TPart> Parts;
 
@@ -292,7 +306,7 @@ struct TCompleteMultipartUploadRequest
 
 struct TCompleteMultipartUploadResponse
 {
-    TString ETag;
+    std::string ETag;
 
     void Deserialize(const NHttp::IResponsePtr& response);
 };
@@ -301,8 +315,8 @@ struct TCompleteMultipartUploadResponse
 
 struct THeadObjectRequest
 {
-    TString Bucket;
-    TString Key;
+    std::string Bucket;
+    std::string Key;
 
     void Serialize(THttpRequest* request) const;
 };
@@ -310,7 +324,7 @@ struct THeadObjectRequest
 struct THeadObjectResponse
 {
     TInstant LastModified;
-    TString ETag;
+    std::string ETag;
     i64 Size;
 
     void Deserialize(const NHttp::IResponsePtr& response);
@@ -341,6 +355,7 @@ struct IClient
     DEFINE_COMMAND(AbortMultipartUpload)
     DEFINE_COMMAND(CompleteMultipartUpload)
     DEFINE_COMMAND(HeadObject)
+    DEFINE_COMMAND(HeadBucket)
 #undef DEFINE_COMMAND
 };
 

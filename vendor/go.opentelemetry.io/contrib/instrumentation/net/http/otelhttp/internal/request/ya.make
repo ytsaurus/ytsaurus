@@ -1,8 +1,11 @@
 GO_LIBRARY()
 
-LICENSE(Apache-2.0)
+LICENSE(
+    Apache-2.0 AND
+    BSD-3-Clause
+)
 
-VERSION(v0.61.0)
+VERSION(v0.63.0)
 
 SRCS(
     body_wrapper.go

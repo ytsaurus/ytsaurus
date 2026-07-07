@@ -52,6 +52,7 @@ public:
 
     // Thread affinity: Profiler thread.
     void ProfileStarvationIntervals(const TPoolTreeSnapshotPtr& treeSnapshot);
+
 private:
     const NProfiling::TProfiler Profiler_;
     const bool SparsifyMetrics_;
@@ -66,13 +67,13 @@ private:
         TEnumIndexedArray<EOperationState, NProfiling::TCounter> FinishedCounters;
         NProfiling::TCounter BannedCounter;
     };
-    THashMap<TString, TUnregisterOperationCounters> PoolToUnregisterOperationCounters_;
+    THashMap<std::string, TUnregisterOperationCounters> PoolToUnregisterOperationCounters_;
 
     struct TOperationUserProfilingTag
     {
-        TString PoolId;
+        std::string PoolId;
         std::string UserName;
-        std::optional<TString> CustomTag;
+        std::optional<std::string> CustomTag;
 
         bool operator==(const TOperationUserProfilingTag& other) const = default;
     };
@@ -80,7 +81,7 @@ private:
     struct TOperationState
     {
         int SlotIndex;
-        TString ParentPoolId;
+        std::string ParentPoolId;
         std::vector<TOperationUserProfilingTag> UserProfilingTags;
 
         NProfiling::TBufferedProducerPtr BufferedProducer;
@@ -102,24 +103,24 @@ private:
         NProfiling::TBufferedProducerPtr BufferedProducer;
     };
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PoolNameToStateLock_);
-    THashMap<TString, TPoolState> PoolNameToState_;
+    THashMap<std::string, TPoolState> PoolNameToState_;
 
     // NB(eshcherbin): Ideally pool's job metrics should be embedded in the state,
     // however, we don't want to acquire the lock when updating job metrics.
-    THashMap<TString, TJobMetrics> PoolNameToJobMetrics_;
+    THashMap<std::string, TJobMetrics> PoolNameToJobMetrics_;
 
     NProfiling::TGauge NodeCountGauge_;
     NProfiling::TGauge PoolCountGauge_;
     NProfiling::TGauge TotalElementCountGauge_;
 
-    THashMap<std::optional<NPolicy::EAllocationSchedulingStage>, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
-    TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
-    TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
-    TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, THashMap<TString, TJobResources>> ImproperlyPreemptedResourcesByReasonMap_;
+    THashMap<std::optional<NPolicy::EAllocationSchedulingStage>, THashMap<std::string, TJobResources>> ScheduledResourcesByStageMap_;
+    TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, THashMap<std::string, TJobResources>> PreemptedResourcesByReasonMap_;
+    TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, THashMap<std::string, TJobResources>> PreemptedResourceTimesByReasonMap_;
+    TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, THashMap<std::string, TJobResources>> ImproperlyPreemptedResourcesByReasonMap_;
 
     NProfiling::TBufferedProducerPtr DistributedResourcesBufferedProducer_;
 
-    void RegisterPoolProfiler(const TString& poolName);
+    void RegisterPoolProfiler(const std::string& poolName);
 
     void PrepareOperationProfilingEntries(const TPoolTreeSnapshotPtr& treeSnapshot);
 

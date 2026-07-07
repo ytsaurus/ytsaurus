@@ -1,5 +1,6 @@
 #include "ticket_authenticator.h"
 
+#include "auth_cache.h"
 #include "blackbox_service.h"
 #include "config.h"
 #include "credentials.h"
@@ -10,9 +11,14 @@
 
 #include <yt/yt/library/tvm/service/tvm_service.h>
 
+#include <util/digest/multi.h>
+
+#include <variant>
+
 namespace NYT::NAuth {
 
 using namespace NYTree;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,7 +99,7 @@ private:
     const ITvmServicePtr TvmService_;
 
 private:
-    TError CheckScope(const TString& ticket, const TString& ticketHash)
+    TError CheckScope(const std::string& ticket, const std::string& ticketHash)
     {
         YT_LOG_DEBUG("Validating ticket scopes (TicketHash: %v)",
             ticketHash);
@@ -122,8 +128,8 @@ private:
     }
 
     TAuthenticationResult OnBlackboxCallResult(
-        const TString& ticket,
-        const TString& ticketHash,
+        const std::string& ticket,
+        const std::string& ticketHash,
         const INodePtr& data)
     {
         auto errorOrResult = OnCallResultImpl(data);
@@ -146,13 +152,12 @@ private:
 
     TErrorOr<TAuthenticationResult> OnCallResultImpl(const INodePtr& data)
     {
-        static const TString ErrorPath("/error");
-        auto errorNode = FindNodeByYPath(data, ErrorPath);
-        if (errorNode) {
-            return TError(errorNode->GetValue<TString>(), TError::DisableFormat);
+        static const TYPath ErrorPath("/error");
+        if (auto errorNode = FindNodeByYPath(data, ErrorPath)) {
+            return TError(errorNode->GetValue<std::string>(), TError::DisableFormat);
         }
 
-        static const TString UserPath("/users/0");
+        static const std::string UserPath("/users/0");
         auto userNode = GetNodeByYPath(data, UserPath);
 
         auto login = BlackboxService_->GetLogin(userNode);
@@ -179,6 +184,86 @@ ITicketAuthenticatorPtr CreateBlackboxTicketAuthenticator(
         std::move(config),
         std::move(blackboxService),
         std::move(tvmService));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTicketAuthenticatorCacheKey
+{
+    bool ServiceTicket;
+    std::string Ticket;
+
+    operator size_t() const
+    {
+        return MultiHash(ServiceTicket, Ticket);
+    }
+
+    bool operator==(const TTicketAuthenticatorCacheKey&) const = default;
+};
+
+class TCachingTicketAuthenticator
+    : public ITicketAuthenticator
+    , public TAuthCache<TTicketAuthenticatorCacheKey, TAuthenticationResult, std::monostate>
+{
+public:
+    TCachingTicketAuthenticator(
+        TCachingTicketAuthenticatorConfigPtr config,
+        ITicketAuthenticatorPtr underlying,
+        TProfiler profiler)
+        : TAuthCache(config->Cache, std::move(profiler))
+        , Underlying_(std::move(underlying))
+    { }
+
+    TFuture<TAuthenticationResult> Authenticate(
+        const TTicketCredentials& credentials) override
+    {
+        return Get(
+            TTicketAuthenticatorCacheKey{
+                .ServiceTicket = false,
+                .Ticket = credentials.Ticket,
+            },
+            std::monostate{});
+    }
+
+    TFuture<TAuthenticationResult> Authenticate(
+        const TServiceTicketCredentials& credentials) override
+    {
+        return Get(
+            TTicketAuthenticatorCacheKey{
+                .ServiceTicket = true,
+                .Ticket = credentials.Ticket,
+            },
+            std::monostate{});
+    }
+
+private:
+    const ITicketAuthenticatorPtr Underlying_;
+
+    TFuture<TAuthenticationResult> DoGet(
+        const TTicketAuthenticatorCacheKey& key,
+        const std::monostate& /*context*/) noexcept override
+    {
+        if (key.ServiceTicket) {
+            return Underlying_->Authenticate(TServiceTicketCredentials{
+                .Ticket = key.Ticket,
+            });
+        } else {
+            return Underlying_->Authenticate(TTicketCredentials{
+                .Ticket = key.Ticket,
+            });
+        }
+    }
+};
+
+ITicketAuthenticatorPtr CreateCachingTicketAuthenticator(
+    TCachingTicketAuthenticatorConfigPtr config,
+    ITicketAuthenticatorPtr underlying,
+    TProfiler profiler)
+{
+    return New<TCachingTicketAuthenticator>(
+        std::move(config),
+        std::move(underlying),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

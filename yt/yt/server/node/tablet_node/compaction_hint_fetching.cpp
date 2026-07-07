@@ -13,7 +13,6 @@ using namespace NYTree;
 using namespace NLogging;
 using namespace NProfiling;
 using namespace NConcurrency;
-using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,7 +205,7 @@ void TCompactionHintFetcher::ExecuteEnqueuedPipelines()
         return;
     }
 
-    i64 limit = RequestThrottler_->GetAvailable();
+    i64 limit = RequestThrottler_->TryAcquireAvailable(std::numeric_limits<i64>::max());
 
     if (limit == 0) {
         ThrottledRequestCount_.Increment();
@@ -224,9 +223,8 @@ void TCompactionHintFetcher::ExecuteEnqueuedPipelines()
         Pipelines_.PopBack()->Fetch();
     }
 
-    i64 requestCount = limit - remainingLimit;
-    YT_VERIFY(RequestThrottler_->TryAcquire(remainingLimit));
-    RequestCount_.Increment(requestCount);
+    RequestThrottler_->Release(remainingLimit);
+    RequestCount_.Increment(limit - remainingLimit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

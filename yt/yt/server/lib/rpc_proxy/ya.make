@@ -30,7 +30,7 @@ PEERDIR(
     yt/yt/server/lib/transaction_server
     yt/yt/server/lib/security_server
 
-    yt/yt/server/lib/signature
+    yt/yt/library/signature/components
 
     yt/yt/core
 )

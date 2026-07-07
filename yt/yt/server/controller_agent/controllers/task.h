@@ -1,29 +1,28 @@
 #pragma once
 
-#include "private.h"
-
-#include "speculative_job_manager.h"
+#include "aggregated_job_statistics.h"
 #include "data_flow_graph.h"
 #include "experiment_job_manager.h"
 #include "extended_job_resources.h"
+#include "helpers.h"
+#include "job_collective_manager.h"
 #include "job_info.h"
 #include "job_splitter.h"
-#include "helpers.h"
+#include "private.h"
 #include "probing_job_manager.h"
-#include "job_collective_manager.h"
-#include "aggregated_job_statistics.h"
+#include "speculative_job_manager.h"
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
+#include <yt/yt/server/lib/controller_agent/progress_counter.h>
+#include <yt/yt/server/lib/controller_agent/read_range_registry.h>
+
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/yt/server/lib/scheduler/structs.h>
-
-#include <yt/yt/server/lib/controller_agent/progress_counter.h>
-#include <yt/yt/server/lib/controller_agent/read_range_registry.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
@@ -109,12 +108,12 @@ public:
 
     //! Human-readable title of a particular task that appears in logging. For builtin tasks it coincides
     //! with the vertex descriptor and a task level in brackets (if applicable).
-    virtual TString GetTitle() const;
+    virtual std::string GetTitle() const;
 
     virtual TCompositePendingJobCount GetPendingJobCount() const;
     TCompositePendingJobCount GetPendingJobCountDelta();
     bool HasNoPendingJobs() const;
-    bool HasNoPendingJobs(const TString& poolTree) const;
+    bool HasNoPendingJobs(const std::string& poolTree) const;
 
     virtual int GetTotalJobCount() const;
     int GetTotalJobCountDelta();
@@ -200,6 +199,7 @@ public:
 
     IDigest* GetUserJobMemoryDigest() const;
     IDigest* GetJobProxyMemoryDigest() const;
+    const TLogDigestConfigPtr& GetJobProxyMemoryDigestConfig() const;
 
     virtual void SetupCallbacks();
 
@@ -252,7 +252,7 @@ public:
     //! Modifies the job spec so the job will use the experimental setup if required.
     void PatchUserJobSpec(NControllerAgent::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const;
 
-    virtual THashMap<TString, TString> BuildJobEnvironment() const;
+    virtual THashMap<std::string, std::string> BuildJobEnvironment() const;
 
     NScheduler::TAllocationStartDescriptor CreateAllocationStartDescriptor(
         const TAllocation& allocation,
@@ -426,6 +426,9 @@ protected:
         const TAllocation& allocation);
 
     virtual void StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& joblet) const;
+
+    virtual const TChunkListPoolPtr& GetOutputChunkListPool() const;
+    virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag);
 
 private:
     TCompositePendingJobCount CachedPendingJobCount_;

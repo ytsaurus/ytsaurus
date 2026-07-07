@@ -1,10 +1,8 @@
-#include "operation_controller.h"
-#include "operation_controller_host.h"
 #include "config.h"
 #include "helpers.h"
 #include "operation.h"
-
-#include <yt/yt/library/ytprof/heap_profiler.h>
+#include "operation_controller.h"
+#include "operation_controller_host.h"
 
 #include <yt/yt/server/controller_agent/controllers/ordered_controller.h>
 #include <yt/yt/server/controller_agent/controllers/remote_copy_controller.h>
@@ -17,15 +15,18 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
+
+#include <yt/yt/library/ytprof/heap_profiler.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/yson/consumer.h>
-#include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
+#include <yt/yt/core/yson/string.h>
 
 namespace NYT::NControllerAgent {
 
@@ -92,6 +93,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
         allocationProto->set_tree_id(allocation.TreeId);
         allocationProto->set_node_id(ToProto(allocation.NodeId));
         allocationProto->set_node_address(allocation.NodeAddress);
+        allocationProto->set_allocation_group_name(allocation.AllocationGroupName);
     }
     ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
     ToProto(resultProto->mutable_composite_needed_resources(), result.NeededResources);
@@ -252,9 +254,9 @@ public:
         return DoExecuteGuarded(&IOperationController::SaveSnapshot, output);
     }
 
-    TOperationControllerReviveResult Revive() override
+    TOperationControllerReviveResult Revive(bool suspended) override
     {
-        return DoExecuteGuarded(&IOperationController::Revive);
+        return DoExecuteGuarded(&IOperationController::Revive, suspended);
     }
 
     void Terminate(EControllerState finalState) override
@@ -409,7 +411,7 @@ public:
 
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
         const TAllocationSchedulingContext& context,
-        const TString& treeId) override
+        const std::string& treeId) override
     {
         return DoExecuteGuarded(&IOperationController::ScheduleAllocation, context, treeId);
     }
@@ -499,7 +501,7 @@ public:
         return DoExecuteGuarded(&IOperationController::GetJobShells);
     }
 
-    TString WriteCoreDump() const override
+    std::string WriteCoreDump() const override
     {
         return DoExecuteGuarded(&IOperationController::WriteCoreDump);
     }

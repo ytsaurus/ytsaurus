@@ -30,7 +30,7 @@ struct TConfig
     : public NYTree::TYsonStruct
 {
     TNbdServerConfigPtr NbdServer;
-    THashMap<TString, TChunkBlockDeviceConfigPtr> NbdChunkBlockDevices;
+    THashMap<std::string, TChunkBlockDeviceConfigPtr> NbdChunkBlockDevices;
     std::string DataNodeNbdServiceAddress;
     int ThreadCount;
 
@@ -67,7 +67,8 @@ protected:
     {
         //NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateStderrLogger(NLogging::ELogLevel::Debug));
 
-        auto config = NYTree::ConvertTo<NNbd::TConfigPtr>(NYson::TYsonString(TFileInput(ConfigPath_).ReadAll()));
+        // TODO(babenko): drop TString cast once TFileInput accepts std::string.
+        auto config = NYTree::ConvertTo<NNbd::TConfigPtr>(NYson::TYsonString(TFileInput(TString(ConfigPath_)).ReadAll()));
 
         auto poller = NConcurrency::CreateThreadPoolPoller(config->ThreadCount, "Poller");
         auto threadPool = NConcurrency::CreateThreadPool(config->ThreadCount, "Nbd");
@@ -79,7 +80,7 @@ protected:
 
         for (const auto& [deviceId, deviceConfig] : config->NbdChunkBlockDevices) {
             // Create channel to data node NBD service.
-            auto client = CreateBusClient(NBus::TBusClientConfig::CreateTcp(config->DataNodeNbdServiceAddress));
+            auto client = CreateBusClient(NBus::NTcp::TBusClientConfig::CreateTcp(config->DataNodeNbdServiceAddress));
             auto channel = NRpc::NBus::CreateBusChannel(std::move(client));
             auto logger = nbdServer->GetLogger();
 
@@ -101,7 +102,7 @@ protected:
     }
 
 private:
-    TString ConfigPath_;
+    std::string ConfigPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

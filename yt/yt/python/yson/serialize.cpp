@@ -42,7 +42,9 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ValidateKeyType(const Py::Object& key, TContext* context = nullptr)
+namespace {
+
+void ValidateKeyType(const Py::Object& key, TContext* context = nullptr)
 {
     static auto* YsonStringProxyClass = FindYsonTypeClass("YsonStringProxy");
 
@@ -61,7 +63,7 @@ static void ValidateKeyType(const Py::Object& key, TContext* context = nullptr)
 void SerializeLazyMapFragment(
     const Py::Object& map,
     IYsonConsumer* consumer,
-    const std::optional<TString>& encoding,
+    const std::optional<std::string>& encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
     bool sortKeys,
@@ -123,7 +125,7 @@ void SerializeLazyMapFragment(
 void SerializeMapFragment(
     const Py::Object& map,
     IYsonConsumer* consumer,
-    const std::optional<TString> &encoding,
+    const std::optional<std::string>& encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
     bool sortKeys,
@@ -157,7 +159,7 @@ void SerializeMapFragment(
     auto iterator = CreateIterator(items);
 
     if (sortKeys) {
-        std::vector<std::pair<TString, PyObject*>> itemsSortedByKey;
+        std::vector<std::pair<std::string, PyObject*>> itemsSortedByKey;
 
         while (auto* item = PyIter_Next(*iterator)) {
             auto key = Py::Object(PyTuple_GetItem(item, 0), false);
@@ -271,10 +273,12 @@ bool HasCallableToYsonType(const Py::Object& obj)
     return PyObject_HasAttr(obj.ptr(), toYsonTypePyStr) && obj.getAttr("to_yson_type").isCallable();
 }
 
+} // namespace
+
 void Serialize(
     const Py::Object& obj,
     IYsonConsumer* consumer,
-    const std::optional<TString>& encoding,
+    const std::optional<std::string>& encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
     bool sortKeys,
@@ -370,7 +374,7 @@ void Serialize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Deserialize(Py::Object& obj, INodePtr node, const std::optional<TString>& encoding)
+void Deserialize(Py::Object& obj, INodePtr node, const std::optional<std::string>& encoding)
 {
     Py::Object attributes = Py::Dict();
     if (!node->Attributes().ListKeys().empty()) {

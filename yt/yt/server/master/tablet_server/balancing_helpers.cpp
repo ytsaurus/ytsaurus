@@ -259,6 +259,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
             tablet->GetId(),
             size,
             newTabletCount);
+        return {};
     }
 
     std::vector<TTablet*> tablets;
@@ -438,9 +439,7 @@ std::vector<TTabletMoveDescriptor> ReassignInMemoryTablets(
                 break;
             }
 
-            auto statistics = tablet->GetTabletStatistics();
-            auto tabletSize = statistics.MemorySize;
-
+            auto tabletSize = tablet->GetTabletStatistics().MemorySize;
             if (tabletSize == 0) {
                 continue;
             }

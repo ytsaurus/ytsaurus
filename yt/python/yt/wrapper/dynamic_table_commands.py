@@ -30,7 +30,7 @@ ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
 TABLET_ACTION_KEEPALIVE_PERIOD = 55  # s
 
 
-def _waiting_for_condition(condition, error_message, check_interval=None, timeout=None, client=None):
+def _waiting_for_condition(condition, error_message, error_attributes=None, check_interval=None, timeout=None, client=None):
     if check_interval is None:
         check_interval = get_config(client)["tablets_check_interval"] / 1000.0
     if timeout is None:
@@ -39,7 +39,7 @@ def _waiting_for_condition(condition, error_message, check_interval=None, timeou
     start_time = time.time()
     while not condition():
         if time.time() - start_time > timeout:
-            raise YtError(error_message)
+            raise YtError(error_message, attributes=error_attributes)
 
         time.sleep(check_interval)
 
@@ -49,13 +49,15 @@ def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index
         tablet_count = get(path + "/@tablet_count", client=client)
         first_tablet_index = get_value(first_tablet_index, 0)
         last_tablet_index = get_value(last_tablet_index, tablet_count - 1)
+
         is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transient" and \
             all(tablet["state"] == state for tablet in  # noqa
                 get(path + "/@tablets", client=client)[first_tablet_index:last_tablet_index + 1])
     else:
         is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) == state  # noqa
 
-    _waiting_for_condition(is_tablets_ready, "Timed out while waiting for tablets", client=client)
+    error_attributes = {"path": path, "state": state, "first_tablet_index": first_tablet_index, "last_tablet_index": last_tablet_index}
+    _waiting_for_condition(is_tablets_ready, "Timed out while waiting for tablets", error_attributes=error_attributes, client=client)
 
 
 def _waiting_for_tablet_transition(path, client=None):
@@ -202,7 +204,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
                 execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
                 use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
                 with_timestamps=None, udf_registry_path=None, use_lookup_cache=None, execution_backend=None,
-                expression_builder_version=None, client=None):
+                expression_builder_version=None, read_from=None, client=None):
     """Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
@@ -244,6 +246,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "versioned_read_options", _get_versioned_read_options(versioned_read_options, with_timestamps))
     set_param(params, "udf_registry_path", udf_registry_path)
     set_param(params, "execution_backend", execution_backend)
+    set_param(params, "read_from", read_from)
 
     _check_transaction_type(client)
 
@@ -423,7 +426,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
         client=client).run()
 
 
-def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, format=None, raw=None, client=None):
+def lock_rows(table, input_stream, locks=None, lock_type=None, durability=None, format=None, raw=None, client=None):
     """Lock rows with keys from input_stream from dynamic table.
 
     :param table: table to remove rows from.
@@ -437,6 +440,8 @@ def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, fo
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
+
+    locks = get_value(locks, [])
 
     table = TablePath(table, client=client)
     format = _prepare_command_format(format, raw, client)
@@ -474,7 +479,7 @@ def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, fo
 def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
                 enable_partial_result=None, use_lookup_cache=None,
                 format=None, raw=None, versioned=None, retention_timestamp=None, versioned_read_options=None,
-                with_timestamps=None, client=None):
+                with_timestamps=None, read_from=None, client=None):
     """Lookups rows in dynamic table.
 
     .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
@@ -503,6 +508,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     set_param(params, "versioned", versioned)
     set_param(params, "timeout", get_config(client)["proxy"]["heavy_request_timeout"])
     set_param(params, "versioned_read_options", _get_versioned_read_options(versioned_read_options, with_timestamps))
+    set_param(params, "read_from", read_from)
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:

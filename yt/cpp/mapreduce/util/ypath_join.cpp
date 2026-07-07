@@ -29,7 +29,7 @@ void AppendToYPath(TYPath& path) noexcept
 
 void AppendToYPathImpl(TYPath& path, TStringBuf arg)
 {
-    if (Y_UNLIKELY(arg.StartsWith("//") || arg == SLASH)) {
+    if (arg.StartsWith("//") || arg == SLASH) [[unlikely]] {
         path.clear();
     }
 

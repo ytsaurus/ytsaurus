@@ -397,5 +397,8 @@ def make_read_request(command_name, path, params, process_response_action, retri
                     iterator.last_response._get_response()),
                 get_response_parameters=lambda: iterator.start_response.response_parameters)
     except:  # noqa
-        tx.abort()
+        try:
+            tx.abort()
+        except Exception as abort_error:
+            logger.warning("Read request cleanup failed: %s", str(abort_error))
         raise

@@ -38,6 +38,7 @@ target_compile_options(chyt-server-protos PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(chyt-server-protos PUBLIC

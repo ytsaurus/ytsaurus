@@ -25,7 +25,7 @@ void TTabletBalancerMasterConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->TabletBalancerSchedule.IsEmpty()) {
-            THROW_ERROR_EXCEPTION("tablet_balancer_schedule cannot be empty in master config");
+            THROW_ERROR_EXCEPTION("\"tablet_balancer_schedule\" cannot be empty in master config");
         }
     });
 }
@@ -91,6 +91,9 @@ void TDynamicTabletCellBalancerMasterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("rebalance_wait_time", &TThis::RebalanceWaitTime)
         .Default(TDuration::Minutes(1));
+    registrar.Parameter("enable_leader_smoothing", &TThis::EnableLeaderSmoothing)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,6 +133,14 @@ void TDynamicCellHydraPersistenceSynchronizerConfig::Register(TRegistrar registr
     registrar.Parameter("max_hydra_persistence_file_id_updates_per_iteration", &TThis::MaxHydraPersistenceFileIdUpdatesPerIteration)
         .GreaterThan(0)
         .Default(200);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicTabletManagerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("mount_via_orphaned_tablet_actions", &TThis::MountViaOrphanedTabletActions)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -255,10 +266,6 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_hunk_specific_media", &TThis::EnableHunkSpecificMedia)
         .Default(true);
 
-    registrar.Parameter("safe_check_secondary_cell_storage", &TThis::SafeCheckSecondaryCellStorage)
-        .Default(false)
-        .DontSerializeDefault();
-
     registrar.Parameter("enable_smooth_tablet_movement", &TThis::EnableSmoothTabletMovement)
         .Default(false);
 
@@ -275,7 +282,19 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_alter_to_static_with_hunks", &TThis::EnableAlterToStaticWithHunks)
         .Default(false);
 
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
+
+    registrar.Parameter("max_reshard_complexity", &TThis::MaxReshardComplexity)
+        .Default(5'000'000);
+
+    registrar.Parameter("update_table_content_revision_on_heartbeat", &TThis::UpdateTableContentRevisionOnHeartbeat)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Preprocessor([] (TThis* config) {
+        config->MaxSnapshotCountToKeep = 2;
+
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;
 

@@ -32,7 +32,7 @@ class TestMasterCellAddition(MasterCellAdditionBaseChecks):
     DOWNTIME_ALL_COMPONENTS = True
 
     @authors("shakurov", "cherepashka")
-    @pytest.mark.timeout(120)
+    @pytest.mark.timeout(150)
     def test_add_new_cell(self):
         self.execute_checks_with_cell_addition(downtime=self.DOWNTIME_ALL_COMPONENTS)
 

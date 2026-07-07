@@ -10,6 +10,7 @@ RECURSE(
     column_converters
     containers
     coredumper
+    cypress_election
     decimal
     disk_manager
     dns_over_rpc
@@ -24,6 +25,7 @@ RECURSE(
     heavy_hitters
     heavy_schema_validation
     huggingface_client
+    lock_election
     min_hash_digest
     monitoring
     numeric
@@ -41,17 +43,24 @@ RECURSE(
     safe_assert
     server_program
     signals
+    signature
     skiff_ext
     sparse_coredump
     stockpile
     syncmap
     tcmalloc
     tracing
+    tvm
     undumpable
     vector_hdrf
     web_assembly
     xor_filter
+    yaml_helpers
 )
+
+IF (OS_LINUX)
+    RECURSE(cgroup)
+ENDIF()
 
 IF (NOT OPENSOURCE)
     RECURSE(
@@ -59,6 +68,7 @@ IF (NOT OPENSOURCE)
         di
         named_value
         s3
+        tz_types
         ytprof
     )
 ENDIF()

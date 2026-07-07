@@ -1,0 +1,160 @@
+from __future__ import annotations
+
+import typing as t
+
+from sqlglot import exp
+from sqlglot.helper import seq_get
+from sqlglot.parsers.postgres import PostgresParser
+from sqlglot.parser import build_convert_timezone
+from sqlglot.tokens import TokenType
+from sqlglot.dialects.dialect import map_date_part
+from builtins import type as Type
+
+if t.TYPE_CHECKING:
+    from sqlglot._typing import E
+    from collections.abc import Collection
+
+
+def _build_date_delta(expr_type: Type[E]) -> t.Callable[[list], E]:
+    def _builder(args: list) -> E:
+        expr = expr_type(
+            this=seq_get(args, 2),
+            expression=seq_get(args, 1),
+            unit=map_date_part(seq_get(args, 0)),
+        )
+        if expr_type is exp.TsOrDsAdd:
+            expr.set("return_type", exp.DType.TIMESTAMP.into_expr())
+
+        return expr
+
+    return _builder
+
+
+class RedshiftParser(PostgresParser):
+    FUNCTIONS = {
+        **{k: v for k, v in PostgresParser.FUNCTIONS.items() if k != "GET_BIT"},
+        "ADD_MONTHS": lambda args: exp.TsOrDsAdd(
+            this=seq_get(args, 0),
+            expression=seq_get(args, 1),
+            unit=exp.var("month"),
+            return_type=exp.DType.TIMESTAMP.into_expr(),
+        ),
+        "CONVERT_TIMEZONE": lambda args: build_convert_timezone(args, "UTC"),
+        "DATEADD": _build_date_delta(exp.TsOrDsAdd),
+        "DATE_ADD": _build_date_delta(exp.TsOrDsAdd),
+        "DATEDIFF": _build_date_delta(exp.TsOrDsDiff),
+        "DATE_DIFF": _build_date_delta(exp.TsOrDsDiff),
+        "GETDATE": exp.CurrentTimestamp.from_arg_list,
+        "LISTAGG": exp.GroupConcat.from_arg_list,
+        "REGEXP_SUBSTR": lambda args: exp.RegexpExtract(
+            this=seq_get(args, 0),
+            expression=seq_get(args, 1),
+            position=seq_get(args, 2),
+            occurrence=seq_get(args, 3),
+            parameters=seq_get(args, 4),
+        ),
+        "SPLIT_TO_ARRAY": lambda args: exp.StringToArray(
+            this=seq_get(args, 0), expression=seq_get(args, 1) or exp.Literal.string(",")
+        ),
+        "ARRAY_CONTAINS": lambda args: exp.ArrayContains(
+            this=seq_get(args, 0),
+            expression=seq_get(args, 1),
+            check_null=seq_get(args, 2),
+        ),
+        "STRTOL": exp.FromBase.from_arg_list,
+        "TEXTLEN": exp.Length.from_arg_list,
+    }
+
+    NO_PAREN_FUNCTIONS = {
+        **PostgresParser.NO_PAREN_FUNCTIONS,
+        TokenType.CURRENT_USER_ID: exp.CurrentUserId,
+    }
+
+    NO_PAREN_FUNCTION_PARSERS = {
+        **PostgresParser.NO_PAREN_FUNCTION_PARSERS,
+        "APPROXIMATE": lambda self: self._parse_approximate_count(),
+        "SYSDATE": lambda self: self.expression(exp.CurrentTimestamp(sysdate=True)),
+    }
+
+    FUNCTION_PARSERS = {
+        **PostgresParser.FUNCTION_PARSERS,
+        "OBJECT_TRANSFORM": lambda self: self._parse_object_transform(),
+    }
+
+    SUPPORTS_IMPLICIT_UNNEST = True
+
+    def _parse_table(
+        self,
+        schema: bool = False,
+        joins: bool = False,
+        alias_tokens: Collection[TokenType] | None = None,
+        parse_bracket: bool = False,
+        is_db_reference: bool = False,
+        parse_partition: bool = False,
+        consume_pipe: bool = False,
+    ) -> exp.Expr | None:
+        # Redshift supports UNPIVOTing SUPER objects, e.g. `UNPIVOT foo.obj[0] AS val AT attr`
+        unpivot = self._match(TokenType.UNPIVOT)
+        table = super()._parse_table(
+            schema=schema,
+            joins=joins,
+            alias_tokens=alias_tokens,
+            parse_bracket=parse_bracket,
+            is_db_reference=is_db_reference,
+        )
+
+        return self.expression(exp.Pivot(this=table, unpivot=True)) if unpivot else table
+
+    def _parse_convert(self, strict: bool, safe: bool | None = None) -> exp.Expr | None:
+        to = self._parse_types()
+        self._match(TokenType.COMMA)
+        this = self._parse_bitwise()
+        return self.expression(exp.Cast(this=this, to=to, safe=safe))
+
+    def _parse_object_transform(self) -> exp.ObjectTransform:
+        this = self._parse_column()
+        keep: list[exp.Expr] = []
+        set_: list[exp.Expr] = []
+        if self._match(TokenType.KEEP):
+            keep = self._parse_csv(self._parse_primary)
+        if self._match(TokenType.SET):
+            set_ = self._parse_csv(self._parse_expression)
+        return self.expression(exp.ObjectTransform(this=this, keep=keep, set_=set_))
+
+    def _parse_approximate_count(self) -> exp.ApproxDistinct | exp.ApproxQuantile | None:
+        index = self._index - 1
+        func = self._parse_function()
+
+        if isinstance(func, exp.Count) and isinstance(func.this, exp.Distinct):
+            return self.expression(exp.ApproxDistinct(this=seq_get(func.this.expressions, 0)))
+        if isinstance(func, exp.WithinGroup) and isinstance(func.this, exp.PercentileDisc):
+            ordered = seq_get(func.expression.expressions, 0)
+            return self.expression(
+                exp.ApproxQuantile(
+                    this=ordered.this if ordered else None,
+                    quantile=func.this.this,
+                )
+            )
+        self._retreat(index)
+        return None
+
+    def _parse_projections(self) -> tuple[list[exp.Expr], list[exp.Expr] | None]:
+        projections, _ = super()._parse_projections()
+        if self._prev.text.upper() == "EXCLUDE" and self._curr:
+            self._retreat(self._index - 1)
+
+        # EXCLUDE clause always comes at the end of the projection list and applies to it as a whole
+        exclude = (
+            self._parse_wrapped_csv(self._parse_expression, optional=True)
+            if self._match_text_seq("EXCLUDE")
+            else []
+        )
+
+        if (
+            exclude
+            and isinstance(expr := projections[-1], exp.Alias)
+            and expr.alias.upper() == "EXCLUDE"
+        ):
+            projections[-1] = expr.this.pop()
+
+        return projections, exclude

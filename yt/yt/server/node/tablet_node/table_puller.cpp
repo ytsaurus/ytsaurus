@@ -43,6 +43,7 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -74,8 +75,11 @@ DEFINE_ENUM(EPullerErrorKind,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int TabletRowsPerRead = 1000;
-static const TString PullerErrorKindAttribute = "puller_error_kind";
+inline static constexpr int TabletRowsPerRead = 1000;
+static const std::string PullerErrorKindAttribute = "puller_error_kind";
+
+inline static constexpr int PreviousIterationDurationSmoothingWeight = 4;
+inline static constexpr int CurrentIterationDurationSmoothingWeight = 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,6 +126,12 @@ private:
     const IAlienClusterClientCachePtr Underlying_;
 };
 
+struct TThrottlingTimes
+{
+    TDuration ThrottleTime;
+    TDuration RelativeThrottleTime;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTablePuller
@@ -163,30 +173,41 @@ public:
         , MemoryTracker_(std::move(memoryTracker))
         , ErrorManager_(std::move(errorManager))
         , ChaosAgent_(tablet->GetChaosAgent())
-        , BannedReplicaTracker_(Logger, MountConfig_->Testing.TablePullerReplicaBanIterationCount)
-        , QueueReplicaSelector_(Logger, BannedReplicaTracker_)
+        , QueueReplicaSelector_(
+            Logger,
+            MountConfig_->Testing.TablePullerReplicaBanIterationCount,
+            MountConfig_->TablePullerForceSameClusterQueue)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
         , ReplicatorClientCache_(std::move(replicatorClientCache))
+        , ReplicationIterationTimeTracker_(
+            PreviousIterationDurationSmoothingWeight,
+            CurrentIterationDurationSmoothingWeight,
+            MountConfig_->ReplicationTickPeriod)
     { }
 
     void Enable() override
     {
         Disable();
 
-        FiberFuture_ = BIND(&TTablePuller::FiberMain, MakeWeak(this))
-            .AsyncVia(Slot_->GetHydraManager()->GetAutomatonCancelableContext()->CreateInvoker(WorkerInvoker_))
-            .Run();
+        ReplicationExecutor_ = New<TPeriodicExecutor>(
+            Slot_->GetHydraManager()->GetAutomatonCancelableContext()->CreateInvoker(WorkerInvoker_),
+            BIND(&TTablePuller::OnReplicationTick, MakeWeak(this)),
+            TPeriodicExecutorOptions{
+                .Period = MountConfig_->ReplicationTickPeriod,
+                .DelayMode = EPeriodicExecutorDelayMode::FromPreviousStart,
+            });
+        ReplicationExecutor_->Start();
 
-        YT_LOG_INFO("Puller fiber started");
+        YT_LOG_INFO("Table puller enabled");
     }
 
     void Disable() override
     {
-        if (FiberFuture_) {
-            FiberFuture_.Cancel(TError("Puller disabled"));
-            YT_LOG_INFO("Puller fiber stopped");
+        if (auto executor = std::exchange(ReplicationExecutor_, nullptr)) {
+            YT_UNUSED_FUTURE(executor->Stop());
         }
-        FiberFuture_.Reset();
+
+        YT_LOG_INFO("Table puller disabled");
     }
 
     void BuildOrchidYson(NYTree::TFluentMap fluent) override
@@ -226,24 +247,15 @@ private:
 
     const IErrorManagerPtr ErrorManager_;
 
-    IChaosAgentPtr ChaosAgent_;
-    TBannedReplicaTracker BannedReplicaTracker_;
+    const IChaosAgentPtr ChaosAgent_;
+
     TQueueReplicaSelector QueueReplicaSelector_;
     ui64 ReplicationRound_ = 0;
     TReplicationProgress LastReplicationProgressAdvance_;
     TPerFiberClusterClientCache ReplicatorClientCache_;
+    TIterationTimeTracker ReplicationIterationTimeTracker_;
 
-    TFuture<void> FiberFuture_;
-
-    void FiberMain()
-    {
-        while (true) {
-            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TablePuller"));
-            NProfiling::TWallTimer timer;
-            FiberIteration();
-            TDelayedExecutor::WaitForDuration(MountConfig_->ReplicationTickPeriod - timer.GetElapsedTime());
-        }
-    }
+    TPeriodicExecutorPtr ReplicationExecutor_;
 
     void UpdatePullerErrors(TTabletErrors& tabletErrors, TError currentPullError)
     {
@@ -257,7 +269,8 @@ private:
             if (kind == EPullerErrorKind::UnableToPickQueueReplica) {
                 auto aggregatedError = TError("Some queue replicas are banned");
 
-                for (const auto& [replicaId, banInfo] : BannedReplicaTracker_.GetBannedReplicas()) {
+                const auto& bannedReplicaTracker = QueueReplicaSelector_.GetBannedReplicaTracker();
+                for (const auto& [replicaId, banInfo] : bannedReplicaTracker.GetBannedReplicas()) {
                     if (banInfo.Counter > 0) {
                         aggregatedError = aggregatedError
                             << (TError(banInfo.LastError)
@@ -281,8 +294,10 @@ private:
         tabletErrors.BackgroundErrors[ETabletBackgroundActivity::Pull].Store(combinedError);
     }
 
-    void FiberIteration()
+    void OnReplicationTick()
     {
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TablePuller"));
+
         TTabletSnapshotPtr tabletSnapshot;
 
         try {
@@ -437,9 +452,10 @@ private:
 
                 QueueReplicaSelector_.ResetLastPulledFromReplicaId();
             } else {
-                BannedReplicaTracker_.SyncReplicas(replicationCard);
+                QueueReplicaSelector_.GetBannedReplicaTracker().SyncReplicas(replicationCard);
                 DoPullRows(
                     tabletSnapshot,
+                    snapshotEra,
                     replicationCard,
                     selfReplica,
                     replicationProgress);
@@ -463,8 +479,67 @@ private:
         }
     }
 
+    TThrottlingTimes DoThrottle(
+        TReplicationEra snapshotEra,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const TReplicationProgress& replicationProgress,
+        const TReplicaInfo& selfReplica,
+        const TTablePullerCounters& counters)
+    {
+        TThrottlingTimes throttlingTimes;
+
+        auto oldestTimestamp = GetReplicationProgressMinTimestamp(replicationProgress);
+        if (oldestTimestamp < selfReplica.History.back().Timestamp) {
+            YT_LOG_DEBUG("Skipping replication throttling because replica is not in its last era");
+            return throttlingTimes;
+        }
+
+        auto throttleFuture = Throttler_->Throttle(1);
+        if (throttleFuture.IsSet()) {
+            throttleFuture.GetOrCrash().ThrowOnError();
+        } else {
+            auto timerGuard = TEventTimerGuard(counters.ThrottleTime);
+            YT_LOG_DEBUG("Started waiting for replication throttling");
+
+            WaitFor(throttleFuture)
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("Finished waiting for replication throttling");
+            throttlingTimes.ThrottleTime = timerGuard.GetElapsedTime();
+        }
+
+        // Skip relative throttler on era change because it can throttle for quite a long time
+        // on tables with rare commits and cause long write downtimes.
+        auto futureReplicationEra = ChaosAgent_->GetFutureEra(snapshotEra, tabletSnapshot);
+        if (!futureReplicationEra.IsSet()) {
+            auto throttleFuture = RelativeThrottler_->Throttle();
+            if (auto optionalError = throttleFuture.TryGet()) {
+                optionalError->ThrowOnError();
+            } else {
+                // Waiting should be rare because all throttling is done by capping MaxCommitInstant.
+                TEventTimerGuard timerGuard(counters.RelativeThrottlerThrottleTime);
+
+                YT_LOG_DEBUG("Started waiting for relative replication throttling");
+
+                WaitFor(AnySet(std::vector{throttleFuture, futureReplicationEra}))
+                    .ThrowOnError();
+                throttlingTimes.RelativeThrottleTime = timerGuard.GetElapsedTime();
+
+                YT_LOG_DEBUG("Finished waiting for relative replication throttling (ElapsedTime: %v)",
+                    throttlingTimes.RelativeThrottleTime);
+            }
+        }
+
+        if (futureReplicationEra.IsSet()) {
+            YT_LOG_DEBUG("Throttling canceled because replication era changed");
+        }
+
+        return throttlingTimes;
+    }
+
     void DoPullRows(
         const TTabletSnapshotPtr& tabletSnapshot,
+        TReplicationEra snapshotEra,
         const TReplicationCardPtr& replicationCard,
         const TReplicaInfo* selfReplica,
         const TRefCountedReplicationProgressPtr& replicationProgress)
@@ -480,42 +555,13 @@ private:
         }
 
         auto reservingTracker = CreateReservingMemoryUsageTracker(MemoryTracker_, counters->MemoryUsage);
-        TDuration throttleTime;
-        {
-            auto throttleFuture = Throttler_->Throttle(1);
-            if (throttleFuture.IsSet()) {
-                throttleFuture.Get().ThrowOnError();
-            } else {
-                auto timerGuard = TEventTimerGuard(counters->ThrottleTime);
-                YT_LOG_DEBUG("Started waiting for replication throttling");
 
-                WaitFor(throttleFuture)
-                    .ThrowOnError();
-
-                YT_LOG_DEBUG("Finished waiting for replication throttling");
-                throttleTime = timerGuard.GetElapsedTime();
-            }
-        }
-
-        TDuration relativeThrottleTime;
-        {
-            auto throttleFuture = RelativeThrottler_->Throttle();
-            if (auto optionalError = throttleFuture.TryGet()) {
-                optionalError->ThrowOnError();
-            } else {
-                // Waiting should be rare because all throttling is done by capping MaxCommitInstant.
-                TEventTimerGuard timerGuard(counters->RelativeThrottlerThrottleTime);
-
-                YT_LOG_DEBUG("Started waiting for relative replication throttling");
-
-                WaitFor(throttleFuture)
-                    .ThrowOnError();
-                relativeThrottleTime = timerGuard.GetElapsedTime();
-
-                YT_LOG_DEBUG("Finished waiting for relative replication throttling (ElapsedTime: %v)",
-                    relativeThrottleTime);
-            }
-        }
+        auto throttlingTimes = DoThrottle(
+            snapshotEra,
+            tabletSnapshot,
+            *replicationProgress,
+            *selfReplica,
+            *counters);
 
         auto now = TInstant::Now();
         auto queueReplicaOrError = QueueReplicaSelector_.PickQueueReplica(
@@ -540,6 +586,12 @@ private:
         try {
             const auto& clusterName = queueReplicaInfo->ClusterName;
             const auto& replicaPath = queueReplicaInfo->ReplicaPath;
+
+            auto currentBatchFirstTimestamp = GetReplicationProgressMinTimestamp(
+                *replicationProgress,
+                PivotKey_.Get(),
+                NextPivotKey_.Get());
+
             TPullRowsResult result;
             {
                 TEventTimerGuard timerGuard(counters->PullRowsTime);
@@ -549,6 +601,13 @@ private:
                     THROW_ERROR_EXCEPTION("Queue replica cluster %Qv is not known", clusterName)
                         << HardErrorAttribute;
                 }
+
+                auto smoothedReplicationRoundDuration = ReplicationIterationTimeTracker_
+                    .CalculateSmoothedIterationDuration(now);
+
+                auto maxTransactionCommitInstant = RelativeThrottler_->GetMaxAllowedRecordTime(
+                    currentBatchFirstTimestamp,
+                    smoothedReplicationRoundDuration);
 
                 TPullRowsOptions options;
                 options.TabletRowsPerRead = TabletRowsPerRead;
@@ -562,15 +621,16 @@ private:
                 options.SelfTabletId = TabletId_;
                 // TODO(osidorkin): Reduce MaxTransactionCommitInstant if there is a big difference between
                 // ReplicationProgressMinTimestamp and now ReplicationProgressMaxTimestamp.
-                options.MaxTransactionCommitInstant = RelativeThrottler_->GetMaxAllowedRecordTime(now);
+                options.MaxTransactionCommitInstant = maxTransactionCommitInstant;
 
                 YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, "
-                    "ReplicationRowIndexes: %v, UpperTimestamp: %v)",
+                    "ReplicationRowIndexes: %v, UpperTimestamp: %v, MaxTransactionCommitInstant: %v)",
                     clusterName,
                     replicaPath,
                     options.ReplicationProgress,
                     options.StartReplicationRowIndexes,
-                    upperTimestamp);
+                    upperTimestamp,
+                    maxTransactionCommitInstant);
 
                 result = WaitFor(alienClient->PullRows(replicaPath, options))
                     .ValueOrThrow();
@@ -598,18 +658,17 @@ private:
                 dataWeight,
                 progress,
                 endReplicationRowIndexes,
-                throttleTime,
-                relativeThrottleTime);
+                throttlingTimes.ThrottleTime,
+                throttlingTimes.RelativeThrottleTime);
 
             Throttler_->Acquire(dataWeight);
-            auto currentBatchFirstTimestamp = GetReplicationProgressMinTimestamp(
-                *replicationProgress,
-                PivotKey_.Get(),
-                NextPivotKey_.Get());
-            auto newReplicationTimestamp = GetReplicationProgressMaxTimestamp(progress);
-            RelativeThrottler_->OnReplicationBatchProcessed(
-                currentBatchFirstTimestamp,
-                newReplicationTimestamp);
+
+            // Do not throttle on first iteration of the new table.
+            if (currentBatchFirstTimestamp != MinTimestamp && result.PullRowsMinTimestamp != NullTimestamp) {
+                RelativeThrottler_->OnReplicationBatchProcessed(
+                    result.PullRowsMinTimestamp,
+                    result.PullRowsMaxTimestamp);
+            }
 
             // TODO(savrus) Remove this sanity check when pull rows is mature enough.
             if (result.Versioned) {
@@ -650,6 +709,8 @@ private:
 
                 for (auto row : unversionedRows) {
                     if (row[*timestampColumnIndex].Id != *timestampColumnIndex) {
+                        counters->FatalErrorCount.Increment();
+
                         YT_LOG_ALERT("Could not identify timestamp column in pulled row, "
                             "timestamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
                             row,
@@ -659,6 +720,8 @@ private:
                     auto rowTimestamp = row[*timestampColumnIndex].Data.Uint64;
 
                     if (progressTimestamp >= rowTimestamp || previousTimestamp > rowTimestamp) {
+                        counters->FatalErrorCount.Increment();
+
                         YT_LOG_ALERT("Received inappropriate timestamp in pull rows response "
                             "(RowTimestamp: %v, PreviousTimestamp: %v, Row: %v, Progress: %v)",
                             rowTimestamp,
@@ -686,6 +749,8 @@ private:
                     i64 currentRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
                     i64 endReplicationRowIndex = endReplicationRowIndexes.begin()->second;
                     if (currentRowCount + rowCount != endReplicationRowIndex) {
+                        counters->FatalErrorCount.Increment();
+
                         YT_LOG_ALERT(
                             "Ordered pull row index mismatch "
                             "(CurrentRowCount: %v, ResultSetRowCount: %v, EndReplicationRowIndex: %v)",
@@ -736,7 +801,7 @@ private:
                 rowModifications.reserve(resultRows.size());
 
                 for (auto row : resultRows) {
-                    rowModifications.push_back({ERowModificationType::VersionedWrite, row, TLockMask()});
+                    rowModifications.push_back(NRowModifications::TVersionedWriteRow(row));
                 }
 
                 localTransaction->ModifyRows(
@@ -786,7 +851,7 @@ private:
             counters->RowCount.Increment(rowCount);
             counters->DataWeight.Increment(dataWeight);
         } catch (const std::exception& ex) {
-            BannedReplicaTracker_.BanReplica(queueReplicaId, TError(ex));
+            QueueReplicaSelector_.GetBannedReplicaTracker().BanReplica(queueReplicaId, TError(ex));
             counters->ErrorCount.Increment();
             throw;
         }

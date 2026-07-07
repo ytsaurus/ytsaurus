@@ -108,7 +108,7 @@ void TLogRotator::RotateLogs()
     }
 }
 
-TString TLogRotator::GetLogSegmentPath(const TString& logFilePath, int segmentId)
+std::string TLogRotator::GetLogSegmentPath(const std::string& logFilePath, int segmentId)
 {
     if (segmentId == 0) {
         return logFilePath;

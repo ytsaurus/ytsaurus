@@ -675,28 +675,26 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     response->set_dynamic(true);
     ToProto(response->mutable_schema(), trunkTable->GetSchema()->AsCompactTableSchema());
 
+    auto setResponseInfo = [] (auto& context) {
+        context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
+            context->Response().tablets_size(),
+            context->Response().tablet_cells_size(),
+            context->Response().replicas_size(),
+            context->Response().indices_size());
+    };
+
     if (trunkTable->IsQueue()) {
         auto tabletCountFuture = TChaosReplicatedTableTabletsCountGetter::GetTabletCount(
             GetReplicationCard({.IncludeHistory = true}),
             Bootstrap_->GetClusterConnection());
 
         context->ReplyFrom(tabletCountFuture.AsUnique().Apply(BIND(
-            [context, response] (int&& result) {
+            [context, response, setResponseInfo] (int&& result) {
                 response->set_tablet_count(result);
-
-                context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
-                    response->tablets_size(),
-                    response->tablet_cells_size(),
-                    response->replicas_size(),
-                    response->indices_size());
+                setResponseInfo(context);
             })));
     } else {
-        context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
-            response->tablets_size(),
-            response->tablet_cells_size(),
-            response->replicas_size(),
-            response->indices_size());
-
+        setResponseInfo(context);
         context->Reply();
     }
 }
@@ -770,8 +768,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         bool isValidConsumerSchema = !effectiveSchema->IsEmpty() && effectiveSchema->IsSorted();
         if (!isValidConsumerSchema) {
             THROW_ERROR_EXCEPTION(
-                "Chaos replicated table object cannot be both a queue and a consumer.\
-                To transform consumer into queue set \"treat_as_queue_consumer\" attribute into False first");
+                "Chaos replicated table object cannot be both a queue and a consumer; "
+                "to transform consumer into queue set \"treat_as_queue_consumer\" attribute to %%false first");
         }
     }
 
@@ -779,8 +777,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         bool isValidProducerSchema = !effectiveSchema->IsEmpty() && effectiveSchema->IsSorted();
         if (!isValidProducerSchema) {
             THROW_ERROR_EXCEPTION(
-                "Chaos replicated table object cannot be both a queue and a producer.\
-                To transform producer into queue set \"treat_as_queue_producer\" attribute into False first");
+                "Chaos replicated table object cannot be both a queue and a producer; "
+                "to transform producer into queue set \"treat_as_queue_producer\" attribute to %%false first");
         }
     }
 
@@ -792,7 +790,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 
     bool isQueueObjectBefore = table->IsTrackedQueueObject();
 
-    tableManager->GetOrCreateNativeMasterTableSchema(effectiveSchema, table);
+    tableManager->GetOrCreateNativeMasterTableSchema(std::move(effectiveSchema), table);
 
     bool isQueueObjectAfter = table->IsTrackedQueueObject();
     const auto& chaosManager = Bootstrap_->GetChaosManager();

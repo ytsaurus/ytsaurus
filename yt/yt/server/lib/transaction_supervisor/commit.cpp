@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/hydra/serialize.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/serialize.h>
+
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -16,6 +18,25 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TExpectedTransactionSignatureInfo::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Coordinator);
+    Persist(context, Participants);
+}
+
+void Serialize(const TExpectedTransactionSignatureInfo& signatureInfo, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("coordinator").Value(signatureInfo.Coordinator)
+            .Item("participants").Value(signatureInfo.Participants)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCommit::TCommit(TTransactionId transactionId)
     : TransactionId_(transactionId)
     , Persistent_(false)
@@ -25,6 +46,7 @@ TCommit::TCommit(
     TTransactionId transactionId,
     TMutationId mutationId,
     std::vector<TCellId> participantCellIds,
+    TExpectedTransactionSignatureInfo expectedPrepareSignatures,
     std::vector<TCellId> prepareOnlyParticipantCellIds,
     std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
     bool distributed,
@@ -32,13 +54,13 @@ TCommit::TCommit(
     bool inheritCommitTimestamp,
     NApi::ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-    bool stronglyOrdered,
+    TStrongOrderingTagsMap strongOrderingTags,
     TTimestamp maxAllowedCommitTimestamp,
-    NRpc::TAuthenticationIdentity identity,
-    std::vector<TTransactionId> prerequisiteTransactionIds)
+    NRpc::TAuthenticationIdentity identity)
     : TransactionId_(transactionId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(std::move(participantCellIds))
+    , ExpectedPrepareSignatures_(std::move(expectedPrepareSignatures))
     , PrepareOnlyParticipantCellIds_(std::move(prepareOnlyParticipantCellIds))
     , CellIdsToSyncWithBeforePrepare_(std::move(cellIdsToSyncWithBeforePrepare))
     , Distributed_(distributed)
@@ -46,10 +68,9 @@ TCommit::TCommit(
     , InheritCommitTimestamp_(inheritCommitTimestamp)
     , CoordinatorPrepareMode_(coordinatorPrepareMode)
     , CoordinatorCommitMode_(coordinatorCommitMode)
-    , StronglyOrdered_(stronglyOrdered)
+    , StrongOrderingTags_(std::move(strongOrderingTags))
     , MaxAllowedCommitTimestamp_(maxAllowedCommitTimestamp)
     , AuthenticationIdentity_(std::move(identity))
-    , PrerequisiteTransactionIds_(std::move(prerequisiteTransactionIds))
 { }
 
 TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
@@ -77,6 +98,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, TransactionId_);
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
+    Save(context, ExpectedPrepareSignatures_);
     Save(context, PrepareOnlyParticipantCellIds_);
     Save(context, CellIdsToSyncWithBeforePrepare_);
     Save(context, Distributed_);
@@ -91,7 +113,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, MaxAllowedCommitTimestamp_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
-    Save(context, StronglyOrdered_);
+    Save(context, StrongOrderingTags_);
 }
 
 void TCommit::Load(TLoadContext& context)
@@ -102,6 +124,14 @@ void TCommit::Load(TLoadContext& context)
     Load(context, TransactionId_);
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);
+    // COMPAT(atalmenev) old changelog entries don't carry per-participant signatures.
+    if (static_cast<ETransactionSupervisorReign>(context.GetVersion()) >= ETransactionSupervisorReign::ExpectedPrepareSignature) {
+        Load(context, ExpectedPrepareSignatures_);
+    } else {
+        ExpectedPrepareSignatures_.Participants.assign(
+            ParticipantCellIds_.size(),
+            FinalTransactionSignature);
+    }
     Load(context, PrepareOnlyParticipantCellIds_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 10) {
@@ -134,9 +164,14 @@ void TCommit::Load(TLoadContext& context)
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
 
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= 14) {
-        Load(context, StronglyOrdered_);
+    // COMPAT(h0pless): StrongOrderingTags.
+    if (14 <= context.GetVersion() && context.GetVersion() < 17) {
+        Load<bool>(context);
+    }
+
+    // COMPAT(h0pless): StrongOrderingTags.
+    if (context.GetVersion() >= 17) {
+        Load(context, StrongOrderingTags_);
     }
 }
 
@@ -174,13 +209,28 @@ void TCommit::BuildOrchidYson(IYsonConsumer* consumer) const
             .Item("transient_state").Value(TransientState_)
             .Item("persistent_state").Value(PersistentState_)
             .Item("responded_cell_ids").Value(RespondedCellIds_)
-            .Item("strongly_ordered").Value(StronglyOrdered_)
-            .DoIf(!PrerequisiteTransactionIds_.empty(), [&] (auto fluent) {
-                fluent
-                    .Item("prerequisite_transaction_ids")
-                    .Value(PrerequisiteTransactionIds_);
-            })
+            .Item("strong_ordering_tags").DoMapFor(
+                StrongOrderingTags_,
+                [] (auto fluent, const auto& item) {
+                    fluent.Item(ToString(item.first)).Value(item.second);
+                })
+            .Item("expected_prepare_signatures").Value(ExpectedPrepareSignatures_)
         .EndMap();
+}
+
+bool TCommit::IsStronglyOrderedForCell(TCellId cellId) const
+{
+    return StrongOrderingTags_.contains(cellId);
+}
+
+std::vector<std::string> TCommit::GetStrongOrderingTagsForCell(TCellId cellId) const
+{
+    auto it = StrongOrderingTags_.find(cellId);
+    if (it == StrongOrderingTags_.end()) {
+        return {};
+    }
+
+    return it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

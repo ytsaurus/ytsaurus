@@ -11,9 +11,9 @@ requests from HTTP workers to available dirty workers.
 
 import asyncio
 import errno
+import fnmatch
 import os
 import signal
-import sys
 import tempfile
 import time
 
@@ -29,6 +29,19 @@ from .errors import (
 from .protocol import (
     DirtyProtocol,
     make_error_response,
+    make_response,
+    STASH_OP_PUT,
+    STASH_OP_GET,
+    STASH_OP_DELETE,
+    STASH_OP_KEYS,
+    STASH_OP_CLEAR,
+    STASH_OP_INFO,
+    STASH_OP_ENSURE,
+    STASH_OP_DELETE_TABLE,
+    STASH_OP_TABLES,
+    STASH_OP_EXISTS,
+    MANAGE_OP_ADD,
+    MANAGE_OP_REMOVE,
 )
 from .worker import DirtyWorker
 
@@ -45,7 +58,7 @@ class DirtyArbiter:
     """
 
     SIGNALS = [getattr(signal, "SIG%s" % x) for x in
-               "HUP QUIT INT TERM USR1 USR2 CHLD".split()]
+               "HUP QUIT INT TERM TTIN TTOU USR1 USR2 CHLD".split()]
 
     # Worker boot error code
     WORKER_BOOT_ERROR = 3
@@ -80,6 +93,7 @@ class DirtyArbiter:
         self._worker_rr_index = 0  # Round-robin index for worker selection
         self.worker_age = 0
         self.alive = True
+        self.num_workers = self.cfg.dirty_workers  # Dynamic count for TTIN/TTOU
 
         self._server = None
         self._loop = None
@@ -96,6 +110,10 @@ class DirtyArbiter:
         self._app_rr_indices = {}
         # Queue of app lists from dead workers to respawn with same apps
         self._pending_respawns = []
+
+        # Stash (shared state) - global tables stored in arbiter
+        # Maps table_name -> dict of data
+        self.stash_tables = {}
 
         # Parse app specs on init
         self._parse_app_specs()
@@ -133,6 +151,23 @@ class DirtyArbiter:
             }
             # Initialize the app_worker_map for this app
             self.app_worker_map[import_path] = set()
+
+    def _get_minimum_workers(self):
+        """
+        Calculate minimum number of workers required by app specs.
+
+        Returns the maximum worker_count across all apps that have limits.
+        Apps with worker_count=None don't impose a minimum.
+
+        Returns:
+            int: Minimum workers required (at least 1)
+        """
+        min_required = 1
+        for spec in self.app_specs.values():
+            worker_count = spec['worker_count']
+            if worker_count is not None:
+                min_required = max(min_required, worker_count)
+        return min_required
 
     def _get_apps_for_new_worker(self):
         """
@@ -209,6 +244,9 @@ class DirtyArbiter:
             except IOError as e:
                 self.log.warning("Failed to write PID file: %s", e)
 
+        # Set socket path env var for dirty workers (enables stash access)
+        os.environ['GUNICORN_DIRTY_SOCKET'] = self.socket_path
+
         # Call hook
         self.cfg.on_dirty_starting(self)
 
@@ -236,6 +274,8 @@ class DirtyArbiter:
         signal.signal(signal.SIGHUP, self._signal_handler)
         signal.signal(signal.SIGUSR1, self._signal_handler)
         signal.signal(signal.SIGCHLD, self._signal_handler)
+        signal.signal(signal.SIGTTIN, self._signal_handler)
+        signal.signal(signal.SIGTTOU, self._signal_handler)
 
     def _signal_handler(self, sig, frame):
         """Handle signals."""
@@ -257,6 +297,36 @@ class DirtyArbiter:
             if self._loop:
                 self._loop.call_soon_threadsafe(
                     lambda: asyncio.create_task(self.reload())
+                )
+            return
+
+        if sig == signal.SIGTTIN:
+            # Increase number of workers
+            self.num_workers += 1
+            self.log.info("SIGTTIN: Increasing dirty workers to %s",
+                          self.num_workers)
+            if self._loop:
+                self._loop.call_soon_threadsafe(
+                    lambda: asyncio.create_task(self.manage_workers())
+                )
+            return
+
+        if sig == signal.SIGTTOU:
+            # Decrease number of workers (respecting minimum)
+            min_workers = self._get_minimum_workers()
+            if self.num_workers <= min_workers:
+                self.log.warning(
+                    "SIGTTOU: Cannot decrease below %s workers "
+                    "(required by app specs)",
+                    min_workers
+                )
+                return
+            self.num_workers -= 1
+            self.log.info("SIGTTOU: Decreasing dirty workers to %s",
+                          self.num_workers)
+            if self._loop:
+                self._loop.call_soon_threadsafe(
+                    lambda: asyncio.create_task(self.manage_workers())
                 )
             return
 
@@ -298,7 +368,8 @@ class DirtyArbiter:
         try:
             async with self._server:
                 await self._server.serve_forever()
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, RuntimeError):
+            # RuntimeError raised when server.close() is called during serve_forever()
             pass
         finally:
             monitor_task.cancel()
@@ -337,6 +408,7 @@ class DirtyArbiter:
 
         Routes requests to available dirty workers and returns responses.
         Supports both regular responses and streaming (chunk-based) responses.
+        Also handles stash (shared state) operations.
         """
         self.log.debug("New client connection from HTTP worker")
 
@@ -347,8 +419,20 @@ class DirtyArbiter:
                 except asyncio.IncompleteReadError:
                     break
 
-                # Route request to a dirty worker - pass writer for streaming
-                await self.route_request(message, writer)
+                msg_type = message.get("type")
+
+                # Handle stash operations
+                if msg_type == DirtyProtocol.MSG_TYPE_STASH:
+                    await self.handle_stash_request(message, writer)
+                # Handle status queries
+                elif msg_type == DirtyProtocol.MSG_TYPE_STATUS:
+                    await self.handle_status_request(message, writer)
+                # Handle worker management (add/remove workers)
+                elif msg_type == DirtyProtocol.MSG_TYPE_MANAGE:
+                    await self.handle_manage_request(message, writer)
+                else:
+                    # Route request to a dirty worker - pass writer for streaming
+                    await self.route_request(message, writer)
         except Exception as e:
             self.log.error("Client connection error: %s", e)
         finally:
@@ -565,12 +649,268 @@ class DirtyArbiter:
             _reader, writer = self.worker_connections.pop(worker_pid)
             writer.close()
 
+    # -------------------------------------------------------------------------
+    # Stash (shared state) operations - handled directly in arbiter
+    # -------------------------------------------------------------------------
+
+    async def handle_status_request(self, message, client_writer):
+        """
+        Handle a status query request.
+
+        Returns information about the dirty arbiter and its workers.
+
+        Args:
+            message: Status request message
+            client_writer: StreamWriter to send response to client
+        """
+        request_id = message.get("id", "unknown")
+        now = time.monotonic()
+
+        workers_info = []
+        for pid, worker in self.workers.items():
+            try:
+                last_update = worker.tmp.last_update()
+                last_heartbeat = round(now - last_update, 2)
+            except (OSError, ValueError, AttributeError):
+                last_heartbeat = None
+
+            workers_info.append({
+                "pid": pid,
+                "age": worker.age,
+                "apps": getattr(worker, 'app_paths', []),
+                "booted": getattr(worker, 'booted', False),
+                "last_heartbeat": last_heartbeat,
+            })
+
+        workers_info.sort(key=lambda w: w["age"])
+
+        result = {
+            "arbiter_pid": self.pid,
+            "workers": workers_info,
+            "worker_count": len(workers_info),
+            "apps": list(self.app_specs.keys()) if self.app_specs else [],
+        }
+
+        response = make_response(request_id, result)
+        await DirtyProtocol.write_message_async(client_writer, response)
+
+    async def handle_manage_request(self, message, client_writer):
+        """
+        Handle a worker management request.
+
+        Supports adding or removing dirty workers via protocol messages.
+
+        Args:
+            message: Manage request message
+            client_writer: StreamWriter to send response to client
+        """
+        request_id = message.get("id", "unknown")
+        op = message.get("op")
+        count = max(1, int(message.get("count", 1)))
+
+        try:
+            if op == MANAGE_OP_ADD:
+                # Add workers - only loads apps that need more workers
+                spawned = 0
+                for _ in range(count):
+                    result = self.spawn_worker()
+                    if result is not None:
+                        self.num_workers += 1
+                        spawned += 1
+                    await asyncio.sleep(0.1)
+
+                # Provide feedback about why no workers were spawned
+                if spawned == 0:
+                    result = {
+                        "success": True,
+                        "operation": "add",
+                        "requested": count,
+                        "spawned": 0,
+                        "reason": "All apps have reached their worker limits",
+                        "total_workers": len(self.workers),
+                        "target_workers": self.num_workers,
+                    }
+                else:
+                    result = {
+                        "success": True,
+                        "operation": "add",
+                        "requested": count,
+                        "spawned": spawned,
+                        "total_workers": len(self.workers),
+                        "target_workers": self.num_workers,
+                    }
+
+            elif op == MANAGE_OP_REMOVE:
+                # Remove workers (similar to TTOU signal but via message)
+                min_workers = self._get_minimum_workers()
+                removed = 0
+
+                for _ in range(count):
+                    if self.num_workers <= min_workers:
+                        break
+                    if len(self.workers) <= 1:
+                        break
+
+                    self.num_workers -= 1
+
+                    # Kill oldest worker
+                    oldest_pid = min(self.workers.keys(),
+                                     key=lambda p: self.workers[p].age)
+                    self.kill_worker(oldest_pid, signal.SIGTERM)
+                    removed += 1
+                    await asyncio.sleep(0.1)
+
+                result = {
+                    "success": True,
+                    "operation": "remove",
+                    "requested": count,
+                    "removed": removed,
+                    "total_workers": len(self.workers),
+                    "target_workers": self.num_workers,
+                }
+
+            else:
+                error = DirtyError(f"Unknown manage operation: {op}")
+                response = make_error_response(request_id, error)
+                await DirtyProtocol.write_message_async(client_writer, response)
+                return
+
+            self.log.info("Worker management: %s %d workers (spawned/removed: %d)",
+                          "add" if op == MANAGE_OP_ADD else "remove",
+                          count,
+                          result.get("spawned", result.get("removed", 0)))
+
+            response = make_response(request_id, result)
+            await DirtyProtocol.write_message_async(client_writer, response)
+
+        except Exception as e:
+            self.log.error("Manage operation error: %s", e)
+            response = make_error_response(request_id, DirtyError(str(e)))
+            await DirtyProtocol.write_message_async(client_writer, response)
+
+    async def handle_stash_request(self, message, client_writer):
+        """
+        Handle a stash operation directly in the arbiter.
+
+        All stash tables are stored in arbiter memory for simplicity
+        and fast access.
+
+        Args:
+            message: Stash operation message
+            client_writer: StreamWriter to send response to client
+        """
+        request_id = message.get("id", "unknown")
+        op = message.get("op")
+        table = message.get("table", "")
+        key = message.get("key")
+        value = message.get("value")
+        pattern = message.get("pattern")
+
+        try:
+            result = None
+
+            if op == STASH_OP_PUT:
+                # Auto-create table if needed
+                if table not in self.stash_tables:
+                    self.stash_tables[table] = {}
+                self.stash_tables[table][key] = value
+                result = True
+
+            elif op == STASH_OP_GET:
+                if table not in self.stash_tables:
+                    result = {"error": "key_not_found"}
+                elif key not in self.stash_tables[table]:
+                    result = {"error": "key_not_found"}
+                else:
+                    result = self.stash_tables[table][key]
+
+            elif op == STASH_OP_DELETE:
+                if table in self.stash_tables and key in self.stash_tables[table]:
+                    del self.stash_tables[table][key]
+                    result = True
+                else:
+                    result = False
+
+            elif op == STASH_OP_KEYS:
+                if table not in self.stash_tables:
+                    result = []
+                else:
+                    all_keys = list(self.stash_tables[table].keys())
+                    if pattern:
+                        all_keys = [k for k in all_keys
+                                    if fnmatch.fnmatch(str(k), pattern)]
+                    result = all_keys
+
+            elif op == STASH_OP_CLEAR:
+                if table in self.stash_tables:
+                    self.stash_tables[table].clear()
+                result = True
+
+            elif op == STASH_OP_INFO:
+                if table not in self.stash_tables:
+                    result = {"error": "table_not_found"}
+                else:
+                    result = {
+                        "size": len(self.stash_tables[table]),
+                        "table": table,
+                    }
+
+            elif op == STASH_OP_ENSURE:
+                if table not in self.stash_tables:
+                    self.stash_tables[table] = {}
+                result = True
+
+            elif op == STASH_OP_DELETE_TABLE:
+                if table in self.stash_tables:
+                    del self.stash_tables[table]
+                    result = True
+                else:
+                    result = False
+
+            elif op == STASH_OP_TABLES:
+                result = list(self.stash_tables.keys())
+
+            elif op == STASH_OP_EXISTS:
+                if table not in self.stash_tables:
+                    result = False
+                elif key is None:
+                    result = True
+                else:
+                    result = key in self.stash_tables[table]
+
+            else:
+                error = DirtyError(f"Unknown stash operation: {op}")
+                response = make_error_response(request_id, error)
+                await DirtyProtocol.write_message_async(client_writer, response)
+                return
+
+            # Handle error results
+            if isinstance(result, dict) and "error" in result:
+                error_type = result["error"]
+                if error_type == "table_not_found":
+                    error = DirtyError(f"Table not found: {table}")
+                elif error_type == "key_not_found":
+                    error = DirtyError(f"Key not found: {key}")
+                else:
+                    error = DirtyError(str(result))
+                error.error_type = f"Stash{error_type.title().replace('_', '')}Error"
+                response = make_error_response(request_id, error)
+            else:
+                response = make_response(request_id, result)
+
+            await DirtyProtocol.write_message_async(client_writer, response)
+
+        except Exception as e:
+            self.log.error("Stash operation error: %s", e)
+            response = make_error_response(request_id, DirtyError(str(e)))
+            await DirtyProtocol.write_message_async(client_writer, response)
+
     async def manage_workers(self):
         """Maintain the number of dirty workers."""
         if not self.alive:
             return
 
-        num_workers = self.cfg.dirty_workers
+        num_workers = self.num_workers
 
         # Spawn workers if needed
         while self.alive and len(self.workers) < num_workers:
@@ -588,13 +928,17 @@ class DirtyArbiter:
             self.kill_worker(oldest_pid, signal.SIGTERM)
             await asyncio.sleep(0.1)
 
-    def spawn_worker(self):
+    def spawn_worker(self, force_all_apps=False):
         """
         Spawn a new dirty worker.
 
         Worker app assignment follows these priorities:
         1. If there are pending respawns (from dead workers), use those apps
         2. Otherwise, determine apps for a new worker based on allocation
+        3. If force_all_apps=True, spawn with all apps regardless of limits
+
+        Args:
+            force_all_apps: If True, spawn worker with all apps ignoring limits
 
         Returns:
             Worker PID in parent process, or None if no apps need workers
@@ -602,12 +946,15 @@ class DirtyArbiter:
         # Priority 1: Respawn dead worker with same apps
         if self._pending_respawns:
             app_paths = self._pending_respawns.pop(0)
+        elif force_all_apps:
+            # Force spawn with all apps (used by TTIN signal)
+            app_paths = list(self.app_specs.keys())
         else:
             # Priority 2: New worker for initial pool
             app_paths = self._get_apps_for_new_worker()
 
         if not app_paths:
-            self.log.warning("No apps need more workers, skipping spawn")
+            self.log.debug("No apps need more workers, skipping spawn")
             return None
 
         self.worker_age += 1
@@ -639,19 +986,19 @@ class DirtyArbiter:
                           pid, app_paths)
             return pid
 
-        # Child process
+        # Child process - use os._exit() to avoid asyncio cleanup issues
         worker.pid = os.getpid()
         try:
             util._setproctitle(f"dirty-worker [{self.cfg.proc_name}]")
             worker.init_process()
-            sys.exit(0)
-        except SystemExit:
-            raise
+            os._exit(0)
+        except SystemExit as e:
+            os._exit(e.code if e.code is not None else 0)
         except Exception:
             self.log.exception("Exception in dirty worker process")
             if not worker.booted:
-                sys.exit(self.WORKER_BOOT_ERROR)
-            sys.exit(-1)
+                os._exit(self.WORKER_BOOT_ERROR)
+            os._exit(1)
 
     def kill_worker(self, pid, sig):
         """Kill a worker by PID."""

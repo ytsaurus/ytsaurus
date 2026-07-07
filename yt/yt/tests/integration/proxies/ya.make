@@ -11,12 +11,14 @@ TEST_SRCS(
     test_http_proxy.py
     test_cypress_cookie_auth.py
     test_cypress_token_auth.py
+    test_ldap_auth.py
     test_proxy_roles.py
     test_rpc_proxy.py
     test_oauth.py
 )
 
 PEERDIR(
+    library/python/port_manager
     yt/yt/tests/conftest_lib
 )
 

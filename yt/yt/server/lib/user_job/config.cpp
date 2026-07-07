@@ -42,11 +42,11 @@ void TUserJobExecutorConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("stdout_unused_action", &TThis::StdoutUnusedAction)
-        .Default(EStdoutUnusedAction::RedirrectToDevNull);
+        .Default(EStdoutUnusedAction::RedirectToDevNull);
 
     registrar.Postprocessor([] (TThis* config) {
         for (const auto& variable : config->Environment) {
-            if (variable.find('=') == TString::npos) {
+            if (variable.find('=') == std::string::npos) {
                 THROW_ERROR_EXCEPTION("Bad environment variable: missing '=' in %Qv", variable);
             }
         }

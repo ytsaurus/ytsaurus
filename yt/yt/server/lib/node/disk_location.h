@@ -35,11 +35,11 @@ class TDiskLocation
 public:
     TDiskLocation(
         NServer::TDiskLocationConfigPtr config,
-        TString id,
+        std::string id,
         const NLogging::TLogger& logger);
 
     //! Returns the string id.
-    const TString& GetId() const;
+    const std::string& GetId() const;
 
     //! Returns the runtime configuration.
     NServer::TDiskLocationConfigPtr GetRuntimeConfig() const;
@@ -62,29 +62,41 @@ public:
     template <class T>
     TFuture<T> RegisterAction(TCallback<TFuture<T>()> action);
 
+    ~TDiskLocation();
+
 protected:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StateChangingLock_);
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActionsContainerLock_);
 
-    const TString Id_;
+    const std::string Id_;
     const NLogging::TLogger Logger;
 
     THashSet<TFuture<void>> Actions_;
-    std::atomic<ELocationState> State_ = ELocationState::Enabling;
 
     void ValidateMinimumSpace() const;
     void ValidateLockFile() const;
 
     i64 GetTotalSpace() const;
 
-    bool ChangeState(
+    // On success, returns the old state.
+    std::optional<ELocationState> ChangeState(
         ELocationState newState,
-        std::optional<ELocationState> expectedState = std::nullopt);
+        std::optional<ELocationState> expectedState = std::nullopt,
+        const TError& disableReason = {});
+
+    // Must not be called concurrently with Reconfigure.
+    void InitializeDiskLocationProfiling(const NProfiling::TProfiler& profiler);
 
 private:
     const NServer::TDiskLocationConfigPtr StaticConfig_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StateChangingLock_);
+    std::atomic<ELocationState> State_ = ELocationState::Enabling;
+
     TAtomicIntrusivePtr<NServer::TDiskLocationConfig> RuntimeConfig_;
+
+    class TProfiling;
+    TAtomicIntrusivePtr<TProfiling> Profiling_ = nullptr;
+    std::optional<NProfiling::TProfiler> Profiler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

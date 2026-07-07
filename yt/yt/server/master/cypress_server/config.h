@@ -62,16 +62,10 @@ struct TDynamicCypressManagerConfig
 
     TDuration GraftSynchronizationPeriod;
 
-    // COMPAT(danilalexeev): YT-24575.
-    bool EnableScionSynchronization;
-
     bool EnableSymlinkCyclicityCheck;
 
     // COMPAT(h0pless): YT-26842. Remove in 25.4.
     bool UseBetterCheckWhenRewritingPath;
-
-    // COMPAT(shakurov)
-    bool AllowCrossShardDynamicTableCopying;
 
     TDuration ScionRemovalPeriod;
 
@@ -82,9 +76,6 @@ struct TDynamicCypressManagerConfig
     bool EnableVirtualMapReadOffloadAuthenticatedUserPropagation;
 
     int CrossCellCopyMaxSubtreeSize;
-
-    // COMPAT(danilalexeev)
-    bool DisableCypressNodeReachability;
 
     // COMPAT(shakurov)
     bool EnableIntraCellCrossShardLinks;
@@ -106,6 +97,8 @@ struct TDynamicCypressManagerConfig
 
     NTableClient::EOptimizeFor DefaultOptimizeFor;
     NTableClient::EOptimizeFor DefaultDynamicTableOptimizeFor;
+
+    bool IgnoreRootstockAbsenceOnScionRemoval;
 
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 

@@ -37,6 +37,7 @@ PY_SRCS(
     yt_error_codes.py
     yt_fast_intermediate_medium_base.py
     yt_gpu_layers_helpers.py
+    yt_gpu_scheduler_helpers.py
     yt_helpers.py
     yt_io_tracking_base.py
     yt_master_cell_addition_base.py

@@ -10,6 +10,10 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
+#include <google/protobuf/port.h>
+
 namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +136,7 @@ std::vector<std::string> ConvertToWireString(
 std::string AddWireTag(
     const NYson::TProtobufMessageType* messageType,
     std::string_view fieldName,
-    const TString& serializedMessage);
+    const TProtoStringType& serializedMessage);
 
 TWireString FlattenCopyWireStringTo(TString* buffer, const TWireString& wireString);
 TWireString FlattenCopyWireStringTo(std::string* buffer, const TWireString& wireString);

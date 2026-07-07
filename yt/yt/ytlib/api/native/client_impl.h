@@ -350,7 +350,7 @@ public: \
 
     IMPLEMENT_METHOD(NQueryTrackerClient::TQueryId, StartQuery, (
         NQueryTrackerClient::EQueryEngine engine,
-        const TString& query,
+        const std::string& query,
         const TStartQueryOptions& options = {}),
         (engine, query, options))
     IMPLEMENT_METHOD(void, AbortQuery, (
@@ -544,13 +544,13 @@ public: \
         (path, rowCount, options))
 
     IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
-        const TString& md5,
+        const std::string& md5,
         const TGetFileFromCacheOptions& options),
         (md5, options))
 
     IMPLEMENT_METHOD(TPutFileToCacheResult, PutFileToCache, (
         const NYPath::TYPath& path,
-        const TString& expectedMD5,
+        const std::string& expectedMD5,
         const TPutFileToCacheOptions& options),
         (path, expectedMD5, options))
 
@@ -706,7 +706,7 @@ public: \
         (jobId, options))
     IMPLEMENT_METHOD(TPollJobShellResponse, PollJobShell, (
         NScheduler::TJobId jobId,
-        const std::optional<TString>& shellName,
+        const std::optional<std::string>& shellName,
         const NYson::TYsonString& parameters,
         const TPollJobShellOptions& options),
         (jobId, shellName, parameters, options))
@@ -750,6 +750,21 @@ public: \
     IMPLEMENT_METHOD(void, MasterExitReadOnly, (
         const TMasterExitReadOnlyOptions& options),
         (options))
+    IMPLEMENT_METHOD(void, FreezeHydraPeer, (
+        NObjectClient::TCellId cellId,
+        const std::string& address,
+        const TFreezeHydraPeerOptions& options),
+        (cellId, address, options))
+    IMPLEMENT_METHOD(void, TruncateChangelog, (
+        NObjectClient::TCellId cellId,
+        const std::string& address,
+        const TTruncateChangelogOptions& options),
+        (cellId, address, options))
+    IMPLEMENT_METHOD(void, ScheduleRestart, (
+        NObjectClient::TCellId cellId,
+        const std::string& address,
+        const TScheduleRestartOptions& options),
+        (cellId, address, options))
     IMPLEMENT_METHOD(void, ResetDynamicallyPropagatedMasterCells, (
         const TResetDynamicallyPropagatedMasterCellsOptions& options),
         (options))
@@ -773,7 +788,7 @@ public: \
         const std::string& address,
         const TKillProcessOptions& options),
         (address, options))
-    IMPLEMENT_METHOD(TString, WriteCoreDump, (
+    IMPLEMENT_METHOD(std::string, WriteCoreDump, (
         const std::string& address,
         const TWriteCoreDumpOptions& options),
         (address, options))
@@ -781,7 +796,7 @@ public: \
         const std::string& address,
         const TWriteLogBarrierOptions& options),
         (address, options))
-    IMPLEMENT_METHOD(TString, WriteOperationControllerCoreDump, (
+    IMPLEMENT_METHOD(std::string, WriteOperationControllerCoreDump, (
         NScheduler::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options),
         (operationId, options))
@@ -804,6 +819,19 @@ public: \
         NChaosClient::TChaosLeaseId chaosLeaseId,
         const TChaosLeaseAttachOptions& options = {}),
         (chaosLeaseId, options))
+
+    IMPLEMENT_METHOD(void, SetUserBanned, (
+        const std::string& user,
+        bool isBanned,
+        const TSetUserBannedOptions& options = {}),
+        (user, isBanned, options))
+    IMPLEMENT_METHOD(bool, GetUserBanned, (
+        const std::string& user,
+        const TGetUserBannedOptions& options = {}),
+        (user, options))
+    IMPLEMENT_METHOD(std::vector<std::string>, ListBannedUsers, (
+        const TListBannedUsersOptions& options = {}),
+        (options))
 
     IMPLEMENT_METHOD(void, MigrateReplicationCards, (
         NObjectClient::TCellId chaosCellId,
@@ -829,7 +857,7 @@ public: \
         EMaintenanceComponent component,
         const std::string& address,
         EMaintenanceType type,
-        const TString& comment,
+        const std::string& comment,
         const TAddMaintenanceOptions& options),
         (component, address, type, comment, options))
     IMPLEMENT_METHOD(TMaintenanceCountsPerTarget, RemoveMaintenance, (
@@ -905,13 +933,13 @@ public: \
 
     IMPLEMENT_METHOD(void, SetUserPassword, (
         const std::string& user,
-        const TString& currentPasswordSha256,
-        const TString& newPasswordSha256,
+        const std::string& currentPasswordSha256,
+        const std::string& newPasswordSha256,
         const TSetUserPasswordOptions& options),
         (user, currentPasswordSha256, newPasswordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueToken, (
         const std::string& user,
-        const TString& passwordSha256,
+        const std::string& passwordSha256,
         const TIssueTokenOptions& options),
         (user, passwordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueSpecificTemporaryToken, (
@@ -932,13 +960,13 @@ public: \
         (user, token, options))
     IMPLEMENT_METHOD(void, RevokeToken, (
         const std::string& user,
-        const TString& passwordSha256,
-        const TString& tokenSha256,
+        const std::string& passwordSha256,
+        const std::string& tokenSha256,
         const TRevokeTokenOptions& options),
         (user, passwordSha256, tokenSha256, options))
     IMPLEMENT_METHOD(TListUserTokensResult, ListUserTokens, (
         const std::string& user,
-        const TString& passwordSha256,
+        const std::string& passwordSha256,
         const TListUserTokensOptions& options),
         (user, passwordSha256, options))
 
@@ -1018,9 +1046,19 @@ public: \
         (shuffleHandle, partitionIndex, writerIndexRange, options))
     IMPLEMENT_METHOD(void, ForsakeChaosCoordinator, (
         NHydra::TCellId chaosCellId,
-        NHydra::TCellId cordiantorCellId,
+        NHydra::TCellId cordinatorCellId,
         const TForsakeChaosCoordinatorOptions& options),
-        (chaosCellId, cordiantorCellId, options))
+        (chaosCellId, cordinatorCellId, options))
+    IMPLEMENT_METHOD(void, ForsakeChaosShortcut, (
+        NHydra::TCellId cordinatorCellId,
+        NChaosClient::TChaosObjectId chaosObjectId,
+        const TForsakeChaosShortcutOptions& options),
+        (cordinatorCellId, chaosObjectId, options))
+    IMPLEMENT_METHOD(void, RemoveChaosCellMailbox, (
+        NHydra::TCellId chaosCellId,
+        NHydra::TCellId destinationCellId,
+        const TRemoveChaosCellMailboxOptions& options),
+        (chaosCellId, destinationCellId, options))
 
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
         const TSignedShuffleHandlePtr& signedShuffleHandle,
@@ -1121,7 +1159,7 @@ private:
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
-    THashMap<TString, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
+    THashMap<std::string, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
 
     TChannels GetMasterChannels(EMasterChannelKind kind);
     NRpc::IChannelPtr FindMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
@@ -1141,11 +1179,6 @@ private:
         TStringBuf commandName,
         const TTimeoutOptions& options,
         TCallback<T()> callback);
-
-    template <class T>
-    auto CallAndRetryIfMetadataCacheIsInconsistent(
-        const TDetailedProfilingInfoPtr& profilingInfo,
-        T&& callback) -> decltype(callback());
 
     void SetMutationId(
         const NRpc::IClientRequestPtr& request,
@@ -1213,6 +1246,7 @@ private:
     struct TReplicaFallbackInfo
     {
         NApi::IClientPtr Client;
+        std::string ClusterName;
         NYPath::TYPath Path;
         NTabletClient::TTableReplicaId ReplicaId;
         NTableClient::TTableSchemaPtr OriginalTableSchema;
@@ -1231,17 +1265,17 @@ private:
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptionsBase& options,
-        const std::optional<TString>& retentionConfig,
+        const NYson::TYsonString& retentionConfig,
         TEncoderWithMapping encoderWithMapping,
         TDecoderWithMapping decoderWithMapping,
         TReplicaFallbackHandler<TLookupRowsResult<IRowset>> replicaFallbackHandler);
 
-    NApi::NNative::IConnectionPtr GetReplicaConnectionOrThrow(const std::string& clusterName);
     NApi::IClientPtr GetOrCreateReplicaClient(const std::string& clusterName);
 
     TDuration CheckPermissionsForQuery(
         const NQueryClient::TPlanFragment& fragment,
-        const TSelectRowsOptions& options);
+        const TSelectRowsOptions& options,
+        const NTabletClient::ITableMountCachePtr& tableMountCache);
 
     TSelectRowsResult DoSelectRowsOnce(
         const std::string& queryString,
@@ -1264,6 +1298,10 @@ private:
         const TGetTabletInfosOptions& options);
 
     std::vector<TTabletInfo> GetTabletInfosImpl(
+        const NTabletClient::TTableMountInfoPtr& tableInfo,
+        const std::vector<int>& tabletIndexes,
+        const TGetTabletInfosOptions& options);
+    std::vector<TTabletInfo> DoGetTabletInfosImpl(
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const std::vector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options);
@@ -1299,6 +1337,14 @@ private:
     //
 
     NQueueClient::IQueueRowsetPtr DoPullQueueImpl(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options,
+        bool checkPermissions);
+
+    NQueueClient::IQueueRowsetPtr DoPullQueueImplOnce(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,
@@ -1350,12 +1396,12 @@ private:
     //
 
     void SetTouchedAttribute(
-        const TString& destination,
+        const NYPath::TYPath& destination,
         const TPrerequisiteOptions& options = TPrerequisiteOptions(),
         NTransactionClient::TTransactionId transactionId = {});
     TPutFileToCacheResult DoAttemptPutFileToCache(
         const NYPath::TYPath& path,
-        const TString& expectedMD5,
+        const std::string& expectedMD5,
         const TPutFileToCacheOptions& options,
         NLogging::TLogger logger);
 
@@ -1412,7 +1458,7 @@ private:
         TInstant deadline);
 
     NScheduler::TOperationId ResolveOperationAlias(
-        const TString& alias,
+        const std::string& alias,
         const TMasterReadOptions& options,
         TInstant deadline);
 
@@ -1428,7 +1474,7 @@ private:
 
     THashMap<NScheduler::TOperationId, TOperation> LookupOperationsInArchiveTyped(
         const std::vector<NScheduler::TOperationId>& ids,
-        const THashSet<TString>& attributes,
+        const THashSet<std::string>& attributes,
         std::optional<TDuration> timeout,
         const NLogging::TLogger& Logger);
 
@@ -1531,7 +1577,7 @@ private:
 
     void AddSelectExpressions(
         NQueryClient::TQueryBuilder* builder,
-        const THashSet<TString>& attributes,
+        const THashSet<std::string>& attributes,
         int archiveVersion);
 
     TFuture<std::vector<TJobTraceMeta>> DoListJobTracesFromArchive(
@@ -1549,27 +1595,27 @@ private:
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TListJobsOptions& options,
-        const THashSet<TString>& attributes);
+        const THashSet<std::string>& attributes);
 
     TFuture<TListJobsFromControllerAgentResult> DoListJobsFromControllerAgentAsync(
         NScheduler::TOperationId operationId,
         const std::optional<std::string>& controllerAgentAddress,
         TInstant deadline,
         const TListJobsOptions& options,
-        const THashSet<TString>& attributes);
+        const THashSet<std::string>& attributes);
 
     std::optional<TJob> DoGetJobFromArchive(
         int archiveVersion,
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         TInstant deadline,
-        const THashSet<TString>& attributes);
+        const THashSet<std::string>& attributes);
 
     std::optional<TJob> DoGetJobFromControllerAgent(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         TInstant deadline,
-        const THashSet<TString>& attributes);
+        const THashSet<std::string>& attributes);
 
     NJobProberClient::TJobProberServiceProxy CreateNodeJobProberServiceProxy(
         NRpc::IChannelPtr nodeChannel);
@@ -1611,16 +1657,23 @@ private:
     void ValidateAuthenticationCommandPermissions(
         TStringBuf action,
         const std::string& user,
-        const TString& passwordSha256,
+        const std::string& passwordSha256,
         const TTimeoutOptions& options);
 
     //
     // Flow
     //
 
-    std::string DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
+    struct TPipelineLeaderDescriptor
+    {
+        std::string Address;
+        NObjectClient::TObjectId PipelineObjectId;
+    };
 
-    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const std::string& address);
+    TPipelineLeaderDescriptor DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
+
+    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(
+        const TPipelineLeaderDescriptor& descriptor);
 
     void ValidatePipelinePermission(const NYPath::TYPath& pipelinePath, NYTree::EPermission permission);
 };

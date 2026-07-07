@@ -390,7 +390,7 @@ void DoExportSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExportSnapshot(TBootstrap* bootstrap, const TString& configPath)
+void ExportSnapshot(TBootstrap* bootstrap, const std::string& configPath)
 {
     auto config = ConvertTo<TExportArgumentsConfigPtr>(TYsonString(configPath));
 
@@ -407,7 +407,7 @@ void ExportSnapshot(TBootstrap* bootstrap, const TString& configPath)
     BIND(&DoExportSnapshot, Unretained(bootstrap), config, searchedAttributes, searchedTypes)
         .AsyncVia(bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 

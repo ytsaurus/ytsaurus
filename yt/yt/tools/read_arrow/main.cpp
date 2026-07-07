@@ -33,7 +33,7 @@ public:
         Opts_.AddLongOption("proxy-address").StoreResult(&ProxyAddress_);
         Opts_.AddLongOption("path").StoreResult(&Path_).Required();
         Opts_.AddLongOption("fallback-format").StoreResult(&FallbackFormat_);
-        Opts_.AddLongOption("hexify-format").StoreResult(&HexifyFormat_).NoArgument()   ;
+        Opts_.AddLongOption("hexify-format").StoreResult(&HexifyFormat_).NoArgument();
     }
 
 protected:
@@ -103,10 +103,10 @@ protected:
     }
 
 private:
-    TString Cluster_;
-    TString ProxyAddress_;
-    TString Path_;
-    TString FallbackFormat_ = "<format=text>yson";
+    std::string Cluster_;
+    std::string ProxyAddress_;
+    std::string Path_;
+    std::string FallbackFormat_ = "<format=text>yson";
     bool HexifyFormat_ = false;
 };
 

@@ -22,6 +22,7 @@ DECLARE_REFCOUNTED_STRUCT(TBundleTabletBalancerConfig)
 DECLARE_REFCOUNTED_STRUCT(TMasterTableTabletBalancerConfig)
 DECLARE_REFCOUNTED_STRUCT(TMasterBundleTabletBalancerConfig)
 DECLARE_REFCOUNTED_STRUCT(TTabletBalancingGroupConfig)
+DECLARE_REFCOUNTED_STRUCT(TFeatureFlagConfig)
 DECLARE_REFCOUNTED_STRUCT(TComponentFactorConfig)
 DECLARE_REFCOUNTED_STRUCT(TParameterizedBalancingConfig)
 
@@ -51,11 +52,12 @@ DECLARE_REFCOUNTED_STRUCT(TTabletCell)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellBundle)
 
 struct TReshardDescriptor;
+using TReshardDescriptorPtr = TIntrusivePtr<TReshardDescriptor>;
 struct TMoveDescriptor;
 using TActionDescriptor = std::variant<TMoveDescriptor, TReshardDescriptor>;
 
 using TNodeAddress = std::string;
-using TGroupName = TString;
+using TGroupName = std::string;
 using TClusterName = std::string;
 
 struct TParameterizedReassignSolverConfig;

@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -34,6 +35,7 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NScheduler;
+using namespace NTabletClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
@@ -219,7 +221,7 @@ TError MakeRevivalError(
 
 void CheckPermission(
     const NYPath::TYPath& path,
-    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTableMountInfoPtr& tableInfo,
     const TAuthenticationOptions& options,
     const IConnectionPtr& connection,
     EPermission permission)
@@ -236,7 +238,7 @@ void CheckPermission(
 
 void CheckReadPermission(
     const NYPath::TYPath& path,
-    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTableMountInfoPtr& tableInfo,
     const TAuthenticationOptions& options,
     const IConnectionPtr& connection)
 {
@@ -245,7 +247,7 @@ void CheckReadPermission(
 
 void CheckWritePermission(
     const NYPath::TYPath& path,
-    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTableMountInfoPtr& tableInfo,
     const TAuthenticationOptions& options,
     const IConnectionPtr& connection)
 {
@@ -254,11 +256,11 @@ void CheckWritePermission(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<TString> DeduceActualAttributes(
-    const std::optional<THashSet<TString>>& originalAttributes,
-    const THashSet<TString>& requiredAttributes,
-    const THashSet<TString>& defaultAttributes,
-    const THashSet<TString>& ignoredAttributes)
+THashSet<std::string> DeduceActualAttributes(
+    const std::optional<THashSet<std::string>>& originalAttributes,
+    const THashSet<std::string>& requiredAttributes,
+    const THashSet<std::string>& defaultAttributes,
+    const THashSet<std::string>& ignoredAttributes)
 {
     auto attributes = originalAttributes.value_or(defaultAttributes);
     attributes.insert(requiredAttributes.begin(), requiredAttributes.end());
@@ -280,6 +282,84 @@ TSelectRowsOptions GetDefaultSelectRowsOptions(
     selectRowsOptions.InputRowLimit = std::numeric_limits<i64>::max();
     selectRowsOptions.MemoryLimitPerNode = 100_MB;
     return selectRowsOptions;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDuration InvalidateMountCacheAndGetRetryDelay(
+    const IConnectionPtr& connection,
+    const TDetailedProfilingInfoPtr& profilingInfo,
+    const TLogger& Logger,
+    const TError& error,
+    int* retryCount,
+    TTabletId tabletIdHint)
+{
+    const auto& config = connection->GetStaticConfig();
+    const auto& tableMountCache = connection->GetTableMountCache();
+
+    auto invalidationResult = tableMountCache->InvalidateOnError(
+        error,
+        /*forceRetry*/ false,
+        tabletIdHint);
+
+    TDuration timeToWait;
+    if (invalidationResult.Retryable && ++(*retryCount) <= config->TableMountCache->OnErrorRetryCount) {
+        YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
+            *retryCount,
+            config->TableMountCache->OnErrorRetryCount);
+
+        if (!invalidationResult.TableInfoUpdatedFromError) {
+            auto now = Now();
+            const auto& tabletInfo = invalidationResult.TabletInfo;
+            auto retryTime = (tabletInfo ? tabletInfo->UpdateTime : now) +
+                config->TableMountCache->OnErrorSlackPeriod;
+            if (retryTime > now) {
+                timeToWait = retryTime - now;
+            }
+        }
+
+        if (profilingInfo) {
+            profilingInfo->RetryReasons.push_back(invalidationResult.ErrorCode);
+        }
+
+        return timeToWait;
+    }
+
+    THROW_ERROR error;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TTableMountInfoPtr> GetTableMountInfo(const TRichYPath& objectPath, const IConnectionPtr& connection)
+{
+    const auto& objectCluster = objectPath.GetCluster();
+    // NB: For better cache locality, use the provided connection when its cluster is equal to the object's cluster.
+    auto objectConnection = ((objectCluster && objectCluster == connection->GetClusterName())
+        ? connection
+        : FindRemoteConnection(connection, objectPath.GetCluster()));
+    YT_VERIFY(objectConnection);
+    auto objectTableMountCache = objectConnection->GetTableMountCache();
+    return objectTableMountCache->GetTableInfo(objectPath.GetPath());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<bool> IsSuperuser(const IConnectionPtr& connection, const std::string& user)
+{
+    return connection->GetUserAttributeCache()->Get(user)
+        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
+            YT_VERIFY(attributes);
+            return attributes->MemberOfClosure.contains(SuperusersGroupName);
+        }));
+}
+
+TFuture<bool> IsUserBanned(const IConnectionPtr& connection, const std::string& user)
+{
+    return connection->GetUserAttributeCache()->Get(user)
+        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
+            YT_VERIFY(attributes);
+            return attributes->Banned;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

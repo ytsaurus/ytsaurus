@@ -17,6 +17,48 @@ type NameTableEntry struct {
 	Name string
 }
 
+// NameTableBuilder translates a column name to its NameTable id, registering
+// the name on first use. Implementations must be safe for concurrent use,
+// because Encode invokes row marshaling in parallel.
+type NameTableBuilder interface {
+	LookupOrAdd(name string) uint16
+}
+
+// RowMarshaler is implemented by types that supply their own wire row
+// encoding. If a value passed to Encode (or its pointed-to value, when
+// the value is a non-nil pointer) implements RowMarshaler, Encode calls
+// MarshalRow instead of using reflection. Column ids must be obtained
+// via the supplied NameTableBuilder so that all rows in the batch
+// reference the same NameTable.
+type RowMarshaler interface {
+	MarshalRow(b NameTableBuilder) (Row, error)
+}
+
+// nameTableBuilder wraps Encode's per-call indexMap so RowMarshaler
+// implementations can register column names without touching internals.
+type nameTableBuilder struct {
+	indexMap map[NameTableEntry]uint16
+	mapLock  *sync.RWMutex
+}
+
+func (b *nameTableBuilder) LookupOrAdd(name string) uint16 {
+	k := NameTableEntry{Name: name}
+	b.mapLock.RLock()
+	id, ok := b.indexMap[k]
+	b.mapLock.RUnlock()
+	if ok {
+		return id
+	}
+	b.mapLock.Lock()
+	defer b.mapLock.Unlock()
+	if id, ok = b.indexMap[k]; ok {
+		return id
+	}
+	id = uint16(len(b.indexMap))
+	b.indexMap[k] = id
+	return id
+}
+
 func Encode(items []any) (NameTable, []Row, error) {
 	rows := make([]Row, len(items))
 	if len(items) == 0 {
@@ -62,6 +104,10 @@ func encode(item any, indexMap map[NameTableEntry]uint16, mapLock *sync.RWMutex)
 	vv := reflect.ValueOf(item)
 	if item == nil || vv.Kind() == reflect.Ptr && vv.IsNil() {
 		return nil, xerrors.Errorf("unsupported nil item")
+	}
+
+	if m, ok := item.(RowMarshaler); ok {
+		return m.MarshalRow(&nameTableBuilder{indexMap: indexMap, mapLock: mapLock})
 	}
 
 	return encodeReflect(vv, indexMap, mapLock)
@@ -331,13 +377,13 @@ func convertValue(id uint16, value reflect.Value) (Value, error) {
 			return NewNull(id), nil
 		}
 
-		blob, err := yson.Marshal(value.Interface())
+		blob, err := yson.MarshalFormat(value.Interface(), yson.FormatBinary)
 		if err != nil {
 			return Value{}, err
 		}
 		v = NewAny(id, blob)
 	case reflect.Struct, reflect.Array:
-		blob, err := yson.Marshal(value.Interface())
+		blob, err := yson.MarshalFormat(value.Interface(), yson.FormatBinary)
 		if err != nil {
 			return Value{}, err
 		}

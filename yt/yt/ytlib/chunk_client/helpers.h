@@ -310,7 +310,7 @@ struct TAllyReplicasInfo
     NChunkClient::TChunkReplicaWithMediumSlimList Replicas;
 
     NHydra::TRevision Revision = NHydra::NullRevision;
-    static constexpr NHydra::TRevision SequoiaRevision = std::numeric_limits<NHydra::TRevision>::max();
+    static constexpr NHydra::TRevision SequoiaRevision = std::numeric_limits<NHydra::TRevision>::min();
 
     bool operator==(const TAllyReplicasInfo& other) const = default;
     Y_FORCE_INLINE explicit operator bool() const;
@@ -351,7 +351,7 @@ bool IsLargeEnoughChunkWeight(i64 chunkWeight, i64 chunkWeightThreshold);
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Format blocks as [start:end] or [block] depending on interval size.
-TString FormatBlocks(int startBlockIndex, int endBlockIndex);
+std::string FormatBlocks(int startBlockIndex, int endBlockIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -360,6 +360,10 @@ std::optional<TPartitionTags> GetOptionalPartitionTags(const TProtoMessage& mess
 
 template <class TProtoMessage>
 TPartitionTags GetPartitionTags(const TProtoMessage& message);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsJournalFormat(EChunkFormat format) noexcept;
 
 ////////////////////////////////////////////////////////////////////////////////
 

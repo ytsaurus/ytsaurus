@@ -32,6 +32,7 @@ struct TSerializedTableSettings
     NYson::TYsonString HunkWriterOptions;
     NYson::TYsonString GlobalPatch;
     NYson::TYsonString Experiments;
+    NYson::TYsonString TabletBalancerConfig;
 };
 
 struct THunkStorageSettings
@@ -73,7 +74,7 @@ void FillTableSettings(
     TRequest* request,
     const TSerializedTableSettings& serializedTableSettings);
 
-THunkStorageSettings GetHunkStorageSettings(
+THunkStorageSettings ValidateAndGetHunkStorageSettings(
     THunkStorageNode* hunkStorage,
     const NObjectServer::IObjectManagerPtr& objectManager,
     const NChunkServer::IChunkManagerPtr& chunkManager,

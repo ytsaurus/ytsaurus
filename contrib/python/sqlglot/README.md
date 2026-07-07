@@ -42,10 +42,12 @@ Contributions are very welcome in SQLGlot; read the [contribution guide](https:/
 From PyPI:
 
 ```bash
-pip3 install "sqlglot[rs]"
+# Pure python version
+pip3 install sqlglot
 
-# Without Rust tokenizer (slower):
-# pip3 install sqlglot
+# C extensions compiled with mypyc
+# prebuilt wheel if available for your platform, otherwise builds from source
+pip3 install "sqlglot[c]"
 ```
 
 Or with a local checkout:
@@ -521,10 +523,13 @@ make docs-serve
 ## Run Tests and Lint
 
 ```
-make style  # Only linter checks
-make unit   # Only unit tests (or unit-rs, to use the Rust tokenizer)
-make test   # Unit and integration tests (or test-rs, to use the Rust tokenizer)
-make check  # Full test suite & linter checks
+make style   # Only linter checks
+make unit    # Only unit tests (pure Python)
+make test    # Unit and integration tests (pure Python)
+make unitc   # Only unit tests (mypyc compiled)
+make testc   # Unit and integration tests (mypyc compiled)
+make check   # Full test suite & linter checks
+make clean   # Remove compiled C artifacts (.so files, build dirs)
 ```
 
 ## Deployment
@@ -532,26 +537,33 @@ make check  # Full test suite & linter checks
 To deploy a new SQLGlot version, follow these steps:
 
 1. Run `git pull` to make sure the local git repo is at the head of the main branch
-2. If the Rust tokenizer code changed since the last version release:
-   1. Bump the `version` attribute under the `package` header in `sqlglotrs/Cargo.toml`
-   2. Run `make install-dev`. This will update the `Cargo.lock` file
-   3. Commit the changes made to `Cargo.toml` and `Cargo.lock`
-3. Do a `git tag` operation to bump the SQLGlot version, e.g. `git tag v28.5.0`
-4. Run `git push && git push --tags` to deploy the new version
-
-> [!IMPORTANT]
-> If there are any breaking changes since the last version release, make sure to deploy either a minor or major version for both sqlglot and sqlglotrs. Refer to SQLGlot's [versioning scheme](#versioning) for more information.
+2. Do a `git tag` operation to bump the SQLGlot version, e.g. `git tag v28.5.0`
+3. Run `git push && git push --tags` to deploy the new version
 
 ## Benchmarks
 
-[Benchmarks](https://github.com/tobymao/sqlglot/blob/main/benchmarks/bench.py) run on Python 3.10.12 in seconds.
+[Benchmarks](https://github.com/tobymao/sqlglot/blob/main/benchmarks/parse.py) run on Python 3.14.3 in seconds.
 
-|           Query |         sqlglot |       sqlglotrs |        sqlfluff |         sqltree |        sqlparse |  moz_sql_parser |        sqloxide |
-| --------------- | --------------- | --------------- | --------------- | --------------- | --------------- | --------------- | --------------- |
-|            tpch |   0.00944 (1.0) | 0.00590 (0.625) | 0.32116 (33.98) | 0.00693 (0.734) | 0.02858 (3.025) | 0.03337 (3.532) | 0.00073 (0.077) |
-|           short |   0.00065 (1.0) | 0.00044 (0.687) | 0.03511 (53.82) | 0.00049 (0.759) | 0.00163 (2.506) | 0.00234 (3.601) | 0.00005 (0.073) |
-|            long |   0.00889 (1.0) | 0.00572 (0.643) | 0.36982 (41.56) | 0.00614 (0.690) | 0.02530 (2.844) | 0.02931 (3.294) | 0.00059 (0.066) |
-|           crazy |   0.02918 (1.0) | 0.01991 (0.682) | 1.88695 (64.66) | 0.02003 (0.686) | 7.46894 (255.9) | 0.64994 (22.27) | 0.00327 (0.112) |
+sqlglot, sqltree, sqlparse, and sqlfluff are python based whereas sqloxide and polyglot-sql are rust bindings.
+
+|             Query |         sqlglot |      sqlglot[c] |         sqltree |         sqlparse |          sqlfluff |        sqloxide |    polyglot-sql |
+| ----------------- | --------------- | --------------- | --------------- | ---------------- | ----------------- | --------------- | --------------- |
+|              tpch | 0.002709 (1.00) | 0.000740 (0.27) | 0.002172 (0.80) |  0.014152 (5.22) |  0.241027 (88.97) | 0.000655 (0.24) | 0.000698 (0.26) |
+|             short | 0.000226 (1.00) | 0.000075 (0.33) | 0.000184 (0.81) |  0.000938 (4.15) | 0.031542 (139.47) | 0.000041 (0.18) | 0.000174 (0.77) |
+|   deep_arithmetic | 0.007760 (1.00) | 0.002015 (0.26) | 0.005927 (0.76) |              N/A | 1.359824 (175.22) | 0.003117 (0.40) | 0.002964 (0.38) |
+|          large_in | 0.407987 (1.00) | 0.101644 (0.25) | 0.467943 (1.15) |              N/A |               N/A | 0.147765 (0.36) | 0.105854 (0.26) |
+|            values | 0.466734 (1.00) | 0.113762 (0.24) | 0.522797 (1.12) |              N/A |               N/A | 0.117628 (0.25) | 0.117169 (0.25) |
+|        many_joins | 0.011943 (1.00) | 0.002701 (0.23) | 0.009887 (0.83) |  0.059303 (4.97) | 1.246253 (104.35) | 0.002918 (0.24) | 0.002964 (0.25) |
+|       many_unions | 0.041321 (1.00) | 0.008291 (0.20) | 0.038249 (0.93) |              N/A |  1.826401 (44.20) | 0.012395 (0.30) | 0.013087 (0.32) |
+| nested_subqueries | 0.001200 (1.00) | 0.000235 (0.20) |             N/A |  0.003860 (3.22) |  0.089490 (74.56) | 0.000215 (0.18) | 0.000262 (0.22) |
+|      many_columns | 0.011821 (1.00) | 0.002825 (0.24) | 0.012722 (1.08) | 0.238510 (20.18) |  1.050386 (88.86) | 0.002515 (0.21) | 0.003765 (0.32) |
+|        large_case | 0.035822 (1.00) | 0.008593 (0.24) | 0.033578 (0.94) |              N/A | 4.200220 (117.25) | 0.009870 (0.28) | 0.009442 (0.26) |
+|     complex_where | 0.032710 (1.00) | 0.006602 (0.20) |             N/A |  0.136203 (4.16) |  2.492927 (76.21) | 0.006002 (0.18) | 0.007787 (0.24) |
+|         many_ctes | 0.017610 (1.00) | 0.003630 (0.21) | 0.012377 (0.70) |  0.123620 (7.02) |  0.657611 (37.34) | 0.004197 (0.24) | 0.003273 (0.19) |
+|      many_windows | 0.020790 (1.00) | 0.005751 (0.28) |             N/A |  0.203144 (9.77) |  1.421216 (68.36) | 0.003941 (0.19) | 0.004570 (0.22) |
+|  nested_functions | 0.000703 (1.00) | 0.000189 (0.27) | 0.000754 (1.07) |  0.005082 (7.23) | 0.091007 (129.51) | 0.000168 (0.24) | 0.000225 (0.32) |
+|     large_strings | 0.005073 (1.00) | 0.001480 (0.29) | 0.014533 (2.86) |  0.049392 (9.74) |  0.320672 (63.22) | 0.001616 (0.32) | 0.002151 (0.42) |
+|      many_numbers | 0.103898 (1.00) | 0.024483 (0.24) | 0.120119 (1.16) |              N/A |               N/A | 0.031667 (0.30) | 0.026880 (0.26) |
 
 ```
 make bench            # Run parsing benchmark
@@ -601,6 +613,7 @@ x + interval '1' month
 | Trino | Official |
 | TSQL | Official |
 | YDB | [Plugin](https://pypi.org/project/ydb-sqlglot-plugin) |
+| MaxCompute | [Plugin](https://pypi.org/project/sqlglot-maxcompute) |
 
 **Official Dialects** are maintained by the core SQLGlot team with higher priority for bug fixes and feature additions.
 

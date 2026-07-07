@@ -3,12 +3,15 @@
 #include "private.h"
 #include "bootstrap.h"
 #include "cypress_bindings.h"
+#include "node_tracker.h"
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_service_proxy.h>
+
+#include <yt/yt/library/cypress_election/election_manager.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/service_detail.h>
@@ -49,6 +52,7 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBundleConfig));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SetBundleConfig));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
     }
 
 private:
@@ -259,6 +263,24 @@ private:
 
         ValidateInputConfig(bundleName, bundleConfig, timeout);
         SetBundleConfig(bundleName, bundleConfig, timeout);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NBundleController::NProto, Heartbeat)
+    {
+        auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
+        auto nodeAddress = FromProto<std::string>(request->node_address());
+
+        context->SetRequestInfo("NodeId: %v, NodeAddress: %v",
+            nodeId,
+            nodeAddress);
+
+        if (!Bootstrap_->GetElectionManager()->IsLeader()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Bundle controller instance is not leading");
+        }
+
+        Bootstrap_->GetNodeTracker()->ProcessNodeHeartbeat(&context->Request(), &context->Response());
 
         context->Reply();
     }

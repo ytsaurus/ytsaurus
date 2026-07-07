@@ -37,9 +37,8 @@ DECLARE_REFCOUNTED_STRUCT(IChunkReplicaFetcher)
 DECLARE_REFCOUNTED_CLASS(TJobRegistry)
 
 DECLARE_REFCOUNTED_STRUCT(ISequoiaReplicasModifier)
-
-DECLARE_REFCOUNTED_STRUCT(IGlobalSequoiaChunkRefresher)
-struct TGlobalSequoiaChunkRefreshStatus;
+DECLARE_REFCOUNTED_STRUCT(ISequoiaChunkRefresher)
+struct TSequoiaChunkRefresherStatus;
 
 template <class TPayload>
 class TChunkScanQueueWithPayload;
@@ -88,6 +87,8 @@ DEFINE_ENUM(ESequoiaReplicaModificationPhase,
 // deprecated TableChunkFormat and TableChunkFormatStatistics attributes.
 // Keep in sync with NChunkClient::EChunkFormat.
 TStringBuf SerializeChunkFormatAsTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
+
+constexpr int MinVitalReplicationFactor = 3;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "profile_manager.h"
 #endif
-#undef PROFILE_MANAGER_INL_H_
 
 #include "helpers.h"
 
@@ -14,37 +13,37 @@ namespace NYT::NQueueAgent::NDetail {
 template <EObjectKind Kind, typename TRow>
 NProfiling::TTagSet CreateObjectProfilingTags(
     const TRow& row,
-    bool enablePathAggregation,
-    bool addObjectType,
-    std::optional<bool> leading)
+    const TProfilingOptions& options)
 {
-    auto pathTag = TrimProfilingTagValue(row.Ref.Path);
+    auto pathTag = TrimProfilingTagValue(row.Path.GetPath());
 
     NProfiling::TTagSet tags;
-    tags.AddRequiredTag({Format("%lv_cluster", Kind), row.Ref.Cluster});
+    tags.AddRequiredTag({Format("%lv_cluster", Kind), row.Path.GetCluster().value()});
 
-    if (enablePathAggregation) {
-        tags.AddTag({Format("%lv_path", Kind), pathTag}, /*parent*/ -1); // Parent is queue_cluster.
-        int parent = -2;
-        if (row.GetProfilingTag().has_value()) {
-            tags.AddTag({Format("%lv_tag", Kind), row.GetProfilingTag().value()}, parent); // Parent is queue_cluster.
-            parent--;
+    if (options.EnablePathAggregation) {
+        tags.AddTag({Format("%lv_path", Kind), pathTag}, /*parent*/ -1); // Parent is cluster.
+        tags.AddTag({Format("%lv_tag", Kind), row.GetProfilingTag().value_or(NoneProfilingTag)}, /*parent*/ -2); // Parent is cluster.
+        int parent = -3;
+        if (options.Name) {
+            tags.AddTag({Format("%lv_name", Kind), TrimProfilingTagValue(*options.Name)}, parent); // Parent is cluster.
+            --parent;
         }
-        if (addObjectType) {
-            tags.AddTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)}, parent); // Parent is queue_cluster.
+        if (options.AddObjectType) {
+            tags.AddTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)}, parent); // Parent is cluster.
         }
     } else {
         tags.AddRequiredTag({Format("%lv_path", Kind), pathTag});
-        if (row.GetProfilingTag().has_value()) {
-            tags.AddRequiredTag({Format("%lv_tag", Kind), row.GetProfilingTag().value()});
+        tags.AddRequiredTag({Format("%lv_tag", Kind), row.GetProfilingTag().value_or(NoneProfilingTag)});
+        if (options.Name) {
+            tags.AddRequiredTag({Format("%lv_name", Kind), TrimProfilingTagValue(*options.Name)});
         }
-        if (addObjectType) {
+        if (options.AddObjectType) {
             tags.AddRequiredTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)});
         }
     }
 
-    if (leading.has_value()) {
-        tags.AddRequiredTag({"leading", leading ? "true" : "false"});
+    if (options.Leading) {
+        tags.AddRequiredTag({"leading", *options.Leading ? "true" : "false"});
     }
 
     return tags;

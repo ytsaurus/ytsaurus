@@ -36,6 +36,7 @@ target_compile_options(unittester-core-misc PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(unittester-core-misc PUBLIC
@@ -63,6 +64,7 @@ target_link_options(unittester-core-misc PRIVATE
 
 target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/adjusted_exponential_moving_average_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/absolute_normalized_path_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/algorithm_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/arithmetic_formula_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/async_expiring_cache_ut.cpp

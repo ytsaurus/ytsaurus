@@ -104,7 +104,7 @@ TResourceGuard::TResourceGuard(
     Limiter_->Acquire(LockAmount_, LockType_);
 }
 
-TResourceGuard::TResourceGuard(TResourceGuard&& other)
+TResourceGuard::TResourceGuard(TResourceGuard&& other) noexcept
 {
     Limiter_ = other.Limiter_;
     LockAmount_ = other.LockAmount_;

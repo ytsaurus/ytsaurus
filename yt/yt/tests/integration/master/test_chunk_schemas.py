@@ -54,7 +54,6 @@ def _test_schemas_match(table_path, schema_equality, schema_id_equality=None, ex
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkSchemas(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -68,7 +67,7 @@ class TestChunkSchemas(YTEnvSetup):
         write_file("//tmp/file", content)
         chunk_ids = get("//tmp/file/@chunk_ids")
         for chunk_id in chunk_ids:
-            with raises_yt_error("Attribute \"schema_id\" is not found"):
+            with raises_yt_error("Attribute .* is not found"):
                 get("#{}/@schema_id".format(chunk_id))
 
     @authors("h0pless")
@@ -381,7 +380,6 @@ class ChunkSchemasMulticellBase(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkSchemasMulticell(ChunkSchemasMulticellBase):
     ENABLE_MULTIDAEMON = True
 
@@ -430,7 +428,6 @@ class TestChunkSchemasMulticell(ChunkSchemasMulticellBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkSchemasMulticellPortal(ChunkSchemasMulticellBase):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -441,7 +438,6 @@ class TestChunkSchemasMulticellPortal(ChunkSchemasMulticellBase):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkSchemasSequoia(ChunkSchemasMulticellBase):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -458,7 +454,6 @@ class TestChunkSchemasSequoia(ChunkSchemasMulticellBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChunkTeleportation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

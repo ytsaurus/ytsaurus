@@ -30,6 +30,7 @@
 #include <yt/yt/library/named_value/named_value.h>
 
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <util/stream/null.h>
 #include <util/string/hex.h>
@@ -56,6 +57,7 @@ using namespace NNamedValue;
 using namespace NTableClient;
 using namespace NTzTypes;
 using namespace NYson;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +88,7 @@ IUnversionedRowBatchPtr MakeColumnarRowBatch(
     TUnversionedRowsBuilder builder;
 
     Y_UNUSED(chunkWriter->Write(rows));
-    chunkWriter->Close().Get().IsOK();
+    WaitForFast(chunkWriter->Close()).IsOK();
 
     auto MemoryReader_ = CreateMemoryReader(
         memoryWriter->GetChunkMeta(),
@@ -601,8 +603,7 @@ TEST(TArrowWriterTest, SimpleInteger)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -628,8 +629,7 @@ TEST(TArrowWriterTest, Json)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -659,8 +659,7 @@ TEST(TArrowWriterTest, YT_20699_WrongAlign)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     std::string data(outputStream.Data(), outputStream.Size());
@@ -699,8 +698,7 @@ TEST(TArrowWriterTest, SimpleDate)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -728,8 +726,7 @@ TEST(TArrowWriterTest, OptionalDate)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -765,8 +762,7 @@ TEST(TArrowWriterTest, OptionalRleDate)
     auto columnarBatch = MakeColumnarRowBatch(rows.Rows, tableSchemas[0]);
     EXPECT_TRUE(writer->WriteBatch(columnarBatch));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -794,8 +790,7 @@ TEST(TArrowWriterTest, SimpleDatatime)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -823,8 +818,7 @@ TEST(TArrowWriterTest, SimpleTimestamp)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -852,8 +846,7 @@ TEST(TArrowWriterTest, SimpleInterval)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -882,8 +875,7 @@ TEST(TArrowWriterTest, SimpleFloat)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -911,8 +903,7 @@ TEST(TArrowWriterTest, ColumnarBatch)
     auto columnarBatch = MakeColumnarRowBatch(rows.Rows, tableSchemas[0]);
     EXPECT_TRUE(writer->WriteBatch(columnarBatch));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -941,8 +932,7 @@ TEST(TArrowWriterTest, RowBatch)
 
     EXPECT_TRUE(writer->WriteBatch(rowBatch));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -976,8 +966,7 @@ TEST(TArrowWriterTest, Null)
 
     EXPECT_TRUE(writer->Write(rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1089,8 +1078,7 @@ TEST(TArrowWriterTest, SimpleMultiTypes)
     EXPECT_TRUE(writer->Write(rangeRows.Slice(0, firstBatchSize)));
     EXPECT_TRUE(writer->Write(rangeRows.Slice(firstBatchSize, rangeRows.Size())));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batches = MakeAllBatch(outputStream, 5);
@@ -1135,8 +1123,7 @@ TEST(TArrowWriterTest, SimpleString)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1145,7 +1132,9 @@ TEST(TArrowWriterTest, SimpleString)
     EXPECT_EQ(ReadAnyStringArray(batch->column(0)), column);
 }
 
-TEST(TArrowWriterTest, TzTypeIndex)
+constexpr ui16 tzEuropeMoscow = 1;
+
+TEST(TArrowWriterTest, TzType)
 {
     std::vector<std::string> columnNames = {"tzDate", "tzDatetime", "tzTimestamp", "tzDate32", "tzDatetime64", "tzTimestamp64"};
     std::vector<TTableSchemaPtr> tableSchemas;
@@ -1160,12 +1149,12 @@ TEST(TArrowWriterTest, TzTypeIndex)
 
     TStringStream outputStream;
 
-    auto dateValue = MakeTzString<ui16>(42, "Europe/Moscow");
-    auto datetimeValue = MakeTzString<ui32>(42, "Europe/Moscow");
-    auto timestampValue = MakeTzString<ui64>(42, "Europe/Moscow");
-    auto date32Value = MakeTzString<i32>(42, "Europe/Moscow");
-    auto datetime64Value = MakeTzString<i64>(42, "Europe/Moscow");
-    auto timestamp64Value = MakeTzString<i64>(42, "Europe/Moscow");
+    auto dateValue = MakeTzString<ui16>(42, tzEuropeMoscow);
+    auto datetimeValue = MakeTzString<ui32>(42, tzEuropeMoscow);
+    auto timestampValue = MakeTzString<ui64>(42, tzEuropeMoscow);
+    auto date32Value = MakeTzString<i32>(42, tzEuropeMoscow);
+    auto datetime64Value = MakeTzString<i64>(42, tzEuropeMoscow);
+    auto timestamp64Value = MakeTzString<i64>(42, tzEuropeMoscow);
 
     auto rows = MakeUnversionedStringRows({
         {dateValue},
@@ -1177,13 +1166,11 @@ TEST(TArrowWriterTest, TzTypeIndex)
         columnNames);
 
     TArrowFormatConfigPtr arrowConfig = New<TArrowFormatConfig>();
-    arrowConfig->EnableTzIndex = true;
     auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas, arrowConfig);
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1193,158 +1180,65 @@ TEST(TArrowWriterTest, TzTypeIndex)
     {
         auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
         auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
+        auto tzIdArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), 42);
-        EXPECT_EQ(tzNameArray->Value(0), 1);
+        EXPECT_EQ(tzIdArray->Value(0), tzEuropeMoscow);
     }
 
     {
         auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(1));
         auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt32Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
+        auto tzIdArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), static_cast<ui32>(42));
-        EXPECT_EQ(tzNameArray->Value(0), 1);
+        EXPECT_EQ(tzIdArray->Value(0), tzEuropeMoscow);
     }
 
     {
         auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(2));
         auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
+        auto tzIdArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), static_cast<ui64>(42));
-        EXPECT_EQ(tzNameArray->Value(0), 1);
+        EXPECT_EQ(tzIdArray->Value(0), tzEuropeMoscow);
     }
 
     {
         auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(3));
         auto timestampArray = std::dynamic_pointer_cast<arrow20::Int32Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
+        auto tzIdArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), static_cast<i32>(42));
-        EXPECT_EQ(tzNameArray->Value(0), 1);
+        EXPECT_EQ(tzIdArray->Value(0), tzEuropeMoscow);
     }
 
     {
         auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(4));
         auto timestampArray = std::dynamic_pointer_cast<arrow20::Int64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
+        auto tzIdArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), 42);
-        EXPECT_EQ(tzNameArray->Value(0), 1);
+        EXPECT_EQ(tzIdArray->Value(0), tzEuropeMoscow);
     }
 
     {
         auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(5));
         auto timestampArray = std::dynamic_pointer_cast<arrow20::Int64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
+        auto tzIdArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), 42);
-        EXPECT_EQ(tzNameArray->Value(0), 1);
+        EXPECT_EQ(tzIdArray->Value(0), tzEuropeMoscow);
     }
 
 }
 
-TEST(TArrowWriterTest, TzTypeName)
+TEST(TArrowWriterTest, TzDictionary)
 {
-    std::vector<std::string> columnNames = {"tzDate", "tzDatetime", "tzTimestamp", "tzDate32", "tzDatetime64", "tzTimestamp64"};
+    std::vector<std::string> columnNames = {"tzDate32"};
     std::vector<TTableSchemaPtr> tableSchemas;
+
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(columnNames[0], ESimpleLogicalValueType::TzDate),
-        TColumnSchema(columnNames[1], ESimpleLogicalValueType::TzDatetime),
-        TColumnSchema(columnNames[2], ESimpleLogicalValueType::TzTimestamp),
-        TColumnSchema(columnNames[3], ESimpleLogicalValueType::TzDate32),
-        TColumnSchema(columnNames[4], ESimpleLogicalValueType::TzDatetime64),
-        TColumnSchema(columnNames[5], ESimpleLogicalValueType::TzTimestamp64),
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::TzDate32),
     }));
 
     TStringStream outputStream;
 
-    auto dateValue = MakeTzString<ui16>(42, "Europe/Moscow");
-    auto datetimeValue = MakeTzString<ui32>(42, "Europe/Moscow");
-    auto timestampValue = MakeTzString<ui64>(42, "Europe/Moscow");
-    auto date32Value = MakeTzString<i32>(42, "Europe/Moscow");
-    auto datetime64Value = MakeTzString<i64>(42, "Europe/Moscow");
-    auto timestamp64Value = MakeTzString<i64>(42, "Europe/Moscow");
-
-    auto rows = MakeUnversionedStringRows({
-        {dateValue},
-        {datetimeValue},
-        {timestampValue},
-        {date32Value},
-        {datetime64Value},
-        {timestamp64Value}},
-        columnNames);
-
-    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
-
-    EXPECT_TRUE(writer->Write(rows.Rows));
-
-    writer->Close()
-        .Get()
-        .ThrowOnError();
-
-    auto batch = MakeBatch(outputStream);
-
-    CheckColumnNames(batch, columnNames);
-
-    {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
-        auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
-        EXPECT_EQ(timestampArray->Value(0), 42);
-        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
-    }
-
-    {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(1));
-        auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt32Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
-        EXPECT_EQ(timestampArray->Value(0), static_cast<ui32>(42));
-        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
-    }
-
-    {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(2));
-        auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
-        EXPECT_EQ(timestampArray->Value(0), static_cast<ui64>(42));
-        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
-    }
-
-    {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(3));
-        auto timestampArray = std::dynamic_pointer_cast<arrow20::Int32Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
-        EXPECT_EQ(timestampArray->Value(0), static_cast<i32>(42));
-        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
-    }
-
-    {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(4));
-        auto timestampArray = std::dynamic_pointer_cast<arrow20::Int64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
-        EXPECT_EQ(timestampArray->Value(0), 42);
-        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
-    }
-
-    {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(5));
-        auto timestampArray = std::dynamic_pointer_cast<arrow20::Int64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
-        EXPECT_EQ(timestampArray->Value(0), 42);
-        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
-    }
-
-}
-
-TEST(TArrowWriterTest, TzRle)
-{
-    std::vector<std::string> columnNames = {"tzDate"};
-    std::vector<TTableSchemaPtr> tableSchemas;
-
-    tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(columnNames[0], ESimpleLogicalValueType::TzDate),
-    }));
-
-    TStringStream outputStream;
-
-    auto dateValue = MakeTzString<ui16>(42, "Europe/Moscow");
+    auto dateValue = MakeTzString<i32>(42, tzEuropeMoscow);
     std::vector<std::string> tzValues;
     for (int i = 0; i < 100; ++i) {
         tzValues.push_back(dateValue);
@@ -1355,8 +1249,7 @@ TEST(TArrowWriterTest, TzRle)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1368,10 +1261,10 @@ TEST(TArrowWriterTest, TzRle)
         auto dictArray = std::dynamic_pointer_cast<arrow20::DictionaryArray>(batch->column(0));
 
         auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(dictArray->dictionary());
-        auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::Int32Array>(structArrowArray->field(0));
+        auto tzIdArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), 42);
-        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
+        EXPECT_EQ(tzIdArray->Value(0), tzEuropeMoscow);
     }
 
 }
@@ -1398,8 +1291,7 @@ TEST(TArrowWriterTest, NullTz)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1429,8 +1321,7 @@ TEST(TArrowWriterTest, DictionaryString)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1493,8 +1384,7 @@ TEST(TArrowWriterTest, EnumString)
         optColumns.push_back(optColumn);
     }
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batches = MakeAllBatch(outputStream, batchCount);
@@ -1551,8 +1441,7 @@ TEST(TArrowWriterTest, DictionaryAndDirectStrings)
     // Write second batch, that will be decode as direct.
     EXPECT_TRUE(writer->Write(directRows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
 
@@ -1599,8 +1488,7 @@ TEST(TArrowWriterTest, SeveralIntegerColumnsOneBatch)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1646,8 +1534,7 @@ TEST(TArrowWriterTest, SeveralStringColumnsOneBatch)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1725,8 +1612,7 @@ TEST(TArrowWriterTest, SeveralMultiTypesColumnsOneBatch)
 
     EXPECT_TRUE(writer->Write(rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
 
@@ -1780,8 +1666,7 @@ TEST(TArrowWriterTest, SeveralIntegerSeveralBatches)
         EXPECT_TRUE(writer->Write(rows.Rows));
     }
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
 
@@ -1858,8 +1743,7 @@ TEST(TArrowWriterTest, SeveralMultiTypesSeveralBatches)
         EXPECT_TRUE(writer->Write(rows));
     }
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batches = MakeAllBatch(outputStream, batchCount);
@@ -1925,8 +1809,7 @@ TEST(TArrowWriterTest, AnyMetadata)
 
     EXPECT_TRUE(writer->Write(rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1974,8 +1857,7 @@ TEST(TArrowWriterComplexTest, BasicStruct)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2023,8 +1905,7 @@ TEST(TArrowWriterComplexTest, BasicList)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2074,8 +1955,7 @@ TEST(TArrowWriterComplexTest, BasicDict)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2129,8 +2009,7 @@ TEST(TArrowWriterComplexTest, OptionalStruct)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2183,8 +2062,7 @@ TEST(TArrowWriterComplexTest, StructOptional)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2254,8 +2132,7 @@ TEST(TArrowWriterComplexTest, DictionaryStruct)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2312,8 +2189,7 @@ TEST(TArrowWriterComplexTest, OptionalOptional)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2365,8 +2241,7 @@ TEST(TArrowWriterTest, EmptyStruct)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2413,8 +2288,7 @@ TEST(TArrowWriterComplexTest, OptionalEmptyStruct)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2473,8 +2347,7 @@ TEST(TArrowWriterComplexTest, NullTypes)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2509,15 +2382,14 @@ TEST(TArrowWriterComplexTest, NestedTzType)
     using TInt = TUnderlyingTimestampIntegerType<UnderlyingDateType>;
 
     std::vector<std::string> ysonStrings = {
-        "[\"123\";\"" + MakeTzString<TInt>(0, GetTzName(0)) + "\";]",
-        "[\"456\";\"" + MakeTzString<TInt>(1, GetTzName(1)) + "\";]",
+        "[\"123\";\"" + MakeTzString<TInt>(0, 0) + "\";]",
+        "[\"456\";\"" + MakeTzString<TInt>(1, 1) + "\";]",
     };
 
     auto rows = MakeUnversionedAnyRowsFromYson({ysonStrings}, columnNames);
 
     auto config = New<TArrowFormatConfig>();
     config->EnableComplexTypes = true;
-    config->EnableTzIndex = false;
 
     TStringStream outputStream;
 
@@ -2529,63 +2401,7 @@ TEST(TArrowWriterComplexTest, NestedTzType)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .Get()
-        .ThrowOnError();
-
-    auto batch = MakeBatch(outputStream);
-
-    CheckColumnNames(batch, columnNames);
-
-    auto structArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
-    auto tzArray = std::dynamic_pointer_cast<arrow20::StructArray>(structArray->GetFieldByName("b"));
-    auto timestampArray = ReadUInteger64Array(tzArray->GetFieldByName("Timestamp"));
-    auto tzNameArray = ReadStringArray(tzArray->GetFieldByName("TzName"));
-
-    ASSERT_EQ(timestampArray, std::vector<ui64>({0, 1}));
-    ASSERT_EQ(tzNameArray, std::vector<std::string>({std::string(GetTzName(0)), std::string(GetTzName(1))}));
-}
-
-TEST(TArrowWriterComplexTest, NestedTzTypeWithIndices)
-{
-    std::vector<TTableSchemaPtr> tableSchemas;
-    std::vector<std::string> columnNames = {"tz"};
-
-    auto type = StructLogicalType({
-        {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        {"b", "b", SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp)},
-    }, /*removedFieldStableNames*/ {});
-
-    tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(columnNames[0], type),
-    }));
-
-    constexpr ESimpleLogicalValueType UnderlyingDateType = GetUnderlyingDateType<ESimpleLogicalValueType::TzTimestamp>();
-    using TInt = TUnderlyingTimestampIntegerType<UnderlyingDateType>;
-
-    std::vector<std::string> ysonStrings = {
-        "[\"123\";\"" + MakeTzString<TInt>(0, GetTzName(0)) + "\";]",
-        "[\"456\";\"" + MakeTzString<TInt>(1, GetTzName(1)) + "\";]",
-    };
-
-    auto rows = MakeUnversionedAnyRowsFromYson({ysonStrings}, columnNames);
-
-    auto config = New<TArrowFormatConfig>();
-    config->EnableComplexTypes = true;
-    config->EnableTzIndex = true;
-
-    TStringStream outputStream;
-
-    auto writer = CreateArrowWriter(
-        rows.NameTable,
-        &outputStream,
-        tableSchemas,
-        config);
-
-    EXPECT_TRUE(writer->Write(rows.Rows));
-
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2599,6 +2415,138 @@ TEST(TArrowWriterComplexTest, NestedTzTypeWithIndices)
 
     ASSERT_EQ(timestampArray, std::vector<ui64>({0, 1}));
     ASSERT_EQ(tzIndexArray, std::vector<ui16>({0, 1}));
+}
+
+TEST(TArrowWriterComplexTest, ColumnarBatchWithStartIndex)
+{
+    // Regression test for a bug in SerializeComplexTypeColumn where the string data
+    // base pointer was not offset by startOffset when startIndex > 0.
+    // Without the fix, the second WriteBatch call would fail with a YSON parse error.
+
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"struct"};
+
+    auto structType = StructLogicalType({
+        TStructField{"a", "a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        TStructField{"b", "b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    }, /*removedFieldStableNames*/ {});
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], structType),
+    }));
+
+    // 4 rows so that with MaxRowsPerRead=2 we get two batches.
+    // The second batch has startIndex=2, exercising the fixed code path.
+    //
+    // Rows 0-1 have MUCH longer strings than rows 2-3. Without the fix,
+    // SerializeComplexTypeColumn for the second batch uses stringData.Data() + 0
+    // instead of stringData.Data() + startOffset. The relative offsets for rows 2-3
+    // are short (e.g., 10 bytes), so the wrong pointer reads the first 10 bytes of
+    // row 0's long YSON — an incomplete blob — causing a YSON parse error.
+    std::vector<std::string> ysonStrings = {
+        "[abcdefghijklmnopqrstuvwxyzabcde;1;]",
+        "[abcdefghijklmnopqrstuvwxyzabcde;2;]",
+        "[cc;3;]",
+        "[dd;4;]",
+    };
+
+    auto rows = MakeUnversionedAnyRowsFromYson({ysonStrings}, columnNames);
+
+    // Write rows to a columnar (scan-optimized) chunk.
+    auto memoryWriter = New<TMemoryWriter>();
+
+    auto chunkWriterConfig = New<TChunkWriterConfig>();
+    chunkWriterConfig->Postprocess();
+    chunkWriterConfig->BlockSize = 256;
+    chunkWriterConfig->Postprocess();
+
+    auto chunkWriterOptions = New<TChunkWriterOptions>();
+    chunkWriterOptions->OptimizeFor = EOptimizeFor::Scan;
+    chunkWriterOptions->Postprocess();
+
+    auto chunkWriter = CreateSchemalessChunkWriter(
+        chunkWriterConfig,
+        chunkWriterOptions,
+        tableSchemas[0],
+        /*nameTable*/ nullptr,
+        memoryWriter,
+        /*writeBlocksOptions*/ {},
+        /*dataSink*/ std::nullopt);
+
+    Y_UNUSED(chunkWriter->Write(rows.Rows));
+    WaitForFast(chunkWriter->Close()).IsOK();
+
+    auto memoryReader = CreateMemoryReader(
+        memoryWriter->GetChunkMeta(),
+        memoryWriter->GetBlocks());
+
+    NChunkClient::NProto::TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+
+    auto chunkMeta = New<TColumnarChunkMeta>(*memoryWriter->GetChunkMeta());
+
+    auto chunkState = New<TChunkState>(TChunkState{
+        .BlockCache = GetNullBlockCache(),
+        .ChunkSpec = chunkSpec,
+        .TableSchema = tableSchemas[0],
+    });
+
+    auto chunkReader = CreateSchemalessRangeChunkReader(
+        CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
+        chunkState,
+        chunkMeta,
+        TChunkReaderConfig::GetDefault(),
+        TChunkReaderOptions::GetDefault(),
+        memoryReader,
+        TNameTable::FromSchema(*tableSchemas[0]),
+        /*chunkReadOptions*/ {},
+        /*sortColumns*/ {},
+        /*omittedInaccessibleColumns*/ {},
+        TColumnFilter(),
+        TReadRange());
+
+    TStringStream outputStream;
+
+    auto arrowConfig = New<TArrowFormatConfig>();
+    arrowConfig->EnableComplexTypes = true;
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas, arrowConfig);
+
+    // Read in batches of 2 rows. The second batch will have startIndex=2.
+    // Without the fix, WriteBatch fails with a YSON parse error on the second batch.
+    TRowBatchReadOptions readOptions{.MaxRowsPerRead = 2, .Columnar = true};
+
+    while (auto columnarBatch = ReadRowBatch(chunkReader, readOptions)) {
+        ASSERT_TRUE(writer->WriteBatch(columnarBatch));
+    }
+
+    WaitForFast(writer->Close()).ThrowOnError();
+
+    auto batches = MakeAllBatch(outputStream, 2);
+
+    // First batch: rows 0 and 1.
+    {
+        auto structArray = std::dynamic_pointer_cast<arrow20::StructArray>(batches[0]->column(0));
+        ASSERT_TRUE(structArray);
+        EXPECT_EQ(
+            ReadStringArray(structArray->GetFieldByName("a")),
+            std::vector<std::string>({"abcdefghijklmnopqrstuvwxyzabcde", "abcdefghijklmnopqrstuvwxyzabcde"}));
+        EXPECT_EQ(
+            ReadInteger64Array(structArray->GetFieldByName("b")),
+            std::vector<i64>({1, 2}));
+    }
+
+    // Second batch: rows 2 and 3 (startIndex=2 in the columnar batch).
+    {
+        auto structArray = std::dynamic_pointer_cast<arrow20::StructArray>(batches[1]->column(0));
+        ASSERT_TRUE(structArray);
+        EXPECT_EQ(
+            ReadStringArray(structArray->GetFieldByName("a")),
+            std::vector<std::string>({"cc", "dd"}));
+        EXPECT_EQ(
+            ReadInteger64Array(structArray->GetFieldByName("b")),
+            std::vector<i64>({3, 4}));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

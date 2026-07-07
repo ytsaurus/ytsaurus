@@ -13,7 +13,12 @@ struct INodeDirectorySynchronizer
 {
     virtual void Start() const = 0;
 
+    virtual bool IsStarted() const = 0;
+
     virtual TFuture<void> Stop() const = 0;
+
+    //! Runs a one-off sync without starting periodic executor.
+    virtual TFuture<void> SyncOnce(TDuration stalenessThreshold) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeDirectorySynchronizer)

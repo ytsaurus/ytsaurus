@@ -6,6 +6,9 @@
 #include <contrib/ydb/library/actors/core/actorid.h>
 #include <contrib/ydb/library/actors/core/actorsystem.h>
 
+#include <contrib/ydb/library/yql/dq/actors/protos/dq_events.pb.h>
+#include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_async_io.h>
+
 #include <contrib/ydb/library/yql/dq/proto/dq_transport.pb.h>
 
 #include <yql/essentials/minikql/computation/mkql_computation_node_pack.h>
@@ -26,11 +29,12 @@ struct TChannelInfo {
 };
 
 struct TChannelFullInfo : public TChannelInfo {
-    TChannelFullInfo(ui64 channelId, NActors::TActorId outputActorId, NActors::TActorId inputActorId, ui32 srcStageId, ui32 dstStageId)
-        : TChannelInfo(channelId, outputActorId, inputActorId), SrcStageId(srcStageId), DstStageId(dstStageId)
+    TChannelFullInfo(ui64 channelId, NActors::TActorId outputActorId, NActors::TActorId inputActorId, ui32 srcStageId, ui32 dstStageId, TCollectStatsLevel level)
+        : TChannelInfo(channelId, outputActorId, inputActorId), SrcStageId(srcStageId), DstStageId(dstStageId), Level(level)
     {}
     ui32 SrcStageId;
     ui32 DstStageId;
+    TCollectStatsLevel Level;
 };
 
 class TDataChunk {
@@ -38,29 +42,39 @@ public:
     TDataChunk() = default;
 
     TDataChunk(TChunkedBuffer&& buffer, ui64 rows, NDqProto::EDataTransportVersion transportVersion,
-        NKikimr::NMiniKQL::EValuePackerVersion packerVersion, bool leading, bool finished)
+        NKikimr::NMiniKQL::EValuePackerVersion packerVersion, bool finished)
         : Buffer(buffer)
         , Rows(rows)
         , TransportVersion(transportVersion)
         , PackerVersion(packerVersion)
-        , Leading(leading)
         , Finished(finished) {
         Bytes = Buffer.Size() + 1;
         Timestamp = TInstant::Now();
     }
 
-    TDataChunk(TChunkedBuffer&& buffer, ui64 rows, bool leading, bool finished)
+    TDataChunk(TChunkedBuffer&& buffer, ui64 rows, bool finished)
         : Buffer(buffer)
         , Rows(rows)
-        , Leading(leading)
         , Finished(finished) {
         Bytes = Buffer.Size() + 1;
         Timestamp = TInstant::Now();
     }
 
-    TDataChunk(bool leading, bool finished) : Bytes(1), Leading(leading), Finished(finished) {
+    TDataChunk(bool finished) : Bytes(1), Finished(finished) {
         Timestamp = TInstant::Now();
     }
+
+    TDataChunk(NDqProto::TCheckpoint&& checkpoint)
+        : Bytes(1)
+        , Timestamp(TInstant::Now())
+        , Checkpoint(std::move(checkpoint))
+    {}
+
+    TDataChunk(NDqProto::TWatermark&& watermark)
+        : Bytes (1)
+        , Timestamp(TInstant::Now())
+        , Watermark(std::move(watermark))
+    {}
 
     TChunkedBuffer Buffer;
 
@@ -68,9 +82,11 @@ public:
     ui64 Bytes = 0;
     NDqProto::EDataTransportVersion TransportVersion = NDqProto::EDataTransportVersion::DATA_TRANSPORT_OOB_FAST_PICKLE_1_0;
     NKikimr::NMiniKQL::EValuePackerVersion PackerVersion = NKikimr::NMiniKQL::EValuePackerVersion::V1;
-    bool Leading = false;
     bool Finished = false;
+    bool ConfirmFinish = false;
     TInstant Timestamp;
+    TMaybe<NDqProto::TCheckpoint> Checkpoint;
+    TMaybe<NDqProto::TWatermark> Watermark;
 };
 
 class IChannelBuffer {
@@ -78,8 +94,6 @@ public:
     IChannelBuffer(const TChannelFullInfo& info) : Info(info) {}
     virtual ~IChannelBuffer() {}
 
-    TDqInputChannelStats PushStats;
-    TDqOutputChannelStats PopStats;
     TChannelFullInfo Info;
 
     virtual EDqFillLevel GetFillLevel() const = 0;
@@ -87,16 +101,15 @@ public:
     virtual void Push(TDataChunk&& data) = 0;
     virtual bool IsFinished() = 0;
     virtual bool IsEarlyFinished() = 0;
-    virtual void UpdatePopStats() {}
 
     virtual bool IsEmpty() = 0;
     virtual bool Pop(TDataChunk& data) = 0;
     virtual void EarlyFinish() = 0;
-    virtual void UpdatePushStats() {}
+
+    virtual void ExportPushStats(TDqAsyncStats& stats) = 0;
+    virtual void ExportPopStats(TDqAsyncStats& stats) = 0;
 
     void SendFinish();
-    bool GetLeading();
-    bool Leading = true;
 };
 
 // Channel usually created with unknown peer id which may be local or remote etc.
@@ -109,8 +122,9 @@ public:
     virtual ~IDqChannelService() {}
     virtual IDqOutputChannel::TPtr GetOutputChannel(const TDqChannelSettings& settings) = 0;
     virtual IDqInputChannel::TPtr GetInputChannel(const TDqChannelSettings& settings) = 0;
-    virtual std::shared_ptr<IChannelBuffer> GetOutputBuffer(const TChannelFullInfo& info, IDqChannelStorage::TPtr storage) = 0;
-    virtual std::shared_ptr<IChannelBuffer> GetInputBuffer(const TChannelFullInfo& info) = 0;
+    virtual std::shared_ptr<IChannelBuffer> GetOutputBuffer(const TChannelFullInfo& info, IMemoryQuotaManager::TPtr quotaManager, IDqChannelStorage::TPtr storage) = 0;
+    virtual std::shared_ptr<IChannelBuffer> GetInputBuffer(const TChannelFullInfo& info, IMemoryQuotaManager::TPtr quotaManager) = 0;
+    virtual void SetServiceActorId(NActors::TActorId serviceActorId) = 0;
 };
 
 inline NActors::TActorId MakeChannelServiceActorID(ui32 nodeId) {
@@ -121,7 +135,11 @@ inline NActors::TActorId MakeChannelServiceActorID(ui32 nodeId) {
 struct TDqChannelLimits {
     ui64 LocalChannelInflightBytes  =  8_MB;    // max bytes per local channel
     ui64 RemoteChannelInflightBytes = 16_MB;    // max bytes per remote channel == output.push - input.pop
-    ui64 NodeSessionIcInflightBytes = 64_MB;    // max bytes in network/IC per node-to-node session
+    ui64 RemoteSessionInflightBytes = 64_MB;    // max bytes in network/IC per node-to-node session
+    ui64 ReconciliationCount = 3;    // number of retries before node session is completely destroyed
+    TDuration CleanupPeriod = TDuration::MilliSeconds(30000);
+    TDuration IdlePingPeriod = TDuration::MilliSeconds(30000);
+    TDuration IdleDestroyPeriod = TDuration::MilliSeconds(30000);
 };
 
 NActors::IActor* CreateLocalChannelServiceActor(NActors::TActorSystem* actorSystem, ui32 nodeId,

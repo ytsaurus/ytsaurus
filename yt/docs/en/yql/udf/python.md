@@ -1,5 +1,14 @@
 # Instructions for writing Python user-defined functions (UDFs) for YQL
 
+{% if audience == "public" %}
+
+Using a purely declarative, SQL-like approach to describe task results can sometimes be impractical. You may need to specify which data to `JOIN` and how to group it declaratively, while handling the data processing logic imperatively. For these use cases, YQL provides a mechanism for writing and calling user-defined functions (UDFs) in Python.
+To learn more about UDFs, see [Python user-defined functions (UDFs) in YQL](../../user-guide/query-tracker/system-python-udf.md).
+
+{% endif %}
+
+{% if audience == "internal" %}
+
 ## Introduction
 Sometimes it can be difficult to describe tasks using only a declarative language like SQL. You may find it more convenient to express declaratively which data to join and how to group it, and to describe the applied logic of data fragment processing in an imperative style. For this use case, YQL provides a mechanism for writing and calling user-defined functions (UDFs) in Python 3.6 or Python 2.7.
 
@@ -37,7 +46,7 @@ There are three ways to specify the function **signature**:
   * As an annotation of arguments and the output value (for Python 3 only).
   * As docstring in a Python function.
 
-Since running arbitrary Python code in YQL isn't safe, the second and third options require running a separate Map operation on YT, which takes about 30–60 seconds.
+Since running arbitrary Python code in YQL isn't safe, the second and third options require running a separate Map operation on YT, which takes about 30-60 seconds.
 {% cut "Notes on implementation" %}
 
 
@@ -119,7 +128,7 @@ You can call the function obtained after declaring the signature in the same way
 ### Nullable types
 In YQL, table columns (and any values as well) can be either non-nullable or [potentially nullable](../types/optional.md) (in SQL terms, nullable means allowing `NULL`). Functions in YQL, including Python functions, must declare in their signature whether they can handle potentially nullable input values, and whether they need to be able to return a nullable value (`NULL`, or "empty Optional").
 
-When specifying a signature for a Python UDF, nullable types are indicated by appending the `?` suffix; for example, `String?` or `Double?`. For Python, `NULL` values correspond to `None` in the argument or in the returned function value.
+When specifying a signature for a Python UDF, `nullable` types are indicated by appending the `?` suffix; for example, `String?` or `Double?`. For Python, `NULL` values correspond to `None` in the argument or in the returned function value.
 
 If an argument is marked as allowing `NULL` (Optional/Nullable), this **doesn't mean** that it can be omitted when calling the function.
 
@@ -189,7 +198,7 @@ $udf = Python3::f(Callable<(Yson?)->Tuple<Int64,Yson?>>, $script);
 SELECT $udf(CAST(@@{"abc"=1}@@ as Yson));
 ```
 
-{% note warning "Attention!"%}
+{% note warning "Attention!" %}
 
 A string in Python 3 corresponds to the `Utf8` type in YQL, and the `String` type corresponds to `bytes` in Python 3.
 
@@ -261,6 +270,86 @@ def list_func(lst):
 list_func._yql_lazy_input = False
 @@);
 SELECT $u(AsList(1,2,3));
+```
+
+## Using linear types {#python-linear}
+
+Linear types help optimize scenarios where some state is stored inside a Python object. Previously, two options were available:
+* Converting the state to immutable YQL types (strings, lists, etc.) on each call, which adds overhead.
+* Using the `Resource` type, which can be unsafe if the UDF modifies the state in place instead of returning a new value.
+
+Starting from version [2025.04](../changelog/2025.04.md), you can mark a `Resource` as a linear type, which prevents reuse of values of that type within a query and removes the restriction on mutating state directly in the Python object.
+
+In most cases, use static linear types (`Linear`) in arguments or return values when possible (for example, when you don't need to put them in a list).
+
+Using a `Linear` type inside Python is identical to using its base type, except that the query engine checks for reuse of such a value.
+
+Example:
+``` yql
+$script = @@#py
+def producer():
+    return []
+
+def adder(state, i):
+    # mutates state in-place
+    state.append(i)
+    return state
+
+def consumer(state):
+    return ",".join(str(x) for x in state)
+@@;
+
+$linearResource = Linear<Resource<Python3>>;
+$producer = Python3::producer(Callable<()->$linearResource>, $script);
+$adder = Python3::adder(Callable<($linearResource, Int32)->$linearResource>, $script);
+$consumer = Python3::consumer(Callable<($linearResource)->String>, $script);
+
+select Block(($arg)->{
+    $state = Udf($producer, $arg as Depends)();
+    $state = $adder($state, 1);
+    $state = $adder($state, 2);
+    return $consumer($state);
+}); -- "1,2"
+```
+
+When using the `DynamicLinear` type, you must retrieve the value from the argument via the `extract` method, and the Python object returned must also implement an `extract` method.
+
+Example:
+``` yql
+$script = @@#py
+class Result:
+    def __init__(self, lst):
+        self.lst = lst
+
+    def extract(self):
+        ret = self.lst
+        self.lst = None
+        return ret
+
+def producer():
+    return Result([])
+
+def adder(state, i):
+    # mutates state in-place
+    lst = state.extract()
+    lst.append(i)
+    return Result(lst)
+
+def consumer(state):
+    return ",".join(str(x) for x in state.extract())
+@@;
+
+$linearResource = DynamicLinear<Resource<Python3>>;
+$producer = Python3::producer(Callable<()->$linearResource>, $script);
+$adder = Python3::adder(Callable<($linearResource, Int32)->$linearResource>, $script);
+$consumer = Python3::consumer(Callable<($linearResource)->String>, $script);
+
+select Block(($arg)->{
+    $list = [1, 2, 3];
+    $state = Udf($producer, $arg as Depends)();
+    $state = ListFold($list, $state, ($item, $state)->($adder($state, $item)));
+    return $consumer($state);
+}); -- "1,2,3"
 ```
 
 {% if audience == "internal" %}
@@ -406,3 +495,5 @@ SELECT $udf(SecureParam("token:default_yt"));
 ```
 
 See [Functions for working with data types](../builtins/types.md).
+
+{% endif %}

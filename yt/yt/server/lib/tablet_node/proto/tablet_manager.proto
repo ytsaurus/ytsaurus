@@ -97,6 +97,7 @@ message TTableSettings
     optional bytes extra_mount_config_attributes = 8; // YSON-serialized
     optional bytes global_patch = 9; // YSON-serialized
     optional bytes experiments = 10; // YSON-serialized
+    optional bytes tablet_balancer_config = 11; // YSON-serialized
 }
 
 //! Parts of tablet content that are only sent from master during mount.
@@ -193,6 +194,7 @@ message TReqReplicateTabletContent
     repeated NYT.NProto.TGuid store_partition_ids = 8;
     optional NYT.NProto.TGuid active_store_id = 9;
     repeated NYT.NProto.TGuid allocated_dynamic_store_ids = 12;
+    repeated int32 reserved_dynamic_store_id_count = 15;
     repeated NYT.NProto.TGuid compression_dictionaries_by_policy = 13;
 
     required uint64 last_commit_timestamp = 10;
@@ -591,6 +593,8 @@ message TReqSwitchServant
 message TReqAbortSmoothMovement
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+    optional NYT.NProto.TError error = 3;
 }
 
 message TReqSetCustomRuntimeData

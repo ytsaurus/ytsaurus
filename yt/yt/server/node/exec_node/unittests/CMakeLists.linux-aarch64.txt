@@ -24,6 +24,7 @@ target_compile_options(unittester-exec-node PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(unittester-exec-node PUBLIC
@@ -53,6 +54,10 @@ target_link_options(unittester-exec-node PRIVATE
   -lrt
   -ldl
   -lutil
+)
+
+target_sources(unittester-exec-node PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/unittests/pending_downloads_tracker_ut.cpp
 )
 
 

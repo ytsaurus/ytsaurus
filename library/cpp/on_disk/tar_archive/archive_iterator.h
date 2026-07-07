@@ -1,9 +1,13 @@
 #pragma once
 
+#include <library/cpp/string_utils/ztstrbuf/ztstrbuf.h>
+
 #include <util/generic/iterator.h>
 #include <util/generic/string.h>
 #include <util/generic/fwd.h>
 #include <util/stream/input.h>
+
+#include <concepts>
 
 struct archive;
 struct archive_entry;
@@ -43,7 +47,15 @@ public:
         TArchiveIterator *Master = nullptr;
     };
 
-    TArchiveIterator(const TString& path);
+    TArchiveIterator(TZtStringBuf path);
+
+    template <typename T>
+    requires std::convertible_to<T, const TString&> && (!std::convertible_to<T, TZtStringBuf>)
+    TArchiveIterator(const T& path)  // For backwards compatibility, can be removed after switching from TString to std::string
+        : TArchiveIterator(TZtStringBuf(static_cast<const TString&>(path)) )
+    {
+    }
+
     ~TArchiveIterator();
 
 private:

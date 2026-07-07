@@ -193,7 +193,7 @@ private:
             maxChunks = std::ranges::min(std::ssize(GetOrCrash(chunksSample, cellTags.front())), limit);
         }
 
-        for (i64 i = 0; i < maxChunks; ++i) {
+        for (i64 index = 0; index < maxChunks; ++index) {
             for (auto cellTag : cellTags) {
                 if (limit == 0) {
                     return result;
@@ -201,11 +201,11 @@ private:
 
                 const auto& cellChunkIds = GetOrCrash(chunksSample, cellTag);
                 // Cell tags are descending sorted by the number of chunks.
-                if (std::ssize(cellChunkIds) <= i) {
+                if (std::ssize(cellChunkIds) <= index) {
                     break;
                 }
 
-                result[cellTag].push_back(cellChunkIds[i]);
+                result[cellTag].push_back(cellChunkIds[index]);
                 --limit;
             }
         }
@@ -331,7 +331,7 @@ private:
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-        auto chunkReplicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
+        auto chunkReplicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ false)
             .ValueOrThrow();
 
         // The above call is involves context switch, chunk may have died.
@@ -565,23 +565,27 @@ private:
 
             void Invoke(const IYPathServiceContextPtr& context) override
             {
-                Invoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
-                    try {
-                        if (!Map_->CheckChunkFilter(EphemeralChunk_)) {
-                            if (context->GetMethod() == "Exists") {
-                                TNonexistingService::Get()->Invoke(context);
-                                return;
+                Invoker_->Invoke(MakeGuardedCallback(
+                    BIND([=, this, this_ = MakeStrong(this)] {
+                        try {
+                            if (!Map_->CheckChunkFilter(EphemeralChunk_)) {
+                                if (context->GetMethod() == "Exists") {
+                                    TNonexistingService::Get()->Invoke(context);
+                                    return;
+                                }
+                                THROW_ERROR_EXCEPTION(
+                                    NYTree::EErrorCode::ResolveError,
+                                    "Chunk %v does not satisfy filtering criterion",
+                                    ChunkId_);
                             }
-                            THROW_ERROR_EXCEPTION(
-                                NYTree::EErrorCode::ResolveError,
-                                "Chunk %v does not satisfy filtering criterion",
-                                ChunkId_);
+                            Underlying_->Invoke(context);
+                        } catch (const std::exception& ex) {
+                            context->Reply(ex);
                         }
-                        Underlying_->Invoke(context);
-                    } catch (const std::exception& ex) {
-                        context->Reply(ex);
-                    }
-                }));
+                    }),
+                    BIND([=] {
+                        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Hydra peer is not active");
+                    })));
             }
 
             TResolveResult Resolve(
@@ -616,7 +620,7 @@ private:
 
         auto readInvoker = Bootstrap_
             ->GetObjectService()
-            ->CreateLocalReadInvoker(NRpc::GetCurrentAuthenticationIdentity().User);
+            ->CreateEpochLocalReadInvoker(NRpc::GetCurrentAuthenticationIdentity().User);
 
         // Protect from possible epoch switch rendering |RequireLeader| check above useless.
         auto epochInvoker = Bootstrap_

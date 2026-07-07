@@ -49,7 +49,7 @@ delete //home/dev/autorestart_nodes_copy timestamp;host;rack <id=0>123;<id=1>"ho
 
 Пример работы с транзакциями:
 
-```c++
+```cpp
 if (ValidateSignature("delete", {"path", "columns", "..."}, tokens)) {
     auto path = tokens[1];
     TPrepareRows prepareRows(tokens);
@@ -63,6 +63,17 @@ if (ValidateSignature("delete", {"path", "columns", "..."}, tokens)) {
 
     Cout << "Committed" << Endl;
 }
+```
+
+### UserTag { #usertag }
+
+При работе через RPC-прокси с помощью C++ клиента есть возможность указать дополнительный пользовательский тег `user_tag` - тогда идентификатор графика для пользователя будет аннотироваться не `<username>`, а `<username>:<user_tag>`. Это может быть полезно для сервисов, у которых много своих клиентов, но поход в YT делается от имени одного пользователя. Такая дополнительная разметка позволяет связать нагрузку на {{product-name}} с запросами, порождаемыми действиями внешнего пользователея.
+
+```c++
+
+auto connection = NYT::NApi::NRpcProxy::CreateConnection(rpcProxyConnectionConfig);
+auto options = TClientOptions::FromUser(user, userTag);
+auto client = connection->CreateClient(options);
 ```
 
 ## Java { #java }
@@ -404,7 +415,7 @@ public class ModifyRowsExample {
 
 ## Python { #python }
 
-Для работы через Python необходимо установить пакет с биндингами, pypi-пакет называется ytsaurus-rpc-driver. После этого необходимо указать в качестве бэкенда rpc.
+Для работы через Python необходимо установить пакет с биндингами, pypi-пакет называется {% if audience == "internal" %}yandex-yt-driver-rpc-bindings{% else %}ytsaurus-rpc-driver{% endif %}. После этого достаточно настроить клиент, указав тип бэкенда - `rpc` и, если нужно, указав подключение по ipv4.
 
 {% if audience == "internal" %}
 В Аркадии нужно добавить PEERDIR на yt/python/client_with_rpc (вместо yt/python/client).
@@ -415,28 +426,33 @@ public class ModifyRowsExample {
 ```python
 import yt.wrapper as yt
 
+def get_rpc_client(cluster_name, use_ipv4=False):
+    # получим конфиг для клиента с учетом переменных окружения
+    config = yt.default_config.get_config_from_env()
+    # настроим rpc подключение
+    config["backend"] = "rpc"
+    if use_ipv4:
+        config["driver_address_resolver_config"] = {"enable_ipv4": True, "enable_ipv6": False}
+    return yt.YtClient(cluster_name, config=config)
+
 def main():
-    client = yt.YtClient("cluster-name", config={"backend": "rpc"})
+    client = get_rpc_client("some_cluster", use_ipv4=True)
     schema = [
         {"name": "x", "type": "int64", "sort_order": "ascending"},
         {"name": "y", "type": "int64"},
         {"name": "z", "type": "int64"}
     ]
-
     table = "//home/ignat/dynamic_table"
     client.create("table", table, attributes={"schema": schema, "dynamic": True})
     client.mount_table(table, sync=True)
     client.insert_rows(table, [{"x": 0, "y": 99}])
-
     for iter in xrange(5):
         with client.Transaction(type="tablet"):
             rows = list(client.lookup_rows(table, [{"x": 0}]))
             if len(rows) == 1 and rows[0]["y"] <= 100:
                 rows[0]["y"] += 1
                 client.insert_rows(table, rows)
-
     print list(client.select_rows("* from [{}]".format(table)))
-
 if __name__ == "__main__":
     main()
 ```

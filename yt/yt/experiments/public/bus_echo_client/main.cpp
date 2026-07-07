@@ -1,6 +1,7 @@
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/core/bus/bus.h>
+#include <yt/yt/core/bus/message_handler.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/client.h>
@@ -10,10 +11,13 @@
 #include <yt/yt/core/crypto/config.h>
 
 #include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 namespace NYT {
 
 using namespace NBus;
+using namespace NBus::NTcp;
+using namespace NConcurrency;
 
 static const auto Logger = NLogging::TLogger("BusEchoServer");
 
@@ -29,7 +33,9 @@ public:
 
     virtual void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
+        IBusPtr replyBus,
+        IDirectPlacementTransferPtr /*transfer*/,
+        TPacketId /*packetId*/) noexcept override
     {
         const auto& peer = replyBus->GetEndpointDescription();
         auto id = Counter_++;
@@ -138,7 +144,7 @@ protected:
         YT_LOG_INFO("Getting ready future");
 
         auto readyFuture = bus->GetReadyFuture();
-        auto res = readyFuture.Get();
+        auto res = WaitFor(readyFuture);
         if (!res.IsOK()) {
             YT_LOG_INFO("bus is NOT ready for use %v", res.GetMessage());
             return;
@@ -160,14 +166,14 @@ protected:
             }
         }));
 
-        handler->GetFuture().Get();
+        WaitFor(handler->GetFuture()).ThrowOnError();
     }
 
 private:
-    TString Address_;
-    TString CAFile_;
-    TString EncryptionMode_;
-    TString VerificationMode_;
+    std::string Address_;
+    std::string CAFile_;
+    std::string EncryptionMode_;
+    std::string VerificationMode_;
     bool Flood_ = false;
 };
 

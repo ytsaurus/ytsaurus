@@ -263,6 +263,9 @@ struct TS3MediumConfig
     std::string AccessKeyId;
     std::string SecretAccessKey;
 
+    //! The prefix to the S3 object key. A trailing slash will be added, unless present.
+    TString Prefix;
+
     REGISTER_YSON_STRUCT(TS3MediumConfig);
 
     static void Register(TRegistrar registrar);
@@ -277,6 +280,7 @@ struct TMediumDirectorySynchronizerConfig
 {
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
+    bool UseCache;
 
     REGISTER_YSON_STRUCT(TMediumDirectorySynchronizerConfig);
 

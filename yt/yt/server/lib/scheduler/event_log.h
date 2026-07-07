@@ -23,6 +23,7 @@ DEFINE_ENUM(ELogEventType,
     (OperationPrepared)
     (OperationMaterialized)
     (OperationBannedInTree)
+    (OperationIncarnationStarted)
     (FairShareInfo)
     (ClusterInfo)
     (NodesInfo)

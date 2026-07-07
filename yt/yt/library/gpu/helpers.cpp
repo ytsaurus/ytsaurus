@@ -14,7 +14,7 @@ constexpr TStringBuf GpuUuidMessage = "GPU UUID";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, int> GetGpuMinorNumbers(TDuration timeout)
+THashMap<std::string, int> GetGpuMinorNumbers(TDuration timeout)
 {
     TSubprocess subprocess("nvidia-smi");
     subprocess.AddArguments({"-q"});
@@ -33,23 +33,23 @@ THashMap<TString, int> GetGpuMinorNumbers(TDuration timeout)
         THROW_ERROR_EXCEPTION("Failed to check healthy GPUs: 'nvidia-smi -q' exited with fatal error");
     }
 
-    THashMap<TString, int> result;
+    THashMap<std::string, int> result;
 
     size_t index = 0;
     while (true) {
         // Process GPU UUID.
         index = output.find(GpuUuidMessage, index);
-        if (index == TString::npos) {
+        if (index == std::string::npos) {
             break;
         }
 
-        TString gpuId;
+        std::string gpuId;
         int gpuNumber;
 
         {
             auto semicolonIndex = output.find(":", index);
             auto eolIndex = output.find("\n", index);
-            if (semicolonIndex == TString::npos || eolIndex == TString::npos || eolIndex <= semicolonIndex) {
+            if (semicolonIndex == std::string::npos || eolIndex == std::string::npos || eolIndex <= semicolonIndex) {
                 THROW_ERROR_EXCEPTION("Invalid 'nvidia-smi -q' output format: failed to parse GPU UUID");
             }
 
@@ -60,14 +60,14 @@ THashMap<TString, int> GetGpuMinorNumbers(TDuration timeout)
 
         // Process GPU Minor Number.
         index = output.find(MinorNumberMessage, index);
-        if (index == TString::npos) {
+        if (index == std::string::npos) {
             THROW_ERROR_EXCEPTION("Invalid 'nvidia-smi -q' output format: failed to find Minor Number after GPU UUID");
         }
 
         {
             auto semicolonIndex = output.find(":", index);
             auto eolIndex = output.find("\n", index);
-            if (semicolonIndex == TString::npos || eolIndex == TString::npos || eolIndex <= semicolonIndex) {
+            if (semicolonIndex == std::string::npos || eolIndex == std::string::npos || eolIndex <= semicolonIndex) {
                 THROW_ERROR_EXCEPTION("Invalid 'nvidia-smi -q' output format: failed to parse GPU Minor Number");
             }
 

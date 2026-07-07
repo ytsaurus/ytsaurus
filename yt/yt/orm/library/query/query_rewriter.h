@@ -20,7 +20,6 @@ NQueryClient::NAst::TExpressionPtr DummyFunctionRewriter(NQueryClient::NAst::TFu
 NQueryClient::NAst::TExpressionPtr DummyReferenceMapping(const NQueryClient::NAst::TReference&);
 NQueryClient::NAst::TExpressionPtr DummyExpressionRewriter(NQueryClient::NAst::TExpressionPtr);
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryRewriter

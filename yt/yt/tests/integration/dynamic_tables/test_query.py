@@ -8,7 +8,7 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    alter_table, authors, create_dynamic_table, wait, create, ls, get, set, move, create_user, make_ace,
+    alter_table, authors, create_dynamic_table, explain_query, wait, create, ls, get, set, move, create_user, make_ace,
     insert_rows, raises_yt_error, remount_table, select_rows, delete_rows, sorted_dicts, generate_timestamp, generate_uuid,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     WaitFailed, create_table_replica, sync_enable_table_replica)
@@ -35,6 +35,7 @@ from flaky import flaky
 import pytest
 
 from copy import deepcopy
+from itertools import product
 from random import randint, shuffle
 from math import isnan
 import os
@@ -45,7 +46,6 @@ import functools
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestQuery(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -167,7 +167,7 @@ class TestQuery(DynamicTablesBase):
     def test_full_scan(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Primary table key is not used in the where clause"):
             select_rows("* from [//tmp/t]", allow_full_scan=False)
 
     @authors("lukyan")
@@ -196,7 +196,7 @@ class TestQuery(DynamicTablesBase):
         )
 
         create("map_node", "//sys/ql_pools/secured_pool")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             select_rows(
                 "* from [//tmp/t]",
                 allow_full_scan=True,
@@ -571,7 +571,7 @@ class TestQuery(DynamicTablesBase):
             "scan",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Foreign table key is not used in the join clause"):
             select_rows(
                 "* from [//tmp/jl] join [//tmp/jr] on b = d",
                 allow_join_without_index=False,
@@ -1052,7 +1052,7 @@ class TestQuery(DynamicTablesBase):
 
         select_rows("* from [//tmp/t] where key < 50")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot read from tablet .*"):
             select_rows("* from [//tmp/t] where key < 51")
 
     @authors("babenko", "savrus", "lukyan")
@@ -1231,7 +1231,7 @@ class TestQuery(DynamicTablesBase):
         sync_create_cells(1)
         self._sample_data(path="//tmp/u")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("UDF file is empty"):
             select_rows("empty_udf(-2 * a) as s from [//tmp/u]")
 
     @authors("lukyan")
@@ -1521,7 +1521,7 @@ class TestQuery(DynamicTablesBase):
         nan = float("nan")
         str_nan = "(1.0 / 0 - 1.0 / 0)"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Key of type \"double\" cannot be NaN"):
             insert_rows("//tmp/t", [{"a": nan, "b": 1.0}])
         data = [{"a": 1.0, "b": nan}, {"a": 2.0, "b": 2.0}, {"a": 3.0}]
         insert_rows("//tmp/t", data)
@@ -1552,20 +1552,20 @@ class TestQuery(DynamicTablesBase):
         assert _compare(select_rows("* from [//tmp/t]"), data)
         assert _compare(select_rows("* from [//tmp/t] where is_nan(b)"), data[:1])
         assert _compare(select_rows("* from [//tmp/t] where is_null(b)"), data[2:])
-        with pytest.raises(YtError):
+        with raises_yt_error("Query evaluation failed"):
             select_rows("* from [//tmp/t] where b > 0")
         assert _compare(select_rows("* from [//tmp/t] where if(is_nan(b), false, b > 0)"), data[1:2])
 
         assert all(_isnan(list(x.values())[0]) for x in select_rows("if(true, {}, 1) from [//tmp/t]".format(str_nan)))
-        with pytest.raises(YtError):
+        with raises_yt_error("Query evaluation failed"):
             select_rows("* from [//tmp/t] where b = {}".format(str_nan))
-        with pytest.raises(YtError):
+        with raises_yt_error("Query evaluation failed"):
             select_rows("* from [//tmp/t] where b = if(true, {}, 0)".format(str_nan))
-        with pytest.raises(YtError):
+        with raises_yt_error("NaN value is not comparable"):
             select_rows("{} > 1 from [//tmp/t]".format(str_nan))
-        with pytest.raises(YtError):
+        with raises_yt_error("No matching function .*"):
             select_rows("if({}, 0, 1) from [//tmp/t]".format(str_nan))
-        with pytest.raises(YtError):
+        with raises_yt_error("Query evaluation failed"):
             select_rows("if(true, {}, 0) > 1 from [//tmp/t]".format(str_nan))
 
         assert list(select_rows("is_nan({}) from [//tmp/t]".format(str_nan))[0].values())[0]
@@ -1752,7 +1752,7 @@ class TestQuery(DynamicTablesBase):
         insert_rows(tt, [{"a": "a", "b": b"\x80\x00\x00\x00"}])
         insert_rows(tj, [{"b": b"\x80\x00\x00\x00", "c": "c"}])
 
-        with raises_yt_error("nonsimple type"):
+        with raises_yt_error("Cannot join column .* of nonsimple type"):
             select_rows("* from [//tmp/t] join [//tmp/j] using b")
 
     @authors("dtorilov")
@@ -2828,11 +2828,11 @@ class TestQuery(DynamicTablesBase):
 
         assert select_rows(casting_query, expression_builder_version=2, syntax_version=2) == expected
 
-        with raises_yt_error("is not supported in expression builder v1"):
+        with raises_yt_error("Function .* is not supported in expression builder v1"):
             select_rows("CAST(key AS Int64) from [//tmp/table]")
-        with raises_yt_error("is not supported in expression builder v1"):
+        with raises_yt_error("Function .* is not supported in expression builder v1"):
             select_rows("cast_operator(key, 'Int64') from [//tmp/table]")
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             select_rows("CAST(lvalue AS `Struct<x:String, y:List<Bool>>`) from [//tmp/table]", expression_builder_version=2)
         with raises_yt_error("Misuse of function \"cast_operator\""):
             select_rows("cast_operator(1, 1) from [//tmp/table]", expression_builder_version=2)
@@ -2860,7 +2860,7 @@ class TestQuery(DynamicTablesBase):
         acl[-1]["row_access_predicate"] = "key = 1"
         set("//tmp/t/@acl", acl)
 
-        with raises_yt_error("row-level ACL is present, but is not supported"):
+        with raises_yt_error("Access denied .*: row-level ACL is present, but is not supported"):
             select_rows("* from [//tmp/t]", authenticated_user="u")
 
     @authors("dtorilov")
@@ -2903,8 +2903,131 @@ class TestQuery(DynamicTablesBase):
         wait(check)
         assert select_rows(f"* from `{table_path}`") == [{'k': 42, 'v': ['a', 'b', 42]}]
 
+    @authors("dtorilov")
+    def test_hierarchical_join(self):
+        sync_create_cells(1)
 
-@pytest.mark.enabled_multidaemon
+        foreign_key_range = 50
+        right_row_count = 30
+        left_row_count = 20
+        foreign_keys_max_length = 10
+        value_range = 100
+
+        right_table_rows = [
+            {"x": i, "val1": randint(0, value_range), "val2": randint(0, value_range)}
+            for i in range(right_row_count)
+        ]
+        right_row_by_key = {row["x"]: row for row in right_table_rows}
+
+        left_table_rows = []
+        for primary_key in range(left_row_count):
+            candidates = list(range(foreign_key_range))
+            shuffle(candidates)
+            foreign_keys = sorted(candidates[:randint(0, foreign_keys_max_length)])
+            left_table_rows.append({"pk": primary_key, "fks": foreign_keys})
+
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "fks", "type_v3": {"type_name": "list", "item": "int64"}},
+            ],
+            left_table_rows,
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "x", "type": "int64", "sort_order": "ascending"},
+                {"name": "val1", "type": "int64"},
+                {"name": "val2", "type": "int64"},
+            ],
+            right_table_rows,
+        )
+
+        foreign_val1_threshold = 40
+        mixed_sum_threshold = 60
+
+        expected = []
+        for left_row in left_table_rows:
+            joined = []
+            for foreign_key in left_row["fks"]:
+                right_row = right_row_by_key.get(foreign_key)
+                if right_row is None:
+                    continue
+                if right_row["val1"] > foreign_val1_threshold and foreign_key + right_row["val2"] > mixed_sum_threshold:
+                    joined.append({"fk": foreign_key, "r.val1": right_row["val1"], "r.val2": right_row["val2"]})
+            expected.append({"pk": left_row["pk"], "joined_data": joined})
+
+        actual = select_rows(
+            """
+            l.pk as pk,
+            (select fk, r.val1, r.val2
+                from (l.fks as fk)
+                join `//tmp/r` as r on fk = r.x
+                where r.val1 > {foreign_val1_threshold} and fk + r.val2 > {mixed_sum_threshold}
+            ) as joined_data
+            from `//tmp/l` as l
+            """,
+            expression_builder_version=2,
+            syntax_version=2,
+            placeholder_values={
+                "foreign_val1_threshold": foreign_val1_threshold,
+                "mixed_sum_threshold": mixed_sum_threshold,
+            },
+        )
+        assert expected == actual
+
+    @authors("dtorilov")
+    def test_hierarchical_join_in_where_clause(self):
+        sync_create_cells(1)
+
+        right_table_rows = [
+            {"x": 10, "c": 100},
+            {"x": 20, "c": 200},
+            {"x": 30, "c": 300},
+        ]
+
+        left_table_rows = [
+            {"pk": 1, "fks": [10, 20]},
+            {"pk": 2, "fks": [99]},
+            {"pk": 3, "fks": [30]},
+            {"pk": 4, "fks": []},
+        ]
+
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "fks", "type_v3": {"type_name": "list", "item": "int64"}},
+            ],
+            left_table_rows,
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "x", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"},
+            ],
+            right_table_rows,
+        )
+
+        actual = select_rows(
+            """
+            l.pk as pk
+            from `//tmp/l` as l
+            where yson_length(
+                (select r.c
+                    from (l.fks as fk)
+                    join `//tmp/r` as r on fk = r.x
+                )
+            ) > 0
+            """,
+            expression_builder_version=2,
+            syntax_version=2,
+        )
+        assert actual == [{"pk": 1}, {"pk": 3}]
+
+
 class TestQueryRpcProxy(TestQuery):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -2944,12 +3067,14 @@ class TestQueryRpcProxy(TestQuery):
             name="rpc_proxy/detailed_table_statistics/select_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
-        def check():
-            def _check(select_duration_histogram):
+        def check(select_duration_histogram):
+            prev_bin_counters_sum = sum(bin["count"] for bin in select_duration_histogram.get_bins(verbose=True))
+
+            def _check():
                 try:
                     bins = select_duration_histogram.get_bins(verbose=True)
                     bin_counters = [bin["count"] for bin in bins]
-                    if sum(bin_counters) != 1:
+                    if sum(bin_counters) == prev_bin_counters_sum:
                         return False
                     if len(bin_counters) < 20:
                         return False
@@ -2962,13 +3087,14 @@ class TestQueryRpcProxy(TestQuery):
             assert select_rows("""* from [//tmp/t]""", driver=rpc_driver) == rows
 
             try:
-                wait(lambda: _check(node_select_duration_histogram), iter=5, sleep_backoff=0.5)
-                wait(lambda: _check(proxy_select_duration_histogram), iter=5, sleep_backoff=0.5)
+                wait(lambda: _check(), iter=5, sleep_backoff=0.5)
                 return True
             except WaitFailed:
                 return False
 
-        wait(lambda: check())
+        wait(lambda: check(node_select_duration_histogram))
+        wait(lambda: check(proxy_select_duration_histogram))
+
         assert profiler_factory().at_rpc_proxy(rpc_proxy).get(
             name="rpc_proxy/detailed_table_statistics/select_mount_cache_wait_time",
             tags={"table_path": "//tmp/t"},
@@ -3111,8 +3237,555 @@ class TestQueryRpcProxy(TestQuery):
         assert statistics[length//2] != 0
         assert all(map(lambda x : x == 0, statistics[(length//2+3):]))
 
+    @authors("dtorilov")
+    def test_yt_27954_1(self):
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", True)
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "fk1", "type": "int64"},
+            ],
+            [
+                {"pk": 1, "fk1": 10},
+                {"pk": 2, "fk1": 20},
+                {"pk": 3, "fk1": 30},
+            ],
+            "scan",
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending",
+                 "expression": "farm_hash(pk1, pk2)"},
+                {"name": "pk1", "type": "int64", "sort_order": "ascending"},
+                {"name": "pk2", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            [
+                {"pk1": 10, "pk2": 1, "value": "a"},
+                {"pk1": 10, "pk2": 2, "value": "b"},
+                {"pk1": 10, "pk2": 3, "value": "c"},
+                {"pk1": 20, "pk2": 1, "value": "d"},
+                {"pk1": 20, "pk2": 3, "value": "e"},
+                {"pk1": 30, "pk2": 2, "value": "f"},
+            ],
+            "scan",
+        )
+        query = (
+            "l.pk, l.fk1, r.pk1, r.pk2, r.value "
+            "from [//tmp/l] l join [//tmp/r] r "
+            "on l.fk1 = r.pk1 and r.pk2 in (1, 2)"
+            "limit 1024"
+        )
+        expected = [
+            {"l.pk": 1, "l.fk1": 10, "r.pk1": 10, "r.pk2": 1, "r.value": "a"},
+            {"l.pk": 1, "l.fk1": 10, "r.pk1": 10, "r.pk2": 2, "r.value": "b"},
+            {"l.pk": 2, "l.fk1": 20, "r.pk1": 20, "r.pk2": 1, "r.value": "d"},
+            {"l.pk": 3, "l.fk1": 30, "r.pk1": 30, "r.pk2": 2, "r.value": "f"},
+        ]
+        actual = select_rows(query, allow_join_without_index=False)
+        assert expected == actual
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", False)
 
-@pytest.mark.enabled_multidaemon
+    @authors("dtorilov")
+    def test_yt_27954_2(self):
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", True)
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "fk1", "type": "int64"},
+            ],
+            [
+                {"pk": 10, "fk1": 10},
+                {"pk": 20, "fk1": 20},
+                {"pk": 30, "fk1": 30},
+            ],
+            "scan",
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending",
+                 "expression": "farm_hash(pk1, pk2)"},
+                {"name": "pk1", "type": "int64", "sort_order": "ascending"},
+                {"name": "pk2", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            [
+                {"pk1": 10, "pk2": 1, "value": "a"},
+                {"pk1": 10, "pk2": 2, "value": "b"},
+                {"pk1": 10, "pk2": 3, "value": "c"},
+                {"pk1": 20, "pk2": 1, "value": "d"},
+                {"pk1": 20, "pk2": 3, "value": "e"},
+                {"pk1": 30, "pk2": 2, "value": "f"},
+            ],
+            "scan",
+        )
+        query = (
+            "l.pk, l.fk1, r.pk1, r.pk2, r.value "
+            "from [//tmp/l] l join [//tmp/r] r "
+            "on l.pk = r.pk1 and r.pk2 in (1, 2)"
+            "limit 1024"
+        )
+        expected = [
+            {"l.pk": 10, "l.fk1": 10, "r.pk1": 10, "r.pk2": 1, "r.value": "a"},
+            {"l.pk": 10, "l.fk1": 10, "r.pk1": 10, "r.pk2": 2, "r.value": "b"},
+            {"l.pk": 20, "l.fk1": 20, "r.pk1": 20, "r.pk2": 1, "r.value": "d"},
+            {"l.pk": 30, "l.fk1": 30, "r.pk1": 30, "r.pk2": 2, "r.value": "f"},
+        ]
+        actual = select_rows(query, allow_join_without_index=False)
+        assert expected == actual
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", False)
+
+    @authors("dtorilov")
+    def test_yt_27954_3(self):
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", True)
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "fk1", "type": "int64"},
+            ],
+            [
+                {"pk": 10, "fk1": 10},
+                {"pk": 20, "fk1": 20},
+                {"pk": 30, "fk1": 30},
+            ],
+            "scan",
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending",
+                 "expression": "farm_hash(pk1, pk2)"},
+                {"name": "pk1", "type": "int64", "sort_order": "ascending"},
+                {"name": "pk2", "type": "int64", "sort_order": "ascending"},
+                {"name": "pk3", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            [
+                {"pk1": 10, "pk2": 1, "pk3": 1, "value": "a"},
+                {"pk1": 10, "pk2": 2, "pk3": 2, "value": "b"},
+                {"pk1": 10, "pk2": 3, "pk3": 3, "value": "c"},
+                {"pk1": 20, "pk2": 1, "pk3": 1, "value": "d"},
+                {"pk1": 20, "pk2": 3, "pk3": 3, "value": "e"},
+                {"pk1": 30, "pk2": 2, "pk3": 2, "value": "f"},
+            ],
+            "scan",
+        )
+        query = (
+            "l.pk, l.fk1, r.pk1, r.pk2, r.value "
+            "from [//tmp/l] l join [//tmp/r] r "
+            "on l.pk = r.pk1 and r.pk3 in (1, 2)"
+            "limit 1024"
+        )
+        with raises_yt_error("Foreign table key is not used in the join clause"):
+            select_rows(query, allow_join_without_index=False)
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", False)
+
+    @authors("dtorilov")
+    def test_reverse_scan_for_order_by_1(self):
+        num_tablets = 5
+        rows_per_tablet = 4
+        total_rows = num_tablets * rows_per_tablet
+
+        sync_create_cells(1)
+
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", True)
+
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("key", "int64"),
+            make_column("val", "int64"),
+        ]
+        create("table", path, attributes={"dynamic": True, "schema": schema})
+        reshard_table(path, [[]] + [[i * rows_per_tablet] for i in range(1, num_tablets)])
+        sync_mount_table(path)
+        insert_rows(path, [{"key": i, "val": i} for i in range(total_rows)])
+
+        path2 = "//tmp/t2"
+        schema2 = [
+            make_sorted_column("a", "int64"),
+            make_sorted_column("b", "int64"),
+            make_column("val", "int64"),
+        ]
+        create("table", path2, attributes={"dynamic": True, "schema": schema2})
+        reshard_table(path2, [[]] + [[a, 0] for a in range(1, num_tablets)])
+        sync_mount_table(path2)
+        insert_rows(
+            path2,
+            [
+                {"a": a, "b": b, "val": a * rows_per_tablet + b}
+                for a in range(num_tablets)
+                for b in range(rows_per_tablet)
+            ]
+        )
+
+        def select_rows_returning_statistics(query):
+            response_parameters = {}
+            result = select_rows(query, response_parameters=response_parameters, enable_statistics=True)
+            return result, response_parameters['inner_statistics'][0]['rows_read']
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] order by key desc limit 4")
+        assert result == [{"key": 19, "val": 19}, {"key": 18, "val": 18},
+                          {"key": 17, "val": 17}, {"key": 16, "val": 16}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] order by key desc limit 5")
+        assert result == [{"key": 19, "val": 19}, {"key": 18, "val": 18},
+                          {"key": 17, "val": 17}, {"key": 16, "val": 16},
+                          {"key": 15, "val": 15}]
+        assert rows_read <= 3 * rows_per_tablet  # +1 tablet because of adaptive ordered schemaful reader
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key >= 8 order by key desc limit 4")
+        assert result == [{"key": 19, "val": 19}, {"key": 18, "val": 18},
+                          {"key": 17, "val": 17}, {"key": 16, "val": 16}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key between 4 and 15 order by key desc limit 4")
+        assert result == [{"key": 15, "val": 15}, {"key": 14, "val": 14},
+                          {"key": 13, "val": 13}, {"key": 12, "val": 12}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key >= 4 and key < 12 order by key desc limit 4")
+        assert result == [{"key": 11, "val": 11}, {"key": 10, "val": 10},
+                          {"key": 9, "val": 9}, {"key": 8, "val": 8}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key < 12 order by key desc limit 4")
+        assert result == [{"key": 11, "val": 11}, {"key": 10, "val": 10},
+                          {"key": 9, "val": 9}, {"key": 8, "val": 8}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path2}] where a >= 2 order by a desc, b desc limit 4")
+        assert result == [{"a": 4, "b": 3, "val": 19}, {"a": 4, "b": 2, "val": 18},
+                          {"a": 4, "b": 1, "val": 17}, {"a": 4, "b": 0, "val": 16}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path2}] where a between 1 and 3 order by a desc, b desc limit 8")
+        assert result == [{"a": 3, "b": 3, "val": 15}, {"a": 3, "b": 2, "val": 14},
+                          {"a": 3, "b": 1, "val": 13}, {"a": 3, "b": 0, "val": 12},
+                          {"a": 2, "b": 3, "val": 11}, {"a": 2, "b": 2, "val": 10},
+                          {"a": 2, "b": 1, "val": 9}, {"a": 2, "b": 0, "val": 8}]
+        assert rows_read <= 3 * rows_per_tablet  # +1 tablet because of adaptive ordered schemaful reader
+
+        response = explain_query(f"* from [{path}] order by key desc limit 10")
+        assert response["query"]["scan_order"] == "reversed"
+
+        response = explain_query(f"* from [{path}] where key >= 8 order by key desc limit 10")
+        assert response["query"]["scan_order"] == "reversed"
+
+        response = explain_query(f"* from [{path2}] where a between 1 and 3 order by a desc, b desc limit 10")
+        assert response["query"]["scan_order"] == "reversed"
+
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", False)
+
+    @authors("dtorilov")
+    def test_reverse_scan_for_order_by_2(self):
+        num_tablets = 5
+        rows_per_tablet = 4
+        total_rows = num_tablets * rows_per_tablet
+
+        sync_create_cells(1)
+
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", False)
+        time.sleep(5)
+
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("key", "int64"),
+            make_column("val", "int64"),
+        ]
+        create("table", path, attributes={"dynamic": True, "schema": schema})
+        reshard_table(path, [[]] + [[i * rows_per_tablet] for i in range(1, num_tablets)])
+        sync_mount_table(path)
+        insert_rows(path, [{"key": i, "val": i} for i in range(total_rows)])
+
+        path2 = "//tmp/t2"
+        schema2 = [
+            make_sorted_column("a", "int64"),
+            make_sorted_column("b", "int64"),
+            make_column("val", "int64"),
+        ]
+        create("table", path2, attributes={"dynamic": True, "schema": schema2})
+        reshard_table(path2, [[]] + [[a, 0] for a in range(1, num_tablets)])
+        sync_mount_table(path2)
+        insert_rows(
+            path2,
+            [
+                {"a": a, "b": b, "val": a * rows_per_tablet + b}
+                for a in range(num_tablets)
+                for b in range(rows_per_tablet)
+            ]
+        )
+
+        def select_rows_returning_statistics(query):
+            response_parameters = {}
+            result = select_rows(query, response_parameters=response_parameters, enable_statistics=True)
+            return result, response_parameters['inner_statistics'][0]['rows_read']
+
+        assert explain_query(f"* from [{path}] order by key desc limit 10")["query"]["scan_order"] == "unordered"
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] order by key desc limit 4")
+        assert result == [{"key": 19, "val": 19}, {"key": 18, "val": 18},
+                          {"key": 17, "val": 17}, {"key": 16, "val": 16}]
+        assert rows_read == total_rows
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key >= 8 order by key desc limit 4")
+        assert result == [{"key": 19, "val": 19}, {"key": 18, "val": 18},
+                          {"key": 17, "val": 17}, {"key": 16, "val": 16}]
+        assert rows_read == 3 * rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key between 4 and 15 order by key desc limit 4")
+        assert result == [{"key": 15, "val": 15}, {"key": 14, "val": 14},
+                          {"key": 13, "val": 13}, {"key": 12, "val": 12}]
+        assert rows_read == 3 * rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path2}] where a between 1 and 3 order by a desc, b desc limit 8")
+        assert result == [{"a": 3, "b": 3, "val": 15}, {"a": 3, "b": 2, "val": 14},
+                          {"a": 3, "b": 1, "val": 13}, {"a": 3, "b": 0, "val": 12},
+                          {"a": 2, "b": 3, "val": 11}, {"a": 2, "b": 2, "val": 10},
+                          {"a": 2, "b": 1, "val": 9}, {"a": 2, "b": 0, "val": 8}]
+        assert rows_read == 3 * rows_per_tablet
+
+    @authors("dtorilov")
+    def test_reverse_scan_for_order_by_3(self):
+        num_tablets = 5
+        rows_per_tablet = 4
+
+        sync_create_cells(1)
+
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", True)
+
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("k0", "int64"),
+            make_sorted_column("k1", "int64"),
+            make_column("payload", "int64"),
+        ]
+        create("table", path, attributes={"dynamic": True, "schema": schema})
+        reshard_table(path, [[]] + [[i] for i in range(1, num_tablets)])
+        sync_mount_table(path)
+        insert_rows(
+            path,
+            [
+                {"k0": k0, "k1": k1, "payload": 0}
+                for k0 in range(num_tablets)
+                for k1 in range(rows_per_tablet)
+            ],
+        )
+
+        def select_rows_returning_statistics(query):
+            response_parameters = {}
+            result = select_rows(query, response_parameters=response_parameters, enable_statistics=True)
+            return result, response_parameters['inner_statistics'][0]['rows_read']
+
+        for k0_value in (4, 0):
+            result, rows_read = select_rows_returning_statistics(
+                f"* from [{path}] where k0 = {k0_value} order by k1 desc limit 3")
+            assert result == [
+                {"k0": k0_value, "k1": 3, "payload": 0},
+                {"k0": k0_value, "k1": 2, "payload": 0},
+                {"k0": k0_value, "k1": 1, "payload": 0},
+            ]
+            assert rows_read <= rows_per_tablet
+
+        response = explain_query(f"* from [{path}] where k0 = 4 order by k1 desc limit 3")
+        assert response["query"]["scan_order"] == "reversed"
+
+        response = explain_query(f"* from [{path}] where k0 = 1 and k1 = 2 order by k1 desc limit 10")
+        assert response["query"]["scan_order"] == "unordered"
+
+        response = explain_query(f"* from [{path}] where k0 > 1 order by k1 desc limit 10")
+        assert response["query"]["scan_order"] == "unordered"
+
+        response = explain_query(f"* from [{path}] order by k0 desc, k1 desc limit 10")
+        assert response["query"]["scan_order"] == "reversed"
+
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", False)
+
+    @authors("sabdenovch")
+    def test_prefetch_join_table(self):
+        set("//sys/rpc_proxies/@config", {
+            "query_engine_config": {
+                "prefetch_join_tables": True,
+            },
+        })
+
+        sync_create_cells(2)
+
+        table = "//tmp/t"
+        create("table", table, attributes={"dynamic": True, "schema": [
+            make_sorted_column("key", "int64"),
+            make_column("value", "int64"),
+            make_column("balue", "int64"),
+        ]})
+        reshard_table(table, [[], [50]])
+        sync_mount_table(table)
+        table_rows = [{"key": i, "value": i % 7, "balue": i} for i in range(100)]
+        insert_rows(table, table_rows)
+
+        dictionary = "//tmp/d"
+        create("table", dictionary, attributes={"dynamic": True, "schema": [
+            make_sorted_column("dkey1", "int64"),
+            make_sorted_column("dkey2", "int64"),
+            make_column("dvalue", "int64"),
+        ]})
+        sync_mount_table(dictionary)
+        dictionary_rows = [{"dkey1": i, "dkey2": 0, "dvalue": i % 11} for i in range(100)]
+        insert_rows(dictionary, dictionary_rows)
+
+        def select_with_statistics(query):
+            stats = {}
+            return select_rows(query, response_parameters=stats, enable_statistics=True), stats
+
+        result, stats = select_with_statistics(
+            f"* from [{table}] left join [{dictionary}] ON (42, 0) = (dkey1, dkey2) limit 100000")
+        assert "inner_statistics" not in stats["inner_statistics"][0]["inner_statistics"][0]
+        assert result == [
+            t | d for t, d in product(table_rows, dictionary_rows)
+            if d["dkey1"] == 42 and d["dkey2"] == 0
+        ]
+
+        result, stats = select_with_statistics(
+            f"* from [{table}] join [{dictionary}] ON (balue) = (dkey1) "
+            "where balue in (3, 1, 4, 2) limit 100000")
+        assert "inner_statistics" not in stats["inner_statistics"][0]["inner_statistics"][0]
+        assert result == [
+            t | d for t, d in product(table_rows, dictionary_rows)
+            if d["dkey1"] in (1, 2, 3, 4) and t["balue"] == d["dkey1"]
+        ]
+
+        result, stats = select_with_statistics(
+            f"* from [{table}] join [{dictionary}] ON (42, value) = (dkey1, dkey2) limit 100000")
+        assert "inner_statistics" not in stats["inner_statistics"][0]["inner_statistics"][0]
+        assert result == [
+            t | d for t, d in product(table_rows, dictionary_rows)
+            if d["dkey1"] == 42 and d["dkey2"] == t["value"]
+        ]
+
+        insert_rows("//tmp/d", [{"dkey1": 6006, "dkey2": i, "dvalue": 0} for i in range(100000)])
+        insert_rows("//tmp/d", [{"dkey1": 6006, "dkey2": i, "dvalue": 0} for i in range(100000, 200000)])
+        result, stats = select_with_statistics(
+            f"* from [{table}] join [{dictionary}] ON (6006, value) = (dkey1, dkey2) limit 10000000")
+        assert "inner_statistics" in stats["inner_statistics"][0]["inner_statistics"][0]
+
+        sync_unmount_table(dictionary)
+        reshard_table(dictionary, [[], [30, 0], [70, 0]])
+        sync_mount_table(dictionary)
+        result, stats = select_with_statistics(
+            f"* from [{table}] join [{dictionary}] ON (key, value) = (dkey1, dkey2) where key in (0, 7, 14, 21) and value = 0 limit 100000")
+        assert "inner_statistics" not in stats["inner_statistics"][0]["inner_statistics"][0]
+        assert result == [
+            t | d for t, d in product(table_rows, dictionary_rows)
+            if t["key"] in (0, 7, 14, 21) and t["value"] == 0 and t["key"] == d["dkey1"]
+        ]
+
+    @authors("sabdenovch")
+    def test_parallel_group_by(self):
+        sync_create_cells(3)
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ])
+        reshard_table("//tmp/t", [[]] + [[i] for i in range(10, 100, 10)])
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": i % 7} for i in range(100)])
+
+        query_prefix = """
+            gk, uniq(value) AS u, sum(value) AS s, array_agg(value, false) as a
+            FROM [//tmp/t] GROUP BY key % 5 AS gk
+        """
+
+        def run_queries():
+            results = []
+            for having_before, totals, having_after in (
+                ("", "", ""),
+                ("", "WITH TOTALS ", ""),
+                ("HAVING s % 2 = 0 ", "", ""),
+                ("HAVING sum(value % 3) > 4 ", "WITH TOTALS ", ""),
+                ("", "WITH TOTALS ", "HAVING u % 3 = 0 "),
+            ):
+                for order_by in ("", "ORDER BY gk LIMIT 3", "ORDER BY s DESC, u DESC, gk DESC, gk ASC LIMIT 2"):
+                    query = query_prefix + having_before + totals + having_after + order_by
+                    statistics = {}
+                    result = select_rows(
+                        query,
+                        response_parameters=statistics,
+                        enable_statistics=True,
+                        expression_builder_version=2)
+                    for row in result:
+                        # aggregation order is not deterministic
+                        row["a"] = sorted(row["a"])
+                        # YsonEntity is not hashable
+                        row["gk"] = row["gk"] if not isinstance(row["gk"], yson.YsonEntity) else None
+                    if not order_by:
+                        result = {row["gk"] : (row["s"], row["u"], row["a"]) for row in result}
+                    results.append((result, statistics["grouped_row_count"], query))
+            return results
+
+        baselines = run_queries()
+        with self.RpcProxyDynamicConfig("/query_engine_config/enable_parallelize_unordered_group_by", True):
+            sidelines = run_queries()
+            for i in range(len(baselines)):
+                assert baselines[i][0] == sidelines[i][0], "Mismatch in query: " + baselines[i][2]
+                assert baselines[i][1] == sidelines[i][1], "Grouped row count differs for query: " + baselines[i][2]
+
+            assert select_rows("* from [//tmp/t] where false group by key % 5 as gk") == []  # should not not hang
+
+            # Correct handling of errors on various stages of execution
+            with raises_yt_error("Division by zero"):
+                select_rows("* from [//tmp/t] where 1 / (value - value) = 1 group by key % 5 as gk")
+            with raises_yt_error("Division by zero"):
+                select_rows("(1 / sum(0)) as s from [//tmp/t] group by key % 5 as gk")
+            with raises_yt_error("Division by zero"):
+                select_rows("sum(0) as s from [//tmp/t] group by key % 5 as gk having (1 / s) = 0")
+
+    @authors("shamteev")
+    def test_parallel_group_by_offset(self):
+        sync_create_cells(3)
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ])
+        row_count = 1000
+        reshard_table("//tmp/t", [[]] + [[i] for i in range(100, row_count, 100)])
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": i} for i in range(row_count)])
+
+        queries = [
+            "gk, sum(value) as s FROM [//tmp/t] "
+            "GROUP BY key % 1000 AS gk ORDER BY gk DESC OFFSET {} LIMIT {}".format(offset, limit)
+            for offset, limit in ((1, 1), (5, 1), (37, 1), (100, 1), (500, 1), (37, 10), (100, 50))
+        ]
+
+        def run_queries():
+            return [select_rows(query, expression_builder_version=2) for query in queries]
+
+        baselines = run_queries()
+        with self.RpcProxyDynamicConfig("/query_engine_config/enable_parallelize_unordered_group_by", True):
+            sidelines = run_queries()
+            for baseline, sideline, query in zip(baselines, sidelines, queries):
+                assert baseline == sideline, "OFFSET/LIMIT differs in parallel GROUP BY: " + query
+
+
 class TestSelectWithRowCache(TestLookupCache):
     ENABLE_MULTIDAEMON = True
     COUNTER_NAME = "select"
@@ -3128,7 +3801,6 @@ class TestSelectWithRowCache(TestLookupCache):
             **kwargs)
 
 
-@pytest.mark.enabled_multidaemon
 class TestQuerySequoia(TestQuery):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True

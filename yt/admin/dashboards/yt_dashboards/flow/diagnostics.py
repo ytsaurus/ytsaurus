@@ -11,7 +11,7 @@ from .common import create_dashboard, build_text_row
 
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
-from yt_dashboard_generator.sensor import Text, EmptyCell
+from yt_dashboard_generator.sensor import Text, EmptyCell, MultiSensor
 
 
 def add_single_core_diagnostic(row):
@@ -41,7 +41,7 @@ def add_slow_input_messages_lookup_diagnostic(row):
 
     description_text = (
         "**Slow input messages lookup &rarr;**\n"
-        "If you see values greater than 0, check your input messages table:\n"
+        "If you see values greater than 0, check your input messages table (`input_messages` or `compact_input_messages`):\n"
         "* Check that the table is properly resharded (`reshard_flow_tables`).\n"
         "* Check you bundle UI for bundle problems.\n\n"
         "It may slow down whole pipeline.\n"
@@ -51,11 +51,19 @@ def add_slow_input_messages_lookup_diagnostic(row):
         .cell("", Text(description_text))
         .cell(
             "Slow input messages lookup",
-            MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.lookup_time.max"))
-                .aggr("computation_id")
-                .query_transformation(transformation)
-                .alias("{{computation_id}}")
-                .stack(True))
+            MultiSensor(
+                MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.lookup_time.max"))
+                    .aggr("computation_id")
+                    .query_transformation(transformation)
+                    .alias("input_messages - {{computation_id}}")
+                    .stack(True),
+                MonitoringExpr(FlowWorker("yt.flow.worker.computation.tables.lookup_time.max"))
+                    .value("table", "input_messages|compact_input_messages")
+                    .value("tag", "-")
+                    .aggr("computation_id")
+                    .query_transformation(transformation)
+                    .alias("{{table}} - {{computation_id}}")
+                    .stack(True)))
     )
 
 

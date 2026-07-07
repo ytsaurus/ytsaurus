@@ -26,6 +26,8 @@ from yt_commands import (
 
 from yt_operations_archive_helpers import get_job_from_archive
 
+from yt_io_tracking_base import TestIOTrackingBase
+
 import subprocess
 
 import yt_error_codes
@@ -47,6 +49,7 @@ from flaky import flaky
 
 from copy import deepcopy
 
+import hashlib
 import pytest
 import time
 import datetime
@@ -137,6 +140,38 @@ class TestSandboxTmpfs(YTEnvSetup):
         words = content.strip().split()
         assert ["file", "content"] == words
 
+    @authors("krasovav")
+    def test_resulting_spec_contains_volumes_for_tmpfs_volumes(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            task_patch={
+                "tmpfs_size": 1024 * 1024,
+                "tmpfs_path": "tmpfs",
+            },
+            track=False,
+        )
+
+        wait_breakpoint()
+
+        full_spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        task_spec = full_spec["tasks"]["task"]
+
+        assert "tmpfs_volumes" in task_spec
+        assert len(task_spec["tmpfs_volumes"]) == 1
+        assert "job_volume_mounts" in task_spec
+        assert len(task_spec["job_volume_mounts"]) == 2
+        assert "volumes" in task_spec
+        assert len(task_spec["volumes"]) == 2
+
+        tmpfs_volumes = [
+            volume
+            for volume in task_spec["volumes"].values()
+            if "disk_request" in volume is not None and volume["disk_request"]["type"] == "tmpfs"
+        ]
+
+        assert len(tmpfs_volumes) == 1
+        assert tmpfs_volumes[0]["disk_request"]["tmpfs_index"] == 0
+
     @authors("ignat")
     def test_tmpfs_profiling(self):
         create("table", "//tmp/t_input")
@@ -201,6 +236,32 @@ class TestSandboxTmpfs(YTEnvSetup):
                 summary_type="sum")
             assert limit is not None
             assert limit == 1024 * 1024
+
+    @authors("krasovav")
+    def test_non_root_volume_without_disk_request(self):
+        with pytest.raises(YtError, match='Options "volumes" must contains disk_request for non-root volume'):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "a": {
+                            "job_count": 1,
+                            "command": "ls tmpfs",
+                            "volumes" : {
+                                "non-root": {
+                                    "disk_space": 1024,
+                                    "type": "tmpfs"
+                                },
+                            },
+                            "job_volumes_mounts" : [
+                                {
+                                    "volume_id": "non-root",
+                                    "mount_path": "/sandbox/tmpfs",
+                                }
+                            ],
+                        }
+                    },
+                }
+            )
 
     @authors("ignat")
     def test_dot_tmpfs_path(self):
@@ -281,7 +342,7 @@ class TestSandboxTmpfs(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Process exited with code .*"):
             map(
                 command="cat; cp test_file local_file;",
                 in_="//tmp/t_input",
@@ -316,7 +377,7 @@ class TestSandboxTmpfs(YTEnvSetup):
             "user_job.tmpfs_volumes.0.max_size",
             lambda tmpfs_size: 0.9 * 1024 * 1024 <= tmpfs_size <= 1.1 * 1024 * 1024))
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No space left on device"):
             map(
                 command="cat",
                 in_="//tmp/t_input",
@@ -333,7 +394,7 @@ class TestSandboxTmpfs(YTEnvSetup):
             )
 
         # Per-file `copy_file' attribute has higher priority than `copy_files' in spec.
-        with pytest.raises(YtError):
+        with raises_yt_error("No space left on device"):
             map(
                 command="cat",
                 in_="//tmp/t_input",
@@ -369,7 +430,7 @@ class TestSandboxTmpfs(YTEnvSetup):
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Tmpfs path .* does not point inside the sandbox directory"):
             map(
                 command="cat",
                 in_="//tmp/t_input",
@@ -382,7 +443,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Tmpfs path .* does not point inside the sandbox directory"):
             map(
                 command="cat",
                 in_="//tmp/t_input",
@@ -395,13 +456,47 @@ class TestSandboxTmpfs(YTEnvSetup):
                 },
             )
 
+    @authors("krasovav")
+    @pytest.mark.parametrize("incorrect_path", ["/abc/abc/../../..", "abc", "."])
+    def test_incorrect_volume_mount_path_spec(self, incorrect_path):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        with pytest.raises(YtError) as err:
+            map(
+                command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "volumes": {
+                            "first": {
+                                "disk_request": {
+                                    "disk_space": 1024 * 1024,
+                                    "type": "tmpfs",
+                                }
+                            }
+                        },
+                        "job_volumes_mounts": [
+                            {
+                                "mount_path": incorrect_path,
+                                "volume_id": "first",
+                            },
+                        ]
+                    }
+                },
+            )
+
+        assert "Option \"mount_path\" must be absolute path" in str(err)
+
     @authors("ignat")
     def test_tmpfs_remove_failed(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Process exited with code .*"):
             map(
                 command="cat; rm -rf tmpfs",
                 in_="//tmp/t_input",
@@ -421,7 +516,7 @@ class TestSandboxTmpfs(YTEnvSetup):
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Process exited with code .*"):
             map(
                 command="set -e; cat; dd if=/dev/zero of=tmpfs/file bs=1100000 count=1",
                 in_="//tmp/t_input",
@@ -491,7 +586,7 @@ time.sleep(10)
         wait(lambda: assert_statistics(op, "user_job.max_memory", lambda max_memory: max_memory > 200 * 1024 * 1024))
 
         # Smaps memory tracker is disabled. Job should fail.
-        with pytest.raises(YtError):
+        with raises_yt_error("Memory limit exceeded"):
             memory_limit = 430 * 1024 * 1024
             op = map(
                 command="fallocate -l 200M tmpfs/f; python3 mapper.py",
@@ -515,7 +610,7 @@ time.sleep(10)
 
         # String is in memory twice: one copy is mapped non-tmpfs file and one copy is a local variable s.
         # Both allocations should be counted.
-        with pytest.raises(YtError):
+        with raises_yt_error("Process exited with code .*"):
             memory_limit = 300 * 1024 * 1024
             op = map(
                 command="fallocate -l 200M tmpfs/f; python3 mapper.py",
@@ -603,7 +698,7 @@ time.sleep(10)
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             map(
                 command="cat",
                 in_="//tmp/t_input",
@@ -620,7 +715,7 @@ time.sleep(10)
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             map(
                 command="cat",
                 in_="//tmp/t_input",
@@ -629,50 +724,6 @@ time.sleep(10)
                     "mapper": {
                         "tmpfs_volumes": [
                             {
-                                "size": 1024 * 1024,
-                            },
-                        ]
-                    },
-                    "max_failed_job_count": 1,
-                },
-            )
-
-        with pytest.raises(YtError):
-            map(
-                command="cat",
-                in_="//tmp/t_input",
-                out="//tmp/t_output",
-                spec={
-                    "mapper": {
-                        "tmpfs_volumes": [
-                            {
-                                "path": "tmpfs",
-                                "size": 1024 * 1024,
-                            },
-                            {
-                                "path": "tmpfs/inner",
-                                "size": 1024 * 1024,
-                            },
-                        ]
-                    },
-                    "max_failed_job_count": 1,
-                },
-            )
-
-        with pytest.raises(YtError):
-            map(
-                command="cat",
-                in_="//tmp/t_input",
-                out="//tmp/t_output",
-                spec={
-                    "mapper": {
-                        "tmpfs_volumes": [
-                            {
-                                "path": "tmpfs/fake_inner/../",
-                                "size": 1024 * 1024,
-                            },
-                            {
-                                "path": "tmpfs/inner",
                                 "size": 1024 * 1024,
                             },
                         ]
@@ -858,7 +909,7 @@ class TestSandboxDiskUsage(YTEnvSetup):
             },
         })
 
-        with raises_yt_error("Disk usage overdraft occurred: "):
+        with raises_yt_error("Disk usage overdraft occurred"):
             run_test_vanilla(
                 track=True,
                 command=" ; ".join([
@@ -983,23 +1034,24 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
 ##################################################################
 
 
-class TestDisabledSandboxTmpfs(YTEnvSetup):
+class TestFakeNonRootVolumes(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {"exec_node": {"slot_manager": {"enable_tmpfs": False}}}
+    DELTA_NODE_CONFIG = {"exec_node": {"slot_manager": {"enable_non_root_volumes": False}}}
 
-    @authors("ignat")
+    @authors("krasovav")
     def test_simple(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
         op = map(
-            command="cat; echo 'content' > tmpfs/file; ls tmpfs/ >&2; cat tmpfs/file >&2;",
+            command="[ -d tmpfs ]",
             in_="//tmp/t_input",
             out="//tmp/t_output",
+            track=True,
             spec={
                 "mapper": {
                     "tmpfs_size": 1024 * 1024,
@@ -1008,12 +1060,53 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
             },
         )
 
-        job_ids = op.list_jobs()
-        assert len(job_ids) == 1
-        content = op.read_stderr(job_ids[0]).decode("ascii")
-        words = content.strip().split()
-        assert ["file", "content"] == words
+        op.track()
 
+
+class TestPortoFakeNonRootVolumes(TestFakeNonRootVolumes):
+    USE_PORTO = True
+
+    def setup_files(self):
+        create("file", "//tmp/layer1")
+        write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
+
+    @authors("krasovav")
+    def test_layers(self):
+        self.setup_files()
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        with raises_yt_error("It is impossible to create a fake non-root volume if it contains a layer (VolumeId: 1)"):
+            map(
+                command="[ -d tmpfs ]",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                track=True,
+                spec={
+                    "mapper": {
+                        "volumes": {
+                            "1": {
+                                "layers": [
+                                    {
+                                        "path": "//tmp/layer1",
+                                    },
+                                ],
+                                "disk_request": {
+                                    "type": "tmpfs",
+                                    "disk_space": 1024 * 1024
+                                }
+                            }
+                        },
+                        "job_volumes_mounts": [
+                            {
+                                "volume_id": "1",
+                                "mount_path": "/sandbox"
+                            }
+                        ],
+                    }
+                },
+            )
 
 ##################################################################
 
@@ -1109,7 +1202,7 @@ class TestFilesInSandbox(YTEnvSetup):
         write_table("//tmp/t", [{"x": 42}])
         write_table("//tmp/t_in", [{"a": "b"}])
 
-        with raises_yt_error(yt_error_codes.OperationFailedToPrepare):
+        with raises_yt_error(code=yt_error_codes.OperationFailedToPrepare):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -1196,7 +1289,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
         create("file", "//tmp/file")
         write_file("//tmp/file", b"A" * 10 ** 7)
 
-        with raises_yt_error(yt_error_codes.TmpfsOverflow):
+        with raises_yt_error(code=yt_error_codes.TmpfsOverflow):
             map(
                 command="cat table",
                 in_="//tmp/t_input",
@@ -1213,6 +1306,55 @@ class TestArtifactCacheBypass(YTEnvSetup):
             )
         # In tests we crash if slot location is disabled.
         # Thus, if this test passed successfully, location was not disabled.
+
+    @authors("yuryalekseev")
+    def test_insufficient_tmpfs_for_files(self):
+        """
+        Test that map operation fails when tmpfs size is insufficient
+        for copying files from file_paths with copy_files=true.
+
+        This test verifies the fix for the issue where files were copied
+        to tmpfs without checking if there's enough space, potentially
+        causing slot location to be disabled.
+        """
+        # Create input and output tables
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        # Create a file that's larger than the tmpfs we'll allocate.
+        # File size: 20 MB
+        file_size = 20 * 1024 * 1024
+        create("file", "//tmp/large_file")
+        write_file("//tmp/large_file", b"A" * file_size)
+
+        # Try to run map operation with tmpfs size smaller than the file size.
+        # The operation should fail with TmpfsOverflow error.
+        tmpfs_size = file_size // 2
+
+        with raises_yt_error(code=yt_error_codes.TmpfsOverflow):
+            map(
+                command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "copy_files": True,
+                        "file_paths": ["//tmp/large_file"],
+                        "tmpfs_path": ".",
+                        "tmpfs_size": tmpfs_size,
+                    },
+                    "max_failed_job_count": 1,
+                }
+            )
+
+        # Verify that no slot location was disabled.
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes:
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+            for alert in alerts:
+                assert "disabled" not in alert.get("message", "").lower(), \
+                    f"Found disabled location alert on node {node}: {alert['message']}"
 
     @authors("gritukan")
     @pytest.mark.parametrize("bypass_artifact_cache", [False, True])
@@ -1269,6 +1411,101 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
 ##################################################################
 
+class TestSpliceArtifact(TestIOTrackingBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    _PIPE_SIZE = 65536
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "slot_manager": {
+                    "enable_async_artifact_copy": True,
+                    "artifact_pipe_size": _PIPE_SIZE,
+                },
+            },
+        },
+    }
+
+    @staticmethod
+    def _prepare_big_script():
+        data = make_random_string(32) * int(2 ** 20)
+        hash_ = hashlib.sha256(data.encode()).hexdigest()
+
+        script = (
+f"""
+import hashlib
+data = '{data}'
+assert hashlib.sha256(data.encode()).hexdigest() == '{hash_}'
+"""  # noqa
+        ).encode()
+
+        exec(script)
+        return script
+
+    @authors("dann239")
+    def test_splice_big_artifact(self):
+        create("file", "//tmp/script.py", attributes={"replication_factor": 1})
+        write_file("//tmp/script.py", self._prepare_big_script())
+
+        vanilla(
+            spec={
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "command": "python3 script.py",
+                        "file_paths": ["<copy_file=%true>//tmp/script.py"],
+                    },
+                },
+            }
+        )
+
+    @authors("dann239")
+    def test_stuck_artifact_materializing(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "testing_config": {
+                            "halt_when_materializing_artifact": True,
+                        },
+                    },
+                    "job_common": {
+                        "job_prepare_time_limit": 5000,
+                    },
+                },
+            },
+        })
+
+        create("file", "//tmp/script.py", attributes={"replication_factor": 1})
+        write_file("//tmp/script.py", self._prepare_big_script())
+
+        from_barrier = self.write_log_barrier(self.get_node_address())
+
+        with raises_yt_error("Failed to prepare job within timeout"):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "task": {
+                            "job_count": 1,
+                            "command": "python3 script.py",
+                            "file_paths": ["<copy_file=%true>//tmp/script.py"],
+                        },
+                    },
+                },
+            )
+
+        raw_events = self.wait_for_raw_events(
+            count=2,
+            from_barrier=from_barrier,
+            filter=lambda event: event["job_io_kind@"] == 'artifact_copy',
+        )
+
+        # One pipe's worth of data was transferred.
+        assert all(event['bytes'] == self._PIPE_SIZE for event in raw_events)
+
 
 class TestUserJobIsolation(YTEnvSetup):
     USE_PORTO = True
@@ -1295,8 +1532,7 @@ class TestUserJobIsolation(YTEnvSetup):
             "vanilla_operation_options": {
                 # NB: ytserver-exec requires many threads on start.
                 "user_job_options": {
-                    "thread_limit_multiplier": 5,
-                    "initial_thread_limit": 100,
+                    "thread_limit_formula": "100 + 5 * cpu",
                 },
             },
         },
@@ -1315,12 +1551,12 @@ class TestUserJobIsolation(YTEnvSetup):
         set("//sys/network_projects/n/@acl", [make_ace("allow", "u1", "use")])
 
         # Non-existent network project. Job should fail.
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             op = run_test_vanilla("true", task_patch={"network_project": "x"})
             op.track()
 
         # User `u2` is not allowed to use `n`. Job should fail.
-        with pytest.raises(YtError):
+        with raises_yt_error("User .* is not allowed to use network project .*"):
             op = run_test_vanilla("true", task_patch={"network_project": "n"}, authenticated_user="u2")
             op.track()
 
@@ -1392,7 +1628,7 @@ class TestUserJobIsolation(YTEnvSetup):
             op.track()
 
         run_fork_bomb(50)
-        with pytest.raises(YtError):
+        with raises_yt_error("Process exited with code .*"):
             run_fork_bomb(200)
 
     @authors("gritukan")
@@ -1522,6 +1758,79 @@ class TestUserJobIsolation(YTEnvSetup):
 
         release_breakpoint()
         op.track()
+
+    @authors("pogorelov")
+    def test_high_job_thread_count_alert_no_alert_when_below_limit(self):
+        update_controller_agent_config("max_job_thread_count_formula", "1000")
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 5 & done; wait"
+
+        op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+        op.track()
+
+        alerts = ls(op.get_path() + "/@alerts")
+        assert "high_job_thread_count" not in alerts
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("formula", ["1", "cpu", "cpu * 5"])
+    def test_high_job_thread_count_alert(self, formula):
+        update_controller_agent_config("max_job_thread_count_formula", formula)
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 5 & done; wait"
+
+        op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+        op.track()
+        wait(lambda: "high_job_thread_count" in ls(op.get_path() + "/@alerts"))
+        alert = get(op.get_path() + "/@alerts/high_job_thread_count")
+        assert "Some jobs have too many threads" in alert["message"]
+
+    @authors("pogorelov")
+    def test_high_job_thread_count_alert_attributes(self):
+        update_controller_agent_config("max_job_thread_count_formula", "1")
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 5 & done; wait"
+
+        op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+        op.track()
+        wait(lambda: "high_job_thread_count" in ls(op.get_path() + "/@alerts"))
+
+        alerts = ls(op.get_path() + "/@alerts")
+        assert alerts == ["high_job_thread_count"]
+
+        alert = get(op.get_path() + "/@alerts/high_job_thread_count")
+        inner_errors = alert["inner_errors"]
+        assert len(inner_errors) == 1
+
+        inner_error = inner_errors[0]
+        assert "Jobs exceed thread count limit" in inner_error["message"]
+        assert "job_id" in inner_error["attributes"]
+        assert inner_error["attributes"]["thread_count"] >= 32
+
+    @authors("pogorelov")
+    def test_high_job_thread_count_alert_multiple_tasks(self):
+        update_controller_agent_config("max_job_thread_count_formula", "1")
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 5 & done; wait"
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "task_a": {"job_count": 1, "command": cmd},
+                    "task_b": {"job_count": 1, "command": cmd},
+                },
+                "max_failed_job_count": 1,
+            },
+            track=True,
+        )
+
+        wait(lambda: "high_job_thread_count" in ls(op.get_path() + "/@alerts"))
+
+        alert = get(op.get_path() + "/@alerts/high_job_thread_count")
+        inner_errors = alert["inner_errors"]
+        assert len(inner_errors) == 2
+
+        task_names = {e["attributes"]["task"] for e in inner_errors}
+        assert task_names == {"task_a", "task_b"}
 
 
 class TestFixedUser(YTEnvSetup):
@@ -1661,7 +1970,7 @@ class TestJobStderr(YTEnvSetup):
 
         op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command=command, fail_fast=False, spec={"max_failed_job_count": 5})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Process exited with code .*"):
             op.track()
 
         check_all_stderrs(op, b"stderr\n", 5)
@@ -1681,7 +1990,7 @@ class TestJobStderr(YTEnvSetup):
         )
 
         # If all jobs failed then operation is also failed
-        with pytest.raises(YtError):
+        with raises_yt_error("Process exited with code .*"):
             op.track()
 
         check_all_stderrs(op, b"stderr\n", 5)
@@ -1779,12 +2088,33 @@ class TestJobStderr(YTEnvSetup):
         )
 
         release_breakpoint()
-        with pytest.raises(YtError):
+        with raises_yt_error("Process exited with code .*"):
             op.track()
 
         # The default number of stderr is 10. We check that we have 11-st stderr of failed job,
         # that is last one.
         check_all_stderrs(op, b"stderr\n", 11)
+
+    @authors("pogorelov")
+    def test_node_host_env_var(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo $YT_NODE_HOST >&2",
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        node_host = op.read_stderr(job_ids[0]).strip().decode("ascii")
+        print_debug("YT_NODE_HOST = ", node_host)
+        assert node_host != ""
+
+        cluster_nodes = ls("//sys/cluster_nodes")
+        assert any(node_host in node for node in cluster_nodes)
 
 
 class TestJobStderrMulticell(TestJobStderr):
@@ -1864,7 +2194,7 @@ class TestUserFiles(YTEnvSetup):
             verbose=True,
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("User file name .* for .* does not point inside the sandbox directory"):
             map(
                 in_="//tmp/t_input",
                 out=["//tmp/t_output"],
@@ -1899,7 +2229,7 @@ class TestUserFiles(YTEnvSetup):
             verbose=True,
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing object id"):
             # TODO(levysotsky): Error is wrong.
             # Instead of '#' + file it must be '#' + file_id.
             map(
@@ -1992,7 +2322,7 @@ class TestUserFiles(YTEnvSetup):
 
         assert read_table("//tmp/output") == [{"a": "b"}, {"a": "b"}]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid format name"):
             map(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -2001,7 +2331,7 @@ class TestUserFiles(YTEnvSetup):
             )
 
         # missing format
-        with pytest.raises(YtError):
+        with raises_yt_error("Format is not specified"):
             map(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -2231,7 +2561,7 @@ class TestSecureVault(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out")
-        with pytest.raises(YtError):
+        with raises_yt_error("Only alphanumeric characters and underscore are allowed in .*"):
             map(
                 track=False,
                 in_="//tmp/t_in",
@@ -2239,7 +2569,7 @@ class TestSecureVault(YTEnvSetup):
                 spec={"secure_vault": {"=_=": 42}},
                 command="cat",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Maximum length of the name for an environment variable violated"):
             map(
                 track=False,
                 in_="//tmp/t_in",
@@ -2257,7 +2587,7 @@ class TestSecureVault(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         update_controller_agent_config("secure_vault_length_limit", secure_vault_len - 1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Secure vault YSON text representation is too long"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2537,6 +2867,7 @@ class TestUserJobMonitoring(YTEnvSetup):
                 "testing": {
                     "test_resource": True,
                     "test_gpu_count": 8,
+                    "test_utilization_gpu_rate": 0.5,
                 },
             },
         },
@@ -2825,7 +3156,7 @@ class TestUserJobMonitoring(YTEnvSetup):
 
     @authors("levysotsky")
     def test_bad_spec(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown user job sensor"):
             run_test_vanilla(
                 "echo",
                 track=True,
@@ -2971,11 +3302,9 @@ class TestUserJobMonitoring(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
-    @authors("omgronny")
-    def test_has_monitoring_before_start(self):
-        op = run_test_vanilla(
-            "for (( c=1; c>0; c++ )); do : ; done",
-            job_count=1,
+    @authors("severovv")
+    def test_zero_monitoring_before_start(self):
+        op = run_sleeping_vanilla(
             spec={
                 "job_testing_options": {
                     "delay_before_run_job_proxy": 1000000,
@@ -2984,7 +3313,7 @@ class TestUserJobMonitoring(YTEnvSetup):
             task_patch={
                 "monitoring": {
                     "enable": True,
-                    "sensor_names": ["cpu/user", "gpu/utilization_power"]
+                    "sensor_names": ["cpu/user", "gpu/utilization_gpu", "gpu/utilization_power"]
                 },
                 "gpu_limit": 1,
                 "enable_gpu_layers": False,
@@ -3008,6 +3337,10 @@ class TestUserJobMonitoring(YTEnvSetup):
             postprocessor=float) == 0)
         wait(lambda: profiler.get(
             "user_job/gpu/utilization_power",
+            {"job_descriptor": descriptor, "gpu_slot": "0"},
+            postprocessor=float) == 0)
+        wait(lambda: profiler.get(
+            "user_job/gpu/utilization_gpu",
             {"job_descriptor": descriptor, "gpu_slot": "0"},
             postprocessor=float) == 0)
 
@@ -3045,7 +3378,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         wait(lambda: profiler.get(
             "user_job/gpu/utilization_gpu",
             {"job_descriptor": descriptor, "gpu_slot": "0"},
-            postprocessor=float) == 0)
+            postprocessor=float) == 0.5)
         assert profiler.get(
             "user_job/cpu/user",
             {"job_descriptor": descriptor},
@@ -3091,11 +3424,22 @@ class TestHealExecNode(YTEnvSetup):
 
     @authors("alexkolodezny")
     def test_heal_locations(self):
+        OK_ERROR = {"code": 0, "message": "", "attributes": {}}
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
 
         node_address = ls("//sys/cluster_nodes")[0]
 
         locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_node/slot_manager/locations".format(node_address))
+
+        def get_orchid_locations():
+            return get("//sys/cluster_nodes/{}/orchid/exec_node/slot_manager/locations".format(node_address))
+
+        # Before the disable: every configured location is present in the
+        # slot_manager orchid and reports enabled=true.
+        orchid_locations = get_orchid_locations()
+        for path, info in orchid_locations.items():
+            assert info["enabled"], "Location {} should be enabled".format(path)
+            assert info["disable_error"] == OK_ERROR
 
         for location in locations:
             with open("{}/disabled".format(location["path"]), "w") as f:
@@ -3105,6 +3449,15 @@ class TestHealExecNode(YTEnvSetup):
             return get(f"//sys/cluster_nodes/{node_address}/@resource_limits/user_slots") == 0
 
         wait(is_disabled)
+
+        # After the disable: the orchid mirrors it (per-location enabled=false
+        # and a non-OK disable_error).
+        orchid_locations = get_orchid_locations()
+        for location in locations:
+            info = orchid_locations[location["path"]]
+            assert not info["enabled"], "Location {} should be disabled".format(location["path"])
+            assert info["disable_error"] != OK_ERROR, \
+                "Location {} disable_error should be non-OK".format(location["path"])
 
         op = run_test_vanilla("sleep 0.1")
 
@@ -3122,6 +3475,9 @@ class TestHealExecNode(YTEnvSetup):
         heal_exec_node(node_address, ["slot0"])
 
         wait(lambda: not is_disabled())
+
+        # After the heal: every location is back to enabled=true in the orchid.
+        wait(lambda: all(info["enabled"] for info in get_orchid_locations().values()))
 
         op.track()
 
@@ -3174,7 +3530,7 @@ class TestHealExecNode(YTEnvSetup):
         # TODO(arkady-e1ppa): Make this part of the raises_yt_error
         # functionality?
         try:
-            with raises_yt_error("can only be fixed by a force reset"):
+            with raises_yt_error("Alert .* can only be fixed by a force reset"):
                 heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"])
         except YtError as wrong_error:
             print_debug("Attempt to reset alert \"job_proxy_unavailable\" raised a wrong exception")
@@ -3319,14 +3675,14 @@ class TestArtifactInvalidFormat(YTEnvSetup):
         }
     }
 >skiff"""
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_skiff_format)
 
     @authors("gepardo")
     def test_bad_protobuf(self):
         self._prepare_tables()
         bad_protobuf_format = "protobuf"
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_protobuf_format)
 
     @authors("gepardo")
@@ -3339,28 +3695,28 @@ class TestArtifactInvalidFormat(YTEnvSetup):
     def test_bad_dsv(self):
         self._prepare_tables()
         bad_dsv_format = "<key_value_separator = %true>dsv"
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_dsv_format)
 
     @authors("gepardo")
     def test_bad_yamred_dsv(self):
         self._prepare_tables()
         bad_dsv_format = '<enable_escaping = "some_long_string">yamred_dsv'
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_dsv_format)
 
     @authors("gepardo")
     def test_bad_schemaful_dsv(self):
         self._prepare_tables()
         bad_dsv_format = '<enable_escaping = "some_long_string">schemaful_dsv'
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_dsv_format)
 
     @authors("gepardo")
     def test_bad_web_json(self):
         self._prepare_tables()
         bad_web_json_format = '<field_weight_limit = -42>web_json'
-        with raises_yt_error(yt_error_codes.InvalidFormat):
+        with raises_yt_error(code=yt_error_codes.InvalidFormat):
             self._run_map_with_format(bad_web_json_format)
 
 
@@ -3502,7 +3858,7 @@ class TestConsecutiveJobAbortsPorto(YTEnvSetup):
             },
         )
 
-        with raises_yt_error(yt_error_codes.MaxFailedJobsLimitExceeded):
+        with raises_yt_error(code=yt_error_codes.MaxFailedJobsLimitExceeded):
             op.track()
 
         wait(lambda: get("//sys/cluster_nodes/{}/@alerts".format(node)))
@@ -4928,7 +5284,6 @@ class TestClosingStdoutCri(TestClosingStdoutSimple):
     JOB_ENVIRONMENT_TYPE = "cri"
 
 
-@pytest.mark.enabled_multidaemon
 class TestDeletingConfigFile(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1

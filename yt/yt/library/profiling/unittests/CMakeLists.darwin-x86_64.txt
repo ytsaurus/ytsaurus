@@ -14,19 +14,20 @@
 
 add_subdirectory(deps)
 
-add_executable(yt-yt-library-profiling-unittests)
+add_executable(unittester-library-profiling)
 
 
-target_compile_options(yt-yt-library-profiling-unittests PRIVATE
+target_compile_options(unittester-library-profiling PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
-target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
+target_link_libraries(unittester-library-profiling PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
@@ -42,11 +43,11 @@ target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
   library-profiling-perf
 )
 
-target_allocator(yt-yt-library-profiling-unittests
+target_allocator(unittester-library-profiling
   system_allocator
 )
 
-target_link_options(yt-yt-library-profiling-unittests PRIVATE
+target_link_options(unittester-library-profiling PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -54,12 +55,15 @@ target_link_options(yt-yt-library-profiling-unittests PRIVATE
   CoreFoundation
 )
 
-target_sources(yt-yt-library-profiling-unittests PRIVATE
+target_sources(unittester-library-profiling PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/per_cpu_sensor_impl_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/simple_sensor_impl_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_service_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/name_conflicts_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/profiler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/solomon_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/summary_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/tag_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/cube_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/encoder_ut.cpp
@@ -69,14 +73,14 @@ target_sources(yt-yt-library-profiling-unittests PRIVATE
 
 add_test(
   NAME
-  yt-yt-library-profiling-unittests
+  unittester-library-profiling
   COMMAND
-  yt-yt-library-profiling-unittests
+  unittester-library-profiling
 )
 
 set_property(
   TEST
-  yt-yt-library-profiling-unittests
+  unittester-library-profiling
   PROPERTY
   LABELS
   MEDIUM
@@ -84,16 +88,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-library-profiling-unittests
+  unittester-library-profiling
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-library-profiling-unittests)
+vcs_info(unittester-library-profiling)
 
 set_property(
   TEST
-  yt-yt-library-profiling-unittests
+  unittester-library-profiling
   PROPERTY
   PROCESSORS
   1

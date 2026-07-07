@@ -13,10 +13,12 @@ PEERDIR(
     library/cpp/protobuf/util
     contrib/ydb/library/yql/dq/actors/compute
     contrib/ydb/library/yql/providers/common/token_accessor/client
+    contrib/ydb/library/yql/providers/solomon/common
     contrib/ydb/library/yql/providers/solomon/events
     contrib/ydb/library/yql/providers/solomon/proto
     contrib/ydb/library/yql/providers/solomon/scheme
     contrib/ydb/library/yql/providers/solomon/solomon_accessor/client
+    contrib/ydb/library/yql/utils/actors
     contrib/ydb/public/sdk/cpp/src/client/types/credentials
     yql/essentials/public/types
     yql/essentials/public/udf

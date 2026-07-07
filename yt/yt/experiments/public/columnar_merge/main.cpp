@@ -171,7 +171,7 @@ bool ReadRows(const TReader& reader, std::vector<TRow>* rows)
     return true;
 }
 
-void TestReadWithMerge(const std::vector<TString>& chunkNames, TOptions options)
+void TestReadWithMerge(const std::vector<std::string>& chunkNames, TOptions options)
 {
     auto ioEngine = CreateIOEngine();
     auto tableSchema = GetTableSchema();
@@ -215,7 +215,7 @@ void TestReadWithMerge(const std::vector<TString>& chunkNames, TOptions options)
 }
 
 // TODO: Compaction is Merge with --all-committed
-void TestCompaction(const std::vector<TString>& chunkNames, bool dump, int batchSize, bool write)
+void TestCompaction(const std::vector<std::string>& chunkNames, bool dump, int batchSize, bool write)
 {
     auto ioEngine = CreateIOEngine();
     auto tableSchema = GetTableSchema();
@@ -349,7 +349,7 @@ size_t DoReadImpl(IVersionedReaderPtr versionedReader, int batchSize, TOnRows On
 
 void DoRead(
     IVersionedReaderPtr versionedReader,
-    TString outputName,
+    std::string outputName,
     int batchSize,
     bool calculateChecksum)
 {
@@ -358,8 +358,9 @@ void DoRead(
     stat.CalculateChecksum = calculateChecksum;
 
     std::unique_ptr<TFileOutput> textFile;
-    if (outputName) {
-        textFile = std::make_unique<TFileOutput>(outputName);
+    if (!outputName.empty()) {
+        // TODO(babenko): drop TString cast once TFileOutput accepts std::string.
+        textFile = std::make_unique<TFileOutput>(TString(outputName));
     }
 
     size_t getReadyEventCount;
@@ -461,7 +462,7 @@ void ConvertChunkFormat(
     Cout << Format("Format: %v, ConvertTime: %v", optimizeFor, convertTime) << Endl;
 }
 
-void TestVersionedScanRead(TString chunkName, TOptions options)
+void TestVersionedScanRead(std::string chunkName, TOptions options)
 {
     auto ioEngine = CreateIOEngine();
     auto tableSchema = GetTableSchema();
@@ -508,7 +509,7 @@ void TestVersionedScanRead(TString chunkName, TOptions options)
 
             DoRead(
                 versionedReader,
-                options.Dump ? Format(fileNamePattern, chunkName) : TString{},
+                options.Dump ? std::string(Format(fileNamePattern, chunkName)) : std::string{},
                 options.BatchSize,
                 options.CalculateChecksum);
 
@@ -542,7 +543,7 @@ void TestVersionedScanRead(TString chunkName, TOptions options)
 
         DoRead(
             versionedReader,
-            options.Dump ? Format("%v.lookup.txt", chunkName) : TString{},
+            options.Dump ? std::string(Format("%v.lookup.txt", chunkName)) : std::string{},
             options.BatchSize,
             options.CalculateChecksum);
     }
@@ -580,7 +581,7 @@ TSharedRange<TUnversionedRow> CollectKeys(const TReaderData& readerData, const T
     return MakeSharedRange(std::move(keys), std::move(rowBuffer));
 }
 
-void TestVersionedLookupRead(TString chunkName, TOptions options, int nth)
+void TestVersionedLookupRead(std::string chunkName, TOptions options, int nth)
 {
     auto ioEngine = CreateIOEngine();
     auto tableSchema = GetTableSchema();
@@ -646,7 +647,7 @@ void TestVersionedLookupRead(TString chunkName, TOptions options, int nth)
 
         // auto openFuture = versionedReader->Open();
         // if (openFuture.IsSet()) {
-        //     openFuture.Get().ThrowOnError();
+        //     openFuture.BlockingGet().ThrowOnError();
         // } else {
         //     WaitFor(openFuture)
         //     .ThrowOnError();
@@ -659,7 +660,7 @@ void TestVersionedLookupRead(TString chunkName, TOptions options, int nth)
 
             DoRead(
                 versionedReader,
-                options.Dump ? Format(fileNamePattern, chunkName) : TString{},
+                options.Dump ? std::string(Format(fileNamePattern, chunkName)) : std::string{},
                 options.BatchSize,
                 options.CalculateChecksum);
 
@@ -721,7 +722,7 @@ void TestVersionedLookupRead(TString chunkName, TOptions options, int nth)
 
             DoRead(
                 versionedReader,
-                options.Dump ? Format("%v.lookup.txt", chunkName) : TString{},
+                options.Dump ? std::string(Format("%v.lookup.txt", chunkName)) : std::string{},
                 options.BatchSize,
                 options.CalculateChecksum);
         }
@@ -751,7 +752,7 @@ void DoBenchmark(
     DoRead(versionedReader, 128);
 }
 
-void Benchmark(TString chunkName, TOptions options)
+void Benchmark(std::string chunkName, TOptions options)
 {
     auto ioEngine = CreateIOEngine();
     auto tableSchema = GetTableSchema();
@@ -819,7 +820,7 @@ void Benchmark(TString chunkName, TOptions options)
 
 #if 0
 
-std::vector<TString> DirectPhraseStatV2 = {
+std::vector<std::string> DirectPhraseStatV2 = {
 
 #if 0
     //Partition 1
@@ -853,9 +854,9 @@ void GuardedMain(int argc, char** argv)
     int nthKey = 10;
     bool allChunks = false;
     bool columnar = false;
-    TString command;
+    std::string command;
 
-    std::vector<TString> chunkIds;
+    std::vector<std::string> chunkIds;
     {
         auto opts = NLastGetopt::TOpts::Default();
 
@@ -910,6 +911,7 @@ void GuardedMain(int argc, char** argv)
         if (allChunks) {
 
             TFileInput file("index.txt");
+            // TODO(babenko): drop TString once TInputStream::ReadLine accepts std::string.
             TString line;
             while (file.ReadLine(line)) {
                 chunkIds.push_back(line);

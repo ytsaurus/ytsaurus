@@ -7,6 +7,7 @@ import (
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	"github.com/envoyproxy/go-control-plane/pkg/server/stream/v3"
 )
 
 // watches for all xDS resource types
@@ -63,8 +64,11 @@ func (w *watches) recompute(ctx context.Context, req <-chan *discovery.Discovery
 // watch contains the necessary modifiable data for receiving resource responses
 type watch struct {
 	cancel   func()
-	nonce    string
 	response chan cache.Response
+
+	sub stream.Subscription
+	// Nonce of the latest response sent for this type
+	nonce string
 }
 
 // close cancels an open watch

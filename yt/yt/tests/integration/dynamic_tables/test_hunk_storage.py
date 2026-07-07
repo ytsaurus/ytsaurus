@@ -2,8 +2,8 @@ from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
     authors, create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells,
-    sync_unmount_table, write_hunks, read_hunks, raises_yt_error, get_driver,
-    sync_freeze_table, sync_unfreeze_table, copy, move,
+    sync_unmount_table, read_hunks, raises_yt_error, get_driver,
+    sync_freeze_table, sync_unfreeze_table, copy, move, sync_reshard_table,
     lock_hunk_store, unlock_hunk_store, start_transaction, commit_transaction, abort_transaction, lock
 )
 
@@ -17,7 +17,7 @@ from yt.common import YtError
 
 import yt.yson as yson
 
-from yt_error_codes import ResolveErrorCode, HunkTabletStoreToggleConflict, HunkStoreAllocationFailed
+from yt_error_codes import ResolveErrorCode, HunkTabletStoreToggleConflict
 
 import pytest
 
@@ -26,7 +26,6 @@ import time
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestHunkStorage(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -64,18 +63,6 @@ class TestHunkStorage(DynamicTablesBase):
     def _remove_hunk_storage(self, path):
         wait(lambda: get(f"{path}/@associated_nodes") == [])
         remove(path)
-
-    def _write_hunks_with_retries(self, path, rows, tablet_index=0, retry_count=100):
-        iteration = 0
-        while iteration < retry_count:
-            iteration += 1
-            try:
-                result = write_hunks(path, rows, tablet_index=tablet_index)
-                return result
-            except YtError as e:
-                if not e.contains_code(HunkTabletStoreToggleConflict) and \
-                   not e.contains_code(HunkStoreAllocationFailed):
-                    raise e
 
     @authors("gritukan")
     def test_create_remove(self):
@@ -206,7 +193,7 @@ class TestHunkStorage(DynamicTablesBase):
         sync_create_cells(1)
         self._create_hunk_storage("//tmp/h")
         set("//tmp/h/@erasure_codec", "reed_solomon_6_3")
-        with raises_yt_error("bytewise"):
+        with raises_yt_error("Only bytewise erasure codecs can be used"):
             sync_mount_table("//tmp/h")
 
     @authors("akozhikhov")
@@ -216,12 +203,12 @@ class TestHunkStorage(DynamicTablesBase):
 
         set("//tmp/h/@erasure_codec", "none")
         set("//tmp/h/@replication_factor", 2)
-        with raises_yt_error("read_quorum"):
+        with raises_yt_error("\"read_quorum\" cannot be greater than \"replication_factor\""):
             sync_mount_table("//tmp/h")
 
         set("//tmp/h/@erasure_codec", "reed_solomon_3_3")
         set("//tmp/h/@replication_factor", 2)
-        with raises_yt_error("replication_factor"):
+        with raises_yt_error("\"replication_factor\" must be 1 for erasure journals"):
             sync_mount_table("//tmp/h")
 
         set("//tmp/h/@erasure_codec", "reed_solomon_3_3")
@@ -319,13 +306,13 @@ class TestHunkStorage(DynamicTablesBase):
         self._create_hunk_storage("//tmp/h")
         sync_mount_table("//tmp/h")
 
-        with raises_yt_error("No such store"):
+        with raises_yt_error("No such store .*"):
             lock_hunk_store("//tmp/h", 0, "1-1-1-1")
-        with raises_yt_error("No such store"):
+        with raises_yt_error("No such store .*"):
             unlock_hunk_store("//tmp/h", 0, "1-1-1-1")
 
         store_id = self._get_active_store_id("//tmp/h")
-        with raises_yt_error("is not locked"):
+        with raises_yt_error("Store .* of tablet .* is not locked by tablet .*"):
             unlock_hunk_store("//tmp/h", 0, store_id)
 
         sync_unmount_table("//tmp/h")
@@ -360,6 +347,7 @@ class TestHunkStorage(DynamicTablesBase):
         with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
             remove("//tmp/h")
 
+        remove("//tmp/t/@hunk_storage_id")
         remove("//tmp/t")
         self._remove_hunk_storage("//tmp/h")
 
@@ -367,14 +355,14 @@ class TestHunkStorage(DynamicTablesBase):
     def test_create_table_with_hunk_storage_node(self):
         hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Hunk storage can only be assigned to a dynamic table"):
             create("table", "//tmp/t", attributes={"hunk_storage_id": hunk_storage_id})
 
         self._create_ordered_table("//tmp/t", hunk_storage_id=hunk_storage_id)
 
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
 
-        remove("//tmp/t")
+        remove("//tmp/t", force=True)
         self._remove_hunk_storage("//tmp/h")
 
     @authors("aleksandra-zh")
@@ -409,7 +397,8 @@ class TestHunkStorage(DynamicTablesBase):
         with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
             remove("//tmp/h")
 
-        remove("//tmp/t1")
+        remove("//tmp/t1", force=True)
+        remove("//tmp/t2/@hunk_storage_id")
         remove("//tmp/t2")
         self._remove_hunk_storage("//tmp/h")
 
@@ -425,6 +414,7 @@ class TestHunkStorage(DynamicTablesBase):
         commit_transaction(tx)
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t1"]
 
+        remove("//tmp/t1/@hunk_storage_id")
         remove("//tmp/t1")
         self._remove_hunk_storage("//tmp/h")
 
@@ -458,6 +448,7 @@ class TestHunkStorage(DynamicTablesBase):
         commit_transaction(tx)
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t1"]
 
+        remove("//tmp/t1/@hunk_storage_id")
         remove("//tmp/t1")
         self._remove_hunk_storage("//tmp/h")
 
@@ -485,7 +476,8 @@ class TestHunkStorage(DynamicTablesBase):
         with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
             remove("//tmp/h")
 
-        remove("//tmp/t1")
+        remove("//tmp/t1", force=True)
+        remove("//tmp/t2/@hunk_storage_id")
         remove("//tmp/t2")
         self._remove_hunk_storage("//tmp/h")
 
@@ -512,7 +504,7 @@ class TestHunkStorage(DynamicTablesBase):
         self._create_hunk_storage("//tmp/h")
         self._create_ordered_table("//tmp/t")
 
-        with raises_yt_error(ResolveErrorCode):
+        with raises_yt_error(code=ResolveErrorCode):
             set("//tmp/t/@hunk_storage_id", "1-2-3-4")
 
         file_id = create("file", "//tmp/f")
@@ -520,7 +512,7 @@ class TestHunkStorage(DynamicTablesBase):
             set("//tmp/t/@hunk_storage_id", file_id)
 
         table_id = create("table", "//tmp/s")
-        with raises_yt_error("dynamic table"):
+        with raises_yt_error("Hunk storage can only be assigned to a dynamic table"):
             set("//tmp/s/@hunk_storage_id", table_id)
 
     @authors("akozhikhov")
@@ -701,8 +693,73 @@ class TestHunkStorage(DynamicTablesBase):
         wait(lambda: journal_written_bytes.get_delta() > 0)
         wait(lambda: io_request_count.get_delta() > 0)
 
+    @authors("akozhikhov")
+    def test_remove_cell_with_mounted_hunk_storage(self):
+        cell_id = sync_create_cells(1)[0]
+        self._create_hunk_storage("//tmp/h")
+        sync_mount_table("//tmp/h")
 
-@pytest.mark.enabled_multidaemon
+        hunk = self._write_hunks_with_retries("//tmp/h", ["aaa"])[0]
+
+        remove("#{}".format(cell_id))
+        wait(lambda: not exists("#{}".format(cell_id)))
+        # No one holds a reference to the chunk now.
+        wait(lambda: not exists("#{}".format(hunk["chunk_id"])))
+
+    @authors("akozhikhov")
+    def test_hunk_storage_tablet_action(self):
+        cell_ids = sync_create_cells(2)
+
+        self._create_hunk_storage("//tmp/h", tablet_count=2)
+        sync_mount_table("//tmp/h", target_cell_ids=[cell_ids[0], cell_ids[1]])
+
+        tablet_id = get("//tmp/h/@tablets/0/tablet_id")
+        assert get("#{}/@cell_id".format(tablet_id)) == cell_ids[0]
+
+        action_id = create("tablet_action", "", attributes={
+            "kind": "move",
+            "tablet_ids": [tablet_id],
+            "cell_ids": [cell_ids[1]],
+            "expiration_timeout": 60000,
+        })
+        wait(lambda: get("#{}/@state".format(action_id)) == "completed")
+
+        assert get("#{}/@cell_id".format(tablet_id)) == cell_ids[1]
+
+    @authors("akozhikhov")
+    def test_unmounted_hunk_storage_errors(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h")
+
+        with raises_yt_error("Tablet .* of table .* is in \"unmounted\" state"):
+            self._write_hunks_with_retries("//tmp/h", ["a" * 100])
+
+        sync_mount_table("//tmp/h")
+        hunks = self._write_hunks_with_retries("//tmp/h", ["a"])[0]
+        sync_unmount_table("//tmp/h")
+
+        with raises_yt_error("Tablet .* of table .* is in \"unmounted\" state"):
+            lock_hunk_store("//tmp/h", 0, hunks["chunk_id"])
+        with raises_yt_error("Tablet .* of table .* is in \"unmounted\" state"):
+            unlock_hunk_store("//tmp/h", 0, hunks["chunk_id"])
+
+    @authors("akozhikhov")
+    def test_reshard_hunk_storage(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h")
+
+        sync_mount_table("//tmp/h")
+        hunk_chunk_id1 = self._write_hunks_with_retries("//tmp/h", ["a"])[0]["chunk_id"]
+        sync_unmount_table("//tmp/h")
+
+        sync_reshard_table("//tmp/h", 2)
+        sync_mount_table("//tmp/h")
+
+        hunk_chunk_id2 = self._write_hunks_with_retries("//tmp/h", ["aa"])[0]["chunk_id"]
+
+        assert hunk_chunk_id1 != hunk_chunk_id2
+
+
 class TestHunkStorageMulticell(TestHunkStorage):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
@@ -719,10 +776,10 @@ class TestHunkStorageMulticell(TestHunkStorage):
         self._create_ordered_table("//tmp/t2")
         hunk_storage_id2 = self._create_hunk_storage("//tmp/h2", external=False)
 
-        with raises_yt_error("same external cell"):
+        with raises_yt_error("Table and its hunk storage must reside on the same external cell"):
             set("//tmp/t1/@hunk_storage_id", hunk_storage_id1)
 
-        with raises_yt_error("same external cell"):
+        with raises_yt_error("Table and its hunk storage must reside on the same external cell"):
             set("//tmp/t2/@hunk_storage_id", hunk_storage_id2)
 
         set("//tmp/t1/@hunk_storage_id", hunk_storage_id2)
@@ -740,7 +797,6 @@ class TestHunkStorageMulticell(TestHunkStorage):
         assert get(f"#{table_id}/@hunk_storage_id", driver=get_driver(1)) == hunk_storage_id
 
 
-@pytest.mark.enabled_multidaemon
 class TestHunkStoragePortal(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 3
@@ -785,7 +841,7 @@ class TestHunkStoragePortal(DynamicTablesBase):
         hunk_storage_id1 = self._create_hunk_storage("//portals/h1")
         assert get("//portals/h1/@native_cell_tag") != get("//tmp/t1/@native_cell_tag")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No such object .*"):
             set("//tmp/t1/@hunk_storage_id", hunk_storage_id1)
 
         self._create_ordered_table("//portals/t2")
@@ -793,7 +849,7 @@ class TestHunkStoragePortal(DynamicTablesBase):
         hunk_storage_id2 = self._create_hunk_storage("//tmp/h2")
         assert get("//tmp/h2/@native_cell_tag") != get("//portals/t2/@native_cell_tag")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No such object .*"):
             set("//portals/t2/@hunk_storage_id", hunk_storage_id2)
 
     @authors("akozhikhov")

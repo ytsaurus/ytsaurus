@@ -38,7 +38,7 @@ TLayerJobExperiment::TLayerJobExperiment()
 { }
 
 TLayerJobExperiment::TLayerJobExperiment(
-    TString defaultBaseLayerPath,
+    NYPath::TYPath defaultBaseLayerPath,
     TUserFile baseLayer,
     bool enableBypassArtifactCache,
     const NLogging::TLogger& logger)

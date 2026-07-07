@@ -38,8 +38,8 @@ TObjectServiceCacheKey::TObjectServiceCacheKey(
     TCellTag cellTag,
     const std::string& user,
     TYPath path,
-    TString service,
-    TString method,
+    std::string service,
+    std::string method,
     TSharedRef requestBody,
     bool suppressUpstreamSync,
     bool suppressTransactionCoordinatorSync)
@@ -183,20 +183,19 @@ TObjectServiceCache::TCookie::TCookie(TUnderlyingCookie&& underlyingCookie, TObj
     , ExpiredEntry_(std::move(expiredEntry))
 { }
 
-
-TObjectServiceCache::TCookie::TCookie(TCookie&& other)
-    : TUnderlyingCookie(std::move(other))
+TObjectServiceCache::TCookie::TCookie(TCookie&& other) noexcept
+    : TUnderlyingCookie(std::move(static_cast<TUnderlyingCookie&>(other)))
     , ExpiredEntry_(std::move(other.ExpiredEntry_))
 { }
 
-TObjectServiceCache::TCookie& TObjectServiceCache::TCookie::operator=(TCookie&& other)
+TObjectServiceCache::TCookie& TObjectServiceCache::TCookie::operator=(TCookie&& other) noexcept
 {
     if (this == &other) {
         return *this;
     }
 
-    TUnderlyingCookie::operator=(std::move(other));
     ExpiredEntry_ = std::move(other.ExpiredEntry_);
+    TUnderlyingCookie::operator=(std::move(other));
 
     return *this;
 }
@@ -435,7 +434,7 @@ void TObjectServiceCache::Reconfigure(const TObjectServiceCacheDynamicConfigPtr&
     MaxAdvisedStickyGroupSize_.store(config->MaxAdvisedStickyGroupSize);
 }
 
-TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const std::string& user, const TString& method)
+TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const std::string& user, const std::string& method)
 {
     auto key = std::tuple(user, method);
 

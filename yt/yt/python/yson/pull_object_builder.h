@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/python/common/cache.h>
+#include <yt/yt/python/common/string_cache.h>
 
 #include <yt/yt/core/yson/consumer.h>
 #include <yt/yt/core/yson/pull_parser.h>
@@ -25,7 +25,7 @@ public:
     TPullObjectBuilder(
         NYson::TYsonPullParser* parser,
         bool alwaysCreateAttributes,
-        const std::optional<TString>& encoding);
+        const std::optional<std::string>& encoding);
 
     // Parse object and move cursor.
     PyObjectPtr ParseObject(bool hasAttributes = false);
@@ -41,7 +41,7 @@ private:
     NYT::NYson::TYsonPullParserCursor Cursor_;
 
     bool AlwaysCreateAttributes_;
-    std::optional<TString> Encoding_;
+    std::optional<std::string> Encoding_;
 
     NPython::TPythonStringCache KeyCache_;
     PyObjectPtr Tuple0_;

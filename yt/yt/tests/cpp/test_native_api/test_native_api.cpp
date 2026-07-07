@@ -3,13 +3,6 @@
 
 #include <yt/yt/tests/cpp/modify_rows_test.h>
 
-#include <yt/yt/server/lib/signature/components.h>
-#include <yt/yt/server/lib/signature/config.h>
-#include <yt/yt/server/lib/signature/cypress_key_store.h>
-#include <yt/yt/server/lib/signature/key_info.h>
-#include <yt/yt/server/lib/signature/signature_generator.h>
-#include <yt/yt/server/lib/signature/signature_validator.h>
-
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/table_writer.h>
@@ -43,6 +36,16 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/yt/library/signature/common/key_info.h>
+#include <yt/yt/library/signature/components/components.h>
+#include <yt/yt/library/signature/components/config.h>
+#include <yt/yt/library/signature/generation/config.h>
+#include <yt/yt/library/signature/generation/cypress_key_writer.h>
+#include <yt/yt/library/signature/generation/signature_generator.h>
+#include <yt/yt/library/signature/validation/config.h>
+#include <yt/yt/library/signature/validation/cypress_key_reader.h>
+#include <yt/yt/library/signature/validation/signature_validator.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -96,7 +99,7 @@ class TBatchRequestTest
 {
 protected:
     using TReqExecuteBatchPtr = TObjectServiceProxy::TReqExecuteBatchPtr;
-    using TSubrequestType = TString;
+    using TSubrequestType = std::string;
 
     enum EAllowedSubrequestCategory
     {
@@ -161,7 +164,7 @@ protected:
     void AddWriteSubrequest(const TReqExecuteBatchPtr& batchReq)
     {
         auto req = TCypressYPathProxy::Set(GetRecentTablePath() + "/@replication_factor");
-        req->set_value(ToProto(TYsonString(TStringBuf("3"))));
+        req->set_value(ToProto(TYsonString("3"_sb)));
         GenerateMutationId(req);
         batchReq->AddRequest(req, GenerateRequestKey("set"));
     }
@@ -263,13 +266,13 @@ private:
         YT_ABORT();
     }
 
-    TString GetRecentTablePath() const
+    NYPath::TYPath GetRecentTablePath() const
     {
         YT_VERIFY(!RecentTableGuid_.IsEmpty());
         return Format("//tmp/%v", RecentTableGuid_);
     }
 
-    TString GenerateRequestKey(const TString& prefix)
+    std::string GenerateRequestKey(const std::string& prefix)
     {
         return Format("%v %v %v", prefix, RecentTableGuid_, SubrequestCounter_++);
     }
@@ -380,17 +383,17 @@ class TBatchWithRetriesTest
     : public TApiTestBase
 {
 protected:
-    TString GenerateTablePath()
+    NYPath::TYPath GenerateTablePath()
     {
         return Format("//tmp/%v", TGuid::Create());
     }
 
-    static TYPathRequestPtr GetRequest(const TString& tablePath)
+    static TYPathRequestPtr GetRequest(const NYPath::TYPath& tablePath)
     {
         return TCypressYPathProxy::Get(tablePath + "/@");
     }
 
-    static TYPathRequestPtr CreateRequest(const TString& tablePath)
+    static TYPathRequestPtr CreateRequest(const NYPath::TYPath& tablePath)
     {
         auto request = TCypressYPathProxy::Create(tablePath);
         request->set_type(ToProto(EObjectType::Table));
@@ -593,14 +596,15 @@ public:
     {
         TDynamicTablesTestBase::SetUpTestCase();
         CreateTable(
-            "//tmp/write_test", // tablePath
-            "[" // schema
-            "{name=k0;type=int64;sort_order=ascending};"
-            "{name=k1;type=int64;sort_order=ascending};"
-            "{name=k2;type=int64;sort_order=ascending};"
-            "{name=v3;type=int64};"
-            "{name=v4;type=int64};"
-            "{name=v5;type=int64}]");
+            /*tablePath*/ "//tmp/write_test",
+            /*schema*/ TYsonString(R"([
+                {name=k0;type=int64;sort_order=ascending};
+                {name=k1;type=int64;sort_order=ascending};
+                {name=k2;type=int64;sort_order=ascending};
+                {name=v3;type=int64};
+                {name=v4;type=int64};
+                {name=v5;type=int64}
+            ])"_sb));
 
         ReplicatorClient_ = CreateClient(ReplicatorUserName);
     }
@@ -615,8 +619,8 @@ protected:
     TRowBufferPtr Buffer_ = New<TRowBuffer>();
 
     TVersionedRow BuildVersionedRow(
-        const TString& keyYson,
-        const TString& valueYson)
+        const std::string& keyYson,
+        const std::string& valueYson)
     {
         return YsonToVersionedRow(Buffer_, keyYson, valueYson);
     }
@@ -712,14 +716,15 @@ public:
     {
         TDynamicTablesTestBase::SetUpTestCase();
         CreateTable(
-            "//tmp/write_test_required", // tablePath
-            "[" // schema
-            "{name=k0;type=int64;sort_order=ascending};"
-            "{name=k1;type=int64;sort_order=ascending};"
-            "{name=k2;type=int64;sort_order=ascending};"
-            "{name=v3;type=int64;required=%true};"
-            "{name=v4;type=int64};"
-            "{name=v5;type=int64}]");
+            /*tablePath*/ "//tmp/write_test_required",
+            /*schema*/ TYsonString(R"([
+                {name=k0;type=int64;sort_order=ascending};
+                {name=k1;type=int64;sort_order=ascending};
+                {name=k2;type=int64;sort_order=ascending};
+                {name=v3;type=int64;required=%true};
+                {name=v4;type=int64};
+                {name=v5;type=int64}
+            ])"_sb));
 
         ReplicatorClient_ = CreateClient(ReplicatorUserName);
     }
@@ -867,7 +872,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
 
         EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            "required fileds are not set");
+            "required fields are not set");
     }
 
     {
@@ -973,7 +978,7 @@ class TConcatenateTest
     : public TApiTestBase
 {
 protected:
-    void CreateTableWithData(const TString& path, TCreateNodeOptions options, int valueCount) const
+    void CreateTableWithData(const NYPath::TYPath& path, TCreateNodeOptions options, int valueCount) const
     {
         WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
             .ThrowOnError();
@@ -1096,9 +1101,10 @@ public:
 TEST_F(TGetOrderedTabletSafeTrimRowCountTest, Basic)
 {
     CreateTable(
-        "//tmp/test_find_ordered_tablet_store", // tablePath
-        "[" // schema
-        "{name=v1;type=string}]");
+        /*tablePath*/ "//tmp/test_find_ordered_tablet_store",
+        /*schema*/ TYsonString(R"([
+            {name=v1;type=string}
+        ])"_sb));
 
     auto writeRow = [] (int count = 1) {
         for (int i = 0; i < count; ++i) {
@@ -1191,7 +1197,7 @@ TEST_F(TGetOrderedTabletSafeTrimRowCountTest, Basic)
     ASSERT_EQ(orderedStores[8].ValueOrThrow(), 8);
     ASSERT_EQ(orderedStores[9].ValueOrThrow(), 8);
 
-    auto tabletId = ConvertTo<TString>(WaitFor(Client_->GetNode(Table_ + "/@tablets/0/tablet_id")).ValueOrThrow());
+    auto tabletId = ConvertTo<TTabletId>(WaitFor(Client_->GetNode(Table_ + "/@tablets/0/tablet_id")).ValueOrThrow());
 
     WaitFor(Client_->TrimTable(Table_, 0, 8))
         .ThrowOnError();
@@ -1283,10 +1289,11 @@ public:
 TEST_F(TFetchHunkChunkSpecsTest, Simple)
 {
     CreateTable(
-        "//tmp/test_fetch_hunk_chunk_specs", // tablePath
-        "[" // schema
-        "{name=k1;type=int64;sort_order=ascending};"
-        "{name=v1;type=string;max_inline_hunk_size=1}]");
+        /*tablePath*/ "//tmp/test_fetch_hunk_chunk_specs",
+        /*schema*/ TYsonString(R"([
+            {name=k1;type=int64;sort_order=ascending};
+            {name=v1;type=string;max_inline_hunk_size=1}
+        ])"_sb));
 
     WaitFor(Client_->SetNode(Table_ + "/@mount_config/enable_compaction_and_partitioning",  ConvertToYsonString(false)))
         .ThrowOnError();
@@ -1615,7 +1622,7 @@ TEST_F(TCypressKeyWriterTest, RegisterMultipleKeys)
     EXPECT_TRUE(WaitFor(AllSucceeded(registrationFutures))
         .IsOK());
 
-    auto keyNodes = ConvertTo<std::vector<TString>>(
+    auto keyNodes = ConvertTo<std::vector<std::string>>(
         WaitFor(Client_->ListNode(YPathJoin(Config->Path, "test")))
             .ValueOrThrow());
     EXPECT_THAT(keyNodes, SizeIs(keys.size()));
@@ -1814,8 +1821,8 @@ TEST_F(TSignatureComponentsTest, EmptyInit)
     Components = New<TSignatureComponents>(Config, OwnerId, NativeConnection, RotateInvoker);
     auto startRotationFuture = Components->StartRotation();
     auto stopRotationFuture = Components->StopRotation();
-    EXPECT_TRUE(startRotationFuture.IsSet() && startRotationFuture.Get().IsOK());
-    EXPECT_TRUE(stopRotationFuture.IsSet() && stopRotationFuture.Get().IsOK());
+    EXPECT_TRUE(startRotationFuture.IsSet() && startRotationFuture.GetOrCrash().IsOK());
+    EXPECT_TRUE(stopRotationFuture.IsSet() && stopRotationFuture.GetOrCrash().IsOK());
 
     auto generator = Components->GetSignatureGenerator();
     auto validator = Components->GetSignatureValidator();
@@ -1925,7 +1932,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureDisableGeneration)
 
     // Should be a no-op.
     auto startFuture = Components->StartRotation();
-    EXPECT_TRUE(startFuture.IsSet() && startFuture.Get().IsOK());
+    EXPECT_TRUE(startFuture.IsSet() && startFuture.GetOrCrash().IsOK());
 }
 
 TEST_F(TSignatureComponentsTest, ReconfigureEnableValidation)
@@ -2054,7 +2061,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureWhileRotating)
 
     // Start rotation should be a no-op now.
     auto startFuture = Components->StartRotation();
-    EXPECT_TRUE(startFuture.IsSet() && startFuture.Get().IsOK());
+    EXPECT_TRUE(startFuture.IsSet() && startFuture.GetOrCrash().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

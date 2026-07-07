@@ -1,11 +1,11 @@
 #pragma once
 
-#include "private.h"
 #include "job_workspace_builder.h"
-
-#include <yt/yt/core/actions/signal.h>
+#include "private.h"
 
 #include <yt/yt/library/containers/public.h>
+
+#include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/misc/error.h>
 
@@ -25,7 +25,7 @@ struct IJobEnvironment
         const NJobProxy::TJobProxyInternalConfigPtr& config,
         ESlotType slotType,
         int slotIndex,
-        const TString& workingDirectory,
+        const std::string& workingDirectory,
         TJobId jobId,
         TOperationId operationId,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity) = 0;
@@ -34,7 +34,7 @@ struct IJobEnvironment
 
     virtual void Disable(TError error) = 0;
 
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex) = 0;
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const std::string& path, int locationIndex) = 0;
 
     //! User id for user job processes.
     virtual int GetUserId(int slotIndex) const = 0;
@@ -58,7 +58,7 @@ struct IJobEnvironment
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<NContainers::TDevice>>& devices,
-        const std::optional<TString>& hostName,
+        const std::optional<std::string>& hostName,
         const std::vector<NNet::TIP6Address>& ipAddresses,
         std::string tag,
         bool throwOnFailedCommand) = 0;

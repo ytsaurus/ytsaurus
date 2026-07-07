@@ -1,7 +1,11 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 import yt.yson as yson
 import yt.packages.requests as requests
-from yt_commands import authors, ls, exists, set, get, create, create_tablet_cell_bundle, create_area, execute_command, remove
+from yt_commands import (
+    authors, ls, update, update_nodes_dynamic_config, wait, exists,
+    set, get, create, create_tablet_cell_bundle, create_area, execute_command, remove)
+
+from yt.common import YtError, update_inplace
 
 import time
 from typing import Tuple, override
@@ -9,7 +13,7 @@ from typing import Tuple, override
 ##################################################################
 
 
-class TestBundleController(YTEnvSetup):
+class TestBundleControllerBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Cell balancer crashes in multidaemon mode.
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -74,6 +78,31 @@ class TestBundleController(YTEnvSetup):
 
         rsp = requests.post(self._set_bundle_config_url(), headers=headers)
         rsp.raise_for_status()
+
+    @classmethod
+    def setup_class(cls):
+        super(TestBundleControllerBase, cls).setup_class()
+
+        bundle_controller_config = cls.Env._cluster_configuration["cell_balancer"][0]
+        cls.config_path = bundle_controller_config.get("dynamic_config_path", "//sys/bundle_controller/config")
+
+    @classmethod
+    def _apply_dynamic_config_patch(cls, patch, driver=None):
+        config = get(cls.config_path, driver=driver)
+        update_inplace(config, patch)
+        set(cls.config_path, config, driver=driver)
+
+        instances = ls("//sys/cell_balancers/instances", driver=driver)
+
+        def config_updated_on_all_instances():
+            for instance in instances:
+                effective_config = get(
+                    f"//sys/cell_balancers/instances/{instance}/orchid/dynamic_config_manager/effective_config", driver=driver)
+                if update(effective_config, config) != effective_config:
+                    return False
+            return True
+
+        wait(config_updated_on_all_instances)
 
     def _initialize_zone_default(self):
         create("map_node", "//sys/bundle_controller/controller/zones/zone_default", recursive=True, force=True)
@@ -384,6 +413,11 @@ class TestBundleController(YTEnvSetup):
                 result.append(node)
         return result
 
+
+##################################################################
+
+
+class TestBundleController(TestBundleControllerBase):
     @authors("grachevkirill")
     def test_bundle_controller_just_works(self):
         assert exists("//sys/bundle_controller/controller/zones")
@@ -444,6 +478,30 @@ class TestBundleController(YTEnvSetup):
         self._set_bundle_config(expected_config)
         config = self._get_cypress_config("default")
         self._check_configs(expected_config, config)
+
+    @authors("atalmenev")
+    def test_dynamic_config(self):
+        self._fill_default_bundle()
+
+        def _get_iteration_duration():
+            self._wait_for_bundle_controller_iterations()
+            start_time = time.time()
+            self._wait_for_bundle_controller_iterations()
+            return time.time() - start_time
+
+        self._apply_dynamic_config_patch({
+            "bundle_scan_period": 10,
+        })
+
+        first_delta = _get_iteration_duration()
+
+        self._apply_dynamic_config_patch({
+            "bundle_scan_period": 3000,
+        })
+
+        second_delta = _get_iteration_duration()
+
+        assert second_delta > first_delta + 1
 
     @authors("alexmipt")
     def test_bundle_controller_api_set_half_structured_check(self):
@@ -728,8 +786,26 @@ class TestBundleController(YTEnvSetup):
         set(f"//sys/tablet_cell_bundles/{BUNDLE}/@options/changelog_pirmary_medium", "invalid")
         self._wait_for_bundle_controller_iterations((3, 1))
 
+    @authors("navasardianna")
+    def test_invalid_bundle_config(self):
+        self._initialize_zone_default()
+
+        self._create_bundle(
+            "chaplin",
+            bundle_controller_target_config={
+                "tablet_node_count": 1,
+            },
+        )
+
+        self._wait_for_bundle_controller_iterations((5, 0), fail_on_error=True)
+
+        set("//sys/tablet_cell_bundles/chaplin/@bundle_controller_target_config/enable_drills_mode",
+            "incorrect_value")
+
+        self._wait_for_bundle_controller_iterations((5, 0), fail_on_error=True)
+
     @authors("grachevkirill")
-    def test_cms_requests_are_processed(self):
+    def DISABLED_test_cms_requests_are_processed(self):
         self._initialize_zone_default()
         self._move_nodes_to_spare_bundle()
         for bundle in ["chaplin", "pinoccio"]:
@@ -763,3 +839,105 @@ class TestBundleController(YTEnvSetup):
                     continue
                 break
             remove(f"//sys/cluster_nodes/{node}/@cms_maintenance_requests/req")
+
+
+##################################################################
+
+
+class TestBundleControllerLongPeriods(TestBundleControllerBase):
+    DELTA_NODE_CONFIG = {
+        "master_connector": {
+            "lease_transaction_timeout": 60000,
+        },
+        "dynamic_config_manager": {
+            "update_period": 15000,
+        },
+    }
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "cellar_node": {
+                "bundle_controller_connector": {
+                    "enable": True,
+                    "heartbeat_executor": {
+                        "period": 100,
+                    }
+                }
+            }
+        }
+    }
+    DELTA_CELL_BALANCER_CONFIG = {
+        "bundle_controller": {
+            "enable_spare_node_assignment": True,
+            "decommission_released_nodes": True,
+        }
+    }
+    NUM_NODES = 5
+    NUM_CELL_BALANCERS = 1
+    TEST_MAINTENANCE_FLAGS = True
+
+    @authors("navasardianna")
+    def test_nodes_allocation_with_tracker(self):
+        self._move_nodes_to_spare_bundle()
+        self._initialize_zone_default()
+
+        self._create_bundle(
+            "chaplin",
+            bundle_controller_target_config={
+                "tablet_node_count": 1,
+                "cpu_limits": {
+                    "write_thread_pool_size": 3,
+                },
+            },
+            enable_instance_allocation=True)
+
+        self._apply_dynamic_config_patch({
+            "remove_tags_from_offline_nodes": True,
+            "node_tracker": {
+                "enable": True,
+                "heartbeat_timeout": 1000,
+            }
+        })
+
+        self._wait_for_bundle_controller_iterations((10, 0), fail_on_error=True)
+
+        def _check_cell_active():
+            cell_ids = get("//sys/tablet_cell_bundles/chaplin/@tablet_cell_ids")
+
+            if not cell_ids:
+                return False
+
+            return get(f"#{cell_ids[0]}/@health") == "good"
+
+        wait(lambda: _check_cell_active())
+
+        cell_ids = get("//sys/tablet_cell_bundles/chaplin/@tablet_cell_ids")
+        node = get(f"#{cell_ids[0]}/@peers/0/address")
+
+        set("//sys/tablet_cell_bundles/chaplin/@enable_instance_allocation", False)
+        set("//sys/@config/tablet_manager/peer_revocation_timeout", 1000)
+
+        def _has_cell_moved():
+            try:
+                return get(f"#{cell_ids[0]}/@peers/0/address") != node
+            except YtError as e:
+                if e.is_resolve_error():
+                    return False
+                raise
+
+        update_nodes_dynamic_config({
+            "master_connector": {
+                "heartbeat_executor": {
+                    "period": 120000,
+                }
+            },
+        })
+
+        node_index = get(f"//sys/cluster_nodes/{node}/@annotations/yt_env_index")
+
+        with Restarter(self.Env, NODES_SERVICE, indexes=[node_index], abort_transactions=False):
+            wait(lambda: _has_cell_moved(), timeout=5)
+
+            new_node = get(f"#{cell_ids[0]}/@peers/0/address")
+            assert get(f"//sys/cluster_nodes/{new_node}/@bundle_controller_annotations/allocated_for_bundle") == "spare"
+
+            wait(lambda: get(f"#{cell_ids[0]}/@health") == "good")

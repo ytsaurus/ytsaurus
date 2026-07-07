@@ -25,8 +25,7 @@ target_compile_options(grpc-third_party-upb PRIVATE
 target_include_directories(grpc-third_party-upb PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/grpc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb
   ${PROJECT_SOURCE_DIR}/contrib/restricted/google/utf8_range
 )
@@ -37,31 +36,59 @@ target_link_libraries(grpc-third_party-upb PUBLIC
 )
 
 target_sources(grpc-third_party-upb PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/descriptor.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/descriptor.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/arena.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/array.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/decode.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/decode_fast.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/def.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/encode.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/extension_registry.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/json_decode.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/json_encode.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/map.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_table.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/msg.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/status.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/table.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/text_encode.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/descriptor.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/base/status.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/hash/common.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/json/decode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/json/encode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/lex/atoi.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/lex/round_trip.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/lex/strtod.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/lex/unicode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mem/alloc.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mem/arena.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/accessors.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/array.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/map.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/map_sorter.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/message.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_descriptor/build_enum.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_descriptor/decode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_descriptor/internal/base92.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_descriptor/internal/encode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_descriptor/link.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_table/extension_registry.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_table/internal/message.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_table/message.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/def_pool.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/def_type.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/desc_state.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/enum_def.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/enum_reserved_range.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/enum_value_def.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/extension_range.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/field_def.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/file_def.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/internal/def_builder.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/internal/strdup2.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/message.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/message_def.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/message_reserved_range.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/method_def.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/oneof_def.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/service_def.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/text/encode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/decode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/decode_fast.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/encode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/eps_copy_input_stream.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/reader.c
 )
 
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/descriptor.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/descriptor.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -69,7 +96,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/descriptor.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/base/status.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -77,7 +104,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/arena.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/hash/common.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -85,7 +112,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/array.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/json/decode.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -93,7 +120,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/decode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/json/encode.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -101,7 +128,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/decode_fast.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/lex/atoi.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -109,7 +136,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/def.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/lex/round_trip.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -117,7 +144,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/encode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/lex/strtod.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -125,7 +152,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/extension_registry.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/lex/unicode.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -133,7 +160,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/json_decode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mem/alloc.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -141,7 +168,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/json_encode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mem/arena.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -149,7 +176,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/map.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/accessors.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -157,7 +184,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_table.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/array.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -165,7 +192,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/msg.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/map.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -173,7 +200,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/map_sorter.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -181,7 +208,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/status.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/message/message.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -189,7 +216,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/table.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_descriptor/build_enum.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -197,7 +224,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/text_encode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_descriptor/decode.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -205,7 +232,231 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_descriptor/internal/base92.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_descriptor/internal/encode.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_descriptor/link.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_table/extension_registry.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_table/internal/message.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/mini_table/message.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/def_pool.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/def_type.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/desc_state.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/enum_def.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/enum_reserved_range.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/enum_value_def.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/extension_range.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/field_def.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/file_def.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/internal/def_builder.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/internal/strdup2.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/message.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/message_def.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/message_reserved_range.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/method_def.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/oneof_def.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/reflection/service_def.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/text/encode.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/decode.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/decode_fast.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/encode.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/eps_copy_input_stream.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/wire/reader.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS

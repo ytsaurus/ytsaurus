@@ -16,6 +16,7 @@ SRCS(
     granule_min_max_filter_ut.cpp
     integer_column_ut.cpp
     meta_aggregating_writer_ut.cpp
+    min_hash_digest_builder_ut.cpp
     null_column_ut.cpp
     rows_digest_ut.cpp
     schemaless_blocks_ut.cpp

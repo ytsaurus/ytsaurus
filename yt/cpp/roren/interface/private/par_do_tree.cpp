@@ -62,7 +62,7 @@ public:
         }
         auto lastIdx = std::ssize(MoveParDos_) + std::ssize(Outputs_) - 1;
         for (ssize_t idx = 0; idx < std::ssize(Outputs_); ++idx) {
-            if (Y_UNLIKELY(idx != lastIdx)) {
+            if (idx != lastIdx) [[unlikely]] {
                 Outputs_[idx]->AddRaw(rows, count);
             } else {
                 Outputs_[idx]->MoveRaw(rows, count);
@@ -70,7 +70,7 @@ public:
         }
         lastIdx -= std::ssize(Outputs_);
         for (ssize_t idx = 0; idx < std::ssize(MoveParDos_); ++idx) {
-            if (Y_UNLIKELY(idx != lastIdx)) {
+            if (idx != lastIdx) [[unlikely]] {
                 MoveParDos_[idx]->Do(rows, count);
             } else {
                 MoveParDos_[idx]->MoveDo(rows, count);

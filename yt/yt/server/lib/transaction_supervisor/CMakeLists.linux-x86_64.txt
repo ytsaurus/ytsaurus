@@ -28,6 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+add_subdirectory(unittests)
+
 add_library(server-lib-transaction_supervisor)
 
 
@@ -38,6 +40,7 @@ target_compile_options(server-lib-transaction_supervisor PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(server-lib-transaction_supervisor PUBLIC
@@ -50,18 +53,20 @@ target_link_libraries(server-lib-transaction_supervisor PUBLIC
   yutil
   yt-yt-core
   server-lib-election
+  server-lib-hydra
   server-lib-transaction_server
   contrib-libs-protobuf
 )
 
 target_sources(server-lib-transaction_supervisor PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/abort.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/commit.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/strong_ordering_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_supervisor.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h

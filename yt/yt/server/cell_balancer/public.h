@@ -10,8 +10,10 @@ namespace NYT::NCellBalancer{
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Log-time lookup is not critical in terms of performance and it is nice
+// to see entries in the sorted order, so we use std::map instead of THashMap.
 template <class TEntryInfo>
-using TIndexedEntries = THashMap<std::string, TIntrusivePtr<TEntryInfo>>;
+using TIndexedEntries = std::map<std::string, TIntrusivePtr<TEntryInfo>>;
 
 using TDataCenterToInstanceMap = THashMap<std::string, std::vector<std::string>>;
 
@@ -21,6 +23,12 @@ using TOnAlertCallback = TCallback<void(TAlert)>;
 struct TSchedulerMutations;
 struct TSchedulerInputState;
 
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
+
+DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
+
+DECLARE_REFCOUNTED_STRUCT(TCellBalancerBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TBundleControllerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TAllocationRequest)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequest)
 DECLARE_REFCOUNTED_STRUCT(TBundleControllerInstanceAnnotations)
@@ -54,6 +62,17 @@ constexpr int DefaultWriteThreadPoolSize = 5;
 
 template <class TSpareInstances>
 struct TSpareInstanceAllocator;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ELocalNodeState,
+    // Never sent a heartbeat to bundle controller.
+    ((Unknown)       (0))
+    // Sent a heartbeat recently.
+    ((Online)        (1))
+    // Sent a heartbeat a long time ago.
+    ((Offline)       (2))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

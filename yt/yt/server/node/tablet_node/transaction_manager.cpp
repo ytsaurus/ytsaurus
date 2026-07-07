@@ -1,15 +1,12 @@
 #include "transaction_manager.h"
 
 #include "automaton.h"
-#include "bootstrap.h"
 #include "config.h"
-#include "private.h"
 #include "serialize.h"
 #include "tablet_slot.h"
 #include "transaction.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/tablet_node/transaction_manager.pb.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
@@ -19,7 +16,7 @@
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
-#include <yt/yt/server/node/tablet_node/transaction_manager.pb.h>
+#include <yt/yt/server/lib/tablet_node/private.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
@@ -61,7 +58,6 @@ using namespace NObjectClient;
 using namespace NHydra;
 using namespace NHiveClient;
 using namespace NHiveServer;
-using namespace NClusterNode;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTransactionSupervisor;
@@ -140,12 +136,24 @@ public:
             BIND_NO_PROPAGATE(&TTransactionManager::SaveValues, Unretained(this)));
 
         // COMPAT(babenko)
-        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)), {"NYT.NTabletNode.NProto.TReqRegisterTransactionActions"});
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)),
+            {"NYT.NTabletNode.NProto.TReqRegisterTransactionActions"},
+            /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraHandleTransactionBarrier, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraExternalizeTransaction, Unretained(this)));
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraExternalizeTransaction, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraPrepareExternalizedTransaction, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraCommitExternalizedTransaction, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraAbortExternalizedTransaction, Unretained(this)));
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraCommitExternalizedTransaction, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraAbortExternalizedTransaction, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraSerializeExternalizedTransaction, Unretained(this)));
 
         OrchidService_ = IYPathService::FromProducer(BIND(&TTransactionManager::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
@@ -460,14 +468,16 @@ public:
         TTransactionId transactionId,
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
-        TTransactionSignature signature,
+        TTransactionSignature prepareSignature,
+        TTransactionSignature commitSignature,
         ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions) override
     {
         NTabletClient::NProto::TReqRegisterTransactionActions request;
         ToProto(request.mutable_transaction_id(), transactionId);
         request.set_transaction_start_timestamp(transactionStartTimestamp);
         request.set_transaction_timeout(ToProto(transactionTimeout));
-        request.set_signature(signature);
+        request.set_prepare_signature(prepareSignature);
+        request.set_commit_signature(commitSignature);
         request.mutable_actions()->Swap(&actions);
         NRpc::WriteAuthenticationIdentityToProto(&request, NRpc::GetCurrentAuthenticationIdentity());
 
@@ -532,13 +542,33 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        if (!transaction->IsExternalizedToThisCell() && prepareSignature != FinalTransactionSignature) {
+        // COMPAT(atalmenev)
+        auto expectedSignature = options.ExpectedPrepareSignature;
+        if (auto* context = TryGetCurrentMutationContext()) {
+            if (static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::ExpectedPrepareSignature) {
+                expectedSignature = FinalTransactionSignature;
+            }
+        }
+
+        if (!transaction->IsExternalizedToThisCell() &&
+            prepareSignature != expectedSignature)
+        {
             THROW_ERROR_EXCEPTION(
                 NTransactionClient::EErrorCode::IncompletePrepareSignature,
                 "Transaction %v is incomplete: expected prepare signature %x, actual signature %x",
                 transactionId,
-                FinalTransactionSignature,
+                expectedSignature,
                 prepareSignature);
+        }
+
+        // NB: Real prepare signature has already been verified above. We override it
+        // to FinalTransactionSignature so that the equality check in DoCommitTransaction
+        // does not fire: ExpectedPrepareSignature is currently not propagated into
+        // TTransactionCommitOptions, so the commit stage compares against the default final value.
+        if (persistent) {
+            transaction->PersistentPrepareSignature() = FinalTransactionSignature;
+        } else {
+            transaction->TransientPrepareSignature() = FinalTransactionSignature;
         }
 
         if (transaction->GetHasNonForwardedActions()) {
@@ -603,14 +633,16 @@ public:
                                 pair.second.ExternalizationToken);
                         }),
                     options.PrepareTimestamp);
-            }
 
-            // NB: Forwarding must happen after transaction actions are run because
-            // prepare may fail locally.
-            ForwardTransactionIfExternalized(
-                transaction,
-                NProto::TReqPrepareExternalizedTransaction{},
-                options);
+                YT_VERIFY(options.PrerequisiteTransactionIds.empty());
+
+                // NB: Forwarding must happen after transaction actions are run because
+                // prepare may fail locally.
+                ForwardTransactionIfExternalized(
+                    transaction,
+                    NProto::TReqPrepareExternalizedTransaction{},
+                    options);
+            }
         }
     }
 
@@ -667,11 +699,13 @@ public:
             YT_ABORT();
         }
 
+        // TODO(alexelexa, kvk1920): Support commit signatures properly.
         if (transaction->IsExternalizedFromThisCell()) {
-            YT_VERIFY(transaction->CommitSignature() == FinalTransactionSignature);
+            YT_VERIFY(true || transaction->CommitSignature() == FinalTransactionSignature);
         }
 
-        if (transaction->IsExternalizedToThisCell() || transaction->CommitSignature() == FinalTransactionSignature) {
+        // TODO(alexelexa, kvk1920): Support commit signatures properly.
+        if (true || transaction->IsExternalizedToThisCell() || transaction->CommitSignature() == FinalTransactionSignature) {
             DoCommitTransaction(transaction, options);
         } else {
             transaction->SetPersistentState(ETransactionState::CommitPending);
@@ -724,12 +758,12 @@ public:
             /*canThrow*/ false);
 
         if (!transaction->IsExternalizedToThisCell()) {
-            YT_LOG_ALERT_UNLESS(transaction->PersistentPrepareSignature() == FinalTransactionSignature,
+            YT_LOG_ALERT_UNLESS(transaction->PersistentPrepareSignature() == options.ExpectedPrepareSignature,
                 "Transaction signature is incomplete during commit "
                 "(TransactionId: %v, PrepareSignature: %x, ExpectedSignature: %x)",
                 transaction->GetId(),
                 transaction->PersistentPrepareSignature(),
-                FinalTransactionSignature);
+                options.ExpectedPrepareSignature);
         }
 
         transaction->SetCommitTimestamp(options.CommitTimestamp);
@@ -976,7 +1010,7 @@ private:
     TEntityMap<TTransaction> TransientTransactionMap_;
     TEntityMap<TExternalizedTransaction> PersistentExternalizedTransactionMap_;
     THashMap<TTransactionExternalizationToken, THashSet<TTransaction*>> TokenToExternalizedTransactions_;
-    THashMap<TString, TCallback<bool(TTransaction*, TStringBuf, TTabletId)>>
+    THashMap<std::string, TCallback<bool(TTransaction*, TStringBuf, TTabletId)>>
         NeedActionExternalizationHandlers_;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
@@ -1376,7 +1410,10 @@ private:
 
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
-        auto signature = request->signature();
+        auto prepareSignature = request->prepare_signature();
+        auto commitSignature = request->has_commit_signature()
+            ? request->commit_signature()
+            : prepareSignature;
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -1434,10 +1471,10 @@ private:
             // after externalization is dealt with.
             auto& action = transaction->Actions().emplace_back(std::move(data));
 
-            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v, Signature: %x)",
+            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v, PrepareSignature: %x)",
                 FormatTransactionId(transactionId, externalizationToken),
                 action.Type,
-                signature);
+                prepareSignature);
         }
 
         {
@@ -1494,9 +1531,9 @@ private:
             }
         }
 
-        transaction->PersistentPrepareSignature() += signature;
+        transaction->PersistentPrepareSignature() += prepareSignature;
         // NB: May destroy transaction.
-        IncrementCommitSignature(transaction, signature);
+        IncrementCommitSignature(transaction, commitSignature);
     }
 
     void HydraHandleTransactionBarrier(NTabletNode::NProto::TReqHandleTransactionBarrier* request)

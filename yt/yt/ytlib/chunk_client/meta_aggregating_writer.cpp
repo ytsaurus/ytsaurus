@@ -127,10 +127,8 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& /*chunkMeta*/ = nullptr,
-        std::optional<int> truncateBlockCount = std::nullopt) override
+        const TDeferredChunkMetaPtr& /*chunkMeta*/ = nullptr) override
     {
-        YT_VERIFY(!truncateBlockCount.has_value());
         if (!MetaFinalized_) {
             FinalizeMeta();
         }
@@ -545,7 +543,7 @@ private:
             auto heavyColumnStatisticsExt = GetHeavyColumnStatisticsExt(
                 *ColumnarStatistics_,
                 [&] (int columnIndex) {
-                    return TColumnStableName(TString{NameTableExt_.names(columnIndex)});
+                    return TColumnStableName(std::string{NameTableExt_.names(columnIndex)});
                 },
                 std::ssize(NameTableExt_.names()),
                 Options_->MaxHeavyColumns);

@@ -1,0 +1,93 @@
+package NYql.NProto;
+option java_package = "ru.yandex.yql.proto";
+
+import "yql/tools/yqlworker/interface/proto/task.proto";
+
+
+//   NEW  ->  UNHEALTHY  <->  HEALTHY
+//             |      \         |
+//             v       v        v
+//         MUST_DIE   TERMINATING
+enum EWorkerState {
+    UNKNOWN_STATE = 0;
+    NEW = 1;
+    HEALTHY = 2;
+    UNHEALTHY = 3;
+    TERMINATING = 4;
+    MUST_DIE = 5;
+}
+
+message TProcessTaskRequest {
+    optional ETaskAction Action = 1;
+    optional TTaskData Data = 2;
+    optional uint32 SendUpdatesMask = 3; // bitmask of NProto::ETaskResultChange
+}
+
+message TProcessTaskResponse {
+    enum EStatus {
+        UNKNOWN_STATUS = 0;
+        SUBMITED = 1;
+        WORKING_QUEUE_IS_FULL = 2;
+        ALREADY_RUNNING = 3;
+        FAIL = 4;
+        WORKING_USER_QUEUE_IS_FULL = 5;
+        TOO_MANY_RUNNING_TASKS = 6;
+    }
+
+    optional EStatus Status = 1;
+    optional string Message = 2;
+    optional string ExternalId = 3;
+}
+
+message TKillTaskRequest {
+    optional string Id = 1;
+}
+
+message TKillTaskResponse {
+    enum EStatus {
+        UNKNOWN_STATUS = 0;
+        KILLED = 1;
+        NOT_RUNNING = 2;
+        FAIL = 3;
+    }
+
+    optional EStatus Status = 1;
+    optional string Message = 2;
+}
+
+enum ESubscriptionType {
+    CHANGES = 0;     // send oprtation result changes (deltas stream)
+    COMPLETION = 1;  // send final operation result state on operation terminal status
+}
+
+message TSubscribeRequest {
+    optional uint32 ChannelId = 1;
+    optional string Username = 2;
+    optional string TaskId = 3;
+    optional string UNUSED = 4;
+    optional uint64 Mask = 5;  // bitmask of NProto::ETaskResultChange
+    optional ESubscriptionType Type = 6;
+}
+
+message TSubscribeResponse {
+    enum EStatus {
+        UNKNOWN_STATUS = 0;
+        OK = 1;
+        NOT_RUNNING = 2;
+        FAIL = 3;
+    }
+
+    optional EStatus Status = 1;
+    optional string Message = 2;
+    optional TTaskResult Result = 3; // current task result state
+                                     // (filled only when subscribing on task id)
+}
+
+message TUnsubscribeRequest {
+    optional uint32 ChannelId = 1;
+    optional string SubscriptionId = 2;
+    optional ESubscriptionType Type = 3;
+}
+
+message TUnsubscribeResponse {
+}

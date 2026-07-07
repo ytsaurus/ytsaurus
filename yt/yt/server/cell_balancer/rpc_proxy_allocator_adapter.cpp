@@ -94,8 +94,13 @@ public:
             return false;
         }
 
+        if (!zoneInfo->MaxRpcProxyCount) {
+            // No limit configured, treat it as infinite.
+            return false;
+        }
+
         int currentDataCenterProxyCount = std::ssize(dataCenterIt->second);
-        int maxDataCenterProxyCount = zoneInfo->MaxRpcProxyCount / std::ssize(zoneInfo->DataCenters);
+        int maxDataCenterProxyCount = *zoneInfo->MaxRpcProxyCount / std::ssize(zoneInfo->DataCenters);
 
         if (currentDataCenterProxyCount >= maxDataCenterProxyCount) {
             YT_LOG_WARNING("Max Rpc proxies count limit reached"
@@ -103,7 +108,7 @@ public:
                 zoneName,
                 dataCenterName,
                 currentDataCenterProxyCount,
-                zoneInfo->MaxRpcProxyCount,
+                *zoneInfo->MaxRpcProxyCount,
                 maxDataCenterProxyCount);
             return true;
         }
@@ -276,6 +281,56 @@ public:
         mutations->ChangedProxyRole[proxyName] = mutations->WrapMutation(DefaultRole);
     }
 
+    const THashMap<std::string, NBundleControllerClient::TInstanceSizePtr>& GetInstanceSizes(
+        const TZoneInfoPtr& zoneInfo) const
+    {
+        return zoneInfo->RpcProxySizes;
+    }
+
+    void AnnotateNewInstances(
+        const TSchedulerInputState& input,
+        const std::string& spareBundleName,
+        const NBundleControllerClient::TInstanceResourcesPtr& resource,
+        TSchedulerMutations* mutations) const
+    {
+        for (const auto& [proxyName, proxyInfo] : input.RpcProxies) {
+            if (!proxyInfo->IsOnline()) {
+                continue;
+            }
+
+            const auto& annotations = proxyInfo->BundleControllerAnnotations;
+            if (annotations->Allocated || !annotations->AllocatedForBundle.empty()) {
+                continue;
+            }
+
+            auto newAnnotations = New<TBundleControllerInstanceAnnotations>();
+            newAnnotations->Allocated = true;
+            newAnnotations->AllocatedForBundle = spareBundleName;
+            newAnnotations->Resource = NYTree::CloneYsonStruct(resource);
+
+            mutations->ChangedProxyAnnotations[proxyName] = mutations->WrapMutation(newAnnotations);
+
+            YT_LOG_INFO(
+                "Annotating new rpc proxy (ProxyName: %v, Bundle: %v, Vcpu: %v, Memory: %v)",
+                proxyName,
+                spareBundleName,
+                resource->Vcpu,
+                resource->Memory);
+        }
+    }
+
+    const std::string& GetAnnotateMultipleSizesAlertId() const
+    {
+        static const std::string Id = "annotate_new_proxies_multiple_sizes";
+        return Id;
+    }
+
+    const std::string& GetAnnotateMultipleZonesAlertId() const
+    {
+        static const std::string Id = "annotate_new_proxies_multiple_zones";
+        return Id;
+    }
+
     const THashSet<std::string>& GetAliveInstances(const std::string& dataCenterName) const
     {
         const static THashSet<std::string> Dummy;
@@ -286,6 +341,13 @@ public:
         }
 
         return Dummy;
+    }
+
+    std::vector<std::string> GetOfflineInstances(
+        const TSchedulerInputState& /*input*/,
+        const std::string& /*dataCenterName*/) const
+    {
+        return {};
     }
 
     const std::vector<std::string>& GetInstances(const std::string& dataCenterName) const

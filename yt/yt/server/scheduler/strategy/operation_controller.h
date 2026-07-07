@@ -31,7 +31,8 @@ struct ISchedulingOperationController
         const TDiskResources& availableDiskResources,
         const std::string& treeId,
         const NYPath::TYPath& poolPath,
-        std::optional<TDuration> waitingForResourcesOnNodeTimeout) = 0;
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+        std::optional<std::string> allocationGroupName) = 0;
 
     //! Called during scheduling to notify the controller that a (nonscheduled) allocation has been aborted.
     virtual void OnNonscheduledAllocationAborted(
@@ -87,7 +88,9 @@ public:
     bool CheckMaxScheduleAllocationCallsOverdraft(int maxScheduleAllocationCalls) const;
     bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
-    bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
+    bool HasRecentScheduleAllocationFailure(
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        bool backoffCheckEnabled) const;
     bool ScheduleAllocationBackoffObserved() const;
 
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
@@ -96,8 +99,9 @@ public:
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,
         const std::string& treeId,
-        const TString& poolPath,
-        std::optional<TDuration> waitingForResourcesOnNodeTimeout);
+        const NYPath::TYPath& poolPath,
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+        std::optional<std::string> allocationGroupName);
 
     // TODO(eshcherbin): Move to private.
     void AbortAllocation(
@@ -106,7 +110,7 @@ public:
         TControllerEpoch allocationEpoch);
 
     void OnScheduleAllocationFailed(
-        NProfiling::TCpuInstant now,
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const std::string& treeId,
         const TControllerScheduleAllocationResultPtr& scheduleAllocationResult);
 
@@ -126,7 +130,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    NThreading::TReaderWriterSpinLock ConfigLock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConfigLock_);
     TAtomicIntrusivePtr<TStrategyOperationControllerConfig> Config_;
 
     struct alignas(CacheLineSize) TStateShard
@@ -141,16 +145,20 @@ private:
         TDuration MaxConcurrentControllerScheduleAllocationExecDuration = TDuration::Max();
 
         TDuration ScheduleAllocationExecDurationEstimate;
+
+        TCpuInstant ScheduleAllocationBackoffDeadline = {};
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
     const std::vector<IInvokerPtr> NodeShardInvokers_;
 
     std::atomic<bool> EnableConcurrentScheduleAllocationExecDurationThrottling_ = false;
+    std::atomic<bool> EnablePerNodeShardScheduleAllocationBackoff_ = false;
 
     mutable int ScheduleAllocationCallsOverdraft_ = 0;
 
     std::atomic<NProfiling::TCpuDuration> ScheduleAllocationControllerThrottlingBackoff_;
+    // TODO(bystrovserg): Drop global backoff state.
     std::atomic<NProfiling::TCpuInstant> ScheduleAllocationBackoffDeadline_ = ::Min<NProfiling::TCpuInstant>();
     std::atomic<bool> ScheduleAllocationBackoffObserved_ = false;
 

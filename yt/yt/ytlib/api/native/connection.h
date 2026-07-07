@@ -115,8 +115,12 @@ struct IConnection
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
 
+    virtual const NRpc::IChannelPtr& GetCypressProxyChannel() = 0;
+
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelPtr& GetBundleControllerChannel() = 0;
+    virtual const NRpc::IChannelPtr& GetTabletBalancerChannel() = 0;
+    virtual const NRpc::IChannelPtr& GetOffshoreDataGatewayChannel() = 0;
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
 
     virtual NRpc::IChannelPtr GetChaosChannelByCellId(
@@ -259,6 +263,8 @@ struct TConnectionOptions
     TConnectionOptions() = default;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 //! Native connection talks directly to the cluster via internal
 //! (and typically not stable) RPC protocols.
 IConnectionPtr CreateConnection(
@@ -300,10 +306,17 @@ DEFINE_ENUM(EInsistentGetRemoteConnectionMode,
 //! Lookup cluster in directory, if cluster is missing wait for sync then retry lookup (once).
 //! `mode` parameter controls how waiting is done
 //!    - SyncOutOfBound -- run sync out of bound sync immediately.
-//!    - WaitFirstSuccessfulSync -- wait until
+//!    - WaitFirstSuccessfulSync -- wait until first successful sync is performed
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
-    const NApi::NNative::IConnectionPtr& connection,
-    const std::string& clusterName,
+    NApi::NNative::IConnectionPtr connection,
+    std::string clusterName,
+    EInsistentGetRemoteConnectionMode mode = EInsistentGetRemoteConnectionMode::Sync);
+
+//! Same as #InsistentGetRemoteConnection but for multiple clusters.
+//! Helpful to sync cluster directory once instead of once per connection.
+TFuture<std::vector<IConnectionPtr>> InsistentGetMultipleRemoteConnections(
+    NApi::NNative::IConnectionPtr connection,
+    std::vector<std::string> clusterNames,
     EInsistentGetRemoteConnectionMode mode = EInsistentGetRemoteConnectionMode::Sync);
 
 IConnectionPtr FindRemoteConnection(
@@ -313,21 +326,6 @@ IConnectionPtr FindRemoteConnection(
 IConnectionPtr GetRemoteConnectionOrThrow(
     const NApi::NNative::IConnectionPtr& connection,
     NObjectClient::TCellTag cellTag);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Fetches table mount info for object on a potentially-remote cluster, which may be specified in the rich YPath.
-TFuture<NTabletClient::TTableMountInfoPtr> GetTableMountInfo(
-    const NYPath::TRichYPath& objectPath,
-    const IConnectionPtr& connection);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Uses user attribute cache to check if the user is a superuser.
-TFuture<bool> IsSuperuser(const NApi::NNative::IConnectionPtr& connection, const std::string& user);
-
-//! Uses user attribute cache to check if the user is banned.
-TFuture<bool> IsUserBanned(const NApi::NNative::IConnectionPtr& connection, const std::string& user);
 
 ////////////////////////////////////////////////////////////////////////////////
 

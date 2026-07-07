@@ -116,6 +116,17 @@ void TOwner::Deserialize(const Poco::XML::Node& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void THeadBucketRequest::Serialize(THttpRequest* request) const
+{
+    request->Method = NHttp::EMethod::Head;
+    request->Path = Format("/%v", Bucket);
+}
+
+void THeadBucketResponse::Deserialize(const NHttp::IResponsePtr& /*response*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TListBucketsRequest::Serialize(THttpRequest* request) const
 {
     request->Method = NHttp::EMethod::Get;
@@ -293,9 +304,9 @@ void TDeleteObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
         errorNode = errorNode->nextSibling())
     {
         Errors.emplace_back(TDeleteError{
-            .Key = TString(GetChildByNameOrThrow(*errorNode, "Key")->innerText()),
-            .Code = TString(GetChildByNameOrThrow(*errorNode, "Code")->innerText()),
-            .Message = TString(GetChildByNameOrThrow(*errorNode, "Message")->innerText()),
+            .Key = GetChildByNameOrThrow(*errorNode, "Key")->innerText(),
+            .Code = GetChildByNameOrThrow(*errorNode, "Code")->innerText(),
+            .Message = GetChildByNameOrThrow(*errorNode, "Message")->innerText(),
         });
     }
 }
@@ -394,8 +405,8 @@ public:
     {
         auto urlRef = NHttp::ParseUrl(Config_->Url);
         BaseHttpRequest_ = THttpRequest{
-            .Protocol = TString{urlRef.Protocol},
-            .Host = TString{urlRef.Host},
+            .Protocol = std::string{urlRef.Protocol},
+            .Host = std::string{urlRef.Host},
             .Port = urlRef.Port,
             .Region = Config_->Region,
             .Service = "s3",
@@ -406,7 +417,7 @@ public:
             urlRef = NHttp::ParseUrl(*Config_->ProxyUrl);
         }
 
-        auto asyncAddress = TAddressResolver::Get()->Resolve(TString{urlRef.Host});
+        auto asyncAddress = TAddressResolver::Get()->Resolve(std::string(urlRef.Host));
         return asyncAddress.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TNetworkAddress& address) {
             bool useTls = (urlRef.Protocol == "https");
             TNetworkAddress s3Address(
@@ -444,6 +455,7 @@ public:
     DEFINE_STRUCTURED_COMMAND(AbortMultipartUpload)
     DEFINE_STRUCTURED_COMMAND(CompleteMultipartUpload)
     DEFINE_STRUCTURED_COMMAND(HeadObject)
+    DEFINE_STRUCTURED_COMMAND(HeadBucket)
 #undef DEFINE_STRUCTURED_COMMAND
 
 private:
@@ -452,7 +464,7 @@ private:
         auto headers = response->GetHeaders();
         for (TStringBuf header : {"x-amz-request-id", "x-amz-id-2"}) {
             if (auto* value = headers->Find(header)) {
-                error <<= TErrorAttribute(TString(header), *value);
+                error <<= TErrorAttribute(std::string(header), *value);
             }
         }
     }
@@ -494,8 +506,9 @@ private:
                 &req,
                 CredentialProvider_);
 
+            auto requestMethod = req.Method;
             return Client_->MakeRequest(std::move(req))
-                .AsUnique().Apply(BIND([method = req.Method] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
+                .AsUnique().Apply(BIND([method = requestMethod] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
                     if (!responseOrError.IsOK()) {
                         return TError("HTTP request failed") << std::move(responseOrError);
                     }
@@ -507,6 +520,9 @@ private:
                     TCommandResponse rsp;
                     rsp.Deserialize(response);
                     return rsp;
+                }).AsyncVia(ExecutionInvoker_))
+                .AsUnique().Apply(BIND([] (TErrorOr<TCommandResponse>&& responseOrError) {
+                    return MakeFuture<TCommandResponse>(std::move(responseOrError));
                 }));
         })
             .AsyncVia(ExecutionInvoker_)

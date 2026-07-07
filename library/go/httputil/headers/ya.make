@@ -5,7 +5,9 @@ SRCS(
     authorization.go
     content.go
     cookie.go
+    request.go
     tvm.go
+    user.go
     user_agent.go
     warning.go
 )
@@ -20,4 +22,6 @@ GO_XTEST_SRCS(
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

@@ -25,7 +25,7 @@ bool AreProtoMessagesEqual(
 bool AreProtoMessagesEqualByPath(
     const NProtoBuf::Message& lhs,
     const NProtoBuf::Message& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& options);
 
 // List all supported types explicitly for safety.
@@ -33,6 +33,7 @@ template <class T>
 concept CScalarAttributeTriviallyComparable =
     std::equality_comparable<T> && (
         std::same_as<T, TString> ||
+        std::same_as<T, std::string> ||
         std::same_as<T, TStringBuf> ||
         std::same_as<T, TGuid> ||
         std::same_as<T, TInstant> ||
@@ -44,7 +45,7 @@ concept CScalarAttributeTriviallyComparable =
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-bool AreScalarAttributesEqualAsYTrees(const T& lhs, const T& rhs, const NYPath::TYPath& path)
+bool AreScalarAttributesEqualAsYTrees(const T& lhs, const T& rhs, NYPath::TYPathBuf path)
 {
     auto lhsNode = GetNodeByPathOrEntity(NYTree::ConvertToNode(lhs), path);
     auto rhsNode = GetNodeByPathOrEntity(NYTree::ConvertToNode(rhs), path);
@@ -122,6 +123,21 @@ bool AreScalarAttributeMappingsEqual(
 
 template <class T>
 bool AreScalarAttributesEqualImpl(
+    const std::optional<T>& lhs,
+    const std::optional<T>& rhs,
+    const TComparisonOptions& options)
+{
+    if (!lhs.has_value() && !rhs.has_value()) {
+        return true;
+    }
+    if (!lhs.has_value() || !rhs.has_value()) {
+        return false;
+    }
+    return AreScalarAttributesEqualImpl(*lhs, *rhs, options);
+}
+
+template <class T>
+bool AreScalarAttributesEqualImpl(
     const std::vector<T>& lhs,
     const std::vector<T>& rhs,
     const TComparisonOptions& options)
@@ -182,7 +198,7 @@ template <class T>
 bool AreScalarAttributesEqualByPath(
     const T& lhs,
     const T& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& options)
 {
     if (path.empty()) {
@@ -200,14 +216,14 @@ template <class T>
 bool AreScalarAttributesEqualByPath(
     const std::vector<T>& lhs,
     const std::vector<T>& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& options)
 {
     if (path.empty()) {
         return AreScalarAttributesEqual(lhs, rhs, options);
     }
 
-    if (!path.StartsWith("/*")) {
+    if (!path.starts_with("/*")) {
         return AreScalarAttributesEqualByPath<std::vector<T>>(lhs, rhs, path, options);
     }
 
@@ -273,7 +289,7 @@ protected:
     void VisitMapEntry(
         TVisitParam&& target,
         TMapIterator mapIterator,
-        TString key,
+        TStringBuf key,
         EVisitReason reason)
     {
         if (PathComplete()) {
@@ -287,7 +303,6 @@ protected:
             std::move(key),
             reason);
     }
-
 
     template<typename TVisitParam>
     void VisitNode(
@@ -349,7 +364,7 @@ protected:
     void VisitUnrecognizedField(
         NProtoBuf::Message* message,
         const NProtoBuf::Descriptor* descriptor,
-        TString name,
+        TStringBuf name,
         EVisitReason reason)
     {
         auto* unknownFields = message->GetReflection()->MutableUnknownFields(message);
@@ -376,7 +391,7 @@ protected:
             }
         }
 
-        TProtoVisitor::VisitUnrecognizedField(message, descriptor, std::move(name), reason);
+        TProtoVisitor::VisitUnrecognizedField(message, descriptor, name, reason);
     }
 
     void VisitField(
@@ -401,7 +416,7 @@ protected:
         NProtoBuf::Message* message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         NProtoBuf::Message* entryMessage,
-        TString key,
+        TStringBuf key,
         EVisitReason reason)
     {
         if (PathComplete()) {
@@ -414,7 +429,7 @@ protected:
             message,
             fieldDescriptor,
             entryMessage,
-            std::move(key),
+            key,
             reason);
     }
 

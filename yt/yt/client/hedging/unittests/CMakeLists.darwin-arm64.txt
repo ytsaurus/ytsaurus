@@ -12,19 +12,20 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(yt-yt-client-hedging-unittests)
+add_executable(unittester-client-hedging)
 
 
-target_compile_options(yt-yt-client-hedging-unittests PRIVATE
+target_compile_options(unittester-client-hedging PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
-target_link_libraries(yt-yt-client-hedging-unittests PUBLIC
+target_link_libraries(unittester-client-hedging PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
@@ -39,11 +40,11 @@ target_link_libraries(yt-yt-client-hedging-unittests PUBLIC
   library-profiling-solomon
 )
 
-target_allocator(yt-yt-client-hedging-unittests
+target_allocator(unittester-client-hedging
   system_allocator
 )
 
-target_link_options(yt-yt-client-hedging-unittests PRIVATE
+target_link_options(unittester-client-hedging PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -51,7 +52,7 @@ target_link_options(yt-yt-client-hedging-unittests PRIVATE
   CoreFoundation
 )
 
-target_sources(yt-yt-client-hedging-unittests PRIVATE
+target_sources(unittester-client-hedging PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/helper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/counters_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/hedging_ut.cpp
@@ -61,14 +62,14 @@ target_sources(yt-yt-client-hedging-unittests PRIVATE
 
 add_test(
   NAME
-  yt-yt-client-hedging-unittests
+  unittester-client-hedging
   COMMAND
-  yt-yt-client-hedging-unittests
+  unittester-client-hedging
 )
 
 set_property(
   TEST
-  yt-yt-client-hedging-unittests
+  unittester-client-hedging
   PROPERTY
   LABELS
   SMALL
@@ -76,16 +77,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-client-hedging-unittests
+  unittester-client-hedging
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-client-hedging-unittests)
+vcs_info(unittester-client-hedging)
 
 set_property(
   TEST
-  yt-yt-client-hedging-unittests
+  unittester-client-hedging
   PROPERTY
   PROCESSORS
   1

@@ -19,13 +19,13 @@ Y_WEAK TCopyGuard::~TCopyGuard()
     }
 }
 
-TCopyGuard::TCopyGuard(TCopyGuard&& other)
+TCopyGuard::TCopyGuard(TCopyGuard&& other) noexcept
 {
     std::swap(Compartment_, other.Compartment_);
     std::swap(CopiedOffset_, other.CopiedOffset_);
 }
 
-TCopyGuard& TCopyGuard::operator=(TCopyGuard&& other)
+TCopyGuard& TCopyGuard::operator=(TCopyGuard&& other) noexcept
 {
     std::swap(Compartment_, other.Compartment_);
     std::swap(CopiedOffset_, other.CopiedOffset_);

@@ -20,6 +20,9 @@ struct TDistributedHydraManagerOptions
     bool EnableObserverPersistence = true;
     NRpc::IResponseKeeperPtr ResponseKeeper;
     bool EnableLocalHostSanitizing = true;
+    // If true, special mutation will be committed on each reign change.
+    bool ReportReignChange = false;
+    bool Testing = false;
 };
 
 struct TDistributedHydraManagerDynamicOptions

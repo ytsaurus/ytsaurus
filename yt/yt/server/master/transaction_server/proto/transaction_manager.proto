@@ -33,22 +33,13 @@ message TReqPrepareTransactionCommit
     required uint64 prepare_timestamp = 2;
     required string user = 3;
     optional string user_tag = 4;
+    optional uint32 expected_prepare_signature = 5;
 }
 
 // Used as a signal when replication of a missing transaction was requested.
 message TReqNoteNoSuchTransaction
 {
     required NYT.NProto.TGuid id = 1;
-}
-
-message TReqReturnBoomerang
-{
-    required NYT.NProto.TGuid boomerang_wave_id = 1;
-    required int32 boomerang_wave_size = 2;
-
-    required NYT.NProto.TGuid boomerang_mutation_id = 3;
-    required string boomerang_mutation_type = 4;
-    required bytes boomerang_mutation_data = 5;
 }
 
 message TReqRemoveStuckBoomerangWaves

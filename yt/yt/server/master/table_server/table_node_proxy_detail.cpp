@@ -133,7 +133,7 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         auto* table = GetThisImpl();
         if (context->Columns) {
             checkOptions.Columns = std::move(context->Columns);
-        } else if (securityManager->HasColumnarAce(Object_, user)) {
+        } else if (securityManager->HasColumnarAce(Object_)) {
             // If the object lacks a columnar ACE, column-level permissions
             // are skipped during the permission check.
             const auto& tableManager = Bootstrap_->GetTableManager();
@@ -162,25 +162,24 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         }
 
         if (checkOptions.Columns) {
-            for (size_t index = 0; index < checkOptions.Columns->size(); ++index) {
-                const auto& column = (*checkOptions.Columns)[index];
-                const auto& result = (*checkResponse.Columns)[index];
-                if (result.Action == ESecurityAction::Deny) {
-                    if (context->OmitInaccessibleColumns) {
-                        if (!context->OmittedInaccessibleColumns) {
-                            context->OmittedInaccessibleColumns.emplace();
-                        }
-                        context->OmittedInaccessibleColumns->push_back(column);
-                    } else {
-                        TPermissionCheckTarget target;
-                        target.ObjectId = Object_->GetId();
-                        target.Column = column;
-                        securityManager->LogAndThrowAuthorizationError(
-                            target,
-                            user,
-                            EPermission::Read,
-                            result);
+            for (const auto& [column, result] : Zip(*checkOptions.Columns, *checkResponse.Columns)) {
+                if (result.Action != ESecurityAction::Deny) {
+                    continue;
+                }
+                if (context->OmitInaccessibleColumns) {
+                    if (!context->OmittedInaccessibleColumns) {
+                        context->OmittedInaccessibleColumns.emplace();
                     }
+                    context->OmittedInaccessibleColumns->push_back(column);
+                } else {
+                    TPermissionCheckTarget target;
+                    target.ObjectId = Object_->GetId();
+                    target.Column = column;
+                    securityManager->LogAndThrowAuthorizationError(
+                        target,
+                        user,
+                        EPermission::Read,
+                        result);
                 }
             }
         }
@@ -304,6 +303,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
         .SetExternal(isExternal)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkReferenceStatistics)
+        .SetExternal(isExternal && isDynamic)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkStatistics)
         .SetExternal(isExternal && isDynamic)
@@ -499,7 +501,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(table->ComputeTotalStatistics().DataWeight);
+                .Value(statistics.DataWeight);
             return true;
         }
 
@@ -634,6 +636,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                             })
                             .DoIf(cell, [&] (TFluentMap fluent) {
                                 fluent.Item("mount_revision").Value(tablet->Servant().GetMountRevision());
+                            })
+                            .DoIf(cell, [&] (TFluentMap fluent) {
+                                fluent.Item("logical_mount_revision").Value(tablet->Servant().GetLogicalMountRevision());
                             })
                             .Item("error_count").Value(tablet->GetTabletErrorCount())
                             .Item("replication_error_count").Value(tablet->GetReplicationErrorCount())
@@ -1190,14 +1195,50 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
             return true;
 
-        case EInternedAttributeKey::HasRowLevelAce:
+        case EInternedAttributeKey::HasRowLevelAce: {
             if (!isNative) {
                 break;
             }
+
+            auto value = Object_->IsSequoia()
+                ? SequoiaNodeHasRowLevelAce_
+                : Bootstrap_->GetSecurityManager()->HasRowLevelAce(Object_);
+
             BuildYsonFluently(consumer)
-                .Value(Bootstrap_->GetSecurityManager()->HasRowLevelAce(Object_));
+                .Value(value);
 
             return true;
+        }
+
+        case EInternedAttributeKey::HunkReferenceStatistics: {
+            if (isExternal) {
+                break;
+            }
+
+            const auto* table = GetThisImpl();
+            const auto* chunkList = table->GetChunkList();
+            const auto* hunkChunkList = table->GetHunkChunkList();
+            if (!hunkChunkList) {
+                break;
+            }
+
+            const auto& chunkListStatistics = chunkList->Statistics();
+            const auto& hunkChunkListStatistics = hunkChunkList->HunkStatistics();
+
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("local_referenced_data_weight").Value(chunkListStatistics.HunkDataWeight)
+                    .Item("local_referenced_data_size").Value(chunkListStatistics.HunkDataSize)
+                    .Item("local_referenced_regular_disk_space").Value(chunkListStatistics.HunkRegularDiskSpace)
+                    .Item("local_referenced_erasure_disk_space").Value(chunkListStatistics.HunkErasureDiskSpace)
+                    .Item("global_referenced_regular_disk_space").Value(hunkChunkListStatistics.ReferencedRegularDiskSpace)
+                    .Item("global_referenced_erasure_disk_space").Value(hunkChunkListStatistics.ReferencedErasureDiskSpace)
+                    .Item("regular_disk_space").Value(hunkChunkListStatistics.RegularDiskSpace)
+                    .Item("erasure_disk_space").Value(hunkChunkListStatistics.ErasureDiskSpace)
+                .EndMap();
+
+            return true;
+        }
 
         default:
             break;
@@ -1266,11 +1307,11 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
         }
 
         case EInternedAttributeKey::ConstrainedSchema: {
-            if (table->Constraints().empty()) {
+            if (table->GetConstraints().empty()) {
                 return tableManager->GetYsonTableSchemaAsync(table->GetSchema());
             }
             return tableManager->GetHeavyTableSchemaAsync(table->GetSchema()->AsCompactTableSchema())
-                .Apply(BIND([columnToConstraint = table->Constraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
+                .Apply(BIND([columnToConstraint = table->GetConstraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
                     auto tableSchema = heavySchemaOrError.ValueOrThrow();
                     TConstrainedTableSchema schema(*tableSchema, columnToConstraint, dynamicConfig->ColumnToConstraintLogLimit);
                     return ConvertToYsonString(schema);
@@ -1278,11 +1319,11 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
         }
 
         case EInternedAttributeKey::Constraints: {
-            if (table->Constraints().empty()) {
+            if (table->GetConstraints().empty()) {
                 return MakeFuture(ConvertToYsonString(TColumnNameToConstraintMap()));
             }
             return tableManager->GetHeavyTableSchemaAsync(table->GetSchema()->AsCompactTableSchema())
-                .Apply(BIND([columnToConstraint = table->Constraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
+                .Apply(BIND([columnToConstraint = table->GetConstraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
                     auto tableSchema = heavySchemaOrError.ValueOrThrow();
                     return ConvertToYsonString(MakeColumnNameToConstraintMap(*tableSchema, columnToConstraint, dynamicConfig->ColumnToConstraintLogLimit));
                 }));
@@ -2085,8 +2126,22 @@ void TTableNodeProxy::ValidatePermission(
     CachedHasRowLevelAce_ = successfulValidationResult.HasRowLevelAce;
 }
 
+void TTableNodeProxy::RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context)
+{
+    auto* table = GetThisImpl();
+    if (table->GetHunkStorage() && !request->force()) {
+        THROW_ERROR_EXCEPTION("Cannot remove table %v that is linked to hunk storage",
+            table->GetId());
+    }
+
+    TBase::RemoveSelf(request, response, context);
+}
+
 bool TTableNodeProxy::ShouldHideRowCount() const
 {
+    if (Object_->IsSequoia()) {
+        return SequoiaNodeHasRowLevelAce_;
+    }
     // NB(coteeq): CachedHasRowLevelAce_ may be null if we did not check permissions for the subject.
     // This may happen if the subject is a superuser.
     return CachedHasRowLevelAce_.value_or(false);
@@ -2118,6 +2173,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 
     context->SetRequestInfo();
 
+    const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->TableManager;
+    if (const auto& delay = dynamicConfig->Testing.GetMountInfoDelay) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+
     ValidateNotExternal();
     ValidateNoTransaction();
 
@@ -2137,6 +2197,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
         protoTablet->set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
+        protoTablet->set_logical_mount_revision(ToProto(tablet->Servant().GetLogicalMountRevision()));
         protoTablet->set_state(ToProto(tablet->GetState()));
         protoTablet->set_in_memory_mode(ToProto(tablet->GetInMemoryMode()));
         ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
@@ -2157,10 +2218,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         if (const auto& predicate = index->Predicate()) {
             ToProto(protoIndexInfo->mutable_predicate(), *predicate);
         }
-        if (const auto& unfoldedColumns = index->UnfoldedColumns()) {
-            auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
-            ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
-            ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
+        const auto& unfoldedColumns = index->UnfoldedColumns();
+        YT_OPTIONAL_TO_PROTO(protoIndexInfo, unfolded_columns, unfoldedColumns);
+        if (unfoldedColumns && unfoldedColumns->IndexColumn == unfoldedColumns->TableColumn) {
+            ToProto(protoIndexInfo->mutable_unfolded_column(), unfoldedColumns->IndexColumn);
         }
         protoIndexInfo->set_index_correspondence(ToProto(index->GetTableToIndexCorrespondence()));
         if (const auto& evaluatedColumnsSchema = index->EvaluatedColumnsSchema()) {
@@ -2430,7 +2491,17 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                     ValidatePivotKey(segment.LowerKey, *heavySchema, "replication progress");
                 }
             } else {
-                ValidateOrderedTabletReplicationProgress(*options.ReplicationProgress);
+                if (table->IsExternal()) {
+                    // We can't get actual tablet count from the secondary cell,
+                    // so accept any valid progress and check it again on mount.
+                    ValidateOrderedTableReplicationProgress(
+                        *options.ReplicationProgress,
+                        /*tabletCount*/ std::numeric_limits<int>::max());
+                } else {
+                    ValidateOrderedTableReplicationProgress(
+                        *options.ReplicationProgress,
+                        std::ssize(table->Tablets()));
+                }
             }
 
             table->ValidateAllTabletsUnmounted("Cannot change replication progress");
@@ -2519,8 +2590,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         ValidateConstrainedTableSchemaAlter(
             *oldTableSchema,
             *newTableSchema,
-            table->Constraints(),
-            effectiveConstraints ? *effectiveConstraints : table->Constraints(),
+            table->GetConstraints(),
+            effectiveConstraints ? *effectiveConstraints : table->GetConstraints(),
             table->IsEmpty());
 
         if (effectiveConstraints) {
@@ -2545,12 +2616,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (schemaReceived || options.SchemaModification) {
         auto setCorrespondingTableSchema = [] (
             TTableNode* table,
-            const TCompactTableSchemaPtr& schema,
+            TCompactTableSchemaPtr schema,
             const TAlterTableOptions& options,
             const auto& tableManager)
         {
             if (table->IsNative()) {
-                return tableManager->GetOrCreateNativeMasterTableSchema(schema, table);
+                return tableManager->GetOrCreateNativeMasterTableSchema(std::move(schema), table);
             }
 
             YT_VERIFY(!options.Schema);
@@ -2559,7 +2630,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             return existingSchema;
         };
 
-        resultingSchema = setCorrespondingTableSchema(table, schema, options, tableManager);
+        resultingSchema = setCorrespondingTableSchema(table, std::move(schema), options, tableManager);
 
         table->SetSchemaMode(ETableSchemaMode::Strong);
     }
@@ -2607,7 +2678,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        TCellTagList cellTag = {externalCellTag};
+        TCellTagSet cellTag = {externalCellTag};
         auto* transaction = GetTransaction();
         auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, cellTag);
         SetTransactionId(replicationRequest, externalizedTransactionId);

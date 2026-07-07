@@ -54,16 +54,27 @@ public:
         TJournalChunkWriterOptionsPtr options,
         TJournalChunkWriterConfigPtr config,
         TJournalWriterPerformanceCounters counters,
+        IInvokerPtr invoker,
+        std::optional<TChunkReplicaWithMediumList> targets,
+        EChunkFormat chunkFormat,
         const NLogging::TLogger& logger)
         : Client_(std::move(client))
         , SessionId_(sessionId)
         , ChunkId_(SessionId_.ChunkId)
+        , ChunkFormat_(chunkFormat)
         , Options_(std::move(options))
         , Config_(std::move(config))
         , Counters_(std::move(counters))
         , ReplicaCount_(GetReplicaCount(Options_))
+        , Invoker_(CreateSerializedInvoker(std::move(invoker)))
+        , WriteTargets_(std::move(targets))
         , Logger(logger.WithTag("ChunkId: %v", ChunkId_))
-    { }
+    {
+        YT_VERIFY(IsJournalFormat(chunkFormat));
+        if (WriteTargets_) {
+            YT_VERIFY(std::ssize(*WriteTargets_) == ReplicaCount_);
+        }
+    }
 
     TFuture<void> Open() override
     {
@@ -123,6 +134,7 @@ private:
 
     const TSessionId SessionId_;
     const TChunkId ChunkId_;
+    const EChunkFormat ChunkFormat_;
 
     const TJournalChunkWriterOptionsPtr Options_;
     const TJournalChunkWriterConfigPtr Config_;
@@ -130,7 +142,9 @@ private:
 
     const int ReplicaCount_;
 
-    const IInvokerPtr Invoker_ = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
+    const IInvokerPtr Invoker_;
+
+    std::optional<TChunkReplicaWithMediumList> WriteTargets_;
 
     const NLogging::TLogger Logger;
 
@@ -219,10 +233,16 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        auto writeTargets = AllocateWriteTargets();
-        CreateNodes(writeTargets);
+        if (WriteTargets_) {
+            YT_LOG_DEBUG("Write targets were preallocated (SessionId: %v, Targets: %v)",
+                SessionId_,
+                *WriteTargets_);
+        } else {
+            WriteTargets_ = AllocateWriteTargets();
+        }
+        CreateNodes(*WriteTargets_);
         StartChunkSessions();
-        ConfirmChunk(writeTargets);
+        ConfirmChunk(*WriteTargets_);
     }
 
     TChunkReplicaWithMediumList AllocateWriteTargets()
@@ -381,7 +401,7 @@ private:
 
         auto* meta = req->mutable_chunk_meta();
         meta->set_type(ToProto(EChunkType::Journal));
-        meta->set_format(ToProto(EChunkFormat::JournalDefault));
+        meta->set_format(ToProto(ChunkFormat_));
         NChunkClient::NProto::TMiscExt miscExt;
         SetProtoExtension(meta->mutable_extensions(), miscExt);
 
@@ -832,6 +852,9 @@ IJournalChunkWriterPtr CreateJournalChunkWriter(
     TJournalChunkWriterOptionsPtr options,
     TJournalChunkWriterConfigPtr config,
     TJournalWriterPerformanceCounters counters,
+    IInvokerPtr invoker,
+    std::optional<TChunkReplicaWithMediumList> targets,
+    EChunkFormat chunkFormat,
     const NLogging::TLogger& logger)
 {
     return New<TJournalChunkWriter>(
@@ -840,6 +863,9 @@ IJournalChunkWriterPtr CreateJournalChunkWriter(
         std::move(options),
         std::move(config),
         std::move(counters),
+        std::move(invoker),
+        std::move(targets),
+        chunkFormat,
         logger);
 }
 

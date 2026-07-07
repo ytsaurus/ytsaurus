@@ -22,6 +22,7 @@ target_compile_options(server-lib-nbd PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(server-lib-nbd PUBLIC
@@ -35,7 +36,7 @@ target_link_libraries(server-lib-nbd PUBLIC
 )
 
 target_sources(server-lib-nbd PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/block_device.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/block_device_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk_block_device.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk_handler.cpp

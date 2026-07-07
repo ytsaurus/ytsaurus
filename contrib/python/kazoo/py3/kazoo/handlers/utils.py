@@ -196,6 +196,7 @@ def create_tcp_socket(module):
 def create_tcp_connection(
     module,
     address,
+    hostname=None,
     timeout=None,
     use_ssl=False,
     ca=None,
@@ -203,6 +204,7 @@ def create_tcp_connection(
     keyfile=None,
     keyfile_password=None,
     verify_certs=True,
+    check_hostname=False,
     options=None,
     ciphers=None,
 ):
@@ -212,11 +214,11 @@ def create_tcp_connection(
         # this ugliness...
         timeout = module.getdefaulttimeout()
     if timeout is not None:
-        end = time.time() + timeout
+        end = time.monotonic() + timeout
     sock = None
 
     while True:
-        timeout_at = end if end is None else end - time.time()
+        timeout_at = end if end is None else end - time.monotonic()
         # The condition is not '< 0' here because socket.settimeout treats 0 as
         # a special case to put the socket in non-blocking mode.
         if timeout_at is not None and timeout_at <= 0:
@@ -237,11 +239,14 @@ def create_tcp_connection(
 
             # Load default CA certs
             context.load_default_certs(ssl.Purpose.SERVER_AUTH)
+            if check_hostname and not verify_certs:
+                raise ValueError(
+                    "verify_certs must be True when"
+                    + " check_hostname is True"
+                )
             # We must set check_hostname to False prior to setting
             # verify_mode to CERT_NONE.
-            # TODO: Make hostname verification configurable as some users may
-            # elect to use it.
-            context.check_hostname = False
+            context.check_hostname = check_hostname
             context.verify_mode = (
                 ssl.CERT_REQUIRED if verify_certs else ssl.CERT_NONE
             )
@@ -258,7 +263,9 @@ def create_tcp_connection(
                 addrs = socket.getaddrinfo(
                     address[0], address[1], 0, socket.SOCK_STREAM
                 )
-                conn = context.wrap_socket(module.socket(addrs[0][0]))
+                conn = context.wrap_socket(
+                    module.socket(addrs[0][0]), server_hostname=hostname
+                )
                 conn.settimeout(timeout_at)
                 conn.connect(address)
                 sock = conn

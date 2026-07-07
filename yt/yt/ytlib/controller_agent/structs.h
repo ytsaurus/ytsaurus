@@ -39,7 +39,7 @@ struct TIncarnationSwitchData
 
     // NB(bystrovserg): Should be called only if EOperationIncarnationSwitchReason
     // is presented in IncarnationSwitchReason.
-    EOperationIncarnationSwitchReason GetSwitchReason();
+    EOperationIncarnationSwitchReason GetSwitchReason() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

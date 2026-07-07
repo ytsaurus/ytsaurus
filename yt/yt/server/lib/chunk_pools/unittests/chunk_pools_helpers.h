@@ -69,11 +69,11 @@ class TSortedChunkPoolTestBase
 protected:
     NTableClient::TRowBufferPtr RowBuffer_ = New<NTableClient::TRowBuffer>();
 
-    NTableClient::TLegacyKey BuildRow(std::vector<i64> values);
+    NTableClient::TLegacyKey BuildRow(std::vector<i64> values) const;
 
     //! Helper for building key bound. #boolOperator must be one of
     //! {"<", "<=", ">", ">="}.
-    NTableClient::TKeyBound BuildBound(const char* boolOperator, std::vector<i64> values);
+    NTableClient::TKeyBound BuildBound(const char* boolOperator, std::vector<i64> values) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

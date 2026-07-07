@@ -146,7 +146,7 @@ TProbingPenalty PenalizeBannedNode(TProbingPenalty penalty)
     return {penalty.first, penalty.second + 1e20};
 }
 
-}  // namespace
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1350,16 +1350,19 @@ private:
             // TODO(akozhikhov): Support cancellation of primary requests?
             PrimaryRequestStartTime_ = TInstant::Now();
             if (Options_.AdaptiveHedgingManager) {
-                Options_.AdaptiveHedgingManager->RegisterRequest(
-                    Promise_.ToFuture().AsVoid(),
-                    BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeWeak(this))
-                        .Via(SessionInvoker_));
+                if (auto hedgingPrice = ComputeHedgingPrice()) {
+                    Options_.AdaptiveHedgingManager->RegisterRequest(
+                        Promise_.ToFuture().AsVoid(),
+                        *hedgingPrice,
+                        BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeWeak(this), *hedgingPrice)
+                            .Via(SessionInvoker_));
+                }
             } else if (auto hedgingDelay = Reader_->Config_->FragmentReadHedgingDelay) {
                 if (hedgingDelay == TDuration::Zero()) {
-                    StartSecondaryRequest();
+                    StartSecondaryRequest(/*hedgingPrice*/ 0);
                 } else {
                     TDelayedExecutor::Submit(
-                        BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeStrong(this)),
+                        BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeStrong(this), /*hedgingPrice*/ 0),
                         *hedgingDelay,
                         SessionInvoker_);
                 }
@@ -1367,7 +1370,7 @@ private:
         }
     }
 
-    void StartSecondaryRequest()
+    void StartSecondaryRequest(int hedgingPrice)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -1376,8 +1379,9 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Hedging deadline reached (Delay: %v)",
-            TInstant::Now() - PrimaryRequestStartTime_);
+        YT_LOG_DEBUG("Hedging deadline reached (Delay: %v, HedgingPrice: %v)",
+            TInstant::Now() - PrimaryRequestStartTime_,
+            hedgingPrice);
 
         NextRound(/*isHedged*/ true);
     }
@@ -1415,6 +1419,36 @@ private:
         return peerInfoToPlan;
     }
 
+    std::optional<int> ComputeHedgingPrice() const
+    {
+        int chunkCount = 0;
+        int price = 0;
+        for (auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
+            if (chunkState.ReplicasWithRevision.IsEmpty()) {
+                continue;
+            }
+
+            if (chunkState.Controller->IsDone()) {
+                continue;
+            }
+
+            ++chunkCount;
+            auto codecId = chunkState.Controller->GetCodecId();
+            if (codecId == NErasure::ECodec::None) {
+                ++price;
+            } else {
+                auto* codec = NErasure::GetCodec(codecId);
+                price += codec->GetDataPartCount();
+            }
+        }
+
+        return chunkCount == 0
+            // NB: This can happen e.g. if the requests have already been processed prior to scheduling hedged request.
+            ? std::nullopt
+            // NB: This is an upper bound, but it shall be good enough for out purposes.
+            : std::make_optional(price / chunkCount);
+    }
+
     void AcquireThrottler(i64 amount)
     {
         BytesThrottled_ += amount;
@@ -1429,8 +1463,16 @@ private:
         return CombinedDataByteThrottler_->Throttle(amount);
     }
 
-    void ReleaseThrottledBytes(i64 throttledBytes)
+    void MaybeReleaseThrottledBytes(const TError& error, i64 throttledBytes)
     {
+        YT_VERIFY(!error.IsOK());
+
+        if (error.FindMatching(NYT::EErrorCode::Timeout) ||
+            error.FindMatching(NYT::EErrorCode::Canceled))
+        {
+            return;
+        }
+
         YT_LOG_DEBUG("Releasing excess throttled bytes (ThrottledBytes: %v)",
             throttledBytes);
 
@@ -1554,7 +1596,7 @@ private:
                     req,
                     plan,
                     dataByteSize,
-                    throttleFuture.Get());
+                    throttleFuture.GetOrCrash());
             } else {
                 throttleFuture.Subscribe(BIND(
                     &TSimpleReadFragmentsSession::OnRequestThrottled,
@@ -1613,7 +1655,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         if (!rspOrError.IsOK()) {
-            ReleaseThrottledBytes(throttledBytes);
+            MaybeReleaseThrottledBytes(rspOrError, throttledBytes);
         } else {
             i64 receivedAttachmentsSize = GetByteSize(rspOrError.Value()->Attachments());
             if (receivedAttachmentsSize > throttledBytes) {

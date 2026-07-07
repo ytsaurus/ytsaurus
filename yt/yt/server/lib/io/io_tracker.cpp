@@ -26,7 +26,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString PathTagName = "object_path";
+static const std::string PathTagName = "object_path";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,7 +92,7 @@ struct TAggregateTagsKey
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NYT::NIO
+} // namespace NYT::NIO
 
 template <>
 struct THash<NYT::NIO::TSortedIOTagList>
@@ -149,13 +149,13 @@ void ParseBaggage(const TYsonString& baggage, TFunc addTag)
     TYsonPullParserCursor cursor(&parser);
     cursor.ParseMap([&] (auto* cursor) {
         EnsureYsonToken("tag key", *cursor, EYsonItemType::StringValue);
-        TString key{(*cursor)->UncheckedAsString()};
+        std::string key{(*cursor)->UncheckedAsString()};
         cursor->Next();
         if ((*cursor)->GetType() != EYsonItemType::StringValue) {
             cursor->SkipComplexValue();
             return;
         }
-        addTag(std::move(key), TString{(*cursor)->UncheckedAsString()});
+        addTag(std::move(key), std::string{(*cursor)->UncheckedAsString()});
         cursor->Next();
     });
 }
@@ -408,7 +408,7 @@ public:
         , EventsProcessed_(Profiler_.Counter("/events_processed"))
     { }
 
-    void Initialize()
+    void InitializeRefCounted()
     {
         // NB. Passing MakeStrong here causes a memory leak because of cyclic reference. But it doesn't bother
         // us since this class is used as a singleton and is not intended to be destroyed.
@@ -457,7 +457,7 @@ private:
     TMpscStack<TIOEvent> EventStack_;
     std::atomic<int> EventStackSize_ = 0;
     TDuration PeriodQuant_;
-    THashSet<TString> PathAggregateTags_;
+    THashSet<std::string> PathAggregateTags_;
     TRawEventSink RawSink_;
     TAggregateEventSink AggregateSink_;
     TAggregateEventSink PathAggregateSink_;
@@ -569,9 +569,7 @@ void IIOTracker::Enqueue(TIOCounters counters, THashMap<std::string, std::string
 
 IIOTrackerPtr CreateIOTracker(TIOTrackerConfigPtr config)
 {
-    auto tracker = New<TIOTracker>(std::move(config));
-    tracker->Initialize();
-    return tracker;
+    return New<TIOTracker>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

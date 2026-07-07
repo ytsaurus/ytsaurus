@@ -71,8 +71,6 @@ DEFINE_ENUM(EExecutionStackKind,
 
 constexpr auto DefaultExecutionStackKind = EExecutionStackKind::Small;
 
-class TExecutionStack;
-
 template <class TSignature>
 class TCoroutine;
 
@@ -131,6 +129,8 @@ class TPropagatingStorage;
 
 YT_DECLARE_RECONFIGURABLE_SINGLETON(TFiberManagerConfig, TFiberManagerDynamicConfig);
 
+// UDFs importing core yt headers cannot compile if a dynamically initialized and
+// destroyed global object, such as inline const std::string, is present.
 extern const TFairShareThreadPoolTag DefaultExecutionTag;
 
 ////////////////////////////////////////////////////////////////////////////////

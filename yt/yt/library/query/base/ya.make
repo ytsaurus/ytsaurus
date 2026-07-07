@@ -16,6 +16,7 @@ SRCS(
     expr_builder_v2.cpp
     functions.cpp
     helpers.cpp
+    hierarchical_join_rewriter.cpp
     builtin_function_registry.cpp
     builtin_function_types.cpp
     functions_common.cpp
@@ -25,6 +26,7 @@ SRCS(
     public.cpp
     push_down_group_by.cpp
     query.cpp
+    join_profiler.cpp
     query_common.cpp
     query_helpers.cpp
     query_preparer.cpp

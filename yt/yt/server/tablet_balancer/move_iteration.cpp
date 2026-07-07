@@ -1,5 +1,6 @@
 #include "bundle_state.h"
 #include "config.h"
+#include "helpers.h"
 #include "move_iteration.h"
 #include "private.h"
 #include "table_registry.h"
@@ -30,7 +31,7 @@ class TMoveIterationBase
 {
 public:
     TMoveIterationBase(
-        TString groupName,
+        std::string groupName,
         TBundleSnapshotPtr bundleSnapshot,
         TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
@@ -71,7 +72,7 @@ public:
         return BundleName_;
     }
 
-    const TString& GetGroupName() const override
+    const std::string& GetGroupName() const override
     {
         return GroupName_;
     }
@@ -120,23 +121,11 @@ protected:
     std::vector<TMoveDescriptor> AnnotateSmoothMovementDescriptors(
         std::vector<TMoveDescriptor> descriptors)
     {
-        // EnableSmoothMovement flag occurs at global, bundle, group, and table levels.
-        // It may be true, false or unset at each of those levels. Smooth movement
-        // is enabled if at least one of the flags is true and none are false.
-        // NB: This behaviour is subject to change when smooth movement becomes stable enough.
-        bool hasTrue = false;
-        bool hasFalse = false;
-
-        auto onFlag = [&] (auto flag) {
-            if (flag) {
-                hasTrue |= *flag;
-                hasFalse |= !*flag;
-            }
-        };
-
-        onFlag(DynamicConfig_->EnableSmoothMovement);
-        onFlag(BundleSnapshot_->Bundle->Config->EnableSmoothMovement);
-        onFlag(GroupConfig_->EnableSmoothMovement);
+        auto [hasTrue, hasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableSmoothMovement,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
 
         if (hasFalse) {
             return descriptors;
@@ -151,6 +140,11 @@ protected:
             }
 
             if (TypeFromId(table->Id) != EObjectType::Table) {
+                continue;
+            }
+
+            // Support smooth movement for frozen tablets: YT-17388.
+            if (tablet->State != ETabletState::Mounted) {
                 continue;
             }
 
@@ -193,7 +187,6 @@ public:
         return BIND(
             ReassignOrdinaryTablets,
             BundleSnapshot_->Bundle,
-            /*movableTables*/ std::nullopt,
             Logger())
             .AsyncVia(invoker)
             .Run()
@@ -246,8 +239,6 @@ public:
         return BIND(
             ReassignInMemoryTablets,
             BundleSnapshot_->Bundle,
-            /*movableTables*/ std::nullopt,
-            /*ignoreTableWiseConfig*/ false,
             Logger())
             .AsyncVia(invoker)
             .Run()
@@ -275,7 +266,7 @@ class TParameterizedMoveIterationBase
 {
 public:
     TParameterizedMoveIterationBase(
-        TString groupName,
+        std::string groupName,
         TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
@@ -318,7 +309,7 @@ class TParameterizedMoveIteration
 {
 public:
     TParameterizedMoveIteration(
-        TString groupName,
+        std::string groupName,
         TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
@@ -377,7 +368,7 @@ class TReplicaMoveIteration
 {
 public:
     TReplicaMoveIteration(
-        TString groupName,
+        std::string groupName,
         TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
@@ -525,7 +516,7 @@ IMoveIterationPtr CreateInMemoryMoveIteration(
 }
 
 IMoveIterationPtr CreateParameterizedMoveIteration(
-    TString groupName,
+    std::string groupName,
     TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
@@ -540,7 +531,7 @@ IMoveIterationPtr CreateParameterizedMoveIteration(
 }
 
 IMoveIterationPtr CreateReplicaMoveIteration(
-    TString groupName,
+    std::string groupName,
     TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,

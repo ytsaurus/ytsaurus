@@ -15,7 +15,7 @@ class TGroupBlockHolder
 {
 public:
     TGroupBlockHolder(const TGroupBlockHolder&) = delete;
-    TGroupBlockHolder(TGroupBlockHolder&&);
+    TGroupBlockHolder(TGroupBlockHolder&&) noexcept;
 
     TGroupBlockHolder(
         TRange<ui32> blockIds,

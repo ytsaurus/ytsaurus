@@ -5,13 +5,13 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
+#include <yt/yt/server/lib/job_proxy/config.h>
+
+#include <yt/yt/library/program/helpers.h>
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/library/program/program_setsid_mixin.h>
-#include <yt/yt/library/program/helpers.h>
-
-#include <yt/yt/server/lib/job_proxy/config.h>
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
@@ -147,7 +147,7 @@ protected:
 private:
     NJobTrackerClient::TOperationId OperationId_;
     NJobTrackerClient::TJobId JobId_;
-    TString StderrPath_ = "stderr";
+    std::string StderrPath_ = "stderr";
     bool DoNotCloseDescriptors_ = false;
 
     static NJobTrackerClient::TJobId JobIdArgMapper(TStringBuf arg)

@@ -109,6 +109,8 @@ void TInputStreamDirectory::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, Descriptors_);
     PHOENIX_REGISTER_FIELD(2, DefaultDescriptor_);
+    PHOENIX_REGISTER_FIELD(3, TableAndRangeIndicesToInputStreamIndex_,
+        .SinceVersion(NControllerAgent::ESnapshotVersion::FixInputStreamDirectory));
 }
 
 PHOENIX_DEFINE_TYPE(TInputStreamDirectory);

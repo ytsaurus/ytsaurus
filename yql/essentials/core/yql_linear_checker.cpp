@@ -63,6 +63,15 @@ public:
     void Visit(const TExprNode& node, const TExprNode* parent) {
         auto [it, inserted] = Visited_.emplace(&node, TUsage{});
         if (node.GetTypeAnn()->HasStaticLinear()) {
+            auto scope = node.GetDependencyScope();
+            if (scope && parent) {
+                auto scopeParent = parent->GetDependencyScope();
+                if (scopeParent && scopeParent->first != scope->first) {
+                    AddScopeError(node.Pos(), parent->Pos());
+                    return;
+                }
+            }
+
             if (node.GetTypeAnn()->IsLinear()) {
                 it->second.resize(1);
                 if (it->second[0]) {
@@ -212,6 +221,14 @@ private:
         Ctx_.AddError(main);
     }
 
+    void AddScopeError(TPositionHandle produced, TPositionHandle parent) {
+        HasErrors_ = true;
+        auto inner = MakeIntrusive<TIssue>(Ctx_.GetPosition(produced), "Linear value is produced here");
+        auto main = TIssue(Ctx_.GetPosition(parent), "The linear value changed lambda scope");
+        main.AddSubIssue(inner);
+        Ctx_.AddError(main);
+    }
+
     void AddError(TPositionHandle pos, const TString& message) {
         HasErrors_ = true;
         Ctx_.AddError(TIssue(Ctx_.GetPosition(pos), message));
@@ -248,7 +265,7 @@ bool ValidateLinearTypes(const TExprNode& root, TExprContext& ctx) {
     }
 
     TUsageVisitor visitor(ctx);
-    visitor.Visit(root, nullptr);
+    visitor.Visit(root, /*parent=*/nullptr);
     visitor.Finish();
     return !visitor.HasErrors();
 }

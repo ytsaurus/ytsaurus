@@ -474,6 +474,17 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 		req.Header.Add("Content-Encoding", encoding)
 	}
 
+	// The retrier reuses the same *Call across retries, so give every write
+	// attempt its own response channel: otherwise a previous attempt's goroutine
+	// could close (or send on) the channel a later attempt is using. The caller
+	// reads call.WriteRspChan after the write succeeds, so it observes the last
+	// attempt's channel.
+	rspChan := call.WriteRspChan
+	if rspChan != nil {
+		rspChan = make(chan *internal.CallResult, 1)
+		call.WriteRspChan = rspChan
+	}
+
 	go func() {
 		defer close(errChan)
 		closeErr := func(err error) {
@@ -483,8 +494,8 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 			}
 		}
 
-		if call.WriteRspChan != nil {
-			defer close(call.WriteRspChan)
+		if rspChan != nil {
+			defer close(rspChan)
 		}
 
 		rsp, err := c.roundTrip(req.WithContext(ctx))
@@ -499,8 +510,8 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 			closeErr(err)
 			return
 		}
-		if call.WriteRspChan != nil {
-			call.WriteRspChan <- res
+		if rspChan != nil {
+			rspChan <- res
 		}
 	}()
 
@@ -751,9 +762,11 @@ func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 		KeepAlive: 30 * time.Second,
 	}
 
+	network := c.GetIPVersion().Network()
+
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
 				return dialContext(ctx, netDialer, network, addr)
 			},
 

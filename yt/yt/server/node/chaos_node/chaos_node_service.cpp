@@ -91,6 +91,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(IsChaosObjectExistent));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateTableProgress));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateMultipleTableProgresses));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveCellMailbox));
     }
 
 private:
@@ -141,6 +142,17 @@ private:
         chaosManager->ForsakeCoordinator(std::move(context));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, RemoveCellMailbox)
+    {
+        auto destinationCellId = FromProto<TCellId>(request->destination_cell_id());
+
+        context->SetRequestInfo("DestinationCellId: %v",
+            destinationCellId);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->RemoveCellMailbox(std::move(context));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCard)
     {
         SyncWithUpstream();
@@ -166,7 +178,7 @@ private:
 
         auto awaitingCollocationId = replicationCard->GetAwaitingCollocationId();
 
-        auto isSame = [] (const auto& cachedCard, const auto& replicationCard) {
+        auto isSame = [] (const NChaosClient::TReplicationCardPtr& cachedCard, TReplicationCard* replicationCard) {
             if (cachedCard->Era != replicationCard->GetEra()) {
                 return false;
             }
@@ -207,6 +219,32 @@ private:
                 // TODO(savrus): This is computationally-intensive, remove or cache.
                 if (GetReplicationProgressMinTimestamp(cachedInfo.ReplicationProgress) < GetReplicationProgressMinTimestamp(it->second.ReplicationProgress)) {
                     return false;
+                }
+            }
+
+            if (cachedCard->SecondaryIndices.size() != replicationCard->SecondaryIndices().size()) {
+                return false;
+            }
+
+            for (const auto& secondaryIndex : replicationCard->SecondaryIndices()) {
+                auto it = cachedCard->SecondaryIndices.find(secondaryIndex.IndexObjectId);
+                if (it == cachedCard->SecondaryIndices.end()) {
+                    return false;
+                }
+
+                if (it->second.Correspondence != secondaryIndex.Correspondence ||
+                    it->second.Kind != secondaryIndex.Kind ||
+                    it->second.Predicate != secondaryIndex.Predicate ||
+                    it->second.UnfoldedColumns != secondaryIndex.UnfoldedColumns ||
+                    bool(it->second.EvaluatedColumnsSchema) != bool(secondaryIndex.EvaluatedColumnsSchema))
+                {
+                    return false;
+                }
+
+                if (it->second.EvaluatedColumnsSchema) {
+                    if (*it->second.EvaluatedColumnsSchema != *secondaryIndex.EvaluatedColumnsSchema) {
+                        return false;
+                    }
                 }
             }
 
@@ -263,6 +301,7 @@ private:
             }
             case EObjectType::ChaosLease: {
                 const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+                chaosLeaseManager->ValidateEnabledState();
                 auto* chaosLease = chaosLeaseManager->GetChaosLeaseOrThrow(chaosObjectId);
                 Y_UNUSED(chaosLease);
                 break;
@@ -529,6 +568,7 @@ private:
             chaosLeaseId);
 
         const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+        chaosLeaseManager->ValidateEnabledState();
         auto* chaosLease = chaosLeaseManager->GetChaosLeaseOrThrow(chaosLeaseId);
         response->set_timeout(ToProto(chaosLease->GetTimeout()));
 

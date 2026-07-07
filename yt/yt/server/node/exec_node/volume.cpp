@@ -4,8 +4,8 @@
 #include "private.h"
 #include "volume_counters.h"
 
-#include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/core/actions/bind.h>
 
@@ -19,15 +19,14 @@ using namespace NTools;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(IVolume)
-
-////////////////////////////////////////////////////////////////////////////////
-
-TLayer::TLayer(const TLayerMeta& layerMeta, const TArtifactKey& artifactKey, const TLayerLocationPtr& layerLocation)
+TLayer::TLayer(
+    const TLayerMeta& layerMeta,
+    const TArtifactKey& artifactKey,
+    const TLayerLocationPtr& layerLocation)
     : TAsyncCacheValueBase<TArtifactKey, TLayer>(artifactKey)
     , LayerMeta_(layerMeta)
     , Location_(layerLocation)
@@ -50,7 +49,7 @@ TLayer::~TLayer()
     }
 }
 
-const TString& TLayer::GetCypressPath() const
+const NYPath::TYPath& TLayer::GetCypressPath() const
 {
     return GetKey().data_source().path();
 }
@@ -84,8 +83,6 @@ void TLayer::SetLayerRemovalNotNeeded()
 {
     IsLayerRemovalNeeded_ = false;
 }
-
-DEFINE_REFCOUNTED_TYPE(TLayer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,11 +166,17 @@ bool TSimpleTmpfsVolume::IsCached() const
 }
 
 TFuture<void> TSimpleTmpfsVolume::Link(
-    TGuid,
-    const TString&)
+    TGuid /*tag*/,
+    const std::string& /*target*/)
 {
     // Simple volume is created inside sandbox, so we don't need to link it.
     YT_UNIMPLEMENTED("Link is not implemented for SimpleTmpfsVolume");
+}
+
+TFuture<void> TSimpleTmpfsVolume::Unlink()
+{
+    // Simple volume is created inside sandbox, so we don't need to unlink it.
+    return OKFuture;
 }
 
 TFuture<void> TSimpleTmpfsVolume::Remove()
@@ -239,13 +242,6 @@ const std::string& TSimpleTmpfsVolume::GetPath() const
 {
     return Path_;
 }
-
-bool TSimpleTmpfsVolume::IsRootVolume() const
-{
-    return false;
-}
-
-DEFINE_REFCOUNTED_TYPE(TSimpleTmpfsVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 

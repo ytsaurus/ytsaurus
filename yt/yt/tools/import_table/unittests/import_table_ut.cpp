@@ -573,14 +573,14 @@ class THttpHuggingfaceServerTestBase
     : public ::testing::Test
 {
 protected:
-    const TString Dataset = "TestDataset";
-    const TString Split =  "train";
+    const std::string Dataset = "TestDataset";
+    const std::string Split =  "train";
 
     IPollerPtr Poller;
     IServerPtr Server;
     std::shared_ptr<IParquetGenerator> Generator;
     ::NTesting::TPortHolder TestPort;
-    TString TestUrl;
+    std::string TestUrl;
 
 private:
     virtual void  InitializeGenerator() = 0;
@@ -807,11 +807,11 @@ class T3ServerTestBase
     : public ::testing::Test
 {
 protected:
-    const TString Bucket = "bucket";
+    const std::string Bucket = "bucket";
 
     NS3::IClientPtr S3Client;
     std::shared_ptr<IParquetGenerator> Generator;
-    TString TestUrl;
+    std::string TestUrl;
 
 private:
     virtual void  InitializeGenerator() = 0;

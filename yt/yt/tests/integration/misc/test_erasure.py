@@ -19,7 +19,6 @@ from datetime import datetime, timedelta
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestErasureBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -117,7 +116,6 @@ class TestErasureBase(YTEnvSetup):
         return has_failed
 
 
-@pytest.mark.enabled_multidaemon
 class TestErasure(TestErasureBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
@@ -495,7 +493,7 @@ class TestErasure(TestErasureBase):
         write_table("<erasure_codec={}>//tmp/table".format(erasure_codec), [{"key": 0}])
         assert erasure_codec == get("//tmp/table/@erasure_codec")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"append\" and \"erasure_codec\" are not compatible"):
             write_table("<append=true;erasure_codec={}>//tmp/table".format(erasure_codec), [{"key": 0}])
 
     @authors("prime")
@@ -509,7 +507,7 @@ class TestErasure(TestErasureBase):
         write_file("<erasure_codec=none>//tmp/f", b"a")
         assert get("//tmp/f/@erasure_codec") == "none"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"append\" and \"compression_codec\" are not compatible"):
             write_file("<append=true;compression_codec=none>//tmp/f", b"a")
 
     @authors("shakurov")
@@ -618,7 +616,6 @@ class TestErasure(TestErasureBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestErasureMulticell(TestErasure):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
@@ -633,7 +630,6 @@ class TestErasureMulticell(TestErasure):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestDynamicTablesErasure(TestErasureBase):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True

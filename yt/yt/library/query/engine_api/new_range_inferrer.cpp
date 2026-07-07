@@ -164,7 +164,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
             keyColumns,
             rowBuffer);
     } else if (const auto* inExpr = expr->As<TInExpression>()) {
-        auto values = rowBuffer->CaptureRows(inExpr->Values);
+        auto values = rowBuffer->CaptureRows(inExpr->Values, /*captureValues*/ false);
         auto rowCount = std::ssize(values);
 
         auto keyMapping = BuildKeyMapping(keyColumns, inExpr->Arguments);
@@ -292,8 +292,8 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
         for (int rowIndex = 0; rowIndex < std::ssize(betweenExpr->Ranges); ++rowIndex) {
             auto literalRange = betweenExpr->Ranges[rowIndex];
 
-            auto lower = rowBuffer->CaptureRow(literalRange.first);
-            auto upper = rowBuffer->CaptureRow(literalRange.second);
+            auto lower = rowBuffer->CaptureRow(literalRange.first, /*captureValues*/ false);
+            auto upper = rowBuffer->CaptureRow(literalRange.second, /*captureValues*/ false);
 
             size_t equalPrefix = 0;
             while (equalPrefix < lower.GetCount() &&
@@ -430,7 +430,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
 
         return rangeConstraints.front();
     } else if (const auto* literalExpr = expr->As<TLiteralExpression>()) {
-        TValue value = rowBuffer->CaptureValue(literalExpr->Value);
+        auto value = static_cast<TValue>(literalExpr->Value);
         if (value.Type == EValueType::Boolean) {
             return value.Data.Boolean ? TConstraintRef::Universal() : TConstraintRef::Empty();
         }

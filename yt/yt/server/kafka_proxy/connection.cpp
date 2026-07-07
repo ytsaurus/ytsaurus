@@ -16,6 +16,7 @@
 namespace NYT::NKafkaProxy {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NKafka;
 
@@ -34,13 +35,13 @@ public:
         TProxyBootstrapConfigPtr config,
         NNet::IConnectionPtr connection,
         IInvokerPtr invoker,
-        TRequestHandler requestHandler,
+        TRequestCallback requesCallback,
         TFailHandler failHandler)
         : ConnectionId_(TConnectionId::Create())
         , Config_(std::move(config))
         , Connection_(std::move(connection))
         , Invoker_(CreateSerializedInvoker(std::move(invoker), "kafka_proxy_connection"))
-        , RequestHandler_(std::move(requestHandler))
+        , RequesCallback_(std::move(requesCallback))
         , FailHandler_(std::move(failHandler))
         , PacketEncoder_(GetKafkaPacketTranscoderFactory()->CreateEncoder(
             KafkaProxyLogger()))
@@ -94,7 +95,7 @@ private:
     const IPollerPtr Poller_;
     const IInvokerPtr Invoker_;
 
-    const TRequestHandler RequestHandler_;
+    const TRequestCallback RequesCallback_;
     const TFailHandler FailHandler_;
 
     const std::unique_ptr<IPacketEncoder> PacketEncoder_;
@@ -152,7 +153,7 @@ private:
 
         if (PacketDecoder_->IsFinished()) {
             auto message = PacketDecoder_->GrabMessage();
-            RequestHandler_(MakeStrong(this), message);
+            RequesCallback_(MakeStrong(this), message);
 
             PacketDecoder_->Restart();
         }
@@ -188,7 +189,7 @@ private:
                 fragments.push_back(std::move(sharedFragment));
             } else {
                 auto clonedFragment = TSharedMutableRef::Allocate<TKafkaConnectionTag>(
-                    fragment.size());
+                    fragment.size(), {.InitializeStorage = false});
                 memcpy(clonedFragment.begin(), fragment.begin(), fragment.size());
                 fragments.push_back(std::move(clonedFragment));
             }
@@ -209,14 +210,14 @@ IConnectionPtr CreateConnection(
     TProxyBootstrapConfigPtr config,
     NNet::IConnectionPtr connection,
     IInvokerPtr invoker,
-    TRequestHandler requestHandler,
+    TRequestCallback requesCallback,
     TFailHandler failHandler)
 {
     return New<TConnection>(
         std::move(config),
         std::move(connection),
         std::move(invoker),
-        std::move(requestHandler),
+        std::move(requesCallback),
         std::move(failHandler));
 }
 

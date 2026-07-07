@@ -175,6 +175,11 @@ public:
         NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
+    std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
+    {
+        return std::nullopt;
+    }
+
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;

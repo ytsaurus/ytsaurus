@@ -9,6 +9,8 @@
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
+#include <yt/yt/library/profiling/solomon/exporter.h>
+
 #include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/core/http/server.h>
@@ -43,11 +45,13 @@ void TBootstrap::Run()
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
+    auto solomonExporter = New<NProfiling::TSolomonExporter>(Config_->SolomonExporter);
     NMonitoring::Initialize(
         HttpServer_,
-        Config_->SolomonExporter,
+        solomonExporter,
         &MonitoringManager_,
         &OrchidRoot_);
+    solomonExporter->Start();
 
     SetBuildAttributes(OrchidRoot_, "clickhouse_log_tailer");
 

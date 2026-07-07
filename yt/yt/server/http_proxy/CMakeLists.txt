@@ -26,6 +26,7 @@ target_compile_options(yt-server-http_proxy PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-server-http_proxy PUBLIC
@@ -36,7 +37,8 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   server-lib-chunk_pools
   server-lib-cypress_registrar
   server-lib-logging
-  server-lib-signature
+  server-lib-security_server
+  library-signature-components
   yt-yt-ytlib
   yt-client-driver
   yt-library-auth_server

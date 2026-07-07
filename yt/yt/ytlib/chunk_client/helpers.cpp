@@ -756,7 +756,9 @@ IChunkReaderPtr CreateRemoteReader(
     TChunkReaderHostPtr chunkReaderHost)
 {
     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-    auto replicas = GetReplicasFromChunkSpec(chunkSpec);
+    // Decode replicas as TChunkReplicaWithMedium to preserve the full 64-bit value,
+    // including medium index (which TChunkReplica truncates to 29 bits).
+    auto replicas = FromProto<TChunkReplicaWithMediumList>(chunkSpec.replicas());
 
     auto Logger = ChunkClientLogger().WithTag("ChunkId: %v", chunkId);
 
@@ -995,7 +997,11 @@ void DumpCodecStatistics(
 
 bool IsAddressLocal(const std::string& address)
 {
-    return GetServiceHostName(address) == GetLocalHostName();
+    try {
+        return GetServiceHostName(address) == GetLocalHostName();
+    } catch (const std::exception&) {
+        return false;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1186,7 +1192,7 @@ bool IsLargeEnoughChunkWeight(i64 chunkWeight, i64 chunkWeightThreshold)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatBlocks(int startBlockIndex, int endBlockIndex)
+std::string FormatBlocks(int startBlockIndex, int endBlockIndex)
 {
     TStringBuilder builder;
 
@@ -1197,6 +1203,20 @@ TString FormatBlocks(int startBlockIndex, int endBlockIndex)
     }
 
     return builder.Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsJournalFormat(EChunkFormat format) noexcept
+{
+    switch (format) {
+        case EChunkFormat::JournalDefault:
+        case EChunkFormat::JournalDistributed:
+        case EChunkFormat::HunkJournal:
+            return true;
+        default:
+            return false;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

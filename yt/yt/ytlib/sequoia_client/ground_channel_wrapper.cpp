@@ -26,9 +26,12 @@ public:
         Underlying_->HandleAcknowledgement();
     }
 
-    void HandleResponse(TSharedRefArray message, const std::string& address) override
+    void HandleResponse(
+        TSharedRefArray message,
+        const std::string& address,
+        NYT::NBus::IDirectPlacementTransferPtr attachmentsTransfer) override
     {
-        Underlying_->HandleResponse(std::move(message), address);
+        Underlying_->HandleResponse(std::move(message), address, std::move(attachmentsTransfer));
     }
 
     void HandleError(TError error) override

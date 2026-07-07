@@ -1,8 +1,7 @@
 #pragma once
 
 #include "public.h"
-
-#include <yt/yt/server/node/cluster_node/public.h>
+#include "row_cache_controller.h"
 
 #include <yt/yt/server/node/tablet_node/tablet_memory_statistics.h>
 
@@ -17,8 +16,6 @@
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/hydra/public.h>
-
-#include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -98,7 +95,8 @@ struct ITabletSlot
         TCellId siblingCellId) = 0;
 
     virtual void UnregisterSiblingTabletAvenue(
-        NHiveServer::TAvenueEndpointId siblingEndpointId) = 0;
+        NHiveServer::TAvenueEndpointId siblingEndpointId,
+        bool allowDestructionInMessageToSelf = false) = 0;
 
     virtual void CommitTabletMutation(const ::google::protobuf::MessageLite& message) = 0;
     virtual void PostMasterMessage(TTabletId tabletId, const ::google::protobuf::MessageLite& message) = 0;
@@ -129,6 +127,8 @@ struct ITabletSlot
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
 
     virtual TFuture<TTabletCellMemoryStatistics> GetMemoryStatistics() = 0;
+
+    virtual TFuture<TRowCacheControllerContext> GetRowCacheControllerContext() = 0;
 
     virtual bool IsTabletEpochActive() const = 0;
 

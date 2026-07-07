@@ -91,6 +91,15 @@ def parse_yt_time(time):
     return parser.parse(time)
 
 
+# remove_account checks the recursive usage, so callers wait until all of it drains. Detailed master
+# memory lags node/chunk counts via gossip, so enumerating fields is both racy and fragile; walk the
+# whole usage, recursing into sub-maps (disk_space_per_medium, *master_memory).
+def account_usage_all_zero(usage):
+    if isinstance(usage, dict):
+        return all(account_usage_all_zero(value) for value in usage.values())
+    return usage == 0
+
+
 def get_current_time():
     return datetime.now(tzlocal())
 
@@ -326,6 +335,26 @@ def wait_and_get_controller_incarnation(agent: str):
 
     wait(check)
     return incarnation_id
+
+
+def wait_success(func, error_message=None, iter=None, sleep_backoff=None, timeout=None, ignore_exceptions=False):
+    result = None
+
+    def predicate():
+        nonlocal result
+        result = func()
+        return True
+
+    wait(
+        predicate,
+        error_message=error_message,
+        iter=iter,
+        sleep_backoff=sleep_backoff,
+        timeout=timeout,
+        ignore_exceptions=ignore_exceptions,
+    )
+
+    return result
 
 
 class MissingField:

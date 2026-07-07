@@ -51,6 +51,7 @@
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/logging/log_manager.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/skiff/skiff_schema.h>
 
@@ -103,8 +104,8 @@ struct TCompressorOptions
     int SamplesSize = 400_KB;
     int DictionarySize = 4_KB;
 
-    TString ChunkPath;
-    TString ColumnName = "Main";
+    std::string ChunkPath;
+    std::string ColumnName = "Main";
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,8 +126,7 @@ public:
             ChunkId_,
             compressorOptions.ChunkPath,
             /*validateBlocksChecksums*/ true));
-        ChunkMeta_ = BackendReader_->GetMeta(/*options*/ {})
-            .Get()
+        ChunkMeta_ = WaitFor(BackendReader_->GetMeta(/*options*/ {}))
             .ValueOrThrow();
         CachedVersionedChunkMeta_ = TCachedVersionedChunkMeta::Create(
             /*preparedColumnarMeta*/ false,
@@ -424,10 +424,10 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
 
     // Experiment with small random strings on frame header, frame parameters.
     {
-        TString sample1 = "vrjlj";
-        TString sample2 = "gfqbxfmysd";
-        TString sample3 = "fmslsaiqnacjjfw";
-        TString sample4 = "zpsqwuohhqugwruqpfln";
+        std::string sample1 = "vrjlj";
+        std::string sample2 = "gfqbxfmysd";
+        std::string sample3 = "fmslsaiqnacjjfw";
+        std::string sample4 = "zpsqwuohhqugwruqpfln";
 
         TBlob dict(
             GetRefCountedTypeCookie<TDefaultBlobTag>(),
@@ -487,7 +487,7 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
             }
         };
 
-        auto dumpStatistics = [&] (TString header) {
+        auto dumpStatistics = [&] (std::string header) {
             Cerr << header << Endl
                 << compressedSizes[0] << "/" << frameCompressedSizes[0] << "/" << sample1.size() << "(" << frameHeaderSizes[0] << ")" << ", "
                 << compressedSizes[1] << "/" << frameCompressedSizes[1] << "/" << sample2.size() << "(" << frameHeaderSizes[1] << ")" << ", "
@@ -513,7 +513,7 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
 
     // Compress/decompress random string with advanced API from experiment above.
     {
-        TString sample = "vrjlj";
+        std::string sample = "vrjlj";
 
         TBlob dict(
             GetRefCountedTypeCookie<TDefaultBlobTag>(),
@@ -575,15 +575,15 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
         output.Resize(decompressedSize);
         YT_VERIFY(!ZSTD_isError(decompressedSize));
         YT_VERIFY(decompressedSize == sample.size());
-        YT_VERIFY(TString(output.Begin(), output.Size()) == sample);
-        Cerr << sample << " == " << TString(output.Begin(), output.Size()) << Endl;
+        YT_VERIFY(std::string(output.Begin(), output.Size()) == sample);
+        Cerr << sample << " == " << std::string(output.Begin(), output.Size()) << Endl;
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace
-}  // namespace NYT
+} // namespace
+} // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 

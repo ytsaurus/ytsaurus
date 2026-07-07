@@ -113,12 +113,9 @@ TTransactionId TLockingState::GetLockingTransactionId() const
     }
 
     if (!SharedLockTransactionIds_.empty()) {
-        return *std::min(
+        return *std::min_element(
             SharedLockTransactionIds_.begin(),
-            SharedLockTransactionIds_.end(),
-            [] (const auto& first, const auto& second) {
-                return *first < *second;
-            });
+            SharedLockTransactionIds_.end());
     }
 
     return {};

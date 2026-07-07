@@ -45,6 +45,7 @@ target_compile_options(yt-yt-client PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-yt-client PUBLIC
@@ -134,6 +135,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/bundle_controller_client/bundle_controller_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/bundle_controller_client/bundle_controller_settings.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/election/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hive/cluster_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hive/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hive/timestamp_map.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hydra/version.cpp
@@ -216,6 +218,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/record_codegen_cpp.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/record_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/tablet_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/tablet_client/index_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/tablet_client/watermark_runtime_data.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/tablet_client/table_mount_cache_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/tablet_client/table_mount_cache.cpp

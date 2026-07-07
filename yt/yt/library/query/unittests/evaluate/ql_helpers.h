@@ -3,6 +3,7 @@
 #include <yt/yt/library/query/base/callbacks.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/base/join_profiler.h>
 
 #include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine/functions_builder.h>
@@ -101,7 +102,7 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    const std::vector<IJoinProfilerPtr>& joinProfilers);
+    TJoinProfilerRegistry joinProfilerRegistry = TJoinProfilerRegistry({}, {}, nullptr, {}));
 
 void ProfileForBothExecutionBackends(
     const TConstExpressionPtr& expr,
@@ -125,7 +126,7 @@ TPlanFragmentPtr ParseAndPreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
     NYson::TYsonStringBuf placeholderValues = {},
-    int syntaxVersion = 1,
+    const TPreparePlanFragmentOptions& options = {.BuilderVersion = DefaultExpressionBuilderVersion},
     IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 TConstExpressionPtr ParseAndPrepareExpression(
@@ -133,7 +134,7 @@ TConstExpressionPtr ParseAndPrepareExpression(
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
     THashSet<std::string>* references = nullptr,
-    int exprBuilderVersion = DefaultExpressionBuilderVersion);
+    TPreparePlanFragmentOptions options = {.BuilderVersion = DefaultExpressionBuilderVersion});
 
 ////////////////////////////////////////////////////////////////////////////////
 

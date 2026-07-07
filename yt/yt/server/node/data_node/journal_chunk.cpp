@@ -63,13 +63,14 @@ TJournalChunk::TJournalChunk(
     TStoreLocationPtr location,
     const TChunkDescriptor& descriptor)
     : TChunkBase(
-        context,
+        std::move(context),
         location,
         descriptor.Id)
-    , StoreLocation_(location)
+    , StoreLocation_(std::move(location))
 {
     FlushedRowCount_.store(descriptor.RowCount);
     DataSize_.store(descriptor.DiskSpace);
+    OpeningDelayed_.store(descriptor.OpeningDelayed);
     Sealed_.store(descriptor.Sealed);
 }
 
@@ -117,6 +118,10 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
 
+    if (IsOpeningDelayed()) {
+        FinishDelayedOpening(/*changelog*/ nullptr);
+    }
+
     TMiscExt miscExt;
     miscExt.set_row_count(GetFlushedRowCount());
     miscExt.set_uncompressed_data_size(GetDataSize());
@@ -125,7 +130,8 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
 
     auto meta = New<TRefCountedChunkMeta>();
     meta->set_type(ToProto(EChunkType::Journal));
-    meta->set_format(ToProto(EChunkFormat::JournalDefault));
+    // NB: We do not know exact format here and we do not need to know it.
+    meta->set_format(ToProto(EChunkFormat::Unknown));
     SetProtoExtension(meta->mutable_extensions(), miscExt);
 
     ProfileReadMetaLatency(session);
@@ -447,9 +453,24 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
     auto session = New<TReadBlockRangeSession>();
     try {
         StartReadSession(session, options);
+
         session->FirstBlockIndex = firstBlockIndex;
         session->BlockCount = blockCount;
+
         session->Promise = NewPromise<std::vector<TBlock>>();
+        session->Promise.OnCanceled(BIND([weakSession = MakeWeak(session)] (const TError& error) {
+            auto session = weakSession.Lock();
+            if (!session) {
+                return;
+            }
+
+            auto wrappedError = TError(NYT::EErrorCode::Canceled, "ReadBlockRange session canceled")
+                << error;
+            if (auto changelogReadFuture = session->ChangelogReadFuture.Load()) {
+                changelogReadFuture.Cancel(wrappedError);
+            }
+            session->Promise.TrySet(wrappedError);
+        }));
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TBlock>>(ex);
     }
@@ -483,27 +504,91 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         TWallTimer timer;
 
+        auto maxBytesPerRead = Context_->DataNodeConfig->MaxBytesPerRead;
+
+        // NB: The actual read request is still bounded by the config limit; the estimate
+        // is only used to size the memory reservation, avoiding gross over-reservation
+        // (a flat #maxBytesPerRead per read) for small chunks.
+        auto readBytesEstimate = changelog->EstimateReadSize(
+            firstBlockIndex,
+            blockCount,
+            maxBytesPerRead);
+
+        // NB: For recovery we do not enforce any limits to favor it over other workloads.
+        TLocationMemoryGuard locationMemoryGuard;
+        if (session->Options.WorkloadDescriptor.Category == EWorkloadCategory::SystemTabletRecovery) {
+            auto memoryGuard = TMemoryUsageTrackerGuard::Acquire(
+                Location_->GetReadMemoryTracker(),
+                readBytesEstimate);
+
+            locationMemoryGuard = Location_->AcquireLocationMemory(
+                /*useLegacyUsedMemory*/ false,
+                std::move(memoryGuard),
+                EIODirection::Read,
+                session->Options.WorkloadDescriptor,
+                readBytesEstimate);
+        } else {
+            auto memoryGuardOrError = Location_->TryAcquireLocationMemory(
+                /*useLegacyUsedMemory*/ false,
+                EIODirection::Read,
+                session->Options.WorkloadDescriptor,
+                readBytesEstimate);
+            if (!memoryGuardOrError.IsOK()) {
+                Location_->ReportThrottledRead();
+                auto error = TError("Read session aborted due to memory pressure");
+                YT_LOG_DEBUG(error);
+
+                session->Promise.TrySet(std::move(error));
+                return;
+            }
+
+            locationMemoryGuard = std::move(memoryGuardOrError.Value());
+        }
+
+        if (session->Promise.IsSet()) {
+            YT_LOG_DEBUG("Will not start reading journal chunk blocks because the session is already set "
+                "(ChunkId: %v)",
+                Id_);
+            return;
+        }
+
         auto blocksFuture = changelog->Read(
             firstBlockIndex,
             std::min(blockCount, Context_->DataNodeConfig->MaxBlocksPerRead),
-            Context_->DataNodeConfig->MaxBytesPerRead);
-        auto blocksOrError = WaitFor(blocksFuture);
+            maxBytesPerRead);
+        session->ChangelogReadFuture.Store(blocksFuture.As<void>());
+
+        auto blocksOrError = WaitFor(std::move(blocksFuture));
         if (!blocksOrError.IsOK()) {
             auto error = TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error reading journal chunk %v",
                 Id_)
                 << blocksOrError;
-            if (!blocksOrError.FindMatching(NHydra::EErrorCode::InvalidChangelogState)) {
+            if (!blocksOrError.FindMatching(NHydra::EErrorCode::InvalidChangelogState) &&
+                !blocksOrError.FindMatching(NYT::EErrorCode::Canceled))
+            {
                 Location_->ScheduleDisable(error);
             }
             THROW_ERROR error;
         }
 
-        auto readTime = timer.GetElapsedTime();
-        const auto& blocks = blocksOrError.Value();
+        auto blocks = std::move(blocksOrError.Value());
         int blocksRead = std::ssize(blocks);
         i64 bytesRead = GetByteSize(blocks);
+
+        for (auto& block : blocks) {
+            block = TrackMemory(session->Options.MemoryUsageTracker, std::move(block), true);
+        }
+
+        if (bytesRead > readBytesEstimate) {
+            locationMemoryGuard.IncreaseSize(bytesRead - readBytesEstimate);
+        } else if (bytesRead < readBytesEstimate) {
+            locationMemoryGuard.DecreaseSize(readBytesEstimate - bytesRead);
+        }
+
+        auto readTime = timer.GetElapsedTime();
+
         session->Options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(bytesRead, std::memory_order::relaxed);
         // TODO(ngc224): propagate proper value in YT-23540
         session->Options.ChunkReaderStatistics->DataIORequests.fetch_add(1, std::memory_order::relaxed);
@@ -527,7 +612,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         ProfileReadBlockSetLatency(session);
 
-        session->Promise.Set(TBlock::Wrap(blocks));
+        session->Promise.Set(TBlock::Wrap(std::move(blocks)));
     } catch (const std::exception& ex) {
         session->Promise.Set(TError(ex));
     }
@@ -610,12 +695,16 @@ i64 TJournalChunk::GetFlushedRowCount() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    YT_VERIFY(!OpeningDelayed_);
+
     return FlushedRowCount_.load();
 }
 
 void TJournalChunk::UpdateFlushedRowCount(i64 rowCount)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    YT_VERIFY(!OpeningDelayed_);
 
     UpdateMax(FlushedRowCount_, rowCount);
 }
@@ -634,6 +723,31 @@ void TJournalChunk::UpdateDataSize(i64 dataSize)
     UpdateMax(DataSize_, dataSize);
 }
 
+bool TJournalChunk::IsOpeningDelayed() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return OpeningDelayed_.load();
+}
+
+void TJournalChunk::FinishDelayedOpening(const NHydra::IFileChangelogPtr& changelog)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    if (OpeningDelayed_) {
+        YT_VERIFY(Sealed_);
+
+        auto actualChangelog = changelog
+            ? changelog
+            : GetChangelog();
+
+        FlushedRowCount_ = actualChangelog->GetRecordCount();
+        // TODO(akozhikhov): Check that data size matches after we learn to truncate it during seal.
+
+        OpeningDelayed_ = false;
+    }
+}
+
 bool TJournalChunk::IsSealed() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -641,16 +755,20 @@ bool TJournalChunk::IsSealed() const
     return Sealed_.load();
 }
 
-TFuture<void> TJournalChunk::Seal()
+TFuture<void> TJournalChunk::ExecuteSeal()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Context_->JournalDispatcher->SealJournal(this).Apply(
-        BIND([this, this_ = MakeStrong(this)] {
-            YT_LOG_DEBUG("Chunk is marked as sealed (ChunkId: %v)",
-                Id_);
-            Sealed_.store(true);
-        }));
+    return Context_->JournalDispatcher->SealJournal(this);
+}
+
+void TJournalChunk::SetSealed()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    YT_LOG_DEBUG("Chunk is marked as sealed (ChunkId: %v)",
+        Id_);
+    Sealed_.store(true);
 }
 
 IFileChangelogPtr TJournalChunk::GetChangelog()

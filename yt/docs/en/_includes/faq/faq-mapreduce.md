@@ -25,15 +25,15 @@
 ------
 #### **Q: Reading a table or a file produces the following message: "Chunk ... is unavailable." What should I do?** {#unavailable-chunk-error}
 
-See the answer to this question [below](#lostintermediatechunks).
+See the answer to this question [below](#lost-intermediate-chunks).
 
 ------
-#### **Q: The operation running on the cluster has slowed or stopped. The following message is displayed: "Some input chunks are not available." What should I do?** { #lostinputchunks }
+#### **Q: The operation running on the cluster has slowed or stopped. The following message is displayed: "Some input chunks are not available." What should I do?** { #lost-input-chunks }
 
-See the answer to this question [below](#lostintermediatechunks).
+See the answer to this question [below](#lost-intermediate-chunks).
 
 ------
-#### **Q: The operation running on the cluster has slowed or stopped. The following message is displayed: "Some intermediate outputs were lost and will be regenerated." What should I do?** { #lostintermediatechunks }
+#### **Q: The operation running on the cluster has slowed or stopped. The following message is displayed: "Some intermediate outputs were lost and will be regenerated." What should I do?** { #lost-intermediate-chunks }
 
 **A:** This means that some input table chunks used by the operation are unavailable. It may be caused by the disappearance of a data replica (with erasure coding) or the complete disappearance of all replicas (without erasure coding) due to cluster node failure or overloading. By default, the operation waits until the chunks are available again. You can:
 
@@ -43,7 +43,11 @@ See the answer to this question [below](#lostintermediatechunks).
 
 - Terminate an operation waiting on missing data early and get some intermediate output. To do this, use the `complete-op` command in the CLI or the **Complete** button on the operation page in the web interface.
 
-To change the system behavior when chunks are unavailable, set the `unavailable_chunk_tactics` and `unavailable_chunk_strategy` options in the [operation specification](../../user-guide/data-processing/operations/overview.md#chunk_strategy). You cannot change options "on the fly", because they are set before an operation starts.
+To change the system behavior when chunks are unavailable, set the `unavailable_chunk_tactics` and `unavailable_chunk_strategy` options in the [operation specification](../../user-guide/data-processing/operations/overview.md#chunk_strategy). You cannot change options "on the fly", because they are set before an operation starts. If you need to read data from a table with unavailable chunks, you can extract a part of the table consisting of available chunks:
+
+```bash
+yt merge --src table --dst table --spec "{unavailable_chunk_strategy=skip}"
+```
 
 If erasure chunks are unavailable, you can configure the system behavior using the `chunk_availability_policy` option. For more information, see [Operation types](../../user-guide/data-processing/operations/overview.md#chunk_erasure_strategy).
 

@@ -2,11 +2,15 @@
 
 #include "private.h"
 
+#include <yt/yt/server/scheduler/strategy/field_filter.h>
+
 #include <yt/yt/server/scheduler/strategy/pool_tree_snapshot.h>
 
 #include <yt/yt/server/scheduler/common/public.h>
 
 #include <yt/yt/library/profiling/producer.h>
+
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NScheduler::NStrategy::NPolicy {
 
@@ -35,10 +39,31 @@ protected:
 
 DEFINE_REFCOUNTED_TYPE(TPostUpdateContext)
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPoolTreeSnapshotState
     : public TRefCounted
 {
     const EPolicyKind PolicyKind;
+
+    virtual TError CheckIsOperationStuck(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        TInstant now,
+        TInstant activationTime,
+        const TOperationStuckCheckOptionsPtr& options) const = 0;
+
+    virtual void BuildOperationProgress(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        IStrategyHost* strategyHost,
+        NYTree::TFluentMap fluent) const = 0;
+
+    virtual void BuildElementYson(
+        const TPoolTreeSnapshot& treeSnapshot,
+        const TPoolTreeElement* element,
+        const TFieldFilter& filter,
+        NYTree::TFluentMap fluent) const = 0;
 
 protected:
     explicit TPoolTreeSnapshotState(EPolicyKind policyKind);
@@ -48,50 +73,65 @@ DEFINE_REFCOUNTED_TYPE(TPoolTreeSnapshotState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TProcessAllocationUpdateResult
+{
+    EAllocationUpdateStatus Status = EAllocationUpdateStatus::Updated;
+    bool NeedToPostpone = false;
+    bool NeedToAbort = false;
+    std::optional<EAbortReason> AbortReason;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISchedulingPolicy
     : public virtual TRefCounted
 {
     virtual void Initialize() = 0;
 
     //! Node management.
+    //! Thread affinity: Control.
     virtual void RegisterNode(NNodeTrackerClient::TNodeId nodeId, const std::string& nodeAddress) = 0;
     virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
 
     //! Scheduling.
-    virtual void ProcessSchedulingHeartbeat(
+    //! Thread affinity: Any.
+    virtual TFuture<void> ProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TPoolTreeSnapshotPtr& treeSnapshot,
         bool skipScheduleAllocations) = 0;
 
     //! Operation management.
+    //! Thread affinity: Control.
     virtual void RegisterOperation(const TPoolTreeOperationElement* element) = 0;
     virtual void UnregisterOperation(const TPoolTreeOperationElement* element) = 0;
 
-    virtual TError OnOperationMaterialized(const TPoolTreeOperationElement* element) = 0;
+    //! Thread affinity: Control.
+    virtual TError OnOperationMaterialized(const TPoolTreeOperationElement* element, bool revivedFromSnapshot) = 0;
     virtual TError CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* element) const = 0;
 
+    //! Thread affinity: Control.
     virtual void EnableOperation(const TPoolTreeOperationElement* element) = 0;
     virtual void DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive) = 0;
 
+    //! Thread affinity: Control.
     virtual void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,
-        std::vector<TAllocationPtr> allocations) const = 0;
-    virtual bool ProcessAllocationUpdate(
+        std::vector<TAllocationPtr> allocations) = 0;
+
+    //! Processes a batch of allocation updates that all belong to this tree. The returned future is set to
+    //! a result per update, index-aligned with |allocationUpdates|. The classic policy applies the batch
+    //! synchronously and returns an already-set future; the GPU policy dispatches it to the control invoker
+    //! and returns a pending future. Per-allocation update ordering is guaranteed by the caller draining
+    //! each batch before submitting the next one (see TStrategy::ProcessAllocationUpdates).
+    //! Thread affinity: Any.
+    virtual TFuture<std::vector<TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        TPoolTreeOperationElement* element,
-        TAllocationId allocationId,
-        const TJobResources& allocationResources,
-        bool resetPreemptibleProgress,
-        const std::optional<std::string>& allocationDataCenter,
-        const std::optional<std::string>& allocationInfinibandCluster,
-        std::optional<EAbortReason>* maybeAbortReason) const = 0;
-    virtual bool ProcessFinishedAllocation(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        TPoolTreeOperationElement* element,
-        TAllocationId allocationId) const = 0;
+        const std::vector<TAllocationUpdate>& allocationUpdates) = 0;
 
     //! Diagnostics.
+    //! Thread affinity: Any.
     virtual void BuildSchedulingAttributesStringForNode(
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         NNodeTrackerClient::TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
     virtual void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const = 0;
@@ -101,32 +141,43 @@ struct ISchedulingPolicy
         TInstant now,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
 
+    //! Thread affinity: Any.
     virtual void BuildElementLoggingStringAttributes(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const TPoolTreeElement* element,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
 
+    //! Thread affinity: Control.
     virtual void PopulateOrchidService(const NYTree::TCompositeMapServicePtr& orchidService) const = 0;
 
+    //! Thread affinity: Profiler thread.
     virtual void ProfileOperation(
         const TPoolTreeOperationElement* element,
         const TPoolTreeSnapshotPtr& treeSnapshot,
         NProfiling::ISensorWriter* writer) const = 0;
 
     //! Post update.
+    //! Thread affinity: Control.
     virtual TPostUpdateContextPtr CreatePostUpdateContext(TPoolTreeRootElement* rootElement) = 0;
+
+    //! Thread affinity: Any.
     virtual void PostUpdate(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
         TPostUpdateContextPtr* postUpdateContext) = 0;
+
+    //! Thread affinity: Control.
     virtual TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContextPtr* postUpdateContext) = 0;
 
+    //! Thread affinity: Any.
     virtual void OnResourceUsageSnapshotUpdate(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const TResourceUsageSnapshotPtr& resourceUsageSnapshot) const = 0;
 
     //! Miscellaneous.
+    //! Thread affinity: Control.
     virtual void UpdateConfig(TStrategyTreeConfigPtr config) = 0;
 
+    //! Thread affinity: Control.
     virtual void InitPersistentState(NYTree::INodePtr persistentState) = 0;
     virtual NYTree::INodePtr BuildPersistentState() const = 0;
 };

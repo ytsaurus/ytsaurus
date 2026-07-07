@@ -87,7 +87,6 @@ def make_skiff_format(*table_skiff_schemas):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSkiffFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -706,7 +705,6 @@ while True:
     (76, 32, "yson32"),
 ])
 @authors("ermolovd")
-@pytest.mark.enabled_multidaemon
 class TestGoodSkiffDecimal(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -835,7 +833,7 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             Decimal("3.14"),
             Decimal("-2.71"),
         ]
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             write_table(
                 "//tmp/table",
                 self._encode_row(self._encode_optional(None)),

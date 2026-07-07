@@ -4,6 +4,7 @@
 #ifdef _linux_
 
 #include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/porto_executor.h>
 
 #endif
 
@@ -116,8 +117,8 @@ public:
         if (inputOffset + InputOffsetWarningLevel < ConsumedOffset_) {
             YT_LOG_WARNING(
                 "Input offset is significantly less than consumed offset (InputOffset: %v, ConsumedOffset: %v)",
-                ConsumedOffset_,
-                inputOffset);
+                inputOffset,
+                ConsumedOffset_);
         }
 
         size_t offset = ConsumedOffset_ - inputOffset;
@@ -202,7 +203,7 @@ protected:
     TError InactivityError_;
     TPromise<void> TerminatedPromise_ = NewPromise<void>();
 
-    std::optional<TString> Command_;
+    std::optional<std::string> Command_;
 
     NLogging::TLogger Logger = ShellLogger();
 
@@ -217,9 +218,11 @@ class TPortoShell
 public:
     TPortoShell(
         IPortoExecutorPtr portoExecutor,
-        std::unique_ptr<TShellOptions> options)
+        std::unique_ptr<TShellOptions> options,
+        bool isSubcontainer)
         : TShellBase(std::move(options))
         , PortoExecutor_(std::move(portoExecutor))
+        , IsSubcontainer_(isSubcontainer)
     { }
 
     void Spawn()
@@ -252,7 +255,7 @@ public:
             Command_);
 
         Pty_ = std::make_unique<TPty>(CurrentHeight_, CurrentWidth_);
-        const TString tty = Format("/dev/fd/%v", Pty_->GetSlaveFD());
+        const auto tty = Format("/dev/fd/%v", Pty_->GetSlaveFD());
 
         launcher->SetStdIn(tty);
         launcher->SetStdOut(tty);
@@ -278,7 +281,7 @@ public:
         launcher->SetCwd(workingDir);
 
         // Init environment variables.
-        THashMap<TString, TString> env;
+        THashMap<std::string, std::string> env;
         env["HOME"] = workingDir;
         env["G_HOME"] = workingDir;
         env["TMPDIR"] = NFS::CombinePaths(workingDir, "tmp");
@@ -291,39 +294,53 @@ public:
         for (const auto& var : Options_->Environment) {
             TStringBuf name, value;
             TStringBuf(var).TrySplit('=', name, value);
-            env[name] = value;
+            env.emplace(name, value);
         }
 
-        if (Options_->MessageOfTheDay) {
+        if (Options_->MessageOfTheDay && !IsSubcontainer_) {
             auto path = NFS::CombinePaths(preparationDir, ".motd");
-            auto pathInContainer = NFS::CombinePaths(workingDir, ".motd");
 
-            try {
-                TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
-                TUnbufferedFileOutput output(file);
-                output.Write(Options_->MessageOfTheDay->c_str(), Options_->MessageOfTheDay->size());
+            if (!NFS::Exists(path)) {
+                try {
+                    TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
+                    TUnbufferedFileOutput output(file);
+                    output.Write(Options_->MessageOfTheDay->c_str(), Options_->MessageOfTheDay->size());
 
-                AddFileBindFromUserJobNamespace(pathInContainer);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error saving shell message file")
-                    << ex
-                    << TErrorAttribute("path", path);
+                    THashMap<std::string, std::string> volumeProperties;
+                    volumeProperties["backend"] = "bind";
+                    volumeProperties["read_only"] = "true";
+                    volumeProperties["storage"] = path;
+
+                    auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(path, volumeProperties));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind .motd inside job shell");
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error saving shell message file")
+                        << ex
+                        << TErrorAttribute("path", path);
+                }
             }
         }
-        if (Options_->Bashrc) {
+        if (Options_->Bashrc && !IsSubcontainer_) {
             auto path = NFS::CombinePaths(preparationDir, ".bashrc");
-            auto pathInContainer = NFS::CombinePaths(workingDir, ".bashrc");
+            if (!NFS::Exists(path)) {
+                try {
+                    TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
+                    TUnbufferedFileOutput output(file);
+                    output.Write(Options_->Bashrc->c_str(), Options_->Bashrc->size());
 
-            try {
-                TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
-                TUnbufferedFileOutput output(file);
-                output.Write(Options_->Bashrc->c_str(), Options_->Bashrc->size());
+                    THashMap<std::string, std::string> volumeProperties;
+                    volumeProperties["backend"] = "bind";
+                    volumeProperties["read_only"] = "true";
+                    volumeProperties["storage"] = path;
 
-                AddFileBindFromUserJobNamespace(pathInContainer);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error saving shell config file")
-                    << ex
-                    << TErrorAttribute("path", path);
+                    auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(path, volumeProperties));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind .bashrc inside job shell");
+
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error saving shell config file")
+                        << ex
+                        << TErrorAttribute("path", path);
+                }
             }
         }
         ResizeWindow(CurrentHeight_, CurrentWidth_);
@@ -340,8 +357,8 @@ public:
                 .ValueOrThrow();
         } else {
             // COMPAT(pushin): remove me after 21.3.
-            TString path("/bin/bash");
-            std::vector<TString> args;
+            std::string path("/bin/bash");
+            std::vector<std::string> args;
             if (Options_->Command) {
                 args = {"-c", *Options_->Command};
             }
@@ -367,26 +384,17 @@ public:
 private:
     const IPortoExecutorPtr PortoExecutor_;
     IInstancePtr Instance_;
-
-    void AddFileBindFromUserJobNamespace(const std::string& pathInContainer)
-    {
-        TBind bind;
-        // Porto resolves the source path in the fs of the parent container.
-        // Although we are running a shell, the parent container is uj.
-        bind.SourcePath = pathInContainer;
-        bind.TargetPath = pathInContainer;
-        bind.ReadOnly = true;
-        Options_->Binds.push_back(std::move(bind));
-    }
+    bool IsSubcontainer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IShellPtr CreatePortoShell(
     NContainers::IPortoExecutorPtr portoExecutor,
-    std::unique_ptr<TShellOptions> options)
+    std::unique_ptr<TShellOptions> options,
+    bool isSubcontainer)
 {
-    auto shell = New<TPortoShell>(std::move(portoExecutor), std::move(options));
+    auto shell = New<TPortoShell>(std::move(portoExecutor), std::move(options), isSubcontainer);
     shell->Spawn();
     return shell;
 }
@@ -520,7 +528,8 @@ IShellPtr CreateShell(std::unique_ptr<TShellOptions> options)
 
 IShellPtr CreatePortoShell(
     NContainers::IPortoExecutorPtr /*portoExecutor*/,
-    std::unique_ptr<TShellOptions> /*options*/)
+    std::unique_ptr<TShellOptions> /*options*/,
+    bool /*isSubcontainer*/)
 {
     THROW_ERROR_EXCEPTION("Shell is supported only under Unix");
 }

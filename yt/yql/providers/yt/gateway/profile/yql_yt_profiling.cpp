@@ -212,6 +212,11 @@ public:
         return Slave_->DownloadTable(std::move(options));
     }
 
+    NThreading::TFuture<TUploadFilesToCacheResult> UploadFilesToCache(TUploadFilesToCacheOptions&& options) override {
+        YQL_PROFILE_FUNC(TRACE);
+        return Slave_->UploadFilesToCache(std::move(options));
+    }
+
     IYtTokenResolver::TPtr GetYtTokenResolver() const override {
         YQL_PROFILE_FUNC(TRACE);
         return Slave_->GetYtTokenResolver();

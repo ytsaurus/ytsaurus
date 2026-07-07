@@ -53,7 +53,10 @@ public:
     bool HasPendingActions(const std::string& bundleName) const override;
     void CancelPendingActions(const std::string& bundleName) override;
 
-    void Start(TTransactionId prerequisiteTransactionId) override;
+    int GetPendingActionCount(const std::string& bundleName) const override;
+    TFuture<void> WaitForAllActions() override;
+
+    void Start(TTransactionId prerequisiteTransactionId, TDryRunConfigPtr dryRunConfig) override;
     void Stop() override;
 
     void Reconfigure(const TActionManagerConfigPtr& config) override;
@@ -75,6 +78,8 @@ private:
     TActionManagerConfigPtr Config_;
     NConcurrency::TPeriodicExecutorPtr PollExecutor_;
     NConcurrency::TPeriodicExecutorPtr CreateActionExecutor_;
+    TDryRunConfigPtr DryRunConfig_;
+    TPromise<void> AllActionsFinished_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PendingActionsLock_);
     THashMap<std::string, std::deque<TActionDescriptor>> PendingActionDescriptors_;
@@ -85,7 +90,15 @@ private:
     THashMap<std::string, TBundleProfilingCounters> ProfilingCounters_;
 
     // For bundles with confirmed pending actions we cannot add more pending actions.
-    std::queue<std::pair<std::string, TInstant>> BundlesWithPendingActions_;
+    std::deque<std::string> BundlesWithPendingActions_;
+    THashMap<std::string, TInstant> PendingActionsDeadline_;
+
+    // Pending inplace reshards waiting for tablet move to complete.
+    // Running actions may be absent from this set if the corresponding reshard action
+    // has been canceled, e.g. due to timeout or failure.
+    // Protected by PendingActionsLock_.
+    THashMap<std::string, THashSet<TReshardDescriptorPtr>> PendingCrossCellReshards_;
+    THashMap<TTabletId, TReshardDescriptorPtr> TabletToPendingCrossCellReshard_;
 
     bool Started_ = false;
     TTransactionId PrerequisiteTransactionId_ = NullTransactionId;
@@ -108,6 +121,10 @@ private:
     bool IsSmoothMovementAction(const TActionDescriptor& descriptor) const;
 
     void MoveFinishedActionsFromRunningToFinished();
+
+    void OnPreliminaryMoveFinished(const std::string& bundleName, const TTabletActionPtr& action);
+
+    void RemovePendingCrossCellReshard(const std::string& bundleName, const TReshardDescriptorPtr& descriptor);
 
     const TBundleProfilingCounters& GetOrCreateProfilingCounters(const std::string& bundleName);
 
@@ -133,6 +150,7 @@ TActionManager::TActionManager(
         Invoker_,
         BIND(&TActionManager::TryCreatePendingActions, MakeWeak(this)),
         Config_->TabletActionPollingPeriod))
+    , DryRunConfig_(New<TDryRunConfig>())
 { }
 
 void TActionManager::ScheduleActionCreation(const std::string& bundleName, const TActionDescriptor& descriptor)
@@ -141,6 +159,34 @@ void TActionManager::ScheduleActionCreation(const std::string& bundleName, const
 
     auto guard = WriterGuard(PendingActionsLock_);
 
+    if (const auto* reshardDescriptor = std::get_if<TReshardDescriptor>(&descriptor);
+        reshardDescriptor && !reshardDescriptor->PendingTabletIds.empty())
+    {
+        const auto& inplaceReshardDescriptor = EmplaceOrCrash(
+            PendingCrossCellReshards_[bundleName],
+            New<TReshardDescriptor>(*reshardDescriptor));
+
+        bool smoothMovement = reshardDescriptor->UseSmoothMovementToUniteTablets;
+        for (auto tabletId : reshardDescriptor->PendingTabletIds) {
+            PendingActionDescriptors_[bundleName].emplace_back(TMoveDescriptor{
+                .TabletId = tabletId,
+                .TabletCellId = reshardDescriptor->TargetCellId,
+                .CorrelationId = reshardDescriptor->CorrelationId,
+                .Smooth = smoothMovement,
+            });
+            EmplaceOrCrash(TabletToPendingCrossCellReshard_, tabletId, *inplaceReshardDescriptor);
+        }
+
+        YT_LOG_DEBUG("Added pending cross-cell inplace reshard "
+            "(BundleName: %v, CorrelationId: %v, TargetCellId: %v, PendingTabletCount: %v)",
+            bundleName,
+            reshardDescriptor->CorrelationId,
+            reshardDescriptor->TargetCellId,
+            reshardDescriptor->PendingTabletIds.size());
+
+        return;
+    }
+
     PendingActionDescriptors_[bundleName].emplace_back(descriptor);
 }
 
@@ -148,7 +194,9 @@ void TActionManager::CreateActions(const std::string& bundleName)
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    YT_VERIFY(Started_);
+    THROW_ERROR_EXCEPTION_UNLESS(
+        Started_,
+        "Action manager instance has already stopped");
 
     if (RunningActions_.contains(bundleName)) {
         THROW_ERROR_EXCEPTION(
@@ -161,13 +209,20 @@ void TActionManager::CreateActions(const std::string& bundleName)
         YT_VERIFY(PendingActionDescriptors_.contains(bundleName));
     }
 
-    BundlesWithPendingActions_.emplace(bundleName, TInstant::Now() + Config_->TabletActionCreationTimeout);
+    BundlesWithPendingActions_.push_back(bundleName);
+    PendingActionsDeadline_[bundleName] = TInstant::Now() + Config_->TabletActionCreationTimeout;
 }
 
 void TActionManager::TryCreatePendingActions()
 {
     TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("CreatePendingActions"));
     try {
+        if (DryRunConfig_->IsDryRun && !DryRunConfig_->CreateTabletActions) {
+            YT_LOG_INFO("Skip creation of tablet actions in pure dry run mode (DryRunConfig: %v)",
+                ConvertToYsonString(DryRunConfig_, EYsonFormat::Text));
+            return;
+        }
+
         CreatePendingActions();
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to create pending actions");
@@ -203,8 +258,8 @@ void TActionManager::CreatePendingActions()
 
     int actionCount = 0;
     while (actionCount < Config_->CreateActionBatchSizeLimit && !BundlesWithPendingActions_.empty()) {
-        auto [bundleName, timeout] = BundlesWithPendingActions_.front();
-        if (timeout < iterationStartTime) {
+        auto bundleName = BundlesWithPendingActions_.front();
+        if (PendingActionsDeadline_[bundleName] < iterationStartTime) {
             auto guard = WriterGuard(PendingActionsLock_);
             YT_LOG_WARNING(
                 "Actions were dropped due to timeout (Bundle: %v, ActionCount: %v, Timeout: %v)",
@@ -272,7 +327,9 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
             bundleName);
         TCreateObjectOptions options;
         options.Attributes = std::move(attributes);
-        options.PrerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
+        if (!DryRunConfig_->IsDryRun) {
+            options.PrerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
+        }
         futures.emplace_back(Client_->CreateObject(EObjectType::TabletAction, std::move(options)));
 
         createdSmoothMovementActionCount += IsSmoothMovementAction(descriptors[index]);
@@ -287,6 +344,7 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
         .ValueOrThrow();
 
     THashSet<TTabletActionPtr> runningActions;
+    std::vector<TActionDescriptor> fallbackDescriptors;
     for (int index = 0; index < actionCountLimit; ++index) {
         auto rspOrError = responses[index];
         if (!rspOrError.IsOK()) {
@@ -306,10 +364,10 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
                     moveDescriptor.TabletId,
                     moveDescriptor.CorrelationId);
 
-                GetOrCreateProfilingCounters(bundleName).FailedAtRuntimeSmoothMovementActions.Increment();
+                GetOrCreateProfilingCounters(bundleName).FailedAtStartSmoothMovementActions.Increment();
 
                 moveDescriptor.Smooth = false;
-                descriptors.push_back(moveDescriptor);
+                fallbackDescriptors.push_back(moveDescriptor);
             }
 
             continue;
@@ -324,13 +382,12 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
         EmplaceOrCrash(runningActions, New<TTabletAction>(actionId, descriptors[index]));
     }
 
-    for (int index = 0; index < actionCountLimit; ++index) {
-        descriptors.pop_front();
-    }
-
     {
         auto guard = WriterGuard(PendingActionsLock_);
-        PendingActionDescriptors_[bundleName] = descriptors;
+        auto& pendingActions = GetOrCrash(PendingActionDescriptors_, bundleName);
+        YT_VERIFY(actionCountLimit <= std::ssize(pendingActions));
+        pendingActions.erase(pendingActions.begin(), pendingActions.begin() + actionCountLimit);
+        pendingActions.insert(pendingActions.end(), fallbackDescriptors.begin(), fallbackDescriptors.end());
     }
 
     int createdActionCount = std::ssize(runningActions);
@@ -356,6 +413,7 @@ bool TActionManager::HasUnfinishedActions(
     auto guard = ReaderGuard(PendingActionsLock_);
 
     return PendingActionDescriptors_.contains(bundleName) ||
+        PendingCrossCellReshards_.contains(bundleName) ||
         RunningActions_.contains(bundleName) ||
         !AreAllActionsKnown(bundleName, knownBundleActionIds);
 }
@@ -365,6 +423,11 @@ bool TActionManager::AreAllActionsKnown(
     std::vector<TTabletActionId> actionIds) const
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    if (DryRunConfig_->IsDryRun) {
+        YT_LOG_DEBUG("Skip checking whether all actions are known in dry run mode");
+        return true;
+    }
 
     auto collectActionIds = [] (const auto& actions) {
         THashSet<TTabletActionId> actionIds;
@@ -405,23 +468,65 @@ void TActionManager::CancelPendingActions(const std::string& bundleName)
 
     auto guard = WriterGuard(PendingActionsLock_);
     PendingActionDescriptors_.erase(bundleName);
+
+    if (PendingCrossCellReshards_.contains(bundleName)) {
+        for (const auto& reshardDescriptor : PendingCrossCellReshards_[bundleName]) {
+            for (auto tabletId : reshardDescriptor->PendingTabletIds) {
+                TabletToPendingCrossCellReshard_.erase(tabletId);
+            }
+        }
+
+        PendingCrossCellReshards_.erase(bundleName);
+    }
 }
 
-void TActionManager::Start(TTransactionId prerequisiteTransactionId)
+TFuture<void> TActionManager::WaitForAllActions()
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    YT_VERIFY(DryRunConfig_->IsDryRun);
+    AllActionsFinished_ = NewPromise<void>();
+
+    return AllActionsFinished_;
+}
+
+int TActionManager::GetPendingActionCount(const std::string& bundleName) const
+{
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    YT_VERIFY(DryRunConfig_->IsDryRun);
+
+    if (BundlesWithPendingActions_.empty()) {
+        return 0;
+    }
+
+    auto guard = ReaderGuard(PendingActionsLock_);
+    return std::ssize(GetOrCrash(PendingActionDescriptors_, bundleName)) +
+        std::ssize(GetOrDefault(PendingCrossCellReshards_, bundleName));
+}
+
+void TActionManager::Start(TTransactionId prerequisiteTransactionId, TDryRunConfigPtr dryRunConfig)
+{
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    if (dryRunConfig) {
+        YT_VERIFY(dryRunConfig->IsDryRun);
+        DryRunConfig_ = std::move(dryRunConfig);
+    }
 
     YT_LOG_INFO("Starting tablet action manager (PrerequisiteTransactionId: %v)", prerequisiteTransactionId);
 
     Started_ = true;
 
-    YT_VERIFY(prerequisiteTransactionId);
+    YT_VERIFY(prerequisiteTransactionId || DryRunConfig_->IsDryRun);
     PrerequisiteTransactionId_ = prerequisiteTransactionId;
 
     auto guard = WriterGuard(PendingActionsLock_);
 
     RunningActions_.clear();
     PendingActionDescriptors_.clear();
+    PendingCrossCellReshards_.clear();
+    TabletToPendingCrossCellReshard_.clear();
 
     PollExecutor_->Start();
     CreateActionExecutor_->Start();
@@ -519,6 +624,18 @@ void TActionManager::Poll()
     }
 
     MoveFinishedActionsFromRunningToFinished();
+
+    if (DryRunConfig_->IsDryRun &&
+        BundlesWithPendingActions_.empty() &&
+        RunningActions_.empty() &&
+        AllActionsFinished_) [[unlikely]]
+    {
+        auto guard = ReaderGuard(PendingActionsLock_);
+        YT_VERIFY(PendingActionDescriptors_.empty());
+        YT_VERIFY(PendingCrossCellReshards_.empty());
+
+        AllActionsFinished_.Set();
+    }
 }
 
 void TActionManager::MoveFinishedActionsFromRunningToFinished()
@@ -533,6 +650,8 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
         for (auto it = runningActions.begin(); it != runningActions.end(); ) {
             const auto& action = *it;
             if (action->IsFinished()) {
+                OnPreliminaryMoveFinished(bundleName, action);
+
                 if (action->GetState() == ETabletActionState::Failed) {
                     ++failedActionCount;
 
@@ -606,6 +725,7 @@ IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescri
             attributes->Set("kind", "reshard");
             attributes->Set("tablet_ids", descriptor.Tablets);
             attributes->Set("correlation_id", descriptor.CorrelationId);
+            attributes->Set("inplace_reshard", descriptor.Inplace);
 
             if (!descriptor.PivotKeys.empty()) {
                 attributes->Set("pivot_keys", descriptor.PivotKeys);
@@ -623,13 +743,97 @@ bool TActionManager::IsSmoothMovementAction(const TActionDescriptor& descriptor)
     return moveDescriptor && moveDescriptor->Smooth;
 }
 
+void TActionManager::RemovePendingCrossCellReshard(const std::string& bundleName, const TReshardDescriptorPtr& descriptor)
+{
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(PendingActionsLock_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    PendingCrossCellReshards_[bundleName].erase(descriptor);
+    if (PendingCrossCellReshards_[bundleName].empty()) {
+        PendingCrossCellReshards_.erase(bundleName);
+    }
+}
+
 void TActionManager::DropFrontBundleWithPendingActions(const std::string& bundleName)
 {
     YT_ASSERT_WRITER_SPINLOCK_AFFINITY(PendingActionsLock_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    YT_VERIFY(BundlesWithPendingActions_.front().first == bundleName);
-    BundlesWithPendingActions_.pop();
+    YT_VERIFY(BundlesWithPendingActions_.front() == bundleName);
+    BundlesWithPendingActions_.pop_front();
     EraseOrCrash(PendingActionDescriptors_, bundleName);
+}
+
+void TActionManager::OnPreliminaryMoveFinished(const std::string& bundleName, const TTabletActionPtr& action)
+{
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    if (!action->IsMove()) {
+        return;
+    }
+
+    auto tabletId = action->TabletIds().front();
+
+    TReshardDescriptorPtr reshardDescriptor;
+    {
+        auto guard = WriterGuard(PendingActionsLock_);
+
+        auto it = TabletToPendingCrossCellReshard_.find(tabletId);
+        if (it == TabletToPendingCrossCellReshard_.end()) {
+            return;
+        }
+
+        reshardDescriptor = it->second;
+
+        if (action->GetState() == ETabletActionState::Failed) {
+            YT_LOG_DEBUG("Move failed, canceling pending cross-cell inplace reshard "
+                "(BundleName: %v, TabletId: %v, TabletsToReshard: %v)",
+                bundleName,
+                tabletId,
+                reshardDescriptor->Tablets);
+
+            for (auto pendingTabletId : reshardDescriptor->PendingTabletIds) {
+                TabletToPendingCrossCellReshard_.erase(pendingTabletId);
+            }
+
+            RemovePendingCrossCellReshard(bundleName, reshardDescriptor);
+            return;
+        }
+
+        EraseOrCrash(reshardDescriptor->PendingTabletIds, tabletId);
+        TabletToPendingCrossCellReshard_.erase(it);
+
+        if (!reshardDescriptor->PendingTabletIds.empty()) {
+            return;
+        }
+
+        RemovePendingCrossCellReshard(bundleName, reshardDescriptor);
+    }
+
+    if (PendingActionsDeadline_[bundleName] < Now()) {
+        YT_LOG_DEBUG("Pending cross-cell inplace reshard expired (BundleName: %v)",
+            bundleName);
+        return;
+    }
+
+    YT_LOG_DEBUG("All tablets arrived on target cell, scheduling intra-cell inplace reshard "
+        "(BundleName: %v, TabletsToReshard: %v)",
+        bundleName,
+        reshardDescriptor->Tablets);
+
+    {
+        auto guard = WriterGuard(PendingActionsLock_);
+        if (!PendingActionDescriptors_.contains(bundleName)) {
+            BundlesWithPendingActions_.push_back(bundleName);
+        }
+        auto it = std::find(
+            BundlesWithPendingActions_.begin(),
+            BundlesWithPendingActions_.end(),
+            bundleName);
+        YT_VERIFY(it != BundlesWithPendingActions_.end());
+    }
+
+    ScheduleActionCreation(bundleName, *reshardDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

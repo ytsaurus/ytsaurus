@@ -99,7 +99,7 @@ public:
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         OverloadController_ = NRpc::CreateOverloadController(
             New<NRpc::TOverloadControllerConfig>(),
@@ -271,8 +271,7 @@ public:
 
         GetRpcServer()->RegisterService(CreateDataNodeNbdService(this, DataNodeLogger()));
 
-        GetRpcServer()->RegisterService(CreateDistributedChunkSessionService(
-            GetConfig()->DataNode->DistributedChunkSessionService,
+        GetRpcServer()->RegisterService(NDistributedChunkSessionServer::CreateDistributedChunkSessionService(
             GetStorageLightInvoker(),
             GetConnection()));
 
@@ -362,7 +361,7 @@ public:
 
     void InitializeOverloadController()
     {
-        OverloadController_->TrackFSHThreadPool(BusXferThreadPoolName, NBus::TTcpDispatcher::Get()->GetXferPoller()->GetFairShareThreadPool());
+        OverloadController_->TrackFSHThreadPool(BusXferThreadPoolName, NBus::NTcp::TDispatcher::Get()->GetXferPoller()->GetFairShareThreadPool());
         OverloadController_->TrackInvoker(StorageHeavyPoolName, NRpc::TDispatcher::Get()->GetHeavyInvoker());
         OverloadController_->TrackInvoker(StorageLightPoolName, NRpc::TDispatcher::Get()->GetLightInvoker());
 

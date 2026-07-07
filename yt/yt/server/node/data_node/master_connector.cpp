@@ -116,6 +116,7 @@ public:
         : TMasterHeartbeatReporterBase(
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ true,
+            ENodeHeartbeatType::Data,
             DataNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Data))
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->DataNode->MasterConnector)
@@ -148,7 +149,7 @@ public:
         Bootstrap_->SubscribeSecondaryMasterCellListChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->SubscribeChunkAdded(BIND_NO_PROPAGATE(&TMasterConnector::OnChunkAdded, MakeWeak(this)));
@@ -692,7 +693,7 @@ protected:
             }
 
             case EMasterConnectorState::Online: {
-                auto future = InvokeIncrementalHeartbeatRequest(cellTag);
+                auto future = InvokeIncrementalHeartbeatRequest(cellTag, /*chunkMapGuard*/ std::nullopt);
                 variantResult = future;
                 EmplaceOrCrash(CellTagToVariantHeartbeatRspFuture_, cellTag, std::move(variantResult));
                 return future.AsVoid();
@@ -1043,16 +1044,14 @@ private:
 
         if (GetDynamicConfig()->CheckChunksCellTagsBeforeHeartbeats) {
            YT_UNUSED_FUTURE(
-                BIND([this, weakThis = MakeWeak(this), masterCellTags] {
-                    if (auto this_ = weakThis.Lock()) {
-                        if (GetDynamicConfig()->ForceSyncMasterCellDirectoryBeforeCheckChunks) {
-                            auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->RecentSync());
-                            if (!syncResultOrError.IsOK()) {
-                                YT_LOG_ALERT(syncResultOrError, "Failed to synchronize master cell directory when data node heartbeats have started");
-                            }
+                BIND([this, this_ = MakeStrong(this), masterCellTags] {
+                    if (GetDynamicConfig()->ForceSyncMasterCellDirectoryBeforeCheckChunks) {
+                        auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->RecentSync());
+                        if (!syncResultOrError.IsOK()) {
+                            YT_LOG_ALERT(syncResultOrError, "Failed to synchronize master cell directory when data node heartbeats have started");
                         }
-                        Bootstrap_->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
                     }
+                    Bootstrap_->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
                 }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
                 .Run());
         }
@@ -1421,7 +1420,7 @@ private:
 
         auto locationChunks = Bootstrap_
             ->GetChunkStore()
-            ->GetPerLocationChunksUnsafe(std::move(guard));
+            ->GetPerLocationChunksUnsafe(guard);
 
         // Context switch is not allowed, as it may break synchronization.
         auto heartbeatRequests = BuildLocationFullHeartbeatRequests(
@@ -1431,7 +1430,7 @@ private:
             /*validation*/ true,
            locationChunks);
 
-        return InvokeIncrementalHeartbeatRequest(cellTag)
+        return InvokeIncrementalHeartbeatRequest(cellTag, std::move(guard))
             .AsUnique()
             .Apply(BIND([=, heartbeatRequests = std::move(heartbeatRequests), this, this_ = MakeStrong(this)] (
                 TErrorOr<TDataNodeRspIncrementalHeartbeat>&& result)
@@ -1463,7 +1462,8 @@ private:
     }
 
     TFuture<TDataNodeRspIncrementalHeartbeat> InvokeIncrementalHeartbeatRequest(
-        TCellTag cellTag)
+        TCellTag cellTag,
+        std::optional<NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock>> chunkMapGuard)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -1474,6 +1474,11 @@ private:
         auto nodeId = Bootstrap_->GetNodeId();
 
         auto req = BuildIncrementalHeartbeatRequest(std::move(proxy), nodeId, cellTag);
+
+        // For validation heartbeats chunk modifications can be enabled after request is built.
+        if (chunkMapGuard) {
+            chunkMapGuard.reset();
+        }
 
         YT_LOG_INFO("Sending incremental data node heartbeat to master (CellTag: %v, %v)",
             cellTag,
@@ -1739,8 +1744,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        auto* cellTagData = FindCellTagData(CellTagFromId(id));
-        if (cellTagData) {
+        if (auto* cellTagData = FindCellTagData(CellTagFromId(id)); cellTagData) {
             return cellTagData->ChunksDelta.get();
         }
 
@@ -1905,8 +1909,7 @@ private:
 
         auto future = std::get_if<TFuture<TRspHeartbeatType>>(&variantFuture);
         YT_VERIFY(future);
-        YT_VERIFY(future->IsSet());
-        return future->Get();
+        return future->GetOrCrash();
     }
 
     EMasterConnectorState GetMemorizedMasterConnectorState(TCellTag cellTag)

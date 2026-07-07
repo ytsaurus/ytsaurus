@@ -1,6 +1,5 @@
 #include "chaos_agent.h"
 
-#include "config.h"
 #include "private.h"
 #include "tablet.h"
 #include "tablet_manager.h"
@@ -12,8 +11,6 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
-
-#include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher.h>
 
@@ -27,7 +24,7 @@
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
@@ -44,11 +41,12 @@ namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChaosClient;
-using namespace NClusterNode;
+using namespace NConcurrency;
+using namespace NThreading;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NObjectClient;
-using namespace NConcurrency;
+using namespace NProfiling;
 using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,59 +77,82 @@ public:
 
     void Enable() override
     {
-        YT_LOG_DEBUG("Starting chaos agent (ReplicationTickPeriod: %v, ReplicationProgressUpdateTickPeriod: %v)",
+        const auto& epochAutomatonInvoker = Tablet_->GetEpochAutomatonInvoker();
+        SelfInvoker_.Store(epochAutomatonInvoker);
+        UpdateReplicationCardExecutor_ = New<TPeriodicExecutor>(
+            epochAutomatonInvoker,
+            BIND(&TChaosAgent::OnUpdateReplicationCardTick, MakeWeak(this)),
+            TPeriodicExecutorOptions{
+                .Period = MountConfig_->ReplicationTickPeriod,
+                .DelayMode = EPeriodicExecutorDelayMode::FromPreviousStart,
+            });
+        UpdateReplicationCardExecutor_->Start();
+
+        ReplicationProgressExecutor_ = New<TPeriodicExecutor>(
+            epochAutomatonInvoker,
+            BIND(&TChaosAgent::OnReplicationProgressTick, MakeWeak(this)),
+            TPeriodicExecutorOptions{
+                .Period = MountConfig_->ReplicationProgressUpdateTickPeriod,
+                .DelayMode = EPeriodicExecutorDelayMode::FromPreviousStart,
+            });
+        ReplicationProgressExecutor_->Start();
+
+        YT_LOG_INFO("Chaos agent enabled (ReplicationTickPeriod: %v, ReplicationProgressUpdateTickPeriod: %v)",
             MountConfig_->ReplicationTickPeriod,
             MountConfig_->ReplicationProgressUpdateTickPeriod);
-
-        SelfInvoker_ = Tablet_->GetEpochAutomatonInvoker();
-        FiberFuture_ = BIND(
-            &TChaosAgent::FiberMain,
-            MakeWeak(this),
-            BIND_NO_PROPAGATE(&TChaosAgent::FiberIteration, MakeWeak(this)),
-            MountConfig_->ReplicationTickPeriod)
-            .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
-            .Run();
-
-        ProgressReporterFiberFuture_ = BIND(
-            &TChaosAgent::FiberMain,
-            MakeWeak(this),
-            BIND_NO_PROPAGATE(&TChaosAgent::ReportUpdatedReplicationProgress,
-            MakeWeak(this)),
-            MountConfig_->ReplicationProgressUpdateTickPeriod)
-            .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
-            .Run();
-
-        YT_LOG_INFO("Chaos agent fiber started");
     }
 
     void Disable() override
     {
-        if (FiberFuture_) {
-            FiberFuture_.Cancel(TError("Chaos agent disabled"));
+        if (auto executor = std::exchange(UpdateReplicationCardExecutor_, nullptr)) {
+            YT_UNUSED_FUTURE(executor->Stop());
             YT_LOG_INFO("Chaos agent fiber stopped");
         }
-        if (ProgressReporterFiberFuture_) {
-            ProgressReporterFiberFuture_.Cancel(TError("Chaos agent progress reporter disabled"));
+        if (auto executor = std::exchange(ReplicationProgressExecutor_, nullptr)) {
+            YT_UNUSED_FUTURE(executor->Stop());
             YT_LOG_INFO("Chaos agent progress reporter fiber stopped");
         }
-        FiberFuture_.Reset();
-        ProgressReporterFiberFuture_.Reset();
-        SelfInvoker_.Reset();
+        SelfInvoker_.Store(nullptr);
+
+        YT_LOG_INFO("Chaos agent disabled");
     }
 
     TAsyncSemaphoreGuard TryGetConfigLockGuard() override
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         return TAsyncSemaphoreGuard::TryAcquire(ConfigurationLock_);
     }
 
     void ReconfigureTablet() override
     {
-        if (auto invoker = SelfInvoker_.Lock()) {
+        if (auto invoker = SelfInvoker_.Read(&TWeakPtr<IInvoker>::Lock)) {
             WaitFor(BIND(&TChaosAgent::ReconfigureTabletWriteMode, MakeWeak(this))
                 .AsyncVia(invoker)
                 .Run())
             .ThrowOnError();
         }
+    }
+
+    TFuture<void> GetFutureEra(
+        TReplicationEra currentEra,
+        const TTabletSnapshotPtr& tabletSnapshot) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto snapshotEra = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+        if (currentEra < snapshotEra) {
+            return OKFuture;
+        }
+
+        return UpdateEraPromise_.Read([currentEra, tabletSnapshot] (const TPromise<void>& promise) {
+            auto snapshotEra = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+            if (currentEra < snapshotEra) {
+                return OKFuture;
+            }
+
+            return promise.ToFuture();
+        });
     }
 
 private:
@@ -148,26 +169,18 @@ private:
     TReplicationCardPtr ReplicationCard_;
     bool ReplicationCardReconfigured_ = false;
 
-    TFuture<void> FiberFuture_;
-    TFuture<void> ProgressReporterFiberFuture_;
+    TPeriodicExecutorPtr UpdateReplicationCardExecutor_;
+    TPeriodicExecutorPtr ReplicationProgressExecutor_;
     TAsyncSemaphorePtr ConfigurationLock_;
-    TWeakPtr<IInvoker> SelfInvoker_;
+    TAtomicObject<TWeakPtr<IInvoker>> SelfInvoker_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RefreshEraFutureLock_);
-    TFuture<void> RefreshEraFuture_;
+    TAtomicObject<TFuture<void>> RefreshEraFuture_;
+    TAtomicObject<TPromise<void>> UpdateEraPromise_ = NewPromise<void>();
 
-    void FiberMain(TCallback<void()> callback, TDuration period)
+    void OnUpdateReplicationCardTick()
     {
-        while (true) {
-            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosAgent"));
-            NProfiling::TWallTimer timer;
-            callback();
-            TDelayedExecutor::WaitForDuration(period - timer.GetElapsedTime());
-        }
-    }
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosAgent"));
 
-    void FiberIteration()
-    {
         if (!Tablet_->IsActiveServant()) {
             return;
         }
@@ -308,23 +321,28 @@ private:
 
     void RefreshEra(TReplicationEra newEra) override
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         YT_LOG_DEBUG("Refreshing replication card era (NewEra: %v)",
             newEra);
 
-        auto guard = TGuard(RefreshEraFutureLock_);
-        if (!RefreshEraFuture_ || RefreshEraFuture_.IsSet()) {
-            RefreshEraFuture_ = BIND(
-                &TChaosAgent::UpdateReplicationCardAndReconfigure,
-                MakeWeak(this),
-                newEra)
-                .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
-                .Run();
+        auto future = RefreshEraFuture_.Load();
+        if (!future || future.IsSet()) {
+            future = RefreshEraFuture_.Transform([this, newEra] (auto& futureEra) {
+                if (!futureEra || futureEra.IsSet()) {
+                    futureEra = BIND(
+                        &TChaosAgent::UpdateReplicationCardAndReconfigure,
+                        MakeWeak(this),
+                        newEra)
+                        .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
+                        .Run();
+                }
+
+                return futureEra;
+            });
         }
 
-        auto future = RefreshEraFuture_;
-        guard.Release();
-
-        WaitFor(future)
+        WaitFor(std::move(future))
             .ThrowOnError();
 
         YT_LOG_DEBUG("Finished refreshing replication card era (NewEra: %v)",
@@ -349,6 +367,13 @@ private:
         auto mutation = CreateMutation(Slot_->GetSimpleHydraManager(), req);
         WaitFor(mutation->Commit())
             .ThrowOnError();
+
+        if (Tablet_->RuntimeData()->ReplicationEra.load() == newEra) {
+            UpdateEraPromise_.Transform([] (TPromise<void>& futureEra) {
+                futureEra.Set();
+                futureEra = NewPromise<void>();
+            });
+        }
 
         YT_LOG_DEBUG("Replication era advance finished (NewReplicationEra: %v)",
             newEra);
@@ -458,8 +483,10 @@ private:
         }
     }
 
-    void ReportUpdatedReplicationProgress()
+    void OnReplicationProgressTick()
     {
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosAgent"));
+
         if (!Tablet_->IsActiveServant()) {
             return;
         }

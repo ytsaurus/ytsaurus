@@ -121,7 +121,6 @@ func GetUserIP(req *http.Request) string {
 		"Http_X_Forwarded_For",
 		"Http_X_Real_Ip",
 	} {
-		Logger.Debugf("Checking header %v", header)
 		if val, ok := req.Header[header]; ok {
 			Logger.Debugf("Found %v with values: %v", header, val)
 			return val[len(val)-1]

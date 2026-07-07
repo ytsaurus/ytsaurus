@@ -67,6 +67,7 @@ struct IAssignmentPlanUpdateContext
 
     virtual const TOperationMap& Operations() const = 0;
     virtual const TNodeMap& Nodes() const = 0;
+    virtual const TGpuPlanUpdateStatisticsPtr& GetStatistics() const = 0;
 
     virtual void AddPlannedAssignment(
         std::string allocationGroupName,
@@ -78,9 +79,12 @@ struct IAssignmentPlanUpdateContext
     virtual void PreemptAssignment(
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
-        std::string preemptionDescription) = 0;
+        const std::string& preemptionDescription,
+        TOperationId preemptedForOperationId = {}) = 0;
 
-    virtual TGpuPlanUpdateStatisticsPtr Statistics() const = 0;
+    virtual TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const = 0;
+
+    virtual bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,7 +127,13 @@ private:
     bool ShouldUseFullHostAggressivePreemption(const TOperationPtr& operation) const;
     bool ShouldUsePriorityModuleBinding(const TOperationPtr& operation) const;
 
+    bool ShouldResetModule(const TOperationPtr& operation) const;
+    void EvictOperationFromSchedulingModule(const TOperationPtr& operation, const std::string& preemptionDescription);
     bool BindFullHostOperationToModule(const TOperationPtr& operation, bool priorityModuleBinding);
+
+    //! Recomputes |operation->NetworkPriority()| based on the operation's node-share on its bound module.
+    //! Must be called only for full-host module-bound operations with a non-null SchedulingModule().
+    void UpdateNetworkPriority(const TOperationPtr& operation);
 
     std::optional<NDetail::TOperationModuleBindingOutcome> ConsiderModuleForFullHostOperation(
         const TOperationPtr& operation,
@@ -147,22 +157,24 @@ private:
 
     NDetail::TPreemptionPenalty GetAssignmentPreemptionPenalty(const TAssignmentPtr& assignment) const;
 
+    int GetLimitedAllocationCount(
+        const TOperationPtr& operation,
+        const std::string& allocationGroupName,
+        const TAllocationGroupResources& allocationGroupResources) const;
+
     //! NB: These methods sort |availableNodes| in-place.
     void PlanAllocationGroup(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
-        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes);
     void PlanAllocationGroupWithPreemption(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
-        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes,
         bool useFullHostAggressivePreemption = false);
     void PlanPreemptibleAllocationGroup(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
-        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes);
 
     void DumpModuleStatistics() const;
@@ -186,7 +198,7 @@ private:
     protected:
         const TOperationPtr& Operation_;
         const std::string& AllocationGroupName_;
-        const TAllocationGroupResources& AllocationGroupResources_;
+        const TAllocationGroupResources AllocationGroupResources_;
         TGpuAllocationAssignmentPlanUpdateExecutor* const Host_;
 
         bool CanAddAssignmentToNode(

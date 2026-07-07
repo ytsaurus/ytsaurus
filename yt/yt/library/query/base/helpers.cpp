@@ -248,6 +248,44 @@ bool CanOmitOrderBy(int keyPrefix, TRange<TOrderItem> orderItems, TRange<std::st
     return true;
 }
 
+bool CanReverseScanForOrderBy(int fixedKeyPrefix, TRange<TOrderItem> orderItems, TRange<std::string> keyColumns, const TConstGroupClausePtr& groupClause)
+{
+    if (groupClause) {
+        return false;
+    }
+
+    int currentKeyIndex = fixedKeyPrefix;
+
+    for (const auto& item : orderItems) {
+        if (currentKeyIndex >= std::ssize(keyColumns)) {
+            break;
+        }
+
+        const auto* referenceExpr = item.Expression->As<TReferenceExpression>();
+        if (!referenceExpr) {
+            return false;
+        }
+
+        auto columnIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+
+        if (columnIndex >= 0 && columnIndex < fixedKeyPrefix) {
+            continue;
+        }
+
+        if (columnIndex != currentKeyIndex) {
+            return false;
+        }
+
+        if (!item.Descending) {
+            return false;
+        }
+
+        ++currentKeyIndex;
+    }
+
+    return currentKeyIndex > fixedKeyPrefix;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string ToLower(TStringBuf original)

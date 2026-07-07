@@ -50,6 +50,7 @@ struct IChaosLeaseManager
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 
     virtual EChaosLeaseManagerState GetState() const = 0;
+    virtual void ValidateEnabledState() const = 0;
 
     virtual void CreateChaosLease(const TCtxCreateChaosLeasePtr& context) = 0;
     virtual void RemoveChaosLease(const TCtxRemoveChaosLeasePtr& context) = 0;

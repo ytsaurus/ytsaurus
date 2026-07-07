@@ -44,9 +44,6 @@ class TLease final
     , public TRefTracked<TLease>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(int, PersistentRefCounter);
-    DEFINE_BYVAL_RW_PROPERTY(int, TransientRefCounter);
-
     DEFINE_BYVAL_RW_PROPERTY(TCellId, OwnerCellId);
 
 public:
@@ -74,6 +71,26 @@ public:
 
     int RefTransiently(bool force) override;
     int UnrefTransiently() override;
+
+    int GetPersistentRefCounter() const override
+    {
+        return PersistentRefCounter_;
+    }
+
+    void SetPersistentRefCounter(int value)
+    {
+        PersistentRefCounter_ = value;
+    }
+
+    int GetTransientRefCounter() const
+    {
+        return TransientRefCounter_;
+    }
+
+    void SetTransientRefCounter(int value)
+    {
+        TransientRefCounter_ = value;
+    }
 
     void SetState(ELeaseState newState)
     {
@@ -105,6 +122,9 @@ private:
     const TLeaseId Id_;
     TLeaseManager* const Owner_;
 
+    int PersistentRefCounter_ = 0;
+    int TransientRefCounter_ = 0;
+
     ELeaseState State_ = ELeaseState::Unknown;
 };
 
@@ -119,6 +139,7 @@ class TLeaseManager
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(TLeaseId leaseId, TCellId cellId), LeaseRevoked);
+    DEFINE_SIGNAL_OVERRIDE(void(ILease* lease), LeaseRemoved);
 
 public:
     TLeaseManager(
@@ -170,7 +191,10 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraRevokeLease, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraRemoveLeases, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraOnLeaseRevoked, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraToggleLeaseRefCounter, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TLeaseManager::HydraToggleLeaseRefCounter, Unretained(this)),
+            /*aliases=*/ {},
+            /*exceptionsAreNormal*/ true);
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(IssueLease));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(RevokeLease));
@@ -311,6 +335,15 @@ private:
         LeaseMap_.SaveValues(context);
 
         Save(context, Decommission_);
+    }
+
+    void Clear() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        TCompositeAutomatonPart::Clear();
+
+        LeaseMap_.Clear();
     }
 
     void OnLeaderActive() override
@@ -676,7 +709,7 @@ private:
         // NB: Lease may die below.
         auto leaseId = lease->GetId();
         auto ownerCellId = lease->GetOwnerCellId();
-        LeaseMap_.Release(leaseId);
+        auto leaseHolder = LeaseMap_.Release(leaseId);
 
         LeaseIdsToRemove_.erase(leaseId);
 
@@ -690,6 +723,8 @@ private:
             HiveManager_->PostMessage(mailbox, message);
         }
 
+        LeaseRemoved_.Fire(lease);
+
         YT_LOG_DEBUG(
             "Lease removed (LeaseId: %v)",
             leaseId);
@@ -702,7 +737,7 @@ private:
         std::vector<TLeaseId> leaseIdsToRemove;
         for (auto leaseId : LeaseIdsToRemove_) {
             leaseIdsToRemove.push_back(leaseId);
-            if (std::ssize(leaseIdsToRemove) > Config_->MaxLeasesPerRemoval) {
+            if (std::ssize(leaseIdsToRemove) >= Config_->MaxLeasesPerRemoval) {
                 break;
             }
         }

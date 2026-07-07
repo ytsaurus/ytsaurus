@@ -36,7 +36,7 @@ static const std::string RealmIdAttributeKey = "realm_id";
 static const std::string LeaderIdAttributeKey = "leader_id";
 static const std::string LocalThrottlersAttributeKey = "local_throttlers";
 static const std::string GlobalThrottlersAttributeKey = "global_throttlers";
-static const double MinThorttlerLimit = 0.01;
+static const double MinThrottlerLimit = 0.01;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -774,9 +774,9 @@ private:
         return &MemberShards_[GetShardIndex(memberId)];
     }
 
-    TThrottlerShard* GetThrottlerShard(const TMemberId& memberId)
+    TThrottlerShard* GetThrottlerShard(const TThrottlerId& throttlerId)
     {
-        return &ThrottlerShards_[GetShardIndex(memberId)];
+        return &ThrottlerShards_[GetShardIndex(throttlerId)];
     }
 
     void UpdateUniformLimitDistribution()
@@ -1065,8 +1065,8 @@ private:
                 // Calculate new member limit.
                 auto newLimit = weight * totalLimit;
 
-                // Avoid infinitely small limits that might lead to and overflow when using them as a divisor.
-                if (newLimit < MinThorttlerLimit) {
+                // Avoid infinitely small limits that might lead to overflow when using them as a divisor.
+                if (newLimit < MinThrottlerLimit) {
                     newLimit = 0;
                 }
 
@@ -1150,8 +1150,8 @@ private:
                 // Calculate new member limit.
                 auto newLimit = Min(localUsage.Rate, memberLimitThreshold) + freeLimit;
 
-                // Avoid infinitely small limits that might lead to and overflow when using them as a divisor.
-                if (newLimit < MinThorttlerLimit) {
+                // Avoid infinitely small limits that might lead to overflow when using them as a divisor.
+                if (newLimit < MinThrottlerLimit) {
                     newLimit = 0;
                 }
 
@@ -1215,7 +1215,7 @@ private:
             }
         }
 
-        // Calcluate new member limits.
+        // Calculate new member limits.
         std::vector<THashMap<TMemberId, THashMap<TThrottlerId, double>>> memberIdToLimit;
         switch (config->MemberWeightMode) {
             case EDistributedThrottlerMemberWeightMode::Uniform:
@@ -1336,7 +1336,7 @@ public:
         }
     }
 
-    void Initialize()
+    void InitializeRefCounted()
     {
         UpdateLimitsExecutor_->Start();
         UpdateLeaderExecutor_->Start();
@@ -1879,7 +1879,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     TProfiler profiler,
     std::optional<i64> memberPriority)
 {
-    auto factory = New<TDistributedThrottlerFactory>(
+    return New<TDistributedThrottlerFactory>(
         CloneYsonStruct(std::move(config)),
         std::move(channelFactory),
         std::move(connection),
@@ -1892,10 +1892,6 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         std::move(authenticator),
         std::move(profiler),
         std::move(memberPriority));
-
-    factory->Initialize();
-
-    return factory;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

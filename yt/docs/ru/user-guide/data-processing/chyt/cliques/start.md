@@ -1,1 +1,0 @@
-{% include [Как запустить приватную клику](../../../../_includes/user-guide/data-processing/chyt/cliques/start.md) %}

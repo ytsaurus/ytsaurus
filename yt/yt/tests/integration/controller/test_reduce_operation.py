@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, parametrize_external
+from yt_env_setup import YTEnvSetup, is_asan_build, parametrize_external
 
 from yt_commands import (
     authors, print_debug, raises_yt_error, set_nodes_banned, update_controller_agent_config, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
@@ -17,15 +17,15 @@ import yt.yson as yson
 
 import pytest
 
-import itertools
-import time
 import binascii
+import itertools
+import random
+import time
 
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerReduceCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -47,17 +47,10 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         "controller_agent": {
             "operations_update_period": 10,
             "reduce_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": False,
-                },
                 "min_slice_data_weight": 1,
             },
         }
     }
-
-    def skip_if_legacy_sorted_pool(self):
-        if not isinstance(self, TestSchedulerReduceCommandsNewSortedPool):
-            pytest.skip("This test requires new sorted pool")
 
     def _create_simple_dynamic_table(self, path, **attributes):
         if "schema" not in attributes:
@@ -75,9 +68,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @authors("psushin", "klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_tricky_chunk_boundaries(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         rows = [{"key": "0", "value": 1}, {"key": "2", "value": 2}]
         if sort_order == "descending":
@@ -127,9 +117,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @authors("klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_cat(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         rows = [
             {"key": 0, "value": 1},
@@ -188,9 +175,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_column_filter(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         set("//tmp/in1/@optimize_for", "scan")
 
@@ -213,7 +197,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         create("table", "//tmp/out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Column filter for input table .* must include key column"):
             # All reduce by columns must be included in column filter.
             reduce(
                 in_="//tmp/in1{key}",
@@ -386,7 +370,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         write_table("//tmp/t1", [{"a": 42, "b": 1}])
         write_table("//tmp/t2", [{"a2": 43, "b2": 3}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot rename columns in table with teleport"):
             reduce(
                 in_=["//tmp/t1", "<teleport=%true;rename_columns={a2=a;b2=b}>//tmp/t2"],
                 out="<teleport=%true>//tmp/tout",
@@ -532,9 +516,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @authors("savrus", "klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_cat_teleport(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         schema = make_schema(
             [
                 {"name": "key", "type": "int64", "sort_order": sort_order},
@@ -600,7 +581,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             reduce(
                 in_=[
                     "<teleport=true>//tmp/in1",
@@ -718,7 +699,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate sort column name"):
             reduce(
                 in_="//tmp/in",
                 out="//tmp/out",
@@ -732,7 +713,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", {"foo": "bar"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is not sorted"):
             reduce(in_="//tmp/in", out="//tmp/out", command="cat")
 
     @authors("panin", "klyachin")
@@ -741,18 +722,16 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", {"key": "1", "subkey": "2"}, sorted_by=["key", "subkey"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is sorted by columns .* that are not compatible with the requested columns .*"):
             reduce(in_="//tmp/in", out="//tmp/out", command="cat", reduce_by="subkey")
 
     @authors("gritukan")
     def test_different_sort_order(self):
-        self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in")
         create("table", "//tmp/out")
         write_table("//tmp/in", {"key": "1"}, sorted_by=["key"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is sorted by columns .* that are not compatible with the requested columns .*"):
             reduce(
                 in_="//tmp/in",
                 out="//tmp/out",
@@ -762,9 +741,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @authors("psushin", "klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_short_limits(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
         create("table", "//tmp/out")
@@ -1053,12 +1029,39 @@ echo {v = 2} >&7
 
         assert not get("//tmp/out/@sorted")
 
+    @authors("coteeq")
+    def test_reduce_row_index_range_starting_inside_reduce_key_group(self):
+        create(
+            "table",
+            "//tmp/in",
+            attributes={
+                "optimize_for": "lookup",
+                "schema": make_schema([
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64", "sort_order": "ascending"},
+                ]),
+            },
+        )
+        create("table", "//tmp/out")
+
+        rows = [{"a": index // 3, "b": index % 3} for index in range(30)]
+        write_table("//tmp/in", rows, table_writer={"block_size": 80})
+        assert get("//tmp/in/@chunk_count") == 1
+
+        reduce(
+            in_="<ranges=[{lower_limit={row_index=8}}]>//tmp/in",
+            out="//tmp/out",
+            command="cat",
+            reduce_by=["a"],
+            sort_by=["a", "b"],
+            spec={"reducer": {"format": "yson"}},
+        )
+
+        assert_items_equal(read_table("//tmp/out"), rows[8:])
+
     @authors("klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_with_foreign_join_one_job(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         def write(path, rows, sorted_by):
             if sort_order == "descending":
                 rows = rows[::-1]
@@ -1408,7 +1411,7 @@ echo {v = 2} >&7
     def test_reduce_with_foreign_invalid_reduce_by(self):
         self._prepare_join_tables()
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Join sort columns are not compatible with reduce sort"):
             reduce(
                 in_=["<foreign=true>//tmp/urls", "//tmp/fresh_urls"],
                 out=["//tmp/output"],
@@ -1621,7 +1624,7 @@ echo {v = 2} >&7
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
         assert get("//tmp/input/@sorted_by") == ["key"]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             reduce(in_="//tmp/input", out="//tmp/output", reduce_by="key", command="cat")
 
     @authors("babenko", "klyachin")
@@ -1656,7 +1659,7 @@ echo {v = 2} >&7
                 "max_failed_job_count": 1,
             },
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
     @authors("savrus")
@@ -1862,8 +1865,6 @@ echo {v = 2} >&7
 
         if dynamic:
             sync_create_cells(1)
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
 
         if dynamic and sort_order == "descending":
             pytest.skip("Dynamic tables do not support descending sort order yet")
@@ -1991,7 +1992,7 @@ echo {v = 2} >&7
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is not sorted"):
             reduce(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -2029,9 +2030,6 @@ echo {v = 2} >&7
     @authors("max42")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_pivot_keys(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create(
             "table",
             "//tmp/t1",
@@ -2121,7 +2119,7 @@ echo {v = 2} >&7
         create("table", "//tmp/t2")
         for i in range(1, 13):
             write_table("<append=%true>//tmp/t1", {"key": "%02d" % i, "value": i})
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys should form a strictly increasing sequence"):
             reduce(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -2129,7 +2127,7 @@ echo {v = 2} >&7
                 reduce_by=["key"],
                 spec={"pivot_keys": [["10"], ["05"]]},
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Chunk teleportation is not supported when pivot keys are specified"):
             reduce(
                 in_="<teleport=%true>//tmp/t1",
                 out="//tmp/t2",
@@ -2213,9 +2211,6 @@ echo {v = 2} >&7
     @authors("renadeen")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_skewed_key_distribution_one_table(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         create("table", "//tmp/out")
 
@@ -2252,8 +2247,6 @@ echo {v = 2} >&7
     @authors("renadeen")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_skewed_key_distribution_two_tables(self, sort_order):
-        self.skip_if_legacy_sorted_pool()
-
         create("table", "//tmp/in1")
         create("table", "//tmp/out")
 
@@ -2313,7 +2306,7 @@ echo {v = 2} >&7
         write_table("//tmp/t1", [{"key": 1}])
         write_table("//tmp/t2", [{"key": "1"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns have different types in input tables"):
             reduce(
                 in_=["//tmp/t1", "//tmp/t2"],
                 out=["//tmp/out"],
@@ -2426,7 +2419,7 @@ echo {v = 2} >&7
         write_table("//tmp/t2", [{"key": 1}])
         write_table("//tmp/t3", [{"key": "1"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns have different types in input tables"):
             reduce(
                 in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
                 out=["//tmp/out"],
@@ -2510,7 +2503,7 @@ echo {v = 2} >&7
         write_table("//tmp/t2", [{"key": 1, "subkey": "3"}])
         write_table("//tmp/t3", [{"key": 1, "subkey": 4}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns have different types in input tables"):
             reduce(
                 in_=["//tmp/t1", "//tmp/t2", "<foreign=%true>//tmp/t3"],
                 out=["//tmp/out"],
@@ -2597,9 +2590,6 @@ echo {v = 2} >&7
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_without_foreign_tables_and_key_guarantee(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         create(
             "table",
             "//tmp/in1",
@@ -2647,9 +2637,6 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sort_by_without_key_guarantee(self, sort_order):
         pytest.skip("TODO: gritukan")
-
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
 
         create(
             "table",
@@ -2726,7 +2713,7 @@ echo {v = 2} >&7
         else:
             assert read_table("//tmp/out") == [{"k1": "1", "k2": str(i)} for i in range(4, 0, -1)]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Input table .* is sorted by columns .* that are not compatible with the requested columns .*"):
             reduce(
                 in_=["//tmp/in1", "//tmp/in2", "<foreign=true>//tmp/f"],
                 out="//tmp/out",
@@ -2948,9 +2935,6 @@ for line in sys.stdin:
     def test_tricky_read_limits(self, optimize_for, sort_order):
         if self.Env.get_component_version("ytserver-job-proxy").abi <= (20, 3):
             pytest.skip("Job proxy does not contain fix for the bug yet")
-
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
 
         # YT-14023.
         create(
@@ -3240,7 +3224,7 @@ for line in sys.stdin:
         try:
             set_nodes_banned(table_nodes, True)
 
-            with raises_yt_error("is unavailable"):
+            with raises_yt_error("Input chunk .* is unavailable"):
                 op.track()
         finally:
             set_nodes_banned(table_nodes, False)
@@ -3311,7 +3295,6 @@ for line in sys.stdin:
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3381,7 +3364,6 @@ class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -3392,30 +3374,6 @@ class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
     }
 
 
-@pytest.mark.enabled_multidaemon
-class TestSchedulerReduceCommandsNewSortedPool(TestSchedulerReduceCommands):
-    ENABLE_MULTIDAEMON = True
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,
-            "operations_update_period": 10,
-            "running_allocations_update_period": 10,
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operations_update_period": 10,
-            "reduce_operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                },
-            },
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
 class TestReduceJobSizeAdjuster(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3429,7 +3387,6 @@ class TestReduceJobSizeAdjuster(YTEnvSetup):
                 "spec_template": {
                     "data_size_per_job": 1,
                     "force_job_size_adjuster": True,
-                    "use_new_sorted_pool": True,
                 },
             }
         }
@@ -3552,3 +3509,128 @@ class TestReduceJobSizeAdjuster(YTEnvSetup):
 
         # 1 primary row + 1 foreign row == 2
         assert all(int(row["lines"]) == 2 for row in counts)
+
+    @authors("coteeq")
+    @pytest.mark.timeout(180)
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
+    def test_interrupted_adjusted(self):
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": [
+                {"name": "index", "type": "int64", "sort_order": "ascending"},
+                {"name": "payload", "type": "string"},
+            ]},
+        )
+
+        # We need random to make chunk pool schedule jobs from the middle.
+        # If we schedule jobs left-to-right, the probability of the misadjusment is much lower.
+        payload_size = (800, 1000)
+        seed = random.randint(0, 2**16)
+        print_debug(f"Seed: {seed}")
+        rng = random.Random(seed)
+
+        def rows(*indices):
+            return [{"index": i, "payload": rng.randint(payload_size[0], payload_size[1]) * "x"} for i in indices]
+
+        for indices in itertools.batched(range(1000), n=50):
+            write_table("<append=%true>//tmp/in", rows(*indices))
+
+        ranges = [
+            "{lower_limit={key=[%s]};upper_limit={key=[%s]}}" % (range[0], range[-1] + 1)
+            for range in itertools.batched(range(1000), n=100)
+        ]
+
+        # Shuffle ranges to increase misadjustment probability.
+        rng.shuffle(ranges)
+
+        from textwrap import dedent
+        reducer = dedent(
+            """
+                import json
+                from sys import stdin
+                prev_index = None
+                for line in stdin:
+                    row = json.loads(line)
+                    assert prev_index is None or prev_index < row["index"]
+                    prev_index = row["index"]
+                    print(json.dumps(row))
+            """
+        )
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", reducer.encode("utf-8"))
+
+        op = reduce(
+            track=False,
+            in_=[
+                f"<ranges=[{';'.join(ranges)}]>//tmp/in",
+            ],
+            out="<create=%true>//tmp/t_output",
+            file="//tmp/reducer.py",
+            command="python3 -u reducer.py",
+            ordered=True,
+            reduce_by="index",
+            spec={
+                "data_size_per_job": 10_000,
+                "reducer": {"format": "json"},
+                "resource_limits": {"user_slots": 3},
+                "force_allow_job_interruption": True,
+                "force_job_size_adjuster": True,
+                "job_io": {
+                    "testing_options": {"pipe_delay": 50},
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 1,
+                },
+            }
+        )
+
+        op.wait_for_state("running")
+
+        def get_and_print_progress():
+            try:
+                progress = get(
+                    op.get_path() + "/@brief_progress/jobs",
+                    verbose=False
+                )
+            except YtError as e:
+                if e.contains_code(500):
+                    return None
+                else:
+                    raise
+
+            print_debug("Progress: ", (", ".join(f"{category}={count}" for category, count in progress.items())))
+            return progress
+
+        while op.get_state() == "running":
+            progress = get_and_print_progress()
+            if not progress:
+                continue
+
+            # No point in interrupting final jobs. They are not going to be adjusted anyway.
+            if progress["pending"] <= 5:
+                break
+
+            progress = op.build_progress()
+            jobs = op.get_running_jobs(verbose=False)
+            if len(jobs) >= 1:
+                job_id = next(iter(jobs))
+                try:
+                    time.sleep(1.5)  # Wait a bit until job starts reading.
+                    op.interrupt_job(job_id, raise_on_failed_interruption=False)
+                    print_debug(f"Successfully interrupted {job_id}")
+                except YtError:
+                    print_debug(f"Failed to interrupt {job_id}")
+                    pass
+
+        op.track()
+
+        # Otherwise payload shows up in diff
+        def strip_payload(rows):
+            return [
+                {"index": row["index"]}
+                for row in rows
+            ]
+
+        actual = strip_payload(read_table("//tmp/t_output", verbose=False))
+        expected = strip_payload(rows(*range(1000)))
+        assert sorted_dicts(actual) == sorted_dicts(expected)

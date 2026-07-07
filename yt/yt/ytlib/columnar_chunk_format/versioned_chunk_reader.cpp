@@ -764,13 +764,28 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto keyColumnIndexes = ExtractKeyColumnIndexes(columnFilter, tableKeyColumnCount, IsKeys(readItems));
 
     auto preparedChunkMeta = chunkMeta->GetPreparedChunkMeta();
-    auto windowsList = BuildReadWindows(
-        readItems,
-        chunkMeta->BlockLastKeys(),
-        preparedChunkMeta->BlockChunkRowCounts,
-        chunkMeta->Misc().row_count(),
-        tableKeyColumnCount,
-        chunkMeta->GetChunkKeyColumnCount());
+
+    std::vector<TSpanMatching> windowsList;
+    if constexpr (std::is_same_v<std::decay_t<TReadItems>, TKeysWithHints>) {
+        windowsList = BuildReadWindows(
+            readItems,
+            {},
+            preparedChunkMeta->BlockChunkRowCounts,
+            chunkMeta->Misc().row_count(),
+            {},
+            {});
+    } else if (const auto* compressedBlockLastKeys = chunkMeta->GetCompressedBlockLastKeys()) {
+        windowsList = compressedBlockLastKeys->BuildReadListForWindow(readItems, *tableSchema);
+    } else {
+        windowsList = BuildReadWindows(
+            readItems,
+            chunkMeta->BlockLastKeys(),
+            preparedChunkMeta->BlockChunkRowCounts,
+            chunkMeta->Misc().row_count(),
+            tableKeyColumnCount,
+            chunkMeta->GetChunkKeyColumnCount());
+    }
+
     readerStatistics->BuildReadWindowsTime = getDurationAndReset();
 
     auto valuesIdMapping = chunkColumnMapping
@@ -840,8 +855,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         }
     }
 
-    for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
-        makeColumnBase(preparedChunkMeta->ColumnInfos[chunkSchemaIndex], readerSchemaIndex);
+    for (const auto& entry : valuesIdMapping) {
+        makeColumnBase(
+            preparedChunkMeta->ColumnInfos[entry.ChunkSchemaIndex],
+            entry.ReaderSchemaIndex);
     }
 
     {
@@ -874,6 +891,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         }),
         preparedChunkMeta->FullNewMeta);
 
+    // NB: to avoid use-after-move down the line.
+    bool itemsAreKeys = IsKeys(readItems);
     auto rowsetBuilder = CreateRowsetBuilder(std::move(readItems), {
         .KeyTypes = keyTypes,
         .ReadItemWidth = static_cast<ui16>(readItemWidth),
@@ -891,8 +910,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     std::unique_ptr<bool[]> columnHunkFlags;
     if (chunkSchema->HasHunkColumns()) {
         columnHunkFlags.reset(new bool[tableSchema->GetColumnCount()]());
-        for (auto [chunkColumnId, tableColumnId] : valuesIdMapping) {
-            columnHunkFlags[tableColumnId] = chunkSchema->Columns()[chunkColumnId].MaxInlineHunkSize().has_value();
+        for (const auto& entry : valuesIdMapping) {
+            columnHunkFlags[entry.ReaderSchemaIndex] =
+                chunkSchema->Columns()[entry.ChunkSchemaIndex].MaxInlineHunkSize().has_value();
         }
     }
 
@@ -903,7 +923,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(blockManager),
         std::move(rowsetBuilder),
         std::move(windowsList),
-        IsKeys(readItems),
+        itemsAreKeys,
         skipValueBlocksForMissingKeys,
         readerStatistics,
         std::move(keyFilterStatistics),

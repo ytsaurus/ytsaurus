@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/google/tink/go/keyset"
+	"github.com/tink-crypto/tink-go/v2/keyset"
 	"golang.org/x/xerrors"
 
 	"go.ytsaurus.tech/library/go/core/buildinfo"
@@ -54,8 +54,12 @@ func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) p
 				return backoff.Permanent(err)
 			}
 
+			jobStateDir := p.mr.config.JobStateDirPath
+			if jobStateDir == "" {
+				jobStateDir = defaultJobStateDir
+			}
 			id := guid.New().String()
-			tmpPath := ypath.Path("//tmp/go_job_state").Child(id[:2]).Child(id)
+			tmpPath := jobStateDir.Child(id[:2]).Child(id)
 
 			_, err = p.mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
 			if err != nil {

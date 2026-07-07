@@ -1,8 +1,12 @@
+#pragma once
+
 #include "public.h"
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
+
+#include <yt/yt/client/ypath/public.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -88,11 +92,11 @@ void CheckWritePermission(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<TString> DeduceActualAttributes(
-    const std::optional<THashSet<TString>>& originalAttributes,
-    const THashSet<TString>& requiredAttributes,
-    const THashSet<TString>& defaultAttributes,
-    const THashSet<TString>& ignoredAttributes = {});
+THashSet<std::string> DeduceActualAttributes(
+    const std::optional<THashSet<std::string>>& originalAttributes,
+    const THashSet<std::string>& requiredAttributes,
+    const THashSet<std::string>& defaultAttributes,
+    const THashSet<std::string>& ignoredAttributes = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,4 +106,42 @@ TSelectRowsOptions GetDefaultSelectRowsOptions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Invalidates the mount cache based on the provided error and returns the delay before the next retry.
+//! Rethrows the provided error if it is not retryable or if the retry limit is exceeded.
+TDuration InvalidateMountCacheAndGetRetryDelay(
+    const IConnectionPtr& connection,
+    const TDetailedProfilingInfoPtr& profilingInfo,
+    const NLogging::TLogger& logger,
+    const TError& error,
+    int* retryCount,
+    NTabletClient::TTabletId tabletIdHint = {});
+
+template <class TCallback>
+auto CallAndRetryIfMetadataCacheIsInconsistent(
+    const IConnectionPtr& connection,
+    const TDetailedProfilingInfoPtr& profilingInfo,
+    const NLogging::TLogger& logger,
+    TCallback&& callback) -> decltype(callback());
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Fetches table mount info for object on a potentially-remote cluster, which may be specified in the rich YPath.
+TFuture<NTabletClient::TTableMountInfoPtr> GetTableMountInfo(
+    const NYPath::TRichYPath& objectPath,
+    const IConnectionPtr& connection);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Uses user attribute cache to check if the user is a superuser.
+TFuture<bool> IsSuperuser(const IConnectionPtr& connection, const std::string& user);
+
+//! Uses user attribute cache to check if the user is banned.
+TFuture<bool> IsUserBanned(const IConnectionPtr& connection, const std::string& user);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

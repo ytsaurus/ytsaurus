@@ -1,3 +1,4 @@
+#include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/library/aclib/aclib.h>
 
 #include "auth.h"
@@ -39,7 +40,7 @@ NACLib::TUserToken ParseUserToken(const TString& userTokenSerialized) {
     return NACLib::TUserToken(tokenPb);
 }
 
-}
+} // namespace
 
 bool IsTokenAllowed(const NACLib::TUserToken* userToken, const TVector<TString>& allowedSIDs) {
     return IsTokenAllowedImpl(userToken, allowedSIDs);
@@ -67,6 +68,13 @@ bool IsAdministrator(const TAppData* appData, const NACLib::TUserToken* userToke
     return IsTokenAllowed(userToken, appData->AdministrationAllowedSIDs);
 }
 
+bool IsStrictDatabaseOnlyToken(const TAppData* appData, const TString& userTokenSerialized) {
+    const auto& securityConfig = appData->DomainsConfig.GetSecurityConfig();
+    return IsTokenAllowed(userTokenSerialized, securityConfig.GetDatabaseAllowedSIDs())
+        && !IsTokenAllowed(userTokenSerialized, securityConfig.GetViewerAllowedSIDs())
+        && !IsTokenAllowed(userTokenSerialized, securityConfig.GetMonitoringAllowedSIDs())
+        && !IsTokenAllowed(userTokenSerialized, securityConfig.GetAdministrationAllowedSIDs());
+}
 
 bool IsDatabaseAdministrator(const NACLib::TUserToken* userToken, const NACLib::TSID& databaseOwner) {
     // no database, no access
@@ -80,4 +88,4 @@ bool IsDatabaseAdministrator(const NACLib::TUserToken* userToken, const NACLib::
     return userToken->IsExist(databaseOwner);
 }
 
-}
+} // namespace NKikimr

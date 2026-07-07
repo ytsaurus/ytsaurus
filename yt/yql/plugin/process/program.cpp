@@ -1,7 +1,7 @@
 #include "config.h"
 #include "plugin_service.h"
 
-#include <yt/yql/plugin/bridge/plugin.h>
+#include <yt/yql/plugin/native/plugin.h>
 #include <yt/yql/plugin/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -66,14 +66,14 @@ protected:
 
         YT_VERIFY(config->BusServer->UnixDomainSocketPath);
 
-        auto options = ConvertToOptions(
+        auto options = ConvertToNativePluginOptions(
             config->PluginConfig,
             NYson::ConvertToYsonString(config->SingletonsConfig),
             NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
             config->MaxSupportedYqlVersion,
             false);
 
-        auto yqlPlugin = CreateBridgeYqlPlugin(std::move(options));
+        auto yqlPlugin = CreateYqlPlugin(std::move(options));
         yqlPlugin->Start();
 
         if (config->DynamicGatewaysConfig) {
@@ -84,7 +84,7 @@ protected:
         }
 
         auto yqlPluginService = CreateYqlPluginService(controlInvoker_, std::move(yqlPlugin));
-        auto rpcServer = NRpc::NBus::CreateBusServer(NBus::CreateBusServer(config->BusServer));
+        auto rpcServer = NRpc::NBus::CreateBusServer(NBus::NTcp::CreateBusServer(config->BusServer));
 
         rpcServer->RegisterService(yqlPluginService);
 

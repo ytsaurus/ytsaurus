@@ -1,13 +1,9 @@
 #include "hunk_lock_manager.h"
 
-#include "bootstrap.h"
 #include "config.h"
 #include "private.h"
 #include "serialize.h"
 #include "tablet.h"
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
@@ -29,7 +25,6 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NTransactionSupervisor;
 using namespace NTransactionClient;
-using namespace NClusterNode;
 using namespace NApi;
 using namespace NApi::NNative;
 using namespace NTableClient;
@@ -95,16 +90,6 @@ public:
         , Logger(TabletNodeLogger().WithTag("LockerTabletId: %v", tablet->GetId()))
     { }
 
-    void Initialize() override
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& configManager = Context_->GetDynamicConfigManager();
-        configManager->SubscribeConfigChanged(
-            BIND(&THunkLockManager::OnDynamicConfigChanged, MakeWeak(this))
-                .Via(Context_->GetAutomatonInvoker()));
-    }
-
     void StartEpoch() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -130,6 +115,18 @@ public:
         UnlockExecutor_.Reset();
 
         ClearTransientState();
+    }
+
+    void OnDynamicConfigChanged(
+        const TTabletNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TTabletNodeDynamicConfigPtr& newNodeConfig) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& config = newNodeConfig->HunkLockManager;
+        if (UnlockExecutor_) {
+            UnlockExecutor_->SetPeriod(config->UnlockCheckPeriod);
+        }
     }
 
     void RegisterHunkStore(
@@ -426,18 +423,6 @@ private:
         }
     }
 
-    void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-        const TClusterNodeDynamicConfigPtr& newNodeConfig)
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& config = newNodeConfig->TabletNode->HunkLockManager;
-        if (UnlockExecutor_) {
-            UnlockExecutor_->SetPeriod(config->UnlockCheckPeriod);
-        }
-    }
-
     void SetHunkStoreLockingFuture(THunkStoreId hunkStoreId, const TError& result)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -572,8 +557,7 @@ private:
             return nullptr;
         }
 
-        const auto& dynamicConfigManager = Context_->GetDynamicConfigManager();
-        return dynamicConfigManager->GetConfig()->TabletNode->HunkLockManager;
+        return Context_->GetDynamicConfig()->HunkLockManager;
     }
 };
 

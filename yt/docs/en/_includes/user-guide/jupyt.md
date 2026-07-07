@@ -4,6 +4,12 @@ title: Jupyter Notebooks | {{product-name}}
 
 # Using Jupyter Notebooks in {{product-name}}
 
+{% note warning %}
+
+This feature is under development and may be unstable. It is not recommended for use in production workflows or for serious development and debugging.
+
+{% endnote %}
+
 {{product-name}} allows to launch Jupyter Notebooks on the computational resources of the cluster. Functionality can be used on clusters using CRI job environment.
 
 Following actions are required to launch a notebook:

@@ -37,14 +37,6 @@ bool TReshardDescriptor::operator<(const TReshardDescriptor& descriptor) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTabletSizeConfig
-{
-    i64 MinTabletSize = 0;
-    i64 MaxTabletSize = 0;
-    i64 DesiredTabletSize = 0;
-    std::optional<int> MinTabletCount;
-};
-
 struct TTabletBalancerContext
 {
     THashSet<TTabletId> TouchedTablets;
@@ -66,7 +58,7 @@ i64 GetTabletBalancingSize(const TTabletPtr& tablet)
 
 bool IsTabletReshardable(const TTabletPtr& tablet)
 {
-    return (tablet->State == ETabletState::Mounted || tablet->State == ETabletState::Frozen) &&
+    return tablet->State == ETabletState::Mounted &&
         tablet->Table->TableConfig->EnableAutoReshard &&
         tablet->Table->Bundle->Config->EnableTabletSizeBalancer &&
         tablet->Table->Sorted;
@@ -198,10 +190,10 @@ TTabletSizeConfig GetTabletSizeConfig(
     }
 
     return TTabletSizeConfig{
-        minTabletSize,
-        maxTabletSize,
-        desiredTabletSize,
-        tableConfig->MinTabletCount,
+        .MinTabletSize = minTabletSize,
+        .MaxTabletSize = maxTabletSize,
+        .DesiredTabletSize = desiredTabletSize,
+        .MinTabletCount = tableConfig->MinTabletCount,
     };
 }
 
@@ -513,8 +505,6 @@ std::vector<TReshardDescriptor> MergeSplitReplicaTable(
 
 std::vector<TMoveDescriptor> ReassignInMemoryTablets(
     const TTabletCellBundlePtr& bundle,
-    const std::optional<THashSet<TTableId>>& movableTables,
-    bool ignoreTableWiseConfig,
     const TLogger& /*Logger*/)
 {
     auto softThresholdViolated = [&] (i64 min, i64 max) {
@@ -598,15 +588,11 @@ std::vector<TMoveDescriptor> ReassignInMemoryTablets(
                 continue;
             }
 
-            if (!ignoreTableWiseConfig && !tablet->Table->TableConfig->EnableAutoTabletMove) {
+            if (!tablet->Table->TableConfig->EnableAutoTabletMove) {
                 continue;
             }
 
             if (!tablet->Table->IsLegacyMoveBalancingEnabled()) {
-                continue;
-            }
-
-            if (movableTables && !movableTables->contains(tablet->Id)) {
                 continue;
             }
 
@@ -827,7 +813,6 @@ void ReassignSlackTablets(
 
 std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
     const TTabletCellBundlePtr& bundle,
-    const std::optional<THashSet<TTableId>>& movableTables,
     const TLogger& Logger)
 {
     /*
@@ -860,10 +845,6 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
 
         for (const auto& [id, tablet] : cell->Tablets) {
             if (!tablet->Table->IsLegacyMoveBalancingEnabled()) {
-                continue;
-            }
-
-            if (movableTables && !movableTables->contains(tablet->Table->Id)) {
                 continue;
             }
 

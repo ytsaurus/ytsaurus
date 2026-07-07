@@ -12,6 +12,7 @@ try:
         QUEUE_CONSUMER_DASHBOARD_DEFAULT_CLUSTER,
         QUEUE_CONSUMER_DASHBOARD_DEFAULT_PATH,
         QUEUE_CONSUMER_DASHBOARD_DEFAULT_TAG,
+        QUEUE_CONSUMER_DASHBOARD_DEFAULT_NAME,
     )
 except:
     from yt_dashboards.yandex_constants import (
@@ -21,6 +22,7 @@ except:
         QUEUE_CONSUMER_DASHBOARD_DEFAULT_CLUSTER,
         QUEUE_CONSUMER_DASHBOARD_DEFAULT_PATH,
         QUEUE_CONSUMER_DASHBOARD_DEFAULT_TAG,
+        QUEUE_CONSUMER_DASHBOARD_DEFAULT_NAME,
     )
 
 
@@ -30,11 +32,12 @@ from yt_dashboard_generator.specific_sensors.monitoring import MonitoringExpr
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboards.common.queue_agent import build_pass_metrisc_rowsets
 
 from .common.sensors import *
 
 
-def add_queue_parameters(dashboard: Dashboard, default_queue_cluster="", default_queue_path="", default_queue_tag=""):
+def add_queue_parameters(dashboard: Dashboard, add_tag: bool, default_queue_cluster="", default_queue_path="", default_queue_tag="", bind_values: bool = True):
     dashboard.add_parameter(
         "queue_cluster",
         "Queue cluster",
@@ -61,18 +64,19 @@ def add_queue_parameters(dashboard: Dashboard, default_queue_cluster="", default
         backends=["grafana"],
     )
 
-    dashboard.add_parameter(
-        "queue_tag",
-        "Queue tag",
-        MonitoringLabelDashboardParameter("yt", "queue_tag", default_queue_tag),
-        backends=["monitoring"],
-    )
-    dashboard.add_parameter(
-        "queue_tag",
-        "Queue tag",
-        GrafanaTextboxDashboardParameter(default_queue_tag),
-        backends=["grafana"],
-    )
+    if add_tag:
+        dashboard.add_parameter(
+            "queue_tag",
+            "Queue tag",
+            MonitoringLabelDashboardParameter("yt", "queue_tag", default_queue_tag),
+            backends=["monitoring"],
+        )
+        dashboard.add_parameter(
+            "queue_tag",
+            "Queue tag",
+            GrafanaTextboxDashboardParameter(default_queue_tag),
+            backends=["grafana"],
+        )
 
     dashboard.add_permission(
         "read",
@@ -80,12 +84,14 @@ def add_queue_parameters(dashboard: Dashboard, default_queue_cluster="", default
         "$queue_cluster",
     )
 
-    dashboard.value("queue_cluster", TemplateTag("queue_cluster"))
-    dashboard.value("queue_path", TemplateTag("queue_path"))
-    dashboard.value("queue_tag", TemplateTag("queue_tag"))
+    if bind_values:
+        dashboard.value("queue_cluster", TemplateTag("queue_cluster"))
+        dashboard.value("queue_path", TemplateTag("queue_path"))
+        if add_tag:
+            dashboard.value("queue_tag", TemplateTag("queue_tag"))
 
 
-def add_consumer_parameters(dashboard: Dashboard, default_consumer_cluster="", default_consumer_path="", default_consumer_tag=""):
+def add_consumer_parameters(dashboard: Dashboard, add_tag: bool, default_consumer_cluster="", default_consumer_path="", default_consumer_tag="", default_consumer_name="", add_name: bool = False, bind_values: bool = True):
     dashboard.add_parameter(
         "consumer_cluster",
         "Consumer cluster",
@@ -108,18 +114,41 @@ def add_consumer_parameters(dashboard: Dashboard, default_consumer_cluster="", d
     )
 
     dashboard.add_parameter(
-        "consumer_tag",
-        "Consumer tag",
-        MonitoringLabelDashboardParameter("yt", "consumer_tag", default_consumer_tag),
-        backends=["monitoring"],
-    )
-
-    dashboard.add_parameter(
-        "consumer_tag",
-        "Consumer tag",
-        GrafanaTextboxDashboardParameter(default_consumer_tag),
+        "consumer_path",
+        "Consumer path",
+        GrafanaTextboxDashboardParameter(default_consumer_path),
         backends=["grafana"],
     )
+
+    if add_name:
+        dashboard.add_parameter(
+            "consumer_name",
+            "Consumer name",
+            MonitoringLabelDashboardParameter("yt", "consumer_name", default_consumer_name),
+            backends=["monitoring"],
+        )
+
+        dashboard.add_parameter(
+            "consumer_name",
+            "Consumer name",
+            GrafanaTextboxDashboardParameter(default_consumer_name),
+            backends=["grafana"],
+        )
+
+    if add_tag:
+        dashboard.add_parameter(
+            "consumer_tag",
+            "Consumer tag",
+            MonitoringLabelDashboardParameter("yt", "consumer_tag", default_consumer_tag),
+            backends=["monitoring"],
+        )
+
+        dashboard.add_parameter(
+            "consumer_tag",
+            "Consumer tag",
+            GrafanaTextboxDashboardParameter(default_consumer_tag),
+            backends=["grafana"],
+        )
 
     dashboard.add_permission(
         "read",
@@ -127,13 +156,13 @@ def add_consumer_parameters(dashboard: Dashboard, default_consumer_cluster="", d
         "$consumer_cluster",
     )
 
-    dashboard.add_parameter(
-        "consumer_path", "Consumer path", GrafanaTextboxDashboardParameter(default_consumer_path), backends=["grafana"]
-    )
-
-    dashboard.value("consumer_cluster", TemplateTag("consumer_cluster"))
-    dashboard.value("consumer_path", TemplateTag("consumer_path"))
-    dashboard.value("consumer_tag", TemplateTag("consumer_tag"))
+    if bind_values:
+        dashboard.value("consumer_cluster", TemplateTag("consumer_cluster"))
+        dashboard.value("consumer_path", TemplateTag("consumer_path"))
+        if add_name:
+            dashboard.value("consumer_name", TemplateTag("consumer_name"))
+        if add_tag:
+            dashboard.value("consumer_tag", TemplateTag("consumer_tag"))
 
 
 # NB(apachee): Followed a pattern from other dashboards to return a list of rowsets instead of one.
@@ -188,7 +217,7 @@ def build_queue_metric_rowsets():
     ]
 
 
-def build_queue_metrics(backend: str):
+def build_queue_metrics(backend: str, add_tag: bool = False):
     rowsets = build_queue_metric_rowsets()
 
     dashboard = Dashboard()
@@ -197,7 +226,23 @@ def build_queue_metrics(backend: str):
 
     dashboard.set_title("Queue metrics [Autogenerated]")
     dashboard.set_description("")
-    add_queue_parameters(dashboard, QUEUE_DASHBOARD_DEFAULT_CLUSTER, QUEUE_DASHBOARD_DEFAULT_PATH, QUEUE_DASHBOARD_DEFAULT_TAG)
+    add_queue_parameters(dashboard, add_tag, QUEUE_DASHBOARD_DEFAULT_CLUSTER, QUEUE_DASHBOARD_DEFAULT_PATH, QUEUE_DASHBOARD_DEFAULT_TAG)
+
+    dashboard.all("cluster")
+
+    return dashboard
+
+
+def build_queue_pass_metrics(backend: str):
+    rowsets = build_pass_metrisc_rowsets("yt.queue_agent.queue.controller")
+
+    dashboard = Dashboard()
+    for rowset in rowsets:
+        dashboard.add(rowset)
+
+    dashboard.set_title("Queue pass metrics [Autogenerated]")
+    dashboard.set_description("")
+    add_queue_parameters(dashboard, QUEUE_DASHBOARD_DEFAULT_CLUSTER, QUEUE_DASHBOARD_DEFAULT_PATH)
 
     dashboard.all("cluster")
 
@@ -279,7 +324,35 @@ def build_queue_consumer_metric_rowsets(backend: str):
     return [rowset]
 
 
-def build_queue_consumer_metrics(backend: str):
+def build_queue_multi_consumer_metric_rowsets(backend: str) -> list[Rowset]:
+    named_consumer_metrics = build_queue_consumer_metric_rowsets(backend)
+    consumer_count = (QueueAgent("yt.queue_agent.multi_consumer.consumers")
+        .legend_format("Consumer count")
+        .unit("UNIT_COUNT")
+    )
+
+    consumer_count_rowset = (Rowset()
+        .value("multi_consumer_cluster", TemplateTag("consumer_cluster"))
+        .value("multi_consumer_path", TemplateTag("consumer_path"))
+        .row()
+            .cell("Consumer count", consumer_count)
+    )
+
+    named_consumer_rowset = (named_consumer_metrics[0]
+        .value("consumer_cluster", TemplateTag("consumer_cluster"))
+        .value("consumer_path", TemplateTag("consumer_path"))
+        .value("consumer_name", TemplateTag("consumer_name"))
+        .value("queue_cluster", TemplateTag("queue_cluster"))
+        .value("queue_path", TemplateTag("queue_path"))
+    )
+
+    return [
+        consumer_count_rowset,
+        named_consumer_rowset,
+    ]
+
+
+def build_queue_consumer_metrics(backend: str, add_tag: bool = False):
     rowsets = build_queue_consumer_metric_rowsets(backend)
 
     dashboard = Dashboard()
@@ -288,8 +361,57 @@ def build_queue_consumer_metrics(backend: str):
 
     dashboard.set_title("Queue consumer metrics [Autogenerated]")
     dashboard.set_description("")
-    add_consumer_parameters(dashboard, QUEUE_CONSUMER_DASHBOARD_DEFAULT_CLUSTER, QUEUE_CONSUMER_DASHBOARD_DEFAULT_PATH, QUEUE_CONSUMER_DASHBOARD_DEFAULT_TAG)
-    add_queue_parameters(dashboard, QUEUE_DASHBOARD_DEFAULT_CLUSTER, QUEUE_DASHBOARD_DEFAULT_PATH, QUEUE_DASHBOARD_DEFAULT_TAG)
+    add_consumer_parameters(dashboard, add_tag, QUEUE_CONSUMER_DASHBOARD_DEFAULT_CLUSTER, QUEUE_CONSUMER_DASHBOARD_DEFAULT_PATH, QUEUE_CONSUMER_DASHBOARD_DEFAULT_TAG)
+    add_queue_parameters(dashboard, add_tag, QUEUE_DASHBOARD_DEFAULT_CLUSTER, QUEUE_DASHBOARD_DEFAULT_PATH, QUEUE_DASHBOARD_DEFAULT_TAG)
+
+    dashboard.all("cluster")
+
+    return dashboard
+
+
+def build_queue_multi_consumer_metrics(backend: str, add_tag: bool = False):
+    rowsets = build_queue_multi_consumer_metric_rowsets(backend)
+
+    dashboard = Dashboard()
+    for rowset in rowsets:
+        dashboard.add(rowset)
+
+    dashboard.set_title("Queue multi consumer metrics [Autogenerated]")
+    dashboard.set_description("")
+    add_consumer_parameters(
+        dashboard,
+        add_tag,
+        QUEUE_CONSUMER_DASHBOARD_DEFAULT_CLUSTER,
+        QUEUE_CONSUMER_DASHBOARD_DEFAULT_PATH,
+        QUEUE_CONSUMER_DASHBOARD_DEFAULT_TAG,
+        QUEUE_CONSUMER_DASHBOARD_DEFAULT_NAME,
+        add_name=True,
+        bind_values=False,
+    )
+    add_queue_parameters(
+        dashboard,
+        add_tag,
+        QUEUE_DASHBOARD_DEFAULT_CLUSTER,
+        QUEUE_DASHBOARD_DEFAULT_PATH,
+        QUEUE_DASHBOARD_DEFAULT_TAG,
+        bind_values=False,
+    )
+
+    dashboard.all("cluster")
+
+    return dashboard
+
+
+def build_queue_consumer_pass_metrics(backend: str, add_tag: bool = False):
+    rowsets = build_pass_metrisc_rowsets("yt.queue_agent.consumer.controller")
+
+    dashboard = Dashboard()
+    for rowset in rowsets:
+        dashboard.add(rowset)
+
+    dashboard.set_title("Queue consumer pass metrics [Autogenerated]")
+    dashboard.set_description("")
+    add_consumer_parameters(dashboard, add_tag, QUEUE_CONSUMER_DASHBOARD_DEFAULT_CLUSTER, QUEUE_CONSUMER_DASHBOARD_DEFAULT_PATH)
 
     dashboard.all("cluster")
 

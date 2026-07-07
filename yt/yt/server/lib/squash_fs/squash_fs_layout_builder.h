@@ -88,7 +88,7 @@ struct ISquashFSLayoutBuilder
     // Adds directories and file to file system.
     // Takes absolute address to file, its permissions and size.
     virtual void AddFile(
-        TString path,
+        std::string path,
         ui16 permissions,
         NNbd::IRandomAccessFileReaderPtr reader) = 0;
 

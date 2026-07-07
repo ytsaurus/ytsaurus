@@ -63,24 +63,19 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
     for (int replicaIndex = 0; replicaIndex < ChunkReplicaIndexBound; ++replicaIndex) {
         auto partChunkId = EncodeChunkId(TChunkIdWithIndex(chunkId, replicaIndex));
 
-        TChunkReplicaList partReplicas;
         for (auto replica : replicas) {
+            // NB: We separate readers of each part because replicas of the same part are not necessarily identical.
             if (replica.GetReplicaIndex() == replicaIndex) {
-                partReplicas.push_back(replica);
+                partReaders.push_back(CreateReplicationReader(
+                    config,
+                    options,
+                    chunkReaderHost,
+                    partChunkId,
+                    {replica}));
             }
         }
-
-        if (partReplicas.empty()) {
-            continue;
-        }
-
-        partReaders.push_back(CreateReplicationReader(
-            config,
-            options,
-            chunkReaderHost,
-            partChunkId,
-            std::move(partReplicas)));
     }
+
     return partReaders;
 }
 
@@ -138,7 +133,7 @@ public:
         YT_LOG_DEBUG("Erasure chunk reader created (ChunkId: %v, Codec: %v, InitialReplicas: %v)",
             ChunkId_,
             Codec_->GetId(),
-            MakeFormattableView(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
+            MakeFormattableView(InitialReplicas_.Load(), TChunkReplicaAddressFormatter(nodeDirectory)));
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -162,7 +157,9 @@ public:
             , FirstBlockIndex_(firstBlockIndex)
             , BlockCount_(blockCount)
             , InitialReplicas_(Reader_->InitialReplicas_.Load())
-            , Logger(Reader_->Logger().WithTag("ReadSessionId: %v, ReadBlocksSessionId: %v", Options_.ReadSessionId, TGuid::Create()))
+            , Logger(Reader_->Logger().WithTag("ReadSessionId: %v, ReadBlocksSessionId: %v",
+                Options_.ReadSessionId,
+                TGuid::Create()))
         {
             DoRetry();
         }

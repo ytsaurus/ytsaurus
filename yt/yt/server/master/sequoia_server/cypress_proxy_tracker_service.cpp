@@ -31,7 +31,7 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TCypressProxyTrackerServiceProxy::GetDescriptor(),
-            TMasterHydraServiceBase::TRpcHeavyDefaultInvoker{},
+            TDispatcher::Get()->GetHeavyInvoker(),
             SequoiaServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)

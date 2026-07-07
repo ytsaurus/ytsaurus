@@ -112,7 +112,7 @@ public:
         TArchiveReporterConfigPtr reporterConfig,
         TArchiveHandlerConfigPtr handlerConfig,
         TNameTablePtr nameTable,
-        TString reporterName,
+        std::string reporterName,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
         const TProfiler& profiler)
@@ -163,7 +163,7 @@ public:
         }
         if (Limiter_.TryIncrease(rowlet->EstimateSize())) {
             Batcher_->Enqueue(std::move(rowlet));
-            PendingCounter_.Update(PendingCount_++);
+            PendingCounter_.Update(++PendingCount_);
             EnqueuedCounter_.Increment();
             UpdateQueueIsTooLargeCounter();
         } else {
@@ -400,7 +400,7 @@ IArchiveReporterPtr CreateArchiveReporter(
     TArchiveReporterConfigPtr reporterConfig,
     TArchiveHandlerConfigPtr handlerConfig,
     TNameTablePtr nameTable,
-    TString reporterName,
+    std::string reporterName,
     NNative::IClientPtr client,
     IInvokerPtr invoker,
     TProfiler profiler)

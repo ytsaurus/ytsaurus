@@ -1,4 +1,5 @@
 from yt_dynamic_tables_base import DynamicTablesBase
+from .test_sorted_dynamic_tables import TestWriteRetries as WriteRetriesBase
 
 from yt_env_setup import parametrize_external
 
@@ -104,7 +105,6 @@ EXPRESSION_SCHEMA_MISMATCHING = [
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTablesBase(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -251,7 +251,6 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -269,7 +268,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     @authors("savrus")
     def test_replicated_table_must_be_dynamic(self):
-        with pytest.raises(YtError):
+        with raises_yt_error(".* must be dynamic"):
             create("replicated_table", "//tmp/t")
 
     @authors("savrus")
@@ -277,7 +276,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot move a table of type"):
             move("//tmp/t", "//tmp/s")
 
     @authors("babenko")
@@ -285,7 +284,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
         self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Replica cluster .* does not exist"):
             create_table_replica("//tmp/t", "nonexisting", "//tmp/r")
 
     @authors("babenko")
@@ -393,27 +392,27 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("gridem")
     def test_replicated_in_memory_fail(self):
         self._create_cells()
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot mount dynamic table of type"):
             self._create_replicated_table("//tmp/t", in_memory_mode="compressed")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             self._create_replicated_table("//tmp/t", in_memory_mode="uncompressed")
 
     @authors("babenko")
     def test_add_replica_fail1(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
 
     @authors("babenko")
     def test_add_replica_fail2(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* is not a replicated table"):
             create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
 
     @authors("babenko")
     def test_add_replica_fail3(self):
         self._create_replicated_table("//tmp/t", mount=False)
         create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
 
     @authors("babenko")
@@ -541,6 +540,45 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id])
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id])
 
+    @authors("dtorilov")
+    def test_yt_28005_02(self):
+        self._create_cells()
+
+        schema_k1_before_k2 = [
+            {"name": "k0", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(k2)"},
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "v0", "type": "int64"},
+        ]
+        schema_k2_before_k1 = [
+            {"name": "k0", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(k2)"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "v0", "type": "int64"},
+        ]
+
+        self._create_replicated_table("//tmp/t1", schema=schema_k1_before_k2)
+        self._create_replicated_table("//tmp/t2", schema=schema_k2_before_k1)
+
+        replica_id1 = create_table_replica(
+            "//tmp/t1", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async"}
+        )
+        self._create_replica_table("//tmp/r1", replica_id1, schema=schema_k1_before_k2)
+        sync_enable_table_replica(replica_id1)
+
+        replica_id2 = create_table_replica(
+            "//tmp/t2", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"}
+        )
+        self._create_replica_table("//tmp/r2", replica_id2, schema=schema_k2_before_k1)
+        sync_enable_table_replica(replica_id2)
+
+        insert_rows("//tmp/t1", [{"k1": 1, "k2": 2, "v0": 42}], require_sync_replica=False)
+        insert_rows("//tmp/t2", [{"k1": 1, "k2": 2, "v0": 42}], require_sync_replica=False)
+
+        farm_hash_of_2 = yson.YsonUint64(3427386618069609762)
+        wait(lambda: select_rows("k0 from [//tmp/r1]", driver=self.replica_driver) == [{"k0": farm_hash_of_2}])
+        wait(lambda: select_rows("k0 from [//tmp/r2]", driver=self.replica_driver) == [{"k0": farm_hash_of_2}])
+
     @authors("savrus")
     def test_forbid_in_sync_async_replicas(self):
         self._create_cells()
@@ -561,9 +599,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows
         assert lookup_rows("//tmp/r", keys, driver=self.replica_driver) == rows
 
-        with raises_yt_error("No cluster contains in-sync replicas for table //tmp/t"):
+        with raises_yt_error("No cluster contains in-sync replicas"):
             select_rows("* from [//tmp/t]", timestamp=timestamp)
-        with raises_yt_error("No working in-sync replicas found for table //tmp/t"):
+        with raises_yt_error("No working in-sync replicas found for table .*"):
             lookup_rows("//tmp/t", keys, timestamp=timestamp)
 
         # NB: Check only select since lookup doesn't support reading from async replicas for replicated tables
@@ -572,7 +610,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 assert select_rows("* from [//tmp/t]", timestamp=timestamp) == rows
 
                 with self.RpcProxyDynamicConfig("/cluster_connection/banned_in_sync_replica_clusters", ["remote_0"]):
-                    with raises_yt_error("No cluster contains in-sync replicas for table //tmp/t"):
+                    with raises_yt_error("No cluster contains in-sync replicas"):
                         select_rows("* from [//tmp/t]", timestamp=timestamp)
 
     @authors("ponasenko-rs")
@@ -1031,7 +1069,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_enable_table_replica(replica_id)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No column .* in table schema"):
             insert_rows(
                 "//tmp/t",
                 [{"$tablet_index": 1, "key": 1, "value1": "test", "value2": 123}],
@@ -1243,7 +1281,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         commit_transaction(tx1)
         commit_transaction(tx2)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Row lock conflict due to concurrent write"):
             commit_transaction(tx3)
 
         assert lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
@@ -1256,7 +1294,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         commit_transaction(tx2)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Row lock conflict due to concurrent write"):
             commit_transaction(tx1)
 
         tx1 = start_transaction(type="tablet")
@@ -1267,7 +1305,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         commit_transaction(tx1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Write failed due to concurrent read lock"):
             commit_transaction(tx2)
 
         tx1 = start_transaction(type="tablet")
@@ -1290,7 +1328,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 2, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
 
         commit_transaction(tx1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Row lock conflict due to concurrent shared write|Write failed due to concurrent shared write lock"):
             commit_transaction(tx2)
         commit_transaction(tx3)
 
@@ -1594,7 +1632,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot create replica table"):
             create_table_replica(
                 "//tmp/t",
                 self.REPLICA_CLUSTER_NAME,
@@ -1611,7 +1649,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             "//tmp/r1",
             attributes={"mode": "async", "preserve_timestamps": "false"},
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot set"):
             alter_table_replica(replica_id, atomicity="none")
 
     @authors("akozhikhov")
@@ -1865,14 +1903,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_replicated_table("//tmp/t")
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"})
         self._create_replica_table("//tmp/r", replica_id)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot write to sync replica"):
             insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
 
     @authors("babenko")
     def test_upstream_replica_id_check1(self):
         self._create_cells()
         self._create_replica_table("//tmp/r", "1-2-3-4")
-        with pytest.raises(YtError):
+        with raises_yt_error("Table is bound to upstream replica"):
             insert_rows("//tmp/r", [{"key": 1, "value2": 456}], driver=self.replica_driver)
 
     @authors("babenko")
@@ -1882,7 +1920,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"})
         self._create_replica_table("//tmp/r", "1-2-3-4")
         sync_enable_table_replica(replica_id)
-        with pytest.raises(YtError):
+        with raises_yt_error("Mismatched upstream replica"):
             insert_rows("//tmp/t", [{"key": 1, "value2": 456}])
 
     @authors("babenko")
@@ -2332,7 +2370,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 1
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys must be provided to reshard a replicated table"):
             reshard_table("//tmp/t", 3)
 
         reshard_table("//tmp/t", [[], [10]])
@@ -2364,14 +2402,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         tx1 = start_transaction()
         lock("//tmp/t", mode="exclusive", tx=tx1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         abort_transaction(tx1)
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         tx2 = start_transaction()
         lock("//tmp/t", mode="exclusive", tx=tx2)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             remove_table_replica(replica_id)
 
     @authors("babenko")
@@ -2409,12 +2447,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_disable_table_replica(replica_id2)
         sync_alter_table_replica_mode(replica_id2, "async")
-        with pytest.raises(YtError):
+        with raises_yt_error("Table .* has no synchronous replicas and \"require_sync_replica\" option is set"):
             insert_rows("//tmp/t", [{"key": 666, "value1": "hello"}])
         insert_rows("//tmp/t", [{"key": 666, "value1": "hello"}], require_sync_replica=False)
 
         sync_alter_table_replica_mode(replica_id2, "sync")
-        with pytest.raises(YtError):
+        with raises_yt_error("No working in-sync replicas found for table .*"):
             lookup_rows("//tmp/t", [{"key": 666}])
 
         sync_enable_table_replica(replica_id2)
@@ -2430,7 +2468,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(check_catchup)
 
         sync_alter_table_replica_mode(replica_id2, "async")
-        with pytest.raises(YtError):
+        with raises_yt_error("No working in-sync replicas found for table .*"):
             lookup_rows("//tmp/t", [{"key": 666}])
 
     @authors("babenko")
@@ -2465,12 +2503,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             "//tmp/z",
             attributes={"dynamic": True, "schema": self.SIMPLE_SCHEMA_SORTED},
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Query involves both replicated and non-replicated tables"):
             select_rows("* from [//tmp/t] as t1 join [//tmp/z] as t2 on t1.key = t2.key")
 
         sync_alter_table_replica_mode(replica_id2, "async")
         sleep(1.0)
-        with pytest.raises(YtError):
+        with raises_yt_error("No cluster contains in-sync replicas"):
             select_rows("* from [//tmp/t]")
 
     @authors("babenko")
@@ -2531,7 +2569,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         create_user("u")
 
         set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_table_replica(
                 "//tmp/dir/t",
                 self.REPLICA_CLUSTER_NAME,
@@ -2543,9 +2581,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         replica_id = create_table_replica("//tmp/dir/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
 
         set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             alter_table_replica(replica_id, enabled=True, authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .* permission is denied for .* by ACE at node .*"):
             set("#" + replica_id + "/@attr", "value", authenticated_user="u")
 
         set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
@@ -2555,18 +2593,18 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         set("#" + replica_id + "/@attr", "value", authenticated_user="u")
 
         set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("#" + replica_id, authenticated_user="u")
 
         set("//tmp/dir/@acl", [make_ace("deny", "u", "read")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get("#" + replica_id + "/@attr", authenticated_user="u")
 
         set("//tmp/dir/@acl", [make_ace("allow", "u", "read")])
         assert get("#" + replica_id + "/@attr", authenticated_user="u") == "value"
 
         set("//tmp/dir/@acl", [make_ace("deny", "u", "read")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             ls("#" + replica_id + "/@", authenticated_user="u")
 
         set("//tmp/dir/@acl", [make_ace("allow", "u", "read")])
@@ -2588,8 +2626,53 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         set("//tmp/r/@acl", [make_ace("deny", "u", "write")], driver=self.replica_driver)
 
         rows = [{"key": 1, "value1": "1"}]
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             insert_rows("//tmp/t", rows, authenticated_user="u")
+
+    @authors("suboch")
+    def test_not_allowed_lookup_from_sync_replica(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r", replica_id)
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": 0, "value1": "test", "value2": 42}]
+        keys = [{"key": 0}]
+
+        create_user("u")
+        create_user("u", driver=self.replica_driver)
+        insert_rows("//tmp/t", rows, authenticated_user="u")
+        set("//tmp/r/@inherit_acl", False, driver=self.replica_driver)
+
+        with pytest.raises(YtError) as ex:
+            lookup_rows("//tmp/t", keys, authenticated_user="u")
+
+        error = ex.value.find_matching_error(predicate=lambda e: '"read" permission is not allowed by any matching ACE' in e.message)
+        assert error.attributes.get("replica_cluster") == self.REPLICA_CLUSTER_NAME
+        assert error.attributes.get("replica_path") == "//tmp/r"
+
+    @authors("suboch")
+    def test_not_allowed_select_from_sync_replica(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r", replica_id)
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": 0, "value1": "test", "value2": 42}]
+
+        create_user("u")
+        create_user("u", driver=self.replica_driver)
+        insert_rows("//tmp/t", rows, authenticated_user="u")
+        set("//tmp/r/@inherit_acl", False, driver=self.replica_driver)
+
+        with pytest.raises(YtError) as ex:
+            select_rows("* from [//tmp/t]", authenticated_user="u")
+
+        error = ex.value.find_matching_error(predicate=lambda e: '"read" permission is not allowed by any matching ACE' in e.message)
+        assert error.attributes.get("replica_cluster") == self.REPLICA_CLUSTER_NAME
+        assert error.attributes.get("replica_path") == "//tmp/r"
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -2610,13 +2693,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             == [{"key1": 1, "key2": 1, "value1": 1, "value2": 1}]
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows(
                 "//tmp/t",
                 [{"key2": 1, "value1": 1, "value2": 1}],
                 require_sync_replica=False,
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows(
                 "//tmp/t",
                 [{"key1": 1, "key2": 1, "value2": 1}],
@@ -2626,7 +2709,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         delete_rows("//tmp/t", [{"key1": 1, "key2": 1}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             delete_rows("//tmp/t", [{"key2": 1}], require_sync_replica=False)
 
     @authors("ifsmirnov")
@@ -2638,13 +2721,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_replica_table("//tmp/r", replica_id, schema=self.REQUIREDLESS_SCHEMA)
         sync_enable_table_replica(replica_id)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows(
                 "//tmp/t",
                 [{"key2": 1, "value1": 1, "value2": 1}],
                 require_sync_replica=False,
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows(
                 "//tmp/t",
                 [{"key1": 2, "key2": 2, "value2": 2}],
@@ -2662,13 +2745,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_replica_table("//tmp/r", replica_id, schema=self.REQUIRED_SCHEMA)
         sync_enable_table_replica(replica_id)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows(
                 "//tmp/t",
                 [{"key2": 1, "value1": 1, "value2": 1}],
                 require_sync_replica=False,
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows(
                 "//tmp/t",
                 [{"key1": 2, "key2": 2, "value2": 2}],
@@ -2891,7 +2974,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert get_tablet_infos("//tmp/t", [0])["tablets"][0]["trimmed_row_count"] == 1
 
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot reshard non-empty table of type"):
             reshard_table("//tmp/t", [[]])
 
     @authors("akozhikhov")
@@ -3238,7 +3321,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_alter_table_replica_mode(replica_id, "sync")
 
-        with raises_yt_error(yt_error_codes.SyncReplicaNotInSync):
+        with raises_yt_error(code=yt_error_codes.SyncReplicaNotInSync):
             insert_rows("//tmp/t", rows)
 
     @authors("akozhikhov")
@@ -3359,7 +3442,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         # Even empty table cannot be altered.
         bad_schema = deepcopy(schema)
         bad_schema[0]["type"] = "string"
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema)
 
         sync_mount_table("//tmp/t")
@@ -3368,7 +3451,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         bad_schema = deepcopy(schema)
         bad_schema[1]["sort_order"] = "ascending"
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(code=yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema)
 
         with raises_yt_error():
@@ -3524,11 +3607,41 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_unmount_table(path)
         assert select_rows(f"* from [{path}] with hint \"{{require_sync_replica=%false}}\"") == data
 
+    @authors("akozhikhov")
+    def test_unmounted_errors(self):
+        self._create_cells()
+        self._create_replicated_table(
+            "//tmp/t",
+            schema=self.SIMPLE_SCHEMA_SORTED,
+            mount=False,
+            replicated_table_options={
+                "enable_replicated_table_tracker": False,
+            })
+        replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r",
+            attributes={"mode": "sync"},
+        )
+        self._create_replica_table("//tmp/r", schema=self.SIMPLE_SCHEMA_SORTED, mount=False)
+
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": 0, "value1": "0", "value2": 0}]
+        with raises_yt_error("Cannot read from tablet .*"):
+            insert_rows("//tmp/t", rows)
+
+        sync_mount_table("//tmp/t")
+        with raises_yt_error(".* .* has no mounted tablets"):
+            insert_rows("//tmp/t", rows)
+
+        sync_mount_table("//tmp/r", driver=self.replica_driver)
+        insert_rows("//tmp/t", rows)
+
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False
@@ -3560,7 +3673,7 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
         set("//sys/@config/enable_safe_mode", True, driver=self.replica_driver)
 
         if mode == "sync":
-            with pytest.raises(YtError):
+            with raises_yt_error("Access denied"):
                 insert_rows(
                     "//tmp/t",
                     [{"key": 2, "value1": "test", "value2": 10}],
@@ -3639,7 +3752,6 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -3680,7 +3792,6 @@ class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -3853,7 +3964,6 @@ class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestErasureReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -3884,3 +3994,62 @@ class TestErasureReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id)
 
         wait(lambda: select_rows("key, value1 from [//tmp/r] order by key limit 100", driver=self.replica_driver) == rows)
+
+
+##################################################################
+
+
+@pytest.mark.enable_multidaemon
+class TestReplicatedWriteRetries(WriteRetriesBase, TestReplicatedDynamicTablesBase):
+    NUM_REMOTE_CLUSTERS = 1
+
+    def _prepare_test(self, path, failure_probability, retry_count):
+        replica_path = f"{path}_replica"
+
+        self._configure_retries(failure_probability, retry_count)
+
+        [primary_cells, replica_cells] = self._create_cells(cell_count=4)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ]
+
+        pivot_keys = [[]] + [[i * 10] for i in range(1, len(primary_cells))]
+        self._create_replicated_table(path, schema=schema, pivot_keys=pivot_keys, mount=False)
+
+        replica_id1 = create_table_replica(
+            path,
+            self.REPLICA_CLUSTER_NAME,
+            replica_path,
+            attributes={"mode": "sync"},
+        )
+
+        replica_id2 = create_table_replica(
+            path,
+            "primary",
+            replica_path,
+            attributes={"mode": "sync"},
+        )
+
+        self._create_replica_table(replica_path, replica_id1, mount=False, schema=schema)
+        self._create_replica_table(replica_path, replica_id2, mount=False, schema=schema, replica_driver=self.primary_driver)
+
+        reshard_table(replica_path, pivot_keys, driver=self.replica_driver)
+        reshard_table(replica_path, pivot_keys)
+
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        sync_mount_table(path, target_cell_ids=primary_cells)
+        sync_mount_table(replica_path, target_cell_ids=primary_cells)
+        sync_mount_table(replica_path, target_cell_ids=replica_cells, driver=self.replica_driver)
+
+        return replica_cells, replica_path
+
+    def _get_data_driver(self):
+        return self.replica_driver
+
+    def _verify_rows(self, path, rows):
+        replica_path = f"{path}_replica"
+        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(4)]) == rows
+        assert lookup_rows(replica_path, [{"key": 10 * i + 1} for i in range(4)], driver=self.replica_driver) == rows

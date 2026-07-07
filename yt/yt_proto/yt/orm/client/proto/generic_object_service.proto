@@ -182,6 +182,13 @@ message TAttributeTimestampPrerequisite
     optional uint64 timestamp = 2;
 }
 
+message TRevisionPrerequisite {
+    // YPath pointing to the revision holder attribute to check.
+    optional string tracker_path = 1;
+    // For the prerequisite to succeed, the actual revision must not exceed this one.
+    optional fixed64 revision = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Parameters for updating an existing object in the context of a |Create| request ("upsert").
@@ -210,6 +217,7 @@ message TUpdateIfExisting
 
     // Prerequisites to check.
     repeated TAttributeTimestampPrerequisite attribute_timestamp_prerequisites = 5;
+    repeated TRevisionPrerequisite revision_prerequisites = 7;
 }
 
 message TReqCreateObject
@@ -263,6 +271,77 @@ message TRspCreateObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqCreateObjects
+{
+    // Transaction id.
+    // If missing, just creates the objects w/o any transaction.
+    // The request must be sent to the master owning the transaction.
+    optional string transaction_id = 1;
+
+    message TSubrequest
+    {
+        // Type of the object to create.
+        optional int32 object_type = 1;
+
+        // COMPAT(babenko): deprecated; use attributes_payload instead.
+        // Object attributes; in YSON.
+        optional bytes attributes = 2 [(NYT.NYson.NProto.yson_string) = true];
+
+        // Object attributes.
+        optional NYT.NOrm.NClient.NProto.TPayload attributes_payload = 3;
+
+        // If a matching object already exists (key fields must be supplied in attributes),
+        // update the existing object instead of failing.
+        optional TUpdateIfExisting update_if_existing = 4;
+    }
+
+    // Subrequests to serve.
+    repeated TSubrequest subrequests = 2;
+
+    // Format to use in response. None will respond with object_id and fqid. Yson or proto will
+    // leave these empty and fill meta with /meta of the newly created object.
+    optional NYT.NOrm.NClient.NProto.EPayloadFormat format = 3;
+
+    // Common request options.
+    optional TCommonRequestOptions common_options = 4;
+}
+
+// Objects are created concurrently for better performance, so side-effects of different creations can be interleaved.
+//
+// E.g. creation request [parent, child1, child2] can successfully be executed in order [parent, child1, child2],
+// but may as well fail due to different order of execution [child2, child1, parent] with "Parent does not exist" error.
+//
+// It is recommended to separate creation requests inside one transaction by object types.
+message TRspCreateObjects
+{
+    message TSubresponse
+    {
+        // Object id (filled if requested format is NONE and the object has a single string key).
+        // Deprecated, switch to using meta in a format of your choice.
+        optional string object_id = 1 [deprecated = true];
+
+        // Fqid of the newly created object (filled if requested format is NONE).
+        // Deprecated, switch to using meta in a format of your choice.
+        optional string fqid = 3 [deprecated = true];
+
+        // Metadata of the newly created object, if requested instead of separate fields.
+        optional NYT.NOrm.NClient.NProto.TPayload meta = 4;
+
+        optional TAttributeList method_results = 5;
+    }
+
+    // The i-th subresponse here contains the result for the i-th subrequest.
+    repeated TSubresponse subresponses = 1;
+
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 2;
+
+    // Performance statistics for transparency if requested.
+    optional TPerformanceStatistics performance_statistics = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqRemoveObject
 {
     // Transaction id.
@@ -288,6 +367,10 @@ message TReqRemoveObject
     // Overrides default references option (see forbid_non_empty_removal reference option and global option).
     // NB: This option is applied for the whole transaction.
     optional bool allow_removal_with_non_empty_reference = 7;
+
+    // Prerequisites to check.
+    repeated TAttributeTimestampPrerequisite attribute_timestamp_prerequisites = 8;
+    repeated TRevisionPrerequisite revision_prerequisites = 9;
 }
 
 message TRspRemoveObject
@@ -305,6 +388,73 @@ message TRspRemoveObject
     //
     // If this field is non-empty, then object is in |finalized| state and awaits for its finalizers.
     optional uint64 finalization_start_time = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Objects are removed concurrently for better performance, so side-effects of different removals can be interleaved.
+//
+// For example, in the hierarchy of TService -> TPodSet -> TPod
+// removal of [pod set, service, pod] can be executed in order [remove pod, remove pod set, remove service] or
+// alternatively can fail due to attempt to remove pod twice:
+//     [remove pod as a child of pod set during pod set removal,
+//      remove pod as a third input argument,
+//      ...].
+// Also duplicate object`s identifiers in request can cause fail too due to attempt to remove object twice.
+message TReqRemoveObjects
+{
+    // Transaction id.
+    // If missing, just removes the objects w/o any transaction.
+    // The request must be sent to the master owning the transaction.
+    optional string transaction_id = 1;
+
+    message TSubrequest
+    {
+        // Type of the object to remove.
+        optional int32 object_type = 1;
+
+        // Use exactly one of the two following fields.
+        // Id of the object to remove, if the type has a single string id field.
+        optional string object_id = 2 [deprecated = true];
+        // A subset of the object's /meta identifying the object to remove.
+        optional NYT.NOrm.NClient.NProto.TPayload meta = 3;
+
+        // Prerequisites to check.
+        repeated TAttributeTimestampPrerequisite attribute_timestamp_prerequisites = 4;
+        repeated TRevisionPrerequisite revision_prerequisites = 5;
+    }
+
+    // Subrequests to serve.
+    repeated TSubrequest subrequests = 2;
+
+    // If false, fails with an error on nonexistent object(s).
+    // If true, ignores nonexistent object(s).
+    optional bool ignore_nonexistent = 3;
+
+    // Common request options.
+    optional TCommonRequestOptions common_options = 4;
+
+    // Overrides default references option (see |forbid_non_empty_removal| reference option and global option).
+    // NB: This option is applied for the whole transaction.
+    optional bool allow_removal_with_non_empty_reference = 5;
+}
+
+message TRspRemoveObjects
+{
+    message TSubresponse
+    {
+        // See TRspRemoveObject.finalization_start_time.
+        optional uint64 finalization_start_time = 1;
+    }
+
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 1;
+
+    // Performance statistics for transparency if requested.
+    optional TPerformanceStatistics performance_statistics = 2;
+
+    // The i-th subresponse here contains the result for the i-th subrequest.
+    repeated TSubresponse subresponses = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,6 +492,7 @@ message TReqUpdateObject
 
     // Prerequisites to check.
     repeated TAttributeTimestampPrerequisite attribute_timestamp_prerequisites = 6;
+    repeated TRevisionPrerequisite revision_prerequisites = 15;
 
     reserved 7;
     reserved "create_nonexistent";
@@ -365,6 +516,83 @@ message TRspUpdateObject
     optional TPerformanceStatistics performance_statistics = 2;
 
     optional TAttributeList results = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Note that the execution order of the individual subrequests is not guaranteed, and so
+// it is recommended to use the method with independent (in terms of side-effects too) subrequests.
+// In particular, subrequest finalizers can be postponed till the end of the request
+// for the sake of effectiveness (one preload instead of many) or model requirements (to allow
+// invalid intermediate states).
+message TReqUpdateObjects
+{
+    // Transaction id.
+    // If missing, just updates the objects w/o any transaction.
+    // The request must be sent to the master owning the transaction.
+    optional string transaction_id = 1;
+
+    message TSubrequest
+    {
+        // Type of the object to update.
+        optional int32 object_type = 1;
+
+        // Use exactly one of the two following fields.
+        // Id of the object to update, if the type has a single string id field.
+        optional string object_id = 2 [deprecated = true];
+        // A subset of the object's /meta identifying the object to update.
+        optional NYT.NOrm.NClient.NProto.TPayload meta = 6;
+
+        // Describes set-like updates.
+        repeated TSetUpdate set_updates = 3;
+
+        // Describes set-like updates with root corresponding to the object type.
+        repeated TSetRootUpdate set_root_updates = 7;
+
+        // Describes remove-like updates.
+        repeated TRemoveUpdate remove_updates = 4;
+
+        // Describes lock-like updates.
+        repeated TLockUpdate lock_updates = 8;
+
+        repeated TMethodCall method_calls = 9;
+
+        // Prerequisites to check.
+        repeated TAttributeTimestampPrerequisite attribute_timestamp_prerequisites = 5;
+        repeated TRevisionPrerequisite revision_prerequisites = 10;
+   }
+
+    // Subrequests to serve.
+    repeated TSubrequest subrequests = 2;
+
+    reserved 4;
+    reserved "create_nonexistent";
+
+    // If false, fails with an error on nonexistent object.
+    // If true, ignores nonexistent object.
+    optional bool ignore_nonexistent = 5;
+
+    // Common request options.
+    optional TCommonRequestOptions common_options = 3;
+
+    // Methods response format.
+    optional NYT.NOrm.NClient.NProto.EPayloadFormat format = 6;
+}
+
+message TRspUpdateObjects
+{
+    // Commit timestamp in case the request was issued outside of an explicit transaction.
+    optional uint64 commit_timestamp = 1;
+
+    // Performance statistics for transparency if requested.
+    optional TPerformanceStatistics performance_statistics = 2;
+
+    message Subresponse
+    {
+        optional TAttributeList method_results = 1;
+    }
+
+    repeated Subresponse subresponses = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,10 +23,7 @@ from yt.yson.parser import YsonParser
 from yt.yson.common import StreamWrap
 from yt.common import flatten, update_inplace
 
-try:
-    from yt.packages.six import BytesIO, PY3, text_type
-except ImportError:
-    from six import BytesIO, PY3, text_type
+from io import BytesIO
 
 
 class ReadLimit(object):
@@ -61,13 +58,9 @@ class RichYPath(object):
     def parse_attributes(self, path, attributes):
         if not path:
             return ""
-        if PY3:
-            encoding = "utf-8"
-        else:
-            encoding = None
 
         stream = BytesIO(path)
-        parser = YsonParser(stream, encoding, True)
+        parser = YsonParser(stream, "utf-8", True)
 
         if not parser._has_attributes():
             return path
@@ -181,9 +174,7 @@ class RichYPath(object):
         return True
 
     def is_valid_cluster_symbol(self, symbol):
-        if PY3:
-            return symbol in b"_-" or chr(symbol).isalnum()
-        return symbol in b"_-" or symbol.isalnum()
+        return symbol in b"_-" or chr(symbol).isalnum()
 
     def parse_cluster(self, path, attributes):
         if len(path) == 0:
@@ -219,18 +210,15 @@ class RichYPath(object):
             raise YPathError("Path {0} does not start with a valid root-designator, cluster://path short-form assumed; "
                              "path {1} after cluster-separator does not start with a valid root-designator".format(path, remaining_string))
 
-        if PY3:
-            cluster_name = cluster_name.decode()
+        cluster_name = cluster_name.decode()
         attributes["cluster"] = cluster_name
         return remaining_string
 
     def parse(self, path):
         attributes = {}
-        if PY3:
-            encoding = "utf-8"
-        else:
-            encoding = None
-        if isinstance(path, text_type) and PY3:
+        encoding = "utf-8"
+
+        if isinstance(path, str):
             path = bytes(path, "utf-8")
 
         str_without_attributes = self.parse_attributes(path, attributes)
@@ -248,8 +236,7 @@ class RichYPath(object):
         if not path:
             raise YPathError("Path should be non-empty")
 
-        if PY3:
-            path = path.decode()
+        path = path.decode()
 
         if ypath_tokenizer.get_type() == TOKEN_RANGE:
             yson_tokenizer = YsonTokenizer(StreamWrap(BytesIO(range_str), "", ""), encoding)

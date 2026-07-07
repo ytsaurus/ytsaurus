@@ -156,6 +156,11 @@ message TReqAlterReplicationCard
     optional bool enable_replicated_table_tracker = 3;
     optional NYT.NProto.TGuid replication_card_collocation_id = 4;
     optional bytes collocation_options = 5; // NTabletClient::TReplicationCollocationOptions
+    oneof secondary_index {
+        bytes create_secondary_index = 6;
+        NYT.NProto.TGuid destroy_secondary_index = 7;
+        bytes progress_secondary_index_correspondence = 8;
+    }
 }
 
 message TRspAlterReplicationCard
@@ -359,6 +364,18 @@ message TReqForsakeCoordinator
 
 message TRspForsakeCoordinator
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveCellMailbox
+{
+    required NYT.NProto.TGuid destination_cell_id = 1;
+}
+
+message TRspRemoveCellMailbox
+{
+    required bool success = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

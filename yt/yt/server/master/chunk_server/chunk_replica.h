@@ -237,6 +237,8 @@ struct TSequoiaChunkReplica
     NNodeTrackerClient::TChunkLocationIndex LocationIndex = NNodeTrackerClient::InvalidChunkLocationIndex;
     // Not persisted, used for getting StoredReplicas attribute.
     EChunkReplicaState ReplicaState = EChunkReplicaState::Generic;
+    // Not persisted (yet), used for master offshore replicas.
+    int MediumIndex = -1;
 
     std::strong_ordering operator<=>(const TSequoiaChunkReplica& other) const = default;
 
@@ -250,18 +252,26 @@ void FormatValue(TStringBuilderBase* builder, const TSequoiaChunkReplica& value,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkReplicaWithLocationIndex
+struct TChunkReplicaWithLocationIndexAndState
 {
     TNodeId NodeId = InvalidNodeId;
     int ReplicaIndex = NChunkClient::GenericChunkReplicaIndex;
     NNodeTrackerClient::TChunkLocationIndex LocationIndex = NNodeTrackerClient::InvalidChunkLocationIndex;
+    EChunkReplicaState ReplicaState = EChunkReplicaState::Generic;
 };
 
-NYson::TYsonString GetReplicasListYson(const std::vector<TChunkReplicaWithLocationIndex>& replicas);
+NYson::TYsonString GetReplicasListYson(const std::vector<TChunkReplicaWithLocationIndexAndState>& replicas);
 
 NYson::TYsonString GetReplicasYson(
-    const std::vector<TChunkReplicaWithLocationIndex>& replicasToAdd,
-    const std::vector<TChunkReplicaWithLocationIndex>& replicasToRemove);
+    const std::vector<TChunkReplicaWithLocationIndexAndState>& replicasToAdd,
+    const std::vector<TChunkReplicaWithLocationIndexAndState>& replicasToRemove);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkReplicaWithLocationIndexAndStateFormatter
+{
+    void operator()(TStringBuilderBase* builder, const TChunkReplicaWithLocationIndexAndState& replica) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

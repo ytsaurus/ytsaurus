@@ -4,7 +4,6 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "error_manager.h"
-#include "hunk_chunk.h"
 #include "in_memory_manager.h"
 #include "partition.h"
 #include "public.h"
@@ -19,10 +18,6 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 #include "versioned_chunk_meta_manager.h"
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/tablet_node/helpers.h>
 
@@ -133,7 +128,7 @@ void SyncThrottleMediumWrite(
     const NLogging::TLogger& Logger)
 {
     auto mediumThrottler = GetBlobMediumWriteThrottler(
-        bootstrap->GetDynamicConfigManager(),
+        bootstrap->GetTabletNodeDynamicConfig(),
         tabletSnapshot);
 
     auto totalDiskSpace = CalculateDiskSpaceUsage(
@@ -184,13 +179,15 @@ struct TCompactionTaskInfo
     const std::vector<TStoreId> StoreIds;
     const THashSet<TChunkId> HunkChunkIds;
 
+    IScopedMemoryUsageTrackerPtr MemoryUsageTracker;
+
     TCompactionRuntimeData RuntimeData;
 
     TCompactionTaskInfo(
         TGuid taskId,
         TTabletId tabletId,
         NHydra::TRevision mountRevision,
-        TString tablePath,
+        NYPath::TYPath tablePath,
         std::string tabletCellBundle,
         TPartitionId partitionId,
         EStoreCompactionReason reason,
@@ -199,7 +196,8 @@ struct TCompactionTaskInfo
         int effect,
         std::vector<TStoreId> storeIds,
         THashSet<TChunkId> hunkChunkIds,
-        TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason)
+        TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason,
+        IScopedMemoryUsageTrackerPtr memoryUsageTracker)
         : TBackgroundActivityTaskInfoBase(
             taskId,
             tabletId,
@@ -213,6 +211,7 @@ struct TCompactionTaskInfo
         , Effect(effect)
         , StoreIds(std::move(storeIds))
         , HunkChunkIds(std::move(hunkChunkIds))
+        , MemoryUsageTracker(std::move(memoryUsageTracker))
     {
         auto guard = Guard(RuntimeData.SpinLock);
         RuntimeData.HunkChunkCountByReason = hunkChunkCountByReason;
@@ -227,6 +226,7 @@ struct TCompactionTaskInfo
 DEFINE_REFCOUNTED_TYPE(TCompactionTaskInfo);
 using TCompactionTaskInfoPtr = TIntrusivePtr<TCompactionTaskInfo>;
 
+[[maybe_unused]]
 void SerializeFragment(const TCompactionTaskInfo::TCompactionRuntimeData& runtimeData, IYsonConsumer* consumer)
 {
     BuildYsonMapFragmentFluently(consumer)
@@ -266,9 +266,15 @@ void Serialize(const TCompactionTaskInfo& task, IYsonConsumer* consumer)
         .Do([&] (auto fluent) {
             SerializeFragment(task.RuntimeData, fluent.GetConsumer());
         })
+        .DoIf(static_cast<bool>(task.MemoryUsageTracker), [&] (auto fluent) {
+            fluent
+                .Item("row_merger_memory_usage").Value(task.MemoryUsageTracker->GetSelfUsed())
+                .Item("peak_row_merger_memory_usage").Value(task.MemoryUsageTracker->GetSelfPeakUsed());
+        })
     .EndMap();
 }
 
+[[maybe_unused]]
 void Serialize(const TCompactionTaskInfoPtr& task, IYsonConsumer* consumer)
 {
     Serialize(*task, consumer);
@@ -449,18 +455,15 @@ private:
 
     void Initialize()
     {
-        auto enableCollocatedDatNodeThrottling = Bootstrap_->GetDynamicConfigManager()
-            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
+        auto enableCollocatedDatNodeThrottling = Bootstrap_->GetTabletNodeDynamicConfig()
+            ->EnableCollocatedDatNodeThrottling;
 
         StoreWriterConfig_ = CloneYsonStruct(TabletSnapshot_->Settings.StoreWriterConfig);
         StoreWriterConfig_->MinUploadReplicationFactor = StoreWriterConfig_->UploadReplicationFactor;
         StoreWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category);
         StoreWriterConfig_->EnableLocalThrottling = enableCollocatedDatNodeThrottling;
 
-        const auto& minHashDigestConfig = TabletSnapshot_->Settings.MountConfig->MinHashDigestCompaction;
-        if (minHashDigestConfig->Enable) {
-            StoreWriterConfig_->MinHashDigest = minHashDigestConfig->ChunkWriter;
-        }
+        PatchChunkWriterConfigByMountConfig(StoreWriterConfig_, TabletSnapshot_->Settings.MountConfig);
 
         StoreWriterConfig_->Postprocess();
 
@@ -618,6 +621,7 @@ private:
                     .ChunkId = writer->GetChunkId(),
                     .TableSchemaKeyColumnCount = TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
                     .PreparedColumnarMeta = true,
+                    .CompressedBlockLastKeys = TabletSnapshot_->Settings.MountConfig->CompressBlockLastKeys,
                 },
                 New<TRefCountedChunkMeta>(*finalizedMeta));
         }
@@ -765,7 +769,7 @@ public:
 
                     CloseWriter(currentWriter);
                     partitionWriters.push_back({std::move(currentWriter), partitionIndex});
-                    currentWriter.Reset();
+                    currentWriter = {};
                 }
 
                 currentPartitionRowCount = 0;
@@ -793,7 +797,8 @@ public:
                         currentRowIndex = 0;
 
                         auto guard = Guard(task->Info->RuntimeData.SpinLock);
-                        task->Info->RuntimeData.ProcessedReaderStatistics = TBackgroundActivityTaskInfoBase::TReaderStatistics(reader->GetDataStatistics());
+                        task->Info->RuntimeData.ProcessedReaderStatistics =
+                            TBackgroundActivityTaskInfoBase::TReaderStatistics(reader->GetDataStatistics());
                     } else {
                         return TVersionedRow();
                     }
@@ -950,7 +955,7 @@ class TStoreCompactor
 public:
     explicit TStoreCompactor(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Config_(bootstrap->GetConfig()->TabletNode->StoreCompactor)
+        , Config_(bootstrap->GetTabletNodeConfig()->StoreCompactor)
         , ThreadPool_(CreateThreadPool(Config_->ThreadPoolSize, "StoreCompact"))
         , PartitioningSemaphore_(New<TProfiledAsyncSemaphore>(
             Config_->MaxConcurrentPartitionings,
@@ -959,15 +964,14 @@ public:
             Config_->MaxConcurrentCompactions,
             Profiler_.Gauge("/running_compactions")))
         , CompactionOrchid_(New<TCompactionOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid,
+            Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->Orchid,
             Profiler_.WithTag("activity", "compaction")))
         , PartitioningOrchid_(New<TCompactionOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid,
+            Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->Orchid,
             Profiler_.WithTag("activity", "partitioning")))
         , OrchidService_(CreateOrchidService())
     {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->SubscribeTabletNodeConfigChanged(BIND_NO_PROPAGATE(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void OnBeginSlotScan() override
@@ -989,8 +993,7 @@ public:
     {
         TEventTimerGuard timerGuard(ScanTimer_);
 
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreCompactor;
+        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor;
         if (!dynamicConfig->Enable) {
             return;
         }
@@ -1092,7 +1095,7 @@ public:
                     continue;
                 }
 
-                auto futureResult = cellInfo.AsyncTasks.AsUnique().Get();
+                auto futureResult = cellInfo.AsyncTasks.AsUnique().GetOrCrash();
                 if (!futureResult.IsOK()) {
                     continue;
                 }
@@ -1235,10 +1238,10 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+        const TTabletNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TTabletNodeDynamicConfigPtr& newNodeConfig)
     {
-        const auto& config = newNodeConfig->TabletNode->StoreCompactor;
+        const auto& config = newNodeConfig->StoreCompactor;
         ThreadPool_->SetThreadCount(config->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
         PartitioningSemaphore_->SetTotal(config->MaxConcurrentPartitionings.value_or(Config_->MaxConcurrentPartitionings));
         CompactionSemaphore_->SetTotal(config->MaxConcurrentCompactions.value_or(Config_->MaxConcurrentCompactions));
@@ -1450,7 +1453,7 @@ private:
             &TStoreCompactor::CompactPartition);
     }
 
-    NNative::ITransactionPtr StartMasterTransaction(const TTabletSnapshotPtr& tabletSnapshot, const TString& title)
+    NNative::ITransactionPtr StartMasterTransaction(const TTabletSnapshotPtr& tabletSnapshot, const std::string& title)
     {
         auto transactionAttributes = CreateEphemeralAttributes();
         transactionAttributes->Set("title", title);
@@ -1534,6 +1537,7 @@ private:
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
             .ReadSessionId = TReadSessionId::Create(),
             .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground),
+            .InitialQueryKind = EInitialQueryKind::TabletBackground,
         };
 
         auto Logger = TabletNodeLogger()
@@ -1542,7 +1546,7 @@ private:
                 chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
-            if (Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
+            if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
                 ScheduleMorePartitionings();
             }
         });
@@ -1714,7 +1718,8 @@ private:
                 currentTimestamp,
                 // NB: No major compaction during Eden partitioning.
                 /*majorTimestamp*/ MinTimestamp,
-                tabletSnapshot->PartitioningThrottler);
+                tabletSnapshot->PartitioningThrottler,
+                task->Info->MemoryUsageTracker);
 
             auto transaction = StartPartitioningTransaction(tabletSnapshot, &Logger);
 
@@ -1780,6 +1785,7 @@ private:
                     writer->GetDataStatistics().data_weight(),
                     std::memory_order::relaxed);
             }
+            tabletSnapshot->PerformanceCounters->Increment(chunkReadOptions, /*isSystemWorkload*/ true);
 
             YT_LOG_INFO("Eden partitioning completed "
                 "(RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
@@ -1950,6 +1956,7 @@ private:
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
             .ReadSessionId = TReadSessionId::Create(),
             .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground),
+            .InitialQueryKind = EInitialQueryKind::TabletBackground,
         };
 
         auto Logger = TabletNodeLogger()
@@ -1958,7 +1965,7 @@ private:
                 chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
-            if (Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
+            if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
                 ScheduleMoreCompactions();
             }
         });
@@ -2146,7 +2153,8 @@ private:
                 chunkReadOptions,
                 currentTimestamp,
                 majorTimestamp,
-                tabletSnapshot->CompactionThrottler);
+                tabletSnapshot->CompactionThrottler,
+                task->Info->MemoryUsageTracker);
 
             auto transaction = StartCompactionTransaction(tabletSnapshot, &Logger);
 
@@ -2202,6 +2210,7 @@ private:
             tabletSnapshot->PerformanceCounters->CompactionDataWeight.Counter.fetch_add(
                 compactionResult.StoreWriter->GetDataStatistics().data_weight(),
                 std::memory_order::relaxed);
+            tabletSnapshot->PerformanceCounters->Increment(chunkReadOptions, /*isSystemWorkload*/ true);
 
             i64 outputTotalDataWeight = 0;
             for (const auto& statistics : finalizeResult.WriterStatistics) {
@@ -2299,7 +2308,8 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
-        IThroughputThrottlerPtr inboundThrottler)
+        IThroughputThrottlerPtr inboundThrottler,
+        IMemoryUsageTrackerPtr rowMergerMemoryUsageTracker)
     {
         return CreateHunkInliningVersionedReader(
             tablet->GetSettings().HunkReaderConfig,
@@ -2315,7 +2325,7 @@ private:
                 ETabletDistributedThrottlerKind::CompactionRead,
                 std::move(inboundThrottler),
                 chunkReadOptions.WorkloadDescriptor.Category,
-                Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground)),
+                std::move(rowMergerMemoryUsageTracker)),
             tablet->GetChunkFragmentReader(),
             tabletSnapshot->DictionaryCompressionFactory,
             tablet->GetPhysicalSchema(),
@@ -2348,48 +2358,16 @@ private:
             return;
         }
 
-        auto processTabletUpdate = [] (
-            const ITabletSlotPtr& slot,
-            std::vector<TCompactionHintUpdateRequest>&& tabletRequests)
-        {
-            const auto& Logger = TabletNodeLogger;
-
-            for (auto&& tabletRequest : tabletRequests) {
-                const auto* tablet = slot->GetTabletManager()->FindTablet(tabletRequest.TabletId);
-                if (!tablet) {
-                    YT_LOG_DEBUG("Tablet is missing, will not update compaction hints (TabletId: %v, CellId: %v)",
-                        tabletRequest.TabletId,
-                        tabletRequest.CellId);
-                    return;
-                }
-
-                // NB(dave11ar): Maybe rewrite.
-                for (const auto& partition : tablet->PartitionList()) {
-                    auto partitionRequestIt = std::find_if(
-                        tabletRequest.PartitionRequests.begin(),
-                        tabletRequest.PartitionRequests.end(),
-                        [&] (const auto& partitionRequest) {
-                            return partition->GetId() == partitionRequest.PartitionId;
-                        });
-
-                    if (partitionRequestIt == tabletRequest.PartitionRequests.end()) {
-                        return;
-                    }
-
-                    partition->CompactionHints().OnLsmFeedbackReceived(partition.get(), std::move(*partitionRequestIt));
-                }
-            }
-        };
-
         const auto& Logger = TabletNodeLogger;
 
         THashMap<TCellId, std::vector<TCompactionHintUpdateRequest>> cellIdToTabletUpdates;
-        for (auto&& tabletUpdate : updates) {
-            cellIdToTabletUpdates[tabletUpdate.CellId].push_back(std::move(tabletUpdate));
+        for (const auto& tabletUpdate : updates) {
+            cellIdToTabletUpdates[tabletUpdate.CellId].push_back(tabletUpdate);
         }
 
         std::vector<TFuture<void>> updateFutures;
         updateFutures.reserve(cellIdToTabletUpdates.size());
+
         for (auto&& [cellId, tabletUpdates] : cellIdToTabletUpdates) {
             auto slot = Bootstrap_->GetSlotManager()->FindSlot(cellId);
             if (!slot) {
@@ -2399,7 +2377,7 @@ private:
             }
 
             updateFutures.push_back(BIND(
-                processTabletUpdate,
+                &TStoreCompactor::ApplyCompactionHintUpdatesForSlot,
                 slot,
                 Passed(std::move(tabletUpdates)))
                 .AsyncVia(slot->GetGuardedAutomatonInvoker())
@@ -2407,6 +2385,39 @@ private:
         }
 
         YT_VERIFY(WaitFor(AllSet(updateFutures)).IsOK());
+    }
+
+    static void ApplyCompactionHintUpdatesForSlot(
+        const ITabletSlotPtr& slot,
+        std::vector<TCompactionHintUpdateRequest>&& tabletRequests)
+    {
+        const auto& Logger = TabletNodeLogger;
+
+        for (auto&& tabletRequest : tabletRequests) {
+            const auto* tablet = slot->GetTabletManager()->FindTablet(tabletRequest.TabletId);
+            if (!tablet) {
+                YT_LOG_DEBUG("Tablet is missing, will not update compaction hints (TabletId: %v, CellId: %v)",
+                    tabletRequest.TabletId,
+                    tabletRequest.CellId);
+                continue;
+            }
+
+            // NB(dave11ar): Maybe rewrite.
+            for (const auto& partition : tablet->PartitionList()) {
+                auto partitionRequestIt = std::find_if(
+                    tabletRequest.PartitionRequests.begin(),
+                    tabletRequest.PartitionRequests.end(),
+                    [&] (const auto& partitionRequest) {
+                        return partition->GetId() == partitionRequest.PartitionId;
+                    });
+
+                if (partitionRequestIt == tabletRequest.PartitionRequests.end()) {
+                    continue;
+                }
+
+                partition->CompactionHints().OnLsmFeedbackReceived(partition.get(), std::move(*partitionRequestIt));
+            }
+        }
     }
 
     static int GetOverlappingStoreLimit(const TTableMountConfigPtr& config)
@@ -2489,7 +2500,10 @@ TCompactionTask::TCompactionTask(
             effect,
             std::move(storeIds),
             std::move(hunkChunkIds),
-            hunkChunkCountByReason),
+            hunkChunkCountByReason,
+            CreateScopedMemoryTracker(
+                tablet->TryGetNodeMemoryUsageTracker()->WithCategory(
+                    EMemoryCategory::TabletRowMerger))),
         std::move(orchid))
     , Slot(slot)
     , Invoker(tablet->GetEpochAutomatonInvoker())

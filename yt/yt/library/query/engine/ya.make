@@ -10,7 +10,9 @@ SRCS(
     cg_fragment_compiler.cpp
     cg_helpers.cpp
     cg_ir_builder.cpp
-    cg_routines.cpp
+    cg_routines/registry.cpp
+    cg_routines/inferrum.cpp
+    cg_routines/yt.cpp
     GLOBAL column_evaluator.cpp
     GLOBAL expression_evaluator.cpp
     GLOBAL coordinator.cpp
@@ -25,7 +27,7 @@ SRCS(
     web_assembly_caller.cpp
     web_assembly_data_transfer.cpp
     web_assembly_type_builder.cpp
-    GLOBAL query_engine_config.cpp  # TODO(dtorilov): Fix static initializer and remove this GLOBAL.
+    GLOBAL query_evaluator.cpp
 )
 
 IF (OPENSOURCE)
@@ -316,8 +318,8 @@ LLVM_BC(
 )
 
 LLVM_BC(
-    udf/replica_set.cpp
-    NAME stored_replica_set
+    udf/yt_stored_replica_set.cpp
+    NAME yt_stored_replica_set
     SYMBOLS
         _yt_stored_replica_set_init
         _yt_stored_replica_set_update
@@ -326,8 +328,18 @@ LLVM_BC(
 )
 
 LLVM_BC(
-    udf/last_seen_replica_set.cpp
-    NAME last_seen_replica_set
+    udf/inferrum_kv_cache_replica_set.cpp
+    NAME inferrum_kv_cache_replica_set
+    SYMBOLS
+        _inferrum_kv_cache_replica_set_init
+        _inferrum_kv_cache_replica_set_update
+        _inferrum_kv_cache_replica_set_merge
+        _inferrum_kv_cache_replica_set_finalize
+)
+
+LLVM_BC(
+    udf/yt_last_seen_replica_set.cpp
+    NAME yt_last_seen_replica_set
     SYMBOLS
         _yt_last_seen_replica_set_init
         _yt_last_seen_replica_set_update
@@ -527,7 +539,7 @@ LLVM_BC(
 )
 
 LLVM_BC(
-    udf/xdelta3.c
+    udf/xdelta.c
     NAME xdelta
     SYMBOLS
         xdelta_init
@@ -606,3 +618,7 @@ LLVM_BC(
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    cg_routines/unittests
+)

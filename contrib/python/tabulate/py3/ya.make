@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(0.9.0)
+VERSION(0.10.0)
 
 LICENSE(MIT)
 
@@ -11,7 +11,6 @@ NO_LINT()
 PY_SRCS(
     TOP_LEVEL
     tabulate/__init__.py
-    tabulate/version.py
 )
 
 RESOURCE_FILES(

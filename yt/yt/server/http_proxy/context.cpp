@@ -40,6 +40,9 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/yt/string/stream.h>
+#include <library/cpp/yt/string/string.h>
+
 #include <util/random/random.h>
 
 #include <util/string/ascii.h>
@@ -134,8 +137,7 @@ bool TContext::TryParseRequest()
 
 bool TContext::TryParseCommandName()
 {
-    auto versionedName = TString(Request_->GetUrl().Path);
-    versionedName.to_lower();
+    auto versionedName = AsciiStringToLower(Request_->GetUrl().Path);
 
     if (versionedName == "/api" || versionedName == "/api/") {
         Response_->SetStatus(EStatusCode::OK);
@@ -149,9 +151,9 @@ bool TContext::TryParseCommandName()
         return false;
     }
 
-    if (versionedName.StartsWith("/api/v3")) {
+    if (versionedName.starts_with("/api/v3")) {
         ApiVersion_ = 3;
-    } else if (versionedName.StartsWith("/api/v4")) {
+    } else if (versionedName.starts_with("/api/v4")) {
         ApiVersion_ = 4;
     } else {
         THROW_ERROR_EXCEPTION("Unsupported API version %Qv", versionedName);
@@ -241,7 +243,7 @@ bool TContext::TryParseUser()
     if (auto error = Api_->CheckAccess(authenticatedUser); !error.IsOK()) {
         YT_LOG_DEBUG(error);
         Response_->SetStatus(EStatusCode::Forbidden);
-        auto proxyRole = Api_->GetCoordinator()->GetSelf()->Role;
+        auto proxyRole = Api_->GetCoordinator()->GetSelfEntry()->Role;
         ReplyError(TError("User %Qv is not allowed to access proxy with role %Qv", authenticatedUser, proxyRole));
         return false;
     }
@@ -451,7 +453,7 @@ void TContext::CaptureParameters()
     try {
         auto header = GatherHeader(Request_->GetHeaders(), "x-yt-parameters");
         if (header) {
-            TMemoryInput stream(header->data(), header->size());
+            TMemoryInput stream(*header);
             auto fromHeaders = ConvertToNode(CreateProducerForFormat(
                 *HeadersFormat_,
                 EDataType::Structured,
@@ -502,15 +504,15 @@ void TContext::SetETagRevision()
 
 void TContext::SetContentDispositionAndMimeType()
 {
-    TString disposition = "attachment";
+    std::string disposition = "attachment";
     if (Descriptor_->Heavy) {
-        TString filename;
+        std::string filename;
         if (Descriptor_->CommandName == "download" ||
             Descriptor_->CommandName == "read_table" ||
             Descriptor_->CommandName == "read_file")
         {
             if (auto pathNode = DriverRequest_.Parameters->FindChild("path")) {
-                filename = "yt_" + pathNode->GetValue<TString>();
+                filename = "yt_" + pathNode->GetValue<std::string>();
             }
         } else if (Descriptor_->CommandName == "get_job_stderr") {
             auto operationIdNode = DriverRequest_.Parameters->FindChild("operation_id");
@@ -540,7 +542,7 @@ void TContext::SetContentDispositionAndMimeType()
         }
 
         if (auto passedFilenameNode = DriverRequest_.Parameters->FindChild("filename")) {
-            filename = passedFilenameNode->GetValue<TString>();
+            filename = passedFilenameNode->GetValue<std::string>();
         }
 
         for (size_t i = 0; i < filename.size(); ++i) {
@@ -549,14 +551,16 @@ void TContext::SetContentDispositionAndMimeType()
             }
         }
 
-        if (filename.Contains("sys_operations") && filename.Contains("stderr")) {
+        if (filename.contains("sys_operations") && filename.contains("stderr")) {
             disposition = "inline";
         }
 
         if (auto passedDispositionNode = DriverRequest_.Parameters->FindChild("disposition")) {
-            auto sanitizedDisposition = passedDispositionNode->GetValue<TString>();
-            sanitizedDisposition.to_lower();
-            if (sanitizedDisposition == "inline" && sanitizedDisposition == "attachment") {
+            auto sanitizedDisposition = passedDispositionNode->GetValue<std::string>();
+            for (auto& c : sanitizedDisposition) {
+                c = AsciiToLower(c);
+            }
+            if (sanitizedDisposition == "inline" || sanitizedDisposition == "attachment") {
                 disposition = sanitizedDisposition;
             }
         }
@@ -569,7 +573,7 @@ void TContext::SetContentDispositionAndMimeType()
     }
 
     if (Descriptor_->OutputType == EDataType::Binary) {
-        if (disposition.StartsWith("inline")) {
+        if (disposition.starts_with("inline")) {
             ContentType_ = "text/plain; charset=\"utf-8\"";
         } else {
             ContentType_ = "application/octet-stream";
@@ -616,6 +620,9 @@ void TContext::LogStructuredRequest()
         }
     });
 
+    auto userTicketHeader = Request_->GetHeaders()->Find(NHeaders::UserTicketHeaderName);
+    auto serviceTicketHeader = Request_->GetHeaders()->Find(NHeaders::ServiceTicketHeaderName);
+
     YT_LOG_DEBUG("Request finished (Command: %v, User: %v, WallTime: %v, CpuTime: %v, InBytes: %v, OutBytes: %v)",
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
@@ -654,7 +661,11 @@ void TContext::LogStructuredRequest()
         .Item("cpu_time").Value(ResultCpuTime_)
         .Item("start_time").Value(Timer_.GetStartTime())
         .Item("in_bytes").Value(Request_->GetReadByteCount())
-        .Item("out_bytes").Value(Response_->GetWriteByteCount());
+        .Item("out_bytes").Value(Response_->GetWriteByteCount())
+        .DoIf(userTicketHeader && !serviceTicketHeader, [&] (auto fluent) {
+            fluent
+                .Item("debug_info").Value(TYsonString(std::string("{\"user_ticket_and_no_service_ticket\"=true}")));
+        });
 }
 
 void TContext::SetupInputStream()
@@ -799,7 +810,7 @@ void TContext::SetupUserMemoryLimits()
 
     updateUserMemoryRatio(config->DefaultMemoryLimitRatios);
 
-    const auto& role = Api_->GetCoordinator()->GetSelf()->Role;
+    auto role = Api_->GetCoordinator()->GetSelfEntry()->Role;
     const auto& roleMemoryLimitRatiosIt = config->RoleToMemoryLimitRatios.find(role);
     if (roleMemoryLimitRatiosIt != config->RoleToMemoryLimitRatios.end()) {
         updateUserMemoryRatio(roleMemoryLimitRatiosIt->second);
@@ -840,7 +851,7 @@ void TContext::SetEnrichedError(const TError& error)
     if (DriverRequest_.Parameters) {
         if (auto path = DriverRequest_.Parameters->FindChild("path")) {
             Error_ = Error_
-                << TErrorAttribute("path", path->GetValue<TString>());
+                << TErrorAttribute("path", path->GetValue<TYPath>());
         }
     }
 
@@ -857,12 +868,12 @@ void TContext::ProcessFormatsInOperationSpec()
     auto specNode = DriverRequest_.Parameters->FindChild("spec");
     auto commandName = DriverRequest_.CommandName;
     auto operationTypeNode = DriverRequest_.Parameters->FindChild("operation_type");
-    TString operationTypeString;
+    std::string operationTypeString;
     if (commandName == "start_op" || commandName == "start_operation") {
         if (!operationTypeNode || operationTypeNode->GetType() != ENodeType::String) {
             return;
         }
-        operationTypeString = operationTypeNode->GetValue<TString>();
+        operationTypeString = operationTypeNode->GetValue<std::string>();
     } else {
         operationTypeString = commandName;
     }
@@ -1006,8 +1017,8 @@ TSharedRef DumpError(const TError& error)
     delimiter.append(80, '=');
     delimiter.push_back('\n');
 
-    TString errorMessage;
-    TStringOutput errorStream(errorMessage);
+    std::string errorMessage;
+    TStdStringOutput errorStream(errorMessage);
     errorStream << "\n";
     errorStream << delimiter;
 
@@ -1137,7 +1148,7 @@ void TContext::DispatchJson(const TJsonProducer& producer)
     });
 }
 
-void TContext::DispatchUnauthorized(const TString& scope, const TString& message)
+void TContext::DispatchUnauthorized(const std::string& scope, const std::string& message)
 {
     Response_->SetStatus(EStatusCode::Unauthorized);
     Response_->GetHeaders()->Set("WWW-Authenticate", scope);
@@ -1147,12 +1158,12 @@ void TContext::DispatchUnauthorized(const TString& scope, const TString& message
 void TContext::DispatchUnavailable(const TError& error)
 {
     Response_->SetStatus(EStatusCode::ServiceUnavailable);
-    // This header is header is probably useless, but we keep it for compatibility.
+    // This header is probably useless, but we keep it for compatibility.
     Response_->GetHeaders()->Set("Retry-After", "60");
     ReplyError(error);
 }
 
-void TContext::DispatchNotFound(const TString& message)
+void TContext::DispatchNotFound(const std::string& message)
 {
     Response_->SetStatus(EStatusCode::NotFound);
     ReplyError(TError(TRuntimeFormat(message)));
@@ -1179,8 +1190,8 @@ void TContext::OnOutputParameters()
         }
     }
 
-    TString headerValue;
-    TStringOutput stream(headerValue);
+    std::string headerValue;
+    TStdStringOutput stream(headerValue);
     auto consumer = CreateConsumerForFormat(*HeadersFormat_, EDataType::Structured, &stream);
     Serialize(OutputParameters_, consumer.get());
     consumer->Flush();
@@ -1268,7 +1279,7 @@ IInvokerPtr TContext::GetCompressionInvoker() const
 void TContext::ProfileCumulativeCpu(
     const TTraceContextPtr& traceContext,
     const std::string& authenticatedUser,
-    const TString& commandName)
+    const std::string& commandName)
 {
     if (traceContext) {
         auto currentCpuTime = traceContext->GetElapsedTime();

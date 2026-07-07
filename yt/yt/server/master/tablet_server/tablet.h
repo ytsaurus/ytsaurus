@@ -97,7 +97,10 @@ public:
     using TReplicaMap = THashMap<NObjectServer::TWeakObjectPtr<TTableReplica>, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(
+        NTransactionClient::TTimestamp,
+        RetainedTimestamp,
+        NTransactionClient::MinTimestamp);
 
     // Timestamp used on tablet node to check conflicts with versions from removed stores.
     // More in NTabletNode::TTablet.
@@ -150,8 +153,8 @@ public:
 
     i64 GetTabletMasterMemoryUsage() const override;
 
-    i64 GetHunkUncompressedDataSize() const;
-    i64 GetHunkCompressedDataSize() const;
+    i64 GetHunkDataWeight() const;
+    i64 GetHunkDataSize() const;
 
     void CheckedSetBackupState(ETabletBackupState previous, ETabletBackupState next);
 

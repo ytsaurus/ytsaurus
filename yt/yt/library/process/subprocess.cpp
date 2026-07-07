@@ -156,7 +156,7 @@ TProcessBasePtr TSubprocess::GetProcess() const
 void RunSubprocess(const std::vector<std::string>& cmd)
 {
     if (cmd.empty()) {
-        THROW_ERROR_EXCEPTION("Command can't be empty");
+        THROW_ERROR_EXCEPTION("Command cannot be empty");
     }
 
     auto process = TSubprocess(cmd[0]);

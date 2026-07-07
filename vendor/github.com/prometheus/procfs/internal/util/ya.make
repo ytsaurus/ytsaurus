@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.16.0)
+VERSION(v0.19.2)
 
 SRCS(
     parse.go
@@ -33,6 +33,12 @@ ENDIF()
 IF (OS_ANDROID)
     SRCS(
         sysreadfile.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        sysreadfile_compat.go
     )
 ENDIF()
 

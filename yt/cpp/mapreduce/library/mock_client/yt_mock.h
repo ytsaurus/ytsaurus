@@ -98,6 +98,7 @@ public:
     MOCK_METHOD(void, EnableTableReplica, (const TReplicaId& replicaid), ());
     MOCK_METHOD(void, DisableTableReplica, (const TReplicaId& replicaid), ());
     MOCK_METHOD(void, AlterTableReplica, (const TReplicaId& replicaid, const TAlterTableReplicaOptions&), (override));
+    MOCK_METHOD(void, CheckClusterLiveness, (const TCheckClusterLivenessOptions&), (override));
 
     MOCK_METHOD(TAuthorizationInfo, WhoAmI, (), (override));
 

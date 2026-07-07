@@ -1,8 +1,7 @@
 #pragma once
 
-#include "private.h"
-
 #include "data_flow_graph.h"
+#include "private.h"
 
 #include <yt/yt/server/controller_agent/helpers.h>
 
@@ -39,7 +38,7 @@ struct TLivePreviewTableBase
 {
     // Live preview table ids.
     NCypressClient::TNodeId LivePreviewTableId;
-    TString LivePreviewTableName;
+    std::string LivePreviewTableName;
 
     PHOENIX_DECLARE_TYPE(TLivePreviewTableBase, 0xcc71c8d6);
 };

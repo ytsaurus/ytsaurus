@@ -1,0 +1,22 @@
+#include "snapshot.h"
+
+namespace NYT::NQueueAgent {
+
+using namespace NQueueClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQueueSnapshot::TQueueSnapshot(TQueueTableRow row)
+    : Row(std::move(row))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TConsumerSnapshot::TConsumerSnapshot(TConsumerReference ref, TConsumerTableRowConstPtr row)
+    : Ref(std::move(ref))
+    , Row(std::move(row))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NQueueAgent

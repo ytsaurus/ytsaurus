@@ -14,19 +14,20 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(yt-yt-library-tracing-unittests)
+add_executable(unittester-library-tracing)
 
 
-target_compile_options(yt-yt-library-tracing-unittests PRIVATE
+target_compile_options(unittester-library-tracing PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
-target_link_libraries(yt-yt-library-tracing-unittests PUBLIC
+target_link_libraries(unittester-library-tracing PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -37,12 +38,12 @@ target_link_libraries(yt-yt-library-tracing-unittests PUBLIC
   library-tracing-jaeger
 )
 
-target_allocator(yt-yt-library-tracing-unittests
+target_allocator(unittester-library-tracing
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(yt-yt-library-tracing-unittests PRIVATE
+target_link_options(unittester-library-tracing PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -53,21 +54,21 @@ target_link_options(yt-yt-library-tracing-unittests PRIVATE
   -lutil
 )
 
-target_sources(yt-yt-library-tracing-unittests PRIVATE
+target_sources(unittester-library-tracing PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/unittests/sampler_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-library-tracing-unittests
+  unittester-library-tracing
   COMMAND
-  yt-yt-library-tracing-unittests
+  unittester-library-tracing
 )
 
 set_property(
   TEST
-  yt-yt-library-tracing-unittests
+  unittester-library-tracing
   PROPERTY
   LABELS
   SMALL
@@ -75,16 +76,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-library-tracing-unittests
+  unittester-library-tracing
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-yt-library-tracing-unittests)
+vcs_info(unittester-library-tracing)
 
 set_property(
   TEST
-  yt-yt-library-tracing-unittests
+  unittester-library-tracing
   PROPERTY
   PROCESSORS
   1

@@ -156,4 +156,6 @@ DB::DataTypePtr GetDataTypeTzTimestamp64()
     return factory.get("TzTimestamp64");
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClickHouseServer

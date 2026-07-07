@@ -167,9 +167,9 @@ namespace NActors {
     void ParseExtendedFormatPayload(TRope::TConstIterator &iter, size_t &size, TVector<TRope> &payload, size_t &totalPayloadSize);
     bool SerializeToArcadiaStreamImpl(TChunkSerializer* chunker, const TVector<TRope> &payload);
     ui32 CalculateSerializedHeaderSizeImpl(const TVector<TRope> &payload);
-    std::optional<TRope> SerializeToRopeImpl(const google::protobuf::MessageLite& msg, const TVector<TRope>& payload, NInterconnect::NRdma::IMemPool* pool);
+    std::optional<TRope> SerializeToRopeImpl(const google::protobuf::MessageLite& msg, const TVector<TRope>& payload, IRcBufAllocator* allocator);
     ui32 CalculateSerializedSizeImpl(const TVector<TRope> &payload, ssize_t recordSize);
-    TEventSerializationInfo CreateSerializationInfoImpl(size_t preserializedSize, bool allowExternalDataChannel, const TVector<TRope> &payload, ssize_t recordSize);
+    TEventSerializationInfo CreateSerializationInfoImpl(size_t preserializedSize, bool allowExternalDataChannel, const TVector<TRope> &payload, ssize_t recordSize, size_t payloadAlignment = 0);
 
     template <typename TEv, typename TRecord /*protobuf record*/, ui32 TEventType, typename TRecHolder>
     class TEventPBBase: public TEventBase<TEv, TEventType> , public TRecHolder {
@@ -226,8 +226,8 @@ namespace NActors {
             return CalculateSerializedSizeImpl(Payload, Record.ByteSize());
         }
 
-        std::optional<TRope> SerializeToRope(NInterconnect::NRdma::IMemPool* pool) const override {
-            return NActors::SerializeToRopeImpl(Record, Payload, pool);
+        std::optional<TRope> SerializeToRope(IRcBufAllocator* allocator) const override {
+            return NActors::SerializeToRopeImpl(Record, Payload, allocator);
         }
 
         static TEv* Load(const TEventSerializedData *input) {
@@ -251,7 +251,6 @@ namespace NActors {
                             " size# " << size << " hexDump# " << HexEncode(input->GetString()));
                 }
             }
-            ev->CachedByteSize = input->GetSize();
             return holder.Release();
         }
 
@@ -273,11 +272,16 @@ namespace NActors {
         TEventSerializationInfo CreateSerializationInfo(bool allowExternalDataChannel) const override {
             allowExternalDataChannel = allowExternalDataChannel && static_cast<const TEv&>(*this).AllowExternalDataChannel();
             return CreateSerializationInfoImpl(0, allowExternalDataChannel, GetPayload(),
-                allowExternalDataChannel ? Record.ByteSize() : 0);
+                allowExternalDataChannel ? Record.ByteSize() : 0,
+                static_cast<const TEv&>(*this).GetPayloadAlignment());
         }
 
         bool AllowExternalDataChannel() const {
             return TotalPayloadSize >= 4096;
+        }
+
+        size_t GetPayloadAlignment() const {
+            return 0;
         }
 
     public:
@@ -305,6 +309,7 @@ namespace NActors {
         void StripPayload() {
             Payload.clear();
             TotalPayloadSize = 0;
+            InvalidateCachedByteSize();
         }
 
     protected:
@@ -469,7 +474,8 @@ namespace NActors {
         TEventSerializationInfo CreateSerializationInfo(bool allowExternalDataChannel) const override {
             allowExternalDataChannel = allowExternalDataChannel && static_cast<const TEv&>(*this).AllowExternalDataChannel();
             return CreateSerializationInfoImpl(PreSerializedData.size(), allowExternalDataChannel, TBase::GetPayload(),
-                allowExternalDataChannel ? Record.ByteSize() : 0);
+                allowExternalDataChannel ? Record.ByteSize() : 0,
+                static_cast<const TEv&>(*this).GetPayloadAlignment());
         }
     };
 

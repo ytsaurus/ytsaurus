@@ -49,7 +49,7 @@ constinit const auto Logger = ClusterNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatMemoryUsage(i64 memoryUsage)
+std::string FormatMemoryUsage(i64 memoryUsage)
 {
     TStringBuf prefix = "";
     if (memoryUsage < 0) {
@@ -99,11 +99,13 @@ void FormatResources(
         FormatMemoryUsage(limits.SystemMemory),
         // Network
         usage.Network,
+        limits.Network,
+        // DiskSpace
         FormatMemoryUsage(usage.DiskSpaceRequest),
         FormatMemoryUsage(limits.DiskSpaceRequest),
+        // Inodes
         usage.InodeRequest,
         limits.InodeRequest,
-        limits.Network,
         // Replication slots
         usage.ReplicationSlots,
         limits.ReplicationSlots,
@@ -118,7 +120,7 @@ void FormatResources(
         limits.RepairSlots,
         // Repair data size
         usage.RepairDataSize,
-        limits.RepairSlots,
+        limits.RepairDataSize,
         // Seal slots
         usage.SealSlots,
         limits.SealSlots,
@@ -136,7 +138,7 @@ void FormatResources(
         limits.ReincarnationSlots);
 }
 
-TString FormatResourceUsage(
+std::string FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits)
 {
@@ -480,6 +482,21 @@ void TNodeResourceManager::OnInstanceLimitsUpdated(const NContainers::TInstanceL
     Limits_.Store(limits);
 }
 
+TFuture<void> TNodeResourceManager::SyncUpdateLimits()
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    if (!UpdateExecutor_->IsStarted()) {
+        return MakeFuture(TError("Node resource update executor is not started"));
+    }
+
+    YT_LOG_DEBUG("Requested out of band node limits update");
+
+    auto event = UpdateExecutor_->GetExecutedEvent();
+    UpdateExecutor_->ScheduleOutOfBand();
+    return event;
+}
+
 IYPathServicePtr TNodeResourceManager::GetOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -619,9 +636,6 @@ void TNodeResourceManager::UpdateLimits()
 
     YT_LOG_DEBUG("Updating node resource limits");
 
-    UpdateLoggingCategory();
-    UpdateProfilingCategory();
-    UpdateMemoryFootprint();
     UpdateMemoryLimits();
     UpdateJobsCpuLimit();
 }
@@ -648,6 +662,8 @@ void TNodeResourceManager::UpdateMemoryLimits()
             totalMemory);
     }
 
+    bool jobResourceAvailabilityIncreased = false;
+
     if (auto oldMemoryLimit = memoryUsageTracker->GetTotalLimit(); totalMemory != oldMemoryLimit) {
         YT_LOG_INFO(
             "Setting new memory limit (OldMemoryLimit: %v, NewMemoryLimit: %v, FreeMemoryWatermark: %v)",
@@ -656,6 +672,8 @@ void TNodeResourceManager::UpdateMemoryLimits()
             freeMemoryWatermark);
 
         memoryUsageTracker->SetTotalLimit(totalMemory);
+
+        jobResourceAvailabilityIncreased = totalMemory > oldMemoryLimit;
     }
 
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
@@ -674,7 +692,16 @@ void TNodeResourceManager::UpdateMemoryLimits()
                 oldLimit,
                 newLimit);
             memoryUsageTracker->SetCategoryLimit(category, newLimit);
+
+            if (category == EMemoryCategory::UserJobs && newLimit > oldLimit) {
+                jobResourceAvailabilityIncreased = true;
+            }
         }
+    }
+
+    if (jobResourceAvailabilityIncreased) {
+        YT_LOG_DEBUG("Job memory availability increased, notifying job resource manager");
+        Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
     }
 
     auto externalMemory = std::max(
@@ -689,61 +716,6 @@ void TNodeResourceManager::UpdateMemoryLimits()
     }
 }
 
-void TNodeResourceManager::UpdateProfilingCategory()
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    Bootstrap_->GetNodeMemoryUsageTracker()->UpdateUsage(EMemoryCategory::Profiling, GetCountersBytesAlive());
-}
-
-void TNodeResourceManager::UpdateLoggingCategory()
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    Bootstrap_
-        ->GetNodeMemoryUsageTracker()
-        ->UpdateUsage(
-            EMemoryCategory::Logging,
-            TRefCountedTracker::Get()
-                ->GetBytesAlive(GetRefCountedTypeKey<NLogging::NDetail::TMessageBufferTag>()));
-}
-
-void TNodeResourceManager::UpdateMemoryFootprint()
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    const auto& memoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker();
-
-    i64 bytesUsed = tcmalloc::MallocExtension::GetNumericProperty("generic.current_allocated_bytes").value_or(0);
-    i64 bytesCommitted = tcmalloc::MallocExtension::GetNumericProperty("generic.heap_size").value_or(0);
-    auto newFragmentation = std::max<i64>(0, bytesCommitted - bytesUsed);
-
-    auto newFootprint = bytesUsed;
-    for (auto memoryCategory : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-        if (memoryCategory == EMemoryCategory::UserJobs ||
-            memoryCategory == EMemoryCategory::Footprint ||
-            memoryCategory == EMemoryCategory::AllocFragmentation ||
-            memoryCategory == EMemoryCategory::TmpfsLayers)
-        {
-            continue;
-        }
-
-        newFootprint -= memoryUsageTracker->GetUsed(memoryCategory);
-    }
-    newFootprint = std::max<i64>(newFootprint, 0);
-
-    auto oldFootprint = memoryUsageTracker->UpdateUsage(EMemoryCategory::Footprint, newFootprint);
-    auto oldFragmentation = memoryUsageTracker->UpdateUsage(EMemoryCategory::AllocFragmentation, newFragmentation);
-
-    YT_LOG_INFO("Memory footprint updated (BytesCommitted: %v, BytesUsed: %v, Footprint: %v -> %v, Fragmentation: %v -> %v, Rpc: %v)",
-        bytesCommitted,
-        bytesUsed,
-        oldFootprint,
-        newFootprint,
-        oldFragmentation,
-        newFragmentation,
-        memoryUsageTracker->GetUsed(EMemoryCategory::Rpc));
-}
 
 void TNodeResourceManager::UpdateJobsCpuLimit()
 {
@@ -767,7 +739,18 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
     }
     newJobsCpuLimit = std::max<double>(newJobsCpuLimit, 0);
 
+    auto oldJobsCpuLimit = JobsCpuLimit_.load();
     JobsCpuLimit_.store(newJobsCpuLimit);
+
+    if (newJobsCpuLimit > oldJobsCpuLimit) {
+        YT_LOG_DEBUG(
+            "Jobs cpu limit increased, notifying job resource manager "
+            "(OldJobsCpuLimit: %v, NewJobsCpuLimit: %v)",
+            oldJobsCpuLimit,
+            newJobsCpuLimit);
+        Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
+    }
+
     JobsCpuLimitUpdated_.Fire();
 }
 

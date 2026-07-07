@@ -59,7 +59,7 @@ class TChunkLocationBase
 public:
     TChunkLocationBase(
         ELocationType type,
-        TString id,
+        std::string id,
         TChunkLocationConfigBasePtr config,
         TCallback<TBriefChunkLocationConfig()> getBriefConfigCallback,
         NObjectClient::TCellId cellId,
@@ -82,7 +82,7 @@ public:
     void SetIndex(TChunkLocationIndex index);
 
     //! Returns the disk family
-    const TString& GetDiskFamily() const;
+    const std::string& GetDiskFamily() const;
 
     //! Returns the IO Engine.
     const NIO::IIOEnginePtr& GetIOEngine() const;
@@ -93,7 +93,7 @@ public:
     const NProfiling::TProfiler& GetProfiler() const;
 
     //! Returns the root path of the location.
-    const TString& GetPath() const;
+    const std::string& GetPath() const;
 
     //! Returns the maximum number of bytes the chunks assigned to this location
     //! are allowed to use.
@@ -151,7 +151,7 @@ public:
     int GetChunkCount() const;
 
     //! Returns a full path for a primary chunk file.
-    TString GetChunkPath(TChunkId chunkId) const;
+    std::string GetChunkPath(TChunkId chunkId) const;
 
     //! Removes a chunk permanently or moves it to the trash (if available).
     virtual void RemoveChunkFiles(TChunkId chunkId, bool force);
@@ -241,8 +241,8 @@ protected:
     NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
     NIO::IIOEnginePtr IOEngine_;
 
-    static TString GetRelativeChunkPath(TChunkId chunkId);
-    static void ForceHashDirectories(const TString& rootPath);
+    static std::string GetRelativeChunkPath(TChunkId chunkId);
+    static void ForceHashDirectories(const std::string& rootPath);
 
     virtual bool ShouldSkipFileName(const std::string& fileName) const;
 
@@ -275,13 +275,18 @@ private:
     const ELocationType Type_;
     const TChunkLocationConfigBasePtr StaticConfig_;
 
+    // NB: These mirror the corresponding (still TString) config fields as std::string
+    // so that the accessors can return stable const std::string& references.
+    const std::string Path_;
+    const std::string DiskFamily_;
+
     TAtomicPtr<TChunkLocationConfigBase, /*EnableAcquireHazard*/ true> RuntimeConfig_;
 
     TCallback<TBriefChunkLocationConfig()> GetBriefConfigCallback_;
 
     NProfiling::TDynamicTagPtr MediumTag_;
 
-    TChunkLocationUuid Uuid_;
+    NThreading::TAtomicObject<TChunkLocationUuid> Uuid_;
     TChunkLocationIndex Index_ = NNodeTrackerClient::InvalidChunkLocationIndex;
 
     TFairShareHierarchicalSlotQueuePtr<std::string> IOFairShareQueue_;
@@ -300,7 +305,7 @@ private:
     virtual i64 GetAdditionalSpace() const;
 
     virtual std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) = 0;
-    virtual std::vector<TString> GetChunkPartNames(TChunkId chunkId) const = 0;
+    virtual std::vector<std::string> GetChunkPartNames(TChunkId chunkId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkLocationBase)

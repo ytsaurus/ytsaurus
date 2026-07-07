@@ -19,7 +19,7 @@ message TRspProcessGossip
 message TPathWithRevision
 {
     required string path = 1;
-    required int64 revision = 2;
+    required uint64 revision = 2;
 }
 
 message TReqInvalidateCachedObjectAttributes
@@ -64,7 +64,7 @@ message TRspRemoveSqlObject
 
 message TReqReloadDictionary
 {
-    optional string dictionary_name = 1;
+    optional string config_path = 1;
 }
 
 message TRspReloadDictionary

@@ -1,6 +1,10 @@
 #include "config.h"
 
+#include "private.h"
+
 namespace NYT::NSequoiaServer {
+
+constinit const auto Logger = SequoiaServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +48,24 @@ void TDynamicCypressProxyTrackerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicSequoiaManagerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("sequoia_transaction_start_failure_probability", &TThis::SequoiaTransactionStartFailureProbability)
+        .GreaterThanOrEqual(0.0)
+        .LessThanOrEqual(1.0)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TDynamicSequoiaManagerConfig::ShouldUseSequoiaRevisions() const noexcept
+{
+    return
+        EnableCypressTransactionsInSequoia &&
+        WrapObjectServiceExecuteIntoSequoiaTransaction &&
+        EnableSequoiaRevisions;
+}
+
 void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -54,6 +76,39 @@ void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_ground_update_queues", &TThis::EnableGroundUpdateQueues)
         .Default(false);
+
+    registrar.Parameter("enable_async_sequoia_transaction_start", &TThis::EnableAsyncSequoiaTransactionStart)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew()
+        .DontSerializeDefault();
+
+    registrar.Parameter("use_shared_write_locks_for_cypress_transactions", &TThis::UseSharedWriteLocksForCypressTransactions)
+        .Default(true)
+        .DontSerializeDefault();
+
+    registrar.Parameter(
+        "coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator",
+        &TThis::CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter(
+        "wrap_object_service_execute_into_sequoia_transaction",
+        &TThis::WrapObjectServiceExecuteIntoSequoiaTransaction)
+        .Default(false);
+
+    registrar.Parameter(
+        "enable_sequoia_revisions",
+        &TThis::EnableSequoiaRevisions)
+        .Default(false);
+
+    registrar.Postprocessor([] (TThis* config) {
+        YT_LOG_ALERT_IF(!config->WrapObjectServiceExecuteIntoSequoiaTransaction && config->EnableSequoiaRevisions,
+            "Sequoia revisions requires wrapping every ObjectService::Execute into Sequoia transaction");
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

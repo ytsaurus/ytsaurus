@@ -50,8 +50,11 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAny(
 // Reduces filter column to size of dictionary in dictionary or rle encoding,
 // to filter unique values wihout materialization when distinct read optimization is used.
 void ReduceFilterToDistinct(
-    DB::IColumn::Filter& filter,
+    DB::IColumn::Filter* filter,
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn);
+// Gets values column from dict or rle encoded column for distinct read optimization.
+const NTableClient::IUnversionedColumnarRowBatch::TColumn* UnwrapSimpleDistinctColumn(
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn* ytColumn);
 
 ////////////////////////////////////////////////////////////////////////////////
 

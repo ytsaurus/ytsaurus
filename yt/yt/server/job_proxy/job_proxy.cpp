@@ -1,6 +1,7 @@
 #include "job_proxy.h"
 
 #include "cpu_monitor.h"
+#include "job_api_service.h"
 #include "job_prober_service.h"
 #include "job_throttler.h"
 #include "merge_job.h"
@@ -10,7 +11,6 @@
 #include "shallow_merge_job.h"
 #include "signature_proxy.h"
 #include "simple_sort_job.h"
-#include "job_api_service.h"
 #include "sorted_merge_job.h"
 #include "user_job.h"
 #include "user_job_write_controller.h"
@@ -20,9 +20,9 @@
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/statistics.h>
 
-#include <yt/yt/server/lib/job_proxy/events_on_fs.h>
-
 #include <yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h>
+
+#include <yt/yt/server/lib/job_proxy/events_on_fs.h>
 
 #include <yt/yt/server/lib/rpc_proxy/access_checker.h>
 #include <yt/yt/server/lib/rpc_proxy/api_service.h>
@@ -66,6 +66,7 @@
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
 #include <yt/yt/library/containers/porto_helpers.h>
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/library/orchid/orchid_service.h>
 
@@ -81,7 +82,7 @@
 
 #include <yt/yt/library/auth/credentials_injecting_channel.h>
 
-#include <yt/yt/library/containers/public.h>
+#include <yt/yt/library/process/subprocess.h>
 
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/program.h>
@@ -89,6 +90,16 @@
 #include <yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
+
+#include <yt/yt/library/ytprof/external_pprof.h>
+#include <yt/yt/library/ytprof/profile.h>
+#include <yt/yt/library/ytprof/symbolize.h>
+
+#include <yt/yt/core/rpc/http/server.h>
+
+#include <yt/yt/core/rpc/grpc/server.h>
+
+#include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/dispatcher.h>
@@ -111,14 +122,8 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
 
-#include <yt/yt/core/rpc/grpc/server.h>
-
-#include <yt/yt/core/rpc/http/server.h>
-
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/server.h>
-
-#include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/public.h>
@@ -127,13 +132,13 @@
 #include <yt/yt/core/net/listener.h>
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/library/profiling/sensor.h>
-
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
-#include <tcmalloc/malloc_extension.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <util/system/fs.h>
+
+#include <tcmalloc/malloc_extension.h>
 
 #include <sys/resource.h>
 
@@ -143,6 +148,7 @@ using namespace NRpcProxy;
 
 using namespace NApi;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NContainers;
@@ -150,6 +156,7 @@ using namespace NControllerAgent::NProto;
 using namespace NControllerAgent;
 using namespace NExecNode::NProto;
 using namespace NExecNode;
+using namespace NJobAgent;
 using namespace NJobProberClient;
 using namespace NJobProxy;
 using namespace NLogging;
@@ -167,6 +174,7 @@ using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NUserJob;
 using namespace NYPath;
+using namespace NYTProf;
 using namespace NYTree;
 using namespace NYson;
 
@@ -175,7 +183,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString ExecutorConfigFileName = "executor_config.yson";
+static const std::string ExecutorConfigFileName = "executor_config.yson";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,12 +227,12 @@ TJobProxy::TJobProxy(
     }
 }
 
-TString TJobProxy::GetPreparationPath() const
+std::string TJobProxy::GetPreparationPath() const
 {
     return NFs::CurrentWorkingDirectory();
 }
 
-TString TJobProxy::GetSlotPath() const
+std::string TJobProxy::GetSlotPath() const
 {
     if ((!Config_->RootPath && !Config_->DockerImage) || Config_->TestRootFS) {
         return NFs::CurrentWorkingDirectory();
@@ -233,10 +241,9 @@ TString TJobProxy::GetSlotPath() const
     return "/slot";
 }
 
-TString TJobProxy::GetJobProxyUnixDomainSocketPath() const
+std::string TJobProxy::GetJobProxyUnixDomainSocketPath() const
 {
-    // TODO(babenko): migrate to std::string
-    return AdjustPath(TString(*Config_->BusServer->UnixDomainSocketPath));
+    return AdjustPath(*Config_->BusServer->UnixDomainSocketPath);
 }
 
 std::string TJobProxy::GetJobProxyGrpcUnixDomainSocketPath() const
@@ -247,12 +254,12 @@ std::string TJobProxy::GetJobProxyGrpcUnixDomainSocketPath() const
     YT_VERIFY(addresses.size() == 1);
     YT_VERIFY(addresses[0]->Address.starts_with(prefix));
 
-    return AdjustPath(TString(addresses[0]->Address.substr(prefix.size())));
+    return AdjustPath(addresses[0]->Address.substr(prefix.size()));
 }
 
 std::string TJobProxy::GetJobProxyHttpUnixDomainSocketPath() const
 {
-    return AdjustPath(TString(Config_->HttpServerUdsPath));
+    return AdjustPath(Config_->HttpServerUdsPath);
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId transactionId)
@@ -405,6 +412,28 @@ void TJobProxy::SendHeartbeat()
         req->set_last_progress_save_time(ToProto(*time));
     }
 
+    if (auto& profileFuture = JobProxyPeakMemoryProfile_; profileFuture.has_value()) {
+        if (!profileFuture->IsSet()) {
+            YT_LOG_DEBUG("JobProxy peak memory profile is not ready to be reported in the current heartbeat");
+        } else {
+            YT_LOG_DEBUG("Reporting JobProxy peak memory profile");
+            auto profile = profileFuture
+                ->AsUnique()
+                .GetOrCrash()
+                .ValueOrThrow();
+
+            ToProto(
+                req->add_profiles(),
+                TJobProfile{
+                    .ProfilingBinary = EProfilingBinary::JobProxy,
+                    .ProfilerType = EProfilerType::PeakMemory,
+                    .Blob = std::move(profile),
+                    .ProfilingProbability = 1.0,
+                });
+            profileFuture.reset();
+        }
+    }
+
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 }
 
@@ -534,7 +563,12 @@ void TJobProxy::RetrieveJobSpec()
         JobProxyMemoryReserve_ = totalMemoryReserve;
     }
 
-    std::vector<TString> annotations{
+    // COMPAT(coteeq)
+    JobProxyEstimatedMemory_ = jobSpecExt.has_estimated_job_proxy_memory()
+        ? jobSpecExt.estimated_job_proxy_memory()
+        : JobProxyMemoryReserve_;
+
+    std::vector<std::string> annotations{
         Format("Type: SchedulerJob"),
         Format("OperationId: %v", OperationId_),
         Format("JobId: %v", JobId_),
@@ -691,7 +725,7 @@ IJobPtr TJobProxy::CreateBuiltinJob()
     }
 }
 
-TString TJobProxy::AdjustPath(const TString& path) const
+std::string TJobProxy::AdjustPath(const std::string& path) const
 {
     return NFS::CombinePaths(GetSlotPath(), NFS::GetRelativePath(GetPreparationPath(), path));
 }
@@ -780,7 +814,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         YT_VERIFY(JobProxyRpcServerPort_.has_value());
         Config_->BusServer->Port = *JobProxyRpcServerPort_;
 
-        PublicRpcServer_ = NRpc::NBus::CreateBusServer(CreatePublicTcpBusServer(Config_->BusServer));
+        PublicRpcServer_ = NRpc::NBus::CreateBusServer(CreateRemoteBusServer(Config_->BusServer));
         PublicRpcServer_->Start();
         YT_LOG_INFO("Public RPC server started (JobProxyRpcServerPort: %v)", JobProxyRpcServerPort_);
 
@@ -799,7 +833,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
     auto authenticationManager = NAuth::CreateAuthenticationManager(
         Config_->AuthenticationManager,
-        NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
+        NYT::NBus::NTcp::TDispatcher::Get()->GetXferPoller(),
         rootClient);
 
     auto signatureValidator = New<TProxySignatureValidator>(*SupervisorProxy_, JobId_);
@@ -807,7 +841,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
     auto apiService = CreateApiService(
         Config_->JobProxyApiServiceStatic,
         apiInvoker,
-        [=] (const std::string&, const TFairShareThreadPoolTag&) { return apiInvoker; },
+        [=] (const std::string& /*pool*/, const TFairShareThreadPoolTag& /*executionTag*/) { return apiInvoker; },
         connection,
         authenticationManager->GetRpcAuthenticator(),
         proxyCoordinator,
@@ -887,7 +921,9 @@ TJobResult TJobProxy::RunJob()
             Config_->BusServer->UnixDomainSocketPath,
             Config_->GrpcServer->Addresses[0]->Address);
 
-        RpcServer_ = NRpc::NBus::CreateBusServer(CreateLocalTcpBusServer(Config_->BusServer));
+        RpcServer_ = NRpc::NBus::CreateBusServer(CreateLocalBusServer(Config_->BusServer));
+        RpcServer_->Configure(Config_->RpcServer);
+        RpcServer_->OnDynamicConfigChanged(Config_->RpcServerDynamic);
         RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
         RpcServer_->RegisterService(jobApiService);
         RpcServer_->RegisterService(NOrchid::CreateOrchidService(
@@ -916,9 +952,10 @@ TJobResult TJobProxy::RunJob()
         }
 
         if (TvmBridge_) {
-            YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", TvmBridge_->GetSelfTvmId());
+            auto tvmId = TvmBridge_->GetSelfTvmIdOrThrow();
+            YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", tvmId);
 
-            WaitFor(TvmBridge_->EnsureDestinationServiceIds({TvmBridge_->GetSelfTvmId()}))
+            WaitFor(TvmBridge_->EnsureDestinationServiceIds({tvmId}))
                 .ThrowOnError();
 
             YT_LOG_DEBUG("Destination service id is ready");
@@ -927,7 +964,7 @@ TJobResult TJobProxy::RunJob()
         auto supervisorClient = CreateBusClient(Config_->SupervisorConnection);
         auto supervisorChannel = NRpc::NBus::CreateBusChannel(supervisorClient);
         if (TvmBridge_) {
-            auto serviceTicketAuth = CreateServiceTicketAuth(TvmBridge_, TvmBridge_->GetSelfTvmId());
+            auto serviceTicketAuth = CreateServiceTicketAuth(TvmBridge_, TvmBridge_->GetSelfTvmIdOrThrow());
             supervisorChannel = NAuth::CreateServiceTicketInjectingChannel(
                 std::move(supervisorChannel),
                 {.ServiceTicketAuth = serviceTicketAuth});
@@ -1006,7 +1043,9 @@ TJobResult TJobProxy::RunJob()
             if (userJobSpec.enable_rpc_proxy_in_job_proxy()) {
                 EnableRpcProxyInJobProxy(userJobSpec.rpc_proxy_worker_thread_pool_size(), userJobSpec.enable_shuffle_service_in_job_proxy());
             } else {
-                YT_VERIFY(!userJobSpec.enable_shuffle_service_in_job_proxy());
+                THROW_ERROR_EXCEPTION_IF(
+                    userJobSpec.enable_shuffle_service_in_job_proxy(),
+                    "Shuffle service in job proxy requires RPC proxy to be enabled in job proxy");
             }
         }
 
@@ -1057,7 +1096,13 @@ TJobResult TJobProxy::RunJob()
         if (GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters_size() > 0) {
             // NB(coteeq): Do not sync cluster directory if data is local only.
             auto connection = GetClient()->GetNativeConnection();
-            WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
+            std::vector<std::string> remoteClusterNames;
+            remoteClusterNames.reserve(GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters_size());
+            for (const auto& [remoteClusterName, _] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
+                remoteClusterNames.push_back(remoteClusterName);
+            }
+
+            WaitFor(InsistentGetMultipleRemoteConnections(std::move(connection), std::move(remoteClusterNames)))
                 .ThrowOnError();
         }
 
@@ -1068,7 +1113,7 @@ TJobResult TJobProxy::RunJob()
         OnSpawned();
     } catch (const std::exception& ex) {
         auto isSupervisorProxyTimeoutError = [] (const TError& error) {
-            auto serviceAttribute = error.Attributes().Find<std::optional<TString>>("service");
+            auto serviceAttribute = error.Attributes().Find<std::optional<std::string>>("service");
             return error.GetCode() == NYT::EErrorCode::Timeout &&
                 serviceAttribute == TSupervisorServiceProxy::GetDescriptor().ServiceName;
         };
@@ -1107,6 +1152,12 @@ TJobResult TJobProxy::RunJob()
                 JobId_,
                 EBreakpointType::BeforeRun))
             .ThrowOnError();
+    }
+
+    std::vector<char> dummyBuffer;
+    if (auto byteCount = GetJobSpecHelper()->GetJobTestingOptions()->DummyAllocationBytes) {
+        dummyBuffer.resize(*byteCount);
+        DoNotOptimizeAway(dummyBuffer);
     }
 
     return job->Run();
@@ -1191,13 +1242,39 @@ void TJobProxy::ReportResult(
         }
     }
 
-    if (auto job = FindJob()) {
+    if (job) {
         try {
             for (const auto& profile : job->GetProfiles()) {
-                auto* protoProfile = req->add_profiles();
-                protoProfile->set_type(profile.Type);
-                protoProfile->set_blob(profile.Blob);
-                protoProfile->set_profiling_probability(profile.ProfilingProbability);
+                ToProto(req->add_profiles(), profile);
+            }
+
+            // We must extract JobProxyPeakMemoryProfile_ from |JobThread_|.
+            std::optional<TFuture<TString>> profileFuture;
+            YT_UNUSED_FUTURE(WaitFor(
+                BIND([this, &profileFuture] {
+                    profileFuture.swap(JobProxyPeakMemoryProfile_);
+                })
+                    .AsyncVia(JobThread_->GetInvoker())
+                    .Run()
+            ));
+            if (profileFuture) {
+                if (Config_->JobProxyPeakMemoryProfiler->WaitLastProfile) {
+                    WaitUntilSet(profileFuture->AsVoid());
+                }
+
+                if (profileFuture->IsSet()) {
+                    ToProto(
+                        req->add_profiles(),
+                        TJobProfile{
+                            .ProfilingBinary = EProfilingBinary::JobProxy,
+                            .ProfilerType = EProfilerType::PeakMemory,
+                            .Blob = profileFuture
+                                ->AsUnique()
+                                .GetOrCrash()
+                                .Value(),
+                            .ProfilingProbability = 1.0,
+                        });
+                }
             }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get job profile on teardown");
@@ -1464,7 +1541,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
     YT_VERIFY(environment);
 
     auto createRootFS = [&] () -> std::optional<TRootFS> {
-        TString stderrPath;
+        std::string stderrPath;
         if (Config_->ExecutorStderrPath) {
             stderrPath = *Config_->ExecutorStderrPath;
         } else {
@@ -1507,13 +1584,13 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             GetSandboxRelPath(ESandboxKind::Tmp));
 
         rootFS.Binds.push_back(TBind{
-            .SourcePath = TString(tmpPath),
+            .SourcePath = tmpPath,
             .TargetPath = "/tmp",
             .ReadOnly = false,
         });
 
         rootFS.Binds.push_back(TBind{
-            .SourcePath = TString(tmpPath),
+            .SourcePath = tmpPath,
             .TargetPath = "/var/tmp",
             .ReadOnly = false,
         });
@@ -1562,8 +1639,8 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
                 target);
 
             rootFS.Binds.push_back(TBind{
-                .SourcePath = TString(source),
-                .TargetPath = TString(target),
+                .SourcePath = source,
+                .TargetPath = target,
                 .ReadOnly = false,
             });
         }
@@ -1625,9 +1702,9 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
     };
 
     if (Config_->RestrictPortoPlace) {
-        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
+        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, GetSandboxRelPath(ESandboxKind::PortoPlace)));
     } else {
-        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
+        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, GetSandboxRelPath(ESandboxKind::PortoPlace)));
         // COMPAT(yuryalekseev): Remove this after tasklets move to using default place.
         environmentOptions.Places.push_back(AnyTarget);
     }
@@ -1657,7 +1734,7 @@ TJobId TJobProxy::GetJobId() const
     return JobId_;
 }
 
-TString TJobProxy::GetAuthenticatedUser() const
+std::string TJobProxy::GetAuthenticatedUser() const
 {
     return JobSpecHelper_->GetJobSpecExt().authenticated_user();
 }
@@ -1751,8 +1828,8 @@ void TJobProxy::OnPrepared()
 }
 
 void TJobProxy::PrepareArtifact(
-    const TString& artifactName,
-    const TString& pipePath)
+    const std::string& artifactName,
+    const std::string& pipePath)
 {
     YT_LOG_INFO("Requesting node to prepare artifact (ArtifactName: %v, PipePath: %v)",
         artifactName,
@@ -1768,8 +1845,8 @@ void TJobProxy::PrepareArtifact(
 }
 
 void TJobProxy::OnArtifactPreparationFailed(
-    const TString& artifactName,
-    const TString& artifactPath,
+    const std::string& artifactName,
+    const std::string& artifactPath,
     const TError& error)
 {
     YT_LOG_ERROR(error, "Artifact preparation failed (ArtifactName: %v, ArtifactPath: %v)",
@@ -1850,29 +1927,13 @@ void TJobProxy::CheckMemoryUsage()
         JobProxyMemoryReserve_,
         UserJobCurrentMemoryUsage_.load());
 
-    constexpr double JobProxyMaxMemoryUsageLoggingExponentialFactor = 1.2;
-
     auto usage = JobProxyMaxMemoryUsage_.load();
-    if (usage > JobProxyMemoryReserve_ &&
-        usage > LastLoggedJobProxyMaxMemoryUsage_ * JobProxyMaxMemoryUsageLoggingExponentialFactor)
-    {
-        if (TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_) {
-            YT_LOG_WARNING("Job proxy used more memory than estimated "
-                "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, RefCountedTracker: %v)",
-                usage,
-                JobProxyMemoryReserve_,
-                TRefCountedTracker::Get()->GetDebugInfo(2 /*sortByColumn*/));
-            // NB(coteeq): Refcount dump and TCMalloc stats are quite huge, so we will exceed
-            // logging's message length limit. So let's duplicate the warning to reliably see at least
-            // a prefix of both blobs.
-            YT_LOG_WARNING("Job proxy used more memory than estimated "
-                "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, TCMallocStats: %v)",
-                usage,
-                JobProxyMemoryReserve_,
-                tcmalloc::MallocExtension::GetStats());
-            LastRefCountedTrackerLogTime_ = TInstant::Now();
-            LastLoggedJobProxyMaxMemoryUsage_ = usage;
-        }
+    if (usage > JobProxyMemoryReserve_) {
+        OnMemoryReserveExceeded(usage);
+    }
+
+    if (usage > JobProxyEstimatedMemory_) {
+        OnMemoryEstimationExceeded(usage);
     }
 
     if (JobProxyMemoryOvercommitLimit_ && jobProxyMemoryUsage > JobProxyMemoryReserve_ + *JobProxyMemoryOvercommitLimit_) {
@@ -2164,6 +2225,90 @@ void TJobProxy::SetOomScoreAdj(int score)
             "Failed to set oom_score_adj of a job proxy process (Pid: %v)",
             pid);
     }
+}
+
+void TJobProxy::OnMemoryReserveExceeded(i64 usage)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    constexpr double LoggingExponentialFactor = 1.2;
+
+    bool shouldLog = usage > LastLoggedJobProxyMaxMemoryUsage_ * LoggingExponentialFactor &&
+        TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_;
+
+    if (shouldLog) {
+        YT_LOG_WARNING("Job proxy used more memory than estimated "
+            "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, RefCountedTracker: %v)",
+            usage,
+            JobProxyMemoryReserve_,
+            TRefCountedTracker::Get()->GetDebugInfo(2 /*sortByColumn*/));
+        // NB(coteeq): Refcount dump and TCMalloc stats are quite huge, so we will exceed
+        // logging's message length limit. So let's duplicate the warning to reliably see at least
+        // a prefix of both blobs.
+        YT_LOG_WARNING("Job proxy used more memory than estimated "
+            "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, TCMallocStats: %v)",
+            usage,
+            JobProxyMemoryReserve_,
+            tcmalloc::MallocExtension::GetStats());
+        LastRefCountedTrackerLogTime_ = TInstant::Now();
+        LastLoggedJobProxyMaxMemoryUsage_ = usage;
+    }
+}
+
+void TJobProxy::OnMemoryEstimationExceeded(i64 usage)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    if (LastProfiledJobProxyMaxMemoryUsage_ >= usage) {
+        return;
+    }
+
+    if (!Config_->JobProxyPeakMemoryProfiler->Enabled) {
+        return;
+    }
+
+    if (JobProxyPeakMemoryProfile_) {
+        YT_LOG_DEBUG("Not profiling job proxy peak memory usage since another profile is already being gathered");
+        return;
+    }
+
+    auto job = FindJob();
+    if (job) {
+        YT_LOG_INFO(
+            "Profiling Job proxy peak memory (RunExternalSymbolizer: %v)",
+            Config_->JobProxyPeakMemoryProfiler->RunExternalSymbolizer);
+        JobProxyPeakMemoryProfile_ = ProfileJobProxyPeakMemory(
+            Config_->JobProxyPeakMemoryProfiler->RunExternalSymbolizer);
+
+        LastProfiledJobProxyMaxMemoryUsage_ = usage;
+    }
+}
+
+TFuture<TString> TJobProxy::ProfileJobProxyPeakMemory(bool runExternalSymbolizer) const
+{
+    auto profile = CaptureHeapProfile(tcmalloc::ProfileType::kPeakHeap);
+
+    return BIND([runExternalSymbolizer, profile = std::move(profile)] () mutable {
+        Symbolize(
+            &profile,
+            {
+                .SymbolizeExistingFunctions = true,
+                .SymbolizeLocations = true,
+            });
+        AddBuildInfo(&profile, NYTProf::TBuildInfo::GetDefault());
+
+        if (runExternalSymbolizer) {
+            SymbolizeByExternalPProf(&profile, TSymbolizationOptions{
+                .RunTool = RunSubprocess,
+            });
+        }
+
+        TStringStream stream;
+        WriteCompressedProfile(&stream, profile);
+        return stream.Str();
+    })
+        .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
+        .Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

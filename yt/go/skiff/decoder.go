@@ -418,7 +418,13 @@ func (d *Decoder) decodeGenericValue(skiffSchema *Schema, tableSchemaType schema
 		// Conversion to string is required for compatibility with YSON.
 		return string(decimal), nil
 	case schema.Optional:
-		return d.decodeGenericValue(&skiffSchema.Children[d.r.readUint8()], t.Item)
+		// Optional is encoded as variant8<nothing; T>: tag 0 means null, tag 1 means the value is present.
+		// Do not decodeGenericValue since "nothing" child schema has no Children.
+		tag := d.r.readUint8()
+		if tag == 0 {
+			return nil, nil
+		}
+		return d.decodeGenericValue(&skiffSchema.Children[tag], t.Item)
 	case schema.List:
 		return d.decodeGenericList(t, skiffSchema)
 	case schema.Struct:

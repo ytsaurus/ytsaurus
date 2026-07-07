@@ -3,7 +3,7 @@
 #include "artifact_cache.h"
 #include "private.h"
 
-#include <yt/yt/ytlib/chunk_client/format.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/node/data_node/blob_chunk.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
@@ -15,6 +15,8 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/ytlib/chunk_client/format.h>
+
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -25,6 +27,7 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NCypressClient;
+using namespace NFS;
 using namespace NNode;
 using namespace NObjectClient;
 
@@ -90,7 +93,7 @@ const NChunkClient::TRefCountedChunkMetaPtr& TArtifact::GetMeta() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TCacheLocation::TCacheLocation(
-    TString id,
+    std::string id,
     NDataNode::TCacheLocationConfigPtr config,
     const NClusterNode::IBootstrap* bootstrap,
     TArtifactCachePtr artifactCache)
@@ -113,6 +116,7 @@ TCacheLocation::TCacheLocation(
     , ArtifactCache_(std::move(artifactCache))
     , MediumName_(config->MediumName)
     , Bootstrap_(bootstrap)
+    , EnospcRate_(Profiler_.Counter("/enospc_events"))
 {
     TChunkLocationBase::UpdateMediumTag(GetMediumName());
 }
@@ -141,7 +145,7 @@ IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
 
 std::optional<TChunkDescriptor> TCacheLocation::Repair(
     TChunkId chunkId,
-    const TString& metaSuffix)
+    const std::string& metaSuffix)
 {
     auto fileName = GetChunkPath(chunkId);
 
@@ -206,9 +210,9 @@ std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(TChunkId chunkId)
     return optionalDescriptor;
 }
 
-std::vector<TString> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
+std::vector<std::string> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
 {
-    auto primaryName = ToString(chunkId);
+    std::string primaryName = ToString(chunkId);
     switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
         case EObjectType::Chunk:
             return {
@@ -234,12 +238,20 @@ TFuture<void> TCacheLocation::RemoveChunks()
         "Location is disabled; unregistering all the artifacts in it (LocationId: %v)",
         GetId());
 
-    return ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this));
+    return ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this), /*forbidSlruResurrection*/ true);
 }
 
 bool TCacheLocation::ScheduleDisable(const TError& reason)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    if (IsOutOfDiskSpaceError(reason) &&
+        !Bootstrap_->GetDynamicConfigManager()->GetConfig()->ExecNode->ChunkCache->TestDisableOnOutOfDiskSpace)
+    {
+        EnospcRate_.Increment();
+        YT_UNUSED_FUTURE(ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this), /*forbidSlruResurrection*/ false));
+        return true;
+    }
 
     if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
         return false;
@@ -274,7 +286,7 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
             YT_LOG_FATAL(ex, "Location disabling error");
         }
 
-        auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling);
+        auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling, reason);
 
         if (!finish) {
             YT_LOG_ALERT("Detect location state racing (CurrentState: %v)",

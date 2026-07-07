@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/yt/server/lib/object_server/permission_validator.h>
-
 #include <yt/yt/core/ytree/node_detail.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 
@@ -29,7 +27,7 @@ class TNonversionedMapObjectTypeHandlerBase;
 template <class TObject>
 class TNonversionedMapObjectProxyBase
     : public TNonversionedObjectProxyBase<TObject>
-    , public THierarchicPermissionValidator<TObject*, NObjectServer::TObject*>
+    , public THierarchicPermissionValidator<TObject>
     , public virtual NYTree::TMapNodeMixin
     , public virtual NYTree::TNodeBase
 {
@@ -60,15 +58,15 @@ public:
     void SetParent(const NYTree::ICompositeNodePtr& parent) override;
 
     int GetChildCount() const override;
-    std::vector<std::pair<std::string, NYTree::INodePtr>> GetChildren() const override;
-    std::vector<std::string> GetKeys() const override;
-    NYTree::INodePtr FindChild(const std::string& key) const override;
-    std::optional<std::string> FindChildKey(const NYTree::IConstNodePtr& child) const override;
+    std::vector<std::pair<TKey, TValue>> GetChildren() const override;
+    std::vector<TKey> GetKeys() const override;
+    TValue FindChild(TKeyView key) const override;
+    std::optional<TKey> FindChildKey(const NYTree::IConstNodePtr& child) const override;
 
-    bool AddChild(const std::string& key, const NYTree::INodePtr& child) override;
+    bool AddChild(TKeyView key, const TValue& child) override;
     void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     void RemoveChild(const NYTree::INodePtr& child) override;
-    bool RemoveChild(const std::string& key) override;
+    bool RemoveChild(TKeyView key) override;
 
     std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
 
@@ -123,15 +121,15 @@ protected:
 
     virtual TSelfPtr ResolveNameOrThrow(const std::string& name) = 0;
 
-    TCompactVector<NObjectServer::TObject*, 1> ListDescendantsForPermissionValidation(TObject* object) override;
-    NObjectServer::TObject* GetParentForPermissionValidation(TObject* object) override;
+    TCompactVector<TObject*, 1> ListDescendantsForPermissionValidation(TObject* object) override;
+    TObject* GetParentForPermissionValidation(TObject* object) override;
 
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
         const std::string& user = {}) override;
 
-    using THierarchicPermissionValidator<TObject*, NObjectServer::TObject*>::ValidatePermission;
+    using THierarchicPermissionValidator<TObject>::ValidatePermission;
 
     virtual void ValidateBeforeAttachChild(
         const std::string& key,

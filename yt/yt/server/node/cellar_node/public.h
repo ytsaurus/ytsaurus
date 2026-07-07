@@ -8,6 +8,7 @@ namespace NYT::NCellarNode {
 
 DECLARE_REFCOUNTED_STRUCT(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_STRUCT(TMasterConnectorDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TBundleControllerConnectorDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TCellarNodeConfig)
 DECLARE_REFCOUNTED_STRUCT(TCellarNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TBundleDynamicConfigManager)
@@ -19,6 +20,7 @@ DECLARE_REFCOUNTED_STRUCT(TBundleDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
+DECLARE_REFCOUNTED_CLASS(TBundleControllerConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 

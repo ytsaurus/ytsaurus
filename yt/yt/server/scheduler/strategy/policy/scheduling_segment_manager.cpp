@@ -4,6 +4,8 @@
 #include "persistent_state.h"
 #include "pool_tree_snapshot_state.h"
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
 #include <yt/yt/server/scheduler/strategy/pool_tree_snapshot.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
@@ -120,14 +122,13 @@ const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(
     return GetNodeModule(nodeDescriptor->DataCenter, nodeDescriptor->InfinibandCluster, moduleType);
 }
 
-TString TSchedulingSegmentManager::GetNodeTagFromModuleName(
+std::string TSchedulingSegmentManager::GetNodeTagFromModuleName(
     const std::string& moduleName,
     ESchedulingSegmentModuleType moduleType)
 {
     switch (moduleType) {
         case ESchedulingSegmentModuleType::DataCenter:
-            // TODO(babenko): switch to std::string
-            return TString(moduleName);
+            return moduleName;
         case ESchedulingSegmentModuleType::InfinibandCluster:
             return Format("%v:%v", InfinibandClusterNameKey, moduleName);
         default:
@@ -804,22 +805,11 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
 
 std::optional<TNetworkPriority> TSchedulingSegmentManager::GetNetworkPriority(double operationDemand, double moduleCapacity) const
 {
-    if (Config_->ModuleShareToNetworkPriority.empty() || moduleCapacity < NVectorHdrf::LargeEpsilon) {
+    if (moduleCapacity < NVectorHdrf::LargeEpsilon) {
         return std::nullopt;
     }
 
-    auto operationModuleShare = operationDemand / moduleCapacity;
-
-    std::optional<TNetworkPriority> previousPriority;
-    // NB: Config_->ModuleShareToNetworkPriority is sorted in postprocessor.
-    for (const auto& entry : Config_->ModuleShareToNetworkPriority) {
-        if (operationModuleShare < entry.ModuleShare) {
-            return previousPriority;
-        }
-        previousPriority = entry.NetworkPriority;
-    }
-
-    return previousPriority;
+    return ComputeNetworkPriority(operationDemand / moduleCapacity, Config_->ModuleShareToNetworkPriority);
 }
 
 void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingSegmentsContext* context) const
@@ -1301,7 +1291,7 @@ void TSchedulingSegmentManager::LogAndProfileSegments(const TUpdateSchedulingSeg
     TSensorBuffer sensorBuffer;
     if (segmentedSchedulingEnabled) {
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-            auto profileResourceAmountPerSegment = [&] (const TString& sensorName, const TSegmentToResourceAmount& resourceAmountMap) {
+            auto profileResourceAmountPerSegment = [&] (const std::string& sensorName, const TSegmentToResourceAmount& resourceAmountMap) {
                 const auto& valueAtSegment = resourceAmountMap.At(segment);
                 if (IsModuleAwareSchedulingSegment(segment)) {
                     for (const auto& schedulingSegmentModule : Config_->GetModules()) {

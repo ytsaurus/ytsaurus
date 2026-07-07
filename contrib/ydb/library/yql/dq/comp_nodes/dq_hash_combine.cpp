@@ -5,8 +5,8 @@
 #include "type_utils.h"
 #include "coro_tasks.h"
 
-#include <contrib/ydb/library/yql/dq/runtime/dq_arrow_helpers.h>
 #include <yql/essentials/public/udf/arrow/block_builder.h>
+#include <yql/essentials/public/udf/arrow/util.h>
 #include <yql/essentials/minikql/comp_nodes/mkql_rh_hash.h>
 #include <yql/essentials/minikql/comp_nodes/mkql_counters.h>
 #include <yql/essentials/minikql/computation/mkql_block_reader.h>
@@ -21,7 +21,6 @@
 
 #include <util/system/backtrace.h>
 
-#include <util/system/mutex.h>
 #include <yql/essentials/utils/yql_panic.h>
 
 namespace NKikimr {
@@ -65,6 +64,11 @@ using THashPtr = NUdf::THashType(*)(const NUdf::TUnboxedValuePod*);
 
 using TEqualsFunc = std::function<bool(const NUdf::TUnboxedValuePod*, const NUdf::TUnboxedValuePod*)>;
 using THashFunc = std::function<NUdf::THashType(const NUdf::TUnboxedValuePod*)>;
+
+static ui64 GetInstanceSeed(void* self) {
+    // Used to return CityHash64(self) but looks like that's unnecessary: we put the seed through regular and then Fibonacci hashing anyway
+    return reinterpret_cast<ui64>(self);
+}
 
 struct TSegmentedArena
 {
@@ -341,65 +345,162 @@ private:
     size_t StateWidth;
     size_t StateSize;
     const std::vector<TType*>& StateItemTypes;
+    [[maybe_unused]] bool IsDehydrated = false;
+    std::vector<NYql::NUdf::EDataSlot> DataSlots;
+
+    Y_FORCE_INLINE NUdf::TUnboxedValuePod ConvertFromState(const NYql::NUdf::EDataSlot dataSlot, const ui64* dehydrated) {
+        if (dataSlot == NYql::NUdf::EDataSlot::Uint64) {
+            return NUdf::TUnboxedValuePod(*dehydrated);
+        } else {
+            return NUdf::TUnboxedValuePod(*reinterpret_cast<const double*>(dehydrated));
+        }
+    }
+
+    Y_FORCE_INLINE ui64 ConvertToState([[maybe_unused]] const NYql::NUdf::EDataSlot dataSlot, const TUnboxedValuePod& val) {
+        return val.Get<ui64>();
+    }
 
 public:
     TGenericAggregation(
         TComputationContext& ctx,
         const NDqHashOperatorCommon::TCombinerNodes& nodes,
-        const std::vector<TType*>& stateItemTypes
+        const std::vector<TType*>& stateItemTypes,
+        const bool disableDehydration
     )
         : Ctx(ctx)
         , Nodes(nodes)
         , StateWidth(Nodes.StateNodes.size())
-        , StateSize(StateWidth * sizeof(TUnboxedValue))
+        , StateSize(0)
         , StateItemTypes(stateItemTypes)
     {
+        IsDehydrated = false;
+
+        if (!disableDehydration && !StateItemTypes.empty()) {
+            IsDehydrated = true;
+            for (const auto& type : StateItemTypes) {
+                if (!type->IsData()) {
+                    IsDehydrated = false;
+                    break;
+                }
+
+                const auto dataType = static_cast<const TDataType*>(type);
+                if (!dataType->GetDataSlot() || !(dataType->GetDataSlot() == NYql::NUdf::EDataSlot::Uint64 || dataType->GetDataSlot() == NYql::NUdf::EDataSlot::Double)) {
+                    IsDehydrated = false;
+                    break;
+                }
+
+                DataSlots.push_back(dataType->GetDataSlot().GetRef());
+            }
+        }
+
+        if (IsDehydrated) {
+            StateSize = StateWidth * 8;
+        } else {
+            StateSize = StateWidth * sizeof(TUnboxedValue);
+        }
+    }
+
+    bool StateIsDehydrated() const {
+        return IsDehydrated;
     }
 
     size_t GetStateSize() const override {
         return StateSize;
     }
 
+    void Hydrate(const void* from, TUnboxedValuePod* to) {
+        const ui64* state = static_cast<const ui64*>(from);
+        for (const auto ds : DataSlots) {
+            *(to++) = std::move(ConvertFromState(ds, state++));
+        }
+    }
+
+    void Dehydrate(const TUnboxedValuePod* from, void* to) {
+        ui64* state = static_cast<ui64*>(to);
+        for (const auto ds : DataSlots) {
+            *state++ = std::move(ConvertToState(ds, *(from++)));
+        }
+    }
+
     std::optional<size_t> GetStateMemoryUsage(void* rawState) const override final {
-        return EstimateUvPackSize(
-            TArrayRef<const TUnboxedValuePod>(static_cast<const TUnboxedValuePod*>(rawState), StateWidth),
-            TArrayRef<TType* const>(StateItemTypes)
-        );
+        if (IsDehydrated) {
+            return StateSize;
+        } else {
+            return EstimateUvPackSize(
+                TArrayRef<const TUnboxedValuePod>(static_cast<const TUnboxedValuePod*>(rawState), StateWidth),
+                TArrayRef<TType* const>(StateItemTypes)
+            );
+        }
     }
 
     // Assumes the input row and extracted keys have already been copied into the input nodes, so row isn't even used here
     void UpdateState(void* rawState, TUnboxedValue* const* /*row*/) override final {
-        TUnboxedValue* state = static_cast<TUnboxedValue*>(rawState);
-        TUnboxedValue* stateIter = state;
+        if (IsDehydrated) {
+            ui64* state = static_cast<ui64*>(rawState);
+            ui64* stateIter = state;
+            std::vector<NYql::NUdf::EDataSlot>::const_iterator dsIter = DataSlots.begin();
 
-        std::for_each(Nodes.StateNodes.cbegin(), Nodes.StateNodes.cend(),
-            [&](IComputationExternalNode* item){ item->SetValue(Ctx, std::move(*stateIter++)); });
+            std::for_each(Nodes.StateNodes.cbegin(), Nodes.StateNodes.cend(),
+                [&](IComputationExternalNode* item){ item->SetValue(Ctx, std::move(ConvertFromState(*(dsIter++), stateIter++))); });
 
-        stateIter = state;
-        std::transform(Nodes.UpdateResultNodes.cbegin(), Nodes.UpdateResultNodes.cend(), stateIter,
-            [&](IComputationNode* node) { return node->GetValue(Ctx); });
+            dsIter = DataSlots.begin();
+            stateIter = state;
+
+            std::transform(Nodes.UpdateResultNodes.cbegin(), Nodes.UpdateResultNodes.cend(), stateIter,
+                [&](IComputationNode* node) { return ConvertToState(*(dsIter++), node->GetValue(Ctx)); });
+        } else {
+            TUnboxedValue* state = static_cast<TUnboxedValue*>(rawState);
+            TUnboxedValue* stateIter = state;
+
+            std::for_each(Nodes.StateNodes.cbegin(), Nodes.StateNodes.cend(),
+                [&](IComputationExternalNode* item){ item->SetValue(Ctx, std::move(*stateIter++)); });
+
+            stateIter = state;
+            std::transform(Nodes.UpdateResultNodes.cbegin(), Nodes.UpdateResultNodes.cend(), stateIter,
+                [&](IComputationNode* node) { return node->GetValue(Ctx); });
+        }
     }
 
     // Assumes the input row has already been copied into the input nodes, so row isn't even used here
     void InitState(void* rawState, TUnboxedValue* const* /*row*/) override final {
-        TUnboxedValuePod* state = static_cast<TUnboxedValuePod*>(rawState);
-        for (size_t i = 0; i < StateWidth; ++i) {
-            state[i] = TUnboxedValuePod();
+        if (IsDehydrated) {
+            ui64* state = static_cast<ui64*>(rawState);
+            std::vector<NYql::NUdf::EDataSlot>::const_iterator dsIter = DataSlots.begin();
+
+            std::transform(
+                Nodes.InitResultNodes.cbegin(),
+                Nodes.InitResultNodes.cend(),
+                state,
+                [&](IComputationNode* node) { return ConvertToState(*(dsIter++), node->GetValue(Ctx));});
+        } else {
+            TUnboxedValuePod* state = static_cast<TUnboxedValuePod*>(rawState);
+            for (size_t i = 0; i < StateWidth; ++i) {
+                state[i] = TUnboxedValuePod();
+            }
+            std::transform(
+                Nodes.InitResultNodes.cbegin(),
+                Nodes.InitResultNodes.cend(),
+                static_cast<TUnboxedValue*>(state),
+                [&](IComputationNode* node) { return node->GetValue(Ctx);});
         }
-        std::transform(
-            Nodes.InitResultNodes.cbegin(),
-            Nodes.InitResultNodes.cend(),
-            static_cast<TUnboxedValue*>(state),
-            [&](IComputationNode* node) { return node->GetValue(Ctx);});
     }
 
     // Assumes the key part of the Finish lambda input has been initialized
     void ExtractState(void* rawState, TUnboxedValue* const* output) override {
-        TUnboxedValue* state = static_cast<TUnboxedValue*>(rawState);
-        TUnboxedValue* stateIter = state;
+        if (IsDehydrated) {
+            ui64* state = static_cast<ui64*>(rawState);
+            ui64* stateIter = state;
+            std::vector<NYql::NUdf::EDataSlot>::const_iterator dsIter = DataSlots.begin();
 
-        std::for_each(Nodes.FinishStateNodes.cbegin(), Nodes.FinishStateNodes.cend(),
-            [&](IComputationExternalNode* item){ item->SetValue(Ctx, std::move(*stateIter++)); });
+            std::for_each(Nodes.FinishStateNodes.cbegin(), Nodes.FinishStateNodes.cend(),
+                [&](IComputationExternalNode* item){ item->SetValue(Ctx, std::move(ConvertFromState(*(dsIter++), stateIter++))); });
+        } else {
+            TUnboxedValue* state = static_cast<TUnboxedValue*>(rawState);
+            TUnboxedValue* stateIter = state;
+
+            std::for_each(Nodes.FinishStateNodes.cbegin(), Nodes.FinishStateNodes.cend(),
+                [&](IComputationExternalNode* item){ item->SetValue(Ctx, std::move(*stateIter++)); });
+        }
 
         TUnboxedValue* const* outputIter = output;
 
@@ -411,6 +512,10 @@ public:
     }
 
     void ForgetState(void* rawState) override {
+        if (IsDehydrated) {
+            return;
+        }
+
         TUnboxedValue* state = static_cast<TUnboxedValue*>(rawState);
         for (size_t i = 0; i < StateWidth; ++i) {
             *state++ = TUnboxedValue(); // TODO: or maybe just Unref?
@@ -454,13 +559,20 @@ EFillState FetchFromStream(TUnboxedValue& inputStream, TUnboxedValueVector& inpu
 constexpr const size_t DefaultMemoryLimit = 128ull << 20; // if the runtime limit is zero
 constexpr const float ExtraMapCapacity = 2.0; // hashmap size is target row count increased by this factor then adjusted up to a power of 2
 constexpr const float MaxCompressionRatio = 32.0;
-constexpr const size_t MemorySampleRowCount = 16384ULL; // sample size for row weight estimation, in rows
+constexpr const size_t CombineMemorySampleRowCount = 16384ULL; // sample size for row weight estimation in Combine mode, in rows
+constexpr const size_t SpillingMemorySampleRowCount = 1000ULL; // sample size for row weight estimation in Aggregate mode when trying to spill, in rows
 constexpr const size_t LowerFixedRowCount = 1024ULL; // minimum viable hash table size, rows
 constexpr const size_t UpperFixedRowCount = 128 * 1024ULL; // maximum hash table size, rows (fixed constant for now)
 constexpr const size_t BucketBits = 7;
 constexpr const size_t NumBuckets = 1ULL << BucketBits;
 constexpr const size_t SpillingIoBuffer = 5_MB;
-constexpr const size_t StorageArenaMinSize = 64_MB;
+constexpr const size_t StorageArenaMinSize = 32_MB;
+
+struct TDqHashCombineTestParams
+{
+    bool DisableStateDehydration = false;
+    bool DisableKeyPassthrough = false;
+};
 
 class TBaseAggregationState: public TComputationValue<TBaseAggregationState>
 {
@@ -490,7 +602,7 @@ protected:
     {
         for (auto i = 0U; i < Nodes.ItemNodes.size(); ++i) {
             // TODO: precalc unused nodes; this is too expensive to do for every row
-            // if (Nodes.ItemNodes[i]->GetDependencesCount() > 0U || Nodes.PasstroughtItems[i]) {
+            // if (Nodes.ItemNodes[i]->GetDependentsCount() > 0U || Nodes.PasstroughtItems[i]) {
             Nodes.ItemNodes[i]->RefValue(Ctx) = *input[i];
             // }
         }
@@ -547,23 +659,45 @@ protected:
         currentSpilling.Spillage.resize(NumBuckets);
 
         const ui32 keysAndStatesWidth = KeysAndStatesType->GetElementsCount();
+        const ui32 keysWidth = KeyTypes.size();
+
         currentSpilling.StateWidth = keysAndStatesWidth;
 
         for (size_t i = 0; i < NumBuckets; ++i) {
-            currentSpilling.Spillage[i].SpilledState = std::make_unique<TWideUnboxedValuesSpillerAdapter>(Spiller, KeysAndStatesType, SpillingIoBuffer);
-            currentSpilling.Spillage[i].SpilledInput = std::make_unique<TWideUnboxedValuesSpillerAdapter>(Spiller, InputUnpackedItemsType, SpillingIoBuffer);
+            currentSpilling.Spillage[i].SpilledState = std::make_unique<TWideUnboxedValuesSpillerAdapter>(Spiller, KeysAndStatesType, SpillingIoBuffer, Ctx.RuntimeSettings.DatumValidation.Get());
+            currentSpilling.Spillage[i].SpilledInput = std::make_unique<TWideUnboxedValuesSpillerAdapter>(Spiller, InputUnpackedItemsType, SpillingIoBuffer, Ctx.RuntimeSettings.DatumValidation.Get());
         }
 
         [[maybe_unused]] size_t totalWritten = 0;
         [[maybe_unused]] size_t totalFlushed = 0;
 
+        TVector<TUnboxedValuePod> HydratedBuffer;
+        const bool isDehydrated = GenericAggregation->StateIsDehydrated();
+        if (isDehydrated) {
+            HydratedBuffer.resize(keysAndStatesWidth);
+        }
+
+        auto rehydrateIfNeeded = [&](char* item) -> TArrayRef<TUnboxedValuePod> {
+            TArrayRef<TUnboxedValuePod> rawResult(static_cast<TUnboxedValuePod*>(static_cast<void*>(item)), keysAndStatesWidth);
+
+            if (!isDehydrated) {
+                return rawResult;
+            }
+
+            std::copy(rawResult.begin(), rawResult.begin() + keysWidth, HydratedBuffer.begin());
+            GenericAggregation->Hydrate(item + keysWidth * sizeof(TUnboxedValuePod), HydratedBuffer.begin() + keysWidth);
+            return TArrayRef<TUnboxedValuePod>(HydratedBuffer);
+        };
+
+        const ui32 pageStride = Store->AllocSize;
+
         for (size_t i = 0; i < NumBuckets; ++i) {
             TWideUnboxedValuesSpillerAdapter& spiller = *currentSpilling.Spillage[i].SpilledState;
             TSegmentedArena::TPageEntry* page = Store->PagesByTag[i];
             while (page != nullptr) {
-                TUnboxedValuePod* item = static_cast<TUnboxedValuePod*>(page->Page);
-                for (ui32 writtenFromPage = 0; writtenFromPage < page->Used; ++writtenFromPage, item += keysAndStatesWidth) {
-                    TArrayRef<TUnboxedValuePod> pageItems(item, keysAndStatesWidth);
+                char* item = static_cast<char*>(page->Page);
+                for (ui32 writtenFromPage = 0; writtenFromPage < page->Used; ++writtenFromPage, item += pageStride) {
+                    TArrayRef<TUnboxedValuePod> pageItems(rehydrateIfNeeded(item));
                     ++totalWritten;
                     auto pageFuture = spiller.WriteWideItem(pageItems);
                     for (auto& uv : pageItems) {
@@ -676,33 +810,59 @@ protected:
 
         const ui32 bucket = currentSpill.CurrentBucket;
         MKQL_ENSURE(bucket < NumBuckets, "Trying to read past the last spilling bucket");
-        Store->Format(1, sizeof(TUnboxedValuePod) * KeysAndStatesWidth);
+
+        Store->Format(1, KeyAndStatesByteSize);
+
+        const bool isDehydratedState = GenericAggregation->StateIsDehydrated();
+        const ui32 keysCount = KeyTypes.size();
+        const ui32 keyAndStatesCount = KeysAndStatesWidth;
+
+        TVector<TUnboxedValuePod> HydratedBuffer;
+        if (isDehydratedState) {
+            HydratedBuffer.resize(keyAndStatesCount);
+        }
+
+        auto dehydrate = [&](TArrayRef<TUnboxedValue> src, TUnboxedValuePod* dst) -> void {
+            TUnboxedValuePod* from = static_cast<TUnboxedValuePod*>(src.data());
+            for (ui32 i = 0; i < keysCount; ++i) {
+                *(dst++) = *(from++);
+            }
+            GenericAggregation->Dehydrate(from, static_cast<void*>(dst));
+        };
 
         {
-            // Read the state
+            // Read the state; the current stateSpiller implementation reads the hydrated (full-size UV) representation of the key-value tuple from disk;
+            // we need to dehydrate just the state part of the tuple into the internal representation if isDehydratedState == true
             TWideUnboxedValuesSpillerAdapter& stateSpiller = *currentSpill.Spillage[bucket].SpilledState;
             [[maybe_unused]] size_t readStateItems = 0;
 
             while (!stateSpiller.Empty()) {
                 TUnboxedValuePod* keyAndStateBuf = static_cast<TUnboxedValuePod*>(Store->Alloc(0));
-                for (size_t i = 0; i < KeysAndStatesWidth; ++i) {
-                    keyAndStateBuf[i] = TUnboxedValuePod();
+
+                TArrayRef<TUnboxedValue> keyAndStateArr(static_cast<TUnboxedValue*>(isDehydratedState ? HydratedBuffer.data() : keyAndStateBuf), keyAndStatesCount);
+                for (auto& uv : keyAndStateArr) {
+                    static_cast<TUnboxedValuePod&>(uv) = TUnboxedValuePod{};
                 }
-                TArrayRef<TUnboxedValue> keyAndStateArr(static_cast<TUnboxedValue*>(keyAndStateBuf), KeysAndStatesWidth);
 
                 auto readFuture = stateSpiller.ExtractWideItem(keyAndStateArr);
+
                 if (readFuture.has_value()) [[unlikely]] {
                     while (!readFuture->HasValue()) {
                         co_yield {};
                     }
-                    auto stuff = readFuture->ExtractValueSync();
+                    auto stuff = readFuture->ExtractValue();
                     MKQL_ENSURE(stuff.has_value(), "A spilled blob is missing while reading back the aggregation state");
                     stateSpiller.AsyncReadCompleted(std::move(stuff.value()), Ctx.HolderFactory);
                     Store->CancelAlloc(0);
                     continue;
                 }
                 ++readStateItems;
-                // TODO: Checkpoint: ensure RefCounts are == 1
+
+                if (isDehydratedState) {
+                    dehydrate(keyAndStateArr, keyAndStateBuf);
+                }
+
+                // TODO: Checkpoint: ensure RefCounts are valid
                 bool isNew = false;
                 Map->Insert(keyAndStateBuf, isNew);
 
@@ -832,8 +992,10 @@ protected:
 
         ui64 bucketId = 0;
         ui64 hash = Hasher(tempKey);
-        if (EnableSpilling) {            
-            bucketId = (hash * 11400714819323198485llu) & ((1ull << BucketBits) - 1);
+        if (EnableSpilling) {
+            // Lower 16 bits are used by the hash shuffle connection to distribute keys among tasks, so we can't use these (even with the hash seed)
+            // Another solution would be to rehash using a different function but shifted bits are uniform enough
+            bucketId = ((hash * 11400714819323198485llu) >> 16) & ((1ull << BucketBits) - 1ull);
         }
 
         if (!SpillingStack.empty()) {
@@ -846,11 +1008,30 @@ protected:
                 auto k = tempKey;
                 for (ui32 i = 0U; i < tempKeySize; ++i) {
                     k->UnRef();
+                    k++;
                 }
-                k++;
             }
-            // TODO: GetUsedItems actually. Maybe with an estimation of the actual memory size adjusted for non-embedded values.
-            if (!HasMemoryForProcessing() && Store->GetUsedMem() > StorageArenaMinSize) {
+
+            if (SampleSpillingInput) {
+                auto estimated = EstimateUvPackSize(
+                    TArrayRef<const TUnboxedValuePod>(rowBuffer, InputUnpackedWidth),
+                    InputUnpackedItemsType->GetElements());
+
+                if (!estimated) {
+                    SampledInputRealMemoryUsage = 0;
+                    SampleSpillingInput = false;
+                } else {
+                    SampledInputRealMemoryUsage += *estimated;
+                    if ((++SampledInputRows) >= SpillingMemorySampleRowCount) {
+                        SampleSpillingInput = false;
+                        double mult = static_cast<double>(SampledInputRealMemoryUsage) / SampledInputRows;
+                        mult /= (sizeof(TUnboxedValuePod) * InputUnpackedWidth);
+                        InputRowMemoryUsageMultiplier = mult;
+                    }
+                }
+            }
+
+            if (!HasMemoryForProcessing() && Store->GetUsedMem() * InputRowMemoryUsageMultiplier.value_or(1.0) > StorageArenaMinSize) {
                 if (FlushSpillingInput()) {
                     return EFillState::Yield;
                 }
@@ -953,7 +1134,8 @@ public:
         const std::vector<TType*>& stateItemTypes,
         const bool forLLVM,
         const bool isAggregator,
-        const bool enableSpilling
+        const bool enableSpilling,
+        const TDqHashCombineTestParams testParams
     )
         : TBase(memInfo)
         , Ctx(ctx)
@@ -966,17 +1148,18 @@ public:
         , Nodes(nodes)
         , WideFieldsIndex(wideFieldsIndex)
         , KeyTypes(keyTypes)
-        , Hasher(THashFunc(TWideUnboxedHasher(KeyTypes)))
+        , Hasher(THashFunc(TWideUnboxedHasher(KeyTypes, GetInstanceSeed(this))))
         , Equals(TWideUnboxedEqual(KeyTypes))
         , Draining(false)
         , SourceEmpty(false)
+        , TestParams(testParams)
     {
         TempKeyBuffer.resize(KeyTypes.size());
 
         if (!IsAggregation) {
             IsEstimating = !(MemoryHelper.KeySizeBound && MemoryHelper.StateSizeBound);
             if (IsEstimating) {
-                MaxRowCount = MemorySampleRowCount;
+                MaxRowCount = CombineMemorySampleRowCount;
             } else {
                 MaxRowCount = GetStaticMaxRowCount(memoryHelper.KeySizeBound.value() + memoryHelper.StateSizeBound.value(), MemoryLimit);
             }
@@ -990,7 +1173,7 @@ public:
         std::vector<TType*> keyAndStateTypesVec = keyItemTypes;
 
         if (HasGenericAggregation) {
-            auto genericAgg = std::make_unique<TGenericAggregation>(Ctx, Nodes, stateItemTypes);
+            auto genericAgg = std::make_unique<TGenericAggregation>(Ctx, Nodes, stateItemTypes, TestParams.DisableStateDehydration);
             GenericAggregation = genericAgg.get();
             Aggs.emplace_back(genericAgg.release());
             keyAndStateTypesVec.insert(keyAndStateTypesVec.end(), stateItemTypes.begin(), stateItemTypes.end());
@@ -1010,7 +1193,7 @@ public:
 
         PrepareForNewBatch();
 
-        if (IsAggregation) {
+        if (IsAggregation && !TestParams.DisableKeyPassthrough) {
             std::vector<ui32> keySourceItems;
             for (const auto& node : Nodes.KeyResultNodes) {
 
@@ -1157,7 +1340,7 @@ protected:
             }
         }
         Store->Clear();
-        Store->Format(EnableSpilling ? NumBuckets : 1, sizeof(TUnboxedValuePod) * KeysAndStatesWidth);
+        Store->Format(EnableSpilling ? NumBuckets : 1, KeyAndStatesByteSize);
     }
 
     [[nodiscard]] bool OpenDrain() {
@@ -1271,7 +1454,14 @@ protected:
     bool Draining;
     bool SourceEmpty;
 
+    bool SampleSpillingInput = true;
+    size_t SampledInputRows = 0;
+    size_t SampledInputRealMemoryUsage = 0;
+    std::optional<double> InputRowMemoryUsageMultiplier;
+
     TCoroTask CurrentAsyncTask;
+
+    const TDqHashCombineTestParams TestParams;
 };
 
 class TWideAggregationState: public TBaseAggregationState
@@ -1293,11 +1483,12 @@ public:
         const std::vector<TType*>& stateItemTypes,
         const bool forLLVM,
         const bool isAggregator,
-        const bool enableSpilling
+        const bool enableSpilling,
+        const TDqHashCombineTestParams testParams
     )
         : TBaseAggregationState(
             memInfo, ctx, memoryHelper, memoryLimit, inputWidth, nodes, wideFieldsIndex, keyTypes,
-            keyItemTypes, stateItemTypes, forLLVM, isAggregator, enableSpilling
+            keyItemTypes, stateItemTypes, forLLVM, isAggregator, enableSpilling, testParams
         )
         , OutputRowCounter(outputRowCounter)
         , StartMoment(TInstant::Now()) // Temporary. Helps correlate debug outputs with SVGs
@@ -1456,11 +1647,12 @@ public:
         const size_t maxOutputBlockLen,
         const bool forLLVM,
         const bool isAggregator,
-        const bool enableSpilling
+        const bool enableSpilling,
+        const TDqHashCombineTestParams testParams
     )
         : TBaseAggregationState(
             memInfo, ctx, memoryHelper, memoryLimit, inputTypes.size() - 1, nodes, wideFieldsIndex,
-            keyTypes, keyItemTypes, stateItemTypes, forLLVM, isAggregator, enableSpilling
+            keyTypes, keyItemTypes, stateItemTypes, forLLVM, isAggregator, enableSpilling, testParams
         )
         , OutputRowCounter(outputRowCounter)
         , InputTypes(inputTypes)
@@ -1503,6 +1695,9 @@ public:
         }
 
         InputUnpackedItemsType = TMultiType::Create(InputTypes.size() - 1, InputTypes.data(), ctx.TypeEnv);
+
+        BlockArrays.resize(OutputColumns);
+        BlockDatums.resize(OutputColumns);
     }
 
     TUnboxedValue* const* GetInputBuffer() override {
@@ -1575,14 +1770,60 @@ public:
     }
 
     NUdf::EFetchStatus TryDrain(NUdf::TUnboxedValue* const* output) override {
-        return TryDrainInternal(output);
+        return TryDrainBlocks(output);
     }
 
     NUdf::EFetchStatus TryDrainDirect() {
-        return TryDrainInternal(DrainBufferPointers.data());
+        return TryDrainBlocks(DrainBufferPointers.data());
     }
 
-    NUdf::EFetchStatus TryDrainInternal(NUdf::TUnboxedValue* const* output) {
+    NUdf::EFetchStatus TryDrainBlocks(NUdf::TUnboxedValue* const* output) {
+        if (!HasPendingBlocks) {
+            auto status = TryDrainInternal();
+            if (status != NUdf::EFetchStatus::Ok) {
+                return status;
+            }
+        }
+
+        MKQL_ENSURE(HasPendingBlocks, "TryDrainInternal has promised us a block but did not deliver");
+
+        // Slice off the smallest chunk
+        size_t sliceSize = BlockSizeRemaining;
+        for (ui32 i = 0; i < OutputColumns; ++i) {
+            const auto& arr = BlockArrays[i];
+            MKQL_ENSURE(!arr.empty() && arr.front()->length <= static_cast<int64_t>(BlockSizeRemaining), "Block column height mismatch at column " << i);
+            sliceSize = std::min<ui64>(sliceSize, arr.front()->length);
+        }
+
+        for (ui32 i = 0; i < OutputColumns; ++i) {
+            auto& arr = BlockArrays[i];
+            if (auto& array = arr.front(); ui64(array->length) == sliceSize) {
+                *output[i] = Ctx.HolderFactory.CreateArrowBlock(std::move(array));
+                arr.pop_front();
+            }
+            else {
+                *output[i] = Ctx.HolderFactory.CreateArrowBlock(NYql::NUdf::Chop(arr.front(), sliceSize));
+            }
+        }
+
+        *output[OutputColumns] = Ctx.HolderFactory.CreateArrowBlock(arrow::Datum(static_cast<uint64_t>(sliceSize)));
+
+        OutputRowCounter.Add(sliceSize);
+        BlockSizeRemaining -= sliceSize;
+
+        if (!BlockSizeRemaining) {
+            HasPendingBlocks = false;
+            for (ui32 i = 0; i < OutputColumns; ++i) {
+                BlockDatums[i] = arrow::Datum();
+                MKQL_ENSURE(BlockArrays[i].empty(), "Not all columns have been drained completely");
+            }
+        }
+
+        return NUdf::EFetchStatus::Ok;
+    }
+
+
+    NUdf::EFetchStatus TryDrainInternal() {
         MKQL_ENSURE(IsDraining(), "Cannot call TryDrain() unless IsDraining()");
 
         TTypeInfoHelper helper;
@@ -1594,14 +1835,12 @@ public:
 
         size_t currentBlockSize = 0;
         void* tuple = nullptr;
-        bool yielding = false;
 
         while (currentBlockSize < MaxOutputBlockLen) {
             tuple = DrainArenaIterator.Next();
-            if (!tuple) {
+            if (!tuple && !currentBlockSize) {
                 if (CheckRefillFromPendingBuckets()) {
-                    yielding = true;
-                    break;
+                    return NUdf::EFetchStatus::Yield;
                 }
                 tuple = DrainArenaIterator.Next();
             }
@@ -1646,33 +1885,32 @@ public:
         }
 
         if (currentBlockSize) {
+            BlockSizeRemaining = currentBlockSize;
+            HasPendingBlocks = true;
             for (size_t i = 0; i < OutputColumns; ++i) {
-                auto datum = blockBuilders[i]->Build(true);
-                *output[i] = Ctx.HolderFactory.CreateArrowBlock(std::move(datum));
+                auto& datum = BlockDatums[i];
+                auto& blockColumn = BlockArrays[i];
+                datum = blockBuilders[i]->Build(true);
+
+                MKQL_ENSURE(datum.is_arraylike(), "Unexpected block type (expecting array or chunked array)");
+                NYql::NUdf::ForEachArrayData(datum, [&blockColumn](const auto& arrayData) {
+                    blockColumn.push_back(arrayData);
+                });
             }
-
-            *output[OutputColumns] = Ctx.HolderFactory.CreateArrowBlock(arrow::Datum(static_cast<uint64_t>(currentBlockSize)));
-            OutputRowCounter.Inc();
+            return NUdf::EFetchStatus::Ok;
         }
 
-        if (yielding) {
-            // If yielding with currentBlockSize > 0 we'll do a "real" yield in a next call to WideFetch/DoCalculate
-            return currentBlockSize > 0 ? NUdf::EFetchStatus::Ok : NUdf::EFetchStatus::Yield;
+        MKQL_ENSURE(!tuple, "Empty block has been generated while the state is still draining");
+
+        Draining = false;
+        if (!IsAggregation) {
+            PrepareForNewBatch();
+        } else {
+            Map.Reset();
+            Store->Clear();
         }
 
-        if (!tuple) {
-            Draining = false;
-            if (!IsAggregation) {
-                PrepareForNewBatch();
-            } else {
-                Map.Reset();
-                Store->Clear();
-            }
-
-            return currentBlockSize > 0 ? NUdf::EFetchStatus::Ok : NUdf::EFetchStatus::Finish;
-        }
-
-        return NUdf::EFetchStatus::Ok;
+        return NUdf::EFetchStatus::Finish;
     }
 
 private:
@@ -1699,6 +1937,11 @@ private:
 
     TUnboxedValueVector DrainBuffer;
     std::vector<TUnboxedValue*> DrainBufferPointers;
+
+    std::vector<arrow::Datum> BlockDatums;
+    std::vector<std::deque<std::shared_ptr<arrow::ArrayData>>> BlockArrays;
+    bool HasPendingBlocks = false;
+    size_t BlockSizeRemaining = 0;
 
     size_t CurrentInputBatchSize = 0;
     size_t CurrentInputBatchPtr = 0;
@@ -1775,7 +2018,7 @@ private:
     std::vector<TUnboxedValue*> OutputPtrs;
 };
 
-class TDqHashCombineFlowWrapper: public TStatefulWideFlowCodegeneratorNode<TDqHashCombineFlowWrapper>
+class TDqHashCombineFlowWrapper: public TStatefulWideFlowCodegeneratorNode<TDqHashCombineFlowWrapper>, public TDqHashCombineTestPoints
 {
 public:
     using TBaseComputation = TStatefulWideFlowCodegeneratorNode<TDqHashCombineFlowWrapper>;
@@ -1878,6 +2121,14 @@ public:
                 [this, flow](IComputationExternalNode* node){ this->Own(flow, node); }
             );
         }
+    }
+
+    virtual void DisableStateDehydration(const bool disable) override {
+        TestParams.DisableStateDehydration = disable;
+    }
+
+    virtual void DisableKeyPassthrough(const bool disable) override {
+        TestParams.DisableKeyPassthrough = disable;
     }
 
 #if !defined(MKQL_DISABLE_CODEGEN)
@@ -2123,11 +2374,11 @@ private:
         if (!BlockMode) {
             state = ctx.HolderFactory.Create<TWideAggregationState>(
                 ctx, MemoryHelper, rowCounter, MemoryLimit, InputWidth, OutputTypes.size(), Nodes, WideFieldsIndex,
-                KeyTypes, InputTypes, KeyItemTypes, StateItemTypes, forLLVM, IsAggregator, EnableSpilling);
+                KeyTypes, InputTypes, KeyItemTypes, StateItemTypes, forLLVM, IsAggregator, EnableSpilling, TestParams);
         } else {
             state = ctx.HolderFactory.Create<TBlockAggregationState>(
                 ctx, MemoryHelper, rowCounter, MemoryLimit, InputTypes, OutputTypes, Nodes, WideFieldsIndex,
-                KeyTypes, KeyItemTypes, StateItemTypes, MaxOutputBlockLen, forLLVM, IsAggregator, EnableSpilling);
+                KeyTypes, KeyItemTypes, StateItemTypes, MaxOutputBlockLen, forLLVM, IsAggregator, EnableSpilling, TestParams);
         }
     }
 
@@ -2146,9 +2397,10 @@ private:
     const TMemoryEstimationHelper MemoryHelper;
     const bool IsAggregator;
     const bool EnableSpilling;
+    TDqHashCombineTestParams TestParams;
 };
 
-class TDqHashCombineStreamWrapper: public TMutableComputationNode<TDqHashCombineStreamWrapper>
+class TDqHashCombineStreamWrapper: public TMutableComputationNode<TDqHashCombineStreamWrapper>, public TDqHashCombineTestPoints
 {
 private:
     using TBaseComputation = TMutableComputationNode<TDqHashCombineStreamWrapper>;
@@ -2191,6 +2443,15 @@ public:
         return ctx.HolderFactory.Create<TCombinerOutputStreamValue>(boxedState, inputStream);
     }
 
+    virtual void DisableStateDehydration(const bool disable) override {
+        TestParams.DisableStateDehydration = disable;
+    }
+
+    virtual void DisableKeyPassthrough(const bool disable) override {
+        TestParams.DisableKeyPassthrough = disable;
+    }
+
+
 private:
     void MakeState(TComputationContext& ctx, NUdf::TUnboxedValue& state) const {
         NYql::NUdf::TLoggerPtr logger = ctx.MakeLogger();
@@ -2207,11 +2468,11 @@ private:
         if (!BlockMode) {
             state = ctx.HolderFactory.Create<TWideAggregationState>(
                 ctx, MemoryHelper, rowCounter, MemoryLimit, InputWidth, OutputTypes.size(), Nodes, WideFieldsIndex,
-                KeyTypes, InputTypes, KeyItemTypes, StateItemTypes, false, IsAggregator, EnableSpilling);
+                KeyTypes, InputTypes, KeyItemTypes, StateItemTypes, false, IsAggregator, EnableSpilling, TestParams);
         } else {
             state = ctx.HolderFactory.Create<TBlockAggregationState>(
                 ctx, MemoryHelper, rowCounter, MemoryLimit, InputTypes, OutputTypes, Nodes, WideFieldsIndex,
-                KeyTypes, KeyItemTypes, StateItemTypes, MaxOutputBlockLen, false, IsAggregator, EnableSpilling);
+                KeyTypes, KeyItemTypes, StateItemTypes, MaxOutputBlockLen, false, IsAggregator, EnableSpilling, TestParams);
         }
     }
 
@@ -2238,6 +2499,7 @@ private:
     const TMemoryEstimationHelper MemoryHelper;
     const bool IsAggregator;
     const bool EnableSpilling;
+    TDqHashCombineTestParams TestParams;
 };
 
 IComputationNode* WrapDqHashOperator(TCallable& callable, const TComputationNodeFactoryContext& ctx, const EOperatorKind kind) {

@@ -2,8 +2,12 @@
 
 #include <yt/yt/ytlib/cypress_client/proto/rpc.pb.h>
 
+#include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
+
 #include <yt/yt/core/rpc/client.h>
 #include <yt/yt/core/rpc/service.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NCypressClient {
 
@@ -102,16 +106,27 @@ bool GetAllowResolveFromSequoiaObject(const NRpc::NProto::TRequestHeader& header
         : false;
 }
 
-void SetSequoiaNodeEffectiveAcl(NRpc::NProto::TRequestHeader* header, const TString& effectiveAcl)
+void SetSequoiaNodeEffectiveAcl(NRpc::NProto::TRequestHeader* header, const NYson::TYsonString& effectiveAcl)
 {
-    header->SetExtension(TSequoiaExt::target_node_effective_acl, effectiveAcl);
+    ToProto(header->MutableExtension(TSequoiaExt::target_node_effective_acl), effectiveAcl);
 }
 
-std::optional<TStringBuf> GetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequestHeader& header)
+NYson::TYsonStringBuf TryGetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequestHeader& header)
 {
-    return header.HasExtension(TSequoiaExt::target_node_effective_acl)
-        ? std::make_optional<TStringBuf>(header.GetExtension(TSequoiaExt::target_node_effective_acl))
-        : std::nullopt;
+    if (!header.HasExtension(TSequoiaExt::target_node_effective_acl)) {
+        return {};
+    }
+    return NYson::TYsonStringBuf(TStringBuf(header.GetExtension(TSequoiaExt::target_node_effective_acl)));
+}
+
+void SetSequoiaNodeHasRowLevelAce(NRpc::NProto::TRequestHeader* header, bool value)
+{
+    header->SetExtension(TSequoiaExt::target_node_has_row_level_ace, value);
+}
+
+bool GetSequoiaNodeHasRowLevelAce(const NRpc::NProto::TRequestHeader& header)
+{
+    return header.GetExtension(TSequoiaExt::target_node_has_row_level_ace);
 }
 
 void SetResolveDepth(NRpc::NProto::TRequestHeader* header, int value)
@@ -141,7 +156,21 @@ bool GetCausedByNodeExpiration(const NRpc::NProto::TRequestHeader& header)
     return header.GetExtension(TExpirationExt::caused_by_node_expiration);
 }
 
+void SetResolvedSequoiaObjectId(NRpc::NProto::TRequestHeader* header, TObjectId objectId)
+{
+    auto* ext = header->MutableExtension(NObjectClient::NProto::TResolvedSequoiaObjectExt::resolved_sequoia_object);
+    ToProto(ext->mutable_object_id(), objectId);
+}
+
+TObjectId GetResolvedSequoiaObjectId(const NRpc::NProto::TRequestHeader& header)
+{
+    if (header.HasExtension(NObjectClient::NProto::TResolvedSequoiaObjectExt::resolved_sequoia_object)) {
+        return FromProto<TObjectId>(header.GetExtension(NObjectClient::NProto::TResolvedSequoiaObjectExt::resolved_sequoia_object).object_id());
+    } else {
+        return NullObjectId;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient
-

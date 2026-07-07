@@ -24,6 +24,7 @@ target_compile_options(yt-server-replicated_table_tracker PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-server-replicated_table_tracker PUBLIC
@@ -31,11 +32,11 @@ target_link_libraries(yt-server-replicated_table_tracker PUBLIC
   contrib-libs-cxxsupp
   yutil
   server-lib-admin
-  server-lib-cypress_election
   server-lib-cypress_registrar
   server-lib-hydra
   server-lib-misc
   server-lib-tablet_server
+  yt-library-cypress_election
   yt-library-dynamic_config
   yt-library-monitoring
   yt-library-orchid

@@ -8,8 +8,6 @@
 
 namespace NYT::NApi::NNative {
 
-extern const std::string UpstreamReplicaIdAttributeName;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(IPickReplicaSession)

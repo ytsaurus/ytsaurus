@@ -1,9 +1,3 @@
-#include <library/cpp/getopt/last_getopt.h>
-#include <library/cpp/protobuf/util/pb_io.h>
-#include <library/cpp/uri/http_url.h>
-#include <util/string/strip.h>
-#include <util/system/env.h>
-#include <util/system/interrupt_signals.h>
 #include <yt/yql/providers/yt/fmr/utils/yql_yt_tvm_helpers.h>
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
 #include <yt/yql/providers/yt/fmr/coordinator/client/yql_yt_coordinator_client.h>
@@ -20,11 +14,21 @@
 #include <yt/yql/providers/yt/fmr/yt_job_service/file/yql_yt_file_yt_job_service.h>
 #include <yt/yql/providers/yt/fmr/worker/server/yql_yt_fmr_worker_server.h>
 #include <yt/yql/providers/yt/fmr/yt_job_service/impl/yql_yt_job_service_impl.h>
+
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
 #include <yql/essentials/utils/mem_limit.h>
 #include <yql/essentials/core/file_storage/proto/file_storage.pb.h>
 #include <yql/essentials/protos/fmr.pb.h>
+
+#include <library/cpp/getopt/last_getopt.h>
+#include <library/cpp/protobuf/util/pb_io.h>
+#include <library/cpp/uri/http_url.h>
+#include <library/cpp/yson/node/node_io.h>
+
+#include <util/string/strip.h>
+#include <util/system/env.h>
+#include <util/system/interrupt_signals.h>
 
 using namespace NYql::NFmr;
 using namespace NYql;
@@ -43,9 +47,11 @@ struct TWorkerRunOptions {
     TString LoggerFormat;
     THolder<TFileStorageConfig> FsConfig;
     THolder<TFmrFileRemoteCache> FmrRemoteCacheConfig;
-    TString FmrTvmConfig;
+    TString WorkerYsonPath;
+    TMaybe<TString> FmrTvmConfig;
     TMaybe<ui32> FmrTvmPort;
     TMaybe<TString> FmrTvmSecretPath;
+    ui64 WorkerMemLimitMb = 0;
 
     void InitLogger() {
         NLog::ELevel level = NLog::TLevelHelpers::FromInt(Verbosity);
@@ -80,7 +86,8 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
         opts.AddLongOption('b', "fmrjob-binary-path", "Path to fmrjob map binary").StoreResult(&options.FmrJobBinaryPath);
         opts.AddLongOption('d', "table-data-service-discovery-file-path", "Table data service discovery file path").StoreResult(&options.TableDataServiceDiscoveryFilePath);
-        opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
+        opts.AddLongOption("mem-limit-hard", "Set memory limit in megabytes").Handler1T<ui32>(70 * 1024, SetAddressSpaceLimit);
+        opts.AddLongOption("mem-limit-soft", "Worker RSS memory limit in megabytes for OOM detection").StoreResult(&options.WorkerMemLimitMb).DefaultValue(68 * 1024);
         opts.AddLongOption('g', "gateway-type", "Type of underlying gateway (native, file)").StoreResult(&options.UnderlyingGatewayType).DefaultValue("native");
         opts.AddLongOption('h', "host", "Fast map reduce worker server host").StoreResult(&options.Host).DefaultValue("localhost");
         opts.AddLongOption('p', "port", "Worker server port").StoreResult(&options.Port).DefaultValue(7007);
@@ -93,6 +100,7 @@ int main(int argc, const char *argv[]) {
             options.FmrRemoteCacheConfig = MakeHolder<TFmrFileRemoteCache>();
             LoadFmrRemoteCacheConfigFromFile(file, *options.FmrRemoteCacheConfig);
         });
+        opts.AddLongOption("worker-yson-path", "Path to YSON file with worker settings").Optional().StoreResult(&options.WorkerYsonPath);
         opts.AddLongOption('t', "tvm-cfg", "fmr tvm config").Optional().StoreResult(&options.FmrTvmConfig);
         opts.AddLongOption("tvm-port", "fmr tvm port").Optional().StoreResult(&options.FmrTvmPort);
         opts.AddLongOption("tvm-secret-path", "fmr tvm secret path").Optional().StoreResult(&options.FmrTvmSecretPath);
@@ -118,8 +126,14 @@ int main(int argc, const char *argv[]) {
         }
         bool isNative = underlyingGatewayType == "native";
 
-        TFmrWorkerSettings workerSettings{};
+        TMaybe<NYT::TNode> workerConfig;
+        if (!options.WorkerYsonPath.empty()) {
+            TFileInput input(options.WorkerYsonPath);
+            workerConfig = NYT::NodeFromYsonStream(&input);
+        }
+        auto workerSettings = GetDefaultWorkerSettings(workerConfig);
         workerSettings.WorkerId = options.WorkerId;
+        workerSettings.MemoryLimitBytes = options.WorkerMemLimitMb * 1024 * 1024;
 
         TFmrCoordinatorClientSettings coordinatorClientSettings;
         THttpURL parsedUrl;
@@ -157,17 +171,18 @@ int main(int argc, const char *argv[]) {
         auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(TFmrUserJobLauncherOptions{
             .RunInSeparateProcess = true,
             .FmrJobBinaryPath = options.FmrJobBinaryPath,
-            .TableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath,
-            .GatewayType = underlyingGatewayType
+            .GatewayType = underlyingGatewayType,
+            .TableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath
         });
         // TODO - add different job Settings here
         TString tableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath;
         auto func = [tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher, tvmSettings] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
-            return RunJob(task, tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher, cancelFlag, tvmSettings);
+            auto discovery = MakeFileTableDataServiceDiscovery({.Path = tableDataServiceDiscoveryFilePath});
+            return RunJob(task, discovery, Nothing(), fmrYtJobSerivce, jobLauncher, cancelFlag, tvmSettings);
         };
 
-        TFmrJobFactorySettings settings{.Function=func};
-        auto jobFactory = MakeFmrJobFactory(settings);
+        workerSettings.JobFactorySettings.Function = func;
+        auto jobFactory = MakeFmrJobFactory(workerSettings.JobFactorySettings);
         auto&& fmrCacheConfig = options.FmrRemoteCacheConfig;
 
         TString ytDownloaderServer;
@@ -177,7 +192,7 @@ int main(int argc, const char *argv[]) {
         NYql::NFS::IDownloaderPtr ytDownloader =  MakeYtDownloader(*options.FsConfig, ytDownloaderServer);
         TFileStoragePtr fileStorage = WithAsync(CreateFileStorage(*options.FsConfig, {ytDownloader}));
 
-        auto jobPreparer = MakeFmrJobPreparer(fileStorage, tableDataServiceDiscoveryFilePath, TFmrJobPreparerSettings(), tvmClient, tableDataServiceTvmId);
+        auto jobPreparer = MakeFmrJobPreparer(fileStorage, MakeFileTableDataServiceDiscovery({.Path = tableDataServiceDiscoveryFilePath}), TFmrJobPreparerSettings(), tvmClient, tableDataServiceTvmId);
         if (isNative && fmrCacheConfig && !fmrCacheConfig->GetPath().empty()) {
             TString distFileCacheBaseUrl = "yt://" + fmrCacheConfig->GetCluster() + "/" + fmrCacheConfig->GetPath();
             TString distCacheYtToken;

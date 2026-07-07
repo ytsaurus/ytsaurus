@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/client/misc/public.h>
 
 #include <yt/yt/core/misc/ema_counter.h>
@@ -42,8 +44,13 @@ struct TChunkReaderPerformanceCounters
     TPerformanceCountersEma StaticChunkRowLookup;
     TPerformanceCountersEma StaticChunkRowLookupDataWeight;
     TPerformanceCountersEma StaticHunkChunkRowLookupDataWeight;
+    TPerformanceCountersEma UserDataBytesTransmitted;
+    TPerformanceCountersEma SystemDataBytesTransmitted;
 
-    void IncrementHunkDataWeight(EPerformanceCountedRequestType requestType, i64 value, EWorkloadCategory workloadCategory);
+    void IncrementHunkDataWeight(EInitialQueryKind initialQueryKind, i64 value, EWorkloadCategory workloadCategory);
+    void Increment(
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        bool isSystemWorkload);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
@@ -78,13 +85,13 @@ IVersionedReaderPtr CreateVersionedPerformanceCountingReader(
     IVersionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    EPerformanceCountedRequestType type);
+    EInitialQueryKind initialQueryKind);
 
 ISchemafulUnversionedReaderPtr CreateSchemafulPerformanceCountingReader(
     ISchemafulUnversionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    EPerformanceCountedRequestType type);
+    EInitialQueryKind initialQueryKind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -113,11 +113,14 @@ TMessageIdRange TPersistentMailboxState::GetOutcomingMessageIdRange() const
 }
 
 void TPersistentMailboxState::IterateOutcomingMessages(
-    TMessageId firstMessageId,
+    TMessageId* firstMessageId,
     const std::function<bool(const TOutcomingMessage&)>& visitor) const
 {
     OutcomingMessages_.Read([&] (const auto& outcomingMessages) {
-        for (auto currentMessageId = firstMessageId;
+        if (*firstMessageId < outcomingMessages.FirstId) {
+            *firstMessageId = outcomingMessages.FirstId;
+        }
+        for (auto currentMessageId = *firstMessageId;
             currentMessageId < outcomingMessages.FirstId + std::ssize(outcomingMessages.Messages);
             ++currentMessageId)
         {

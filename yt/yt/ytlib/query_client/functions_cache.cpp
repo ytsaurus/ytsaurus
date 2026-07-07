@@ -3,10 +3,12 @@
 #include <yt/yt/library/query/engine_api/append_function_implementation.h>
 
 #include <yt/yt/library/query/base/private.h>
+#include <yt/yt/library/query/base/query_common.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/yt/client/api/file_reader.h>
 
@@ -183,6 +185,13 @@ void FormatValue(TStringBuilderBase* builder, const TExternalFunction& value, TS
 
 namespace {
 
+TMasterReadOptions MakeMasterCacheReadOptions()
+{
+    return TMasterReadOptions{
+        .ReadFrom = EMasterChannelKind::Cache,
+    };
+}
+
 TYPath GetUdfDescriptorPath(const TYPath& registryPath, const std::string& functionName)
 {
     return registryPath + "/" + ToYPathLiteral(functionName);
@@ -211,8 +220,12 @@ std::vector<TExternalFunctionSpec> LookupAllNativeUdfDescriptors(
         YT_LOG_DEBUG("Finished Looking for UDFs in Cypress (LookupUdfDescriptorsTime: %v)", timer.GetElapsedTime());
     });
 
-    auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
+    auto readOptions = MakeMasterCacheReadOptions();
+    const auto& connection = client->GetNativeConnection();
+
+    auto proxy = CreateObjectServiceReadProxy(client, readOptions.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
+    NNative::SetBalancingHeader(batchReq, connection, readOptions);
 
     for (const auto& function : functions) {
         auto path = GetUdfDescriptorPath(function.Path, function.Name);
@@ -222,9 +235,11 @@ std::vector<TExternalFunctionSpec> LookupAllNativeUdfDescriptors(
             FunctionDescriptorAttribute,
             AggregateDescriptorAttribute,
         });
+        NNative::SetCachingHeader(getReq, connection, readOptions);
         batchReq->AddRequest(getReq, "get_attributes");
 
         auto basicAttributesReq = TObjectYPathProxy::GetBasicAttributes(path);
+        NNative::SetCachingHeader(basicAttributesReq, connection, readOptions);
         batchReq->AddRequest(basicAttributesReq, "get_basic_attributes");
     }
 
@@ -272,15 +287,17 @@ std::vector<TExternalFunctionSpec> LookupAllNativeUdfDescriptors(
     for (const auto& [externalCellTag, infos] : externalCellTagToInfo) {
         auto proxy = CreateObjectServiceReadProxy(
             client,
-            EMasterChannelKind::Follower,
+            readOptions.ReadFrom,
             externalCellTag);
-        auto fetchBatchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
+        auto fetchBatchReq = proxy.ExecuteBatchWithRetries(connection->GetConfig()->ChunkFetchRetries);
+        NNative::SetBalancingHeader(fetchBatchReq, connection, readOptions);
 
         for (auto [objectId, index] : infos) {
             auto fetchReq = TFileYPathProxy::Fetch(FromObjectId(objectId));
             AddCellTagToSyncWith(fetchReq, objectId);
             fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             ToProto(fetchReq->mutable_ranges(), std::vector<TLegacyReadRange>({TLegacyReadRange()}));
+            NNative::SetCachingHeader(fetchReq, connection, readOptions);
             fetchBatchReq->AddRequest(fetchReq);
         }
 
@@ -349,9 +366,13 @@ std::pair<TObjectServiceProxy, std::vector<TErrorOr<TIntrusivePtr<TYPathProxy::T
     const NNative::IClientPtr& client,
     std::vector<TYPath> uniqueDirectories)
 {
-    auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
+    auto readOptions = MakeMasterCacheReadOptions();
+    const auto& connection = client->GetNativeConnection();
+
+    auto proxy = CreateObjectServiceReadProxy(client, readOptions.ReadFrom);
 
     auto batchReq = proxy.ExecuteBatch();
+    NNative::SetBalancingHeader(batchReq, connection, readOptions);
 
     for (const auto& directory : uniqueDirectories) {
         auto listReq = TYPathProxy::List(directory);
@@ -360,6 +381,7 @@ std::pair<TObjectServiceProxy, std::vector<TErrorOr<TIntrusivePtr<TYPathProxy::T
             AggregateDescriptorAttribute,
             IsWebAssemblySdkAttribute,
         });
+        NNative::SetCachingHeader(listReq, connection, readOptions);
 
         batchReq->AddRequest(listReq, "get_attributes");
     }
@@ -467,12 +489,17 @@ THashMap<TYPath, std::pair<NObjectClient::TObjectId, TCellTag>> FetchBasicAttrib
         paths.push_back(item);
     }
 
-    auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
+    auto readOptions = MakeMasterCacheReadOptions();
+    const auto& connection = client->GetNativeConnection();
+
+    auto proxy = CreateObjectServiceReadProxy(client, readOptions.ReadFrom);
 
     auto batchReq = proxy.ExecuteBatch();
+    NNative::SetBalancingHeader(batchReq, connection, readOptions);
 
     for (const auto& path : paths) {
         auto basicAttributesReq = TObjectYPathProxy::GetBasicAttributes(path);
+        NNative::SetCachingHeader(basicAttributesReq, connection, readOptions);
         batchReq->AddRequest(basicAttributesReq, "get_basic_attributes");
     }
 
@@ -549,14 +576,18 @@ void FetchChunks(
     std::vector<TExternalFunctionSpec>* result,
     const THashMap<TExternalFunction, i64>& resultIndices)
 {
+    auto readOptions = MakeMasterCacheReadOptions();
+    const auto& connection = client->GetNativeConnection();
+
     auto proxy = CreateObjectServiceReadProxy(
         client,
-        EMasterChannelKind::Follower,
+        readOptions.ReadFrom,
         externalCellTag);
 
     auto objectIds = std::vector<NObjectClient::TObjectId>();
     auto groupedFunctions = std::vector<std::vector<TExternalFunction>>();
-    auto fetchBatchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
+    auto fetchBatchReq = proxy.ExecuteBatchWithRetries(connection->GetConfig()->ChunkFetchRetries);
+    NNative::SetBalancingHeader(fetchBatchReq, connection, readOptions);
 
     for (auto& [objectId, namesAndPathList] : infos) {
         objectIds.push_back(objectId);
@@ -566,6 +597,7 @@ void FetchChunks(
         AddCellTagToSyncWith(fetchReq, objectId);
         fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
         ToProto(fetchReq->mutable_ranges(), std::vector<TLegacyReadRange>({TLegacyReadRange()}));
+        NNative::SetCachingHeader(fetchReq, connection, readOptions);
         fetchBatchReq->AddRequest(fetchReq);
     }
 
@@ -823,9 +855,8 @@ void AppendNativeUdfDescriptors(
 
             typeInferrers->emplace(name, typer);
             cgInfo->Functions.push_back(std::move(functionBody));
-        }
-
-        if (aggregateDescriptor) {
+        } else {
+            YT_VERIFY(aggregateDescriptor);
             YT_LOG_DEBUG("Appending aggregate UDF descriptor (Name: %v)", name);
 
             functionBody.IsAggregate = true;
@@ -1137,7 +1168,7 @@ bool TFunctionImplKey::operator==(const TFunctionImplKey& other) const
     return true;
 }
 
-[[maybe_unused]] TString ToString(const TFunctionImplKey& key)
+[[maybe_unused]] std::string ToString(const TFunctionImplKey& key)
 {
     return Format("{%v}", JoinToString(key.ChunkSpecs, [] (
         TStringBuilderBase* builder,
@@ -1292,6 +1323,7 @@ void AppendFunctionImplementation(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TExternalFunctionImpl& function,
+    const TQueryOptions& options,
     const TEnumIndexedArray<EExecutionBackend, TSharedRef>& impl)
 {
     AppendFunctionImplementation(
@@ -1305,6 +1337,7 @@ void AppendFunctionImplementation(
         function.RepeatedArgType,
         function.RepeatedArgIndex,
         function.UseFunctionContext,
+        options,
         impl);
 }
 
@@ -1317,7 +1350,7 @@ void FetchFunctionImplementationsFromCypress(
     const TFunctionImplCachePtr& cache,
     const TClientChunkReadOptions& chunkReadOptions,
     NWebAssembly::TModuleBytecode* sdk,
-    NCodegen::EExecutionBackend executionBackend)
+    const TQueryOptions& queryOptions)
 {
     std::vector<TFuture<TFunctionImplCacheEntryPtr>> asyncResults;
 
@@ -1338,7 +1371,7 @@ void FetchFunctionImplementationsFromCypress(
         asyncResults.push_back(cache->FetchImplementation(key, externalCGInfo->NodeDirectory, chunkReadOptions));
     }
 
-    if (executionBackend == EExecutionBackend::WebAssembly) {
+    if (queryOptions.ExecutionBackend == EExecutionBackend::WebAssembly) {
         YT_LOG_DEBUG("Fetching SDK implementation (ReadSessionId: %v)",
             chunkReadOptions.ReadSessionId);
 
@@ -1358,16 +1391,17 @@ void FetchFunctionImplementationsFromCypress(
         const auto& function = externalCGInfo->Functions[index];
 
         auto implementationFiles = TEnumIndexedArray<EExecutionBackend, TSharedRef>();
-        implementationFiles[executionBackend] = results[index]->File;
+        implementationFiles[queryOptions.ExecutionBackend] = results[index]->File;
 
         AppendFunctionImplementation(
             functionProfilers,
             aggregateProfilers,
             function,
+            queryOptions,
             implementationFiles);
     }
 
-    if (executionBackend == EExecutionBackend::WebAssembly) {
+    if (queryOptions.ExecutionBackend == EExecutionBackend::WebAssembly) {
         sdk->Data = results.back()->File;
     }
 }
@@ -1389,7 +1423,7 @@ void FetchFunctionImplementationsFromFiles(
         auto implementationFiles = TEnumIndexedArray<EExecutionBackend, TSharedRef>();
         implementationFiles[EExecutionBackend::Native] = TSharedRef::FromString(file.ReadAll());
 
-        AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, implementationFiles);
+        AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, TQueryOptions{.AllowUdfObjectCodeCache = false}, implementationFiles);
     }
 }
 

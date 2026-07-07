@@ -46,10 +46,20 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueueExportManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("user", &TThis::User)
+        .Optional(/*init*/ false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueueAgentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("stage", &TThis::Stage)
         .NonEmpty();
+    registrar.Parameter("queue_export_manager", &TThis::QueueExportManager)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,6 +83,8 @@ void TQueueExporterDynamicConfig::Register(TRegistrar registrar)
         .Default(DefaultRetryBackoff);
     registrar.Parameter("implementation", &TThis::Implementation)
         .Default(EQueueExporterImplementation::Old);
+    registrar.Parameter("enable_row_count_check", &TThis::EnableRowCountCheck)
+        .Default(true);
 
     registrar.Postprocessor([] (TQueueExporterDynamicConfig* config) {
         THROW_ERROR_EXCEPTION_UNLESS(config->RetryBackoff.InvocationCount == DefaultRetryBackoff.InvocationCount, "Invalid value of \"invocation_count\"");

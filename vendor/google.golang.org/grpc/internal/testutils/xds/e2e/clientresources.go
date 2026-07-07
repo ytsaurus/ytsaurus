@@ -650,6 +650,8 @@ type BackendOptions struct {
 	HealthStatus v3corepb.HealthStatus
 	// Weight sets the backend weight. Defaults to 1.
 	Weight uint32
+	// Hostname sets the endpoint hostname for authority rewriting.
+	Hostname string
 	// Metadata sets the LB endpoint metadata (envoy.lb FilterMetadata field).
 	// See https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/core/v3/base.proto#envoy-v3-api-msg-config-core-v3-metadata
 	Metadata map[string]any
@@ -712,11 +714,7 @@ func EndpointResourceWithOptions(opts EndpointOptions) *v3endpointpb.ClusterLoad
 					},
 				}
 			}
-			metadata, err := structpb.NewStruct(b.Metadata)
-			if err != nil {
-				panic(err)
-			}
-			lbEndpoints = append(lbEndpoints, &v3endpointpb.LbEndpoint{
+			lbEndpoint := &v3endpointpb.LbEndpoint{
 				HostIdentifier: &v3endpointpb.LbEndpoint_Endpoint{Endpoint: &v3endpointpb.Endpoint{
 					Address: &v3corepb.Address{Address: &v3corepb.Address_SocketAddress{
 						SocketAddress: &v3corepb.SocketAddress{
@@ -725,16 +723,25 @@ func EndpointResourceWithOptions(opts EndpointOptions) *v3endpointpb.ClusterLoad
 							PortSpecifier: &v3corepb.SocketAddress_PortValue{PortValue: b.Ports[0]},
 						},
 					}},
+					Hostname:            b.Hostname,
 					AdditionalAddresses: additionalAddresses,
 				}},
 				HealthStatus:        b.HealthStatus,
 				LoadBalancingWeight: &wrapperspb.UInt32Value{Value: b.Weight},
-				Metadata: &v3corepb.Metadata{
+			}
+
+			if b.Metadata != nil {
+				metadata, err := structpb.NewStruct(b.Metadata)
+				if err != nil {
+					panic(fmt.Sprintf("failed to marshal metadata: %v", err))
+				}
+				lbEndpoint.Metadata = &v3corepb.Metadata{
 					FilterMetadata: map[string]*structpb.Struct{
 						"envoy.lb": metadata,
 					},
-				},
-			})
+				}
+			}
+			lbEndpoints = append(lbEndpoints, lbEndpoint)
 		}
 
 		l := locality.Locality

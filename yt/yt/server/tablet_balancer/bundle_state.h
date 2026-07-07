@@ -47,7 +47,7 @@ struct TBundleSnapshot final
     TError NonFatalError;
     TTableRegistryPtr TableRegistry;
 
-    using TAlienTableTag = std::tuple<TString, NYPath::TYPath>;
+    using TAlienTableTag = std::tuple<std::string, NYPath::TYPath>;
     THashMap<TAlienTableTag, TTableId> AlienTablePaths;
     THashMap<TTableId, TAlienTablePtr> AlienTables;
     THashSet<std::string> BannedReplicaClusters;
@@ -87,7 +87,7 @@ DEFINE_REFCOUNTED_TYPE(IBundleState)
 ////////////////////////////////////////////////////////////////////////////////
 
 IBundleStatePtr CreateBundleState(
-    TString name,
+    std::string name,
     IBootstrap* bootstrap,
     IInvokerPtr fetcherInvoker,
     IInvokerPtr controlInvoker,

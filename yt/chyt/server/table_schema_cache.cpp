@@ -11,7 +11,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedTableSchema::TCachedTableSchema(
-    TGuid schemaId,
+    TObjectId schemaId,
     TTableSchemaPtr schema)
     : TSyncCacheValueBase(schemaId)
     , TableSchema_(std::move(schema))
@@ -33,29 +33,47 @@ i64 TCachedTableSchema::GetWeight() const
 TTableSchemaCache::TTableSchemaCache(
     TSlruCacheConfigPtr config,
     TProfiler profiler)
-    : TSyncSlruCacheBase(std::move(config), std::move(profiler))
-{ }
-
-TTableSchemaPtr TTableSchemaCache::Get(TGuid schemaId)
+    : TSyncSlruCacheBase(std::move(config), profiler.WithPrefix("/weight"))
+    , HitCounter_(profiler.Counter("/hit"))
+    , MissCounter_(profiler.Counter("/miss"))
 {
-    auto res = Find(schemaId);
-    if (res) {
-        return res->GetTableSchema();
+    profiler.AddFuncGauge("/size", MakeStrong(this), [this] {
+        return EntryCount_.load();
+    });
+}
+
+TTableSchemaPtr TTableSchemaCache::Get(TObjectId schemaId)
+{
+    auto result = Find(schemaId);
+    if (result) {
+        HitCounter_.Increment();
+        return result->GetTableSchema();
     }
     return nullptr;
 }
 
-void TTableSchemaCache::Insert(TGuid schemaId, TTableSchemaPtr schema)
+void TTableSchemaCache::Insert(TObjectId schemaId, TTableSchemaPtr schema)
 {
     auto cachedSchema = New<TCachedTableSchema>(schemaId, std::move(schema));
-    TryInsert(std::move(cachedSchema));
+    if (TryInsert(std::move(cachedSchema))) {
+        MissCounter_.Increment();
+    }
+}
+
+void TTableSchemaCache::OnAdded(const TCachedTableSchemaPtr& /*value*/)
+{
+    EntryCount_.fetch_add(1);
+}
+
+void TTableSchemaCache::OnRemoved(const TCachedTableSchemaPtr& /*value*/)
+{
+    EntryCount_.fetch_sub(1);
 }
 
 i64 TTableSchemaCache::GetWeight(const TCachedTableSchemaPtr& value) const
 {
     return value->GetWeight();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

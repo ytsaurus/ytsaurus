@@ -11,6 +11,7 @@ SRCS(
     proto_visitor.cpp
     scalar_attribute.cpp
     unwrapping_consumer.cpp
+    asterisk_projection.cpp
     wire_string.cpp
     ytree.cpp
 )
@@ -21,6 +22,7 @@ PEERDIR(
     yt/yt/core
 
     library/cpp/containers/bitset
+    library/cpp/yt/compact_containers
 )
 
 END()

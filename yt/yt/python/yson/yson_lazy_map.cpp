@@ -173,7 +173,7 @@ int LazyYsonMapBaseInit(TLazyYsonMapBase* self, PyObject* args, PyObject* kwargs
     Py::Tuple arguments(args);
     Py::Dict kwarguments(kwargs);
 
-    std::optional<TString> encoding;
+    std::optional<std::string> encoding;
     auto arg = NPython::ExtractArgument(arguments, kwarguments, "encoding");
     if (!arg.isNone()) {
         encoding = Py::ConvertStringObjectToString(arg);

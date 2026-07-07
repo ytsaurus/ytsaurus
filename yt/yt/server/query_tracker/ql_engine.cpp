@@ -67,7 +67,7 @@ public:
     }
 
 private:
-    const TString Query_;
+    const std::string Query_;
     const IClientPtr QueryClient_;
     const TSelectRowsOptions Options_;
 
@@ -120,6 +120,11 @@ public:
         NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
+    std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
+    {
+        return std::nullopt;
+    }
+
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
@@ -134,7 +139,7 @@ private:
 
         options.InputRowLimit = settings->Find<i64>("input_row_limit");
         options.OutputRowLimit = settings->Find<i64>("output_row_limit");
-        options.ExecutionPool = settings->Find<TString>("execution_pool");
+        options.ExecutionPool = settings->Find<std::string>("execution_pool");
         options.ExecutionBackend = settings->Find<EExecutionBackend>("execution_backend");
         options.UseLookupCache = settings->Find<bool>("use_lookup_cache");
         options.UdfRegistryPath = settings->Find<TYPath>("udf_registry_path");

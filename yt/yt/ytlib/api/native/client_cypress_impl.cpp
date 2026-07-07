@@ -247,15 +247,6 @@ protected:
         , Logger(std::move(logger))
     { }
 
-    ~TCrossCellExecutor()
-    {
-        try {
-            MaybeAbortTransaction();
-        } catch (std::exception& e) {
-            YT_LOG_DEBUG(TError(e), "Error aborting transaction");
-        }
-    }
-
     // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
     struct TSerializedSubtree
     {
@@ -355,7 +346,7 @@ protected:
 
     template <class TOptions>
     void StartTransaction(
-        const TString& title,
+        const std::string& title,
         const TOptions& options)
     {
         YT_LOG_DEBUG("Starting transaction");
@@ -1055,9 +1046,12 @@ protected:
         YT_LOG_DEBUG("Aborting transaction");
 
         auto error = WaitFor(Transaction_->Abort());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error aborting transaction");
+        if (!error.IsOK()) {
+            YT_LOG_DEBUG(error, "Error aborting transaction");
+        } else {
+            YT_LOG_DEBUG("Transaction aborted");
+        }
 
-        YT_LOG_DEBUG("Transaction aborted");
     }
 };
 
@@ -1083,6 +1077,22 @@ public:
     { }
 
     TNodeId Run()
+    {
+        try {
+            return DoRun();
+        } catch (const std::exception& ex) {
+            MaybeAbortTransaction();
+            throw;
+        }
+    }
+
+private:
+    const TYPath SrcPath_;
+    const TYPath DstPath_;
+    const TOptions Options_;
+
+
+    TNodeId DoRun()
     {
         YT_LOG_DEBUG("Cross-cell node cloning started");
         StartTransaction(
@@ -1123,15 +1133,11 @@ public:
         }
         SyncExternalCellsWithClonedNodeCell();
         CommitTransaction(commitOptions);
+
         YT_LOG_DEBUG("Cross-cell node cloning completed");
+
         return DstNodeId_;
     }
-
-private:
-    const TYPath SrcPath_;
-    const TYPath DstPath_;
-    const TOptions Options_;
-
 
     void RemoveSource()
     {
@@ -1166,6 +1172,36 @@ public:
     }
 
     void Run()
+    {
+        try {
+            DoRun();
+        } catch (const std::exception& ex) {
+            MaybeAbortTransaction();
+            throw;
+        }
+    }
+
+private:
+    const TYPath Path_;
+    const TExternalizeNodeOptions Options_;
+    TYsonString Acl_;
+    TYsonString InheritAcl_;
+    TYsonString Annotation_;
+
+    static TMoveNodeOptions GetOptions()
+    {
+        TMoveNodeOptions options;
+        options.PreserveAccount = true;
+        options.PreserveCreationTime = true;
+        options.PreserveModificationTime = true;
+        options.PreserveExpirationTime = true;
+        options.PreserveOwner = true;
+        options.PreserveAcl = true;
+        options.Force = true;
+        return options;
+    }
+
+    void DoRun()
     {
         YT_LOG_DEBUG("Node externalization started");
         StartTransaction(
@@ -1207,26 +1243,6 @@ public:
         YT_LOG_DEBUG("Node externalization completed");
     }
 
-private:
-    const TYPath Path_;
-    const TExternalizeNodeOptions Options_;
-    TYsonString Acl_;
-    TYsonString InheritAcl_;
-    TYsonString Annotation_;
-
-    static TMoveNodeOptions GetOptions()
-    {
-        TMoveNodeOptions options;
-        options.PreserveAccount = true;
-        options.PreserveCreationTime = true;
-        options.PreserveModificationTime = true;
-        options.PreserveExpirationTime = true;
-        options.PreserveOwner = true;
-        options.PreserveAcl = true;
-        options.Force = true;
-        return options;
-    }
-
     void RequestAclAndAnnotation()
     {
         YT_LOG_DEBUG("Requesting root @acl, @inherit_acl and @annotation");
@@ -1235,7 +1251,7 @@ private:
 
         auto batchReq = proxy.ExecuteBatch();
 
-        auto getAttribute = [&] (TString name, TYsonString* result) {
+        auto getAttribute = [&] (const std::string& name, TYsonString* result) {
             auto req = TObjectYPathProxy::Get(Path_ + "/@" + name);
             req->Tag() = result;
             batchReq->AddRequest(req);
@@ -1472,7 +1488,11 @@ TLockNodeDetailedResult TClient::DoLockNodeDetailed(
 {
     auto proxy = CreateObjectServiceWriteProxy();
 
-    auto batchReqConfig = New<TReqExecuteBatchRetriesConfig>();
+    auto config = Connection_->GetConfig()->SequoiaRetries;
+
+    auto batchReqConfig = config->Enable
+        ? config->ToRetriesConfig()
+        : New<TReqExecuteBatchRetriesConfig>();
 
     auto batchReq = proxy.ExecuteBatchWithRetries(std::move(batchReqConfig));
     SetSuppressUpstreamSyncs(batchReq, options);
@@ -1679,7 +1699,7 @@ public:
         TConcatenateNodesOptions options)
     {
         Options_ = std::move(options);
-        TransactionId_ = Client_->GetTransactionId(options, /*allowNullTransaction*/ true);
+        TransactionId_ = Client_->GetTransactionId(Options_, /*allowNullTransaction*/ true);
         Append_ = dstPath.GetAppend();
 
         try {
@@ -1898,7 +1918,7 @@ private:
         }
 
         std::optional<EObjectType> commonType;
-        TString pathWithCommonType;
+        TYPath pathWithCommonType;
 
         auto checkType = [&] (const TUserObject& object) {
             auto type = object.Type;
@@ -2374,7 +2394,7 @@ private:
             }
         }
 
-        std::vector<TString> srcObjectPaths;
+        std::vector<TYPath> srcObjectPaths;
         srcObjectPaths.reserve(SrcObjects_.size());
         for (const auto& srcObject : SrcObjects_) {
             srcObjectPaths.push_back(srcObject.GetPath());
@@ -2584,7 +2604,7 @@ void TClient::DoInternalizeNode(
     const TYPath& /*path*/,
     const TInternalizeNodeOptions& /*options*/)
 {
-    THROW_ERROR_EXCEPTION("Node internalization is deprecated and is no longer possible.");
+    THROW_ERROR_EXCEPTION("Node internalization is deprecated and is no longer possible");
 }
 
 TObjectId TClient::DoCreateObject(

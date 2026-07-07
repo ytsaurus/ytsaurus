@@ -216,12 +216,18 @@ void TSerializableUserRequestLimitsOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("clusterwide", &TThis::Clusterwide_)
         .GreaterThan(0)
-        .Default(100);
+        .Optional(); // Thanks to the postprocessor below, this defaults to default's default.
     registrar.Parameter("default", &TThis::Default_)
         .GreaterThan(0)
         .Default(100);
     registrar.Parameter("per_cell", &TThis::PerCell_)
         .Optional();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->Clusterwide_) {
+            config->Clusterwide_ = config->Default_;
+        }
+    });
 }
 
 TSerializableUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::CreateFrom(
@@ -255,12 +261,18 @@ void TSerializableUserQueueSizeLimitsOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("clusterwide", &TThis::Clusterwide_)
         .GreaterThan(0)
-        .Default(100);
+        .Optional(); // Thanks to the postprocessor below, this defaults to default's default.
     registrar.Parameter("default", &TThis::Default_)
         .GreaterThan(0)
         .Default(100);
     registrar.Parameter("per_cell", &TThis::PerCell_)
         .Optional();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->Clusterwide_) {
+            config->Clusterwide_ = config->Default_;
+        }
+    });
 }
 
 TSerializableUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::CreateFrom(
@@ -280,7 +292,7 @@ TUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::ToLimits
     const IMulticellManagerPtr& multicellManager) const
 {
     auto result = New<TUserQueueSizeLimitsOptions>();
-    result->SetClusterwide(Clusterwide_);
+    result->SetClusterwide(*Clusterwide_);
     result->SetCellDefault(Default_);
     for (auto [cellTag, limit] : CellNameMapToCellTagMapOrThrow(PerCell_, multicellManager)) {
         result->SetForCell(cellTag, limit);
@@ -421,12 +433,30 @@ void TUser::Load(TLoadContext& context)
     Load(context, Tags_);
     Load(context, LastSeenTime_);
     Load(context, PendingRemoval_);
-    if (context.GetVersion() < NCellMaster::EMasterReign::DropSecondaryIndexCreationPermissionFlags) {
-        Load<bool>(context);
-    }
 
     TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);
     TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestBytesThrottlerConfig_);
+
+    if (auto version = context.GetVersion();
+        version < EMasterReign::DefaultUserClusterwideLimitToCellLimit_26_1 ||
+        (version >= EMasterReign::Start_26_2 && version < EMasterReign::DefaultUserClusterwideLimitToCellLimit))
+    {
+        auto fixClusterwideLimit = [] (auto& limitOptions)
+        {
+            // NB: this works both for std::optional<int> and int.
+            auto fixedLimit = std::max(limitOptions.GetClusterwide(), limitOptions.GetCellDefault());
+            for (auto [cellTag, perCellLimit] : limitOptions.PerCell()) {
+                if (perCellLimit > fixedLimit) {
+                    fixedLimit = perCellLimit;
+                }
+            }
+            limitOptions.SetClusterwide(fixedLimit);
+        };
+
+        fixClusterwideLimit(*ObjectServiceRequestLimits_->ReadRequestRateLimits);
+        fixClusterwideLimit(*ObjectServiceRequestLimits_->WriteRequestRateLimits);
+        fixClusterwideLimit(*ObjectServiceRequestLimits_->RequestQueueSizeLimits);
+    }
 
     InitializeCounters();
 }

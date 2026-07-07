@@ -16,10 +16,16 @@ For the full list of available settings, [see below](#pragmas).
 * `y`: The name of the setting.
 * `z`: (optional for flags) The value of the setting. The following suffixes are acceptable:
 
-  * `k`, `m`, `g`, `t`: For the data amounts.
-  * `w`,`d`, `h`, `m`, `s`, `ms`, `us`, `ns` : For the time values.
+  * `Kb`, `Mb`, `Gb`: For data amounts.
+  * `s`, `m`, `h`, `d`: For time values.
 
-For [dynamic yt pragmas](yt.md), you can revert the settings values to their default states using `PRAGMA my_pragma = default;`. Please note that you can't reset the settings for other pragmas.
+For [dynamic YT pragmas](yt.md), you can revert the settings values to their default states using `PRAGMA my_pragma = default`. Please note that you can't reset the settings for other pragmas.
+
+{% note info %}
+
+The pragma name is case‑insensitive and ignores underscores. The following entries are identical and will be interpreted the same way: `PRAGMA mypragma`, `PRAGMA MyPrAgMA`, `PRAGMA my_pragma`.
+
+{% endnote %}
 
 ## Examples
 

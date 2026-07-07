@@ -78,6 +78,7 @@ private:
 TProgram::TProgram()
 {
     Opts_.AddHelpOption();
+    Opts_.AddHelpOption('h');
     Opts_.AddLongOption("yt-version", "Prints YT version")
         .NoArgument()
         .StoreValue(&PrintYTVersion_, true);
@@ -90,6 +91,9 @@ TProgram::TProgram()
     Opts_.AddLongOption("build", "Prints build information")
         .NoArgument()
         .StoreValue(&PrintBuild_, true);
+    Opts_.AddLongOption("compatibility-info", "Prints compatibility info (e.g. current reign)")
+        .NoArgument()
+        .StoreValue(&PrintCompatibilityInfo_, true);
     Opts_.SetFreeArgsNum(0);
 }
 
@@ -100,7 +104,7 @@ void TProgram::SetCrashOnError()
     CrashOnError_ = true;
 }
 
-void TProgram::HandleVersionAndBuild()
+void TProgram::HandleProgramInfo()
 {
     if (PrintVersion_) {
         PrintVersionAndExit();
@@ -111,17 +115,26 @@ void TProgram::HandleVersionAndBuild()
     if (PrintBuild_) {
         PrintBuildAndExit();
     }
+    if (PrintCompatibilityInfo_) {
+        DoPrintCompatibilityInfo();
+        Exit(0);
+    }
+}
+
+void TProgram::DoPrintCompatibilityInfo()
+{
+    THROW_ERROR_EXCEPTION("Compatibility info is not implemented for this program");
 }
 
 int TProgram::Run(int argc, const char** argv)
 {
     ::srand(time(nullptr));
 
-    Argv0_ = TString(argv[0]);
+    Argv0_ = argv[0];
     OptsParseResult_ = std::make_unique<TOptsParseResult>(this, argc, argv);
 
     auto run = [&] {
-        HandleVersionAndBuild();
+        HandleProgramInfo();
         DoRun();
     };
 
@@ -169,7 +182,7 @@ bool TProgram::ShouldAbortOnHungShutdown() noexcept
     return true;
 }
 
-void TProgram::OnError(const TString& message) noexcept
+void TProgram::OnError(const std::string& message) noexcept
 {
     try {
         Cerr << message << Endl;
@@ -213,7 +226,7 @@ const NLastGetopt::TOptsParseResult& TProgram::GetOptsParseResult() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProgramException::TProgramException(TString what)
+TProgramException::TProgramException(std::string what)
     : What_(std::move(what))
 { }
 
@@ -224,7 +237,7 @@ const char* TProgramException::what() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString CheckPathExistsArgMapper(const TString& arg)
+std::string CheckPathExistsArgMapper(const std::string& arg)
 {
     if (!NFS::Exists(arg)) {
         throw TProgramException(Format("File %v does not exist", arg));
@@ -232,7 +245,7 @@ TString CheckPathExistsArgMapper(const TString& arg)
     return arg;
 }
 
-NYson::TYsonString CheckYsonArgMapper(const TString& arg)
+NYson::TYsonString CheckYsonArgMapper(const std::string& arg)
 {
     ParseYsonStringBuffer(arg, EYsonType::Node, GetNullYsonConsumer());
     return NYson::TYsonString(arg);

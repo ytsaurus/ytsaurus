@@ -1,8 +1,8 @@
 #pragma once
 
-#include "public.h"
 #include "job.h"
 #include "job_profiler.h"
+#include "public.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -15,6 +15,8 @@
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
 #include <yt/yt/ytlib/table_client/schemaful_reader_adapter.h>
+
+#include <library/cpp/yt/cpu_clock/public.h>
 
 namespace NYT::NJobProxy {
 
@@ -32,7 +34,7 @@ public:
 
     std::vector<NChunkClient::TChunkId> DumpInputContext(NTransactionClient::TTransactionId transactionId) override;
     NApi::TGetJobStderrResponse GetStderr(const NApi::TGetJobStderrOptions& options = {}) override;
-    std::optional<TString> GetFailContext() override;
+    std::optional<std::string> GetFailContext() override;
     std::vector<NJobAgent::TJobProfile> GetProfiles() override;
     const NControllerAgent::TCoreInfos& GetCoreInfos() const override;
     NApi::TPollJobShellResponse PollJobShell(
@@ -56,7 +58,7 @@ protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;
 
-    TInstant IOStartTime_;
+    TCpuInstant IOStartTime_;
 
     std::unique_ptr<IJobProfiler> JobProfiler_;
 

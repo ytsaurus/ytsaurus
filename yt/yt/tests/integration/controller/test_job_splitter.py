@@ -8,7 +8,6 @@ from yt_commands import (
 import pytest
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobSplitter(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 3
@@ -40,7 +39,6 @@ class TestJobSplitter(YTEnvSetup):
             "operations_update_period": 10,
             "operation_options": {
                 "spec_template": {
-                    "use_new_sorted_pool": False,
                     "foreign_table_lookup_keys_threshold": 1000,
                 },
                 "job_splitter": {
@@ -58,11 +56,7 @@ class TestJobSplitter(YTEnvSetup):
 
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    @pytest.mark.parametrize("use_new_sorted_pool", [False, True])
-    def test_join_reduce_job_splitter(self, sort_order, use_new_sorted_pool):
-        if sort_order == "descending" and not use_new_sorted_pool:
-            pytest.skip("This test requires new sorted pool")
-
+    def test_join_reduce_job_splitter(self, sort_order):
         create("table", "//tmp/in_1")
         for j in range(20):
             x = j if sort_order == "ascending" else 19 - j
@@ -134,7 +128,6 @@ done
                 "job_io": {
                     "buffer_row_count": 1,
                 },
-                "use_new_sorted_pool": use_new_sorted_pool,
             },
         )
 
@@ -342,11 +335,7 @@ done
     @authors("max42")
     @pytest.mark.parametrize("mode", ["sorted", "ordered"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    @pytest.mark.parametrize("use_new_sorted_pool", [False, True])
-    def test_merge_job_splitter(self, mode, sort_order, use_new_sorted_pool):
-        if sort_order == "descending" and not use_new_sorted_pool:
-            pytest.skip("This test requires new sorted pool")
-
+    def test_merge_job_splitter(self, mode, sort_order):
         create(
             "table",
             "//tmp/t_in",
@@ -377,7 +366,6 @@ done
                     "testing_options": {"pipe_delay": 2000},
                     "buffer_row_count": 1,
                 },
-                "use_new_sorted_pool": use_new_sorted_pool,
             },
         )
 
@@ -393,11 +381,7 @@ done
 
     @authors("klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    @pytest.mark.parametrize("use_new_sorted_pool", [False, True])
-    def test_reduce_job_splitter(self, sort_order, use_new_sorted_pool):
-        if sort_order == "descending" and not use_new_sorted_pool:
-            pytest.skip("This test requires new sorted pool")
-
+    def test_reduce_job_splitter(self, sort_order):
         create("table", "//tmp/in_1")
         for j in range(5):
             x = j if sort_order == "ascending" else 4 - j
@@ -471,7 +455,6 @@ done
                 "job_splitter": {
                     "enable_job_speculation": False,
                 },
-                "use_new_sorted_pool": use_new_sorted_pool,
             },
         )
 

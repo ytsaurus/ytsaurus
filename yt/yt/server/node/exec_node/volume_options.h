@@ -8,6 +8,8 @@
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/public.h>
 
+#include <yt/yt/ytlib/exec_node/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
@@ -20,9 +22,9 @@ namespace NYT::NExecNode {
 struct TCreateNbdVolumeOptions
 {
     TJobId JobId;
-    TString DeviceId;
-    TString Filesystem;
-    bool IsReadOnly;
+    std::string DeviceId;
+    std::string Filesystem;
+    bool IsReadOnly = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,10 +42,10 @@ struct TPrepareRWNbdVolumeOptions
 {
     TJobId JobId;
 
-    i64 Size;
-    int MediumIndex;
-    NNbd::EFilesystemType Filesystem;
-    TString DeviceId;
+    i64 Size = 0;
+    int MediumIndex = 0;
+    NNbd::EFilesystemType Filesystem = NNbd::EFilesystemType::Unknown;
+    std::string DeviceId;
     NRpc::IChannelPtr DataNodeChannel;
     NChunkClient::TSessionId SessionId;
 
@@ -57,8 +59,11 @@ struct TPrepareRWNbdVolumeOptions
 
     //! Params to get suitable data nodes from master.
     TDuration MasterRpcTimeout;
-    int MinDataNodeCount;
-    int MaxDataNodeCount;
+    int MinDataNodeCount = 0;
+    int MaxDataNodeCount = 0;
+
+    //! Number of TCP connections to use for NBD RPC requests.
+    int MultiplexingParallelism = DefaultNbdMultiplexingParallelism;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

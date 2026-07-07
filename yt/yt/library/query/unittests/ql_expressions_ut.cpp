@@ -1931,7 +1931,7 @@ TEST_F(TExpressionTest, NonNullableVariableForNullableArgument)
         *schema,
         GetBuiltinTypeInferrers(),
         /*references*/ nullptr,
-        /*exprBuilderVersion*/ 2);
+        TPreparePlanFragmentOptions{.BuilderVersion = 2});
     EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
     Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
@@ -2002,7 +2002,8 @@ TEST_F(TExpressionTest, Aliasing)
 TUnversionedValue YsonToUnversionedValue(TStringBuf str)
 {
     NYson::TTokenizer tokenizer(str);
-    const auto& token = SkipAttributes(&tokenizer);
+    tokenizer.SkipAttributes();
+    const auto& token = tokenizer.CurrentToken();
     switch (token.GetType()) {
         case NYson::ETokenType::Int64:
             return MakeUnversionedInt64Value(token.GetInt64Value());
@@ -2159,9 +2160,9 @@ protected:
     { }
 };
 
-TString UnversionedValueToString(TUnversionedValue value)
+std::string UnversionedValueToString(TUnversionedValue value)
 {
-    TString result;
+    std::string result;
     TFixedGrowthStringOutput outStream(&result, 300);
     NYson::TUncheckedYsonTokenWriter writer(&outStream);
 
@@ -2187,6 +2188,8 @@ TString UnversionedValueToString(TUnversionedValue value)
         default:
             YT_ABORT();
     }
+
+    writer.Finish();
 
     return result;
 }
@@ -2767,7 +2770,7 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
             IntType,
             IntType,
             "xor_aggregate",
-            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
+            {.ExecutionBackend = EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native}),
         {EValueType::Int64},
         EValueType::Int64,
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
@@ -2842,7 +2845,7 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
             /* stateType */ stringType,
             /* resultType */ stringType,
             /* name */ "concat_all",
-            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
+            {.ExecutionBackend = EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native}),
         /* argumentTypes */ {EValueType::String},
         /* stateType */ EValueType::String,
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
@@ -2928,7 +2931,7 @@ TEST_P(TEvaluateAggregationTest, Basic)
             type,
             type,
             aggregateName,
-            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
+            {.ExecutionBackend = EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native}),
         {wireType},
         wireType,
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
@@ -3058,7 +3061,7 @@ TEST_P(TEvaluateAggregationWithStringStateTest, Basic)
             stateType,
             resultType,
             aggregateName,
-            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
+            {.ExecutionBackend = EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native}),
         ToWireTypes(argumentTypes),
         GetWireType(stateType),
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,

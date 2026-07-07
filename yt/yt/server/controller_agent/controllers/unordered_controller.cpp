@@ -1,26 +1,26 @@
 #include "unordered_controller.h"
 
 #include "auto_merge_task.h"
+#include "helpers.h"
 #include "job_info.h"
 #include "job_memory.h"
-#include "helpers.h"
 #include "operation_controller_detail.h"
 #include "task.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
+#include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/helpers.h>
 #include <yt/yt/server/controller_agent/job_size_constraints.h>
 #include <yt/yt/server/controller_agent/operation.h>
-#include <yt/yt/server/controller_agent/config.h>
 
-#include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -768,6 +768,8 @@ IOperationControllerPtr CreateUnorderedMapController(
 {
     auto options = CreateOperationOptions(config->MapOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    auto providedSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetProvidedSpec());
+    ValidateAndEnrichVolumeSpec(config, spec, host, spec->Mapper.Get(), providedSpec->Mapper.Get());
     AdjustSamplingFromConfig(spec, config);
     return New<TMapController>(spec, config, options, host, operation);
 }

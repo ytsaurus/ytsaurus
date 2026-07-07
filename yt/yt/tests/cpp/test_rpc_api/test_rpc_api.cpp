@@ -346,9 +346,10 @@ public:
 
         CreateTable(
             /*tablePath*/ "//tmp/multi_lookup_test",
-            /*schema*/ "["
-            "{name=k0;type=int64;sort_order=ascending};"
-            "{name=v1;type=int64};]");
+            /*schema*/ TYsonString(R"([
+                {name=k0;type=int64;sort_order=ascending};
+                {name=v1;type=int64};
+            ])"_sb));
     }
 
     static void TearDownTestCase()
@@ -375,8 +376,8 @@ TEST_F(TMultiLookupTest, MultiLookup)
 
     auto test = [&key0, &key1] (
         const TLookupRowsOptions& lookupOptions,
-        const TString& yson0,
-        const TString& yson1)
+        const TYsonString& yson0,
+        const TYsonString& yson1)
     {
         auto results = WaitFor(Client_->MultiLookupRows(
             {
@@ -403,17 +404,17 @@ TEST_F(TMultiLookupTest, MultiLookup)
         ASSERT_EQ(1u, rowset0->GetRows().Size());
         ASSERT_EQ(1u, rowset1->GetRows().Size());
 
-        auto expected = ToString(YsonToSchemalessRow(yson0));
+        auto expected = ToString(YsonToSchemalessRow(yson0.AsStringBuf()));
         auto actual = ToString(rowset0->GetRows()[0]);
         EXPECT_EQ(expected, actual);
 
-        expected = ToString(YsonToSchemalessRow(yson1));
+        expected = ToString(YsonToSchemalessRow(yson1.AsStringBuf()));
         actual = ToString(rowset1->GetRows()[0]);
         EXPECT_EQ(expected, actual);
     };
 
-    TString yson0 = "<id=0> 0; <id=1> 0;";
-    TString yson1 = "<id=0> 1; <id=1> 1;";
+    TYsonString yson0("<id=0> 0; <id=1> 0;"_sb);
+    TYsonString yson1("<id=0> 1; <id=1> 1;"_sb);
 
     TVersionedReadOptions versionedReadOptions;
     versionedReadOptions.ReadMode = NTableClient::EVersionedIOMode::LatestTimestamp;
@@ -428,8 +429,8 @@ TEST_F(TMultiLookupTest, MultiLookup)
             .ValueOrThrow().Rowset->GetRows()[0][0].Data.Uint64;
     };
 
-    auto getYsonWithTimestamp = [&] (const TString& yson, int k0) {
-        return Format("%v<id=2> %vu;", yson, getTimestamp(k0));
+    auto getYsonWithTimestamp = [&] (const TYsonString& yson, int k0) -> TYsonString {
+        return TYsonString(Format("%v<id=2> %vu;", yson, getTimestamp(k0)));
     };
 
     test(TLookupRowsOptions(), yson0, yson1);
@@ -1237,10 +1238,17 @@ class TPartitionTableTest
     : public TClearTmpTestBase
 { };
 
+class TPartitionTableTestParam
+    : public TPartitionTableTest
+    , public ::testing::WithParamInterface<bool>
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TPartitionTableTest, PartitionTableTest)
+TEST_P(TPartitionTableTestParam, PartitionTableTest)
 {
+    const bool fetchCookieNodeDescriptors = GetParam();
+
     auto path = MakeRandomTmpPath();
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
@@ -1274,6 +1282,7 @@ TEST_F(TPartitionTableTest, PartitionTableTest)
 
     TPartitionTablesOptions partitionTablesOptions;
     partitionTablesOptions.EnableCookies = true;
+    partitionTablesOptions.FetchCookieNodeDescriptors = fetchCookieNodeDescriptors;
     partitionTablesOptions.DataWeightPerPartition = 1_MB;
     auto partitions = WaitFor(Client_->PartitionTables({path}, partitionTablesOptions))
         .ValueOrThrow();
@@ -1299,6 +1308,11 @@ TEST_F(TPartitionTableTest, PartitionTableTest)
 
     EXPECT_EQ(expectedData, readRows);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    TPartitionTableTestWithFetchNodeDescriptors,
+    TPartitionTableTestParam,
+    ::testing::Bool());
 
 TEST_F(TPartitionTableTest, PartitionTableColumnFilterTest)
 {
@@ -1380,7 +1394,7 @@ TEST_F(TPartitionTableTest, GetColumnarStatisticsInvalidYPath)
     EXPECT_THROW_WITH_SUBSTRING(
         WaitFor(Client_->GetColumnarStatistics({TRichYPath(std::move(path))}))
             .ValueOrThrow(),
-        "Received ypath without column selectors");
+        "Received YPath without column selectors");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1493,6 +1507,33 @@ TEST_F(TFormatReaderTest, FormattedPartitionTableTest)
         auto row = dataList->GetChildOrThrow(i)->AsMap();
         EXPECT_EQ(row->GetChildValueOrThrow<i64>("value"), i);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMutationIdTest
+    : public TApiTestBase
+{ };
+
+TEST_F(TMutationIdTest, Commit)
+{
+    auto tx = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Master))
+        .ValueOrThrow();
+
+    auto txId = tx->GetId();
+
+    auto mutationId = TGuid::Create();
+    auto commit = [&] (bool retry) {
+        TTransactionCommitOptions options;
+        options.MutationId = mutationId;
+        options.Retry = retry;
+        auto attached = Client_->AttachTransaction(txId);
+        WaitFor(attached->Commit(options))
+            .ThrowOnError();
+    };
+    EXPECT_NO_THROW(commit(false));
+    // Second commit with same mutationId doesn't throw
+    EXPECT_NO_THROW(commit(true));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

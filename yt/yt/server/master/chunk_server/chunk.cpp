@@ -23,6 +23,9 @@
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
@@ -77,6 +80,8 @@ void TChunkExportData::Persist(const NCellMaster::TPersistenceContext& context)
 TChunk::TChunk(TChunkId id)
     : TChunkTree(id)
     , ChunkMeta_(TImmutableChunkMeta::CreateNull())
+    , UncompressedDataSize_(0)
+    , DataWeight_(0)
     , ShardIndex_(GetChunkShardIndex(id))
     , AggregatedRequisitionIndex_(IsErasure()
         ? MigrationErasureChunkRequisitionIndex
@@ -84,8 +89,16 @@ TChunk::TChunk(TChunkId id)
     , LocalRequisitionIndex_(AggregatedRequisitionIndex_)
 { }
 
-TChunkTreeStatistics TChunk::GetStatistics() const
+TChunkTreeStatistics TChunk::GetStatistics(bool includeReferencedHunkData) const
 {
+    if (IsHunkChunkFormat(GetChunkFormat())) {
+        YT_LOG_ALERT("Called chunk method GetStatistics that requires it to be of a non-hunk format "
+            "(ChunkId: %v, IncludeReferencedHunkData: %v, ChunkFormat: %v)",
+            Id_,
+            includeReferencedHunkData,
+            GetChunkFormat());
+    }
+
     TChunkTreeStatistics result;
     if (IsSealed()) {
         result.RowCount = GetRowCount();
@@ -101,6 +114,58 @@ TChunkTreeStatistics TChunk::GetStatistics() const
         }
         result.ChunkCount = 1;
         result.Rank = 0;
+
+        if (includeReferencedHunkData) {
+            if (auto hunkChunkRefsExt = ChunkMeta_->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
+                TEnumIndexedArray<NErasure::ECodec, int> codecToDataSize;
+                for (const auto& protoRef : hunkChunkRefsExt->refs()) {
+                    result.HunkDataWeight += protoRef.total_hunk_length();
+                    auto hunkDataSize = NTableClient::ComputeHunkDataSize(protoRef);
+                    result.HunkDataSize += hunkDataSize;
+                    codecToDataSize[FromProto<NErasure::ECodec>(protoRef.erasure_codec())] += hunkDataSize;
+                }
+
+                for (int index = 0; index < std::ssize(codecToDataSize); ++index) {
+                    auto codec = static_cast<NErasure::ECodec>(index);
+                    auto codecDataSize = codecToDataSize[codec];
+                    if (codecDataSize == 0) {
+                        continue;
+                    }
+
+                    if (codec == NErasure::ECodec::None) {
+                        result.HunkRegularDiskSpace += codecDataSize;
+                    } else {
+                        // NB: Include size of parity parts to disk space statistics.
+                        result.HunkErasureDiskSpace += ComputeDiskSpaceFromDataSize(codecDataSize, codec);
+                    }
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+THunkChunkTreeStatistics TChunk::GetHunkStatistics() const
+{
+    if (!IsHunkChunkFormat(GetChunkFormat())) {
+        YT_LOG_ALERT("Called chunk method GetHunkStatistics that requires it to be of a hunk format "
+            "(ChunkId: %v, ChunkFormat: %v)",
+            Id_,
+            GetChunkFormat());
+    }
+
+    THunkChunkTreeStatistics result;
+    if (IsSealed()) {
+        auto referencedDiskSpace = ComputeDiskSpaceFromDataSize(GetUncompressedDataSize(), GetErasureCodec());
+        if (IsErasure()) {
+            result.ReferencedErasureDiskSpace = referencedDiskSpace;
+            result.ErasureDiskSpace = GetDiskSpace();
+        } else {
+            result.ReferencedRegularDiskSpace = referencedDiskSpace;
+            result.RegularDiskSpace = GetDiskSpace();
+        }
+        result.ChunkCount = 1;
     }
     return result;
 }
@@ -245,9 +310,25 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     Load(context, ConsistentReplicaPlacementHash_);
 
-    if (IsConfirmed()) {
-        auto miscExt = ChunkMeta_->GetExtension<TMiscExt>();
-        OnMiscExtUpdated(miscExt);
+    if (auto miscExt = ChunkMeta_->FindExtension<TMiscExt>()) {
+        // NB: For hunk chunks can still be not confirmed because we create meta when the chunk is referenced via hunk refs.
+
+        // COMPAT(akozhikhov)
+        if (context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul ||
+            (context.GetVersion() >= NCellMaster::EMasterReign::Start_26_2 &&
+             context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2))
+        {
+            YT_VERIFY(IsConfirmed());
+
+            if (IsHunkChunkFormat(GetChunkFormat())) {
+                miscExt->set_data_weight(0);
+                miscExt->set_uncompressed_data_size(0);
+            }
+        }
+
+        OnMiscExtUpdated(*miscExt);
+    } else {
+        YT_VERIFY(!IsConfirmed());
     }
 }
 
@@ -304,13 +385,14 @@ void TChunk::AddReplica(
                 medium->GetIndex());
             return;
         }
-        // TODO(cherepashka): allow once offshore media are implemented.
-        YT_LOG_ALERT(
-            "Attempted to add offshore medium stored replica for chunk, ignored "
-            "(ChunkId: %v, ReplicaIndex: %v, MediumIndex: %v)",
-            GetId(),
-            replica.GetReplicaIndex(),
-            replica.GetEffectiveMediumIndex());
+        if (approved) {
+            ++data->ApprovedReplicaCount;
+        } else {
+            YT_LOG_ALERT("Received unapproved offshore replica (ChunkId: %v, MediumIndex: %v)",
+                GetId(),
+                medium->GetIndex());
+        }
+        data->AddStoredReplica(replica);
         return;
     }
 
@@ -411,11 +493,50 @@ void TChunk::SetApprovedReplicaCount(int count)
 
 void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
 {
+    i64 dataWeight = GetDataWeight();
+    i64 uncompressedDataSize = GetUncompressedDataSize();
+
     ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(chunkMeta);
 
     SetDiskSpace(chunkInfo.disk_space());
 
     auto miscExt = ChunkMeta_->GetExtension<TMiscExt>();
+
+    if (IsHunkChunkFormat(GetChunkFormat())) {
+        if (GetChunkFormat() == EChunkFormat::HunkJournal &&
+            (miscExt.uncompressed_data_size() != 0 ||
+            miscExt.compressed_data_size() != 0 ||
+            miscExt.data_weight() != 1))
+        {
+            YT_LOG_ALERT("Encountered unexpected non-zero statistics upon hunk journal chunk confirmation "
+                "(ChunkId: %v, UncompressedDataSize: %v, ActualUncompressedDataSize: %v, "
+                "CompressedDataSize: %v, DataWeight: %v, ActualDataWeight: %v)",
+                GetId(),
+                miscExt.uncompressed_data_size(),
+                uncompressedDataSize,
+                miscExt.compressed_data_size(),
+                miscExt.data_weight(),
+                dataWeight);
+        }
+
+        // NB: For hunk chunks these fields indicate referenced data that is filled independentely.
+        miscExt.set_data_weight(dataWeight);
+        miscExt.set_uncompressed_data_size(uncompressedDataSize);
+
+        NChunkClient::NProto::TChunkMeta protoMeta;
+        ToProto(&protoMeta, ChunkMeta_);
+        SetProtoExtension(protoMeta.mutable_extensions(), miscExt);
+        ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(protoMeta);
+    } else if (dataWeight != 0 || uncompressedDataSize != 0) {
+        YT_LOG_ALERT("Encountered unexpected statistics upon confirmation of a non-hunk chunk "
+            "(ChunkId: %v, DataWeight: %v, NewDataWeight: %v, UncompressedDataSize: %v, NewUncompressedDataSize: %v)",
+            GetId(),
+            dataWeight,
+            miscExt.data_weight(),
+            uncompressedDataSize,
+            miscExt.uncompressed_data_size());
+    }
+
     OnMiscExtUpdated(miscExt);
 
     YT_VERIFY(IsConfirmed());
@@ -560,9 +681,9 @@ void TChunk::Seal(const TChunkSealInfo& info)
     YT_VERIFY(IsConfirmed() && !IsSealed());
     YT_VERIFY(!Flags_.Sealed);
     YT_VERIFY(GetRowCount() == 0);
-    YT_VERIFY(GetUncompressedDataSize() == 0);
     YT_VERIFY(GetCompressedDataSize() == 0);
     YT_VERIFY(GetDiskSpace() == 0);
+    YT_VERIFY(IsHunkChunkFormat(GetChunkFormat()) || GetUncompressedDataSize() == 0);
 
     auto miscExt = ChunkMeta_->GetExtension<TMiscExt>();
     miscExt.set_sealed(true);
@@ -570,7 +691,30 @@ void TChunk::Seal(const TChunkSealInfo& info)
         miscExt.set_first_overlayed_row_index(info.first_overlayed_row_index());
     }
     miscExt.set_row_count(info.row_count());
-    miscExt.set_uncompressed_data_size(info.uncompressed_data_size());
+
+    // An approximation.
+    auto diskSpace = info.uncompressed_data_size();
+    if (IsErasure()) {
+        auto* codec = NErasure::GetCodec(GetErasureCodec());
+        // NB: Chunk seal info contains statistics from a single replica hence we multiply.
+        diskSpace *= codec->GetTotalPartCount();
+    }
+
+    SetDiskSpace(diskSpace);
+
+    if (IsHunkChunkFormat(GetChunkFormat())) {
+        if (GetUncompressedDataSize() > GetDiskSpace()) {
+            YT_LOG_ALERT("Unexpected statistics upon seal of journal hunk chunk "
+                "(ChunkId: %v, UncompressedDataSize: %v, DiskSpace: %v)",
+                GetId(),
+                GetUncompressedDataSize(),
+                GetDiskSpace());
+        }
+    } else {
+        miscExt.set_uncompressed_data_size(info.uncompressed_data_size());
+        miscExt.set_data_weight(info.uncompressed_data_size());
+    }
+
     miscExt.set_compressed_data_size(info.compressed_data_size());
 
     NChunkClient::NProto::TChunkMeta protoMeta;
@@ -579,8 +723,6 @@ void TChunk::Seal(const TChunkSealInfo& info)
     ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(protoMeta);
 
     OnMiscExtUpdated(miscExt);
-
-    SetDiskSpace(info.uncompressed_data_size()); // an approximation
 }
 
 int TChunk::GetPhysicalReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const
@@ -829,6 +971,51 @@ int TChunk::CapPerRackReplicationFactor(int replicationFactor, const TDomesticMe
     }
 }
 
+void TChunk::AccumulateNewlyReferencedHunkStatistics(i64 dataWeightDelta, i64 dataSizeDelta)
+{
+    // Chunks format is not known on master until chunk is confirmed.
+    YT_VERIFY(!IsConfirmed() || IsHunkChunkFormat(GetChunkFormat()));
+
+    auto newDataWeight = GetDataWeight() + dataWeightDelta;
+    auto newUncompressedDataSize = GetUncompressedDataSize() + dataSizeDelta;
+
+    if (newDataWeight < 0 || newUncompressedDataSize < 0) {
+        YT_LOG_ALERT("Encountered negative data statistics upon referencing hunk data "
+            "(ChunkId: %v, PreviousDataWeight: %v, PreviousDataSize: %v, DataWeightDelta: %v, DataSizeDelta: %v)",
+            GetId(),
+            GetDataWeight(),
+            GetUncompressedDataSize(),
+            dataWeightDelta,
+            dataSizeDelta);
+    }
+
+    // TODO(akozhikhov): We can only check for journal chunks now because
+    // dictionary compression of regular hunk chunks can interfere with this check.
+    if (IsSealed() && IsJournal() && newUncompressedDataSize > GetDiskSpace()) {
+        YT_LOG_ALERT("Unexpected statistics upon accounting referenced hunk data size "
+            "(ChunkId: %v, UncompressedDataSize: %v, NewUncompressedDataSize: %v, DiskSpace: %v)",
+            GetId(),
+            GetUncompressedDataSize(),
+            newUncompressedDataSize,
+            GetDiskSpace());
+    }
+
+    TMiscExt miscExt;
+    NChunkClient::NProto::TChunkMeta protoMeta;
+    if (IsConfirmed()) {
+        miscExt = ChunkMeta_->GetExtension<TMiscExt>();
+        ToProto(&protoMeta, ChunkMeta_);
+    }
+
+    miscExt.set_data_weight(newDataWeight);
+    miscExt.set_uncompressed_data_size(newUncompressedDataSize);
+
+    SetProtoExtension(protoMeta.mutable_extensions(), miscExt);
+    ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(protoMeta);
+
+    OnMiscExtUpdated(miscExt);
+}
+
 void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
 {
     RowCount_ = miscExt.row_count();
@@ -862,8 +1049,8 @@ TStoredChunkReplicaList TChunk::GetStoredReplicaList(bool includeNonOnlineReplic
                 return false;
             }
             auto locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
-            auto node = locationReplica->AsChunkLocationPtr()->GetNode();
-            return node->GetLocalState() != NNodeTrackerClient::ENodeState::Online;
+            const auto* location = locationReplica->AsChunkLocationPtr();
+            return !location->IsRegisteredOrOnline();
         });
         replicas.erase(endIt, replicas.end());
     }
@@ -872,40 +1059,40 @@ TStoredChunkReplicaList TChunk::GetStoredReplicaList(bool includeNonOnlineReplic
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::TReplicasData()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::TReplicasData()
 {
     std::fill(LastSeenReplicas.begin(), LastSeenReplicas.end(), InvalidNodeId);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-const TStoredChunkReplicaList& TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::StoredReplicaList() const
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+const TStoredChunkReplicaList& TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::StoredReplicaList() const
 {
     return StoredReplicas;
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TMutableRange<TAugmentedStoredChunkReplicaPtr> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableStoredReplicas()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+TMutableRange<TAugmentedStoredChunkReplicaPtr> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::MutableStoredReplicas()
 {
     return TMutableRange(StoredReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddStoredReplica(TAugmentedStoredChunkReplicaPtr replica)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::AddStoredReplica(TAugmentedStoredChunkReplicaPtr replica)
 {
     StoredReplicas.push_back(replica);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::RemoveStoredReplica(int replicaIndex)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::RemoveStoredReplica(int replicaIndex)
 {
     std::swap(StoredReplicas[replicaIndex], StoredReplicas.back());
     StoredReplicas.pop_back();
     StoredReplicas.shrink_to_small();
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddLastSeenReplica(TNodeId nodeId)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::AddLastSeenReplica(TNodeId nodeId)
 {
     if constexpr (MaxLastSeenReplicaCount > 0) {
         LastSeenReplicaCount =
@@ -919,46 +1106,33 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::
     }
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetLastSeenReplicas() const
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+TRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::GetLastSeenReplicas() const
 {
-    return TRange(LastSeenReplicas);
+    return IsErasure
+        ? TRange(LastSeenReplicas)
+        : TRange(LastSeenReplicas.data(), LastSeenReplicaCount);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableLastSeenReplicas()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::MutableLastSeenReplicas()
 {
     return TMutableRange(LastSeenReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::Load(NCellMaster::TLoadContext& context)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount, bool IsErasure>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount, IsErasure>::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
     Load(context, StoredReplicas);
     Load(context, LastSeenReplicas);
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::FixLastSeenReplicas) {
-        auto index = Load<int>(context);
-        if constexpr (MaxLastSeenReplicaCount > 0) {
-            auto legacyLastSeenReplicas = LastSeenReplicas;
-            // Position of queue's tail.
-            LastSeenReplicaCount = 0;
-            for (int offset : std::views::iota(0u, MaxLastSeenReplicaCount)) {
-                AddLastSeenReplica(legacyLastSeenReplicas[(index + offset) % MaxLastSeenReplicaCount]);
-            }
-        } else {
-            LastSeenReplicaCount = 0;
-        }
-    } else {
-        Load(context, LastSeenReplicaCount);
-    }
+    Load(context, LastSeenReplicaCount);
     Load(context, ApprovedReplicaCount);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Save(NCellMaster::TSaveContext& context) const
+template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount, bool IsErasure>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount, IsErasure>::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
 

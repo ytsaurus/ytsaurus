@@ -110,12 +110,6 @@ public:
                 "Do not validate TVM service files")
             .SetFlag(&SkipTvmServiceEnvValidationFlag_)
             .NoArgument();
-        Opts_
-            .AddLongOption(
-                "compatibility-info",
-                "Prints master binary compatibility info")
-            .SetFlag(&PrintCompatibilityInfoFlag_)
-            .NoArgument();
 
         SetMainThreadName("MasterProg");
     }
@@ -127,17 +121,16 @@ private:
     std::vector<std::string> SnapshotDumpScopeFilter_;
     bool ValidateSnapshotFlag_ = false;
     bool ExportSnapshotFlag_ = false;
-    TString LoadSnapshotPath_;
+    std::string LoadSnapshotPath_;
     bool ExportConfigFlag_ = false;
-    TString ExportConfigPath_;
+    std::string ExportConfigPath_;
     bool ReplayChangelogsFlag_ = false;
-    std::vector<TString> ReplayChangelogsPaths_;
+    std::vector<std::string> ReplayChangelogsPaths_;
     bool BuildSnapshotFlag_ = false;
-    TString BuildSnapshotPath_;
+    std::string BuildSnapshotPath_;
     bool AbortOnAlert_ = false;
     bool CheckInvariants_ = true;
     bool SkipTvmServiceEnvValidationFlag_ = false;
-    bool PrintCompatibilityInfoFlag_ = false;
 
     bool IsDumpSnapshotMode() const
     {
@@ -177,23 +170,17 @@ private:
             IsBuildSnapshotMode();
     }
 
-    bool IsPrintCompatibilityInfoMode() const
-    {
-        return PrintCompatibilityInfoFlag_;
-    }
-
     void ValidateOpts() final
     {
         if (static_cast<int>(IsDumpSnapshotMode()) +
             static_cast<int>(IsValidateSnapshotMode()) +
-            static_cast<int>(IsExportSnapshotMode()) +
-            static_cast<int>(IsPrintCompatibilityInfoMode()) > 1)
+            static_cast<int>(IsExportSnapshotMode()) > 1)
         {
-            THROW_ERROR_EXCEPTION("Options 'dump-snapshot', 'validate-snapshot', 'export-snapshot', 'compatibility-info' are mutually exclusive");
+            THROW_ERROR_EXCEPTION("Options 'dump-snapshot', 'validate-snapshot', 'export-snapshot' are mutually exclusive");
         }
 
         if ((IsDumpSnapshotMode() || IsExportSnapshotMode()) && IsReplayChangelogsMode()) {
-            THROW_ERROR_EXCEPTION("Option 'replay-changelogs' can not be used with 'dump-snapshot', 'export-snapshot'");
+            THROW_ERROR_EXCEPTION("Option 'replay-changelogs' cannot be used with 'dump-snapshot', 'export-snapshot'");
         }
 
         if (IsBuildSnapshotMode() && !IsReplayChangelogsMode() && !IsValidateSnapshotMode()) {
@@ -242,16 +229,11 @@ private:
 
     void DoStart() final
     {
-        if (IsPrintCompatibilityInfoMode()) {
-            DoPrintCompatibilityInfo();
-            return;
-        }
-
         auto bootstrap = CreateMasterBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
 
         if (IsDryRunMode()) {
-            NBus::TTcpDispatcher::Get()->DisableNetworking();
+            NBus::NTcp::TDispatcher::Get()->DisableNetworking();
 
             bootstrap->Initialize();
 
@@ -291,20 +273,24 @@ private:
         }
 
         bootstrap->Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         SleepForever();
     }
 
-    void DoPrintCompatibilityInfo()
+    void DoPrintCompatibilityInfo() override
     {
-        NYson::TYsonWriter writer(&Cout, NYson::EYsonFormat::Pretty);
-        auto info = NYTree::BuildYsonStringFluently()
-            .BeginMap()
-                .Item("current_reign").Value(NCellMaster::GetCurrentReign())
-            .EndMap();
-        NYson::Serialize(info, &writer);
-        Cout << Endl;
+        if (UseYson_) {
+            NYson::TYsonWriter writer(&Cout, NYson::EYsonFormat::Pretty);
+            auto info = NYTree::BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("current_reign").Value(NCellMaster::GetCurrentReign())
+                .EndMap();
+            NYson::Serialize(info, &writer);
+            Cout << Endl;
+        } else {
+            Cout << "Current Reign: " << NCellMaster::GetCurrentReign() << Endl;
+        }
     }
 };
 

@@ -254,9 +254,19 @@ void TOperationControllerHost::RegisterJob(TStartedJobInfo jobInfo)
     JobTrackerOperationHandler_->RegisterJob(std::move(jobInfo));
 }
 
-void TOperationControllerHost::Revive(std::vector<TStartedAllocationInfo> allocations)
+void TOperationControllerHost::Revive(std::vector<TStartedAllocationInfo> allocations, bool suspended)
 {
-    JobTrackerOperationHandler_->Revive(std::move(allocations));
+    JobTrackerOperationHandler_->Revive(std::move(allocations), suspended);
+}
+
+void TOperationControllerHost::SuspendOperation()
+{
+    JobTrackerOperationHandler_->SuspendOperation();
+}
+
+void TOperationControllerHost::ResumeOperation()
+{
+    JobTrackerOperationHandler_->ResumeOperation();
 }
 
 void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRelease)
@@ -265,11 +275,12 @@ void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRele
         return;
     }
 
+    i64 jobsToReleaseCount = std::ssize(jobsToRelease);
     JobTrackerOperationHandler_->ReleaseJobs(std::move(jobsToRelease));
 
     YT_LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
-        jobsToRelease.size());
+        jobsToReleaseCount);
 }
 
 void TOperationControllerHost::AbortJob(
@@ -494,6 +505,8 @@ void TOperationControllerHost::OnOperationFailed(const TError& error)
 
 void TOperationControllerHost::OnOperationSuspended(const TError& error)
 {
+    JobTrackerOperationHandler_->SuspendOperation();
+
     OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateSuspendedEvent(
         OperationId_,
         ControllerEpoch_,

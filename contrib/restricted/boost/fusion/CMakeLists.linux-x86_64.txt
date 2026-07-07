@@ -37,7 +37,6 @@ target_link_libraries(restricted-boost-fusion INTERFACE
   restricted-boost-mp11
   restricted-boost-mpl
   restricted-boost-preprocessor
-  restricted-boost-static_assert
   restricted-boost-tuple
   restricted-boost-type_traits
   restricted-boost-typeof

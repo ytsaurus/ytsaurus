@@ -89,7 +89,7 @@ class HTTPServer(TCPServer, Configurable, httputil.HTTPServerConnectionDelegate)
             async def main():
                 server = HTTPServer()
                 server.listen(8888)
-                await asyncio.Event.wait()
+                await asyncio.Event().wait()
 
             asyncio.run(main())
 
@@ -295,7 +295,7 @@ class _CallableAdapter(httputil.HTTPMessageDelegate):
         del self._chunks
 
 
-class _HTTPRequestContext(object):
+class _HTTPRequestContext:
     def __init__(
         self,
         stream: iostream.IOStream,

@@ -8,15 +8,11 @@
 #include <yt/yt/server/node/tablet_node/sorted_chunk_store.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
-using namespace NClusterNode;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
 using namespace NTabletNode;
@@ -97,10 +93,9 @@ NNative::IClientPtr TTabletContextMock::GetClient() const
     return nullptr;
 }
 
-TClusterNodeDynamicConfigManagerPtr TTabletContextMock::GetDynamicConfigManager() const
+TTabletNodeDynamicConfigPtr TTabletContextMock::GetDynamicConfig() const
 {
-    auto config = New<TClusterNodeDynamicConfig>();
-    return New<TClusterNodeDynamicConfigManager>(std::move(config));
+    return New<TTabletNodeDynamicConfig>();
 }
 
 IStorePtr TTabletContextMock::CreateStore(
@@ -164,6 +159,11 @@ INodeMemoryTrackerPtr TTabletContextMock::GetNodeMemoryUsageTracker() const
     return nullptr;
 }
 
+TRowCacheControllerPtr TTabletContextMock::GetRowCacheController() const
+{
+    return nullptr;
+}
+
 NChunkClient::IChunkReplicaCachePtr TTabletContextMock::GetChunkReplicaCache() const
 {
     return nullptr;
@@ -176,7 +176,7 @@ IHedgingManagerRegistryPtr TTabletContextMock::GetHedgingManagerRegistry() const
 
 std::string TTabletContextMock::GetLocalHostName() const
 {
-    return TString();
+    return {};
 }
 
 ITabletWriteManagerHostPtr TTabletContextMock::GetTabletWriteManagerHost() const

@@ -13,7 +13,7 @@ PEERDIR(
     library/cpp/retry
     yt/yt/ytlib
     yt/cpp/mapreduce/common
-    yt/yql/plugin/bridge
+    yt/yql/plugin/native
     yt/yql/plugin
 )
 

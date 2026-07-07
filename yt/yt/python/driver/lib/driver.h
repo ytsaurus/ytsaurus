@@ -96,7 +96,7 @@ public:
     using PycxxMethod = Py::Object (TDriverModuleBase::*)(const Py::Tuple &args, const Py::Dict& kwargs);
 
     void Initialize(
-        const TString& moduleName,
+        const std::string& moduleName,
         std::function<void()> initTypeFunction,
         std::function<void()> initModule,
         std::function<Py::Dict()> getModuleDictionary,

@@ -48,7 +48,7 @@ void UseDefaultArrowAllocator() {
 }
 
 constexpr ui32 MidLevels = 10;
-constexpr ui32 MaxMidSize = (1u << MidLevels) * TAlignedPagePool::POOL_PAGE_SIZE;
+constexpr ui32 MaxMidSize = (1U << MidLevels) * TAlignedPagePool::POOL_PAGE_SIZE;
 static_assert(MaxMidSize == 64 * 1024 * 1024, "Upper memory block 64 Mb");
 
 namespace {
@@ -330,9 +330,9 @@ TAlignedPagePoolCounters::TAlignedPagePoolCounters(::NMonitoring::TDynamicCounte
     }
     ::NMonitoring::TDynamicCounterPtr subGroup = countersRoot->GetSubgroup("counters", "utils")->GetSubgroup("subsystem", "mkqlalloc");
     TotalBytesAllocatedCntr = subGroup->GetCounter(name + "/TotalBytesAllocated");
-    AllocationsCntr = subGroup->GetCounter(name + "/Allocations", true);
-    PoolsCntr = subGroup->GetCounter(name + "/Pools", true);
-    LostPagesBytesFreeCntr = subGroup->GetCounter(name + "/LostPagesBytesFreed", true);
+    AllocationsCntr = subGroup->GetCounter(name + "/Allocations", /*derivative=*/true);
+    PoolsCntr = subGroup->GetCounter(name + "/Pools", /*derivative=*/true);
+    LostPagesBytesFreeCntr = subGroup->GetCounter(name + "/LostPagesBytesFreed", /*derivative=*/true);
 }
 
 template <typename T>
@@ -837,8 +837,8 @@ void ReleaseAlignedPage(void* mem, ui64 size) {
 }
 
 template <typename TMmap>
-void ReleaseAlignedPage(void* ptr) {
-    TGlobalPools<TMmap, false>::Instance().PushPage(0, ptr);
+void ReleaseAlignedPage(void* mem) {
+    TGlobalPools<TMmap, false>::Instance().PushPage(0, mem);
 }
 
 template <typename TMmap>

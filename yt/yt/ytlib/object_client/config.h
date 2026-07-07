@@ -19,7 +19,7 @@ struct TObjectAttributeCacheConfig
     //! User for executing requests to master.
     std::string UserName;
 
-    ui64 RefreshRevisionStorageSize;
+    int RefreshRevisionCacheCapacity;
 
     REGISTER_YSON_STRUCT(TObjectAttributeCacheConfig);
 
@@ -122,8 +122,8 @@ struct TAbcConfig
     : public virtual NYTree::TYsonStruct
 {
     int Id;
-    std::optional<TString> Name;
-    TString Slug;
+    std::optional<std::string> Name;
+    std::string Slug;
 
     REGISTER_YSON_STRUCT(TAbcConfig);
 

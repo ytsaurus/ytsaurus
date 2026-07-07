@@ -76,9 +76,10 @@ public:
         TTransactionId transactionId,
         TTimestamp prepareTimestamp,
         TClusterTag prepareTimestampClusterTag,
-        bool stronglyOrdered,
+        const std::vector<std::string>& strongOrderingTags,
         const std::vector<TCellId>& cellIdsToSyncWith,
-        const NRpc::TAuthenticationIdentity& identity) override
+        const NRpc::TAuthenticationIdentity& identity,
+        TTransactionSignature expectedPrepareSignature) override
     {
         auto supportsStronglyOrderedTransactions = SupportsStronglyOrderedTransactions();
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
@@ -92,8 +93,12 @@ public:
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_prepare_timestamp(prepareTimestamp);
                 req->set_prepare_timestamp_cluster_tag(ToProto(prepareTimestampClusterTag));
-                req->set_strongly_ordered(supportsStronglyOrderedTransactions && stronglyOrdered);
+                req->set_expected_prepare_signature(expectedPrepareSignature);
                 ToProto(req->mutable_cell_ids_to_sync_with(), cellIdsToSyncWith);
+                if (supportsStronglyOrderedTransactions) {
+                    ToProto(req->mutable_strong_ordering_tags(), strongOrderingTags);
+                }
+
                 return req;
             });
     }
@@ -166,6 +171,7 @@ public:
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_strongly_ordered(supportsStronglyOrderedTransactions && stronglyOrdered);
+
                 return req;
             });
     }

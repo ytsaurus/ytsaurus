@@ -93,14 +93,14 @@ private:
         tableManager->ZombifyTableCollocation(collocation);
     }
 
-    TCellTagList DoGetReplicationCellTags(const TTableCollocation* collocation) override
+    TCellTagSet DoGetReplicationCellTags(const TTableCollocation* collocation) override
     {
         if (Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ReplicateTableCollocations) {
             // NB: Cell tag may be invalid here only if creation has failed.
             auto cellTag = collocation->GetExternalCellTag();
             return cellTag == InvalidCellTag
-                ? TCellTagList{}
-                : TCellTagList{cellTag};
+                ? EmptyCellTags()
+                : TCellTagSet{cellTag};
         } else {
             return EmptyCellTags();
         }

@@ -15,7 +15,7 @@ using namespace NYT::NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void InitializeGlobalTracer(const TString& config)
+void InitializeGlobalTracer(const std::string& config)
 {
     auto configPtr = ConvertTo<TJaegerTracerConfigPtr>(TYsonString{config});
     SetGlobalTracer(New<TJaegerTracer>(configPtr));

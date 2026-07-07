@@ -15,6 +15,7 @@
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
+#include <yt/yt/ytlib/cypress_client/batch_attribute_fetcher.h>
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -186,7 +187,7 @@ TQueryContext::TQueryContext(
     std::vector<std::pair<TString, TString>> httpHeaders,
     std::vector<TQueryId> additionalQueryIds)
     : Logger(QueryLogger)
-    , User(TString(context->getClientInfo().initial_user))
+    , User(context->getClientInfo().initial_user)
     , TraceContext(std::move(traceContext))
     , QueryId(queryId)
     , QueryKind(static_cast<EQueryKind>(context->getClientInfo().query_kind))
@@ -214,6 +215,14 @@ TQueryContext::TQueryContext(
     InitialAddress = (clientInfo.initial_address != nullptr) ? clientInfo.initial_address->toString() : "";
     InitialQueryId = TQueryId::FromString(clientInfo.initial_query_id);
 
+    if (QueryKind == EQueryKind::InitialQuery) {
+        const auto& queryParams = context->getQueryParameters();
+        if (auto it = queryParams.find(ParamTransactionId); it != queryParams.end()) {
+            ParentTransactionId = TTransactionId::FromString(it->second);
+            YT_LOG_INFO("Query has parent transaction (ParentTransactionId: %v)", ParentTransactionId);
+        }
+    }
+
     if (QueryKind == EQueryKind::SecondaryQuery) {
         YT_VERIFY(secondaryQueryHeader);
         ParentQueryId = secondaryQueryHeader->ParentQueryId;
@@ -238,6 +247,10 @@ TQueryContext::TQueryContext(
     }
 
     SessionSettings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettingsRef().changes(), Logger);
+
+    if (ParentTransactionId) {
+        SessionSettings->Execution->TableReadLockMode = ETableReadLockMode::Sync;
+    }
 
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "
@@ -461,7 +474,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             }
             case ETableReadLockMode::None: {
                 auto preliminaryCheckPermissionResultsFuture = Host->PreliminaryCheckPermissions(pathsToFetch, User);
-                auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
+                auto attributes = Host->GetObjectAttributesCached(pathsToFetch, Client());
                 auto preliminaryCheckPermissionResults = WaitForFast(preliminaryCheckPermissionResultsFuture.AsUnique())
                     .ValueOrThrow();
                 AddAttributesToSnapshot(
@@ -496,7 +509,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             YT_VERIFY(QueryKind == EQueryKind::NoQuery);
             auto rootUser = Client()->GetOptions().User;
             YT_VERIFY(rootUser);
-            return TString(*rootUser);
+            return *rootUser;
         }();
 
         auto attributesUnderTxFuture = FetchTableAttributesAsync(pathsToFetchUnderTx, ReadTransactionId);
@@ -509,7 +522,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             pathsToFetchUnderTx,
             userToCheckPermissionsFor);
 
-        auto attributesFromCache = Host->GetObjectAttributes(pathsToFetchFromCache, Client());
+        auto attributesFromCache = Host->GetObjectAttributesCached(pathsToFetchFromCache, Client());
 
         WaitFor(
             AllSucceeded(
@@ -521,14 +534,14 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             .ThrowOnError();
 
         auto attributesUnderTx = attributesUnderTxFuture
-            .AsUnique().Get()
+            .AsUnique().GetOrCrash()
             .ValueOrThrow();
 
         auto preliminaryCheckPermissionResultsFromCache = preliminaryCheckPermissionResultsFromCacheFuture
-            .AsUnique().Get()
+            .AsUnique().GetOrCrash()
             .ValueOrThrow();
         auto preliminaryCheckPermissionResultsUnderTx = preliminaryCheckPermissionResultsUnderTxFuture
-            .AsUnique().Get()
+            .AsUnique().GetOrCrash()
             .ValueOrThrow();
 
         AddAttributesToSnapshot(
@@ -582,11 +595,13 @@ void TQueryContext::InitializeQueryWriteTransaction()
             << TErrorAttribute("transaction_id", WriteTransactionId)
             << TErrorAttribute("query_kind", QueryKind);
     }
-    InitialQueryWriteTransaction_ = WaitFor(Client()->StartNativeTransaction(ETransactionType::Master))
+    InitialQueryWriteTransaction_ = WaitFor(Client()->StartNativeTransaction(
+        ETransactionType::Master,
+        {.ParentId = ParentTransactionId}))
         .ValueOrThrow();
     WriteTransactionId = InitialQueryWriteTransaction_->GetId();
 
-    YT_LOG_INFO("Write transaction started (WriteTransactionId: %v)", WriteTransactionId);
+    YT_LOG_INFO("Write transaction started (WriteTransactionId: %v, ParentTransactionId: %v)", WriteTransactionId, ParentTransactionId);
 }
 
 void TQueryContext::CommitWriteTransaction()
@@ -605,12 +620,14 @@ void TQueryContext::InitializeQueryReadTransactionFuture()
 
     YT_VERIFY(QueryKind == EQueryKind::InitialQuery);
 
-    auto transactionFuture = Client()->StartNativeTransaction(ETransactionType::Master);
+    auto transactionFuture = Client()->StartNativeTransaction(
+        ETransactionType::Master,
+        {.ParentId = ParentTransactionId});
     auto timestampFuture = Client()->GetTimestampProvider()->GenerateTimestamps();
 
     ReadTransactionFuture_ = AllSucceeded(std::vector{transactionFuture.AsVoid(), timestampFuture.AsVoid()})
         .Apply(BIND([transactionFuture, timestampFuture] {
-            return TTransactionWithTimestamp{transactionFuture.Get().Value(), timestampFuture.Get().Value()};
+            return TTransactionWithTimestamp{transactionFuture.GetOrCrash().Value(), timestampFuture.GetOrCrash().Value()};
         }));
 
     YT_LOG_INFO("Query read transaction future initialized");
@@ -704,9 +721,9 @@ void TQueryContext::LockAndFetchAttributesSync(std::vector<TYPath> pathsToFetch)
 
     SaveQueryReadTransaction();
 
-    auto locks = locksFuture.Get().Value();
-    auto attributes = attributesFuture.Get().Value();
-    auto preliminaryCheckPermissionResults = preliminaryCheckPermissionResultsFuture.Get().Value();
+    auto locks = locksFuture.GetOrCrash().Value();
+    auto attributes = attributesFuture.GetOrCrash().Value();
+    auto preliminaryCheckPermissionResults = preliminaryCheckPermissionResultsFuture.GetOrCrash().Value();
 
     std::vector<TYPath> pathsToRefetch;
     std::vector<TErrorOr<EPreliminaryCheckPermissionResult>> preliminaryResultsForRefetchedPaths;
@@ -768,7 +785,7 @@ void TQueryContext::LockAndFetchAttributesSync(std::vector<TYPath> pathsToFetch)
 void TQueryContext::LockAndFetchAttributesBestEffort(std::vector<TYPath> pathsToFetch)
 {
     auto preliminaryCheckPermissionResultsFuture = Host->PreliminaryCheckPermissions(pathsToFetch, User);
-    auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
+    auto attributes = Host->GetObjectAttributesCached(pathsToFetch, Client());
     std::vector<TYPath> pathsToLock;
 
     for (size_t index = 0; index < pathsToFetch.size(); ++index) {
@@ -955,7 +972,6 @@ TQueryFinishInfo TQueryContext::GetQueryFinishInfo()
     return result;
 }
 
-// TODO(gudqeit): use TBatchAttributeFetcher.
 TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTableAttributesAsync(
     const std::vector<TYPath>& paths,
     TTransactionId transactionId)
@@ -964,39 +980,20 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTabl
         return MakeFuture(std::vector<TErrorOr<IAttributeDictionaryPtr>>{});
     }
 
-    auto client = Client();
-    auto connection = client->GetNativeConnection();
-    TMasterReadOptions masterReadOptions = *SessionSettings->CypressReadOptions;
+    std::vector<TYPath> resolvedPaths(paths.size());
+    std::ranges::transform(paths, resolvedPaths.begin(), [&] (const TYPath& path) {
+        return GetNodeIdOrPath(path);
+    });
 
-    auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
-    auto batchReq = proxy.ExecuteBatch();
-    SetBalancingHeader(batchReq, connection, masterReadOptions);
+    TTransactionalOptions transactionalOptions{};
+    transactionalOptions.TransactionId = transactionId;
 
-    for (int index = 0; index < std::ssize(paths); ++index) {
-        const auto& path = paths[index];
-        auto nodeIdOrPath = GetNodeIdOrPath(path);
-        auto req = TYPathProxy::Get(Format("%v/@", nodeIdOrPath));
-        req->Tag() = index;
-        NYT::ToProto(req->mutable_attributes()->mutable_keys(), Host->GetObjectAttributeNamesToFetch());
-        SetTransactionId(req, transactionId);
-        SetCachingHeader(req, connection, masterReadOptions);
-
-        batchReq->AddRequest(req);
-    }
-
-    return batchReq->Invoke()
-        .Apply(BIND([pathCount = paths.size()] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
-            std::vector<TErrorOr<IAttributeDictionaryPtr>> attributes(pathCount);
-            for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspGet>()) {
-                auto index = std::any_cast<int>(tag);
-                if (rspOrError.IsOK()) {
-                    attributes[index] = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
-                } else {
-                    attributes[index] = TError(rspOrError);
-                }
-            }
-            return attributes;
-        }));
+    return Host->GetObjectAttributesDirect(
+        resolvedPaths,
+        /*revisions*/ {},
+        Client(),
+        *SessionSettings->CypressReadOptions,
+        transactionalOptions);
 }
 
 std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttributes(

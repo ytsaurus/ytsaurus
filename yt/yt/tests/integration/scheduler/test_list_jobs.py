@@ -140,6 +140,12 @@ class TestListJobsBase(YTEnvSetup):
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
             },
+            "operation_events_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
         },
     }
 
@@ -781,7 +787,7 @@ class TestListJobs(TestListJobsCommon):
         }
 
         op = vanilla(spec=spec, track=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         clean_operations()
@@ -867,7 +873,7 @@ class TestListJobs(TestListJobsCommon):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        with raises_yt_error(yt_error_codes.UncertainOperationControllerState):
+        with raises_yt_error(code=yt_error_codes.UncertainOperationControllerState):
             checked_list_jobs(op.id)
 
         res = retry(lambda: checked_list_jobs(op.id))
@@ -1207,6 +1213,11 @@ class TestListJobs(TestListJobsCommon):
         create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
 
         sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=3)
+
+        # Wait until sleeping_op occupies all cluster resources; otherwise op may
+        # briefly get preemptible allocations that are then preempted, producing
+        # spurious job_aborted incarnation switches.
+        wait(lambda: sleeping_op.get_job_count("running") == 3)
 
         # Will not start jobs while sleeping_op is running.
         op = run_test_vanilla(

@@ -10,9 +10,9 @@
 
 #include <yt/yt/server/node/data_node/config.h>
 
-#include <yt/yt/library/containers/porto_executor.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/library/containers/porto_executor.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -34,13 +34,14 @@ using namespace NClusterNode;
 using namespace NContainers;
 using namespace NDataNode;
 using namespace NObjectClient;
+using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 using namespace NFS;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +51,7 @@ TTmpfsLayerCache::TTmpfsLayerCache(
     TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     IInvokerPtr controlInvoker,
     IMemoryUsageTrackerPtr memoryUsageTracker,
-    const TString& cacheName,
+    const std::string& cacheName,
     IPortoExecutorPtr portoExecutor,
     TAbsorbLayerCallback absorbLayer)
     : Config_(std::move(config))
@@ -112,7 +113,7 @@ TFuture<void> TTmpfsLayerCache::Initialize()
 
     {
         YT_LOG_DEBUG("Cleanup tmpfs layer cache volume (Path: %v)", path);
-        auto error = WaitFor(PortoExecutor_->UnlinkVolume(TString(path), "self"));
+        auto error = WaitFor(PortoExecutor_->UnlinkVolume(path, "self"));
         if (!error.IsOK()) {
             YT_LOG_DEBUG(error, "Failed to unlink volume (Path: %v)", path);
         }
@@ -124,12 +125,12 @@ TFuture<void> TTmpfsLayerCache::Initialize()
 
         MakeDirRecursive(path, 0777);
 
-        THashMap<TString, TString> volumeProperties;
+        THashMap<std::string, std::string> volumeProperties;
         volumeProperties["backend"] = "tmpfs";
         volumeProperties["permissions"] = "0777";
         volumeProperties["space_limit"] = ToString(Config_->Capacity);
 
-        WaitFor(PortoExecutor_->CreateVolume(TString(path), volumeProperties))
+        WaitFor(PortoExecutor_->CreateVolume(path, volumeProperties))
             .ThrowOnError();
 
         MemoryUsageTracker_->Acquire(Config_->Capacity);
@@ -148,6 +149,7 @@ TFuture<void> TTmpfsLayerCache::Initialize()
             nullptr,
             PortoExecutor_,
             PortoExecutor_,
+            nullptr,
             Format("%v_tmpfs_layer", CacheName_));
 
         WaitFor(TmpfsLocation_->Initialize())

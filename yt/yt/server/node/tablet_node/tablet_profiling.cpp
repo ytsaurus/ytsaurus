@@ -69,6 +69,7 @@ TLookupCounters::TLookupCounters(
         mediumHistogramProfiler.WithPrefix("/lookup/medium_statistics"))
     , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/lookup/hunks"), schema)
     , KeyFilterCounters(profiler.WithPrefix("/lookup/key_filter"))
+    , WaitOnBlockedRowDuration(profiler.Timer("/lookup/wait_on_blocked_row_duration"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,6 +109,7 @@ TSelectRowsCounters::TSelectRowsCounters(
     , CacheOutdated(profiler.Counter("/select/cache_outdated"))
     , CacheMisses(profiler.Counter("/select/cache_misses"))
     , CacheInserts(profiler.Counter("/select/cache_inserts"))
+    , WaitOnBlockedRowDuration(profiler.Timer("/select/wait_on_blocked_row_duration"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,6 +149,7 @@ TTablePullerCounters::TTablePullerCounters(const NProfiling::TProfiler& profiler
     , ThrottleTime(profiler.Timer("/table_puller/throttle_time"))
     , RelativeThrottlerThrottleTime(profiler.Timer("/table_puller/relative_throttler_throttle_time"))
     , MemoryUsage(profiler.Counter("/table_puller/memory_usage"))
+    , FatalErrorCount(profiler.Counter("/table_puller/fatal_error_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,6 +160,7 @@ TWriteCounters::TWriteCounters(const TProfiler& profiler)
     , BulkInsertRowCount(profiler.Counter("/write/bulk_insert_row_count"))
     , BulkInsertDataWeight(profiler.Counter("/write/bulk_insert_data_weight"))
     , ValidateResourceWallTime(profiler.Timer("/write/validate_resource_wall_time"))
+    , WaitOnBlockedRowDuration(profiler.Timer("/write/wait_on_blocked_row_duration"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -399,7 +403,8 @@ void TLsmCounters::DoProfileCompaction(
         counters->HunkChunks.InDataWeight.Increment(hunkChunkReaderStatistics->DataWeight());
         counters->HunkChunks.InStoreCount.Increment(inHunkChunkCount);
     }
-    counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterStatistics.data_weight());
+    // TODO(akozhikhov): Rename hunk counter from data weight to data size here?
+    counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterStatistics.compressed_data_size());
     counters->HunkChunks.OutStoreCount.Increment(hunkChunkWriterStatistics.chunk_count());
 }
 
@@ -472,7 +477,14 @@ void TWriterProfiler::Update(
     const IHunkChunkWriterStatisticsPtr& hunkChunkWriterStatistics)
 {
     if (hunkChunkWriter) {
-        HunkChunkDataStatistics_ += hunkChunkWriter->GetDataStatistics();
+        const auto& dataStatistics = hunkChunkWriter->GetDataStatistics();
+        HunkChunkDataStatistics_ += dataStatistics;
+        // COMPAT(akozhikhov)
+        if (dataStatistics.data_weight() == 0) {
+            HunkChunkDataStatistics_.set_data_weight(
+                HunkChunkDataStatistics_.data_weight() +
+                dataStatistics.compressed_data_size());
+        }
     }
     HunkChunkWriterStatistics_ = hunkChunkWriterStatistics;
 }
@@ -722,6 +734,28 @@ TSmoothMovementCounters* TTableProfiler::GetSmoothMovementCounters()
 const TProfiler& TTableProfiler::GetProfiler() const
 {
     return Profiler_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEventTimer GetWaitOnBlockedRowTimer(
+    const TTableProfilerPtr& tableProfiler,
+    EInitialQueryKind initialQueryKind)
+{
+    switch (initialQueryKind) {
+        case EInitialQueryKind::LookupRows:
+            return tableProfiler
+                ->GetLookupCounters(GetCurrentProfilingUser())
+                ->WaitOnBlockedRowDuration;
+
+        case EInitialQueryKind::SelectRows:
+            return tableProfiler
+                ->GetSelectRowsCounters(GetCurrentProfilingUser())
+                ->WaitOnBlockedRowDuration;
+
+        default:
+            return {};
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

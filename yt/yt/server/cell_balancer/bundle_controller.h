@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "public.h"
 
 namespace NYT::NCellBalancer {
 

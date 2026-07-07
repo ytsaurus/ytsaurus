@@ -41,12 +41,12 @@ protected:
     }
 };
 
-TString GetUniqueName()
+std::string GetUniqueName()
 {
     return "yt_porto_ut_" + ToString(TGuid::Create());
 }
 
-TPortoResourceTrackerPtr CreateSumPortoTracker(IPortoExecutorPtr Executor, const TString& name)
+TPortoResourceTrackerPtr CreateSumPortoTracker(IPortoExecutorPtr Executor, const std::string& name)
 {
     return New<TPortoResourceTracker>(
         GetPortoInstance(Executor, name),
@@ -54,7 +54,7 @@ TPortoResourceTrackerPtr CreateSumPortoTracker(IPortoExecutorPtr Executor, const
         false);
 }
 
-TPortoResourceProfilerPtr CreateDeltaPortoProfiler(IPortoExecutorPtr executor, const TString& name)
+TPortoResourceProfilerPtr CreateDeltaPortoProfiler(IPortoExecutorPtr executor, const std::string& name)
 {
     auto instance = GetPortoInstance(executor, name);
     auto portoResourceTracker = New<TPortoResourceTracker>(
@@ -116,6 +116,9 @@ void AssertGauges(const std::vector<std::tuple<std::string, TTagList, double>>& 
         "/network/tx_drops",
         "/network/tx_packets",
         "/network/tx_limit",
+        "/network/softlimit/bytes_forced_to_fb",
+        "/network/softlimit/bytes_untouched",
+        "/network/softlimit/packets_above_guarantee",
     };
 
     static const THashSet<std::string> mayBeEmpty{
@@ -139,7 +142,10 @@ void AssertGauges(const std::vector<std::tuple<std::string, TTagList, double>>& 
         "/network/tx_bytes",
         "/network/tx_drops",
         "/network/tx_packets",
-        "/network/tx_limit"
+        "/network/tx_limit",
+        "/network/softlimit/bytes_forced_to_fb",
+        "/network/softlimit/bytes_untouched",
+        "/network/softlimit/packets_above_guarantee",
     };
 
     for (const auto& [name, tags, value] : gauges) {

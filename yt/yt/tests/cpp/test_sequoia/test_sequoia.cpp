@@ -78,12 +78,12 @@ private:
     }
 };
 
-TString Prettify(const TYsonString& yson)
+std::string Prettify(const TYsonString& yson)
 {
     return ConvertToYsonString(yson, EYsonFormat::Pretty).ToString();
 }
 
-TString Prettify(TStringBuf yson)
+std::string Prettify(TYsonStringBuf yson)
 {
     return Prettify(TYsonString(yson));
 }
@@ -113,7 +113,7 @@ TEST_F(TSequoiaTest, TestCreateMapNode)
     auto rsp = WaitFor(Client_->GetNode("//sequoia/a"))
         .ValueOrThrow();
 
-    YSON_EXPECT_EQ("{b = {}}", rsp);
+    YSON_EXPECT_EQ(TYsonStringBuf("{b = {}}"), rsp);
 }
 
 TEST_F(TSequoiaTest, TestRowLockConflict)
@@ -203,15 +203,15 @@ TEST_F(TSequoiaTest, TestCypressTransactionSimple)
 
     YSON_EXPECT_EQ(WaitFor(Client_->GetNode(Format("#%v/@cypress_transaction", topmostTx->GetId())))
         .ValueOrThrow(),
-        "%true");
+        TYsonStringBuf("%true"));
 
     YSON_EXPECT_EQ(WaitFor(Client_->GetNode(Format("#%v/@cypress_transaction", nestedTx->GetId())))
         .ValueOrThrow(),
-        "%true");
+        TYsonStringBuf("%true"));
 
     YSON_EXPECT_EQ(WaitFor(Client_->GetNode(Format("#%v/@cypress_transaction", dependentTx->GetId())))
         .ValueOrThrow(),
-        "%true");
+        TYsonStringBuf("%true"));
 
     WaitFor(topmostTx->Abort())
         .ThrowOnError();
@@ -383,7 +383,9 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
         startCommitTimestamp,
         endCommitTimestamp);
 
-    int createdNodeCount = 0, prerequisiteCheckFailedCount = 0;
+    auto createdNodeCount = 0;
+    auto prerequisiteCheckFailedCount = 0;
+    auto leaseIssueFailedCount = 0;
     for (int requestIndex : std::views::iota(0, RequestCount)) {
         auto result = results[requestIndex];
         YT_VERIFY(result.IsOK());
@@ -400,6 +402,8 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
         } else if (error.GetCode() == NObjectClient::EErrorCode::PrerequisiteCheckFailed) {
             YT_VERIFY(startCommitTimestamp < endTimestamp);
             ++prerequisiteCheckFailedCount;
+        } else if (error.GetMessage().contains("Failed to issue leases for prerequisite transactions")) {
+            ++leaseIssueFailedCount;
         } else {
             YT_LOG_FATAL(error, "Unexpected error");
         }
@@ -407,9 +411,10 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
 
     YT_LOG_DEBUG(
         "Creations with prerequisite transaction are finished "
-        "(CreatedNodeCount: %v, PrerequisiteCheckFailedCount: %v, PrerequisiteTransactionId: %v)",
+        "(CreatedNodeCount: %v, PrerequisiteCheckFailedCount: %v, LeaseIssueFailedCount: %v, PrerequisiteTransactionId: %v)",
         createdNodeCount,
         prerequisiteCheckFailedCount,
+        leaseIssueFailedCount,
         prerequisiteTx->GetId());
 
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", prerequisiteTx->GetId()))).ValueOrThrow());
@@ -420,8 +425,8 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
     YT_VERIFY(error.GetCode() == NObjectClient::EErrorCode::PrerequisiteCheckFailed);
 
     WaitFor(Client_->SetNode(
-            "//sys/cypress_proxies/@config/object_service/enable_fast_path_prerequisite_transactions_check",
-            ConvertToYsonString(true)))
+        "//sys/cypress_proxies/@config/object_service/enable_fast_path_prerequisite_transactions_check",
+        ConvertToYsonString(true)))
         .ThrowOnError();
 }
 
@@ -884,7 +889,7 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     constexpr int ThreadCount = 4;
     constexpr int RequestCount = 20;
 
-    WaitFor(Client_->SetNode("//sequoia/@unexisting_attr", ConvertToYsonString(ConvertToNode(123))))
+    WaitFor(Client_->SetNode("//sequoia/@some_user_attr", ConvertToYsonString(ConvertToNode(123))))
         .ThrowOnError();
 
     auto threadPool = CreateThreadPool(ThreadCount, "ConcurrentResponseKeeperRequests");
@@ -898,7 +903,7 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     std::vector<TFuture<void>> responses;
 
     auto registerRequest = [&] (auto batchReq) {
-        auto req = NCypressClient::TCypressYPathProxy::Remove("//sequoia/@unexisting_attr");
+        auto req = NCypressClient::TCypressYPathProxy::Remove("//sequoia/@some_user_attr");
         SetMutationId(req, mutationId, /*retry*/ true);
 
         batchReq->AddRequest(req);
@@ -930,13 +935,12 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     WaitFor(AllSet(responses))
         .ThrowOnError();
 
-    int okWithRetries = 0;
-    int okWithoutRetries = 0;
     int sequoiaRetriableErrors = 0;
+    int okRequests = 0;
     for (int i : std::views::iota(0, RequestCount)) {
-        const auto& error = responses[i].Get();
+        const auto& error = responses[i].GetOrCrash();
         if (error.IsOK()) {
-            ++(i < RequestCount / 2 ? okWithoutRetries : okWithRetries);
+            ++okRequests;
         } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError && i < RequestCount / 2) {
             ++sequoiaRetriableErrors;
         } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
@@ -946,13 +950,12 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
         }
     }
 
-    YT_LOG_DEBUG("Requests finished (OkWithRetries: %v, OkWithoutRetries: %v, SequoiaRetriableErrors: %v)",
-        okWithRetries,
-        okWithoutRetries,
+    YT_LOG_DEBUG("Requests finished (OkRequests: %v, SequoiaRetriableErrors: %v)",
+        okRequests,
         sequoiaRetriableErrors);
 
-    EXPECT_LE(okWithoutRetries, 1);
-    EXPECT_GE(okWithRetries, RequestCount / 2);
+    // Every request with Sequoia retries should succeed thanks to PRK.
+    EXPECT_GE(okRequests, RequestCount / 2);
 }
 
 TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)

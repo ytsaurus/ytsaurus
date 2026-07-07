@@ -1,7 +1,6 @@
 #include "dynamic_table_block_device.h"
+#include "block_device_detail.h"
 #include "config.h"
-
-#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/rowset.h>
@@ -36,7 +35,7 @@ public:
     TBlockCache(
         i64 deviceId,
         TDynamicTableBlockDeviceConfigPtr deviceConfig,
-        NApi::NNative::IClientPtr client,
+        NApi::IClientPtr client,
         NLogging::TLogger logger)
         : DeviceId_(deviceId)
         , DeviceConfig_(std::move(deviceConfig))
@@ -78,7 +77,7 @@ public:
         if (!blocksToRead.empty()) {
             // Read blocks from the table.
             TSharedRange<TUnversionedRow> rows;
-            if (blocksToRead.begin()->first == blocksToRead.rbegin()->first + std::ssize(blocksToRead) - 1) {
+            if (blocksToRead.begin()->first + std::ssize(blocksToRead) - 1 == blocksToRead.rbegin()->first) {
                 // The range is contiguous.
                 rows = SelectRows(blocksToRead, options.Cookie);
             } else {
@@ -88,7 +87,7 @@ public:
             for (auto row : rows) {
                 auto deviceId = FromUnversionedValue<i64>(row[DeviceIdColumn_]);
                 auto blockId = FromUnversionedValue<i64>(row[BlockIdColumn_]);
-                auto blockPayload = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(FromUnversionedValue<TString>(row[BlockPayloadColumn_])));
+                auto blockPayload = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(FromUnversionedValue<std::string>(row[BlockPayloadColumn_])));
 
                 YT_VERIFY(deviceId == DeviceId_);
                 YT_VERIFY(blocksToRead.contains(blockId));
@@ -203,7 +202,7 @@ private:
     // TODO(yuryalekseev): Add support for max cache size.
     const i64 DeviceId_;
     const TDynamicTableBlockDeviceConfigPtr DeviceConfig_;
-    const NApi::NNative::IClientPtr Client_;
+    const NApi::IClientPtr Client_;
     const NLogging::TLogger Logger;
 
     const TNameTablePtr NameTable_ = New<TNameTable>();
@@ -219,7 +218,7 @@ private:
     TSharedRange<TUnversionedRow> SelectRows(const std::map<i64, TSharedMutableRef>& blocksToRead, ui64 cookie)
     {
         YT_VERIFY(!blocksToRead.empty());
-        YT_VERIFY(blocksToRead.begin()->first == blocksToRead.rbegin()->first + std::ssize(blocksToRead) - 1);
+        YT_VERIFY(blocksToRead.begin()->first + std::ssize(blocksToRead) - 1 == blocksToRead.rbegin()->first);
 
         YT_LOG_DEBUG("Start select (Blocks: %v, Cookie: %x)",
             blocksToRead.size(),
@@ -281,13 +280,13 @@ DEFINE_REFCOUNTED_TYPE(TBlockCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTableBlockDevice
-    : public TBaseBlockDevice
+    : public TBlockDeviceBase
 {
 public:
     TDynamicTableBlockDevice(
-        TString deviceId,
+        std::string deviceId,
         TDynamicTableBlockDeviceConfigPtr deviceConfig,
-        NApi::NNative::IClientPtr client,
+        NApi::IClientPtr client,
         NLogging::TLogger logger)
         : DeviceId_(CityHash64(deviceId.data(), deviceId.size()))
         , DeviceConfig_(std::move(deviceConfig))
@@ -306,14 +305,14 @@ public:
         return false;
     }
 
-    TString DebugString() const override
+    std::string DebugString() const override
     {
-        return TString();
+        return std::string();
     }
 
-    TString GetProfileSensorTag() const override
+    std::string GetProfileSensorTag() const override
     {
-        return TString();
+        return std::string();
     }
 
     TFuture<TReadResponse> Read(
@@ -521,7 +520,7 @@ private:
 
     const i64 DeviceId_;
     const TDynamicTableBlockDeviceConfigPtr DeviceConfig_;
-    const NApi::NNative::IClientPtr Client_;
+    const NApi::IClientPtr Client_;
     const NLogging::TLogger Logger;
 
     TBlockCachePtr BlockCache_;
@@ -635,9 +634,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateDynamicTableBlockDevice(
-    TString deviceId,
+    std::string deviceId,
     TDynamicTableBlockDeviceConfigPtr deviceConfig,
-    NApi::NNative::IClientPtr client,
+    NApi::IClientPtr client,
     NLogging::TLogger logger)
 {
     return New<TDynamicTableBlockDevice>(

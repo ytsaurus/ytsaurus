@@ -1,19 +1,15 @@
 #include "bootstrap.h"
 
 #include "config.h"
-#include "job_prober_service.h"
-#include "controller_agent_service.h"
 #include "controller_agent.h"
+#include "controller_agent_service.h"
+#include "job_prober_service.h"
 #include "job_tracker_service.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
-
-#include <yt/yt/library/program/build_attributes.h>
-#include <yt/yt/library/program/config.h>
-#include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -30,25 +26,32 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/config.h>
+#include <yt/yt/library/program/helpers.h>
+
 #include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/library/fusion/service_locator.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+#include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/https/server.h>
 
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/server.h>
-
-#include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -56,12 +59,10 @@
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/library/coredumper/public.h>
-
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+#include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
-#include <yt/yt/core/misc/proc.h>
-#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
@@ -75,6 +76,7 @@ namespace NYT::NControllerAgent {
 
 using namespace NAdmin;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NElection;
 using namespace NHydra;
 using namespace NMonitoring;
@@ -164,6 +166,9 @@ void TBootstrap::DoInitialize()
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+    if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+        HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+    }
 
     ControllerAgent_ = New<TControllerAgent>(Config_->ControllerAgent, ConfigNode_->AsMap()->FindChild("controller_agent"), this);
 
@@ -172,6 +177,7 @@ void TBootstrap::DoInitialize()
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
+        HttpsServer_,
         ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
@@ -215,6 +221,10 @@ void TBootstrap::DoStart()
 {
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
+    if (HttpsServer_) {
+        YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+        HttpsServer_->Start();
+    }
 
     YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
@@ -283,6 +293,8 @@ void TBootstrap::OnDynamicConfigChanged(const TControllerAgentConfigPtr& config)
     TSingletonManager::Reconfigure(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
+
+    Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(config->MasterCellDirectorySynchronizer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

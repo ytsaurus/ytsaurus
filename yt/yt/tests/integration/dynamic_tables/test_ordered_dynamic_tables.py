@@ -131,7 +131,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         sync_freeze_table("//tmp/t")
         assert select_rows("a from [//tmp/t]") == rows
-        with pytest.raises(YtError):
+        with raises_yt_error(".* .* has no mounted tablets"):
             insert_rows("//tmp/t", rows)
 
     @authors("gridem")
@@ -348,7 +348,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         write_table("//tmp/t", [{"a": 0}])
         concatenate(["//tmp/t", "//tmp/t"], "//tmp/t")
         alter_table("//tmp/t", dynamic=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot mount"):
             mount_table("//tmp/t")
 
     @authors("savrus")
@@ -376,11 +376,11 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid tablet index for table .*"):
             trim_rows("//tmp/t", -1, 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid tablet index for table"):
             trim_rows("//tmp/t", +1, 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot trim tablet"):
             trim_rows("//tmp/t", 0, 100)
 
     @authors("babenko")
@@ -612,7 +612,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
             trim_rows("//tmp/t", i, 1)
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Some chunks of tablet .* are not fully trimmed"):
             reshard_table("//tmp/t", 1)
         self._verify_chunk_tree_statistics("//tmp/t")
 
@@ -868,7 +868,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
         sync_freeze_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* .* has no mounted tablets"):
             insert_rows("//tmp/t", [{"a": 0}])
         sync_unfreeze_table("//tmp/t")
         sync_unmount_table("//tmp/t")
@@ -878,7 +878,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         set("//tmp/t/@commit_ordering", "weak")
         set("//tmp/t/@commit_ordering", "strong")
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             set("//tmp/t/@commit_ordering", "cool")
 
     @authors("babenko", "levysotsky")
@@ -886,7 +886,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change table commit ordering mode since not all tablets are unmounted"):
             set("//tmp/t/@commit_ordering", "strong")
 
     @authors("babenko")
@@ -896,11 +896,11 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
 
     @authors("babenko")
     def test_set_tablet_count_upon_construction_fail(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Tablet count must be positive"):
             self._create_simple_table("//tmp/t", tablet_count=0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Tablet count must be positive"):
             self._create_simple_table("//tmp/t", tablet_count=-1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Table is ordered; must provide tablet count"):
             self._create_simple_table("//tmp/t", pivot_keys=[[]])
 
     @authors("babenko")
@@ -1237,9 +1237,9 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t", schema=schema)
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict()])
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict(b=1)])
 
         insert_rows("//tmp/t", [dict(a=1)])
@@ -1259,7 +1259,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         ]
 
         sync_create_cells(1)
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             self._create_simple_table("//tmp/t", schema=schema)
 
     @authors("ifsmirnov")
@@ -1273,10 +1273,10 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t", schema=schema)
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict(key=1)])
         insert_rows("//tmp/t", [dict(key=1, value=2)])
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict(key=1)])
 
     @authors("akozhikhov")
@@ -1532,7 +1532,6 @@ class TestOrderedDynamicTablesPortal(TestOrderedDynamicTablesMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesSequoia(TestOrderedDynamicTablesMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1555,7 +1554,6 @@ class TestOrderedDynamicTablesRpcProxy(TestOrderedDynamicTables):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesMultipleWriteBatches(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_DRIVER_CONFIG = {"max_rows_per_write_request": 10}

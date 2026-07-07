@@ -1,6 +1,8 @@
 #include "table_settings.h"
 #include "config.h"
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NTabletNode {
@@ -198,7 +200,8 @@ TTableSettings TTableSettings::CreateNew()
         .StoreWriterConfig = New<TTabletStoreWriterConfig>(),
         .StoreWriterOptions = New<TTabletStoreWriterOptions>(),
         .HunkWriterConfig = New<TTabletHunkWriterConfig>(),
-        .HunkWriterOptions = New<TTabletHunkWriterOptions>()
+        .HunkWriterOptions = New<TTabletHunkWriterOptions>(),
+        .TabletBalancerConfig = New<NTabletBalancer::TTableTabletBalancerConfig>(),
     };
 }
 
@@ -212,6 +215,7 @@ void TRawTableSettings::CreateNewProvidedConfigs()
     Provided.StoreWriterOptions = New<TTabletStoreWriterOptions>();
     Provided.HunkWriterConfig = New<TTabletHunkWriterConfig>();
     Provided.HunkWriterOptions = New<TTabletHunkWriterOptions>();
+    Provided.TabletBalancerConfig = GetEphemeralNodeFactory()->CreateMap();
 }
 
 void TRawTableSettings::DropIrrelevantExperiments(
@@ -223,6 +227,21 @@ void TRawTableSettings::DropIrrelevantExperiments(
         } else {
             it = Experiments.erase(it);
         }
+    }
+}
+
+NTabletBalancer::TTableTabletBalancerConfigPtr DeserializeTabletBalancerConfig(
+    const IMapNodePtr& configNode,
+    std::vector<TError>* errors)
+{
+    try {
+        return ConvertTo<NTabletBalancer::TTableTabletBalancerConfigPtr>(configNode);
+    } catch (const std::exception& ex) {
+        if (errors) {
+            errors->push_back(TError("Error deserializing table tablet balancer config")
+                << ex);
+        }
+        return New<NTabletBalancer::TTableTabletBalancerConfig>();
     }
 }
 
@@ -336,7 +355,7 @@ std::pair<TTableSettings, TTableConfigPatchPtr> TryApplySinglePatch(
 
 TTableSettings TRawTableSettings::BuildEffectiveSettings(
     std::vector<TError>* errors,
-    std::vector<TString>* unappliedExperimentNames) const
+    std::vector<std::string>* unappliedExperimentNames) const
 {
     TTableSettings initialSettings{
         .StoreReaderConfig = Provided.StoreReaderConfig,
@@ -345,6 +364,9 @@ TTableSettings TRawTableSettings::BuildEffectiveSettings(
         .StoreWriterOptions = Provided.StoreWriterOptions,
         .HunkWriterConfig = Provided.HunkWriterConfig,
         .HunkWriterOptions = Provided.HunkWriterOptions,
+        .TabletBalancerConfig = DeserializeTabletBalancerConfig(
+            Provided.TabletBalancerConfig,
+            errors),
     };
 
     // All configs have already been deserialized except mount config.

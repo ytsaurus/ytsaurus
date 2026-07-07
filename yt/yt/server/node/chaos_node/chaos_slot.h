@@ -102,7 +102,8 @@ DEFINE_REFCOUNTED_TYPE(IChaosSlot)
 IChaosSlotPtr CreateChaosSlot(
     int slotIndex,
     TChaosNodeConfigPtr config,
-    IBootstrap* bootstrap);
+    IBootstrap* bootstrap,
+    const std::string& cellBundleName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

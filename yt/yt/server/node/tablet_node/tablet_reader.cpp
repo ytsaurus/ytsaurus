@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "failing_on_rotation_reader.h"
+#include "hedging_manager_registry.h"
 #include "partition.h"
 #include "private.h"
 #include "sorted_chunk_store.h"
@@ -158,7 +159,7 @@ public:
 
     TUnversionedRow BuildMergedRow(TVersionedRow versionedRow)
     {
-        if (Y_UNLIKELY(!versionedRow.DeleteTimestamps().Empty())) {
+        if (!versionedRow.DeleteTimestamps().Empty()) [[unlikely]] {
             THROW_ERROR_EXCEPTION("Delete timestamp are not supported");
         }
 
@@ -171,7 +172,7 @@ public:
 
         for (auto key : versionedRow.Keys()) {
             int columnIndex = ColumnIdToIndex_[key.Id];
-            if (Y_UNLIKELY(columnIndex == -1)) {
+            if (columnIndex == -1) [[unlikely]] {
                 continue;
             }
 
@@ -180,6 +181,7 @@ public:
 
         auto valueIt = const_cast<TVersionedValue*>(versionedRow.BeginValues());
         auto valueItEnd = const_cast<TVersionedValue*>(versionedRow.EndValues());
+        bool allNestedAreSingular = true;
 
         while (valueIt != valueItEnd) {
             auto columnId = valueIt->Id;
@@ -205,8 +207,9 @@ public:
 
             if (nestedColumnIndex != -1) {
                 NestedColumns_[nestedColumnIndex] = {valueIt, valueItNext};
+                allNestedAreSingular = allNestedAreSingular && (valueItNext - valueIt) <= 1;
                 valueIt = valueItNext;
-            } else if (Y_LIKELY(columnIndex != -1)) {
+            } else if (columnIndex != -1) [[likely]] {
                 auto* aggregateFunction = AggregateFunctions_[columnIndex];
                 auto* state = &resultRow[columnIndex];
 
@@ -218,55 +221,72 @@ public:
             }
         }
 
-        auto nestedKeySchema = TRange(NestedColumnsSchema_.KeyColumns);
-        auto nestedValueSchema = TRange(NestedColumnsSchema_.ValueColumns);
+        if (allNestedAreSingular) {
+            for (auto range : NestedColumns_) {
+                if (!range.empty()) {
+                    int columnIndex = ColumnIdToIndex_[range[0].Id];
+                    if (columnIndex == -1) [[unlikely]] {
+                        continue;
+                    }
 
-        NestedMerger_.UnpackKeyColumns(
-            TRange(NestedColumns_).Slice(0, nestedKeySchema.size()),
-            nestedKeySchema);
+                    resultRow[columnIndex] = range[0];
+                }
+            }
+        } else {
+            auto nestedKeySchema = TRange(NestedColumnsSchema_.KeyColumns);
+            auto nestedValueSchema = TRange(NestedColumnsSchema_.ValueColumns);
 
-        // NB(sabdenovch): only here to signal that no discard is needed.
-        // Normally this is called after all UnpackValueColumn.
-        NestedMerger_.DiscardZeroes(/*nestedRowDiscardPolicy*/ nullptr);
+            NestedMerger_.UnpackKeyColumns(
+                TRange(NestedColumns_).Slice(0, nestedKeySchema.size()),
+                nestedKeySchema);
 
-        for (int index = 0; index < std::ssize(nestedKeySchema); ++index) {
-            if (NestedColumns_[index].Empty()) {
-                continue;
+            // NB(sabdenovch): only here to signal that no discard is needed.
+            // Normally this is called after all UnpackValueColumn.
+            NestedMerger_.DiscardZeroes(/*nestedRowDiscardPolicy*/ nullptr);
+
+            for (int index = 0; index < std::ssize(nestedKeySchema); ++index) {
+                if (NestedColumns_[index].Empty()) {
+                    continue;
+                }
+
+                auto [columnId, type] = nestedKeySchema[index];
+
+                auto state = NestedMerger_.GetPackedKeyColumn(index, type, pool);
+                state.Id = columnId;
+
+                auto columnIndex = ColumnIdToIndex_[columnId];
+                // Nested key columns are added to enriched column filter.
+                if (columnIndex != -1) {
+                    resultRow[columnIndex] = state;
+                }
             }
 
-            auto [columnId, type] = nestedKeySchema[index];
+            for (int index = 0; index < std::ssize(nestedValueSchema); ++index) {
+                auto valueRange = NestedColumns_[index + std::ssize(nestedKeySchema)];
 
-            auto state = NestedMerger_.GetPackedKeyColumn(index, type, pool);
-            state.Id = columnId;
+                auto [columnId, type, aggregateFunction] = nestedValueSchema[index];
 
-            auto columnIndex = ColumnIdToIndex_[columnId];
-            // Nested key columns are added to enriched column filter.
-            if (columnIndex != -1) {
+                NestedMerger_.UnpackValueColumn(
+                    valueRange,
+                    type,
+                    aggregateFunction);
+
+                if (valueRange.Empty()) {
+                    continue;
+                }
+
+                // For nested value columns requested and enriched column filters are matched.
+                auto state = NestedMerger_.GetPackedValueColumn(index, type, pool);
+                state.Id = columnId;
+
+                auto columnIndex = ColumnIdToIndex_[columnId];
+                YT_VERIFY(columnIndex != -1);
                 resultRow[columnIndex] = state;
             }
         }
 
-        for (int index = 0; index < std::ssize(nestedValueSchema); ++index) {
-            auto valueRange = NestedColumns_[index + std::ssize(nestedKeySchema)];
-
-            auto [columnId, type, aggregateFunction] = nestedValueSchema[index];
-
-            NestedMerger_.UnpackValueColumn(
-                valueRange,
-                type,
-                aggregateFunction);
-
-            if (valueRange.Empty()) {
-                continue;
-            }
-
-            // For nested value columns requested and enriched column filters are matched.
-            auto state = NestedMerger_.GetPackedValueColumn(index, type, pool);
-            state.Id = columnId;
-
-            auto columnIndex = ColumnIdToIndex_[columnId];
-            YT_VERIFY(columnIndex != -1);
-            resultRow[columnIndex] = state;
+        for (auto& range : NestedColumns_) {
+            range = {};
         }
 
         return resultRow;
@@ -501,6 +521,16 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
         tabletSnapshot,
         std::move(reader));
 
+    auto modifiedChunkReadOptions = chunkReadOptions;
+    if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
+        modifiedChunkReadOptions.AdaptiveHedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+            THedgingUnit{
+                .UserTag = NServer::GetCurrentProfilingUser(),
+                .HunkChunk = true,
+                .QueryKind = modifiedChunkReadOptions.InitialQueryKind,
+            });
+    }
+
     reader = CreateHunkDecodingSchemafulReader(
         tabletSnapshot->QuerySchema,
         columnFilter,
@@ -508,7 +538,7 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
         std::move(reader),
         tabletSnapshot->ChunkFragmentReader,
         tabletSnapshot->DictionaryCompressionFactory,
-        chunkReadOptions,
+        std::move(modifiedChunkReadOptions),
         tabletSnapshot->PerformanceCounters);
 
     return reader;
@@ -632,7 +662,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
                     tabletSnapshot,
                     boundsPerStore[index],
                     timestamp,
-                    false,
+                    /*produceAllVersions*/ false,
                     enrichedColumnFilter,
                     chunkReadOptions,
                     workloadCategory);
@@ -863,7 +893,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     for (const auto& store : stores) {
         boundaries.push_back(store->GetMinKey());
 
-        if (Y_UNLIKELY(!mergeVersionedRows)) {
+        if (!mergeVersionedRows) [[unlikely]] {
             auto type = store->GetType();
 
             THROW_ERROR_EXCEPTION_IF(type != EStoreType::SortedDynamic && type != EStoreType::SortedChunk,
@@ -917,7 +947,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                     tabletSnapshot,
                     boundsPerStore[index],
                     timestamp,
-                    false,
+                    /*produceAllVersions*/ false,
                     enrichedColumnFilter,
                     chunkReadOptions,
                     workloadCategory);
@@ -1166,7 +1196,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
 
     auto asyncResult = throttler->Throttle(1);
     if (asyncResult.IsSet()) {
-        asyncResult.Get().ThrowOnError();
+        asyncResult.GetOrCrash().ThrowOnError();
     } else {
         YT_LOG_DEBUG("Started waiting for compaction inbound throughput throttler");
         WaitFor(asyncResult)
@@ -1227,7 +1257,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
                 tabletSnapshot,
                 MakeSingletonRowRange(lowerBound, upperBound),
                 AllCommittedTimestamp,
-                true,
+                /*produceAllVersions*/ true,
                 TColumnFilter(),
                 chunkReadOptions,
                 workloadCategory);

@@ -1,4 +1,5 @@
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/rpc/server.h>
 #include <yt/yt/core/rpc/service_detail.h>
@@ -70,7 +71,7 @@ DEFINE_RPC_SERVICE_METHOD(TTestService, TestFailedCall)
     context->Reply(TError("Error"));
 }
 
-void RunServer(const TString& address)
+void RunServer(const std::string& address)
 {
     auto serverAddressConfig = New<NGrpc::TServerAddressConfig>();
     serverAddressConfig->Address = address;
@@ -86,12 +87,10 @@ void RunServer(const TString& address)
 
     Cin.ReadLine();
 
-    rpcServer->Stop()
-        .Get()
-        .ThrowOnError();
+    WaitFor(rpcServer->Stop()).ThrowOnError();
 }
 
-void RunClient(const TString& address, int numIter)
+void RunClient(const std::string& address, int numIter)
 {
     Cout << "Running " << numIter << " iterations of test" << Endl;
 
@@ -111,11 +110,11 @@ void RunClient(const TString& address, int numIter)
         result = request->Invoke();
         if (i % 10000 == 0 || i == numIter - 1) {
             Cout << "iteration " << i << Endl;
-            auto response = result.Get().ValueOrThrow();
+            auto response = WaitFor(result).ValueOrThrow();
             YT_ASSERT(response->b() == i + 42);
         }
     }
-    result.Get();
+    WaitFor(result).ThrowOnError();
 
     auto elapsed = timer.GetElapsedTime();
     Cout << "Elapsed = " << ToString(elapsed) << Endl;
@@ -136,12 +135,12 @@ int main(int argc, const char *argv[])
         TOpts opts;
         opts.AddHelpOption();
 
-        TString mode;
+        std::string mode;
         opts.AddLongOption("mode", "")
             .RequiredArgument("MODE")
             .StoreResult(&mode);
 
-        TString address = "localhost:8888";
+        std::string address = "localhost:8888";
         opts.AddLongOption("address", "")
             .RequiredArgument("ADDRESS")
             .StoreResult(&address);
@@ -165,4 +164,3 @@ int main(int argc, const char *argv[])
         Cerr << "ERROR: " << ex.what() << Endl;
     }
 }
-

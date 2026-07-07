@@ -157,7 +157,7 @@ class DefaultConfigType(TypedDict, total=False):
         module_filter: Optional[Any]
         force_using_py_instead_of_pyc: bool
         create_init_file_for_package_modules: bool
-        additional_files_to_archive: Optional[Any]
+        additional_files_to_archive: Optional[List[Tuple[str, str]]]
         create_modules_archive_function: Optional[Any]
         find_module_file_error_logging_level: str
         framework: str
@@ -372,6 +372,12 @@ class DefaultConfigType(TypedDict, total=False):
 
     dump_table_options: DefaultConfigDumpTableOptionsType
     enable_password_strength_validation: bool
+
+    class DefaultConfigAdminType(TypedDict, total=False):
+        prometheus_image: str
+        grafana_image: str
+
+    admin: DefaultConfigAdminType
 
 
 def retry_backoff_config(**kwargs) -> DefaultConfigRetriesBackoffType:
@@ -669,7 +675,7 @@ default_config = {
         # In this case artificial __init__.py is added when modules archive is created.
         "create_init_file_for_package_modules": True,
         # The list of files to add into archive. File should be specified as tuple that
-        # consists of absolute file path and relative path in archive.
+        # consists of source file path (absolute) and relative path in archive.
         "additional_files_to_archive": None,
         # Function to replace standard py_wrapper.create_modules_archive.
         # If this function specified all previous options does not applied.
@@ -726,6 +732,7 @@ default_config = {
         # Enable using function name as operation title.
         "use_function_name_as_title": True,
         # Enable modules filtering if client and server OS/python versions are different.
+        # Tries to ignore *.so, *.pyc (do not forget disable `encrypt_pickle_files` and `ignore_yson_bindings_for_incompatible_platforms`)
         "enable_modules_compatibility_filter": False,
         # Compression level of archive with modules (from 1 to 9)
         "modules_archive_compression_level": 6,
@@ -735,7 +742,8 @@ default_config = {
         "modules_chunk_size": 100 * common.MB,
         # Bypass artifacts cache for modules files.
         "modules_bypass_artifacts_cache": None,
-        # Ignore "system" python modules (installed on client's host and presented in YT runtime).
+        # Ignore all "system" python modules (installed on client's host and presented in YT runtime).
+        # "system" means - has __file__ and __file__ matches `system_module_patterns`
         "ignore_system_modules": RemotePatchableBoolean(False, "python_pickling_ignore_system_modules"),
         "system_module_patterns": [
             r"/lib/python[\d\.]+/(site|dist)-packages/",
@@ -1115,6 +1123,11 @@ default_config = {
     # if enabled, the password strength will be verified by the client when performing
     # a set_user_password request
     "enable_password_strength_validation": RemotePatchableBoolean(False, "python_enable_password_strength_validation"),
+
+    "admin": {
+        "prometheus_image": "prom/prometheus:v3.11.3",
+        "grafana_image": "grafana/grafana-oss:12.4.2",
+    },
 }
 
 # pydoc :: default_config :: end
@@ -1235,6 +1248,9 @@ SHORTCUTS = {
     "YT_CONFIG_PROFILE": "config_profile",
 
     "YT_ENCRYPT_PICKLE": "pickling/encrypt_pickle_files",
+
+    "YT_ADMIN_PROMETHEUS_IMAGE": "admin/prometheus_image",
+    "YT_ADMIN_GRAFANA_IMAGE": "admin/grafana_image",
 }
 
 
@@ -1322,7 +1338,7 @@ def _update_from_env_vars(
         if key in shortcuts:
             name = shortcuts[key]
             if name == "driver_config":
-                var_type = yson.loads
+                var_type = yson._loads_from_native_str
             elif name == "proxy/aliases":
                 def parse_proxy_aliases(value):
                     return yson.yson_to_json(yson.loads(value.encode()))

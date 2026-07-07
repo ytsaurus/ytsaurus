@@ -1,6 +1,6 @@
+#include "job_detail.h"
 #include "merge_job.h"
 #include "private.h"
-#include "job_detail.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
@@ -14,8 +14,8 @@
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
-#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 

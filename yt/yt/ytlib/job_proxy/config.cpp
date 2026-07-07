@@ -38,6 +38,8 @@ void TJobTestingOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("events_on_fs", &TThis::EventsOnFs)
         .Default();
+    registrar.Parameter("dummy_allocation_bytes", &TThis::DummyAllocationBytes)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -114,7 +114,7 @@ If the controller agent manages to reuse a job allocation from the previous inca
 
 * `job_cookie` of jobs from the previous and new incarnations match.
 * If a job from the previous incarnation was assigned a `gang_rank`, the job in the new incarnation is assigned the same `gang_rank`.
-* If a job from the previous incarnation was assigned a `monitoring_descriptor`, the job in the new incarnation is assigned the same `monitoring_descriptor`.
+* If a job from the previous incarnation was assigned a `monitoring_descriptor`, the job in the new incarnation is assigned the same `monitoring_descriptor`. 
 
 ### Reserved jobs { #reserved-jobs }
 

@@ -105,6 +105,8 @@ def hide_fields(
 
 
 def hide_secure_vault(params: typing.Dict[str, str]) -> typing.Dict[str, str]:
+    """Returns safe copy of params
+    """
     params = deepcopy(params)
 
     hide_fields(params, fields=("secure_vault",), prefixes=SECRET_PREFIXES)
@@ -130,7 +132,7 @@ def hide_auth_headers(headers: typing.Dict[str, str]) -> typing.Dict[str, str]:
 
 def hide_auth_headers_in_request_info(request_info):
     copied_request_info = None
-    for key in ("headers", "request_header", "response_headers"):
+    for key in ("headers", "request_header", "request_headers", "response_headers"):
         if key not in request_info:
             continue
         if copied_request_info is None:

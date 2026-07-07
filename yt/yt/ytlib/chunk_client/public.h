@@ -153,6 +153,7 @@ DEFINE_ENUM_UNKNOWN_VALUE(EChunkFeatures, Unknown);
 DEFINE_ENUM(EChunkClientFeature,
     // COMPAT(akozhikhov).
     ((AllBlocksIndex)           (0))
+    ((MultiplePartitionTags)    (1))
 );
 
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkMergerMode, i8,

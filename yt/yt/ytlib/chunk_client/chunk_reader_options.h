@@ -38,10 +38,14 @@ struct TClientChunkReadOptions
     IMemoryUsageTrackerPtr MemoryUsageTracker;
 
     NTableClient::IGranuleFilterPtr GranuleFilter;
-    NTableClient::EPerformanceCountedRequestType RequestType = NTableClient::EPerformanceCountedRequestType::Lookup;
+    // Only applicable to dynamic tables.
+    NTableClient::EInitialQueryKind InitialQueryKind = NTableClient::EInitialQueryKind::LookupRows;
 
     //! Additional request data, e.g. NBD request id.
     std::optional<ui64> Cookie;
+
+    void ResetStatistics();
+    void AddStatisticsFrom(const TClientChunkReadOptions& from) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

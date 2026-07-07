@@ -67,8 +67,7 @@ struct TNbdSession
 
     TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount,
-        bool truncateExtraBlocks) override;
+        std::optional<int> blockCount) override;
 
     bool ShouldUseProbePutBlocks() const override;
     void ProbePutBlocks(i64 requestedCumulativeMemorySize) override;

@@ -35,8 +35,9 @@ namespace NDetail {
 struct TLookupSessionConfig
     : public virtual TRefCounted
 {
-    TString User;
+    std::string User;
     NYPath::TRichYPath Table;
+    std::optional<int> SuccessfulLookupsRequired;
 
     bool operator==(const TLookupSessionConfig&) const;
 };
@@ -80,7 +81,7 @@ DEFINE_REFCOUNTED_TYPE(TCompoundStateLookupCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace NDetail
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,6 +154,9 @@ struct TQueueConsumerRegistrationManagerCacheConfig
     TEnumIndexedArray<EQueueConsumerRegistrationManagerCacheKind, TAsyncExpiringCacheDynamicConfigPtr> Delta;
     //! Config for batching all lookups, except periodic updates (for those look into #BatchUpdate in #Base or #Delta).
     TQueueConsumerRegistrationManagerBatchLookupConfigPtr BatchLookup;
+    //! Specifies the minimum number of lookups to replicas to be considered successful for each cache kind.
+    //! Null or omitted values means that value of `max(1, replicaCount - 1)` is used, i.e. at least one success and at most one failure are required.
+    TEnumIndexedArray<EQueueConsumerRegistrationManagerCacheKind, std::optional<int>> CacheKindToSuccessfulLookupsRequired;
 
     REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerCacheConfig);
 
@@ -224,6 +228,8 @@ struct TQueueConsumerRegistrationManagerConfig
     //! Config for internally used async expiring caches.
     //! \note If legacy implementation is used, this field is ignored.
     TQueueConsumerRegistrationManagerCacheConfigPtr Cache;
+
+    NYPath::TRichYPath GetCachePath(EQueueConsumerRegistrationManagerCacheKind kind) const;
 
     REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerConfig);
 

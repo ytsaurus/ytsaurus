@@ -7,11 +7,15 @@ PY_SRCS(
     cloudfunction_client.py
     compatibility_graph.py
     component_registry.py
+    components.py
     consts.py
     ghcr.py
     MAIN main.py
     models.py
+    pretty.py
+    enums.py
     scenario_processor.py
+    task.py
 )
 
 PEERDIR(
@@ -34,7 +38,10 @@ RESOURCE_FILES(
     configs/compat-ytsaurus.yaml
     configs/components.yaml
     configs/scenarios.yaml
+    configs/upgrades.yaml
+    snapshots/ytsaurus
     templates/base-spec.yaml
+    templates/spec-with-update.yaml
     tests/configs/compat-operator.yaml
     tests/configs/compat-ytsaurus.yaml
     tests/configs/components.yaml

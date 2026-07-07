@@ -156,11 +156,11 @@ TCallback<TFuture<void>()> TUpdateExecutor<TKey, TUpdateParameters>::CreateUpdat
         return {};
     }
 
-    return BIND([key, this, updateAction = std::move(updateAction), this_ = MakeStrong(this)] () {
+    return BIND([this, this_ = MakeStrong(this), updateAction = std::move(updateAction)] {
             return updateAction().Apply(
-                BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                     if (!error.IsOK()) {
-                        OnUpdateFailed_(TError("Update of item failed (Key: %v)", key) << error);
+                        OnUpdateFailed_(error);
                     }
                 })
                 .AsyncVia(Invoker_));
@@ -177,7 +177,7 @@ TFuture<void> TUpdateExecutor<TKey, TUpdateParameters>::DoExecuteUpdate(TUpdateR
     if (!callback) {
         return updateRecord->LastUpdateFuture;
     }
-    updateRecord->LastUpdateFuture = updateRecord->LastUpdateFuture.Apply(callback);
+    updateRecord->LastUpdateFuture = updateRecord->LastUpdateFuture.Apply(callback).ToUncancelable();
     return updateRecord->LastUpdateFuture;
 }
 

@@ -25,6 +25,8 @@ DEFINE_ENUM(ESequoiaReign,
     ((AnnotationAttribute)                 (14))
     ((CompositeNodeReadAccessControl)      (15))
     ((ChildNodesTable)                     (16))
+    ((UseSequoiaAclInEffectiveAcl)         (17))
+    ((ForwardHasRowLevelAce)               (18))
 );
 
 static_assert(TEnumTraits<ESequoiaReign>::IsMonotonic, "Sequoia reign enum is not monotonic");
@@ -34,14 +36,18 @@ ESequoiaReign GetCurrentSequoiaReign() noexcept;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EGroundReign,
-    ((Unknown)          (0))
-    ((InitialVersion)   (1))
-    ((ChildNodesTable)  (2))
+    ((Unknown)                         (0))
+    ((InitialVersion)                  (1))
+    ((ChildNodesTable)                 (2))
+    ((AlterChunkReplicasTable)         (3))
+    ((ReplicaStates)                   (4))
+    ((SmallChunkIdHashInChunkReplicas) (5))
+    ((NodeIdHashInLocationReplicas)    (6))
 );
 
 static_assert(TEnumTraits<EGroundReign>::IsMonotonic, "Ground reign enum is not monotonic");
 
-EGroundReign GetCurrentGroundReign();
+int GetCurrentGroundReign();
 
 ////////////////////////////////////////////////////////////////////////////////
 

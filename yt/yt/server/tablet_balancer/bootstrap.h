@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/cypress_election/public.h>
+#include <yt/yt/library/cypress_election/public.h>
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
@@ -22,10 +22,14 @@ struct IBootstrap
     virtual const IInvokerPtr& GetControlInvoker() const = 0;
     virtual const NApi::NNative::IClientPtr& GetClient() const = 0;
     virtual const NHiveClient::TClientDirectoryPtr& GetClientDirectory() const = 0;
+    virtual const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const = 0;
     virtual const NCypressElection::ICypressElectionManagerPtr& GetElectionManager() const = 0;
     virtual const TDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
+    virtual const ITabletBalancerPtr& GetTabletBalancer() const = 0;
     virtual std::string GetClusterName() const = 0;
     virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const = 0;
+    virtual NNodeTrackerClient::TAddressMap GetLocalAddresses() const = 0;
+    virtual void ExecuteBalancerIteration(TDryRunConfigPtr config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

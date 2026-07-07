@@ -13,7 +13,12 @@ cd "$PYTHON_ROOT"
 
 export PYTHONPATH="$PYTHON_ROOT"
 export YT_BUILD_ROOT="${BUILD_ROOT}"
-export YT_TESTS_SANDBOX="$TESTS_SANDBOX" 
+export YT_TESTS_SANDBOX="$TESTS_SANDBOX"
+
+if [ $# -gt 0 ]; then
+    python3 -m pytest -vs "yt/wrapper/tests" -m opensource "$@"
+    exit 0
+fi
 
 python3 -m pytest -vs "yt/local" "yt/yson" "yt/skiff"
 python3 -m pytest -vs "yt/wrapper/tests" -m opensource

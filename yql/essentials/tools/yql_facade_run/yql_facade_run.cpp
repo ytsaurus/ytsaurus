@@ -41,7 +41,7 @@
 #include <yql/essentials/protos/yql_mount.pb.h>
 #include <yql/essentials/protos/pg_ext.pb.h>
 #include <yql/essentials/sql/settings/translation_settings.h>
-#include <yql/essentials/sql/v1/complete/check/check_complete.h>
+#include <yql/essentials/sql/v1/ide/completion/check/check_complete.h>
 #include <yql/essentials/sql/v1/format/sql_format.h>
 #include <yql/essentials/sql/v1/format/check/check_format.h>
 #include <yql/essentials/sql/v1/sql.h>
@@ -191,7 +191,7 @@ void TFacadeRunOptions::ParseProtoConfig(const TString& cfgFile, google::protobu
 }
 
 void TFacadeRunOptions::Parse(int argc, const char** argv) {
-    User = GetUsername();
+    User = GetEnv("YQL_DETERMINISTIC_MODE") ? "test-user" : GetUsername();
 
     if (EnableCredentials) {
         Token = GetEnv("YQL_TOKEN");
@@ -422,7 +422,7 @@ void TFacadeRunOptions::Parse(int argc, const char** argv) {
             QPlayerCaptureMode = EQPlayerCaptureMode::MetaOnly;
         });
         opts.AddLongOption("gateways-patch", "QPlayer patch for gateways conf").Optional().RequiredArgument("FILE").Handler1T<TString>([this](const TString& file) {
-            GatewaysPatch = TFileInput(file).ReadAll();
+            GatewaysPatch = TFacadeRunOptions::ParseProtoConfig<TGatewaysConfig>(file);
         });
     }
 
@@ -434,6 +434,8 @@ void TFacadeRunOptions::Parse(int argc, const char** argv) {
         opts.AddLongOption("test-syntax-ambiguity", "Check syntax ambiguities").NoArgument().SetFlag(&TestSyntaxAmbiguities);
         opts.AddLongOption("validate-result-format", "Check that result-format can parse Result").NoArgument().SetFlag(&ValidateResultFormat);
         opts.AddLongOption("test-partial-typecheck", "Check partial AST typecheck").NoArgument().SetFlag(&TestPartialTypecheck);
+        opts.AddLongOption("fuzz-untyped-lambda", "Enable fuzzing by substituting untyped lambdas for callable children").NoArgument().SetFlag(&FuzzUntypedLambda);
+        opts.AddLongOption("fuzz-universal", "Enable fuzzing by substituting universal for callable children").NoArgument().SetFlag(&FuzzUniversal);
     }
 
     opts.AddLongOption("langver", "Set current language version").Optional().RequiredArgument("VER").Handler1T<TString>([this](const TString& str) {
@@ -497,17 +499,24 @@ void TFacadeRunOptions::Parse(int argc, const char** argv) {
         throw yexception() << "Simultaneous usage of run and replay options requires replay data to contain full capture";
     }
 
-    if (!GatewaysConfig) {
+    if (QPlayerContext.CanRead()) {
+        GatewaysConfig = GatewaysConfigFromQContext(QPlayerContext);
+        if (GatewaysPatch) {
+            GatewaysConfig->MergeFrom(*GatewaysPatch);
+        }
+    } else if (!GatewaysConfig) {
         GatewaysConfig = ParseProtoFromResource<TGatewaysConfig>("gateways.conf");
     }
 
-    {
-        TGatewaySQLFlags flags;
-        if (GatewaysConfig) {
-            flags.ExtendWith(TGatewaySQLFlags::FromTesting(*GatewaysConfig));
+    if (QPlayerContext.CanRead()) {
+        auto sqlFlags = SQLFlagsFromQContext(QPlayerContext);
+        if (GatewaysPatch) {
+            // Gateways Patch is used for experimental features
+            sqlFlags.ExtendWith(TGatewaySQLFlags::FromTesting(*GatewaysPatch));
         }
-        flags.ExtendWith(SQLFlagsFromQContext(QPlayerContext));
-        flags.CollectAllTo(SqlFlags);
+        sqlFlags.CollectAllTo(SqlFlags);
+    } else if (GatewaysConfig) {
+        TGatewaySQLFlags::FromTesting(*GatewaysConfig).CollectAllTo(SqlFlags);
     }
 
     if (!FsConfig) {
@@ -583,7 +592,7 @@ int TFacadeRunner::DoMain(int argc, const char** argv) {
     }
 
     auto funcRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(&NYql::NBacktrace::KikimrBackTrace,
-                                                                  NKikimr::NMiniKQL::CreateBuiltinRegistry(), true, RunOptions_.UdfsPaths)
+                                                                  NKikimr::NMiniKQL::CreateBuiltinRegistry(), /*allowUdfPatch=*/true, RunOptions_.UdfsPaths)
                             ->Clone();
     NKikimr::NMiniKQL::FillStaticModules(*funcRegistry);
     FuncRegistry_ = funcRegistry;
@@ -662,8 +671,8 @@ int TFacadeRunner::DoMain(int argc, const char** argv) {
                     return false;
                 }
 
-                constexpr bool isIdempotencyChecked = true;
-                if (TIssues issues; testFormat && !NSQLFormat::CheckedFormat(query, settings, issues, isIdempotencyChecked)) {
+                constexpr auto convergence = NSQLFormat::EConvergenceRequirement::Double;
+                if (TIssues issues; testFormat && !NSQLFormat::CheckedFormat(query, ast.Root, settings, issues, convergence)) {
                     auto issue = TIssue(TPosition(0, 0, fileName), "Format failed");
                     for (const auto& i : issues) {
                         issue.AddSubIssue(MakeIntrusive<TIssue>(i));
@@ -691,8 +700,7 @@ int TFacadeRunner::DoMain(int argc, const char** argv) {
         moduleResolver = std::make_shared<TModuleResolver>(translators, std::move(modules), ctx.NextUniqueId,
                                                            ClusterMapping_, RunOptions_.SqlFlags, RunOptions_.Mode >= ERunMode::Validate, THolder<TExprContext>(), moduleChecker);
     } else {
-        if (!GetYqlDefaultModuleResolver(ctx, moduleResolver, ClusterMapping_,
-                                         RunOptions_.OptimizeLibs && RunOptions_.Mode >= ERunMode::Validate, moduleChecker)) {
+        if (GetYqlModuleResolver(ctx, moduleResolver, {}, ClusterMapping_, RunOptions_.SqlFlags, RunOptions_.Mode >= ERunMode::Validate, moduleChecker).empty()) {
             *RunOptions_.ErrStream << "Errors loading default YQL libraries:" << Endl;
             ctx.IssueManager.GetIssues().PrintTo(*RunOptions_.ErrStream);
             return -1;
@@ -725,7 +733,7 @@ int TFacadeRunner::DoMain(int argc, const char** argv) {
         if (EQPlayerMode::Replay != RunOptions_.QPlayerMode) {
             THoldingFileStorage storage(FileStorage_);
             RunOptions_.PrintInfo(TStringBuilder() << TInstant::Now().ToStringLocalUpToSeconds() << " Udf scanning started for " << RunOptions_.UdfsPaths.size() << " udfs ...");
-            LoadRichMetadataToUdfIndex(*udfResolver, RunOptions_.UdfsPaths, false, TUdfIndex::EOverrideMode::RaiseError, *udfIndex, storage);
+            LoadRichMetadataToUdfIndex(*udfResolver, RunOptions_.UdfsPaths, /*isTrusted=*/false, TUdfIndex::EOverrideMode::RaiseError, *udfIndex, storage);
             RunOptions_.PrintInfo(TStringBuilder() << TInstant::Now().ToStringLocalUpToSeconds() << " UdfIndex done.");
         }
 
@@ -738,7 +746,7 @@ int TFacadeRunner::DoMain(int argc, const char** argv) {
     } else {
         udfResolver = FileStorage_ && RunOptions_.UdfResolverPath
                           ? NCommon::CreateOutProcUdfResolver(FuncRegistry_.Get(), FileStorage_, RunOptions_.UdfResolverPath, {}, {}, RunOptions_.UdfResolverFilterSyscalls, {})
-                          : NCommon::CreateSimpleUdfResolver(FuncRegistry_.Get(), FileStorage_, true);
+                          : NCommon::CreateSimpleUdfResolver(FuncRegistry_.Get(), FileStorage_, /*useFakeMD5=*/true);
         if (RunOptions_.UdfResolverLog) {
             udfResolver = NCommon::CreateUdfResolverDecoratorWithLogger(FuncRegistry_.Get(), udfResolver, RunOptions_.UdfResolverLog, RunOptions_.OperationId);
         }
@@ -791,7 +799,7 @@ int TFacadeRunner::DoMain(int argc, const char** argv) {
 }
 
 int TFacadeRunner::DoRun(TProgramFactory& factory) {
-    TProgramPtr program = factory.Create(RunOptions_.ProgramFile, RunOptions_.ProgramText, RunOptions_.OperationId, EHiddenMode::Disable, RunOptions_.QPlayerContext, RunOptions_.GatewaysPatch);
+    TProgramPtr program = factory.Create(RunOptions_.ProgramFile, RunOptions_.ProgramText, RunOptions_.OperationId, EHiddenMode::Disable, RunOptions_.QPlayerContext);
     program->SetLanguageVersion(RunOptions_.LangVer);
     program->SetMaxLanguageVersion(RunOptions_.MaxLangVer);
     if (RunOptions_.Params) {
@@ -815,6 +823,15 @@ int TFacadeRunner::DoRun(TProgramFactory& factory) {
         program->SetEnableLineage();
     }
 
+    if (RunOptions_.FuzzUntypedLambda) {
+        program->SetFuzzUntypedLambda();
+    }
+
+    if (RunOptions_.FuzzUniversal) {
+        program->SetFuzzUniversal();
+    }
+
+    program->SetAuthenticatedUser(RunOptions_.User);
     program->SetOperationId(RunOptions_.OperationId);
 
     bool fail = false;
@@ -841,8 +858,8 @@ int TFacadeRunner::DoRun(TProgramFactory& factory) {
         }
         if (!fail && RunOptions_.TestSqlFormat && 1 == RunOptions_.SyntaxVersion) {
             TIssues issues;
-            constexpr bool isIdempotencyChecked = true;
-            if (!NSQLFormat::CheckedFormat(program->GetSourceCode(), settings, issues, isIdempotencyChecked)) {
+            constexpr auto convergence = NSQLFormat::EConvergenceRequirement::Double;
+            if (!NSQLFormat::CheckedFormat(program->GetSourceCode(), program->AstRoot(), settings, issues, convergence)) {
                 *RunOptions_.ErrStream << "Format failed" << Endl;
                 issues.PrintTo(*RunOptions_.ErrStream);
                 return -1;
@@ -930,7 +947,7 @@ int TFacadeRunner::DoRun(TProgramFactory& factory) {
     }
 
     if (RunOptions_.TraceOptStream) {
-        program->Print(RunOptions_.TraceOptStream, nullptr);
+        program->Print(RunOptions_.TraceOptStream, /*planOut=*/nullptr);
     }
     if (fail) {
         return -1;
@@ -938,7 +955,7 @@ int TFacadeRunner::DoRun(TProgramFactory& factory) {
 
     if (ERunMode::Compile == RunOptions_.Mode) {
         if (RunOptions_.ExprStream) {
-            auto baseAst = ConvertToAst(*program->ExprRoot(), program->ExprCtx(), NYql::TExprAnnotationFlags::None, true);
+            auto baseAst = ConvertToAst(*program->ExprRoot(), program->ExprCtx(), NYql::TExprAnnotationFlags::None, /*refAtoms=*/true);
             baseAst.Root->PrettyPrintTo(*RunOptions_.ExprStream, PRETTY_FLAGS);
         }
 
@@ -956,7 +973,7 @@ int TFacadeRunner::DoRun(TProgramFactory& factory) {
     TProgram::TStatus status = DoRunProgram(program);
 
     if (ERunMode::Peephole == RunOptions_.Mode && RunOptions_.ExprStream && program->ExprRoot()) {
-        auto ast = ConvertToAst(*program->ExprRoot(), program->ExprCtx(), RunOptions_.WithTypes ? TExprAnnotationFlags::Types : TExprAnnotationFlags::None, true);
+        auto ast = ConvertToAst(*program->ExprRoot(), program->ExprCtx(), RunOptions_.WithTypes ? TExprAnnotationFlags::Types : TExprAnnotationFlags::None, /*refAtoms=*/true);
         ui32 prettyFlags = TAstPrintFlags::ShortQuote;
         if (!RunOptions_.WithTypes) {
             prettyFlags |= TAstPrintFlags::PerLine;
@@ -975,7 +992,7 @@ int TFacadeRunner::DoRun(TProgramFactory& factory) {
     program->PrintErrorsTo(*RunOptions_.ErrStream);
     if (status == TProgram::TStatus::Error) {
         if (RunOptions_.TraceOptStream) {
-            program->Print(RunOptions_.TraceOptStream, nullptr);
+            program->Print(RunOptions_.TraceOptStream, /*planOut=*/nullptr);
         }
         return -1;
     }

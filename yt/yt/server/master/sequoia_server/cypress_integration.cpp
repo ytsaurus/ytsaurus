@@ -7,11 +7,18 @@
 
 #include <yt/yt/server/master/cypress_server/virtual.h>
 
+#include <yt/yt/server/lib/cypress_proxy/config.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 namespace NYT::NSequoiaServer {
 
 using namespace NCellMaster;
 using namespace NCypressServer;
+using namespace NCypressProxy;
 using namespace NObjectServer;
+using namespace NServer;
+using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,6 +30,8 @@ public:
     using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
+    using TBase = TVirtualSinglecellMapBase;
+
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& cypressProxyTracker = Bootstrap_->GetCypressProxyTracker();
@@ -58,6 +67,54 @@ private:
     {
         const auto& cypressProxyTracker = Bootstrap_->GetCypressProxyTracker();
         return cypressProxyTracker->CypressProxies().GetSize();
+    }
+
+    // ISystemAttributeProvider overrides
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    {
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Config)
+            .SetWritable(true)
+            .SetOpaque(true));
+    }
+
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
+    {
+
+        switch (key) {
+            case EInternedAttributeKey::Config:
+            {
+                const auto& cypressProxyTracker = Bootstrap_->GetCypressProxyTracker();
+                BuildYsonFluently(consumer)
+                    .Value(cypressProxyTracker->GetDynamicConfig());
+                return true;
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
+    {
+        switch (key) {
+            case EInternedAttributeKey::Config: {
+                ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+                auto config = ConvertTo<TCypressProxyDynamicConfigPtr>(value);
+                const auto& cypressProxyTracker = Bootstrap_->GetCypressProxyTracker();
+                cypressProxyTracker->SetDynamicConfig(std::move(config));
+                return true;
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 };
 

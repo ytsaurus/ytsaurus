@@ -7,7 +7,7 @@ import asyncio
 import httpx
 
 import yatest.common
-import yatest.common.network
+from library.python.port_manager import PortManager
 
 
 TIMEOUT = 5000
@@ -15,7 +15,7 @@ TIMEOUT = 5000
 
 @pytest.fixture(scope="session")
 def running_example():
-    with yatest.common.network.PortManager() as pm:
+    with PortManager() as pm:
         port = pm.get_port()
 
         cmd = [

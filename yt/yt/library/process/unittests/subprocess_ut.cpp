@@ -3,6 +3,7 @@
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/library/process/subprocess.h>
 
@@ -42,7 +43,7 @@ TEST(TSubprocessTest, PipeStdin)
 {
     auto queue = New<TActionQueue>();
 
-    BIND([] {
+    WaitForFast(BIND([] {
         TSubprocess subprocess("/bin/cat");
         subprocess.AddArgument("-");
 
@@ -53,14 +54,14 @@ TEST(TSubprocessTest, PipeStdin)
 
         TStringBuf output(result.Output.Begin(), result.Output.End());
         EXPECT_EQ(input, output);
-    }).AsyncVia(queue->GetInvoker()).Run().Get().ThrowOnError();
+    }).AsyncVia(queue->GetInvoker()).Run()).ThrowOnError();
 }
 
 TEST(TSubprocessTest, PipeBigOutput)
 {
     auto queue = New<TActionQueue>();
 
-    auto result = BIND([] {
+    auto result = WaitForFast(BIND([] {
         TSubprocess subprocess("/bin/bash");
 
         subprocess.AddArgument("-c");
@@ -68,7 +69,7 @@ TEST(TSubprocessTest, PipeBigOutput)
 
         auto result = subprocess.Execute();
         return result.Status.IsOK();
-    }).AsyncVia(queue->GetInvoker()).Run().Get().Value();
+    }).AsyncVia(queue->GetInvoker()).Run()).Value();
 
     EXPECT_TRUE(result);
 }
@@ -77,7 +78,7 @@ TEST(TSubprocessTest, PipeBigError)
 {
     auto queue = New<TActionQueue>();
 
-    auto result = BIND([] {
+    auto result = WaitForFast(BIND([] {
         TSubprocess subprocess("/bin/bash");
 
         subprocess.AddArgument("-c");
@@ -85,7 +86,7 @@ TEST(TSubprocessTest, PipeBigError)
 
         auto result = subprocess.Execute();
         return result;
-    }).AsyncVia(queue->GetInvoker()).Run().Get().Value();
+    }).AsyncVia(queue->GetInvoker()).Run()).Value();
 
     EXPECT_TRUE(result.Status.IsOK());
     EXPECT_EQ(6*100000, std::ssize(result.Error));
@@ -95,10 +96,10 @@ TEST(TSubprocessTest, BinaryNotFound)
 {
     auto queue = New<TActionQueue>();
 
-    auto result = BIND([] {
+    auto result = WaitForFast(BIND([] {
         TSubprocess subprocess("does-not-exist");
         return subprocess.Execute();
-    }).AsyncVia(queue->GetInvoker()).Run().Get().Value();
+    }).AsyncVia(queue->GetInvoker()).Run()).Value();
 
     EXPECT_FALSE(result.Status.IsOK());
 }

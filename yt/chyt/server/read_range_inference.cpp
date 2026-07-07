@@ -25,10 +25,25 @@
 #include <Analyzer/InDepthQueryTreeVisitor.h>
 #include <Analyzer/FunctionNode.h>
 
+#include <Core/Settings.h>
+
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/DataTypeLowCardinality.h>
 
 #include <Interpreters/convertFieldToType.h>
+
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsBool transform_null_in;
+extern const SettingsBool validate_enum_literals_in_operators;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
+
 
 namespace NYT::NClickHouseServer {
 
@@ -45,8 +60,7 @@ using NYT::NTableClient::TUnversionedRow;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::unordered_map<std::string, EBinaryOp> BinaryOpNameToOpCode
-{
+const std::unordered_map<std::string, EBinaryOp> BinaryOpNameToOpCode {
     {"equals", EBinaryOp::Equal},
     {"notEquals", EBinaryOp::NotEqual},
     {"less", EBinaryOp::Less},
@@ -57,8 +71,7 @@ const std::unordered_map<std::string, EBinaryOp> BinaryOpNameToOpCode
     {"or", EBinaryOp::Or},
 };
 
-const std::unordered_map<EBinaryOp, EBinaryOp> BinaryOpToConversedOp
-{
+const std::unordered_map<EBinaryOp, EBinaryOp> BinaryOpToConversedOp {
     {EBinaryOp::Equal, EBinaryOp::Equal},
     {EBinaryOp::NotEqual, EBinaryOp::NotEqual},
     {EBinaryOp::Less, EBinaryOp::Greater},
@@ -71,55 +84,44 @@ const std::unordered_map<EBinaryOp, EBinaryOp> BinaryOpToConversedOp
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYT::TSharedRange<TUnversionedRow> ConvertPreparedSetToSharedRange(const DB::DataTypePtr& targetDataType, const DB::QueryTreeNodePtr& node)
+NYT::TSharedRange<TUnversionedRow> ConvertConstantSetToSharedRange(
+    const DB::DataTypePtr& targetDataType,
+    const DB::QueryTreeNodePtr& node,
+    const TConversionSettingsPtr& settings,
+    DB::GetSetElementParams params = {})
 {
     auto constantNode = node->as<DB::ConstantNode>();
     if (!constantNode) {
         return {};
     }
 
-    std::vector<DB::Field> convertedValues;
-    if (constantNode->getResultType()->getTypeId() == DB::TypeIndex::Tuple) {
-        auto tupleType = dynamic_pointer_cast<const DB::DataTypeTuple>(constantNode->getResultType());
-        const auto& types = tupleType->getElements();
-        const auto& values = constantNode->getValue().safeGet<DB::Tuple>();
-
-        convertedValues.reserve(values.size());
-        for (const auto& [value, type] : Zip(values, types)) {
-            auto convertedValue = DB::convertFieldToTypeStrict(value, *type, *targetDataType);
-            if (!convertedValue.has_value()) {
-                convertedValues.clear();
-                break;
-            }
-            convertedValues.emplace_back(std::move(*convertedValue));
-        }
-
-    } else {
-        // Assume "value in (42)".
-        auto convertedValue = DB::convertFieldToTypeStrict(constantNode->getValue(), *constantNode->getResultType(), *targetDataType);
-        if (convertedValue.has_value()) {
-            convertedValues.emplace_back(std::move(*convertedValue));
-        }
-    }
-
-    if (convertedValues.empty()) {
+    auto set = DB::getSetElementsForConstantValue(
+        targetDataType,
+        constantNode->getValue(),
+        constantNode->getResultType(),
+        params);
+    if (set.size() != 1) {
         return {};
     }
 
-    // NB: QL range inferrer expects that values to be sorted.
-    std::sort(convertedValues.begin(), convertedValues.end());
+    auto& column = set.front().column;
+    auto columnSize = column->size();
 
-    auto column = targetDataType->createColumn();
-    for (auto& value : convertedValues) {
-        column->insert(std::move(value));
-    }
+    // NB: QL range inferrer expects that values to be sorted.
+    DB::IColumn::Permutation permutation(columnSize);
+    using TPermutationIndex = DB::IColumn::Permutation::value_type;
+    DB::iota(permutation.data(), columnSize, TPermutationIndex(0));
+    std::sort(permutation.begin(), permutation.end(), [&column](TPermutationIndex lhs, TPermutationIndex rhs) {
+        // In YT, NULL values compare less than any other values.
+        return column->compareAt(lhs, rhs, *column, /*nan_direction_hint*/ -1) < 0;
+    });
+    column = column->permute(permutation, /*limit*/ 0);
 
     return NYT::NClickHouseServer::ToRowRange(
-        DB::Block(
-            {DB::ColumnWithTypeAndName(std::move(column), targetDataType, /*name*/ "")}),
-            {targetDataType},
-            {0},
-            NYT::NClickHouseServer::TCompositeSettings::Create(true));
+        DB::Block(std::move(set)),
+        {targetDataType},
+        {0},
+        settings);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,7 +142,14 @@ DB::QueryTreeNodePtr AdjustToYTBooleanExpression(DB::QueryTreeNodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ExpressionConvertionResult
+struct TConversionContext
+{
+    const TTableSchemaPtr& Schema;
+    const TConversionSettingsPtr& ConversionSettings;
+    DB::GetSetElementParams SetParams;
+};
+
+struct TExpressionConvertionResult
 {
     TConstExpressionPtr Expression;
     DB::DataTypePtr DataType;
@@ -152,19 +161,19 @@ struct ExpressionConvertionResult
 // expr: (k > 0#1 OR k = 0#1 AND l >= 0#2) AND (k < 0#1 OR k = 0#1 AND l < 0#4)
 // (k, m) IN ((2, 3), (4, 6)) AND l IN (2, 3)
 // expr: ((k, m) IN ([0#2, 0#3], [0#4, 0#6])) AND (l IN ([0#2], [0#3]))
-std::optional<ExpressionConvertionResult> ConnverterImpl(
-    const TCompositeSettingsPtr& settings,
-    const TTableSchemaPtr& schema,
+std::optional<TExpressionConvertionResult> ConnverterImpl(
     DB::QueryTreeNodePtr node,
     const DB::DataTypePtr& desiredDataType,
-    std::optional<EValueType> desiredValueType)
+    std::optional<EValueType> desiredValueType,
+    const TConversionContext& context,
+    bool negated)
 {
-    std::optional<ExpressionConvertionResult> result;
+    std::optional<TExpressionConvertionResult> result;
 
     switch (node->getNodeType()) {
         case DB::QueryTreeNodeType::COLUMN: {
             auto columnNode = node->as<DB::ColumnNode&>();
-            if (auto columnSchema = schema->FindColumn(columnNode.getColumnName())) {
+            if (auto columnSchema = context.Schema->FindColumn(columnNode.getColumnName())) {
                 result.emplace();
                 result->Expression =  New<TReferenceExpression>(
                     SimpleLogicalType(ESimpleLogicalValueType::Null),
@@ -174,7 +183,10 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
                 // For example, both YT Timestamp (unsigned int) and Timestamp64 (signed int) types correspond to DateTime64(6),
                 // but at this step of the reverse conversion, DateTime64(6) must be dispatched to different ValueType
                 // in order for the constant node to be processed correctly.
-                result->DataType = ToDataType(*columnSchema, settings, /*isLowCardinality*/ false, /*isReadConversion*/ false);
+                result->DataType = ToDataType(*columnSchema, context.ConversionSettings, /*isReadConversion*/ false);
+                if (const auto& lcDataType = std::dynamic_pointer_cast<const DB::DataTypeLowCardinality>(result->DataType)) {
+                    result->DataType = lcDataType->getDictionaryType();
+                }
                 result->ValueType = columnSchema->GetWireType();
             }
             break;
@@ -184,7 +196,7 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
             auto constantNode = node->as<DB::ConstantNode&>();
 
             auto constantDataType = constantNode.getResultType();
-            auto constantValueType = GetWireType(ToLogicalType(constantDataType, settings));
+            auto constantValueType = GetWireType(ToLogicalType(constantDataType, context.ConversionSettings));
 
             auto field = constantNode.getValue();
             if (desiredDataType) {
@@ -201,7 +213,7 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
 
             result->Expression = New<TLiteralExpression>(
                 result->ValueType,
-                ToUnversionedOwningValue(field,result->DataType, settings));
+                ToUnversionedOwningValue(field,result->DataType, context.ConversionSettings));
 
             break;
         }
@@ -213,7 +225,7 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
 
             if (name == "not") {
                 auto argument = AdjustToYTBooleanExpression(arguments[0]);
-                if (auto arg = ConnverterImpl(settings, schema, argument, GetDataTypeBoolean(), EValueType::Boolean)) {
+                if (auto arg = ConnverterImpl(argument, GetDataTypeBoolean(), EValueType::Boolean, context, !negated)) {
                     result.emplace();
                     result->Expression = New<TUnaryOpExpression>(
                         EValueType::Boolean,
@@ -221,7 +233,7 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
                         std::move(arg->Expression));
                 }
             } else if (name == "isNull" || name == "isNotNull") {
-                if (auto arg = ConnverterImpl(settings, schema, arguments[0], desiredDataType, desiredValueType)) {
+                if (auto arg = ConnverterImpl(arguments[0], desiredDataType, desiredValueType, context, negated)) {
                     TConstExpressionPtr expr = New<TFunctionExpression>(
                         EValueType::Boolean,
                         "is_null",
@@ -235,6 +247,45 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
                     result.emplace();
                     result->Expression = std::move(expr);
                 }
+            } else if (name == "and" || name == "or") {
+                // NB: CH represents `and`/`or` as variadic functions and flattens associative chains,
+                // so `a OR b OR c` arrives as a single `or` node with three arguments. We must fold
+                // *all* of them.
+                //
+                // An operand may fail to convert. Whether we can drop it and keep the rest,
+                // depends on the operator and the current polarity (`negated`):
+                //   - positive AND / negative OR  -> dropping only widens the predicate -> safe to drop;
+                //   - positive OR  / negative AND -> dropping would narrow the predicate -> unsafe.
+                auto opCode = GetOrCrash(BinaryOpNameToOpCode, name);
+                bool canDropOperand = (name == "and") != negated;
+
+                TConstExpressionPtr foldedExpr;
+                bool bailed = false;
+                for (auto& argNode : arguments) {
+                    // NB: CH uses integer literals and columns with the UInt8 data type as boolean values.
+                    // To use QL inferrer, we need to adapt such cases to valid logical expressions.
+                    auto booleanNode = AdjustToYTBooleanExpression(argNode);
+                    auto argExpr = ConnverterImpl(booleanNode, GetDataTypeBoolean(), EValueType::Boolean, context, negated);
+                    if (!argExpr) {
+                        if (canDropOperand) {
+                            continue;
+                        }
+                        bailed = true;
+                        break;
+                    }
+                    foldedExpr = foldedExpr
+                        ? New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            opCode,
+                            std::move(foldedExpr),
+                            std::move(argExpr->Expression))
+                        : std::move(argExpr->Expression);
+                }
+
+                if (!bailed && foldedExpr) {
+                    result.emplace();
+                    result->Expression = std::move(foldedExpr);
+                }
             } else if (auto it = BinaryOpNameToOpCode.find(name); it != BinaryOpNameToOpCode.end()) {
                 auto opCode = it->second;
 
@@ -243,28 +294,15 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
 
                 if (rhsNode->getNodeType() == DB::QueryTreeNodeType::COLUMN) {
                     lhsNode.swap(rhsNode);
-                    opCode = BinaryOpToConversedOp.at(opCode);
+                    opCode = GetOrCrash(BinaryOpToConversedOp, opCode);
                 }
 
-                DB::DataTypePtr desiredLhsDataType;
-                std::optional<EValueType> desiredLhsValueType;
-
-                // NB: CH uses integer literals and columns with the UInt8 data type as boolean values.
-                // To use QL inferrer, we need to adapt such cases to valid logical expressions.
-                if (name == "and" || name == "or") {
-                    lhsNode = AdjustToYTBooleanExpression(lhsNode);
-                    rhsNode = AdjustToYTBooleanExpression(rhsNode);
-
-                    desiredLhsDataType = GetDataTypeBoolean();
-                    desiredLhsValueType = EValueType::Boolean;
-                }
-
-                auto lhsExpr = ConnverterImpl(settings, schema, lhsNode, desiredLhsDataType, desiredLhsValueType);
+                auto lhsExpr = ConnverterImpl(lhsNode, /*desiredDataType*/ nullptr, /*desiredValueType*/ std::nullopt, context, negated);
                 if (!lhsExpr) {
                     break;
                 }
 
-                auto rhsExpr = ConnverterImpl(settings, schema, rhsNode, lhsExpr->DataType, lhsExpr->ValueType);
+                auto rhsExpr = ConnverterImpl(rhsNode, lhsExpr->DataType, lhsExpr->ValueType, context, negated);
                 if (rhsExpr) {
                     result.emplace();
                     result->Expression = New<TBinaryOpExpression>(
@@ -274,12 +312,16 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
                         std::move(rhsExpr->Expression));
                 }
             } else if (arguments.size() == 2 && name == "in") {
-                auto argument = ConnverterImpl(settings, schema, arguments[0], desiredDataType, desiredValueType);
+                auto argument = ConnverterImpl(arguments[0], desiredDataType, desiredValueType, context, negated);
                 if (!argument) {
                     break;
                 }
 
-                auto values = ConvertPreparedSetToSharedRange(argument->DataType, arguments[1]);
+                auto values = ConvertConstantSetToSharedRange(
+                    argument->DataType,
+                    arguments[1],
+                    context.ConversionSettings,
+                    context.SetParams);
                 if (!values.Empty()) {
                     result.emplace();
                     result->Expression = New<TInExpression>(
@@ -310,27 +352,46 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConstExpressionPtr ConvertToConstExpression(const TTableSchemaPtr& schema, DB::QueryTreeNodePtr node)
+TConstExpressionPtr ConvertToConstExpression(
+    DB::QueryTreeNodePtr node,
+    const TTableSchemaPtr& schema,
+    const TConversionSettingsPtr& settings,
+    DB::GetSetElementParams setParams)
 {
     node = AdjustToYTBooleanExpression(node);
+
     auto result = ConnverterImpl(
-        TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true),
-        schema,
         node,
         GetDataTypeBoolean(),
-        EValueType::Boolean);
+        EValueType::Boolean,
+        TConversionContext{
+            .Schema = schema,
+            .ConversionSettings = settings,
+            .SetParams = setParams,
+        },
+        /*negated*/ false);
     return result ? result->Expression : nullptr;
 }
 
 std::vector<TReadRange> InferReadRange(
     DB::QueryTreeNodePtr filterNode,
-    const TTableSchemaPtr& schema)
+    const TTableSchemaPtr& schema,
+    const DB::Settings& settings)
 {
     if (!filterNode) {
         return {};
     }
 
-    auto predicateExpr = ConvertToConstExpression(schema, std::move(filterNode));
+    DB::GetSetElementParams setParams{
+        .transform_null_in = settings[DB::Setting::transform_null_in],
+        .forbid_unknown_enum_values = settings[DB::Setting::validate_enum_literals_in_operators]};
+
+    auto predicateExpr = ConvertToConstExpression(
+        std::move(filterNode),
+        schema,
+        TConversionSettings::Create(
+            TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true)),
+        setParams);
     if (!predicateExpr) {
         return {};
     }

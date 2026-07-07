@@ -37,6 +37,11 @@ using NTransactionClient::OriginalFromExternalizedTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const std::string NullService;
+static const std::string NullMethod;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 TTransactionId GetTransactionIdFromToken(TPathResolver::TTransactionToken token)
@@ -65,13 +70,13 @@ std::optional<TTransaction*> GetTransactionFromToken(TPathResolver::TTransaction
 
 TPathResolver::TPathResolver(
     TBootstrap* bootstrap,
-    std::string service,
-    std::string method,
+    std::optional<std::string> service,
+    std::optional<std::string> method,
     const NYPath::TYPath& path,
     TTransactionToken transactionToken)
     : Bootstrap_(bootstrap)
-    , Service_(std::move(service))
-    , Method_(std::move(method))
+    , Service_(service.has_value() ? std::move(*service) : NullService)
+    , Method_(method.has_value() ? std::move(*method) : NullMethod)
     , Path_(path)
     , TransactionId_(GetTransactionIdFromToken(transactionToken))
     , Transaction_(GetTransactionFromToken(transactionToken))

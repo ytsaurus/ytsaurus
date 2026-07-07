@@ -32,9 +32,6 @@
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/server.h>
 
-#include <yt/yt/server/lib/signature/components.h>
-#include <yt/yt/server/lib/signature/config.h>
-
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge_service.h>
 
@@ -56,14 +53,19 @@
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
+#include <yt/yt/library/signature/components/components.h>
+#include <yt/yt/library/signature/components/config.h>
+
+#include <yt/yt/core/service_discovery/yp/config.h>
+
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
+
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
-
-#include <yt/yt/core/service_discovery/yp/config.h>
 
 #include <yt/yt/core/logging/config.h>
 
@@ -109,14 +111,13 @@ public:
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
         SubscribeSecondaryMasterCellListChanged(
             BIND_NO_PROPAGATE(&TBootstrap::OnSecondaryMasterCellListChanged, MakeStrong(this)));
 
         SlotManager_ = New<TSlotManager>(this);
 
         GpuManager_ = New<TGpuManager>(this);
-        GpuManager_->Initialize();
 
         JobReporter_ = New<TJobReporter>(
             New<TJobReporterConfig>(),
@@ -193,6 +194,8 @@ public:
             GetConnection(),
             GetControlInvoker());
 
+        AuxPoller_ = CreateThreadPoolPoller(GetConfig()->AuxPollerThreadCount, "AuxPoller");
+
         // NB(psushin): initialize chunk cache first because slot manager (and root
         // volume manager inside it) can start using it to populate tmpfs layers cache.
         ArtifactCache_->Initialize();
@@ -229,7 +232,7 @@ public:
             NbdThreadPool_ = CreateThreadPool(nbdConfig->Server->ThreadCount, "Nbd", { .ThreadPriority = EThreadPriority::RealTime });
             NbdServer_ = CreateNbdServer(
                 nbdConfig->Server,
-                NBus::TTcpDispatcher::Get()->GetXferPoller(),
+                NBus::NTcp::TDispatcher::Get()->GetXferPoller(),
                 NbdThreadPool_->GetInvoker());
 
             // Create block caches to read from Cypress.
@@ -292,6 +295,7 @@ public:
             JobProxyLogManager_->Start();
         }
 
+        GpuManager_->Start();
         SlotManager_->Start();
         JobController_->Start();
 
@@ -428,6 +432,11 @@ public:
         return SignatureComponents_->GetSignatureValidator();
     }
 
+    IPollerPtr GetAuxPoller() const override
+    {
+        return AuxPoller_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -470,6 +479,8 @@ private:
     IJobProxyLogManagerPtr JobProxyLogManager_;
 
     TSignatureComponentsPtr SignatureComponents_;
+
+    IPollerPtr AuxPoller_;
 
     void BuildJobProxyConfigTemplate(const std::optional<TSecondaryMasterConnectionConfigs>& optionalNewSecondaryMasterConfigs)
     {
@@ -518,7 +529,7 @@ private:
         if (const auto& supervisorConnection = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
             newJobProxyConfigTemplate->SupervisorConnection = CloneYsonStruct(supervisorConnection);
         } else {
-            newJobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
+            newJobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::NTcp::TBusClientConfig>();
             newJobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
         }
 
@@ -545,19 +556,19 @@ private:
         newJobProxyConfigTemplate->EnvironmentVariables = GetConfig()->ExecNode->JobProxy->EnvironmentVariables;
 
         if (auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService()) {
-            newJobProxyConfigTemplate->TvmBridgeConnection = New<NYT::NBus::TBusClientConfig>();
+            newJobProxyConfigTemplate->TvmBridgeConnection = New<NYT::NBus::NTcp::TBusClientConfig>();
             newJobProxyConfigTemplate->TvmBridgeConnection->Address = localAddress;
 
             // Duplicate the TBusConfig part from SupervisorConnection to TvmBridgeConnection,
             // because it may have ssl parameters.
-            if (const NBus::TBusConfigPtr& busConfig = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
+            if (const NBus::NTcp::TBusConfigPtr& busConfig = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
                 newJobProxyConfigTemplate->TvmBridgeConnection = UpdateYsonStruct(
                     newJobProxyConfigTemplate->TvmBridgeConnection,
                     NYson::ConvertToYsonString(busConfig));
             }
 
             newJobProxyConfigTemplate->TvmBridge = New<NAuth::TTvmBridgeConfig>();
-            newJobProxyConfigTemplate->TvmBridge->SelfTvmId = tvmService->GetSelfTvmId();
+            newJobProxyConfigTemplate->TvmBridge->SelfTvmId = tvmService->TryGetSelfTvmId();
         }
 
         newJobProxyConfigTemplate->DnsOverRpcResolver = GetConfig()->ExecNode->JobProxy->JobProxyDnsOverRpcResolver;

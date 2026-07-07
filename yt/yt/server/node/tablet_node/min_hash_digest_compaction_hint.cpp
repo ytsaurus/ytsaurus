@@ -34,7 +34,7 @@ protected:
 private:
     IMemoryUsageTrackerPtr MaybeGetMemoryUsageTracker() const
     {
-        auto nodeMemoryTracker = Store_->GetTablet()->MaybeGetNodeMemoryUsageTracker();
+        auto nodeMemoryTracker = Store_->GetTablet()->TryGetNodeMemoryUsageTracker();
         return nodeMemoryTracker
             ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletBackground)
             : nullptr;
@@ -62,8 +62,14 @@ private:
         auto chunkReadOptions = CreateChunkReadOptions();
 
         if (!blockIndex.IsFetched()) {
+            bool compressBlockLastKeys = Store_->GetTablet()->GetSettings().MountConfig->CompressBlockLastKeys;
+
             SubscribeWithErrorHandling(
-                Store_->GetCachedVersionedChunkMeta(chunkReader, chunkReadOptions, /*prepareColumnMeta*/ false),
+                Store_->GetCachedVersionedChunkMeta(
+                    chunkReader,
+                    chunkReadOptions,
+                    /*prepareColumnMeta*/ false,
+                    compressBlockLastKeys),
                 std::bind_front(
                     &TMinHashDigestFetchPipeline::MakeMinHashDigestRequest,
                     this,

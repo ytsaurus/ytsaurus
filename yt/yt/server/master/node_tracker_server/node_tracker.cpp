@@ -1494,10 +1494,7 @@ private:
 
         FillResponseNodeTags(response->mutable_tags(), node->Tags());
 
-        auto dynamicConfig = GetDynamicConfig();
-        if (dynamicConfig->ReturnMasterCellsConnectionConfigsOnNodeRegistration) {
-            FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
-        }
+        FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
 
         if (context) {
             context->SetResponseInfo("NodeId: %v",
@@ -1902,10 +1899,7 @@ private:
         *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
         response->set_decommissioned(node->IsDecommissioned());
 
-        auto dynamicConfig = GetDynamicConfig();
-        if (dynamicConfig->ReturnMasterCellsConnectionConfigsOnNodeHeartbeat) {
-            FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
-        }
+        FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
 
         node->SetDisableWriteSessionsSentToNode(node->AreWriteSessionsDisabled());
     }
@@ -2822,6 +2816,9 @@ private:
         TSensorBuffer buffer;
         NodeDisposalManager_->OnProfiling(&buffer);
 
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        dataNodeTracker->OnProfiling(&buffer);
+
         const auto& localStateToNodeCount = GetLocalStateToNodeCount();
         for (auto state : TEnumTraits<ENodeState>::GetDomainValues()) {
             TWithTagGuard tagGuard(&buffer, "state", FormatEnum(state));
@@ -3301,15 +3298,23 @@ private:
 
         if (auto transaction = node->GetLeaseTransaction()) {
             if (auto timeout = transaction->GetTimeout()) {
-                // COPMAT(danilalexeev)
-                const auto& config = Bootstrap_->GetConfig()->NodeTracker;
-                auto defaultTimeout = node->IsDataNode()
-                    ? config->DefaultDataNodeLeaseTransactionTimeout
-                    : config->DefaultNodeTransactionTimeout;
+                if (!node->IsPendingRestart() &&
+                    !node->GetLastSeenLeaseTransactionTimeout())
+                {
+                    const auto& config = Bootstrap_->GetConfig()->NodeTracker;
+                    auto defaultTimeout = node->IsDataNode()
+                        ? config->DefaultDataNodeLeaseTransactionTimeout
+                        : config->DefaultNodeTransactionTimeout;
+                    node->SetLastSeenLeaseTransactionTimeout(defaultTimeout);
+
+                    YT_LOG_ALERT("Lease timeout missing for pending restart node (NodeId: %v, Address: %v)",
+                        node->GetId(),
+                        node->GetDefaultAddress());
+                }
 
                 auto newTimeout = node->IsPendingRestart()
                     ? GetDynamicConfig()->PendingRestartLeaseTimeout
-                    : node->GetLastSeenLeaseTransactionTimeout().value_or(defaultTimeout);
+                    : *node->GetLastSeenLeaseTransactionTimeout();
 
                 node->SetLastSeenLeaseTransactionTimeout(timeout);
 

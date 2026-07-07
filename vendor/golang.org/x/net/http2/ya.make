@@ -2,14 +2,15 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.49.0)
+VERSION(v0.52.0)
 
 SRCS(
     ascii.go
     ciphers.go
     client_conn_pool.go
+    client_priority_go126.go
     config.go
-    config_go125.go
+    config_go126.go
     databuffer.go
     errors.go
     flow.go
@@ -32,6 +33,23 @@ END()
 
 RECURSE(
     h2c
-    h2i
     hpack
 )
+
+IF (ARCH_X86_64)
+    RECURSE(
+        h2i
+    )
+ENDIF()
+
+IF (ARCH_ARM64)
+    RECURSE(
+        h2i
+    )
+ENDIF()
+
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
+    RECURSE(
+        h2i
+    )
+ENDIF()

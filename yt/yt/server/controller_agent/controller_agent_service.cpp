@@ -1,9 +1,9 @@
-#include "controller_agent_service.h"
-#include "controller_agent.h"
 #include "bootstrap.h"
-#include "private.h"
+#include "controller_agent.h"
+#include "controller_agent_service.h"
 #include "operation.h"
 #include "operation_controller.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
@@ -219,10 +219,12 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto suspended = request->suspended();
         context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v",
+            "IncarnationId: %v, OperationId: %v, Suspended: %v",
             incarnationId,
-            operationId);
+            operationId,
+            suspended);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -230,7 +232,7 @@ private:
 
         WrapAgentException([&] {
             auto operation = controllerAgent->GetOperationOrThrow(operationId);
-            auto maybeResult = WaitFor(controllerAgent->ReviveOperation(operation))
+            auto maybeResult = WaitFor(controllerAgent->ReviveOperation(operation, suspended))
                 .ValueOrThrow();
 
             context->SetIncrementalResponseInfo("ImmediateResult: %v", maybeResult.has_value());

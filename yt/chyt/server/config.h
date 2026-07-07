@@ -18,9 +18,11 @@
 
 #include <yt/yt/client/table_client/config.h>
 
-#include <yt/yt/core/misc/configurable_singleton_def.h>
-
 #include <yt/yt/core/concurrency/config.h>
+
+#include <yt/yt/core/rpc/public.h>
+
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -51,23 +53,9 @@ public:
 
     bool EnableComplexNullConverison;
 
-    //! Defines how CHYT works with LC types:
-    //! * None - doesn't convert any column to LC;
-    //! * StringOnly - converts columns with string-like types (string, utf, json);
-    //! * All - converts all columns to LC if possible;
-    //! * FromStatistics - converts a column if its EstimateCardinality <= LowCardinalityThreshold.
-    ELowCardinalityMode LowCardinalityMode;
-
-    //! Special setting for FromStatistics LowCardinalityMode.
-    ui64 LowCardinalityThreshold;
-
-    //! Columns that match this regexp are converted to LC.
-    NRe2::TRe2Ptr LowCardinalityRegExp;
-
     static TCompositeSettingsPtr Create(
         bool convertUnsupportedTypesToString,
-        bool enableComplexNullConverison = true,
-        ELowCardinalityMode lowCardinalityMode = ELowCardinalityMode::None);
+        bool enableComplexNullConverison = true);
 
     REGISTER_YSON_STRUCT(TCompositeSettings);
 
@@ -75,6 +63,64 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeSettings)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Settings affecting low cardinality type conversion.
+class TLowCardinalitySettings
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Defines how CHYT works with LC types:
+    //! * None - doesn't convert any column to LC;
+    //! * StringOnly - converts columns with string-like types (string, utf, json);
+    //! * All - converts all columns to LC if possible;
+    //! * FromStatistics - converts a column if its EstimateCardinality <= LowCardinalityThreshold.
+    ELowCardinalityMode Mode;
+
+    //! Special setting for FromStatistics LowCardinalityMode.
+    ui64 Threshold;
+
+    //! Columns that match this regexp are converted to LC.
+    NRe2::TRe2Ptr RegExp;
+
+    REGISTER_YSON_STRUCT(TLowCardinalitySettings);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TLowCardinalitySettings)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Settings affecting type conversion.
+class TConversionSettings
+    : public NYTree::TYsonStruct
+{
+public:
+    TCompositeSettingsPtr Composite;
+
+    TLowCardinalitySettingsPtr LowCardinality;
+
+    //! When enabled, timestamps in DateTime/DateTime64 columns that have a non-default
+    //! timezone are adjusted by the difference between the column timezone offset and
+    //! the server default timezone offset before being written as YT integer types.
+    //! This ensures that when the user interprets the resulting integer value in the
+    //! default timezone, they get the correct wall-clock time that was stored in the
+    //! column's original timezone.
+    bool AdjustTimezoneForDateTypes;
+
+    static TConversionSettingsPtr Create(
+        TCompositeSettingsPtr compositeSettings = New<TCompositeSettings>(),
+        TLowCardinalitySettingsPtr lowCardinalitySettings = New<TLowCardinalitySettings>(),
+        bool adjustTimezoneForDateTypes = false);
+
+    REGISTER_YSON_STRUCT(TConversionSettings);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TConversionSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,6 +155,7 @@ class TTestingSettings
 public:
     bool ThrowExceptionInDistributor;
     bool ThrowExceptionInSubquery;
+    bool ThrowExceptionInWriterFinish;
     i64 SubqueryAllocationSize;
 
     bool HangControlInvoker;
@@ -390,6 +437,8 @@ public:
 
     bool InferDynamicTableRangesFromPivotKeys;
 
+    TConversionSettingsPtr Conversion;
+
     TCompositeSettingsPtr Composite;
 
     TDynamicTableSettingsPtr DynamicTable;
@@ -415,6 +464,8 @@ public:
     TPrewhereSettingsPtr Prewhere;
 
     EStorageConflictResolveMode StorageConflictResolveMode;
+
+    bool OmitInaccessibleRows;
 
     REGISTER_YSON_STRUCT(TQuerySettings);
 
@@ -611,7 +662,7 @@ DEFINE_REFCOUNTED_TYPE(TClickHouseTableConfig)
 struct TUserDefinedSqlObjectsStorageConfig
     : public NYTree::TYsonStruct
 {
-    // TODO(buyval01): Migrate the configuration to enable it, if present.
+    // COMPAT(buyval01): Migrate the configuration to enable it, if present.
     bool Enabled;
     NYPath::TYPath Path;
     TDuration UpdatePeriod;
@@ -631,12 +682,30 @@ struct TDictionaryRepositoryConfig
 {
     NYPath::TYPath RootPath;
 
+    TDuration UpdatePeriod;
+
     REGISTER_YSON_STRUCT(TDictionaryRepositoryConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDictionaryRepositoryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDictionaryAccessControlConfig
+    : public NYTree::TYsonStruct
+{
+    TAsyncExpiringCacheConfigPtr CacheConfig;
+
+    TDuration CollectLoadedDictionariesPeriod;
+
+    REGISTER_YSON_STRUCT(TDictionaryAccessControlConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDictionaryAccessControlConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -691,6 +760,20 @@ DEFINE_REFCOUNTED_TYPE(TSystemLogTableExportersConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExecutionProfilingConfig
+    : public NYTree::TYsonStruct
+{
+    NRpc::TTimeHistogramConfigPtr AttributeFetchTimeHistogram;
+
+    REGISTER_YSON_STRUCT(TExecutionProfilingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TExecutionProfilingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TYtConfig
     : public NYTree::TYsonStruct
 {
@@ -742,6 +825,7 @@ struct TYtConfig
 
     int WorkerThreadCount;
     int FetcherThreadCount;
+    int TaskPullerThreadCount;
 
     std::optional<int> CpuLimit;
 
@@ -774,6 +858,8 @@ struct TYtConfig
 
     TDictionaryRepositoryConfigPtr DictionaryRepository;
 
+    TDictionaryAccessControlConfigPtr DictionaryAccessControl;
+
     TSystemLogTableExportersConfigPtr SystemLogTableExporters;
 
     bool EnableHttpHeaderLog;
@@ -786,6 +872,8 @@ struct TYtConfig
     //! but for scenarios with concatTables over directories with a large number of tables
     //! with the same schemas, we will be able to fetch only unique ones.
     bool EnableSchemaIdFetching;
+
+    TExecutionProfilingConfigPtr ExecutionProfiling;
 
     REGISTER_YSON_STRUCT(TYtConfig);
 

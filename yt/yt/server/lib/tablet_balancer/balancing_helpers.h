@@ -13,13 +13,18 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReshardDescriptor
+struct TReshardDescriptor final
 {
     std::vector<TTabletId> Tablets;
     int TabletCount;
     i64 DataSize;
     TGuid CorrelationId;
     std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
+    bool Inplace = false;
+    TTabletCellId TargetCellId;
+    // Tablets that should be moved to target cell before reshard can be executed.
+    THashSet<TTabletId> PendingTabletIds;
+    bool UseSmoothMovementToUniteTablets = false;
 
     // IsSplit, TabletCountDiff, Deviation.
     std::tuple<bool, int, double> Priority;
@@ -37,7 +42,22 @@ struct TMoveDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletSizeConfig
+{
+    i64 MinTabletSize = 0;
+    i64 MaxTabletSize = 0;
+    i64 DesiredTabletSize = 0;
+    std::optional<int> MinTabletCount;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool IsTabletReshardable(const TTabletPtr& tablet);
+
+TTabletSizeConfig GetTabletSizeConfig(
+    const TTable* table,
+    i64 minDesiredTabletSize,
+    const NLogging::TLogger& logger = {});
 
 i64 GetTabletBalancingSize(const TTabletPtr& tablet);
 
@@ -59,13 +79,10 @@ std::vector<TReshardDescriptor> MergeSplitReplicaTable(
 
 std::vector<TMoveDescriptor> ReassignInMemoryTablets(
     const TTabletCellBundlePtr& bundle,
-    const std::optional<THashSet<TTableId>>& movableTables,
-    bool ignoreTableWiseConfig,
     const NLogging::TLogger& logger = {});
 
 std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
     const TTabletCellBundlePtr& bundle,
-    const std::optional<THashSet<TTableId>>& movableTables,
     const NLogging::TLogger& logger = {});
 
 std::vector<TMoveDescriptor> ReassignTabletsParameterized(

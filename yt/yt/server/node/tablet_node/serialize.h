@@ -22,6 +22,15 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NTesting {
+
+// Should only be used in tests. Do not set it when tablet cells are alive.
+void SetCurrentReignOverride(NHydra::TReign reign);
+
+} // namespace NTesting
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ETabletReign,
     // 24.2 starts here.
     ((Start_24_2)                                  (101000)) // ponasenko-rs
@@ -73,9 +82,23 @@ DEFINE_ENUM(ETabletReign,
     ((Start_26_1)                                  (101500)) // akozhikhov
     ((HunkTabletSensors)                           (101501)) // akozhikhov
     ((ReshardRedirectionHint)                      (101502)) // atalmenev
+    ((DropMaterializedMountConfigPersistence)      (101503)) // dave11ar
+    ((SendTableTabletBalancerConfigToTablet)       (101504)) // navasardianna
+    ((ExpectedPrepareSignature)                    (101505)) // atalmenev
+    ((SmoothMovementReignValidation)               (101506)) // ifsmirnov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
+
+static_assert(static_cast<int>(TEnumTraits<ETabletReign>::GetMinValue()) >= NHydra::MinTabletReign);
+static_assert(static_cast<int>(TEnumTraits<ETabletReign>::GetMaxValue()) <= NHydra::MaxTabletReign);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns effective reign of the current mutation. If the mutation was sent from
+//! a sibling servant during smooth tablet movement, returns the reign of the
+//! sender. Otherwise returns local mutation reign.
+ETabletReign GetCurrentMutationEffectiveReign();
 
 ////////////////////////////////////////////////////////////////////////////////
 

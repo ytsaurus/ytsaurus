@@ -1,5 +1,6 @@
 main:
   source: dev
+  show_in_matrix: false
 0.0.1:
   source: special
 0.24.0:

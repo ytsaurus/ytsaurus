@@ -1,15 +1,11 @@
 from yt.mcp.lib.tool_runner_mcp import YTToolRunnerMCP
-
-from yt.mcp.lib.tools.list_dir import ListDir, Search
-from yt.mcp.lib.tools.get_attributes import GetAttributes
-from yt.mcp.lib.tools.check_is_paths_exists import CheckIsPathsExists
-from yt.mcp.lib.tools.admin import GetProxy
-from yt.mcp.lib.tools.account import CheckPermissions, AccountProperty
-from yt.mcp.lib.tools.common_client import CommonCypress
+from yt.mcp.lib.server import get_tools_groups
 
 import argparse
-import itertools
 import logging
+
+
+_DEFAULT_GROUPS = ["common", "account", "admin"]
 
 
 def get_app_args():
@@ -21,10 +17,15 @@ def get_app_args():
     parser.add_argument("--log-level", type=str, default="ERROR", choices=["INFO", "ERROR", "DEBUG"])
     parser.add_argument("--yt-token-file", type=str, default=None, help="Path to yt auth token")
 
+    parser.add_argument(
+        "--rw-mode", action="store_true", default=False,
+        help="Enable write query operations. WARNING: allows data mutations.",
+    )
     parser.add_argument("--show-tools", action="store_true", default=False, help="Show tools and exit")
     parser.add_argument("--tools-common", action="store_const", const="common", default=None, help="Enable common tools")
     parser.add_argument("--tools-account", action="store_const", const="account", default=None, help="Enable account tools")
     parser.add_argument("--tools-admin", action="store_const", const="admin", default=None, help="Enable admin tools")
+    parser.add_argument("--tools-query-tracker", action="store_const", const="query_tracker", default=None, help="Enable query tracker tools (not included by default)")
 
     args = parser.parse_args()
 
@@ -46,35 +47,17 @@ def main():
         token_file=app_args.yt_token_file,
     )
 
-    tools_groups = {
-        "common": [
-            # list_dir
-            ListDir(),
-            Search(),
-            # get_attributes
-            GetAttributes(),
-            # check_is_paths_exists
-            CheckIsPathsExists(),
-            # common_client
-            CommonCypress(),
-        ],
-        "account": [
-            # account
-            CheckPermissions(),
-            AccountProperty(),
-        ],
-        "admin": [
-            # admin
-            GetProxy(),
-        ],
-    }
+    mcp_runner.configure_server(rw_mode=app_args.rw_mode)
+
+    tools_groups = get_tools_groups()
 
     tools = []
-    for group in [app_args.tools_common, app_args.tools_account, app_args.tools_admin]:
+    for group in [app_args.tools_common, app_args.tools_account, app_args.tools_admin, app_args.tools_query_tracker]:
         if group:
             tools.extend(tools_groups[group])
     if not tools:
-        tools.extend(list(itertools.chain(*tools_groups.values())))
+        for group in _DEFAULT_GROUPS:
+            tools.extend(tools_groups[group])
 
     mcp_runner.attach_tools(tools)
 

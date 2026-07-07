@@ -22,6 +22,7 @@ target_compile_options(orm-library-mpl INTERFACE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
   -Wunused-parameter
   -Wno-c99-designator
 )

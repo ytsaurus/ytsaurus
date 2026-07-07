@@ -22,6 +22,7 @@ target_compile_options(unittester-queue-client PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(unittester-queue-client PUBLIC
@@ -46,6 +47,11 @@ target_link_options(unittester-queue-client PRIVATE
   -fPIC
   -framework
   CoreFoundation
+)
+
+target_sources(unittester-queue-client PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/config_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/path_ut.cpp
 )
 
 

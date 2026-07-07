@@ -60,7 +60,7 @@ TNodeId NodeIdFromJobId(TJobId jobId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString JobTypeAsKey(EJobType jobType)
+std::string JobTypeAsKey(EJobType jobType)
 {
     return Format("%lv", jobType);
 }
@@ -147,7 +147,7 @@ TTableSchemaPtr RenameColumnsInSchema(
 void ValidateJobShellAccess(
     const NApi::NNative::IClientPtr& client,
     const std::string& user,
-    const TString& jobShellName,
+    const std::string& jobShellName,
     const std::vector<std::string>& jobShellOwners)
 {
     if (user == RootUserName || user == SuperusersGroupName) {
@@ -200,6 +200,23 @@ void PackBaggageFromJobSpec(
     AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(jobId));
     AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(jobType));
     traceContext->PackBaggage(baggage);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateAbortedJobError(
+    NScheduler::EAbortReason abortReason,
+    TNonNullPtr<TError> errorPtr)
+{
+    auto& error = *errorPtr;
+    if (!error.Attributes().Find<std::string>("abort_reason")) {
+        auto inner = std::move(error);
+        error = TError("Job aborted by controller agent")
+            << TErrorAttribute("abort_reason", abortReason);
+        if (!inner.IsOK()) {
+            error <<= std::move(inner);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

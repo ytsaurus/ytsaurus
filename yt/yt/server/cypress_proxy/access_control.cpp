@@ -2,6 +2,7 @@
 
 #include "acd_fetcher.h"
 #include "private.h"
+#include "helpers.h"
 #include "sequoia_session.h"
 #include "sequoia_tree_visitor.h"
 #include "user_directory.h"
@@ -71,7 +72,8 @@ void LogAndThrowAuthorizationError(
         resultSubjectName = subject->Name;
     }
 
-    auto errorPath = nodeAncestry.Back().Path.ToRealPath().Underlying();
+    // TODO(babenko): think about proper cast
+    auto errorPath = TYPath(nodeAncestry.Back().Path.ToRealPath().Underlying());
     NSecurityServer::LogAndThrowAuthorizationError(
         Logger(),
         target,
@@ -186,7 +188,7 @@ TPermissionCheckResponse CheckPermissionForNode(
     return std::move(checker).GetResponse();
 }
 
-void ValidatePermissionForNode(
+TPermissionValidationResult ValidatePermissionForNode(
     const TSequoiaSessionPtr& sequoiaSession,
     TNodeAncestry nodeAncestry,
     EPermission permission,
@@ -200,7 +202,7 @@ void ValidatePermissionForNode(
         options,
         userDirectory);
     if (response.Action == ESecurityAction::Allow) {
-        return;
+        return TPermissionValidationResult{.HasRowLevelAce = response.HasRowLevelAce};
     }
 
     auto user = sequoiaSession->GetCurrentAuthenticatedUser();
@@ -210,6 +212,7 @@ void ValidatePermissionForNode(
         std::move(user),
         std::move(userDirectory),
         nodeAncestry);
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -223,7 +226,7 @@ public:
         EPermission permission,
         const TMatchAceSubjectCallback* matchAceSubjectCallback,
         const TPermissionCheckBasicOptions* options)
-        : Underlying_(permission, *matchAceSubjectCallback, options)
+        : Underlying_(permission, *matchAceSubjectCallback, options, /*checkAllAceColumnsFullRead*/ true)
     { }
 
     void Put(const TAccessControlDescriptor* acd)
@@ -363,7 +366,7 @@ TPermissionCheckResult CheckPermissionForSubtree(
         // TODO(danilalexeev): YT-24575. Use parent IDs.
         const auto& parentPath = maybeParent.Descriptor->Path;
         const auto& childPath = child.Descriptor->Path;
-        return childPath.Underlying().StartsWith(parentPath.Underlying());
+        return IsAncestorPath(parentPath, childPath);
     };
 
     TraverseSequoiaTree(

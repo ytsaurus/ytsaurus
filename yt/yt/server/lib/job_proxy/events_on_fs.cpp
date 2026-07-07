@@ -15,14 +15,13 @@ using namespace NJobTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "EventsOnFs");
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "EventsOnFs");
 
 namespace {
 
 void Touch(const std::string& path)
 {
     TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
-    file.Close();
 }
 
 } // namespace
@@ -39,7 +38,7 @@ TFuture<void> GetBreakpointEvent(
         return OKFuture;
     }
 
-    YT_LOG_DEBUG("Reached breakpoint (Breakpoint: %lv)", breakpoint);
+    YT_LOG_DEBUG("Reached breakpoint (Breakpoint: %v)", breakpoint);
 
     auto breakpointPath = NFS::CombinePaths(config->Path, Format("breakpoint_%lv_%v", breakpoint, jobId));
     auto allReleasedPath = NFS::CombinePaths(config->Path, Format("breakpoint_%lv_all_released", breakpoint));
@@ -47,7 +46,7 @@ TFuture<void> GetBreakpointEvent(
     Touch(breakpointPath);
 
     return BIND([=, deadline = TInstant::Now() + config->Timeout] {
-        YT_LOG_DEBUG("Waiting on breakpoint (Breakpoint: %lv)", breakpoint);
+        YT_LOG_DEBUG("Waiting on breakpoint (Breakpoint: %v)", breakpoint);
 
         auto isReleased = [=] {
             return !NFS::Exists(breakpointPath) || NFS::Exists(allReleasedPath);
@@ -61,7 +60,7 @@ TFuture<void> GetBreakpointEvent(
             TDelayedExecutor::WaitForDuration(config->PollPeriod);
         }
 
-        YT_LOG_DEBUG("Breakpoint is released (Breakpoint: %lv)", breakpoint);
+        YT_LOG_DEBUG("Breakpoint is released (Breakpoint: %v)", breakpoint);
     })
         .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
         .Run();

@@ -24,6 +24,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
+#include <yt/yt/server/master/chunk_server/config.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -89,6 +90,41 @@ constinit const auto Logger = TableServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableManager;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TStatisticsUpdateRequest::Persist(const NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, UpdateDataStatistics);
+    Persist(context, UpdateTabletResourceUsage);
+    Persist(context, UpdateModificationTime);
+    Persist(context, UpdateAccessTime);
+    Persist(context, UseNativeContentRevisionCas);
+}
+
+TStatisticsUpdateRequest& TStatisticsUpdateRequest::operator|=(const TStatisticsUpdateRequest& rhs)
+{
+    UpdateDataStatistics |= rhs.UpdateDataStatistics;
+    UpdateTabletResourceUsage |= rhs.UpdateTabletResourceUsage;
+    UpdateModificationTime |= rhs.UpdateModificationTime;
+    UpdateAccessTime |= rhs.UpdateAccessTime;
+    UseNativeContentRevisionCas |= rhs.UseNativeContentRevisionCas;
+    return *this;
+}
+
+void FormatValue(TStringBuilderBase* builder, const TStatisticsUpdateRequest& req, TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "{UpdateDataStatistics: %v, UpdateTabletResourceUsage: %v, UpdateModificationTime: %v, "
+        "UpdateAccessTime: %v, UseNativeContentRevisionCas: %v}",
+        req.UpdateDataStatistics,
+        req.UpdateTabletResourceUsage,
+        req.UpdateModificationTime,
+        req.UpdateAccessTime,
+        req.UseNativeContentRevisionCas);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,30 +220,21 @@ public:
 
     void ScheduleStatisticsUpdate(
         TChunkOwnerBase* chunkOwner,
-        bool updateDataStatistics,
-        bool updateTabletStatistics,
-        bool useNativeContentRevisionCas) override
+        TStatisticsUpdateRequest request) override
     {
-        YT_ASSERT(!updateTabletStatistics || IsTabletOwnerType(chunkOwner->GetType()));
+        YT_ASSERT(!request.UpdateTabletResourceUsage || IsTabletOwnerType(chunkOwner->GetType()));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsSecondaryMaster()) {
-            YT_LOG_DEBUG("Schedule node statistics update (NodeId: %v, UpdateDataStatistics: %v, UpdateTabletStatistics: %v, UseNativeContentRevisionCas: %v)",
+            YT_LOG_DEBUG("Schedule node statistics update (NodeId: %v, StatisticsUpdateRequest: %v)",
                 chunkOwner->GetId(),
-                updateDataStatistics,
-                updateTabletStatistics,
-                useNativeContentRevisionCas);
+                request);
 
+            // NB: Mixing statistics update requests with and without CAS might
+            // lead to some unexpected results, because the resulting request
+            // will use CAS.
             auto& statistics = StatisticsUpdateRequests_[chunkOwner->GetId()];
-            statistics.UpdateTabletResourceUsage |= updateTabletStatistics;
-            statistics.UpdateDataStatistics |= updateDataStatistics;
-            statistics.UpdateModificationTime = true;
-            statistics.UpdateAccessTime = true;
-            statistics.UseNativeContentRevisionCas = useNativeContentRevisionCas;
-
-            auto& ongoingUpdate = NodeIdToOngoingStatisticsUpdate_[chunkOwner->GetId()];
-            ongoingUpdate.RequestCount++;
-            ongoingUpdate.EffectiveRequest |= statistics;
+            statistics |= request;
         }
     }
 
@@ -250,9 +277,6 @@ public:
         multicellManager->PostToMaster(req, chunkOwner->GetNativeCellTag());
 
         StatisticsUpdateRequests_.Pop(chunkOwner->GetId());
-        auto& ongoingUpdate = NodeIdToOngoingStatisticsUpdate_[chunkOwner->GetId()];
-        ongoingUpdate.RequestCount++;
-        ongoingUpdate.EffectiveRequest |= statistics;
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(MasterTableSchema, TMasterTableSchema);
@@ -393,11 +417,11 @@ public:
 
     // COMPAT(h0pless): AddChunkSchemas
     TMasterTableSchema* CreateImportedMasterTableSchema(
-        const TCompactTableSchemaPtr& tableSchema,
-        TMasterTableSchemaId hintId) override
+        TCompactTableSchemaPtr tableSchema,
+        TMasterTableSchemaId hintId)
     {
         // NB: An existing schema can be recreated without resurrection.
-        auto* masterTableSchema = CreateMasterTableSchema(tableSchema, /*isNative*/ false, hintId);
+        auto* masterTableSchema = CreateMasterTableSchema(std::move(tableSchema), /*isNative*/ false, hintId);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         // All imported schemas should have an artificial ref.
@@ -408,7 +432,7 @@ public:
     }
 
     TMasterTableSchema* CreateImportedTemporaryMasterTableSchema(
-        const TCompactTableSchemaPtr& tableSchema,
+        TCompactTableSchemaPtr tableSchema,
         TTransaction* schemaHolder,
         TMasterTableSchemaId hintId) override
     {
@@ -416,7 +440,7 @@ public:
 
         auto* schema = FindMasterTableSchema(hintId);
         if (!schema) {
-            schema = DoCreateMasterTableSchema(tableSchema, hintId, /*isNative*/ false);
+            schema = DoCreateMasterTableSchema(std::move(tableSchema), hintId, /*isNative*/ false);
         } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
             YT_VERIFY(*schema->CompactTableSchema_ == *tableSchema);
@@ -432,12 +456,12 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchemaPtr& schema,
+        TCompactTableSchemaPtr schema,
         TSchemafulNode* schemaHolder) override
     {
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
         if (!masterTableSchema) {
-            masterTableSchema = CreateMasterTableSchema(schema, /*isNative*/ true);
+            masterTableSchema = CreateMasterTableSchema(std::move(schema), /*isNative*/ true);
         }
 
         SetTableSchema(schemaHolder, masterTableSchema);
@@ -447,14 +471,14 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchemaPtr& schema,
+        TCompactTableSchemaPtr schema,
         TTransaction* schemaHolder) override
     {
         YT_VERIFY(IsObjectAlive(schemaHolder));
 
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
         if (!masterTableSchema) {
-            masterTableSchema = CreateMasterTableSchema(schema, /*isNative*/ true);
+            masterTableSchema = CreateMasterTableSchema(std::move(schema), /*isNative*/ true);
         }
 
         if (!schemaHolder->StagedObjects().contains(masterTableSchema)) {
@@ -467,7 +491,7 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchemaPtr& schema,
+        TCompactTableSchemaPtr schema,
         TChunk* schemaHolder) override
     {
         // NB: A newly created chunk in operation can have zero reference count.
@@ -476,7 +500,7 @@ public:
 
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
         if (!masterTableSchema) {
-            masterTableSchema = CreateMasterTableSchema(schema, /*isNative*/ true);
+            masterTableSchema = CreateMasterTableSchema(std::move(schema), /*isNative*/ true);
         }
 
         SetChunkSchema(schemaHolder, masterTableSchema);
@@ -545,13 +569,13 @@ public:
     }
 
     TMasterTableSchema* CreateMasterTableSchema(
-        const TCompactTableSchemaPtr& tableSchema,
+        TCompactTableSchemaPtr tableSchema,
         bool isNative,
         TMasterTableSchemaId hintId = NObjectClient::NullObjectId)
     {
         auto* schema = FindMasterTableSchema(hintId);
         if (!schema) {
-            schema = DoCreateMasterTableSchema(tableSchema, hintId, isNative);
+            schema = DoCreateMasterTableSchema(std::move(tableSchema), hintId, isNative);
         } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
             YT_VERIFY(*schema->CompactTableSchema_ == *tableSchema);
@@ -564,7 +588,7 @@ public:
     }
 
     TMasterTableSchema* DoCreateMasterTableSchema(
-        const TCompactTableSchemaPtr& tableSchema,
+        TCompactTableSchemaPtr tableSchema,
         TMasterTableSchemaId hintId,
         bool isNative)
     {
@@ -585,7 +609,7 @@ public:
         } else {
             auto schemaHolder = TPoolAllocator::New<TMasterTableSchema>(
                 id,
-                tableSchema);
+                std::move(tableSchema));
             schema = MasterTableSchemaMap_.Insert(id, std::move(schemaHolder));
         }
 
@@ -881,7 +905,7 @@ public:
             return MakeColumnStableNameToConstraintMap(schema, std::move(constrainedSchema->ColumnToConstraint()), dynamicConfig->ColumnToConstraintLogLimit);
         }
 
-        Y_UNREACHABLE();
+        YT_UNREACHABLE();
     }
 
     TSecondaryIndex* CreateSecondaryIndex(
@@ -1446,50 +1470,6 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationId), ReplicationCollocationDestroyed);
 
 private:
-    struct TStatisticsUpdateRequest
-    {
-        bool UpdateDataStatistics = false;
-        bool UpdateTabletResourceUsage = false;
-        bool UpdateModificationTime = false;
-        bool UpdateAccessTime = false;
-        bool UseNativeContentRevisionCas = false;
-
-        void Persist(const NCellMaster::TPersistenceContext& context)
-        {
-            using NYT::Persist;
-
-            Persist(context, UpdateDataStatistics);
-            Persist(context, UpdateTabletResourceUsage);
-            Persist(context, UpdateModificationTime);
-            Persist(context, UpdateAccessTime);
-            Persist(context, UseNativeContentRevisionCas);
-        }
-
-        TStatisticsUpdateRequest& operator|=(const TStatisticsUpdateRequest& rhs)
-        {
-            UpdateDataStatistics |= rhs.UpdateDataStatistics;
-            UpdateTabletResourceUsage |= rhs.UpdateTabletResourceUsage;
-            UpdateModificationTime |= rhs.UpdateModificationTime;
-            UpdateAccessTime |= rhs.UpdateAccessTime;
-            UseNativeContentRevisionCas |= rhs.UseNativeContentRevisionCas;
-            return *this;
-        }
-    };
-
-    struct TOngoingStatisticsUpdate
-    {
-        i64 RequestCount = 0;
-        TStatisticsUpdateRequest EffectiveRequest;
-
-        void Persist(const NCellMaster::TPersistenceContext& context)
-        {
-            using NYT::Persist;
-
-            Persist(context, RequestCount);
-            Persist(context, EffectiveRequest);
-        }
-    };
-
     friend class TMasterTableSchemaTypeHandler;
 
     static const TCompactTableSchemaPtr EmptyTableSchema;
@@ -1508,7 +1488,6 @@ private:
     TEntityMap<TSecondaryIndex> SecondaryIndexMap_;
 
     TRandomAccessQueue<TNodeId, TStatisticsUpdateRequest> StatisticsUpdateRequests_;
-    THashMap<TNodeId, TOngoingStatisticsUpdate> NodeIdToOngoingStatisticsUpdate_;
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
 
@@ -1699,7 +1678,6 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (const auto& entry : request->entries()) {
             auto nodeId = FromProto<TTableId>(entry.node_id());
-            ToProto(confirmRequest.add_requested_node_ids(), nodeId);
             auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
             if (!IsObjectAlive(node)) {
                 continue;
@@ -1721,6 +1699,9 @@ private:
                 ToProto(retryEntry->mutable_node_id(), nodeId);
                 retryEntry->set_update_data_statistics(entry.has_data_statistics());
                 retryEntry->set_update_tablet_statistics(entry.has_tablet_resource_usage());
+                retryEntry->set_update_modification_time(entry.has_modification_time());
+                retryEntry->set_update_access_time(entry.has_access_time());
+
                 // Sending actual revisions fits nicely into the protocol but, strictly
                 // speaking, this is only necessary for migrating on update. (A newly
                 // updated external cell doesn't know native content revisions - and it
@@ -1794,25 +1775,13 @@ private:
 
             ScheduleStatisticsUpdate(
                 chunkOwner,
-                entry.update_data_statistics(),
-                entry.update_tablet_statistics(),
-                /*useNativeContentRevisionCas*/ true);
-        }
-
-        for (const auto& protoNodeId : request->requested_node_ids()) {
-            auto nodeId = FromProto<TNodeId>(protoNodeId);
-            auto it = NodeIdToOngoingStatisticsUpdate_.find(nodeId);
-            if (it == NodeIdToOngoingStatisticsUpdate_.end()) {
-                YT_LOG_WARNING("Received excessive statistics update confirmation for node; ignored (NodeId: %v)",
-                    nodeId);
-                continue;
-            }
-
-            auto& count = it->second.RequestCount;
-            YT_VERIFY(count > 0);
-            if (--count == 0) {
-                NodeIdToOngoingStatisticsUpdate_.erase(it);
-            }
+                TStatisticsUpdateRequest{
+                    .UpdateDataStatistics = entry.update_data_statistics(),
+                    .UpdateTabletResourceUsage = entry.update_tablet_statistics(),
+                    .UpdateModificationTime = entry.update_modification_time(),
+                    .UpdateAccessTime = entry.update_access_time(),
+                    .UseNativeContentRevisionCas = true,
+                });
         }
     }
 
@@ -1820,7 +1789,7 @@ private:
     {
         auto schema = New<TCompactTableSchema>(request->schema());
         auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
-        CreateImportedMasterTableSchema(schema, schemaId);
+        CreateImportedMasterTableSchema(std::move(schema), schemaId);
     }
 
     void HydraUnimportMasterTableSchema(NProto::TReqUnimportMasterTableSchema* request)
@@ -1846,7 +1815,6 @@ private:
         TableCollocationMap_.Clear();
         SecondaryIndexMap_.Clear();
         StatisticsUpdateRequests_.Clear();
-        NodeIdToOngoingStatisticsUpdate_.clear();
         Queues_.clear();
         QueueConsumers_.clear();
         QueueProducers_.clear();
@@ -1873,7 +1841,28 @@ private:
         MasterTableSchemaMap_.LoadValues(context);
 
         Load(context, StatisticsUpdateRequests_);
-        Load(context, NodeIdToOngoingStatisticsUpdate_);
+
+        // COMPAT(danilalexeev): Remove in 26.2.
+        if (context.GetVersion() < EMasterReign::DropOngoingStatisticsUpdateRequestMapping ||
+            context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::DropOngoingStatisticsUpdateRequestMapping_26_2)
+        {
+            struct TOngoingStatisticsUpdate
+            {
+                i64 RequestCount = 0;
+                TStatisticsUpdateRequest EffectiveRequest;
+
+                void Persist(const NCellMaster::TPersistenceContext& context)
+                {
+                    using NYT::Persist;
+
+                    Persist(context, RequestCount);
+                    Persist(context, EffectiveRequest);
+                }
+            };
+
+            THashMap<TNodeId, TOngoingStatisticsUpdate> nodeIdToOngoingStatisticsUpdate;
+            Load(context, nodeIdToOngoingStatisticsUpdate);
+        }
 
         TableCollocationMap_.LoadValues(context);
 
@@ -2033,22 +2022,6 @@ private:
         return schemaToRefCounter;
     }
 
-    void OnTableCopied(TTableNode* sourceNode, TTableNode* clonedNode) override
-    {
-        if (!sourceNode->IsForeign()) {
-            return;
-        }
-
-        auto it = NodeIdToOngoingStatisticsUpdate_.find(sourceNode->GetId());
-        if (it != NodeIdToOngoingStatisticsUpdate_.end()) {
-            const auto& request = it->second.EffectiveRequest;
-            ScheduleStatisticsUpdate(clonedNode,
-                request.UpdateDataStatistics,
-                request.UpdateTabletResourceUsage,
-                request.UseNativeContentRevisionCas);
-        }
-    }
-
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
@@ -2161,7 +2134,6 @@ private:
     {
         MasterTableSchemaMap_.SaveValues(context);
         Save(context, StatisticsUpdateRequests_);
-        Save(context, NodeIdToOngoingStatisticsUpdate_);
         TableCollocationMap_.SaveValues(context);
         SecondaryIndexMap_.SaveValues(context);
         Save(context, Queues_);

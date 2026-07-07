@@ -17,13 +17,14 @@ package cache
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/envoyproxy/go-control-plane/pkg/log"
-	"github.com/envoyproxy/go-control-plane/pkg/server/stream/v3"
 )
 
 // ResourceSnapshot is an abstract snapshot of a collection of resources that
@@ -207,8 +208,8 @@ func (cache *snapshotCache) sendHeartbeats(ctx context.Context, node string) {
 			if len(resourcesWithTTL) == 0 {
 				continue
 			}
-			cache.log.Debugf("respond open watch %d%v with heartbeat for version %q", id, watch.Request.GetResourceNames(), version)
-			err := cache.respond(ctx, watch.Request, watch.Response, resourcesWithTTL, version, true)
+			cache.log.Debugf("respond open watch %d %v with heartbeat for version %q", id, watch.Request.GetResourceNames(), version)
+			err := cache.respond(ctx, watch, resourcesWithTTL, version, true)
 			if err != nil {
 				cache.log.Errorf("received error when attempting to respond to watches: %v", err)
 			}
@@ -225,6 +226,7 @@ func (cache *snapshotCache) SetSnapshot(ctx context.Context, node string, snapsh
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
+	cache.log.Debugf("setting snapshot for node %s", node)
 	// update the existing entry
 	cache.snapshots[node] = snapshot
 
@@ -250,9 +252,9 @@ func (cache *snapshotCache) respondSOTWWatches(ctx context.Context, info *status
 	respond := func(watch ResponseWatch, id int64) error {
 		version := snapshot.GetVersion(watch.Request.GetTypeUrl())
 		if version != watch.Request.GetVersionInfo() {
-			cache.log.Debugf("respond open watch %d %s%v with new version %q", id, watch.Request.GetTypeUrl(), watch.Request.GetResourceNames(), version)
+			cache.log.Debugf("respond open watch %d %s %v with new version %q", id, watch.Request.GetTypeUrl(), watch.Request.GetResourceNames(), version)
 			resources := snapshot.GetResourcesAndTTL(watch.Request.GetTypeUrl())
-			err := cache.respond(ctx, watch.Request, watch.Response, resources, version, false)
+			err := cache.respond(ctx, watch, resources, version, false)
 			if err != nil {
 				return err
 			}
@@ -310,7 +312,7 @@ func (cache *snapshotCache) respondDeltaWatches(ctx context.Context, info *statu
 				snapshot,
 				watch.Request,
 				watch.Response,
-				watch.StreamState,
+				watch.subscription,
 			)
 			if err != nil {
 				return err
@@ -328,7 +330,7 @@ func (cache *snapshotCache) respondDeltaWatches(ctx context.Context, info *statu
 				snapshot,
 				watch.Request,
 				watch.Response,
-				watch.StreamState,
+				watch.subscription,
 			)
 			if err != nil {
 				return err
@@ -385,7 +387,7 @@ func superset(names map[string]bool, resources map[string]types.ResourceWithTTL)
 
 // CreateWatch returns a watch for an xDS request.  A nil function may be
 // returned if an error occurs.
-func (cache *snapshotCache) CreateWatch(request *Request, streamState stream.StreamState, value chan Response) func() {
+func (cache *snapshotCache) CreateWatch(request *Request, sub Subscription, value chan Response) (func(), error) {
 	nodeID := cache.hash.ID(request.GetNode())
 
 	cache.mu.Lock()
@@ -402,58 +404,64 @@ func (cache *snapshotCache) CreateWatch(request *Request, streamState stream.Str
 	info.lastWatchRequestTime = time.Now()
 	info.mu.Unlock()
 
-	var version string
-	snapshot, exists := cache.snapshots[nodeID]
-	if exists {
-		version = snapshot.GetVersion(request.GetTypeUrl())
-	}
-
-	if exists {
-		knownResourceNames := streamState.GetKnownResourceNames(request.GetTypeUrl())
-		diff := []string{}
-		for _, r := range request.GetResourceNames() {
-			if _, ok := knownResourceNames[r]; !ok {
-				diff = append(diff, r)
-			}
-		}
-
-		cache.log.Debugf("nodeID %q requested %s%v and known %v. Diff %v", nodeID,
-			request.GetTypeUrl(), request.GetResourceNames(), knownResourceNames, diff)
-
-		if len(diff) > 0 {
-			resources := snapshot.GetResourcesAndTTL(request.GetTypeUrl())
-			for _, name := range diff {
-				if _, exists := resources[name]; exists {
-					if err := cache.respond(context.Background(), request, value, resources, version, false); err != nil {
-						cache.log.Errorf("failed to send a response for %s%v to nodeID %q: %s", request.GetTypeUrl(),
-							request.GetResourceNames(), nodeID, err)
-						return nil
-					}
-					return func() {}
-				}
-			}
-		}
-	}
-
-	// if the requested version is up-to-date or missing a response, leave an open watch
-	if !exists || request.GetVersionInfo() == version {
+	createWatch := func(watch ResponseWatch) func() {
 		watchID := cache.nextWatchID()
-		cache.log.Debugf("open watch %d for %s%v from nodeID %q, version %q", watchID, request.GetTypeUrl(), request.GetResourceNames(), nodeID, request.GetVersionInfo())
+		cache.log.Debugf("open watch %d for %s %v from nodeID %q, version %q", watchID, request.GetTypeUrl(), sub.SubscribedResources(), nodeID, request.GetVersionInfo())
 		info.mu.Lock()
-		info.watches[watchID] = ResponseWatch{Request: request, Response: value}
+		info.watches[watchID] = watch
 		info.mu.Unlock()
 		return cache.cancelWatch(nodeID, watchID)
 	}
 
-	// otherwise, the watch may be responded immediately
-	resources := snapshot.GetResourcesAndTTL(request.GetTypeUrl())
-	if err := cache.respond(context.Background(), request, value, resources, version, false); err != nil {
-		cache.log.Errorf("failed to send a response for %s%v to nodeID %q: %s", request.GetTypeUrl(),
-			request.GetResourceNames(), nodeID, err)
-		return nil
+	watch := ResponseWatch{Request: request, Response: value, subscription: sub, fullStateResponses: ResourceRequiresFullStateInSotw(request.GetTypeUrl())}
+
+	snapshot, exists := cache.snapshots[nodeID]
+	if !exists {
+		return createWatch(watch), nil
 	}
 
-	return func() {}
+	version := snapshot.GetVersion(request.GetTypeUrl())
+	resources := snapshot.GetResourcesAndTTL(request.GetTypeUrl())
+
+	if request.GetVersionInfo() == version {
+		// Retrieve whether there are resources in the cache requested and currently unknown to the client.
+		knownResourceNames := sub.ReturnedResources()
+		shouldRespond := false
+		if !sub.IsWildcard() {
+			// Check if there is a subscribed resource available and not yet returned,
+			// for instance if it is newly subscribed.
+			for r := range sub.SubscribedResources() {
+				if _, ok := knownResourceNames[r]; !ok {
+					if _, ok := resources[r]; ok {
+						shouldRespond = true
+						break
+					}
+				}
+			}
+		} else {
+			// Check if a resource present in the snapshot is currently not returned,
+			// for instance if the subscription is newly wildcard.
+			for r := range snapshot.GetResources(request.GetTypeUrl()) {
+				if _, ok := knownResourceNames[r]; !ok {
+					shouldRespond = true
+					break
+				}
+			}
+		}
+		// The version has not changed, and the client already has all existing requested resources.
+		if !shouldRespond {
+			return createWatch(watch), nil
+		}
+	}
+
+	// The version is different, or the client is subscribed to resources not yet returned to it.
+	if err := cache.respond(context.Background(), watch, resources, version, false); err != nil {
+		cache.log.Errorf("failed to send a response for %s%v to nodeID %q: %s", request.GetTypeUrl(),
+			sub.SubscribedResources(), nodeID, err)
+		return nil, fmt.Errorf("failed to send the response: %w", err)
+	}
+
+	return func() {}, nil
 }
 
 func (cache *snapshotCache) nextWatchID() int64 {
@@ -476,20 +484,22 @@ func (cache *snapshotCache) cancelWatch(nodeID string, watchID int64) func() {
 
 // Respond to a watch with the snapshot value. The value channel should have capacity not to block.
 // TODO(kuat) do not respond always, see issue https://github.com/envoyproxy/go-control-plane/issues/46
-func (cache *snapshotCache) respond(ctx context.Context, request *Request, value chan Response, resources map[string]types.ResourceWithTTL, version string, heartbeat bool) error {
+func (cache *snapshotCache) respond(ctx context.Context, watch ResponseWatch, resources map[string]types.ResourceWithTTL, version string, heartbeat bool) error {
+	request := watch.Request
 	// for ADS, the request names must match the snapshot names
 	// if they do not, then the watch is never responded, and it is expected that envoy makes another request
 	if len(request.GetResourceNames()) != 0 && cache.ads {
 		if err := superset(nameSet(request.GetResourceNames()), resources); err != nil {
-			cache.log.Warnf("ADS mode: not responding to request %s%v: %v", request.GetTypeUrl(), request.GetResourceNames(), err)
+			cache.log.Warnf("ADS mode: not responding to request %s %v: %v", request.GetTypeUrl(), request.GetResourceNames(), err)
 			return nil
 		}
 	}
 
-	cache.log.Debugf("respond %s%v version %q with version %q", request.GetTypeUrl(), request.GetResourceNames(), request.GetVersionInfo(), version)
+	resp := createResponse(ctx, request, resources, version, heartbeat)
+	cache.log.Debugf("respond %s (requested %v) version %q with version %q and resources %v", request.GetTypeUrl(), request.GetResourceNames(), request.GetVersionInfo(), version, slices.Collect(maps.Keys(resp.GetReturnedResources())))
 
 	select {
-	case value <- createResponse(ctx, request, resources, version, heartbeat):
+	case watch.Response <- resp:
 		return nil
 	case <-ctx.Done():
 		return context.Canceled
@@ -497,7 +507,8 @@ func (cache *snapshotCache) respond(ctx context.Context, request *Request, value
 }
 
 func createResponse(ctx context.Context, request *Request, resources map[string]types.ResourceWithTTL, version string, heartbeat bool) Response {
-	filtered := make([]types.ResourceWithTTL, 0, len(resources))
+	filtered := make([]*cachedResource, 0, len(resources))
+	returnedResources := make(map[string]string, len(resources))
 
 	// Reply only with the requested resources. Envoy may ask each resource
 	// individually in a separate stream. It is ok to reply with the same version
@@ -506,26 +517,29 @@ func createResponse(ctx context.Context, request *Request, resources map[string]
 		set := nameSet(request.GetResourceNames())
 		for name, resource := range resources {
 			if set[name] {
-				filtered = append(filtered, resource)
+				filtered = append(filtered, newCachedResourceWithTTL(name, resource, version))
+				returnedResources[name] = version
 			}
 		}
 	} else {
-		for _, resource := range resources {
-			filtered = append(filtered, resource)
+		for name, resource := range resources {
+			filtered = append(filtered, newCachedResourceWithTTL(name, resource, version))
+			returnedResources[name] = version
 		}
 	}
 
 	return &RawResponse{
-		Request:   request,
-		Version:   version,
-		Resources: filtered,
-		Heartbeat: heartbeat,
-		Ctx:       ctx,
+		Request:           request,
+		Version:           version,
+		resources:         filtered,
+		returnedResources: returnedResources,
+		Heartbeat:         heartbeat,
+		Ctx:               ctx,
 	}
 }
 
 // CreateDeltaWatch returns a watch for a delta xDS request which implements the Simple SnapshotCache.
-func (cache *snapshotCache) CreateDeltaWatch(request *DeltaRequest, state stream.StreamState, value chan DeltaResponse) func() {
+func (cache *snapshotCache) CreateDeltaWatch(request *DeltaRequest, sub Subscription, value chan DeltaResponse) (func(), error) {
 	nodeID := cache.hash.ID(request.GetNode())
 	t := request.GetTypeUrl()
 
@@ -554,7 +568,7 @@ func (cache *snapshotCache) CreateDeltaWatch(request *DeltaRequest, state stream
 		if err != nil {
 			cache.log.Errorf("failed to compute version for snapshot resources inline: %s", err)
 		}
-		response, err := cache.respondDelta(context.Background(), snapshot, request, value, state)
+		response, err := cache.respondDelta(context.Background(), snapshot, request, value, sub)
 		if err != nil {
 			cache.log.Errorf("failed to respond with delta response: %s", err)
 		}
@@ -566,33 +580,32 @@ func (cache *snapshotCache) CreateDeltaWatch(request *DeltaRequest, state stream
 		watchID := cache.nextDeltaWatchID()
 
 		if exists {
-			cache.log.Infof("open delta watch ID:%d for %s Resources:%v from nodeID: %q,  version %q", watchID, t, state.GetSubscribedResourceNames(), nodeID, snapshot.GetVersion(t))
+			cache.log.Infof("open delta watch ID:%d for %s Resources:%v from nodeID: %q,  version %q", watchID, t, sub.SubscribedResources(), nodeID, snapshot.GetVersion(t))
 		} else {
-			cache.log.Infof("open delta watch ID:%d for %s Resources:%v from nodeID: %q", watchID, t, state.GetSubscribedResourceNames(), nodeID)
+			cache.log.Infof("open delta watch ID:%d for %s Resources:%v from nodeID: %q", watchID, t, sub.SubscribedResources(), nodeID)
 		}
 
-		info.setDeltaResponseWatch(watchID, DeltaResponseWatch{Request: request, Response: value, StreamState: state})
-		return cache.cancelDeltaWatch(nodeID, watchID)
+		info.setDeltaResponseWatch(watchID, DeltaResponseWatch{Request: request, Response: value, subscription: sub})
+		return cache.cancelDeltaWatch(nodeID, watchID), nil
 	}
 
-	return nil
+	return nil, nil
 }
 
 // Respond to a delta watch with the provided snapshot value. If the response is nil, there has been no state change.
-func (cache *snapshotCache) respondDelta(ctx context.Context, snapshot ResourceSnapshot, request *DeltaRequest, value chan DeltaResponse, state stream.StreamState) (*RawDeltaResponse, error) {
-	resp := createDeltaResponse(ctx, request, state, resourceContainer{
-		resourceMap:   snapshot.GetResources(request.GetTypeUrl()),
-		versionMap:    snapshot.GetVersionMap(request.GetTypeUrl()),
-		systemVersion: snapshot.GetVersion(request.GetTypeUrl()),
-	})
+func (cache *snapshotCache) respondDelta(ctx context.Context, snapshot ResourceSnapshot, request *DeltaRequest, value chan DeltaResponse, sub Subscription) (*RawDeltaResponse, error) {
+	resp := createDeltaResponse(ctx, request, sub, resourceContainer{
+		resourceMap: snapshot.GetResources(request.GetTypeUrl()),
+		versionMap:  snapshot.GetVersionMap(request.GetTypeUrl()),
+	}, snapshot.GetVersion(request.GetTypeUrl()))
 
 	// Only send a response if there were changes
 	// We want to respond immediately for the first wildcard request in a stream, even if the response is empty
 	// otherwise, envoy won't complete initialization
-	if len(resp.Resources) > 0 || len(resp.RemovedResources) > 0 || (state.IsWildcard() && state.IsFirst()) {
+	if len(resp.resources) > 0 || len(resp.removedResources) > 0 || (sub.IsWildcard() && request.ResponseNonce == "") {
 		if cache.log != nil {
 			cache.log.Debugf("node: %s, sending delta response for typeURL %s with resources: %v removed resources: %v with wildcard: %t",
-				request.GetNode().GetId(), request.GetTypeUrl(), GetResourceNames(resp.Resources), resp.RemovedResources, state.IsWildcard())
+				request.GetNode().GetId(), request.GetTypeUrl(), getCachedResourceNames(resp.resources), resp.removedResources, sub.IsWildcard())
 		}
 		select {
 		case value <- resp:

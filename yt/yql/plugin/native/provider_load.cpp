@@ -11,6 +11,7 @@ void ExtProviderSpecific(
 {
     ExtYtflow(gatewaysConfig, funcRegistry, dataProvidersInit, fileStorage);
     ExtPq(gatewaysConfig, funcRegistry, dataProvidersInit, fileStorage);
+    ExtSolomon(gatewaysConfig, funcRegistry, dataProvidersInit, fileStorage);
 }
 
 } // namespace NYT::NYqlPlugin

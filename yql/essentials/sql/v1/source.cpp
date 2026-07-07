@@ -16,15 +16,17 @@
 #include <util/string/escape.h>
 #include <util/string/subst.h>
 
+#include <utility>
+
 using namespace NYql;
 
 namespace NSQLTranslationV1 {
 
-TTableRef::TTableRef(const TString& refName, const TString& service, const TDeferredAtom& cluster, TNodePtr keys)
-    : RefName(refName)
+TTableRef::TTableRef(TString refName, const TString& service, TDeferredAtom cluster, TNodePtr keys)
+    : RefName(std::move(refName))
     , Service(to_lower(service))
-    , Cluster(cluster)
-    , Keys(keys)
+    , Cluster(std::move(cluster))
+    , Keys(std::move(keys))
 {
 }
 
@@ -116,14 +118,14 @@ void ISource::SetGroupBySuffix(const TString& suffix) {
     GroupBySuffix_ = suffix;
 }
 
-bool ISource::AddExpressions(TContext& ctx, const TVector<TNodePtr>& expressions, EExprSeat exprSeat) {
+bool ISource::AddExpressions(TContext& ctx, const TVector<TNodePtr>& columns, EExprSeat exprSeat) {
     YQL_ENSURE(exprSeat < EExprSeat::Max);
     THashSet<TString> names;
     THashSet<TString> aliasSet;
     // TODO: merge FlattenBy with FlattenByExpr
     const bool isFlatten = (exprSeat == EExprSeat::FlattenBy || exprSeat == EExprSeat::FlattenByExpr);
     THashSet<TString>& aliases = isFlatten ? FlattenByAliases_ : aliasSet;
-    for (const auto& expr : expressions) {
+    for (const auto& expr : columns) {
         const auto& alias = expr->GetLabel();
         const auto& columnNamePtr = expr->GetColumnName();
         if (alias) {
@@ -332,21 +334,21 @@ bool ISource::IsFlattenByExprs() const {
     return !Expressions(EExprSeat::FlattenByExpr).empty();
 }
 
-bool ISource::IsAlias(EExprSeat exprSeat, const TString& column) const {
+bool ISource::IsAlias(EExprSeat exprSeat, const TString& label) const {
     for (const auto& exprNode : Expressions(exprSeat)) {
         const auto& labelName = exprNode->GetLabel();
-        if (labelName && labelName == column) {
+        if (labelName && labelName == label) {
             return true;
         }
     }
     return false;
 }
 
-bool ISource::IsExprAlias(const TString& column) const {
+bool ISource::IsExprAlias(const TString& label) const {
     std::array<EExprSeat, 5> exprSeats = {{EExprSeat::FlattenBy, EExprSeat::FlattenByExpr, EExprSeat::GroupBy,
                                            EExprSeat::WindowPartitionBy, EExprSeat::DistinctAggr}};
     for (auto seat : exprSeats) {
-        if (IsAlias(seat, column)) {
+        if (IsAlias(seat, label)) {
             return true;
         }
     }
@@ -432,15 +434,15 @@ bool ISource::SetTableHints(TContext& ctx, TPosition pos, const TTableHints& hin
     Y_UNUSED(pos);
     Y_UNUSED(contextHints);
     if (hints) {
-        ctx.Error() << "Explicit hints are only supported for table sources";
+        ctx.Error() << "Hint '" << hints.begin()->first << "' requires a table";
         return false;
     }
     return true;
 }
 
-bool ISource::AddGrouping(TContext& ctx, const TVector<TString>& columns, TString& grouingColumn) {
+bool ISource::AddGrouping(TContext& ctx, const TVector<TString>& columns, TString& groupingColumn) {
     Y_UNUSED(columns);
-    Y_UNUSED(grouingColumn);
+    Y_UNUSED(groupingColumn);
     ctx.Error() << "Source not support grouping hint";
     return false;
 }
@@ -563,7 +565,7 @@ TNodePtr ISource::BuildPreaggregatedMap(TContext& ctx) {
 TNodePtr ISource::BuildPreFlattenMap(TContext& ctx) {
     Y_UNUSED(ctx);
     YQL_ENSURE(IsFlattenByExprs());
-    return BuildLambdaBodyForExprAliases(Pos_, Expressions(EExprSeat::FlattenByExpr), true, ctx.FlattenAndAggrExprsPersistence);
+    return BuildLambdaBodyForExprAliases(Pos_, Expressions(EExprSeat::FlattenByExpr), /*override=*/true, ctx.FlattenAndAggrExprsPersistence);
 }
 
 TNodePtr ISource::BuildPrewindowMap(TContext& ctx) {
@@ -744,7 +746,7 @@ TNodePtr BuildFrameNode(const TFrameBound& frame, EFrameType frameType) {
             }
             settings.push_back(std::move(node));
         }
-        return BuildTuple(pos, std::move(settings));
+        return BuildTuple(pos, settings);
     }
 
     // TODO: switch FrameByRows to common format above
@@ -863,7 +865,7 @@ TNodePtr ISource::BuildCalcOverWindow(TContext& ctx, const TString& label) {
                 break;
         }
         YQL_ENSURE(frameType);
-        auto sortSpec = spec->OrderBy.empty() ? Y("Void") : BuildSortSpec(spec->OrderBy, useLabel, true, false);
+        auto sortSpec = spec->OrderBy.empty() ? Y("Void") : BuildSortSpec(spec->OrderBy, useLabel, /*traits=*/true, /*assume=*/false);
 
         auto callOnFrame = Y(frameType, BuildWindowFrame(ctx, *spec->Frame, spec->IsCompact, sortSpec));
         for (auto& agg : aggs) {
@@ -978,7 +980,7 @@ bool ISource::InitFilters(TContext& ctx) {
 }
 
 TAstNode* ISource::Translate(TContext& ctx) const {
-    YQL_ENSURE(false, "Can't tranlsate ISource, maybe it is used in a scalar context");
+    YQL_ENSURE(false, "Can't translate ISource, maybe it is used in a scalar context");
     Y_UNUSED(ctx);
     return nullptr;
 }

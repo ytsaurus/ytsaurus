@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/net/local_address.h>
 
+#include <library/cpp/yt/misc/range_helpers.h>
+
 namespace NYT::NQueueAgent {
 
 using namespace NAlertManager;
@@ -54,7 +56,7 @@ void BuildRegistrationYson(TFluentList fluent, TConsumerRegistrationTableRow reg
 void BuildQueueStatusYson(
     const TQueueSnapshotPtr& snapshot,
     const IAlertManagerPtr& alertManager,
-    const TErrorOr<THashMap<TString, TQueueExportProgressPtr>>& queueExportsProgressOrError,
+    const TErrorOr<THashMap<std::string, TQueueExportProgressPtr>>& queueExportsProgressOrError,
     TFluentAny fluent)
 {
     fluent
@@ -170,12 +172,11 @@ void BuildConsumerStatusYson(const TConsumerSnapshotPtr& snapshot, TFluentAny fl
             .Item("queue_agent_host").Value(GetLocalHostName())
             .Item("registrations").DoListFor(snapshot->Registrations, BuildRegistrationYson)
             .Item("queues").DoMapFor(snapshot->SubSnapshots, [] (TFluentMap fluent, auto pair) {
-                const auto& queueRef = pair.first;
+                const auto& queuePath = pair.first;
                 const auto& subSnapshot = pair.second;
                 fluent
-                    .Item(ToString(queueRef)).Do(std::bind(BuildSubConsumerStatusYson, subSnapshot, _1));
+                    .Item(ToString(queuePath)).Do(std::bind(BuildSubConsumerStatusYson, subSnapshot, _1));
             })
-
         .EndMap();
 }
 
@@ -236,11 +237,26 @@ void BuildConsumerPartitionListYson(const TConsumerSnapshotPtr& snapshot, TFluen
 
     fluent
         .DoMapFor(snapshot->SubSnapshots, [&] (TFluentMap fluent, auto pair) {
-            const auto& queueRef = pair.first;
+            const auto& queuePath = pair.first;
             const auto& subSnapshot = pair.second;
             fluent
-                .Item(ToString(queueRef)).Do(std::bind(BuildSubConsumerPartitionListYson, subSnapshot, _1));
+                .Item(ToString(queuePath)).Do(std::bind(BuildSubConsumerPartitionListYson, subSnapshot, _1));
         });
+}
+
+void BuildMultiConsumerStatusYson(const TMultiConsumerSnapshotPtr& snapshot, const IAlertManagerPtr& alertManager, TFluentAny fluent)
+{
+    fluent
+        .BeginMap()
+            .Item("alerts").Value(alertManager->GetAlerts())
+            .Item("queue_agent_host").Value(GetLocalHostName())
+            .DoIf(snapshot->Error.IsOK(), [&] (TFluentMap fluentMap) {
+                fluentMap.Item("queue_consumer_names").List(snapshot->QueueConsumerNames);
+            })
+            .DoIf(!snapshot->Error.IsOK(), [&] (TFluentMap fluentMap) {
+                fluentMap.Item("error").Value(snapshot->Error);
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

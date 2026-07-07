@@ -17,7 +17,7 @@ namespace NYT::NHydra {
 template <class TContext>
 void TCompositeAutomatonPart::RegisterSaver(
     ESyncSerializationPriority priority,
-    const TString& name,
+    const std::string& name,
     TCallback<void(TContext&)> saver)
 {
     RegisterSaver(
@@ -31,7 +31,7 @@ void TCompositeAutomatonPart::RegisterSaver(
 template <class TContext>
 void TCompositeAutomatonPart::RegisterSaver(
     EAsyncSerializationPriority priority,
-    const TString& name,
+    const std::string& name,
     TCallback<TCallback<void(TContext&)>()> callback)
 {
     RegisterSaver(
@@ -47,7 +47,7 @@ void TCompositeAutomatonPart::RegisterSaver(
 
 template <class TContext>
 void TCompositeAutomatonPart::RegisterLoader(
-    const TString& name,
+    const std::string& name,
     TCallback<void(TContext&)> loader)
 {
     TCompositeAutomatonPart::RegisterLoader(
@@ -62,17 +62,19 @@ void TCompositeAutomatonPart::RegisterLoader(
 template <class TRequest>
 void TCompositeAutomatonPart::RegisterMethod(
     TCallback<void(TRequest*)> callback,
-    const std::vector<TString>& aliases)
+    const std::vector<std::string>& aliases,
+    bool exceptionsAreNormal)
 {
-    Automaton_->RegisterMethod(callback, aliases);
+    Automaton_->RegisterMethod(callback, aliases, exceptionsAreNormal);
 }
 
 template <class TRpcRequest, class TRpcResponse, class THandlerRequest, class THandlerResponse>
 void TCompositeAutomatonPart::RegisterMethod(
     TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback,
-    const std::vector<TString>& aliases)
+    const std::vector<std::string>& aliases,
+    bool exceptionsAreNormal)
 {
-    Automaton_->RegisterMethod(callback, aliases);
+    Automaton_->RegisterMethod(callback, aliases, exceptionsAreNormal);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,11 +82,14 @@ void TCompositeAutomatonPart::RegisterMethod(
 template <class TRequest>
 void TCompositeAutomaton::RegisterMethod(
     TCallback<void(TRequest*)> callback,
-    const std::vector<TString>& aliases)
+    const std::vector<std::string>& aliases,
+    bool exceptionsAreNormal)
 {
+    auto mutationTypeName = TRequest::default_instance().GetTypeName();
+
     auto mutationHandler = BIND_NO_PROPAGATE([=, this] (TMutationContext* context) {
         auto request = ObjectPool<TRequest>().Allocate();
-        auto* descriptor = GetMethodDescriptor(TRequest::default_instance().GetTypeName());
+        auto* descriptor = GetMethodDescriptor(mutationTypeName);
         DeserializeRequestAndProfile(
             request.get(),
             context->Request().Data,
@@ -97,30 +102,33 @@ void TCompositeAutomaton::RegisterMethod(
             static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
             context->SetResponseData(cachedResponseMessage);
         } catch (const std::exception& ex) {
-            auto error = TError(ex);
-            LogHandlerError(error);
-            context->SetResponseData(error);
+            context->SetResponseData(ex);
+            throw;
         }
-        descriptor->CumulativeExecuteTimeCounter.Add(timer.GetElapsedTime());
+        auto executeTime = timer.GetElapsedTime();
+        descriptor->CumulativeExecuteTimeCounter.Add(executeTime);
+        descriptor->ExecuteTimer.Record(executeTime);
     });
 
-    auto mutationName = TRequest::default_instance().GetTypeName();
-    RegisterMethod(mutationName, mutationHandler);
+    RegisterMethod(mutationTypeName, mutationHandler, exceptionsAreNormal);
     for (const auto& alias : aliases) {
-        RegisterMethod(alias, mutationHandler);
+        RegisterMethod(alias, mutationHandler, exceptionsAreNormal);
     }
 }
 
 template <class TRpcRequest, class TRpcResponse, class THandlerRequest, class THandlerResponse>
 void TCompositeAutomaton::RegisterMethod(
     TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback,
-    const std::vector<TString>& aliases)
+    const std::vector<std::string>& aliases,
+    bool exceptionsAreNormal)
 {
+    auto mutationTypeName = THandlerRequest::default_instance().GetTypeName();
+
     auto mutationHandler = BIND_NO_PROPAGATE([=, this] (TMutationContext* context) {
         auto request = ObjectPool<THandlerRequest>().Allocate();
         auto response = ObjectPool<THandlerResponse>().Allocate();
 
-        auto* descriptor = GetMethodDescriptor(THandlerRequest::default_instance().GetTypeName());
+        auto* descriptor = GetMethodDescriptor(mutationTypeName);
         DeserializeRequestAndProfile(
             request.get(),
             context->Request().Data,
@@ -131,17 +139,17 @@ void TCompositeAutomaton::RegisterMethod(
             callback(nullptr, request.get(), response.get());
             context->SetResponseData(NRpc::CreateResponseMessage(*response));
         } catch (const std::exception& ex) {
-            auto error = TError(ex);
-            LogHandlerError(error);
-            context->SetResponseData(error);
+            context->SetResponseData(ex);
+            throw;
         }
-        descriptor->CumulativeExecuteTimeCounter.Add(timer.GetElapsedTime());
+        auto executeTime = timer.GetElapsedTime();
+        descriptor->CumulativeExecuteTimeCounter.Add(executeTime);
+        descriptor->ExecuteTimer.Record(executeTime);
     });
 
-    auto mutationName = THandlerRequest::default_instance().GetTypeName();
-    RegisterMethod(mutationName, mutationHandler);
+    RegisterMethod(mutationTypeName, mutationHandler, exceptionsAreNormal);
     for (const auto& alias : aliases) {
-        RegisterMethod(alias, mutationHandler);
+        RegisterMethod(alias, mutationHandler, exceptionsAreNormal);
     }
 }
 

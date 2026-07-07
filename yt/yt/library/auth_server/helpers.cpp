@@ -29,20 +29,20 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetCryptoHash(TStringBuf secret)
+std::string GetCryptoHash(TStringBuf secret)
 {
     return NCrypto::TSha1Hasher()
         .Append(secret)
         .GetHexDigestLowerCase();
 }
 
-TString FormatUserIP(const TNetworkAddress& address)
+std::string FormatUserIP(const TNetworkAddress& address)
 {
     if (!address.IsIP()) {
         // Sometimes userIP is missing (e.g. user is connecting
         // from job using unix socket), but it is required by
         // Blackbox. Put placeholder in place of a real IP.
-        static const TString LocalUserIP = "127.0.0.1";
+        static const std::string LocalUserIP = "127.0.0.1";
         return LocalUserIP;
     }
     return ToString(
@@ -53,12 +53,12 @@ TString FormatUserIP(const TNetworkAddress& address)
         });
 }
 
-TString GetBlackboxCacheKeyFactorFromUserIP(
+std::string GetBlackboxCacheKeyFactorFromUserIP(
     EBlackboxCacheKeyMode mode,
     const TNetworkAddress& address)
 {
     if (mode == EBlackboxCacheKeyMode::Credentials) {
-        return TString();
+        return {};
     }
 
     if (mode == EBlackboxCacheKeyMode::CredentialsAndUserAddressProjectId &&
@@ -71,14 +71,14 @@ TString GetBlackboxCacheKeyFactorFromUserIP(
     return Format("ip=%v", ToString(address));
 }
 
-TString GetLoginForTvmId(TTvmId tvmId)
+std::string GetLoginForTvmId(TTvmId tvmId)
 {
     return Format("tvm:%v", tvmId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const THashSet<TString> PrivateUrlParams{
+static const THashSet<std::string> PrivateUrlParams{
     "userip",
     "oauth_token",
     "sessionid",
@@ -126,12 +126,12 @@ void TSafeUrlBuilder::AppendParam(TStringBuf key, TStringBuf value)
     SafeUrl_.Advance(safeEnd - safeBegin);
 }
 
-TString TSafeUrlBuilder::FlushRealUrl()
+std::string TSafeUrlBuilder::FlushRealUrl()
 {
     return RealUrl_.Flush();
 }
 
-TString TSafeUrlBuilder::FlushSafeUrl()
+std::string TSafeUrlBuilder::FlushSafeUrl()
 {
     return SafeUrl_.Flush();
 }
@@ -157,7 +157,7 @@ void Serialize(const THashedCredentials& hashedCredentials, IYsonConsumer* consu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string SignCsrfToken(const std::string& userId, const TString& key, TInstant now)
+std::string SignCsrfToken(const std::string& userId, const std::string& key, TInstant now)
 {
     auto msg = userId + ":" + ToString(now.TimeT());
     return CreateSha256Hmac(key, msg) + ":" + ToString(now.TimeT());
@@ -166,10 +166,10 @@ std::string SignCsrfToken(const std::string& userId, const TString& key, TInstan
 TError CheckCsrfToken(
     const std::string& csrfToken,
     const std::string& userId,
-    const TString& key,
+    const std::string& key,
     TInstant expirationTime)
 {
-    std::vector<TString> parts;
+    std::vector<std::string> parts;
     StringSplitter(csrfToken).Split(':').AddTo(&parts);
     if (parts.size() != 2) {
         return TError("Malformed CSRF token");
@@ -270,6 +270,55 @@ TError EnsureUserExists(
         << std::move(userOrError);
     YT_LOG_WARNING(error);
     return error;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TryAddUserInGroups(
+    const ICypressUserManagerPtr& userManager,
+    const std::string& name,
+    const std::vector<std::string>& groups)
+{
+    const auto& Logger = AuthLogger;
+
+    if (groups.empty()) {
+        YT_LOG_TRACE("Empty set of groups is provided (Name: %v, Groups: %v)", name, groups);
+        return true;
+    }
+
+    YT_LOG_TRACE("Checking if user is a member of the groups (Name: %v, Groups: %v)", name, groups);
+    auto result = WaitFor(userManager->GetUserGroups(name));
+    if (!result.IsOK()) {
+        YT_LOG_WARNING(result, "Failed to get user groups (Name: %v)", name);
+        return false;
+    }
+
+    auto userGroups = result.Value();
+
+    YT_LOG_TRACE("Listing user groups (Name: %v, Groups: %v)", name, userGroups);
+
+    auto userGroupsSet = std::unordered_set<std::string>(userGroups.begin(), userGroups.end());
+    bool userAddedToAllGroups = true;
+    for (const auto& group : groups) {
+        if (userGroupsSet.contains(group)) {
+            continue;
+        }
+
+        YT_LOG_DEBUG("User is not a member of the group (Name: %v, Group: %v)", name, group);
+
+        auto result = WaitFor(userManager->AddUserToGroup(name, group));
+
+        userGroupsSet.insert(group);
+
+        if (result.IsOK()) {
+            YT_LOG_DEBUG("User added into the group (Name: %v, Group: %v)", name, group);
+        } else {
+            YT_LOG_WARNING(result, "Failed to add user into the group (Name: %v, Group: %v)", name, group);
+            userAddedToAllGroups = false;
+        }
+    }
+
+    return userAddedToAllGroups;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

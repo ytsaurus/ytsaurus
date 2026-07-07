@@ -6,6 +6,7 @@ from .driver import get_api_version, make_request, make_formatted_request
 
 import os
 import time
+from typing import Optional, Literal, Union
 from datetime import timedelta, datetime
 
 
@@ -17,7 +18,15 @@ def _is_batch_client(client):
     return isinstance(client, BatchClient)
 
 
-def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribute_key=None, client=None):
+def lock(
+    path: Union[str, YPath],
+    mode: Optional[Literal["snapshot", "shared", "exclusive"]] = None,
+    waitable: Optional[bool] = False,
+    wait_for: Optional[int] = None,
+    child_key: Optional[str] = None,
+    attribute_key: Optional[str] = None,
+    client=None,
+):
     """Tries to lock the path.
 
     :param str mode: blocking type, one of ["snapshot", "shared" or "exclusive"], "exclusive" by default.

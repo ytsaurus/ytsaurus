@@ -165,7 +165,7 @@ TLiteralValue TryBitInvertLiteral(TLiteralValue value)
                 return ~static_cast<ui64>(value);
             }
         },
-        [] (const auto& _) -> TLiteralValue {
+        [] (const auto& /*value*/) -> TLiteralValue {
             return TNullLiteralValue{};
         });
 }

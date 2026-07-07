@@ -87,12 +87,18 @@ void TSchedulerMutations::Log(const TLogger& Logger) const
         YT_LOG_DEBUG("Mutation: change root system account limit (Value: %v)",
             ConvertToYsonString(ChangedRootSystemAccountLimit, EYsonFormat::Text));
     }
+    if (BundlesDynamicConfig) {
+        std::string configStr = ConvertToYsonString(*BundlesDynamicConfig, EYsonFormat::Text).ToString();
+        TruncateStringInplace(&configStr, 100);
+        YT_LOG_DEBUG("Mutation: change bundles dynamic config (Value: %v)", configStr);
+    }
     onSet("node to cleanup", NodesToCleanup);
     onSet("proxy to cleanup", ProxiesToCleanup);
     onIndexedEntries("change tablet static memory", ChangedTabletStaticMemory);
     onIndexedEntries("change bundle short name", ChangedBundleShortName);
     onIndexedEntries("change bundle node tag filter", ChangedNodeTagFilters);
     onIndexedEntries("initialize bundle target config", InitializedBundleTargetConfig);
+    onIndexedEntries("request node config update", NodeConfigUpdateRequests);
 }
 
 auto TSchedulerMutations::MakeOnAlertCallback() -> TOnAlertCallback
@@ -100,6 +106,40 @@ auto TSchedulerMutations::MakeOnAlertCallback() -> TOnAlertCallback
     return BIND([this] (TAlert alert) {
         AlertsToFire.push_back(std::move(alert));
     });
+}
+
+int TSchedulerMutations::GetMutationCount() const
+{
+    return
+        ssize(NewAllocations) +
+        ssize(ChangedAllocations) +
+        ssize(NewDeallocations) +
+        ssize(ChangedStates) +
+        ssize(ChangedNodeAnnotations) +
+        ssize(ChangedProxyAnnotations) +
+        ssize(CompletedAllocations) +
+        ssize(ChangedNodeUserTags) +
+        ssize(ChangedDecommissionedFlag) +
+        ssize(ChangedBannedFlag) +
+        ssize(ChangedEnableBundleBalancerFlag) +
+        ssize(ChangedMuteTabletCellsCheck) +
+        ssize(ChangedMuteTabletCellSnapshotsCheck) +
+        ssize(ChangedProxyRole) +
+        ssize(RemovedProxyRole) +
+        ssize(CellsToRemove) +
+        ssize(CellsToCreate) +
+        ssize(LiftedSystemAccountLimit) +
+        ssize(LoweredSystemAccountLimit) +
+        ssize(NodesToCleanup) +
+        ssize(ProxiesToCleanup) +
+        ssize(ChangedTabletStaticMemory) +
+        ssize(ChangedBundleShortName) +
+        ssize(ChangedNodeTagFilters) +
+        ssize(InitializedBundleTargetConfig) +
+        (BundlesDynamicConfig ? 1 : 0) +
+        (ChangedRootSystemAccountLimit ? 1 : 0) +
+        ssize(NodeConfigUpdateRequests) +
+        0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

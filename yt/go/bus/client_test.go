@@ -2,6 +2,7 @@ package bus
 
 import (
 	"context"
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -465,6 +466,53 @@ func TestTestServiceWithTLS(t *testing.T) {
 		rsp, err := c.SomeCall(context.Background(), req)
 		require.NoError(t, err)
 		require.Equal(t, int32(142), *rsp.B)
+	})
+}
+
+func TestClient_WithNetwork(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	addr, stop := StartTestService(t)
+	defer stop()
+
+	_, port, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+	ipv4Addr := net.JoinHostPort("127.0.0.1", port)
+
+	t.Run("DefaultConnects", func(t *testing.T) {
+		c := NewTestServiceClient(ipv4Addr)
+		defer func() {
+			c.Close()
+			<-c.conn.Done()
+		}()
+
+		_, err := c.DoNothing(context.Background(), &testservice.TReqDoNothing{})
+		require.NoError(t, err)
+	})
+
+	t.Run("TCP4ConnectsToIPv4", func(t *testing.T) {
+		c := NewTestServiceClient(ipv4Addr, WithNetwork("tcp4"))
+		defer func() {
+			c.Close()
+			<-c.conn.Done()
+		}()
+
+		_, err := c.DoNothing(context.Background(), &testservice.TReqDoNothing{})
+		require.NoError(t, err)
+	})
+
+	t.Run("TCP6FailsForIPv4Address", func(t *testing.T) {
+		c := NewTestServiceClient(ipv4Addr, WithNetwork("tcp6"))
+		defer func() {
+			c.Close()
+			<-c.conn.Done()
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, err := c.DoNothing(ctx, &testservice.TReqDoNothing{})
+		require.Error(t, err)
 	})
 }
 

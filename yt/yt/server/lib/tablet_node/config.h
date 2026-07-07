@@ -24,6 +24,8 @@
 
 #include <yt/yt/library/heavy_hitters/public.h>
 
+#include <yt/yt/library/min_hash_digest/public.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,50 +58,74 @@ DEFINE_REFCOUNTED_TYPE(TRelativeReplicationThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRowDigestCompactionConfig
+struct TPartitionCompactionHintConfig
     : public NYTree::TYsonStruct
 {
-    bool Enable;
+    int MaxStoreCount;
+    int MaxStoreCountForExponentialCalculation;
+
+    REGISTER_YSON_STRUCT(TPartitionCompactionHintConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRowDigestConfig
+    : public TPartitionCompactionHintConfig
+{
+    bool EnableNonAggregates;
+    bool EnableAggregates;
 
     double MaxObsoleteTimestampRatio;
     int MaxTimestampsPerValue;
 
-    REGISTER_YSON_STRUCT(TRowDigestCompactionConfig);
+    TTDigestConfigPtr ChunkWriter;
+
+    bool AreCompactionSettingsEqual(const TRowDigestConfigPtr& other) const;
+
+    REGISTER_YSON_STRUCT(TRowDigestConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TRowDigestCompactionConfig)
+DEFINE_REFCOUNTED_TYPE(TRowDigestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMinHashDigestCompactionConfig
-    : public NYTree::TYsonStruct
+struct TMinHashDigestConfig
+    : public TPartitionCompactionHintConfig
 {
     bool Enable;
+
+    TMinHashSimilarityConfigPtr WriteDeleteSimilarity;
+    TMinHashSimilarityConfigPtr WritesSimilarity;
 
     NTableClient::TMinHashDigestConfigPtr ChunkWriter;
 
-    REGISTER_YSON_STRUCT(TMinHashDigestCompactionConfig);
+    bool AreCompactionSettingsEqual(const TMinHashDigestConfigPtr& other) const;
+
+    REGISTER_YSON_STRUCT(TMinHashDigestConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMinHashDigestCompactionConfig)
+DEFINE_REFCOUNTED_TYPE(TMinHashDigestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAggregateVersionedRowDigestCompactionConfig
+struct TCompactionHintsConfig
     : public NYTree::TYsonStruct
 {
-    bool Enable;
+    TRowDigestConfigPtr RowDigest;
+    TMinHashDigestConfigPtr MinHashDigest;
 
-    REGISTER_YSON_STRUCT(TAggregateVersionedRowDigestCompactionConfig);
+    REGISTER_YSON_STRUCT(TCompactionHintsConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TAggregateVersionedRowDigestCompactionConfig)
+DEFINE_REFCOUNTED_TYPE(TCompactionHintsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,6 +136,23 @@ struct TGradualCompactionConfig
     TDuration Duration;
 
     REGISTER_YSON_STRUCT_LITE(TGradualCompactionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(dave11ar): This is a temporary interface that will be replaced by a more general solution.
+struct TOverloadReactiveBalancingConfig
+    : public NYTree::TYsonStructLite
+{
+    bool Enable;
+
+    // Legacy mode. Use actual tablet balancer configs to set metric and limit.
+    std::optional<std::string> Metric;
+    std::optional<double> Limit;
+
+    REGISTER_YSON_STRUCT_LITE(TOverloadReactiveBalancingConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -146,7 +189,7 @@ public:
     std::optional<NHydra::TRevision> ForcedChunkViewCompactionRevision;
 
     EDynamicTableProfilingMode ProfilingMode;
-    TString ProfilingTag;
+    std::string ProfilingTag;
 
     bool EnableDynamicStoreRead;
 
@@ -188,6 +231,8 @@ struct TTestingTableMountConfig
 
     TDuration PartitioningDelay;
     TDuration CompactionDelay;
+
+    bool RejectReplicatedContentReceiving;
 
     REGISTER_YSON_STRUCT_LITE(TTestingTableMountConfig);
 
@@ -249,9 +294,7 @@ struct TCustomTableMountConfig
     std::optional<TDuration> AutoCompactionPeriod;
     double AutoCompactionPeriodSplayRatio;
     EPeriodicCompactionMode PeriodicCompactionMode;
-    TRowDigestCompactionConfigPtr RowDigestCompaction;
-    TMinHashDigestCompactionConfigPtr MinHashDigestCompaction;
-    TAggregateVersionedRowDigestCompactionConfigPtr AggregateVersionedRowDigestCompaction;
+    TCompactionHintsConfigPtr CompactionHints;
 
     bool EnableLookupHashTable;
 
@@ -311,6 +354,7 @@ struct TCustomTableMountConfig
 
     bool SingleColumnGroupByDefault;
     bool SkipValueBlocksForMissingKeys;
+    bool CompressBlockLastKeys;
 
     bool EnableHunkColumnarProfiling;
 
@@ -348,13 +392,20 @@ struct TCustomTableMountConfig
 
     i64 MaxEdenDataSizeForSplitting;
 
+    TOverloadReactiveBalancingConfig OverloadReactiveBalancing;
+
     bool ValidateRowIndexInChaosReplication;
 
     // COMPAT(ponasenko-rs): Safety switch to be able to revert to pre-fix behaviour
     // if there are too many unexpected conflicts.
     bool CheckConflictHorizon;
 
+    // Quantum of waiting on blocked row for tables with enabled per-row serialization.
+    TDuration PerRowSerializationBlockedRowWaitQuantum;
+
     TTestingTableMountConfig Testing;
+
+    bool TablePullerForceSameClusterQueue;
 
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);
 
@@ -520,6 +571,12 @@ struct THunkStoreWriterOptions
 };
 
 DEFINE_REFCOUNTED_TYPE(THunkStoreWriterOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PatchChunkWriterConfigByMountConfig(
+    const NTableClient::TChunkWriterConfigPtr& chunkWriterConfig,
+    const TTableMountConfigPtr& mountConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

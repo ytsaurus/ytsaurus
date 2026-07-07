@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
+#include "public.h"
 #include "slot.h"
 
 #include <yt/yt/server/node/data_node/public.h>
@@ -12,12 +12,13 @@
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/yt/library/profiling/producer.h>
-
-#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/library/profiling/producer.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -34,12 +35,17 @@ public:
     TSlotLocation(
         TSlotLocationConfigPtr config,
         IBootstrap* bootstrap,
-        const TString& id,
+        const std::string& id,
         IJobDirectoryManagerPtr jobDirectoryManager,
         int slotCount,
         std::function<int(int)> slotIndexToUserId);
 
-    TFuture<void> Initialize();
+    TFuture<void> Initialize(IVolumeManagerPtr volumeManager = nullptr);
+
+    TFuture<void> CreateFakeNonRootVolumes(
+        const IVolumePtr& rootVolume,
+        int slotIndex,
+        const std::vector<TVolumeMountPtr>& volumeMounts);
 
     //! Apply disk quotas.
     TFuture<void> PrepareSandboxDirectories(
@@ -51,25 +57,25 @@ public:
     void TakeIntoAccountTmpfsVolumes(
         int slotIndex,
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeResult>& volumeResults,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
+        const std::vector<TVolumeResultPtr>& volumeResults,
+        const std::vector<TVolumeMountPtr>& volumeMounts);
 
     TFuture<void> MakeSandboxCopy(
         TJobId jobId,
         int slotIndex,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& sourcePath,
+        const std::string& sourcePath,
         const TFile& destinationFile,
         const TCacheLocationPtr& sourceLocation);
 
     TFuture<void> MakeSandboxLink(
         TJobId jobId,
         int slotIndex,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& targetPath,
-        const TString& linkPath,
+        const std::string& targetPath,
+        const std::string& linkPath,
         bool executable);
 
     //! Create file for container bind with proper ownership. We do it since
@@ -78,16 +84,16 @@ public:
     TFuture<void> MakeFileForSandboxBind(
         TJobId jobId,
         int slotIndex,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& targetPath,
-        const TString& bindPath,
+        const std::string& targetPath,
+        const std::string& bindPath,
         bool executable);
 
     TFuture<void> MakeSandboxFile(
         TJobId jobId,
         int slotIndex,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile);
@@ -96,7 +102,9 @@ public:
 
     TFuture<void> CleanSandboxes(int slotIndex);
 
-    TString GetSlotPath(int slotIndex) const;
+    TFuture<void> CleanPortoPlace(int slotIndex);
+
+    std::string GetSlotPath(int slotIndex) const;
 
     TDiskStatistics GetDiskStatistics(int slotIndex) const;
 
@@ -116,17 +124,21 @@ public:
 
     void Disable(const TError& error);
 
+    //! Returns the error that caused this location to be disabled,
+    //! or OK if the location is enabled.
+    TError GetDisableError() const;
+
     void InvokeUpdateDiskResources();
 
-    TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
+    std::string GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
 
     //! nullopt in #destinationPath stands for streaming into the pipe.
     void OnArtifactPreparationFailed(
         TJobId jobId,
         int slotIndex,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const std::optional<TString>& destinationPath,
+        const std::optional<std::string>& destinationPath,
         const TError& error);
 
     //! Cleans the slot directory, initializes the location and enables it.
@@ -138,19 +150,27 @@ public:
 
     TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const;
 
-    TFuture<void> CreateTmpfsDirectoriesInsideSandbox(
-        const TString& userSandboxPath,
-        const std::vector<TTmpfsVolumeParams>& volumeParams,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) const;
-
     TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const;
 
     void ValidateEnabled() const;
+
+    //! Get path to slot location (not to slot location of a particular index).
+    std::string GetPath() const;
+
+    //! Remove volumes from porto place for a specific slot, excluding the given porto mount paths.
+    void RemoveVolumesFromPortoPlace(
+        int slotIndex,
+        const IVolumeManagerPtr& volumeManager,
+        const THashSet<std::string>& preservedVolumePaths = {});
+
+    //! Remove layers from porto place for a specific slot.
+    void RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager);
 
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;
     const TSlotManagerConfigPtr SlotManagerStaticConfig_;
+    TAtomicIntrusivePtr<TSlotManagerDynamicConfig> SlotManagerDynamicConfig_;
     const IJobDirectoryManagerPtr JobDirectoryManager_;
     const int SlotCount_;
 
@@ -174,7 +194,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr DiskResourcesUpdateExecutor_;
     const NConcurrency::TPeriodicExecutorPtr SlotLocationStatisticsUpdateExecutor_;
     //! Absolute path to location.
-    const TString LocationPath_;
+    const std::string LocationPath_;
 
     TAtomicIntrusivePtr<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
@@ -183,15 +203,13 @@ private:
     class TSandboxTmpfsData
     {
     public:
-        bool IsInsideTmpfs(const TString& path, const NLogging::TLogger& Logger) const;
-        void AddSandboxPath(TString&& sandboxPath);
-        void AddTmpfsPath(TString&& tmpfsPath);
+        bool IsInsideTmpfs(const std::string& path, const NLogging::TLogger& Logger) const;
+        void AddSandboxPath(TAbsoluteNormalizedPath&& sandboxPath);
+        void AddVolumeInfo(TAbsoluteNormalizedPath&& volumePath, EVolumeType volumeType);
 
     private:
-        std::optional<TString> TryGetPathRelativeToSandbox(const TString& path) const;
-
-        std::set<TString> SandboxPaths_;
-        std::set<TString> TmpfsPaths_;
+        std::set<TAbsoluteNormalizedPath> SandboxPaths_;
+        std::map<TAbsoluteNormalizedPath, EVolumeType> VolumePathToType_;
     };
 
     THashMap<int, TSandboxTmpfsData> SandboxTmpfsData_;
@@ -211,15 +229,21 @@ private:
 
     NThreading::TAtomicObject<TError> Alert_;
 
-    NProfiling::TBufferedProducerPtr MakeCopyMetricBuffer_ = New<NProfiling::TBufferedProducer>();
+    const NProfiling::TProfiler Profiler_;
 
-    static void ValidateNotExists(const TString& path);
+    const NProfiling::TGauge CopyRate_;
+    const NProfiling::TGauge CopyRateEma_;
 
-    bool IsInsideTmpfs(int slotIndex, const TString& path) const;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CopyRateAggregatorLock_);
+    TAverageAdjustedExponentialMovingAverage CopyRateAggregator_;
 
-    void EnsureNotInUse(const TString& path) const;
+    static void ValidateNotExists(const std::string& path);
 
-    void ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const;
+    bool IsInsideTmpfs(int slotIndex, const std::string& path) const;
+
+    void EnsureNotInUse(const std::string& path) const;
+
+    void ForceSubdirectories(const std::string& filePath, const std::string& sandboxPath) const;
 
     void UpdateDiskResources();
 
@@ -227,19 +251,19 @@ private:
 
     void PopulateAlerts(std::vector<TError>* alerts);
 
-    TString GetConfigPath(int slotIndex) const;
+    std::string GetConfigPath(int slotIndex) const;
 
     //! nullopt in #destinationPath stands for streaming into the pipe.
     TFuture<void> DoMakeSandboxFile(
         TJobId jobId,
         int slotIndex,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
         const TCallback<void()>& callback,
-        const std::optional<TString>& destinationPath,
+        const std::optional<std::string>& destinationPath,
         bool canUseLightInvoker);
 
-    void DoInitialize();
+    void DoInitialize(IVolumeManagerPtr volumeManager);
 
     void DoRepair();
 
@@ -247,7 +271,7 @@ private:
         int slotIndex,
         TUserSandboxOptions options,
         bool ignoreQuota,
-        bool sandboxInsideTmpfs);
+        bool sandboxInsideNonRootVolume);
 
     void BuildSlotRootDirectory(int slotIndex);
 

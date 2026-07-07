@@ -25,12 +25,6 @@ DECLARE_REFCOUNTED_CLASS(TPoolTreeSnapshotStateImpl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): Choose better name for classic policy.
-DEFINE_ENUM(EPolicyKind,
-    (Classic)
-    (Gpu)
-);
-
 DEFINE_ENUM(EAllocationPreemptionStatus,
     (NonPreemptible)
     (AggressivelyPreemptible)
@@ -73,6 +67,14 @@ DEFINE_ENUM(EAllocationPreemptionReason,
     (OperationBoundToOtherModule)
     (NodeUnschedulable)
     (OperationUnregistered)
+    (UnexpectedAllocation)
+);
+
+DEFINE_ENUM(EAllocationUpdateStatus,
+    (Updated)
+    (Disabled)
+    (Unexpected)
+    (Preempted)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

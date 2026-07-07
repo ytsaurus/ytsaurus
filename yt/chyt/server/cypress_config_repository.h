@@ -4,6 +4,12 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/core/actions/public.h>
+
+#include <yt/yt/core/concurrency/public.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+
 #include <Interpreters/IExternalLoaderConfigRepository.h>
 
 #include <Interpreters/StorageID.h>
@@ -15,10 +21,21 @@ namespace NYT::NClickHouseServer {
 class TCypressDictionaryConfigRepository
     : public TRefCounted
 {
+private:
+    struct TDictionaryConfigSnapshot;
+    using TDictionaryConfigSnapshotPtr = std::shared_ptr<TDictionaryConfigSnapshot>;
+
 public:
     static const std::string CypressConfigRepositoryName;
 
-    TCypressDictionaryConfigRepository(NApi::NNative::IClientPtr client, TDictionaryRepositoryConfigPtr config);
+    TCypressDictionaryConfigRepository(
+        NApi::NNative::IClientPtr client,
+        TDictionaryRepositoryConfigPtr config,
+        IInvokerPtr invoker);
+
+    void Start();
+
+    void RefreshSnapshot();
 
     std::set<std::string> GetAllDictionaryNames();
     bool DictionaryExists(const std::string& dictionaryName);
@@ -28,7 +45,7 @@ public:
 
     void WriteDictionary(
         const DB::ContextPtr& context,
-        const std::string& name,
+        const DB::StorageID& storageId,
         const DB::LoadablesConfigurationPtr& config);
     void DeleteDictionary(
         const DB::ContextPtr& context,
@@ -37,6 +54,14 @@ public:
 private:
     const NApi::NNative::IClientPtr Client_;
     const NYPath::TYPath RootPath_;
+
+    NConcurrency::TPeriodicExecutorPtr SnapshotExecutor_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SnapshotLock_);
+    TDictionaryConfigSnapshotPtr Snapshot_;
+
+    TDictionaryConfigSnapshotPtr GetSnapshot();
+    TDictionaryConfigSnapshotPtr BuildSnapshot();
 
     NYPath::TYPath GetPathToConfig(const std::string& dictionaryName) const;
 };

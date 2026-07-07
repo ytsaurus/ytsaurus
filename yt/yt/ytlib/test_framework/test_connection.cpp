@@ -31,8 +31,11 @@ TTestConnection::TTestConnection(
     , NodeMemoryTracker_(std::move(nodeMemoryTracker))
     , NodeDirectory_(std::move(nodeDirectory))
     , NodeStatusDirectory_(std::move(nodeStatusDirectory))
+    , NodeDirectorySynchronizer_(CreateNodeDirectorySynchronizer(MakeStrong(this), NodeDirectory_))
     , SchedulerChannel_(ChannelFactory_->CreateChannel("scheduler"))
     , BundleControllerChannel_(ChannelFactory_->CreateChannel("bundle_controller_channel"))
+    , TabletBalancerChannel_(ChannelFactory_->CreateChannel("tablet_balancer_channel"))
+    , CypressProxyChannel_(ChannelFactory_->CreateChannel("cypress_proxy_channel"))
     , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
 { }
 
@@ -86,6 +89,11 @@ const NNodeTrackerClient::INodeStatusDirectoryPtr& TTestConnection::GetNodeStatu
     return NodeStatusDirectory_;
 }
 
+const NNodeTrackerClient::INodeDirectorySynchronizerPtr& TTestConnection::GetNodeDirectorySynchronizer()
+{
+    return NodeDirectorySynchronizer_;
+}
+
 NRpc::IChannelPtr TTestConnection::FindMasterChannel(
     NApi::EMasterChannelKind kind,
     NObjectClient::TCellTag cellTag)
@@ -122,6 +130,16 @@ const NRpc::IChannelPtr& TTestConnection::GetSchedulerChannel()
 const NRpc::IChannelPtr& TTestConnection::GetBundleControllerChannel()
 {
     return BundleControllerChannel_;
+}
+
+const NRpc::IChannelPtr& TTestConnection::GetTabletBalancerChannel()
+{
+    return TabletBalancerChannel_;
+}
+
+const NRpc::IChannelPtr& TTestConnection::GetCypressProxyChannel()
+{
+    return CypressProxyChannel_;
 }
 
 const NTransactionClient::IClockManagerPtr& TTestConnection::GetClockManager()

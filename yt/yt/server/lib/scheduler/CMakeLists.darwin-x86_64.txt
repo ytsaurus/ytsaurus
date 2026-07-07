@@ -36,6 +36,7 @@ target_compile_options(server-lib-scheduler PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(server-lib-scheduler PUBLIC
@@ -47,6 +48,7 @@ target_link_libraries(server-lib-scheduler PUBLIC
   yutil
   library-query-heavy
   yt-yt-ytlib
+  server-lib-job_agent
   server-lib-node_tracker_server
   yt_proto-yt-client
   contrib-libs-protobuf

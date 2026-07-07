@@ -1,7 +1,6 @@
 #pragma once
 
 #include "private.h"
-#include "engine.h"
 
 #include <yt/yt/client/api/client.h>
 
@@ -21,14 +20,17 @@ public:
         NApi::IClientPtr stateClient,
         NYPath::TYPath stateRoot,
         TQueryTrackerProxyConfigPtr config,
+        std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders,
         int expectedTablesVersion);
 
-    void Reconfigure(const TQueryTrackerProxyConfigPtr& config, const TDuration notIndexedQueriesTTL);
+    void Reconfigure(
+        const TQueryTrackerProxyConfigPtr& config,
+        const TDuration notIndexedQueriesTTL);
 
     void StartQuery(
         const TQueryId queryId,
         const EQueryEngine engine,
-        const TString& query,
+        const std::string& query,
         const NApi::TStartQueryOptions& options,
         const std::string& user);
 
@@ -72,8 +74,8 @@ private:
     const NApi::IClientPtr StateClient_;
     const NYPath::TYPath StateRoot_;
     TQueryTrackerProxyConfigPtr ProxyConfig_;
-    const int ExpectedTablesVersion_;
     std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> EngineProviders_;
+    const int ExpectedTablesVersion_;
     ISearchIndexPtr TimeBasedIndex_;
     ISearchIndexPtr TokenBasedIndex_;
     TDuration NotIndexedQueriesTTL_;
@@ -87,6 +89,7 @@ TQueryTrackerProxyPtr CreateQueryTrackerProxy(
     NApi::IClientPtr stateClient,
     NYPath::TYPath stateRoot,
     TQueryTrackerProxyConfigPtr config,
+    std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders,
     int expectedTablesVersion);
 
 ////////////////////////////////////////////////////////////////////////////////

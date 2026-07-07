@@ -5,9 +5,6 @@
 #include "job_controller.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/exec_node/config.h>
-#include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
-
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
@@ -15,8 +12,13 @@
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 #include <yt/yt/server/node/job_agent/public.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
+
 #include <yt/yt/server/lib/job_proxy/config.h>
 #include <yt/yt/server/lib/job_proxy/public.h>
+
+#include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/ytlib/controller_agent/public.h>
 
@@ -35,6 +37,7 @@
 #include <yt/yt/client/signature/validator.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
@@ -53,6 +56,23 @@ using NChunkClient::NProto::TDataStatistics;
 using namespace NScheduler;
 using namespace NSignature;
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+i64 CalculateProfilesSize(const auto& profiles)
+{
+    return std::accumulate(
+        profiles.begin(),
+        profiles.end(),
+        0l,
+        [] (auto acc, const auto& profile) {
+            return acc + profile.blob().size();
+        });
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,13 +271,18 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto result = std::move(*request->mutable_result());
         auto error = FromProto<TError>(result.error());
-        context->SetRequestInfo("JobId: %v, Error: %v, ResultSize: %v, HasStatistics: %v, HasStderr: %v, HasFailedContext: %v",
+        const auto& profiles = request->profiles();
+        context->SetRequestInfo(
+            "JobId: %v, Error: %v, ResultSize: %v, HasStatistics: %v, HasStderr: %v, HasFailedContext: %v, "
+            "ProfileCount: %v, ProfilesTotalSize: %v",
             jobId,
             error,
             result.ByteSizeLong(),
             request->has_statistics(),
             request->has_job_stderr(),
-            request->has_fail_context());
+            request->has_fail_context(),
+            profiles.size(),
+            CalculateProfilesSize(profiles));
 
         auto job = GetSchedulerJobOrThrow(jobId);
 
@@ -267,17 +292,17 @@ private:
             job->SetStatistics(ysonStatistics);
 
             // NB(bystrovserg): Always report statistics when job is finished.
-            jobReport.SetStatistics(job->GetStatistics());
+            jobReport.Statistics(job->GetStatistics());
         }
 
         job->SetTotalInputDataStatistics(request->total_input_data_statistics());
         job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
         // COMPAT(ignat): migrate to new fields (node_start_time, node_finish_time)
         if (request->has_start_time()) {
-            jobReport.SetStartTime(FromProto<TInstant>(request->start_time()));
+            jobReport.StartTime(FromProto<TInstant>(request->start_time()));
         }
         if (request->has_finish_time()) {
-            jobReport.SetFinishTime(FromProto<TInstant>(request->finish_time()));
+            jobReport.FinishTime(FromProto<TInstant>(request->finish_time()));
         }
         job->SetCoreInfos(FromProto<NControllerAgent::TCoreInfos>(request->core_infos()));
         job->HandleJobReport(std::move(jobReport));
@@ -290,8 +315,8 @@ private:
             job->SetFailContext(request->fail_context());
         }
 
-        for (const auto& profile : request->profiles()) {
-            job->AddProfile({profile.type(), profile.blob(), profile.profiling_probability()});
+        for (const auto& profile : profiles) {
+            job->AddProfile(FromProto<TJobProfile>(profile));
         }
 
         job->OnResultReceived(std::move(result));
@@ -322,14 +347,19 @@ private:
         auto statistics = TYsonString(request->statistics());
         auto stderrSize = request->stderr_size();
         auto hasJobTrace = request->has_job_trace();
+        const auto& profiles = request->profiles();
 
-        context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v, StderrSize: %v, HasJobTrace: %v, HeartbeatEpoch: %v",
+        context->SetRequestInfo(
+            "JobId: %v, Progress: %lf, Statistics: %v, StderrSize: %v, HasJobTrace: %v, HeartbeatEpoch: %v, "
+            "ProfileCount: %v, ProfilesTotalSize: %v",
             jobId,
             progress,
             NYson::ConvertToYsonString(statistics, EYsonFormat::Text).AsStringBuf(),
             stderrSize,
             hasJobTrace,
-            request->epoch());
+            request->epoch(),
+            profiles.size(),
+            CalculateProfilesSize(profiles));
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -352,6 +382,10 @@ private:
                 job->SetLastProgressSaveTime(FromProto<TInstant>(request->last_progress_save_time()));
             }
             job->TryReportStatistics();
+
+            for (const auto& profile : profiles) {
+                job->AddProfile(FromProto<TJobProfile>(profile));
+            }
         }
 
         context->Reply();

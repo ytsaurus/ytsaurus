@@ -26,12 +26,14 @@ target_compile_options(yt-server-rpc_proxy PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-server-rpc_proxy PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-core-https
   ytserver
   server-lib-chunk_pools
   server-lib-cypress_registrar

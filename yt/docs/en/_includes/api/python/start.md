@@ -96,6 +96,8 @@ We do not recommend installing the library and its dependent packages in differe
    - [Preparing an operation from a job](../../../api/python/userdoc.md#prepare_operation)
    - [Decorators](../../../api/python/userdoc.md#python_decorators)
    - [Pickling functions and environments](../../../api/python/userdoc.md#pickling)
+      - [Running Python workloads in open-source environments](../../../api/python/userdoc.md#python_open_source_environment)
+      - [Running the local script inside Docker with `respawn_in_docker`](../../../api/python/userdoc.md#respawn_in_docker)
       - [General structure](../../../api/python/userdoc.md#pickling_description)
       - [Link to a post with tips](../../../api/python/userdoc.md#pickling_advises)
    - [Porto layers](../../../api/python/userdoc.md#porto_layers)

@@ -1,13 +1,13 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_commands import (
-    authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows,
+    authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows, mount_table,
     lookup_rows, delete_rows, remount_table, build_master_snapshots, get_tablet_leader_address, concatenate,
     write_table, alter_table, read_table, map, merge, sync_reshard_table, sync_create_cells, get_operation,
-    sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect, pull_queue,
+    sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect, pull_queue, sort,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks, remote_copy,
-    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, move,
-    get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user)
+    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, move, get_tablet_infos,
+    get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user, wait_for_tablet_state)
 
 from yt_type_helpers import make_schema
 
@@ -45,7 +45,6 @@ HUNK_COMPATIBLE_CHUNK_FORMATS = [
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 7
@@ -85,7 +84,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                       hunk_erasure_codec="none",
                       schema=SCHEMA,
                       dynamic=True,
-                      enable_dynamic_store_read=False):
+                      enable_dynamic_store_read=False,
+                      replication_factor=3):
         create_table_function = self._create_simple_table if dynamic else self._create_simple_static_table
         schema = self._get_table_schema(schema, max_inline_hunk_size)
         if not dynamic:
@@ -114,7 +114,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             max_hunk_compaction_garbage_ratio=0.5,
             enable_lsm_verbose_logging=True,
             chunk_format=chunk_format,
-            hunk_erasure_codec=hunk_erasure_codec)
+            hunk_erasure_codec=hunk_erasure_codec,
+            replication_factor=replication_factor)
 
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
@@ -384,7 +385,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._set_ban_for_chunk_parts([0, 1, 4], False, hunk_chunk_id)
 
         self._set_ban_for_chunk_parts([0, 1, 2, 4], True, hunk_chunk_id)
-        with pytest.raises(YtError):
+        with raises_yt_error("Chunk fragment reader has exceeded retry count limit"):
             lookup_rows("//tmp/t", keys)
         self._set_ban_for_chunk_parts([0, 1, 2, 4], False, hunk_chunk_id)
 
@@ -395,7 +396,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._separate_tablet_and_data_nodes()
 
         sync_create_cells(1)[0]
-        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_6_3")
+        # Store chunks are not erasure-coded, so bump their RF to survive banning three data nodes below.
+        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_6_3", replication_factor=4)
         if chunk_format == "table_versioned_indexed":
             self._enable_hash_chunk_index("//tmp/t")
 
@@ -888,15 +890,15 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         compressed_size = get("#{}/@compressed_data_size".format(store_chunk_id))
         uncompressed_size = get("#{}/@uncompressed_data_size".format(store_chunk_id))
-        hunk_compressed_size = get("#{}/@compressed_data_size".format(hunk_chunk_id))
+        # NB: Uncompressed data size here means referenced data size, which is reflected in tablet statistics.
         hunk_uncompressed_size = get("#{}/@uncompressed_data_size".format(hunk_chunk_id))
 
         def _validate_tablet_statistics():
             tablet_statistics = get("//tmp/t/@tablet_statistics")
             return \
-                tablet_statistics["compressed_data_size"] == compressed_size + hunk_compressed_size and \
+                tablet_statistics["compressed_data_size"] == compressed_size + hunk_uncompressed_size and \
                 tablet_statistics["uncompressed_data_size"] == uncompressed_size + hunk_uncompressed_size and \
-                tablet_statistics["hunk_compressed_data_size"] == hunk_compressed_size and \
+                tablet_statistics["hunk_compressed_data_size"] == hunk_uncompressed_size and \
                 tablet_statistics["hunk_uncompressed_data_size"] == hunk_uncompressed_size
         wait(_validate_tablet_statistics)
 
@@ -1056,7 +1058,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     @authors("babenko")
     def test_alter_must_preserve_hunks(self):
         self._create_table()
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table("//tmp/t", schema=self._get_table_schema(schema=self.SCHEMA, max_inline_hunk_size=None))
 
     @authors("akozhikhov")
@@ -1366,7 +1368,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     def test_hunk_erasure_codec_cannot_be_set_for_nontable(self):
         create("file", "//tmp/f")
         assert not exists("//tmp/f/@hunk_erasure_codec")
-        with pytest.raises(YtError):
+        with raises_yt_error("Hunk erasure codec can only be set for tables"):
             set("//tmp/f/@hunk_erasure_codec", "isa_lrc_12_2_2")
 
     @authors("babenko", "gritukan")
@@ -1424,6 +1426,38 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         wait(lambda: request_counter.get_delta() > 0)
 
+    @authors("akozhikhov")
+    def test_hedging_manager_erasure(self):
+        sync_create_cells(1)
+        self._create_table(hunk_erasure_codec="isa_reed_solomon_6_3")
+        set("//tmp/t/@hunk_chunk_reader/hedging_manager", {
+            "max_token_count": 6,
+            "max_hedging_delay": 0,
+            "secondary_request_ratio": 0.5})
+
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(2)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(2)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hunks/hedging_manager/primary_request_count")
+        secondary_request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hunks/hedging_manager/secondary_request_count")
+
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        time.sleep(1)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        time.sleep(1)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+        wait(lambda: request_counter.get_delta() == 3)
+        assert secondary_request_counter.get_delta() == 1
+
     BLOB_HUNK_PAYLOAD = [
         {"payload": b"abcdefghijklmnopqrstuvwxyz"}
     ]
@@ -1477,7 +1511,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         ]
         self._prepare_hunk_read_requests(requests, erasure_codec, self.BLOB_HUNK_PAYLOAD)
         for request in requests:
-            with pytest.raises(YtError):
+            with raises_yt_error(code=yt_error_codes.MalformedReadRequest):
                 read_hunks([request], parse_header=False)
 
     JOURNAL_HUNK_PAYLOAD = [
@@ -1533,7 +1567,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         ]
         self._prepare_hunk_read_requests(requests, erasure_codec, self.JOURNAL_HUNK_PAYLOAD)
         for request in requests:
-            with pytest.raises(YtError):
+            with raises_yt_error("Fragment|fragment|Journal chunk record is missing"):
                 read_hunks([request], parse_header=False)
 
     @authors("akozhikhov")
@@ -1662,10 +1696,279 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         assert read_table("//tmp/t") == rows
+
+    @authors("akozhikhov")
+    def test_hedging_manager_select_sensors(self):
+        sync_create_cells(1)
+        self._create_table()
+        set("//tmp/t/@chunk_reader", {"hedging_manager": {"secondary_request_ratio": 0.5}})
+        set("//tmp/t/@chunk_reader/prefer_local_replicas", False)
+        set("//tmp/t/@hunk_chunk_reader/hedging_manager", {"secondary_request_ratio": 0.5})
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hedging_manager/primary_request_count")
+        hunks_request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hunks/hedging_manager/primary_request_count")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        time.sleep(1)
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        wait(lambda: request_counter.get_delta() > 0)
+        wait(lambda: hunks_request_counter.get_delta() > 0)
+
+    @authors("akozhikhov")
+    def test_hunk_statistics_1(self):
+        sync_create_cells(1)
+        self._create_table(hunk_erasure_codec="isa_reed_solomon_6_3")
+        sync_reshard_table("//tmp/t", [[], [10]])
+
+        set("//tmp/t/@min_data_ttl", 0)
+        set("//tmp/t/@min_data_versions", 0)
+        set("//tmp/t/@min_partitioning_store_count", 100)
+        set("//tmp/t/@max_partitioning_store_count", 200)
+        set("//tmp/t/@min_compaction_store_count", 100)
+        set("//tmp/t/@max_compaction_store_count", 200)
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t",
+                    [{"key": 0, "value": "x" * 100}, {"key": 1, "value": "x" * 110}, {"key": 20, "value": "x" * 110}])
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t",
+                    [{"key": 0, "value": "x" * 1}, {"key": 2, "value": "x" * 140}])
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t",
+                    [{"key": 20, "value": "x" * 150}])
+        sync_flush_table("//tmp/t")
+
+        delete_rows("//tmp/t", [{"key": 1}])
+        sync_flush_table("//tmp/t")
+
+        set("//tmp/t/@forced_store_compaction_revision", 1)
+        remount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+        wait(lambda: get("//tmp/t/@chunk_row_count") == 4)
+
+        insert_rows("//tmp/t",
+                    [{"key": 2, "value": "x" * 120}, {"key": 21, "value": "x" * 5}, {"key": 22, "value": "x" * 130}])
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 20}, {"key": 21}, {"key": 22}]) == [
+            {"key": 0, "value": "x" * 1}, {"key": 2, "value": "x" * 120},
+            {"key": 20, "value": "x" * 150}, {"key": 21, "value": "x" * 5}, {"key": 22, "value": "x" * 130},
+        ]
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
+        assert get(f"#{root_chunk_list_id}/@kind") == "sorted_dynamic_root"
+        assert get(f"#{hunk_root_chunk_list_id}/@kind") == "hunk_root"
+
+        tablet_chunk_list_ids = get(f"#{root_chunk_list_id}/@child_ids")
+        assert len(tablet_chunk_list_ids) == 2
+        hunk_tablet_chunk_list_ids = get(f"#{hunk_root_chunk_list_id}/@child_ids")
+        assert len(hunk_tablet_chunk_list_ids) == 2
+
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["row_count"] == 7
+        assert statistics["uncompressed_data_size"] == 508
+        assert statistics["data_weight"] == 202
+        assert statistics["regular_disk_space"] > 2000
+        assert statistics["regular_disk_space"] < 3000
+        assert statistics["hunk_data_weight"] == 650
+        assert statistics["hunk_data_size"] == 690
+        assert statistics["hunk_regular_disk_space"] == 0
+        assert statistics["hunk_erasure_disk_space"] == 1035
+        assert statistics["chunk_count"] == 5
+        statistics = get(f"#{tablet_chunk_list_ids[0]}/@statistics")
+        assert statistics["row_count"] == 3
+        assert statistics["chunk_count"] == 2
+        statistics = get(f"#{tablet_chunk_list_ids[1]}/@statistics")
+        assert statistics["row_count"] == 4
+        assert statistics["chunk_count"] == 3
+
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["referenced_regular_disk_space"] == 0
+        assert statistics["referenced_erasure_disk_space"] == 1035
+        assert statistics["regular_disk_space"] == 0
+        assert statistics["erasure_disk_space"] == 17705
+        assert statistics["chunk_count"] == 5
+        statistics = get(f"#{hunk_tablet_chunk_list_ids[0]}/@statistics")
+        assert statistics["referenced_erasure_disk_space"] == 414
+        assert statistics["erasure_disk_space"] == 7120
+        assert statistics["chunk_count"] == 2
+        statistics = get(f"#{hunk_tablet_chunk_list_ids[1]}/@statistics")
+        assert statistics["referenced_erasure_disk_space"] == 621
+        assert statistics["erasure_disk_space"] == 10585
+        assert statistics["chunk_count"] == 3
+
+        cumulative_statistics = get(f"#{root_chunk_list_id}/@cumulative_statistics")
+        assert cumulative_statistics[-1]["row_count"] == 7
+        assert cumulative_statistics[-1]["chunk_count"] == 5
+        assert cumulative_statistics[-1]["data_size"] == 508
+        cumulative_statistics = get(f"#{tablet_chunk_list_ids[0]}/@cumulative_statistics")
+        assert cumulative_statistics[-1]["data_size"] == 213
+        cumulative_statistics = get(f"#{tablet_chunk_list_ids[1]}/@cumulative_statistics")
+        assert cumulative_statistics[-1]["data_size"] == 295
+        cumulative_statistics = get(f"#{hunk_root_chunk_list_id}/@cumulative_statistics")
+        assert len(cumulative_statistics) == 3
+        assert cumulative_statistics[-1]["chunk_count"] == 5
+        assert cumulative_statistics[-1]["row_count"] == 0
+        assert cumulative_statistics[-1]["data_size"] == 0
+        cumulative_statistics = get(f"#{hunk_tablet_chunk_list_ids[0]}/@cumulative_statistics")
+        assert len(cumulative_statistics) == 3
+        assert cumulative_statistics[-1]["chunk_count"] == 2
+        cumulative_statistics = get(f"#{hunk_tablet_chunk_list_ids[1]}/@cumulative_statistics")
+        assert len(cumulative_statistics) == 4
+        assert cumulative_statistics[-1]["chunk_count"] == 3
+
+        chunk_format_statistics = get("//tmp/t/@chunk_format_statistics")
+        assert chunk_format_statistics["hunk_default"]["chunk_count"] == 5
+        assert chunk_format_statistics["hunk_default"]["referenced_hunk_disk_space"] == 1035
+        assert chunk_format_statistics["hunk_default"]["hunk_disk_space"] == 17705
+        assert chunk_format_statistics["hunk_default"]["data_weight"] == 0
+        assert chunk_format_statistics["table_versioned_simple"]["chunk_count"] == 5
+        assert chunk_format_statistics["table_versioned_simple"]["uncompressed_data_size"] == 508
+        assert chunk_format_statistics["table_versioned_simple"]["data_weight"] == 202
+        assert chunk_format_statistics["table_versioned_simple"]["hunk_data_size"] == 690
+        assert chunk_format_statistics["table_versioned_simple"]["hunk_data_weight"] == 650
+
+        table_chunk_format_statistics = get("//tmp/t/@chunk_format_statistics")
+        assert table_chunk_format_statistics["table_versioned_simple"]["chunk_count"] == 5
+
+        assert get("//tmp/t/@chunk_row_count") == 7
+        assert get("//tmp/t/@unmerged_row_count") == 7
+        assert get("//tmp/t/@chunk_count") == 10
+        assert get("//tmp/t/@uncompressed_data_size") == 1198
+        assert get("//tmp/t/@data_weight") == 852
+
+        erasure_statistics = get("//tmp/t/@erasure_statistics")
+        assert erasure_statistics["none"]["chunk_count"] == 5
+        assert erasure_statistics["none"]["data_weight"] == 202
+        assert erasure_statistics["isa_reed_solomon_6_3"]["chunk_count"] == 5
+        assert erasure_statistics["isa_reed_solomon_6_3"]["data_weight"] == 0
+
+        compression_statistics = get("//tmp/t/@compression_statistics")
+        assert compression_statistics["none"]["chunk_count"] == 5
+        assert compression_statistics["none"]["data_weight"] == 0
+        assert compression_statistics["lz4"]["chunk_count"] == 5
+        assert compression_statistics["lz4"]["data_weight"] == 202
+
+        chunk_media_statistics = get("//tmp/t/@chunk_media_statistics")
+        assert chunk_media_statistics["default"]["chunk_count"] == 10
+        assert chunk_media_statistics["default"]["data_weight"] == 202
+        assert chunk_media_statistics["default"]["hunk_data_size"] == 690
+
+        tablet_statistics = get("//tmp/t/@tablet_statistics")
+        assert tablet_statistics["chunk_count"] == 10
+        assert tablet_statistics["store_count"] == 7
+        assert tablet_statistics["tablet_count"] == 2
+        assert tablet_statistics["uncompressed_data_size"] == 1198
+        assert tablet_statistics["hunk_uncompressed_data_size"] == 690
+        assert tablet_statistics["unmerged_row_count"] == 7
+        assert tablet_statistics["disk_space"] > 8000
+        assert tablet_statistics["disk_space"] < 9000
+
+        tablet_statistics = get("//tmp/t/@tablets/0/statistics")
+        assert tablet_statistics["chunk_count"] == 4
+        assert tablet_statistics["uncompressed_data_size"] == 489
+        assert tablet_statistics["hunk_uncompressed_data_size"] == 276
+        tablet_statistics = get("//tmp/t/@tablets/1/statistics")
+        assert tablet_statistics["chunk_count"] == 6
+        assert tablet_statistics["uncompressed_data_size"] == 709
+        assert tablet_statistics["hunk_uncompressed_data_size"] == 414
+
+        resource_usage = get("//tmp/t/@resource_usage")
+        assert resource_usage["chunk_count"] == 10
+        assert resource_usage["disk_space"] > 25000
+        assert resource_usage["disk_space"] < 26000
+
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["hunk_chunk_count"] == 5
+        assert hunk_statistics["store_chunk_count"] == 5
+        assert hunk_statistics["total_referenced_hunk_length"] == 650
+        assert hunk_statistics["referenced_hunk_count"] == 5
+        assert hunk_statistics["garbage_disk_space"] > 0
+
+        delta_statistics = get("//tmp/t/@delta_statistics")
+        assert delta_statistics["chunk_count"] == 0
+        snapshot_statistics = get("//tmp/t/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 10
+        assert snapshot_statistics["data_weight"] == 852
+        assert snapshot_statistics["uncompressed_data_size"] == 1198
+
+    @authors("akozhikhov")
+    def test_hunk_statistics_2(self):
+        sync_create_cells(1)
+        self._create_table()
+        set("//tmp/t/@erasure_codec", "isa_reed_solomon_6_3")
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t",
+                    [{"key": 0, "value": "x" * 100}, {"key": 1, "value": "x" * 110}, {"key": 20, "value": "x" * 110}])
+
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [10]])
+        sync_mount_table("//tmp/t")
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
+
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["row_count"] == 6
+        assert statistics["chunk_count"] == 2
+        assert statistics["hunk_data_weight"] == 640
+        assert statistics["hunk_data_size"] == 688
+        assert statistics["hunk_erasure_disk_space"] == 0
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 1
+        assert statistics["referenced_regular_disk_space"] == 344
+
+        set("//tmp/t/@forced_compaction_revision", 1)
+        remount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@chunk_row_count") == 3)
+        wait(lambda: get("//tmp/t/@chunk_count") == 4)
+
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["row_count"] == 3
+        assert statistics["chunk_count"] == 2
+        assert statistics["hunk_data_weight"] == 320
+        assert statistics["hunk_data_size"] == 344
+        assert statistics["hunk_erasure_disk_space"] == 0
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 2
+        assert statistics["referenced_regular_disk_space"] == 344
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_hunk_statistics_chunk_statistics(self, hunk_erasure_codec):
+        sync_create_cells(1)
+        self._create_table(hunk_erasure_codec=hunk_erasure_codec)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+        assert get("#{}/@compressed_data_size".format(hunk_chunk_id)) == 340
+        assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 340
+        assert get("#{}/@data_weight".format(hunk_chunk_id)) == 260
 
 
 ################################################################################
@@ -1821,6 +2124,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
+        remove("//tmp/t/@hunk_storage_id")
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(store_chunk_id)))
 
@@ -1882,7 +2186,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/h/@store_rotation_period", 500)
         wait(lambda: get("#{}/@owning_nodes".format(hunk_store_id)) == ["//tmp/t"])
 
-        remove("//tmp/t")
+        remove("//tmp/t", force=True)
         wait(lambda: not exists("#{}".format(store_chunk_id)))
 
     @authors("akozhikhov")
@@ -1984,8 +2288,57 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
-        remove("//tmp/t")
+        remove("//tmp/t", force=True)
         wait(lambda: not exists("#{}".format(store_chunk_id)))
+
+    @authors("akozhikhov")
+    def test_journal_hunk_chunks_survive_restart(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "store_removal_grace_period": 100,
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+
+        sync_mount_table("//tmp/t")
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows1)
+
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        hunk_chunk_ids = [chunk_id for chunk_id in get("//tmp/t/@chunk_ids") if chunk_id != store_chunk_id]
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+
+        def _check_fully_sealed():
+            if not get("#{}/@sealed".format(hunk_chunk_id)):
+                return False
+            hunk_chunk_stored_replicas = get("#{}/@stored_replicas".format(hunk_chunk_id))
+            assert len(hunk_chunk_stored_replicas) == 3
+            if not all(r.attributes["state"] == "sealed" for r in hunk_chunk_stored_replicas):
+                return False
+            return True
+
+        wait(lambda: _check_fully_sealed())
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10, 20)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows2)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: get("//sys/tablet_cell_bundles/default/@health") != "good")
+
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health") == "good")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2)
 
     @authors("akozhikhov")
     def test_read_from_erasure_hunk_storage_with_repair(self):
@@ -2025,7 +2378,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._set_ban_for_chunk_parts([0, 1, 4], False, hunk_store_id)
 
         self._set_ban_for_chunk_parts([0, 1, 2, 4], True, hunk_store_id)
-        with raises_yt_error("exceeded retry count limit"):
+        with raises_yt_error("Chunk fragment reader has exceeded retry count limit"):
             assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         self._set_ban_for_chunk_parts([0, 1, 2, 4], False, hunk_store_id)
 
@@ -2083,32 +2436,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
             time.sleep(5)
             assert not _check_all_replicas_ok()
-            with raises_yt_error("exceeded retry count limit"):
+            with raises_yt_error("Chunk fragment reader has exceeded retry count limit"):
                 assert_items_equal(select_rows("* from [//tmp/t]"), rows)
-
-    @authors("akozhikhov")
-    def test_remove_cell_with_attached_hunk_storage(self):
-        cell_id = sync_create_cells(1)[0]
-
-        create("hunk_storage", "//tmp/h", attributes={
-            "scan_backoff_period": 1000,
-        })
-
-        sync_mount_table("//tmp/h")
-
-        assert get("//tmp/h/@tablet_state") == "mounted"
-        assert get("#{}/@tablet_count".format(cell_id)) == 1
-        assert len(get("#{}/@tablet_ids".format(cell_id))) == 1
-
-        assert get("#{}/@total_statistics/tablet_count".format(cell_id)) == 1
-
-        remove("#{}".format(cell_id))
-        time.sleep(5)
-
-        assert exists("#{}".format(cell_id))
-
-        sync_unmount_table("//tmp/h")
-        wait(lambda: not exists("#{}".format(cell_id)))
 
     @authors("akozhikhov")
     def test_altering_queue_to_static_is_forbidden(self):
@@ -2159,21 +2488,15 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         sync_unmount_table("//tmp/h")
 
-        def _get_chunk_ids():
-            chunk_ids = get("//tmp/t/@chunk_ids")
-            store_chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
-            hunk_chunk_ids = builtins.set([chunk_id for chunk_id in chunk_ids if chunk_id not in store_chunk_ids])
-            return store_chunk_ids, hunk_chunk_ids
-
-        store_chunk_ids, hunk_chunk_ids = _get_chunk_ids()
+        store_chunk_ids, hunk_chunk_ids = self._get_chunk_ids()
 
         sync_reshard_table("//tmp/t", 3)
-        new_store_chunk_ids, new_hunk_chunk_ids = _get_chunk_ids()
+        new_store_chunk_ids, new_hunk_chunk_ids = self._get_chunk_ids()
         assert store_chunk_ids == new_store_chunk_ids
         assert hunk_chunk_ids == new_hunk_chunk_ids
 
         sync_reshard_table("//tmp/t", 2, first_tablet_index=1, last_tablet_index=1)
-        new_store_chunk_ids, new_hunk_chunk_ids = _get_chunk_ids()
+        new_store_chunk_ids, new_hunk_chunk_ids = self._get_chunk_ids()
         assert store_chunk_ids == new_store_chunk_ids
         assert hunk_chunk_ids == new_hunk_chunk_ids
 
@@ -2207,6 +2530,29 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
+
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["hunk_data_weight"] == 189
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["referenced_regular_disk_space"] == 261
+        assert statistics["chunk_count"] == 2
+
+        hunk_tablet_chunk_list_ids = get(f"#{hunk_root_chunk_list_id}/@child_ids")
+        assert len(hunk_tablet_chunk_list_ids) == 4
+
+        assert get(f"#{hunk_tablet_chunk_list_ids[0]}/@statistics/chunk_count") == 2
+        assert get(f"#{hunk_tablet_chunk_list_ids[1]}/@statistics/chunk_count") == 2
+        assert get(f"#{hunk_tablet_chunk_list_ids[2]}/@statistics/chunk_count") == 1
+        assert get(f"#{hunk_tablet_chunk_list_ids[3]}/@statistics/chunk_count") == 2
+
+        assert get(f"#{hunk_tablet_chunk_list_ids[0]}/@statistics/referenced_regular_disk_space") == 261
+        assert get(f"#{hunk_tablet_chunk_list_ids[1]}/@statistics/referenced_regular_disk_space") == 261
+        assert get(f"#{hunk_tablet_chunk_list_ids[2]}/@statistics/referenced_regular_disk_space") == 116
+        assert get(f"#{hunk_tablet_chunk_list_ids[3]}/@statistics/referenced_regular_disk_space") == 261
 
     @authors("akozhikhov", "shakurov")
     def test_hunk_storage_force_unmount(self):
@@ -2357,7 +2703,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
     @authors("akozhikhov")
     def test_seal_after_queue_copy(self):
         sync_create_cells(1)
-        self._create_table(path="//tmp/t")
+        self._create_table()
         hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
             "scan_backoff_period": 1000,
         })
@@ -2396,7 +2742,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
     @authors("akozhikhov")
     def test_seal_after_queue_branch(self):
         sync_create_cells(1)
-        self._create_table(path="//tmp/t")
+        self._create_table()
+        sync_reshard_table("//tmp/t", 3)
         hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
             "scan_backoff_period": 1000,
         })
@@ -2405,18 +2752,18 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/h")
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        rows = [{"$tablet_index": i, "key": 0, "value": "a" * 100} for i in range(3)]
+        rows += [{"$tablet_index": random.randint(0, 2), "key": 0, "value": "a" * 100} for i in range(10)]
         self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
 
         store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
-        assert len(store_chunk_ids) == 1
-        store_chunk_id = store_chunk_ids[0]
-        hunk_chunk_ids = [chunk_id for chunk_id in get("//tmp/t/@chunk_ids") if chunk_id != store_chunk_id]
-        assert len(hunk_chunk_ids) == 1
-        hunk_chunk_id = hunk_chunk_ids[0]
-        assert not get("#{}/@sealed".format(hunk_chunk_id))
+        assert len(store_chunk_ids) == 3
+        hunk_chunk_ids = [chunk_id for chunk_id in get("//tmp/t/@chunk_ids") if chunk_id not in store_chunk_ids]
+        assert len(hunk_chunk_ids) == 3
+        for hunk_chunk_id in hunk_chunk_ids:
+            assert not get("#{}/@sealed".format(hunk_chunk_id))
 
         tx = start_transaction()
         set("//tmp/t/@hunk_erasure_codec", "reed_solomon_3_3", tx=tx)
@@ -2424,24 +2771,21 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/h")
 
-        wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
-        assert get("//tmp/t/@chunk_count") == 2
-        assert get("//tmp/t/@tablet_statistics/chunk_count") == 2
+        for hunk_chunk_id in hunk_chunk_ids:
+            wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
+        assert get("//tmp/t/@chunk_count") == 4
 
         commit_transaction(tx)
 
-        assert get("//tmp/t/@chunk_count") == 2
-        assert get("//tmp/t/@tablet_statistics/chunk_count") == 2
-
-        assert get("//tmp/t2/@chunk_count") == 2
-        assert get("//tmp/t2/@tablet_statistics/chunk_count") == 2
+        assert get("//tmp/t/@chunk_count") == 4
+        assert get("//tmp/t2/@chunk_count") == 4
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_3_3"])
     def test_prefetch_fragments_on_data_node(self, hunk_erasure_codec):
         sync_create_cells(1)
 
-        self._create_table(path="//tmp/t")
+        self._create_table()
         set("//tmp/t/@hunk_erasure_codec", hunk_erasure_codec)
         set("//tmp/t/@hunk_chunk_reader", {
             "read_and_cache_whole_blocks": True,
@@ -2455,6 +2799,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             "hunk_store_writer": {
                 "max_record_size": 10,
             },
+            "scan_backoff_period": 1000,
         }
         if hunk_erasure_codec != "none":
             hunk_storage_attributes["read_quorum"] = 4
@@ -2493,6 +2838,446 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
         assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t] where [$tablet_index] = 1"), rows1)
         assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
+
+    @authors("akozhikhov")
+    def test_unmount_after_aborted_write_tx(self):
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "tablet_cell_write_manager": {
+                    "failure_probability_before_write": 0.1,
+                    "failure_probability_after_write": 0.1,
+                },
+            },
+        })
+        sync_create_cells(1)
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+        # NB: Some row count larger than max_rows_per_write_request.
+        rows = [{"key": 0, "value": "a" * 100} for i in range(3000)]
+        insert_count = 0
+        iter_count = 0
+        while iter_count < 3 or insert_count < 1:
+            iter_count += 1
+            try:
+                self._insert_rows_with_hunk_storage("//tmp/t", rows)
+                insert_count += 1
+            except Exception:
+                pass
+
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+
+        store_chunk_ids, hunk_chunk_ids = self._get_chunk_ids()
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = list(hunk_chunk_ids)[0]
+        wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows * insert_count)
+
+    @authors("akozhikhov")
+    def test_remove_cell_with_mounted_hunk_storage_1(self):
+        cell_id = sync_create_cells(1)[0]
+
+        self._create_table(path="//tmp/t")
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+            "tablet_count": 2,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows1 = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        rows2 = [{"key": 1, "value": "b" * 100} for i in range(10)]
+
+        self._insert_rows_with_hunk_storage("//tmp/t", rows1)
+
+        remove("#{}".format(cell_id))
+        wait(lambda: not exists("#{}".format(cell_id)))
+
+        assert read_table("//tmp/t") == rows1
+
+        sync_create_cells(1)
+        wait(lambda: get("//tmp/h/@tablets/0/state") == "mounted")
+        wait(lambda: get("//tmp/t/@tablets/0/state") == "mounted")
+
+        self._insert_rows_with_hunk_storage("//tmp/t", rows2)
+        sync_flush_table("//tmp/t")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2)
+
+    @authors("akozhikhov")
+    def test_remove_cell_with_mounted_hunk_storage_2(self):
+        cell_ids = sync_create_cells(2)
+
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h", cell_id=cell_ids[0])
+        sync_mount_table("//tmp/t", cell_id=cell_ids[1])
+
+        rows1 = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        rows2 = [{"key": 1, "value": "b" * 100} for i in range(10)]
+
+        self._insert_rows_with_hunk_storage("//tmp/t", rows1)
+
+        remove("#{}".format(cell_ids[0]))
+        wait(lambda: get("//tmp/h/@tablets/0/state") == "unmounting")
+        with raises_yt_error(".* .* has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t", rows2)
+        # NB: We speed up unmounting here by forcing queue tablets to unlock hunk stores.
+        sync_flush_table("//tmp/t")
+        wait(lambda: not exists("#{}".format(cell_ids[0])))
+
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1)
+
+        wait(lambda: get("//tmp/h/@tablets/0/state") == "mounted")
+        self._insert_rows_with_hunk_storage("//tmp/t", rows2)
+
+        sync_flush_table("//tmp/t")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2)
+
+    @authors("akozhikhov")
+    def test_remove_cell_with_mounted_hunk_storage_3(self):
+        cell_ids = sync_create_cells(15)
+
+        # This way some cells will be good, but the bundle overall will not.
+        # Decommissioner checks bundle health before kicking orphaned actions,
+        # and we want to arbitrarily delay it.
+        update_nodes_dynamic_config({
+            "cellar_node": {
+                "cellar_manager": {
+                    "cellars": {
+                        "tablet": {
+                            "size": 1,
+                        },
+                    },
+                }
+            }
+        })
+
+        assert get("//sys/tablet_cell_bundles/default/@health") != "good"
+
+        self._create_table(path="//tmp/t")
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+            "tablet_count": 2,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        # Reliable way to create orphaned actions.
+        set("//sys/@config/tablet_manager/testing/mount_via_orphaned_tablet_actions", True)
+        mount_table("//tmp/h")
+        mount_table("//tmp/t")
+
+        wait(lambda: len(get("//sys/tablet_cell_bundles/default/@tablet_actions")) == 3)
+        actions = get("//sys/tablet_cell_bundles/default/@tablet_actions")
+        for action in actions:
+            assert action["state"] == "orphaned"
+        assert get("//tmp/h/@tablet_state") != "mounted"
+        assert get("//tmp/t/@tablet_state") != "mounted"
+
+        for cell_id in cell_ids:
+            remove("#{}".format(cell_id))
+
+        cell_id = sync_create_cells(1)[0]
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health") == "good")
+
+        wait_for_tablet_state("//tmp/h", "mounted")
+        wait_for_tablet_state("//tmp/t", "mounted")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
+
+    @authors("akozhikhov")
+    def test_forbid_table_with_linked_hunk_storage_removal(self):
+        sync_create_cells(1)
+
+        self._create_table(path="//tmp/t")
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+
+        with raises_yt_error("Cannot remove table .* that is linked to hunk storage"):
+            remove("//tmp/t")
+
+    @authors("akozhikhov")
+    def test_hunk_statistics_ordered_1(self):
+        sync_create_cells(1)
+
+        self._create_table(path="//tmp/t")
+        sync_reshard_table("//tmp/t", 2)
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        for i in range(2):
+            new_rows = [{"$tablet_index": i, "key": i, "value": str(i) + "y" * 20}]
+            self._insert_rows_with_hunk_storage("//tmp/t", new_rows)
+
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+        store_chunk_ids, hunk_chunk_ids = self._get_chunk_ids()
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = list(hunk_chunk_ids)[0]
+        wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["hunk_data_size"] == 58
+        assert statistics["row_count"] == 2
+        assert statistics["chunk_count"] == 2
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 1
+        assert statistics["referenced_regular_disk_space"] == 58
+
+        assert get("//tmp/h/@chunk_count") == 0
+        assert get("//tmp/h/@uncompressed_data_size") == 0
+        assert get("//tmp/h/@resource_usage/disk_space") == 0
+        root_chunk_list_id = get("//tmp/h/@chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["referenced_regular_disk_space"] == 0
+        assert statistics["regular_disk_space"] == 0
+        assert statistics["chunk_count"] == 0
+
+    @authors("akozhikhov")
+    def test_hunk_statistics_ordered_2(self):
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "tablet_cell_write_manager": {
+                    "failure_probability_before_write": 0.1,
+                    "failure_probability_after_write": 0.1,
+                },
+            },
+        })
+
+        sync_create_cells(1)
+
+        self._create_table(path="//tmp/t1")
+        self._create_table(path="//tmp/t2")
+        sync_reshard_table("//tmp/t1", 2)
+        sync_reshard_table("//tmp/t2", 2)
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t1/@hunk_storage_id", hunk_storage_id)
+        set("//tmp/t2/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t1")
+        sync_mount_table("//tmp/t2")
+
+        rows = [{"key": 0, "value": "a" * 10000}]
+
+        def _try_write(path):
+            try:
+                self._insert_rows_with_hunk_storage(path, rows)
+                return True
+            except Exception:
+                return False
+
+        first_table_iter = 0
+        second_table_iter = 0
+        failure_count = False
+        while first_table_iter < 3 or second_table_iter < 3 or failure_count == 0:
+            if _try_write("//tmp/t1"):
+                first_table_iter += 1
+            else:
+                failure_count += 1
+
+            if _try_write("//tmp/t2"):
+                second_table_iter += 1
+            else:
+                failure_count += 1
+
+        sync_unmount_table("//tmp/t1")
+        sync_unmount_table("//tmp/t2")
+        sync_unmount_table("//tmp/h")
+
+        root_chunk_list_id_1 = get("//tmp/t1/@chunk_list_id")
+        root_chunk_list_id_2 = get("//tmp/t2/@chunk_list_id")
+        hunk_root_chunk_list_id_1 = get("//tmp/t1/@hunk_chunk_list_id")
+        hunk_root_chunk_list_id_2 = get("//tmp/t2/@hunk_chunk_list_id")
+
+        statistics = get(f"#{root_chunk_list_id_1}/@statistics")
+        assert statistics["hunk_regular_disk_space"] == first_table_iter * 10008
+        statistics = get(f"#{root_chunk_list_id_2}/@statistics")
+        assert statistics["hunk_regular_disk_space"] == second_table_iter * 10008
+        statistics = get(f"#{hunk_root_chunk_list_id_1}/@statistics")
+        assert statistics["referenced_regular_disk_space"] == (first_table_iter + second_table_iter) * 10008
+        assert statistics["regular_disk_space"] > (first_table_iter + second_table_iter + failure_count) * 10008
+        assert statistics["regular_disk_space"] < (first_table_iter + second_table_iter + failure_count + 1) * 10008
+        statistics = get(f"#{hunk_root_chunk_list_id_2}/@statistics")
+        assert statistics["referenced_regular_disk_space"] == (first_table_iter + second_table_iter) * 10008
+
+        hunk_reference_statistics = get("//tmp/t2/@hunk_reference_statistics")
+        assert hunk_reference_statistics["local_referenced_data_weight"] == second_table_iter * 10000
+        assert hunk_reference_statistics["local_referenced_data_size"] == second_table_iter * 10008
+        assert hunk_reference_statistics["local_referenced_regular_disk_space"] == second_table_iter * 10008
+        assert hunk_reference_statistics["global_referenced_regular_disk_space"] == \
+            (first_table_iter + second_table_iter) * 10008
+        assert hunk_reference_statistics["regular_disk_space"] > \
+            (first_table_iter + second_table_iter + failure_count) * 10008
+
+        remove("//tmp/t2/@hunk_storage_id")
+        remove("//tmp/t2")
+
+        def _check():
+            statistics = get(f"#{hunk_root_chunk_list_id_1}/@statistics")
+            return statistics["referenced_regular_disk_space"] == first_table_iter * 10008 and \
+                statistics["regular_disk_space"] > (first_table_iter + second_table_iter + failure_count) * 10008 and \
+                statistics["regular_disk_space"] < (first_table_iter + second_table_iter + failure_count + 1) * 10008
+
+        wait(lambda: _check())
+
+        hunk_reference_statistics = get("//tmp/t1/@hunk_reference_statistics")
+        assert hunk_reference_statistics["local_referenced_data_weight"] == first_table_iter * 10000
+        assert hunk_reference_statistics["local_referenced_data_size"] == first_table_iter * 10008
+        assert hunk_reference_statistics["local_referenced_regular_disk_space"] == first_table_iter * 10008
+        assert hunk_reference_statistics["global_referenced_regular_disk_space"] == (first_table_iter) * 10008
+        assert hunk_reference_statistics["regular_disk_space"] > (first_table_iter + failure_count) * 10008
+
+    @authors("akozhikhov")
+    def test_local_referenced_erasure_disk_space(self):
+        sync_create_cells(1)
+
+        self._create_table(path="//tmp/t")
+        sync_reshard_table("//tmp/t", 2)
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+            "read_quorum": 4,
+            "write_quorum": 5,
+            "erasure_codec": "isa_reed_solomon_3_3",
+            "replication_factor": 1,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 10000}]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        hunk_ref_statistics = get("//tmp/t/@hunk_reference_statistics")
+        assert hunk_ref_statistics["local_referenced_data_size"] * 2 == \
+            hunk_ref_statistics["local_referenced_erasure_disk_space"]
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_3_3"])
+    def test_hunk_statistics_chunk_statistics(self, hunk_erasure_codec):
+        sync_create_cells(1)
+        self._create_table()
+
+        hunk_storage_attributes = {
+            "scan_backoff_period": 1000,
+        }
+        if hunk_erasure_codec != "none":
+            hunk_storage_attributes["read_quorum"] = 4
+            hunk_storage_attributes["write_quorum"] = 5
+            hunk_storage_attributes["erasure_codec"] = hunk_erasure_codec
+            hunk_storage_attributes["replication_factor"] = 1
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes=hunk_storage_attributes)
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        hunk_chunk_ids = [chunk_id for chunk_id in get("//tmp/t/@chunk_ids") if chunk_id != store_chunk_ids[0]]
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+        assert not get("#{}/@sealed".format(hunk_chunk_id))
+
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
+            get("#{}/@compressed_data_size".format(hunk_chunk_id))
+        assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 340
+        assert get("#{}/@data_weight".format(hunk_chunk_id)) == 260
+
+        sync_unmount_table("//tmp/h")
+        wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
+
+        assert get("#{}/@compressed_data_size".format(hunk_chunk_id)) > 4000
+        assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 340
+        assert get("#{}/@data_weight".format(hunk_chunk_id)) == 260
+
+    @authors("akozhikhov")
+    def test_forbid_sort_op_over_hunk_columns(self):
+        sync_create_cells(1)
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/t")
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        create("table", "//tmp/t2")
+        merge(in_="//tmp/t", out="//tmp/t2", mode="ordered", spec={"force_transform": True, "combine_chunks": True})
+        with raises_yt_error("cannot have attribute \"max_inline_hunk_size\""):
+            sort(in_="//tmp/t2", out="//tmp/t2", sort_by=["key", "value"])
+
+    @authors("akozhikhov")
+    def test_multiple_modification_requests(self):
+        sync_create_cells(2)
+
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+            "tablet_count": 2,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        tx = start_transaction(type="tablet")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows, tx=tx)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows, tx=tx)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows, tx=tx)
+
+        commit_transaction(tx)
+
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows * 3)
 
 
 ################################################################################
@@ -2659,7 +3444,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         init_node("//tmp/t1", hunk_primary_medium=self.NON_DEFAULT_MEDIUM_1)
         assert get("//tmp/t1/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
 
-        with raises_yt_error("Cannot modify hunk_media since hunk_primary_medium is not set, consider setting it first"):
+        with raises_yt_error("Cannot modify \"hunk_media\" since \"hunk_primary_medium\" is not set"):
             init_node("//tmp/t2", hunk_media={"default": {"replication_factor": 5, "data_parts_only": False}})
 
         with raises_yt_error("Cannot remove primary medium"):
@@ -2816,19 +3601,19 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
 
         # 1. Set.
 
-        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+        with raises_yt_error("Cannot change storage parameters since"):
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
 
         sync_unmount_table("//tmp/q")
 
-        with raises_yt_error("No such medium"):
+        with raises_yt_error("No such medium .*"):
             set("//tmp/q/@hunk_primary_medium", "nonexistent")
 
         with raises_yt_error("Operation cannot be performed in transaction"):
             tx = start_transaction()
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1, tx=tx)
 
-        with raises_yt_error("Access denied for user \"u\""):
+        with raises_yt_error("Access denied"):
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1, authenticated_user="u")
 
         set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
@@ -2844,22 +3629,22 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
 
         # 2. Modify.
 
-        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+        with raises_yt_error("Cannot change storage parameters since"):
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2)
 
         sync_unmount_table("//tmp/q")
 
-        with raises_yt_error("No such medium"):
+        with raises_yt_error("No such medium .*"):
             set("//tmp/q/@hunk_primary_medium", "nonexistent")
 
         with raises_yt_error("Operation cannot be performed in transaction"):
             tx = start_transaction()
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2, tx=tx)
 
-        with raises_yt_error("Access denied for user \"u\""):
+        with raises_yt_error("Access denied"):
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2, authenticated_user="u")
 
-        with raises_yt_error("Medium \"default\" stores no parity parts and cannot be made primary"):
+        with raises_yt_error("Medium .* stores no parity parts and cannot be made primary"):
             set("//tmp/q/@hunk_primary_medium", "default")
 
         set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2)
@@ -2877,7 +3662,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
 
         # 3. Remove.
 
-        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+        with raises_yt_error("Cannot change storage parameters since"):
             remove("//tmp/q/@hunk_primary_medium")
 
         sync_unmount_table("//tmp/q")
@@ -2915,27 +3700,27 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         invalid_media2 = media.copy()
         invalid_media2[self.NON_DEFAULT_MEDIUM_1] = {"replication_factor": 5, "data_parts_only": True}
 
-        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+        with raises_yt_error("Cannot change storage parameters since"):
             set("//tmp/q/@hunk_media", media)
 
         sync_unmount_table("//tmp/q")
 
-        with raises_yt_error("Cannot modify hunk_media since hunk_primary_medium is not set, consider setting it first"):
+        with raises_yt_error("Cannot modify \"hunk_media\" since \"hunk_primary_medium\" is not set"):
             set("//tmp/q/@hunk_media", media)
 
         set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
 
-        with raises_yt_error("No such medium"):
+        with raises_yt_error("No such medium .*"):
             set("//tmp/q/@hunk_media", invalid_media)
 
-        with raises_yt_error("At least one medium should store replicas (including parity parts)"):
+        with raises_yt_error("At least one medium should store replicas"):
             set("//tmp/q/@hunk_media", invalid_media2)
 
         with raises_yt_error("Operation cannot be performed in transaction"):
             tx = start_transaction()
             set("//tmp/q/@hunk_media", media, tx=tx)
 
-        with raises_yt_error("Access denied for user \"u\""):
+        with raises_yt_error("Access denied"):
             set("//tmp/q/@hunk_media", media, authenticated_user="u")
 
         set("//tmp/q/@hunk_media", media)
@@ -2953,28 +3738,28 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         invalid_media2[self.NON_DEFAULT_MEDIUM_2] = {"replication_factor": 5, "data_parts_only": True}
         del media[self.NON_DEFAULT_MEDIUM_1]
 
-        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+        with raises_yt_error("Cannot change storage parameters since"):
             set("//tmp/q/@hunk_media", media)
 
         sync_unmount_table("//tmp/q")
 
-        with raises_yt_error("No such medium"):
+        with raises_yt_error("No such medium .*"):
             set("//tmp/q/@hunk_media", invalid_media)
 
-        with raises_yt_error("At least one medium should store replicas (including parity parts)"):
+        with raises_yt_error("At least one medium should store replicas"):
             set("//tmp/q/@hunk_media", invalid_media2)
 
         with raises_yt_error("Operation cannot be performed in transaction"):
             tx = start_transaction()
             set("//tmp/q/@hunk_media", media, tx=tx)
 
-        with raises_yt_error("Access denied for user \"u\""):
+        with raises_yt_error("Access denied"):
             set("//tmp/q/@hunk_media", media, authenticated_user="u")
 
         with raises_yt_error("Cannot remove primary medium"):
             set("//tmp/q/@hunk_media", media)
 
-        with raises_yt_error("Attribute \"hunk_media\" cannot be removed"):
+        with raises_yt_error("Attribute .* cannot be removed"):
             remove("//tmp/q/@hunk_media")
 
         media[self.NON_DEFAULT_MEDIUM_1] = media[self.NON_DEFAULT_MEDIUM_2]
@@ -3119,7 +3904,6 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
     ENABLE_MULTIDAEMON = True
 
@@ -3809,9 +4593,9 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
             assert chunk_format_statistics["table_versioned_simple"]["data_weight"] == 18080
             assert chunk_format_statistics["table_versioned_simple"]["uncompressed_data_size"] == 10016
             assert chunk_format_statistics["table_versioned_simple"]["compressed_data_size"] < 5000
-            assert chunk_format_statistics["hunk_default"]["data_weight"] == 11714
-            assert chunk_format_statistics["hunk_default"]["uncompressed_data_size"] == 3531
-            assert chunk_format_statistics["hunk_default"]["compressed_data_size"] == 3531
+            # TODO(akozhikhov): YT-26629
+            assert chunk_format_statistics["table_versioned_simple"]["hunk_data_weight"] == 1675
+            assert chunk_format_statistics["table_versioned_simple"]["hunk_data_size"] == 2475
             return True
 
         wait(lambda: _check_statistics())
@@ -4012,7 +4796,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         self._create_table()
         self._setup_for_dictionary_compression("//tmp/t")
         set("//tmp/t/@mount_config/value_dictionary_compression/elect_random_policy", True)
-        set("//tmp/t/@chunk_writer", {"block_size": 64, "tesing_delay_before_chunk_close": 1000})
+        set("//tmp/t/@chunk_writer", {"block_size": 64, "testing_delay_before_chunk_close": 1000})
         set("//tmp/t/@compression_codec", "none")
         sync_mount_table("//tmp/t")
 
@@ -4137,11 +4921,31 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(select_rows("key, value2 from [//tmp/t]"),  _filter_rows(rows, ["key", "value2"]))
         assert_items_equal(select_rows("value2 from [//tmp/t]"),  _filter_rows(rows, ["value2"]))
 
+    @authors("akozhikhov")
+    @pytest.mark.skip(reason="YT-26629")
+    def test_value_compression_hunk_statistics(self):
+        sync_create_cells(1)
+        self._create_table()
+        self._setup_for_dictionary_compression("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "x" * 100} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
+
+        get(f"#{root_chunk_list_id}/@statistics")
+        get(f"#{hunk_root_chunk_list_id}/@statistics")
+
 
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -4169,9 +4973,6 @@ class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
         assert get("#{}/@total_statistics/tablet_count".format(cell_id)) == 1
 
         remove("#{}".format(cell_id))
-        time.sleep(5)
-
-        sync_unmount_table("//tmp/h")
         wait(lambda: not exists("#{}".format(cell_id)))
 
 
@@ -4219,18 +5020,6 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
             enable_lsm_verbose_logging=True,
             **table_attrs)
 
-    def _alter_to_static(self):
-        def _wait_sealed():
-            _, hunk_chunk_ids = self._get_chunk_ids()
-            for hunk_chunk_id in hunk_chunk_ids:
-                if not get("#{}/@sealed".format(hunk_chunk_id)):
-                    return False
-            return True
-
-        wait(lambda: _wait_sealed())
-        set("//sys/@config/tablet_manager/enable_alter_to_static_with_hunks", True)
-        alter_table("//tmp/t", dynamic=False)
-
     def _generate_static_table_with_hunks(self, do_alter=True, table_attrs={}, hunk_storage_attrs={}):
         self._create_primary_dynamic_table("//tmp/t", table_attrs)
 
@@ -4262,12 +5051,6 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         tablet_id = get("//tmp/h/@tablets")[0]["tablet_id"]
         wait(lambda: exists("//sys/tablets/{}/orchid/active_store_id".format(tablet_id)))
         return get("//sys/tablets/{}/orchid/stores".format(tablet_id)).keys()
-
-    def _get_chunk_ids(self):
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        store_chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
-        hunk_chunk_ids = builtins.set([chunk_id for chunk_id in chunk_ids if chunk_id not in store_chunk_ids])
-        return store_chunk_ids, hunk_chunk_ids
 
     @authors("akozhikhov")
     def test_static_hunks_simple(self):
@@ -4596,8 +5379,202 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
             rows[i]["$row_index"] = i
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
+    @authors("akozhikhov")
+    def test_hunk_statistics_static_1(self):
+        sync_create_cells(1)
 
-@pytest.mark.enabled_multidaemon
+        rows = self._generate_static_table_with_hunks()
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
+
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["row_count"] == 10
+        assert statistics["hunk_data_weight"] == 260
+        assert statistics["chunk_count"] == 1
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["referenced_regular_disk_space"] == 340
+        assert statistics["chunk_count"] == 1
+
+        snapshot_statistics = get("//tmp/t/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 2
+
+        tx = start_transaction()
+        copy("//tmp/t", "//tmp/t3", tx=tx)
+        new_rows = [{"key": 11, "value": str(11) + "a" * 20}]
+        write_table("<append=%true>//tmp/t", new_rows, tx=tx)
+        copy("//tmp/t", "//tmp/t2")
+
+        snapshot_statistics = get("//tmp/t/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 2
+        assert snapshot_statistics["row_count"] == 10
+        snapshot_statistics = get("//tmp/t2/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 2
+        assert snapshot_statistics["row_count"] == 10
+        delta_statistics = get("//tmp/t/@delta_statistics")
+        assert delta_statistics["chunk_count"] == 0
+        delta_statistics = get("//tmp/t2/@delta_statistics")
+        assert delta_statistics["chunk_count"] == 0
+
+        snapshot_statistics = get("//tmp/t/@snapshot_statistics", tx=tx)
+        assert snapshot_statistics["chunk_count"] == 2
+        assert snapshot_statistics["row_count"] == 10
+        snapshot_statistics = get("//tmp/t3/@snapshot_statistics", tx=tx)
+        assert snapshot_statistics["chunk_count"] == 2
+        assert snapshot_statistics["row_count"] == 10
+        delta_statistics = get("//tmp/t/@delta_statistics", tx=tx)
+        assert delta_statistics["chunk_count"] == 1
+        assert delta_statistics["row_count"] == 1
+        delta_statistics = get("//tmp/t3/@delta_statistics", tx=tx)
+        assert delta_statistics["chunk_count"] == 0
+
+        commit_transaction(tx)
+
+        snapshot_statistics = get("//tmp/t/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 3
+        assert snapshot_statistics["row_count"] == 11
+        snapshot_statistics = get("//tmp/t2/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 2
+        assert snapshot_statistics["row_count"] == 10
+        snapshot_statistics = get("//tmp/t3/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 2
+        assert snapshot_statistics["row_count"] == 10
+        delta_statistics = get("//tmp/t/@delta_statistics")
+        assert delta_statistics["chunk_count"] == 0
+        delta_statistics = get("//tmp/t2/@delta_statistics")
+        assert delta_statistics["chunk_count"] == 0
+        delta_statistics = get("//tmp/t3/@delta_statistics")
+        assert delta_statistics["chunk_count"] == 0
+
+        assert read_table("//tmp/t") == rows + new_rows
+        assert read_table("//tmp/t2") == rows
+        assert read_table("//tmp/t3") == rows
+
+    @authors("akozhikhov")
+    def test_hunk_statistics_static_2(self):
+        sync_create_cells(1)
+
+        rows = self._generate_static_table_with_hunks()
+
+        copy("//tmp/t", "//tmp/t2")
+        tx = start_transaction()
+        move("//tmp/t", "//tmp/t3", tx=tx)
+        new_rows = [{"key": 11, "value": str(11) + "a" * 20}]
+        write_table("<append=%false>//tmp/t2", new_rows, tx=tx)
+        new_rows_2 = [{"key": 12, "value": str(12) + "a" * 20}]
+        write_table("<append=%true>//tmp/t3", new_rows_2, tx=tx)
+
+        commit_transaction(tx)
+
+        assert read_table("//tmp/t2") == new_rows
+        assert read_table("//tmp/t3") == rows + new_rows_2
+
+        root_chunk_list_id = get("//tmp/t2/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t2/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 1
+        assert statistics["row_count"] == 1
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 0
+
+        root_chunk_list_id = get("//tmp/t3/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t3/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 2
+        assert statistics["row_count"] == 11
+        assert statistics["hunk_data_weight"] == 260
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 1
+        assert statistics["referenced_regular_disk_space"] == 340
+        assert statistics["regular_disk_space"] > 4000
+
+        snapshot_statistics = get("//tmp/t2/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 1
+        snapshot_statistics = get("//tmp/t3/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 3
+        assert snapshot_statistics["row_count"] == 11
+        assert snapshot_statistics["regular_disk_space"] > 5000
+
+    @authors("akozhikhov")
+    def test_hunk_statistics_static_3(self):
+        sync_create_cells(1)
+
+        rows = self._generate_static_table_with_hunks()
+
+        new_rows_1 = [{"key": 11, "value": str(11) + "a" * 20}]
+        write_table("<append=%true>//tmp/t", new_rows_1)
+
+        alter_table("//tmp/t", dynamic=True)
+        set("//tmp/t/@hunk_storage_id", get("//tmp/h/@id"))
+        sync_mount_table("//tmp/t")
+        assert read_table("//tmp/t") == rows + new_rows_1
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 2
+        assert statistics["data_weight"] == 327
+        assert statistics["hunk_data_weight"] == 260
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 1
+        assert statistics["referenced_regular_disk_space"] == 340
+        assert statistics["regular_disk_space"] > 4000
+        assert statistics["regular_disk_space"] < 5000
+        snapshot_statistics = get("//tmp/t/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 3
+        assert snapshot_statistics["regular_disk_space"] > 5000
+        assert snapshot_statistics["regular_disk_space"] < 6000
+        assert snapshot_statistics["data_weight"] == 587
+
+        new_rows_2 = [{"key": 12, "value": str(12) + "a" * 20}]
+        self._insert_rows_with_hunk_storage("//tmp/t", new_rows_2)
+        sync_unmount_table("//tmp/t")
+        self._alter_to_static()
+
+        assert read_table("//tmp/t") == rows + new_rows_1 + new_rows_2
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["row_count"] == 12
+        assert statistics["chunk_count"] == 3
+        assert statistics["data_weight"] == 356
+        assert statistics["hunk_data_weight"] == 282
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 2
+        assert statistics["referenced_regular_disk_space"] == 370
+        assert statistics["regular_disk_space"] > 8000
+        assert statistics["regular_disk_space"] < 9000
+        snapshot_statistics = get("//tmp/t/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 5
+        assert snapshot_statistics["data_weight"] == 638
+
+        alter_table("//tmp/t", dynamic=True)
+        sync_mount_table("//tmp/t")
+        trim_rows("//tmp/t", 0, 10)
+        wait(lambda: get("#{}/@statistics/row_count".format(get("//tmp/t/@chunk_list_id"))) == 2)
+        sync_unmount_table("//tmp/t")
+        self._alter_to_static()
+
+        assert read_table("//tmp/t") == new_rows_1 + new_rows_2
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["row_count"] == 2
+        assert statistics["chunk_count"] == 2
+        assert statistics["data_weight"] == 60
+        assert statistics["hunk_data_weight"] == 22
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 1
+        assert statistics["referenced_regular_disk_space"] == 30
+        assert statistics["regular_disk_space"] > 4000
+        assert statistics["regular_disk_space"] < 5000
+        snapshot_statistics = get("//tmp/t/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 3
+        assert snapshot_statistics["data_weight"] == 82
+
+
 class TestHunksInStaticTableMulticell(TestHunksInStaticTable):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -4700,11 +5677,10 @@ class TestHunksInStaticTableMulticell(TestHunksInStaticTable):
             hunk_storage_attrs=in_table_attributes)
         create("table", "//tmp/t_out", attributes=out_table_attributes)
 
-        with raises_yt_error("cannot be exported because it has hunk refs"):
+        with raises_yt_error("Chunk .* cannot be exported because it has hunk refs"):
             concatenate(["//tmp/t"], "//tmp/t_out")
 
 
-@pytest.mark.enabled_multidaemon
 class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
     ENABLE_TMP_PORTAL = True
 
@@ -4753,7 +5729,137 @@ class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
             table_attrs={"external": False},
             hunk_storage_attrs={"external": False})
 
-        with raises_yt_error("//tmp/t must be external"):
+        with raises_yt_error("Node .* must be external to support cross-cell copying"):
             move("//tmp/t", "//p/t")
 
         remove("//p")
+
+
+class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 60000,
+                "refresh_time": 15000,
+                "expiration_period": 60000,
+                "expire_after_failed_update_time": 1000,
+                "expire_after_access_time": 300000,
+            },
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "tablet_node": {
+                "hunk_lock_manager": {
+                    "unlock_check_period": 100
+                }
+            }
+        }
+    }
+
+    SCHEMA = [
+        {"name": "key", "type": "int64"},
+        {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+    ]
+
+    @authors("akozhikhov")
+    def test_unmounted_errors_1(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t_unique_1", schema=self.SCHEMA)
+        sync_reshard_table("//tmp/t_unique_1", 2)
+
+        rows0 = [{"key": 0, "value": "0" * 100, "$tablet_index": 0}]
+        rows1 = [{"key": 1, "value": "1" * 100, "$tablet_index": 1}]
+        with raises_yt_error(".* .* has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+
+        sync_mount_table("//tmp/t_unique_1", first_tablet_index=0, last_tablet_index=0)
+        with raises_yt_error(".* .* has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+        # Cache was invalidated and now we shall write correctly.
+        self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+        with raises_yt_error("Tablet .* of table .* is in \"unmounted\" state"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
+        sync_unmount_table("//tmp/t_unique_1", first_tablet_index=0, last_tablet_index=0)
+
+        with raises_yt_error("No such tablet .*"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+        # Cache was invalidated and now it generates more precise error.
+        with raises_yt_error(".* .* has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h_unique_1", attributes={
+            "scan_backoff_period": 1000,
+            "tablet_count": 2,
+        })
+        set("//tmp/t_unique_1/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/t_unique_1", first_tablet_index=1, last_tablet_index=1)
+
+        with raises_yt_error(".* .* has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
+        # This time this error is about hunk storage.
+        with raises_yt_error(".* .* has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
+
+        sync_mount_table("//tmp/h_unique_1")
+        with raises_yt_error(".* .* has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
+        self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
+
+        with raises_yt_error("Tablet .* of table .* is in \"unmounted\" state"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+
+    @authors("akozhikhov")
+    def test_unmounted_errors_2(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t_unique_2", schema=self.SCHEMA)
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h_unique_2", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t_unique_2/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h_unique_2")
+
+        rows = [{"key": 0, "value": "0" * 100, "$tablet_index": 0}]
+
+        with raises_yt_error(".* .* has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_2", rows)
+
+        with raises_yt_error("Cannot read from tablet .*"):
+            assert [] == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
+
+        sync_mount_table("//tmp/t_unique_2")
+        with raises_yt_error("Cannot read from tablet .*"):
+            assert [] == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
+        assert [] == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
+
+        self._insert_rows_with_hunk_storage("//tmp/t_unique_2", rows)
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+
+        assert rows == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
+        sync_unmount_table("//tmp/t_unique_2")
+        with raises_yt_error("Cannot read from tablet .*"):
+            assert rows == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
+
+    @authors("akozhikhov")
+    def test_unmounted_error_get_tablet_infos(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t_unique_3", schema=self.SCHEMA)
+
+        with raises_yt_error("Cannot read from tablet .*"):
+            get_tablet_infos("//tmp/t_unique_3", [0])
+
+        sync_mount_table("//tmp/t_unique_3")
+        with raises_yt_error("Cannot read from tablet .*"):
+            get_tablet_infos("//tmp/t_unique_3", [0])
+        get_tablet_infos("//tmp/t_unique_3", [0])

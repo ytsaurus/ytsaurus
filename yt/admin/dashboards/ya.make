@@ -20,14 +20,18 @@ PY_SRCS(
     yt_dashboards/bundle_ui/proxy_details.py
     yt_dashboards/bundle_ui/planning.py
     yt_dashboards/bundle_ui/key_filter.py
+    yt_dashboards/bundle_ui/cache_and_filtration.py
     yt_dashboards/cache.py
     yt_dashboards/chyt.py
     yt_dashboards/cluster_resources.py
+    yt_dashboards/cluster_workloads.py
     yt_dashboards/flow/__init__.py
     yt_dashboards/flow/common.py
+    yt_dashboards/flow/companion_manager.py
     yt_dashboards/flow/computation.py
     yt_dashboards/flow/controller.py
     yt_dashboards/flow/diagnostics.py
+    yt_dashboards/flow/distributed_throttler.py
     yt_dashboards/flow/event_time.py
     yt_dashboards/flow/general.py
     yt_dashboards/flow/message_transfering.py
@@ -39,6 +43,7 @@ PY_SRCS(
     yt_dashboards/lsm.py
     yt_dashboards/master.py
     yt_dashboards/cypress_proxies.py
+    yt_dashboards/scheduler_gpu.py
     yt_dashboards/scheduler_internal.py
     yt_dashboards/scheduler_pool.py
     yt_dashboards/scheduler_operation.py
@@ -48,10 +53,12 @@ PY_SRCS(
     yt_dashboards/data_node_local.py
     yt_dashboards/queue_agent.py
     yt_dashboards/queue_and_consumer_metrics.py
+    yt_dashboards/table_dispersion.py
     yt_dashboards/user_load.py
     yt_dashboards/common/__init__.py
     yt_dashboards/common/postprocessors.py
     yt_dashboards/common/runner.py
+    yt_dashboards/common/queue_agent.py
     yt_dashboards/common/sensors.py
 )
 

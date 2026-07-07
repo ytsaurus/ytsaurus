@@ -7,15 +7,12 @@ from yt.environment.helpers import assert_items_equal
 
 import yt_error_codes
 
-import pytest
-
 import requests
 import hashlib
 
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestCypressTokenAuthBase(YTEnvSetup):
     NUM_MASTERS = 1
 
@@ -51,7 +48,6 @@ class TestCypressTokenAuthBase(YTEnvSetup):
         remove("//sys/cypress_tokens/*")
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressTokenAuth(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
@@ -142,11 +138,21 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
 
     @authors("ermolovd")
     def test_issue_token_to_missing_user(self):
-        with raises_yt_error(yt_error_codes.NoSuchUser):
+        with raises_yt_error(code=yt_error_codes.NoSuchUser):
             issue_token("missing_user")
 
+    @authors("nadya73")
+    def test_document_cypress_token(self):
+        create_user("u1")
+        token = "XXX2"
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        create("document", f"//sys/cypress_tokens/{token_hash}", attributes={"user": "u1", "token_prefix": ""})
+        self._check_allow(token=token)
 
-@pytest.mark.enabled_multidaemon
+        revoke_token("u1", token_hash)
+        wait(lambda: self._check_deny(token=token))
+
+
 class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
@@ -174,7 +180,6 @@ class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):
         self._check_allow(token=t)
 
 
-@pytest.mark.enabled_multidaemon
 class TestAuthenticationCommands(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
@@ -209,7 +214,6 @@ class TestAuthenticationCommands(TestCypressTokenAuthBase):
         self._make_request(f"/api/v4/list_user_tokens?user=u3&password_sha256={p2_sha256}", t).raise_for_status()
 
 
-@pytest.mark.enabled_multidaemon
 class TestAuthenticationCommandsWithNoPassword(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "driver": {

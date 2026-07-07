@@ -13,6 +13,8 @@
 
 #include <yt/yt/server/lib/election/public.h>
 
+#include <library/cpp/yt/logging/public.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,6 +91,12 @@ struct ISimpleHydraManager
      *  \note Thread affinity: any
      */
     virtual bool IsEnteringReadOnlyMode() const = 0;
+
+    //! Returns log level for errors in mutation handler.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual NLogging::ELogLevel GetMutationHandlerFailureLogLevel(TStringBuf mutationType) const = 0;
 
     //! Raised within the automaton thread when the peer has started leading
     //! and enters recovery.
@@ -228,6 +236,8 @@ struct IHydraManager
     virtual bool IsDiscombobulated() const = 0;
 
     virtual i64 GetSequenceNumber() const = 0;
+
+    virtual TError GetLastRestartError() const = 0;
 
     //! Raised during periodic leader lease checks.
     //! A subscriber must start an appropriate check and return a future

@@ -276,6 +276,21 @@ i64 TRowCache::GetUsedBytesCount() const
     return MemoryTracker_->GetUsedBytesCount();
 }
 
+i64 TRowCache::GetAliveByteSize() const
+{
+    return Allocator_.GetAliveByteSize();
+}
+
+i64 TRowCache::GetAliveItemCount() const
+{
+    return Allocator_.GetAliveItemCount();
+}
+
+void TRowCache::ForceRotate()
+{
+    Cache_.ForceRotate();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

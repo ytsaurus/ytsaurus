@@ -45,22 +45,25 @@ public:
 
     TFuture<void> StopDiscovery();
 
-    void ValidateCliquePermission(const TString& user, NYTree::EPermission permission) const;
+    void ValidateCliquePermission(const std::string& user, NYTree::EPermission permission) const;
 
     std::vector<TRowLevelAcl> ValidateTableReadPermissionsAndGetRowLevelAcl(
         const std::vector<NYPath::TRichYPath>& paths,
-        const TString& user);
+        const std::string& user);
 
     TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> PreliminaryCheckPermissions(
         const std::vector<NYPath::TYPath>& paths,
-        const TString& user);
-    //! Get the names of the attributes that the local cache is configured for.
-    //! NB: This is the state of THost, not some global variable,
-    //! because the set of attributes may depend on the config.
-    const std::vector<std::string>& GetObjectAttributeNamesToFetch() const;
+        const std::string& user);
 
+    //! Get object attributes directly from specified master channel.
+    TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> GetObjectAttributesDirect(
+        const std::vector<NYPath::TYPath>& paths,
+        const std::vector<NHydra::TRevision>& revisions,
+        const NApi::NNative::IClientPtr& client,
+        const NApi::TMasterReadOptions& masterReadOptions,
+        const NApi::TTransactionalOptions& transactionalOptions = {});
     //! Get object attributes via local cache.
-    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributesCached(
         const std::vector<NYPath::TYPath>& paths,
         const NApi::NNative::IClientPtr& client);
     //! Invalidate object attribute entries in local cache.
@@ -96,7 +99,11 @@ public:
     //! Cf. clickhouse_invoker.h
     const IInvokerPtr& GetClickHouseFetcherInvoker() const;
 
+    //! Separate thread pool for secondary query read task pulling.
+    const IInvokerPtr& GetClickHouseTaskPullerInvoker() const;
+
     NApi::NNative::IClientPtr GetRootClient() const;
+    NApi::NNative::IClientPtr GetDictionariesClient() const;
     NApi::NNative::IClientPtr CreateClient(const std::string& user) const;
 
     //! Return nodes available through discovery service.
@@ -144,9 +151,13 @@ public:
     void SetSqlObjectOnOtherInstances(const TString& objectName, const TSqlObjectInfo& info) const;
     void RemoveSqlObjectOnOtherInstances(const TString& objectName, NHydra::TRevision revision) const;
 
-    void ReloadDictionaryGlobally(const std::string& dictionaryName) const;
+    void ReloadDictionaryGlobally(const std::string& configPath) const;
 
     TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository();
+
+    void PrepareClickHouseUser(const std::string& userName);
+
+    void ValidateDictionaryGrants(const std::string& userName, const DB::StorageID& storageId);
 
 private:
     class TImpl;

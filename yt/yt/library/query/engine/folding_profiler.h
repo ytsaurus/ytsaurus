@@ -34,19 +34,25 @@ TCGExpressionGenerator Profile(
     const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get(),
     const NWebAssembly::TModuleBytecode& sdk = NWebAssembly::GetBuiltinSdk());
 
+struct TQueryFoldingProfilerOptions
+{
+    bool UseCanonicalNullRelations = false;
+    NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
+    NCodegen::EOptimizationLevel OptimizationLevel = NCodegen::EOptimizationLevel::Default;
+    bool AllowObjectCodeLinkage = false;
+    bool AllowUnorderedGroupByWithLimit = true;
+    i64 MaxJoinBatchSize = DefaultMaxJoinBatchSize;
+};
+
 TCGQueryGenerator Profile(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    const std::vector<IJoinProfilerPtr>& joinProfilers,
-    bool useCanonicalNullRelations = false,
-    NCodegen::EExecutionBackend executionBackend = NCodegen::EExecutionBackend::Native,
-    NCodegen::EOptimizationLevel optimizationLevel = NCodegen::EOptimizationLevel::Default,
+    const TJoinProfilerRegistry& joinProfilerRegistry,
+    TQueryFoldingProfilerOptions options = {},
     const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get(),
     const TConstAggregateProfilerMapPtr& aggregateProfilers = GetBuiltinAggregateProfilers().Get(),
-    const NWebAssembly::TModuleBytecode& sdk = NWebAssembly::GetBuiltinSdk(),
-    bool allowUnorderedGroupByWithLimit = true,
-    i64 maxJoinBatchSize = DefaultMaxJoinBatchSize);
+    const NWebAssembly::TModuleBytecode& sdk = NWebAssembly::GetBuiltinSdk());
 
 ////////////////////////////////////////////////////////////////////////////////
 

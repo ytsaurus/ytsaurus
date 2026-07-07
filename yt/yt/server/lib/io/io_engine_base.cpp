@@ -90,7 +90,7 @@ void TInflightCounter::Decrement()
     State_->Counter.fetch_sub(1, std::memory_order::relaxed);
 }
 
-TInflightCounter TInflightCounter::Create(TProfiler& profiler, const TString& name)
+TInflightCounter TInflightCounter::Create(TProfiler& profiler, const std::string& name)
 {
     TInflightCounter counter;
     counter.State_ = New<TState>();
@@ -198,7 +198,7 @@ TRequestCounterGuard::TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, 
     }
 }
 
-TRequestCounterGuard::TRequestCounterGuard(TRequestCounterGuard&& other)
+TRequestCounterGuard::TRequestCounterGuard(TRequestCounterGuard&& other) noexcept
 {
     MoveFrom(std::move(other));
 }
@@ -208,7 +208,7 @@ TRequestCounterGuard::~TRequestCounterGuard()
     Release();
 }
 
-TRequestCounterGuard& TRequestCounterGuard::operator=(TRequestCounterGuard&& other)
+TRequestCounterGuard& TRequestCounterGuard::operator=(TRequestCounterGuard&& other) noexcept
 {
     if (this != &other) {
         Release();
@@ -362,7 +362,7 @@ i64 TIOEngineBase::GetWriteRequestLimit() const
 
 TIOEngineBase::TIOEngineBase(
     TConfigPtr config,
-    TString locationId,
+    std::string locationId,
     IHugePageManagerPtr hugePageManager,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
@@ -595,6 +595,14 @@ void TIOEngineBase::InitProfilerSensors()
         return SicknessCounter_.load();
     });
 
+    Profiler.AddFuncGauge("/inflight_write_request_count", MakeStrong(this), [this] {
+        return GetInFlightWriteRequestCount();
+    });
+
+    Profiler.AddFuncGauge("/inflight_read_request_count", MakeStrong(this), [this] {
+        return GetInFlightReadRequestCount();
+    });
+
     Sensors_->WrittenBytesCounter = Profiler.Counter("/written_bytes");
     Sensors_->ReadBytesCounter = Profiler.Counter("/read_bytes");
 
@@ -667,4 +675,3 @@ i64 GetPaddedSize(i64 offset, i64 size, i64 alignment)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO
-

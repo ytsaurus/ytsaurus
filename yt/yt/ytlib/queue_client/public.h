@@ -1,5 +1,7 @@
 #pragma once
 
+#include "path.h"
+
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/client/queue_client/common.h>
@@ -35,6 +37,7 @@ DECLARE_REFCOUNTED_STRUCT(TGenericReplicatedTableMeta)
 
 DECLARE_REFCOUNTED_CLASS(TQueueTable)
 DECLARE_REFCOUNTED_CLASS(TConsumerTable)
+DECLARE_REFCOUNTED_CLASS(TMultiConsumerNameTable)
 DECLARE_REFCOUNTED_CLASS(TConsumerRegistrationTable)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentObjectMappingTable)
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableMappingTable)
@@ -50,9 +53,10 @@ DECLARE_REFCOUNTED_CLASS(TQueueConsumerRegistrationManagerBase)
 
 struct TQueueTableRow;
 struct TConsumerTableRow;
+using TConsumerTableRowConstPtr = TIntrusivePtr<const TConsumerTableRow>;
+using TAtomicConsumerTableRowConstPtr = TAtomicIntrusivePtr<const TConsumerTableRow>;
 struct TConsumerRegistrationTableRow;
 struct TReplicatedTableMappingTableRow;
-using TConsumerRowMap = THashMap<TCrossClusterReference, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

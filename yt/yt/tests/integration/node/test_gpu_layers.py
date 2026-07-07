@@ -1420,11 +1420,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         )
 
         alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
-        wait(lambda: get(alerts_path), timeout=INCREASED_TIMEOUT)
-
-        alerts = get(alerts_path)
-        assert len(alerts) == 1
-        assert "Preliminary GPU check command failed" in str(alerts[0])
+        wait(lambda: any("Preliminary GPU check command failed" in str(alert) for alert in get(alerts_path)), timeout=INCREASED_TIMEOUT)
 
         time.sleep(2.0)
 
@@ -1601,7 +1597,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             },
         )
 
-        with raises_yt_error(yt_error_codes.UserJobProducedCoreFiles):
+        with raises_yt_error(code=yt_error_codes.UserJobProducedCoreFiles):
             op.track()
 
         print_debug(_get_core_infos(op))

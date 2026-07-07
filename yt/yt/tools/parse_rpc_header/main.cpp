@@ -127,7 +127,7 @@ public:
     }
 
 private:
-    TString HexMessage_;
+    std::string HexMessage_;
 };
 
 } // namespace NYT::NTools::NParseRpcHeader

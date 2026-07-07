@@ -45,10 +45,7 @@ struct IElectionCallbacks
     virtual TPeerPriority GetPriority() = 0;
 
     //! Enables pretty-printing peer priorities in logs.
-    virtual TString FormatPriority(TPeerPriority priority) = 0;
-
-    //! Called when the current peer has entered discombobulated state.
-    virtual void OnDiscombobulate(i64 sequenceNumber) = 0;
+    virtual std::string FormatPriority(TPeerPriority priority) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IElectionCallbacks)
@@ -105,6 +102,12 @@ struct IElectionManager
 
     //! Returns current Cell Manager.
     virtual TCellManagerPtr GetCellManager() = 0;
+
+    //! Extends the current leader ping lease.
+    /*!
+     *  \note Thread affinity: ControlThread
+     */
+    virtual void Discombobulate() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IElectionManager)
@@ -131,7 +134,7 @@ struct TEpochContext
     //! Time when the epoch has started.
     TInstant StartTime;
 
-    //! Do not restart nonvoting peer in leader`s absence.
+    //! Do not restart peer in leader's absence.
     bool Discombobulated = false;
 };
 

@@ -2,16 +2,15 @@ from helpers import (get_object_attribute_cache_config, get_schema_from_descript
                      get_breakpoint_node, release_breakpoint, wait_breakpoint)
 
 from yt_commands import (authors, raises_yt_error, create, create_user, make_ace, exists, abort_job, write_table, get,
-                         get_table_columnar_statistics, set_node_banned, ls, abort_transaction, remove, read_table,
-                         sync_create_cells, sync_mount_table, sync_unmount_table, insert_rows, print_debug, merge,
-                         set, remove_user)
+                         get_table_columnar_statistics, set_node_banned, remove, read_table, sync_create_cells, sync_mount_table,
+                         sync_unmount_table, insert_rows, print_debug, merge, set, remove_user)
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
-from base import (ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia, enable_sequoia_acls,
+from base import (ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia,
                   grant_system_permissions_to_clickhouse_user)
 
-from yt.common import YtError, wait, parts_to_uuid, update as config_update
+from yt.common import YtError, wait, parts_to_uuid, update_inplace, update as config_update
 
 from yt.test_helpers import assert_items_equal
 
@@ -25,6 +24,7 @@ import time
 import threading
 import random
 import signal
+import copy
 
 
 class TestClickHouseCommon(ClickHouseTestBase):
@@ -37,22 +37,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
             }
         }
     }
-
-    def make_query_and_check_block_rows(self, clique, query_log_path, query, expected_block_rows, expected_result, expected_queries_count=1, settings=None):
-        result = clique.make_query(query, settings=settings, full_response=True)
-        assert (result.json()["data"] == expected_result)
-        query_id = result.headers["X-ClickHouse-Query-Id"]
-        wait(lambda: exists(query_log_path))
-
-        def match(row):
-            return row["initial_query_id"] == query_id and row["is_initial_query"] == 0 and row["type"] == "QueryFinish"
-
-        wait(lambda: len([r for r in read_table(query_log_path) if match(r)]) > 0)
-
-        rows = [r for r in read_table(query_log_path) if match(r)]
-        assert (len(rows) == expected_queries_count)
-        block_rows = sum([row["chyt_query_statistics"]["secondary_query_source"]["block_rows"]["sum"] for row in rows])
-        assert (block_rows == expected_block_rows)
 
     @authors("evgenstf", "dakovalkov")
     def test_show_tables(self):
@@ -90,7 +74,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 assert root + "/t12" in shown_tables_like_t1
                 shown_tables_like_t1.remove(root + "/t12")
 
-        with raises_yt_error(UserJobFailed):
+        with raises_yt_error(code=UserJobFailed):
             with Clique(
                     1,
                     config_patch={
@@ -112,16 +96,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch={"yt": {
             "subquery": {"max_data_weight_per_subquery": column_weight - 1}
         }}) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select a from "//tmp/t"')
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select b from "//tmp/t"')
 
         with Clique(1, config_patch={"yt": {
             "subquery": {"max_data_weight_per_subquery": column_weight + 1}
         }}) as clique:
             assert clique.make_query('select a from "//tmp/t"') == [{"a": "2012-12-12 20:00:00"}]
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select a, b from "//tmp/t"')
 
         with Clique(1, config_patch={
@@ -132,9 +116,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 },
             },
         }) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 assert clique.make_query('select a from "//tmp/t"') == [{"a": "2012-12-12 20:00:00"}]
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select a, b from "//tmp/t"')
 
     @authors("evgenstf", "dakovalkov")
@@ -208,24 +192,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("a-dyu")
     @pytest.mark.timeout(150)
     def test_simple_distinct_optimization(self):
-        root_dir = "//tmp/exporter"
-        create("map_node", root_dir)
-        patch = {
-            "yt": {
-                "system_log_table_exporters": {
-                    "cypress_root_directory": root_dir,
-                    "default": {
-                        "enabled": True,
-                        "max_rows_to_keep": 100000,
-                    },
-                },
-                "settings": {
-                    "execution": {"enable_distinct_read_optimization": True},
-                },
-            }
-        }
-        query_log_path = root_dir + "/query_log/0"
-
         table_schema = [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "int64"}]
         create("table", "//tmp/dictionary_encoded_table", attributes={"schema": table_schema, "optimize_for": "scan"})
         create("table", "//tmp/rle_encoded_table", attributes={"schema": table_schema, "optimize_for": "scan"})
@@ -254,110 +220,86 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
         write_table("//tmp/rle_encoded_table", arr)
 
+        create("table", "//tmp/t_read_part_block", attributes={
+            "schema": [{"name": "a", "type": "int64"}],
+            "optimize_for": "scan",
+        })
+        arr = []
+        for _ in range(100):
+            arr.append({"a": 1})
+        for _ in range(100):
+            arr.append({"a": 2})
+        for _ in range(100):
+            arr.append({"a": 3})
+        write_table("//tmp/t_read_part_block", arr)
+
+        patch = {
+            "yt": {
+                "settings": {
+                    "execution": {"enable_distinct_read_optimization": True},
+                },
+            }
+        }
         with Clique(1, config_patch=patch, export_query_log=True) as clique:
             def send_simple_distinct_queries(table_name):
                 # Queries that are optimized by simple distinct optimization.
+                assert clique.make_query_and_validate_prewhered_row_count(f"select distinct a from {table_name}", exact=3) == [{"a": 1}, {"a": 2}, {"a": None}]
 
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select distinct a from " + table_name, 3, [{"a": 1}, {"a": 2}, {"a": None}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique,
-                    query_log_path,
-                    "select distinct b from " + table_name,
-                    4,
-                    [{"b": "a"}, {"b": "b"}, {"b": "c"}, {"b": None}],
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select uniqExact(a) from " + table_name, 3, [{"uniqExact(a)": 2}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select uniq(a) from " + table_name, 3, [{"uniq(a)": 2}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select uniqCombined(a) from " + table_name, 3, [{"uniqCombined(a)": 2}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select max(b) from " + table_name, 4, [{"max(b)": "c"}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select min(b) from " + table_name, 4, [{"min(b)": "a"}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select max(b), min(b) from " + table_name, 4, [{"max(b)": "c", "min(b)": "a"}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique,
-                    query_log_path,
-                    "select distinct a, a * a, abs(a) from " + table_name,
-                    3,
-                    [{"a": 1, "multiply(a, a)": 1, "abs(a)": 1}, {"a": 2, "multiply(a, a)": 4, "abs(a)": 2}, {"a": None, "multiply(a, a)": None, "abs(a)": None}],
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select max(abs(a)) from " + table_name, 3, [{"max(abs(a))": 2}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select distinct a from " + table_name + " where a < 2", 3, [{"a": 1}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select max(b) from " + table_name + " where b < 'c'", 4, [{"max(b)": 'b'}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select distinct b from " + table_name + " prewhere a = 1", 2, [{"b": "a"}, {"b": "b"}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select distinct b from " + table_name + " prewhere a >= 1 and a <= 2", 3, [{"b": "a"}, {"b" : "b"}, {"b": "c"}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select distinct b from " + table_name + " prewhere a in (1, 2)", 3, [{"b": "a"}, {"b": "b"}, {"b": "c"}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select distinct b from " + table_name + " prewhere a = c", 1, [{"b": "a"}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique,
-                    query_log_path,
-                    "select distinct a from " + table_name + " group by a having a < 2",
-                    3,
-                    [{"a": 1}],
-                )
+                assert clique.make_query_and_validate_prewhered_row_count(f"select distinct b from {table_name}", exact=4) == [{"b": "a"}, {"b": "b"}, {"b": "c"}, {"b": None}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select uniqExact(a) from {table_name}", exact=3) == [{"uniqExact(a)": 2}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select uniq(a) from {table_name}", exact=3) == [{"uniq(a)": 2}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select uniqCombined(a) from {table_name}", exact=3) == [{"uniqCombined(a)": 2}]
+
+                # These test cases conflict with minimum/maximum optimization. Disable it explicitly.
+                settings = {"chyt.execution.enable_min_max_optimization": 0}
+                assert clique.make_query_and_validate_prewhered_row_count(f"select max(b) from {table_name}", exact=4, settings=settings) == [{"max(b)": "c"}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select min(b) from {table_name}", exact=4, settings=settings) == [{"min(b)": "a"}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select max(b), min(b) from {table_name}", exact=4, settings=settings) == [{"max(b)": "c", "min(b)": "a"}]
+
+                assert clique.make_query_and_validate_prewhered_row_count(
+                    f"select distinct a, a * a, abs(a) from {table_name}",
+                    exact=3,
+                ) == [{"a": 1, "multiply(a, a)": 1, "abs(a)": 1}, {"a": 2, "multiply(a, a)": 4, "abs(a)": 2}, {"a": None, "multiply(a, a)": None, "abs(a)": None}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select max(abs(a)) from {table_name}", exact=3) == [{"max(abs(a))": 2}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select distinct a from {table_name} where a < 2", exact=3) == [{"a": 1}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select max(b) from {table_name} where b < 'c'", exact=4) == [{"max(b)": 'b'}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select distinct b from {table_name} prewhere a = 1", exact=2) == [{"b": "a"}, {"b": "b"}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select distinct b from {table_name} prewhere a >= 1 and a <= 2", exact=3) == [{"b": "a"}, {"b" : "b"}, {"b": "c"}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select distinct b from {table_name} prewhere a in (1, 2)", exact=3) == [{"b": "a"}, {"b": "b"}, {"b": "c"}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select distinct b from {table_name} prewhere a = c", exact=1) == [{"b": "a"}]
+                assert clique.make_query_and_validate_prewhered_row_count(f"select distinct b from {table_name} prewhere c = 4", exact=1) == [{"b": None}]
+                assert clique.make_query_and_validate_prewhered_row_count(
+                    f"select distinct a from {table_name} group by a having a < 2",
+                    exact=3,
+                ) == [{"a": 1}]
 
                 # Queries that are not optimized by simple distinct optimization.
 
-                self.make_query_and_check_block_rows(
-                    clique,
-                    query_log_path,
-                    "select distinct b from " + table_name + " where a = 2",
-                    400,
-                    [{"b" : "c"}],
-                )
+                assert clique.make_query_and_validate_prewhered_row_count(
+                    f"select distinct b from {table_name} where a = 2",
+                    exact=400,
+                ) == [{"b" : "c"}]
 
-                assert len(clique.make_query("select a from " + table_name)) == 400
-                assert len(clique.make_query("select a * a from " + table_name)) == 400
-                assert clique.make_query("select count(a) from " + table_name) == [{"count(a)": 300}]
-                self.make_query_and_check_block_rows(
-                    clique,
-                    query_log_path,
-                    "select distinct a, b from " + table_name,
-                    400,
-                    [{"a": 1, "b": "a"}, {"a": 1, "b": "b"}, {"a": 2, "b": "c"}, {"a": None, "b": None}],
-                )
+                assert len(clique.make_query(f"select a from {table_name}")) == 400
+                assert len(clique.make_query(f"select a * a from {table_name}")) == 400
+                assert clique.make_query(f"select count(a) from {table_name}") == [{"count(a)": 300}]
+                assert clique.make_query_and_validate_prewhered_row_count(
+                    f"select distinct a, b from {table_name}",
+                    exact=400,
+                ) == [{"a": 1, "b": "a"}, {"a": 1, "b": "b"}, {"a": 2, "b": "c"}, {"a": None, "b": None}]
 
-                assert len(clique.make_query("select distinct a * rand() from " + table_name)) == 301
-                assert clique.make_query("select count(a * rand()) from " + table_name) == [
+                assert len(clique.make_query(f"select distinct a * rand() from {table_name}")) == 301
+                assert clique.make_query(f"select count(a * rand()) from {table_name}") == [
                     {"count(multiply(a, rand()))": 300}
                 ]
 
             send_simple_distinct_queries('"//tmp/dictionary_encoded_table"')
             send_simple_distinct_queries('"//tmp/rle_encoded_table"')
 
-            self.make_query_and_check_block_rows(
-                clique,
-                query_log_path,
+            assert clique.make_query_and_validate_prewhered_row_count(
                 'select distinct a from concatYtTables("//tmp/dictionary_encoded_table", "//tmp/dictionary_encoded_table")',
-                6,
-                [{"a": 1}, {"a": 2}, {"a": None}],
-            )
+                exact=6,
+            ) == [{"a": 1}, {"a": 2}, {"a": None}]
             assert (
                 clique.make_query(
                     """
@@ -369,6 +311,19 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 )
                 == [{"a": 1}, {"a": 2}, {"a": None}]
             )
+
+            assert clique.make_query_and_validate_prewhered_row_count(
+                'select distinct a from "//tmp/t_read_part_block[#0:#100]"',
+                exact=100,
+            ) == [{"a": 1}]
+            assert clique.make_query_and_validate_prewhered_row_count(
+                'select distinct a from "//tmp/t_read_part_block[#100:#200]"',
+                exact=100,
+            ) == [{"a": 2}]
+            assert clique.make_query_and_validate_prewhered_row_count(
+                'select distinct a from "//tmp/t_read_part_block[#200:#300]"',
+                exact=100,
+            ) == [{"a": 3}]
 
     @authors("evgenstf")
     def test_acl(self):
@@ -398,10 +353,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 ],
             )
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * from "//tmp/t1"', user="user_with_denied_column")
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select a from "//tmp/t1"', user="user_with_denied_column")
 
             assert clique.make_query('select b from "//tmp/t1"', user="user_with_denied_column") == [{"b": "value2"}]
@@ -416,9 +371,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 ],
             )
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * from "//tmp/t2"', user="user_with_allowed_one_column")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select a from "//tmp/t2"', user="user_with_allowed_one_column")
             assert clique.make_query('select b from "//tmp/t2"', user="user_with_allowed_one_column") == [
                 {"b": "value2"}
@@ -514,27 +469,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("a-dyu")
     def test_min_max_optimization(self):
-        root_dir = "//tmp/exporter"
-        create("map_node", root_dir)
-        patch = {
-            "yt": {
-                "system_log_table_exporters": {
-                    "cypress_root_directory": root_dir,
-                    "default": {
-                        "enabled": True,
-                        "max_rows_to_keep": 100000,
-                    },
-                },
-                "settings": {
-                    "execution": {
-                        "enable_min_max_optimization": True,
-                        "allow_string_min_max_optimization": True,
-                    },
-                },
-            }
-        }
-        query_log_path = root_dir + "/query_log/0"
-
         table_schema = [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "int64"}]
         create("map_node", "//tmp/t")
         create("table", "//tmp/t/1", attributes={"schema": table_schema})
@@ -547,116 +481,70 @@ class TestClickHouseCommon(ClickHouseTestBase):
         write_table("<append=%true>//tmp/t/1", [{"a": None, "b": None, "c": None}])
         write_table("<append=%true>//tmp/t/2", [{"a": None, "b": None, "c": None}])
 
-        with Clique(2, config_patch=patch, export_query_log=True) as clique:
+        patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_optimization": True,
+                        "allow_string_min_max_optimization": True,
+                    },
+                },
+            }
+        }
+        with Clique(1, config_patch=patch, export_query_log=True) as clique:
             assert clique.make_query("select min(a) from '//tmp/t/empty'") == [{"min(a)": None}]
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(a) from '//tmp/t/1'", 2, [{"min(a)": 0}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(a) from '//tmp/t/1'", 2, [{"max(a)": 4}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(b) from '//tmp/t/1'", 2, [{"min(b)": "0"}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(b) from '//tmp/t/1'", 2, [{"max(b)": "4"}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(c) from '//tmp/t/1'", 2, [{"min(c)": 0}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(c) from '//tmp/t/1'", 2, [{"max(c)": 4}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(a), max(a) from '//tmp/t/1'", 2, [{"min(a)": 0, "max(a)": 4}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(b), max(b) from '//tmp/t/1'", 2, [{"min(b)": "0", "max(b)": "4"}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(a), max(b) from '//tmp/t/1'", 2, [{"min(a)": 0, "max(b)": "4"}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(b), max(a) from '//tmp/t/1'", 2, [{"min(b)": "0", "max(a)": 4}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(a), min(c) from '//tmp/t/1'", 2, [{"max(a)": 4, "min(c)": 0}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(b), min(c) from '//tmp/t/1'", 2, [{"max(b)": "4", "min(c)": 0}]
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(c), min(a) from '//tmp/t/1'", 2, [{"max(c)": 4, "min(a)": 0}]
-            )
-            self.make_query_and_check_block_rows(
-                clique,
-                query_log_path,
+            assert clique.make_query_and_validate_prewhered_row_count("select min(a) from '//tmp/t/1'", exact=2) == [{"min(a)": 0}]
+            assert clique.make_query_and_validate_prewhered_row_count("select max(a) from '//tmp/t/1'", exact=2) == [{"max(a)": 4}]
+            assert clique.make_query_and_validate_prewhered_row_count("select min(b) from '//tmp/t/1'", exact=2) == [{"min(b)": "0"}]
+            assert clique.make_query_and_validate_prewhered_row_count("select max(b) from '//tmp/t/1'", exact=2) == [{"max(b)": "4"}]
+            assert clique.make_query_and_validate_prewhered_row_count("select min(c) from '//tmp/t/1'", exact=2) == [{"min(c)": 0}]
+            assert clique.make_query_and_validate_prewhered_row_count("select max(c) from '//tmp/t/1'", exact=2) == [{"max(c)": 4}]
+            assert clique.make_query_and_validate_prewhered_row_count("select min(a), max(a) from '//tmp/t/1'", exact=2) == [{"min(a)": 0, "max(a)": 4}]
+            assert clique.make_query_and_validate_prewhered_row_count("select min(b), max(b) from '//tmp/t/1'", exact=2) == [{"min(b)": "0", "max(b)": "4"}]
+            assert clique.make_query_and_validate_prewhered_row_count("select min(a), max(b) from '//tmp/t/1'", exact=2) == [{"min(a)": 0, "max(b)": "4"}]
+            assert clique.make_query_and_validate_prewhered_row_count("select min(b), max(a) from '//tmp/t/1'", exact=2) == [{"min(b)": "0", "max(a)": 4}]
+            assert clique.make_query_and_validate_prewhered_row_count("select max(a), min(c) from '//tmp/t/1'", exact=2) == [{"max(a)": 4, "min(c)": 0}]
+            assert clique.make_query_and_validate_prewhered_row_count("select max(b), min(c) from '//tmp/t/1'", exact=2) == [{"max(b)": "4", "min(c)": 0}]
+            assert clique.make_query_and_validate_prewhered_row_count("select max(c), min(a) from '//tmp/t/1'", exact=2) == [{"max(c)": 4, "min(a)": 0}]
+            assert clique.make_query_and_validate_prewhered_row_count(
                 "select max(c), min(b), max(a) from '//tmp/t/1'",
-                2,
-                [{"max(c)": 4, "min(b)": "0", "max(a)": 4}],
-            )
-            self.make_query_and_check_block_rows(
-                clique,
-                query_log_path,
+                exact=2,
+            ) == [{"max(c)": 4, "min(b)": "0", "max(a)": 4}]
+            assert clique.make_query_and_validate_prewhered_row_count(
                 "select max(a), min(b), max(c) from '//tmp/t/1'",
-                2,
-                [{"max(a)": 4, "min(b)": "0", "max(c)": 4}],
-            )
-            self.make_query_and_check_block_rows(
-                clique,
-                query_log_path,
+                exact=2,
+            ) == [{"max(a)": 4, "min(b)": "0", "max(c)": 4}]
+            assert clique.make_query_and_validate_prewhered_row_count(
                 "select max(c), min(a), max(b) from '//tmp/t/1'",
-                2,
-                [{"max(c)": 4, "min(a)": 0, "max(b)": "4"}],
-            )
-            self.make_query_and_check_block_rows(
-                clique,
-                query_log_path,
+                exact=2,
+            ) == [{"max(c)": 4, "min(a)": 0, "max(b)": "4"}]
+            assert clique.make_query_and_validate_prewhered_row_count(
                 "select min(a), max(b), max(a), min(c), max(c), min(b) from '//tmp/t/1'",
-                2,
-                [{"min(a)": 0, "max(b)": "4", "max(a)": 4, "min(c)": 0, "max(c)": 4, "min(b)": "0"}],
-            )
+                exact=2,
+            ) == [{"min(a)": 0, "max(b)": "4", "max(a)": 4, "min(c)": 0, "max(c)": 4, "min(b)": "0"}]
 
-            self.make_query_and_check_block_rows(
-                clique,
-                query_log_path,
+            assert clique.make_query_and_validate_prewhered_row_count(
                 "select min(a), max(a) from concatYtTables('//tmp/t/1', '//tmp/t/2')",
-                2,
-                [{"min(a)": 0, "max(a)": 9}],
-            )
-            self.make_query_and_check_block_rows(
-                clique,
-                query_log_path,
+                exact=2,
+            ) == [{"min(a)": 0, "max(a)": 9}]
+            assert clique.make_query_and_validate_prewhered_row_count(
                 "select min(a), max(a) from concatYtTablesRange('//tmp/t', '1', '2')",
-                2,
-                [{"min(a)": 0, "max(a)": 9}],
-            )
+                exact=2,
+            ) == [{"min(a)": 0, "max(a)": 9}]
 
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(a), count(a) from '//tmp/t/1'", 6, [{"min(a)": 0, "count(a)": 5}], 2
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(a) from '//tmp/t/1' where a > 0", 5, [{"min(a)": 1}], 2
-            )
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(a) from '//tmp/t/1' group by a having a < 1", 5, [{"min(a)": 0}], 2
-            )
+            assert clique.make_query_and_validate_prewhered_row_count("select min(a), count(a) from '//tmp/t/1'", exact=6) == [{"min(a)": 0, "count(a)": 5}]
+            assert clique.make_query_and_validate_prewhered_row_count("select min(a) from '//tmp/t/1' where a > 0", exact=5) == [{"min(a)": 1}]
+            assert clique.make_query_and_validate_prewhered_row_count("select min(a) from '//tmp/t/1' group by a having a < 1", exact=5) == [{"min(a)": 0}]
 
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min($table_name) from '//tmp/t/1'", 6, [{"min($table_name)": "1"}], 2
-            )
+            assert clique.make_query_and_validate_prewhered_row_count("select min($table_name) from '//tmp/t/1'", exact=6) == [{"min($table_name)": "1"}]
 
             settings = {"chyt.execution.allow_string_min_max_optimization": 0}
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(b) from '//tmp/t/1'", 6, [{"max(b)": "4"}], 2, settings
-            )
+            assert clique.make_query_and_validate_prewhered_row_count("select max(b) from '//tmp/t/1'", exact=6, settings=settings) == [{"max(b)": "4"}]
 
             write_table("<append=%true>//tmp/t/1", {"a": 3, "b": "z" * 200, "c": 3})
 
             # Need to full scan because max string is shortened for statistics.
-            self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(b) from '//tmp/t/1'", 7, [{"max(b)": "z" * 200}], 2
-            )
+            assert clique.make_query_and_validate_prewhered_row_count("select max(b) from '//tmp/t/1'", exact=7) == [{"max(b)": "z" * 200}]
 
     @authors("evgenstf")
     def test_orchid_nodes(self):
@@ -691,54 +579,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch={"yt": {"subquery": {"max_data_weight_per_subquery": 1}}}) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select CAST(a as datetime) from "//tmp/t"')
-
-    @authors("evgenstf")
-    def test_discovery_v1_nodes_self_cleaning(self):
-        patch = {
-            "yt": {
-                "discovery": {
-                    "version": 1,
-                    # Allow node cleaning 1s after creation (default is 5m).
-                    "lock_node_timeout": 1000,
-                }
-            }
-        }
-        with Clique(2, config_patch=patch) as clique:
-            clique_path = "//sys/clickhouse/cliques/{0}".format(clique.op.id)
-
-            nodes_before_resizing = ls(clique_path, verbose=False)
-            assert len(nodes_before_resizing) == 2
-
-            jobs = list(clique.op.get_running_jobs())
-            assert len(jobs) == 2
-
-            clique.resize(1)
-            wait(lambda: len(ls(clique_path, verbose=False)) == 1, iter=10)
-
-    @authors("evgenstf")
-    def test_discovery_v1_transaction_restore(self):
-        patch = {
-            "yt": {
-                "discovery": {
-                    "version": 1
-                }
-            }
-        }
-        with Clique(1, config_patch=patch) as clique:
-            instances_before_transaction_abort = clique.get_active_instances()
-            assert len(instances_before_transaction_abort) == 1
-
-            locks = instances_before_transaction_abort[0].attributes["locks"]
-            assert len(locks) == 1
-
-            transaction_id = locks[0]["transaction_id"]
-
-            abort_transaction(transaction_id)
-            time.sleep(5)
-
-            wait(lambda: clique.get_active_instance_count() == 1, iter=10)
 
     @authors("max42")
     @pytest.mark.parametrize("instance_count", [1, 5])
@@ -749,7 +591,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 write_table("<append=%true>//tmp/t", [{"a": 2 * i}, {"a": 2 * i + 1}])
 
             assert abs(clique.make_query('select avg(a) from "//tmp/t"')[0]["avg(a)"] - 4.5) < 1e-6
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select avg(b) from "//tmp/t"')
 
             assert abs(clique.make_query('select avg(a) from "//tmp/t[#2:#9]"')[0]["avg(a)"] - 5.0) < 1e-6
@@ -857,7 +699,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             remove("//tmp/t")
             time.sleep(0.5)
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('describe "//tmp/t"')
 
             create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "int64"}]})
@@ -1093,12 +935,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(clique.make_query("select * from concatYtTablesRange('//tmp/link')")) == 2
 
     @authors("dakovalkov", "gudqeit")
-    @pytest.mark.parametrize("discovery_version", [1, 2])
-    def test_system_clique(self, discovery_version):
+    def test_system_clique(self):
         patch = {
             "yt": {
                 "discovery": {
-                    "version": discovery_version
+                    "version": 2
                 }
             }
         }
@@ -1299,7 +1140,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             time.sleep(2.5)
 
-            with raises_yt_error(InstanceUnavailableCode):
+            with raises_yt_error(code=InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
             clique.op.resume()
@@ -1327,7 +1168,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             self._signal_instance(pid, signal.SIGINT)
             time.sleep(1)
-            with raises_yt_error(InstanceUnavailableCode):
+            with raises_yt_error(code=InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
             clique.op.resume()
@@ -1413,13 +1254,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 {func: yson.dumps(value3, yson_format="text").decode()},
                 {func: None},
             ]
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select ConvertYson('{key=[1;2]}', NULL)")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select ConvertYson('{key=[1;2]}', 'xxx')")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select ConvertYson('{{{{', 'binary')")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select ConvertYson(1, 'text')")
 
     @authors("dakovalkov")
@@ -1507,7 +1348,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Table doesn't exist.
             assert clique.make_query('exists table "//tmp/t123456"') == [{"result": 0}]
             # Not a table.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('exists table "//sys"')
 
     @authors("dakovalkov", "buyval01")
@@ -1630,7 +1471,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             query = "insert into `//tmp/t`({}) values ({})"
 
             def expect_error(type, value):
-                with raises_yt_error(QueryFailedError):
+                with raises_yt_error(code=QueryFailedError):
                     clique.make_query(query.format(type, value))
                     # auxilary asserts if something went wrong to see what was inserted
                     rows = read_table("//tmp/t")
@@ -1748,17 +1589,18 @@ class TestClickHouseCommon(ClickHouseTestBase):
         )
 
         def timestamp_to_tz(timestamp, zone, t):
-            raw_bytes = timestamp.to_bytes(t["bytes"], byteorder="big", signed=t["min"] < 0)
-            if t["min"] < 0:
-                first_byte = raw_bytes[0] ^ 0x80
-                return bytes([first_byte]) + raw_bytes[1:] + zone.encode("ascii")
-            else:
-                return raw_bytes + zone.encode("ascii")
+            signed = t["min"] < 0
+            timestamp_bytes = bytearray(timestamp.to_bytes(t["bytes"], byteorder="big", signed=signed))
+            if signed:
+                timestamp_bytes[0] ^= 0x80
+            zone_bytes = zone.to_bytes(2, byteorder="big", signed=False)
+            return bytes(timestamp_bytes) + zone_bytes
 
+        tzEuropeMoscow = 1
         arr = []
-        arr.append({t["name"]: timestamp_to_tz(t["min"], "Europe/Moscow", t) for t in types})
-        arr.append({t["name"]: timestamp_to_tz(1, "Europe/Moscow", t) for t in types})
-        arr.append({t["name"]: timestamp_to_tz(t["max"], "Europe/Moscow", t) for t in types})
+        arr.append({t["name"]: timestamp_to_tz(t["min"], tzEuropeMoscow, t) for t in types})
+        arr.append({t["name"]: timestamp_to_tz(1, tzEuropeMoscow, t) for t in types})
+        arr.append({t["name"]: timestamp_to_tz(t["max"], tzEuropeMoscow, t) for t in types})
 
         expected = [
             {
@@ -1801,6 +1643,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_yson_extract(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "any"}]})
+        write_table("//tmp/t", [{"a": {"a": {"b": "val", "c": 12}}}])
+
         with Clique(1) as clique:
             assert clique.make_query("select YSONHas('{a=5;b=6}', 'a') as a") == [{"a": 1}]
             assert clique.make_query("select YSONHas('{a=5;b=6}', 'c') as a") == [{"a": 0}]
@@ -1826,6 +1671,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_query("select YSONExtractString('[true; false]', 1) as a") == [{"a": "true"}]
             assert clique.make_query("select YSONExtractString('{a=true; b=false}', 'b') as a") == [{"a": "false"}]
+            assert clique.make_query("select YSONExtractString('{a=#}', 'a') as a") == [{"a": ""}]
 
             assert clique.make_query("select YSONExtract('{a=5;b=[5; 4; 3]}', 'b', 'Array(Int64)') as a") == [
                 {"a": [5, 4, 3]}
@@ -1841,6 +1687,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 "b": 6,
                 "c": 10,
             }
+
+            assert clique.make_query("select YSONExtractString(a, 'a', 'c') as v from '//tmp/t'") == [{"v": "12"}]
+            assert clique.make_query("select YSONExtractString(YSONExtractRaw(a, 'a'), 'b') as v from '//tmp/t'") == [{"v": "val"}]
 
     @authors("dakovalkov")
     def test_yson_extract_invalid(self):
@@ -2146,7 +1995,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch=patch) as clique:
             assert clique.make_query("select 1 as a") == [{"a": 1}]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select 1 as a", headers={"User-Agent": "banned_user_agent"})
 
     @authors("dakovalkov")
@@ -2186,7 +2035,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch=patch) as clique:
             assert clique.make_query("select 1 as a") == [{"a": 1}]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select 1 as a", headers={"User-Agent": "some_user_agent"})
 
     @authors("dakovalkov")
@@ -2221,9 +2070,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 "wait_end_of_query": 1,
                 "buffer_size": 1024 ** 2,
             }
-            # NB: Should fail since buffer_size is exceeded and temporary data disk space limit is 1 byte.
-            with raises_yt_error(QueryFailedError):
-                clique.make_query(query.format(1000 * 1000), settings=settings, verbose=False)
+            # NB: Should fail since buffer_size is exceeded and temporary data disk space limit is 128 Mb.
+            with raises_yt_error(code=QueryFailedError):
+                clique.make_query(query.format(1000 * 1000 * 1000), settings=settings, verbose=False)
 
     @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -2396,7 +2245,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Table2 should be invisible.
             assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "table1"}]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('SELECT 1 FROM my_db."subdir/table2"')
 
     @authors("dakovalkov")
@@ -2460,7 +2309,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     "schema": [
                         {"name": "key", "type": "int64"},
                         {"name": "value", "type": "string"}
-                    ]
+                    ],
+                    "inherit_acl": False,
                 },
             )
             write_table("//tmp/t", [{"key": 15, "value": "value2"}, {"key": 16, "value": "value3"}])
@@ -2472,20 +2322,23 @@ class TestClickHouseCommon(ClickHouseTestBase):
             acl[-1]["row_access_predicate"] = "key = 15"
             set("//tmp/t/@acl", acl)
 
-            assert clique.make_query('select * from "//tmp/t"', user="u") == [{"key": 15, "value": "value2"}]
+            def make_query(query):
+                return clique.make_query(query, user="u", settings={"chyt.omit_inaccessible_rows": 1})
 
-            assert clique.make_query('select key from "//tmp/t"', user="u") == [{"key": 15}]
-
-            assert clique.make_query('select count(key) as cnt from "//tmp/t"', user="u") == [{"cnt": 1}]
-
-            assert clique.make_query('select count() as cnt from "//tmp/t"', user="u") == [{"cnt": 1}]
+            assert make_query('select * from "//tmp/t"') == [{"key": 15, "value": "value2"}]
+            assert make_query('select key from "//tmp/t"') == [{"key": 15}]
+            assert make_query('select count(key) as cnt from "//tmp/t"') == [{"cnt": 1}]
+            assert make_query('select count() as cnt from "//tmp/t"') == [{"cnt": 1}]
 
             with raises_yt_error("Cannot use ranges with \\\"row_index\\\""):
-                clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+                make_query('select * from `<upper_limit={row_index=100}>//tmp/t`')
 
             # Check again for sanity to account for various miscachings.
             with raises_yt_error("Cannot use ranges with \\\"row_index\\\""):
-                clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+                make_query('select * from `<upper_limit={row_index=100}>//tmp/t`')
+
+            with raises_yt_error("Table has row-level ACL but \\\"omit_inaccessible_rows\\\" is set to false"):
+                clique.make_query('select * from "//tmp/t"', user="u")
 
     @authors("coteeq")
     def test_dictionary_with_row_level_acl(self):
@@ -2681,6 +2534,390 @@ class TestClickHouseNoCache(ClickHouseTestBase):
                 assert clique.make_query('select * from "//tmp/t"') == [{"a": 123}]
 
 
+class TestDataTypeConversion(ClickHouseTestBase):
+    def make_query_and_check_low_cardinality(self, clique, query, expected_result, exact_match=True, settings=None):
+        result = clique.make_query(query, settings=settings, full_response=True)
+
+        if exact_match:
+            assert result.json()["data"] == expected_result
+        else:
+            assert_items_equal(result.json()["data"], expected_result)
+
+        for col in result.json()["meta"]:
+            assert col["type"].startswith("LowCardinality")
+
+    def low_cardinality_config(self, lc_mode=None):
+        config = {
+            "clickhouse": {"settings": {"allow_suspicious_low_cardinality_types": 1}}
+        }
+        if lc_mode is not None:
+            update_inplace(config, {
+                "yt": {
+                    "query_settings": {"conversion": {"low_cardinality": {"mode": lc_mode}}}
+                }
+            })
+
+        return config
+
+    @authors("a-dyu")
+    def test_low_cardinality_columns(self):
+        schema = [
+            {"name": "uint8_column", "type": "uint8"},
+            {"name": "uint16_column", "type": "uint16"},
+            {"name": "uint32_column", "type": "uint32"},
+            {"name": "uint64_column", "type": "uint64"},
+            {"name": "int8_column", "type": "int8"},
+            {"name": "int16_column", "type": "int16"},
+            {"name": "int32_column", "type": "int32"},
+            {"name": "int64_column", "type": "int64"},
+            {"name": "interval_column", "type": "interval"},
+            {"name": "interval64_column", "type": "interval64"},
+            {"name": "string_column", "type": "string"},
+            {"name": "utf8_column", "type": "utf8"},
+        ]
+
+        create("table", "//tmp/t", attributes={"schema": schema, "optimize_for": "scan"})
+        create("table", "//tmp/t0", attributes={"schema": schema, "optimize_for": "lookup"})
+
+        short_schema = [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]
+        create("table", "//tmp/rle_encoded", attributes={"schema": short_schema, "optimize_for": "scan"})
+        create("table", "//tmp/dict_encoded", attributes={"schema": short_schema, "optimize_for": "scan"})
+        create("table", "//tmp/t1", attributes={"schema": short_schema})
+        create("table", "//tmp/t2", attributes={"schema": short_schema})
+        create("table", "//tmp/different_cardinality", attributes={"schema": short_schema})
+        create("table", "//tmp/t3", attributes={"schema": short_schema})
+        nested_optional_schema = [
+            {"name": "nested_optional_uint8", "type_v3": {"type_name": "optional", "item": {"type_name": "optional", "item": "uint8"}}},
+            {"name": "nested_optional_string", "type_v3": {"type_name": "optional", "item": {"type_name": "optional", "item": "string"}}},
+        ]
+        create("table", "//tmp/nested_optional", attributes={"schema": nested_optional_schema})
+
+        def get_row(value):
+            str_value = str(value)
+            return {
+                "uint8_column": value,
+                "uint16_column": value,
+                "uint32_column": value,
+                "uint64_column": value,
+                "int8_column": value,
+                "int16_column": value,
+                "int32_column": value,
+                "int64_column": value,
+                "interval_column": value,
+                "interval64_column": value,
+                "string_column": str_value,
+                "utf8_column": str_value,
+            }
+
+        data = []
+        for i in range(3):
+            data.append(get_row(i))
+        data.append(get_row(None))
+        write_table("//tmp/t", data)
+
+        with Clique(1, config_patch=self.low_cardinality_config()) as clique:
+            settings = {
+                "chyt.conversion.low_cardinality.mode": "all",
+            }
+
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t"', data, settings=settings)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t" prewhere uint8_column = 1', [get_row(1)], settings=settings)
+
+            clique.make_query("insert into `//tmp/t0` select * from `//tmp/t`", settings=settings)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t0"', data, settings=settings)
+
+            clique.make_query("create table `//tmp/t_ch` engine=YtTable() as select * from `//tmp/t`", settings=settings)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t_ch"', data, settings=settings)
+
+            arr = []
+            for _ in range(1000):
+                arr.append({"a": "a", "b": "b"})
+
+            for _ in range(1000):
+                arr.append({"a": "b", "b": "a"})
+
+            for _ in range(1000):
+                arr.append({"a": None, "b": None})
+
+            write_table("//tmp/rle_encoded", arr)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/rle_encoded"', arr, settings=settings)
+            result = clique.make_query('select uniq(*) from "//tmp/rle_encoded"', settings=settings)
+            assert result == [{"uniq(a, b)": 2}]
+
+            arr = []
+            for _ in range(1000):
+                arr.append({"a": "a", "b": "b"})
+                arr.append({"a": "b", "b": "a"})
+                arr.append({"a": None, "b": None})
+
+            write_table("//tmp/dict_encoded", arr)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', arr, settings=settings)
+
+            result = clique.make_query('select uniq(*) from "//tmp/dict_encoded"', settings=settings)
+            assert result == [{"uniq(a, b)": 2}]
+
+            result = clique.make_query('select uniq(*) from concatYtTables("//tmp/rle_encoded", "//tmp/dict_encoded")', settings=settings)
+            assert result == [{"uniq(a, b)": 2}]
+
+            arr = []
+            for _ in range(1000):
+                arr.append({"a": None, "b": None})
+
+            settings["chyt.execution.enable_distinct_read_optimization"] = 1
+            write_table("//tmp/dict_encoded", arr)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', arr, settings=settings)
+
+            result = clique.make_query('select distinct a from "//tmp/dict_encoded"', settings=settings)
+            assert result == [{"a": None}]
+            settings["chyt.execution.enable_distinct_read_optimization"] = 0
+
+            write_table("//tmp/t1", [{"a": "a", "b": "b"}])
+            write_table("//tmp/t2", [{"a": "b", "b": "a"}])
+
+            self.make_query_and_check_low_cardinality(
+                clique,
+                'select * from "//tmp/t1" as t1 inner join (select * from "//tmp/t2") as t2 on t1.a != t2.a',
+                [{"a": "a", "b": "b", "t2.a": "b", "t2.b": "a"}],
+                settings=settings
+            )
+
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/t0"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/t1"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/rle_encoded"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/dict_encoded"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            settings["chyt.conversion.low_cardinality.mode"] = "from_statistics"
+            settings["chyt.conversion.low_cardinality.threshold"] = 10
+            arr = []
+            for i in range(20):
+                arr.append({"a": "a", "b": str(i)})
+            write_table("//tmp/different_cardinality", arr)
+            result = clique.make_query('describe table "//tmp/different_cardinality"', settings=settings)
+            assert result[0]["type"].startswith("LowCardinality")
+            assert not result[1]["type"].startswith("LowCardinality")
+
+            clique.make_query("insert into `//tmp/t3` select * from `//tmp/different_cardinality`", settings=settings)
+            result = clique.make_query('select * from "//tmp/t3"', settings=settings)
+            assert result == arr
+
+            clique.make_query("create table `//tmp/t_ch1` engine=YtTable() as select * from `//tmp/different_cardinality`", settings=settings)
+            result = clique.make_query('select * from "//tmp/t_ch1"', settings=settings)
+            assert result == arr
+
+            result = clique.make_query('describe table "//tmp/nested_optional"', settings=settings)
+            assert all(not t["type"].startswith("LowCardinality") for t in result)
+
+            settings["chyt.conversion.low_cardinality.mode"] = "string_only"
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            for t in result:
+                if t["name"] == "string_column" or t["name"] == "utf8_column":
+                    assert t["type"].startswith("LowCardinality")
+                else:
+                    assert not t["type"].startswith("LowCardinality")
+
+            settings["chyt.conversion.low_cardinality.mode"] = "none"
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            assert all(not t["type"].startswith("LowCardinality") for t in result)
+
+            settings["chyt.conversion.low_cardinality.regexp"] = "uint8_column"
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            for t in result:
+                if t["name"] == "uint8_column":
+                    assert t["type"].startswith("LowCardinality")
+                else:
+                    assert not t["type"].startswith("LowCardinality")
+
+    @authors("buyval01")
+    def test_low_cardinality_over_encodings(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "ui64", "type": "uint64", "required": True},
+                {"name": "i64", "type": "int64"},
+                {"name": "str", "type": "string"},
+                {"name": "str_req", "type": "string", "required": True},
+            ],
+            "optimize_for": "scan",
+        })
+
+        # Using patterns from integer_column_ut.cpp that are proven to trigger specific encodings.
+
+        # 1. DirectDense: Sequential values (base + i).
+        def direct_dense_generator(base_ui64, base_i64):
+            result = []
+            for i in range(100 * 100):
+                result.append({
+                    "ui64": base_ui64 + i,
+                    "i64": base_i64 + i,
+                    "str": f"dd_{i}",
+                    "str_req": f"dd_req_{i}",
+                })
+            return result
+
+        # 2. DictionaryDense: Small dictionary with alternating pattern.
+        def dict_dense_generator(base_ui64, base_i64):
+            result = []
+            for _ in range(100):
+                for j in range(100):
+                    if j != 50:
+                        result.append({
+                            "ui64": base_ui64 + j * 1024,
+                            "i64": base_i64 + j * 1024,
+                            "str": f"dictd_{j}",
+                            "str_req": f"dictd_req_{j}",
+                        })
+                    else:
+                        result.append({
+                            "ui64": 0,
+                            "i64": 0,
+                            "str": "",
+                            "str_req": "",
+                        })
+            return result
+
+        # 3. DictionaryRle: Very small dictionary (4 values) with long runs + nulls.
+        def dict_rle_generator(base_ui64, base_i64):
+            result = []
+            for i in range(100):
+                for j in range(100):
+                    val_idx = j // 25
+                    result.append({
+                        "ui64": base_ui64 + val_idx * 1024,
+                        "i64": base_i64 + val_idx * 1024,
+                        "str": f"dictr_{val_idx}",
+                        "str_req": f"dictr_req_{val_idx}",
+                    })
+                    if val_idx == 1:
+                        result[-1]["ui64"] = 0
+                        result[-1]["i64"] = 0
+                        result[-1]["str"] = ""
+                        result[-1]["str_req"] = ""
+
+                null_row = copy.deepcopy(result[-1])
+                null_row["i64"] = None
+                null_row["str"] = None
+                # Add nulls to create more runs
+                for j in range(2):
+                    result.append(null_row)
+
+            return result
+
+        # 4. DirectRle: Same value repeated in runs.
+        def direct_rle_generator(base_ui64, base_i64):
+            result = []
+            for i in range(100):
+                for j in range(100):
+                    result.append({
+                        "ui64": base_ui64 + i,
+                        "i64": base_i64 + i,
+                        "str": f"dr_{i}",
+                        "str_req": f"dr_req_{i}_{"a" * 100}",
+                    })
+                null_row = copy.deepcopy(result[-1])
+                null_row["i64"] = None
+                null_row["str"] = None
+                result.append(null_row)
+            return result
+
+        # We need to generate disjoint ranges.
+
+        # [base .. base + 102400)
+        dict_dense_data = dict_dense_generator(22222, 12345)
+        write_table("<append=%true>//tmp/t", dict_dense_data)
+
+        # [base .. base + 4096)
+        dict_rle_data = dict_rle_generator(333333, 333333)
+        write_table("<append=%true>//tmp/t", dict_rle_data)
+
+        # [base .. base + 10000)
+        direct_dense_data = direct_dense_generator(1000, -10001)
+        write_table("<append=%true>//tmp/t", direct_dense_data)
+
+        direct_rle_data = direct_rle_generator(444444, 444444)
+        write_table("<append=%true>//tmp/t", direct_rle_data)
+
+        expected_data = dict_rle_data + direct_rle_data + dict_dense_data + direct_dense_data
+
+        expected_ui64_sum = sum(row["ui64"] for row in expected_data)
+        expected_i64_sum = sum(row["i64"] for row in expected_data if row["i64"] is not None)
+        expected_i64_nulls = sum(1 for row in expected_data if row["i64"] is None)
+        expected_str_nulls = sum(1 for row in expected_data if row["str"] is None)
+
+        from clickhouse_cityhash.cityhash import CityHash64
+        import operator
+        from functools import reduce
+
+        expected_str_hash = reduce(operator.xor, [CityHash64(row["str"].encode("utf-8")) if row["str"] is not None else 0 for row in expected_data], 0)
+        expected_str_req_hash = reduce(operator.xor, [CityHash64(row["str_req"].encode("utf-8")) for row in expected_data], 0)
+
+        with Clique(1, config_patch=self.low_cardinality_config("all")) as clique:
+            # Verify distinct values work correctly across all encoding types.
+            # Should have:
+            #   * 10000 from direct_dense;
+            #   * 100 from dict_dense;
+            #   * 4 from dict_rle - 1 for zero value overlap;
+            #   * 100 from direct_rle.
+            # Result: 10203
+            assert clique.make_query('select count(distinct ui64) as cnt from "//tmp/t"')[0]["cnt"] == 10203
+            assert clique.make_query('select count(distinct i64) as cnt from "//tmp/t"')[0]["cnt"] == 10203
+            assert clique.make_query('select count(distinct str) as cnt from "//tmp/t"')[0]["cnt"] == 10203
+            assert clique.make_query('select count(distinct str_req) as cnt from "//tmp/t"')[0]["cnt"] == 10203
+
+            agg_result = clique.make_query(
+                'select '
+                '   sum(ui64) as ui64_sum, '
+                '   sum(i64) as i64_sum, '
+                '   countIf(i64 is null) as i64_nulls, '
+                '   countIf(str is null) as str_nulls, '
+                '   groupBitXor(cityHash64(str)) as str_hash, '
+                '   groupBitXor(cityHash64(str_req)) as str_req_hash '
+                'from "//tmp/t"')[0]
+
+            assert agg_result["ui64_sum"] == expected_ui64_sum
+            assert agg_result["i64_sum"] == expected_i64_sum
+
+            assert agg_result["i64_nulls"] == expected_i64_nulls
+            assert agg_result["str_nulls"] == expected_str_nulls
+
+            assert agg_result["str_hash"] == expected_str_hash
+            assert agg_result["str_req_hash"] == expected_str_req_hash
+
+    @authors("buyval01")
+    def test_key_condition_with_lc_types(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "sort_order": "ascending", "required": True}
+            ]
+        })
+        for i in range(3):
+            data = 5 * [{"a": 3 * i}] + 5 * [{"a": 3 * i + 1}] + 5 * [{"a": 3 * i + 2}]
+            write_table("<append=%true>//tmp/t", data)
+
+        with Clique(1, config_patch=self.low_cardinality_config("all")) as clique:
+            self.make_query_and_check_low_cardinality(
+                clique,
+                "select * from '//tmp/t' where a > 2",
+                5 * [{"a": 3 + i} for i in range(6)],
+                exact_match=False
+            )
+
+            self.make_query_and_check_low_cardinality(
+                clique,
+                "select * from '//tmp/t' where CAST(a as Int8) = 7",
+                5 * [{"a": 7}],
+                exact_match=False
+            )
+
+
 class TestCustomSettings(ClickHouseTestBase):
     @authors("max42")
     @pytest.mark.parametrize("throw_exception_in_distributor, throw_exception_in_subquery",
@@ -2770,183 +3007,6 @@ class TestCustomSettings(ClickHouseTestBase):
             assert get_schema_from_description(clique.make_query("describe `//tmp/t2`")) == \
                    [{"name": "b", "type": "Bool"}]
 
-    @authors("a-dyu")
-    def test_low_cardinality_columns(self):
-        schema = [
-            {"name": "uint8_column", "type": "uint8"},
-            {"name": "uint16_column", "type": "uint16"},
-            {"name": "uint32_column", "type": "uint32"},
-            {"name": "uint64_column", "type": "uint64"},
-            {"name": "int8_column", "type": "int8"},
-            {"name": "int16_column", "type": "int16"},
-            {"name": "int32_column", "type": "int32"},
-            {"name": "int64_column", "type": "int64"},
-            {"name": "interval_column", "type": "interval"},
-            {"name": "interval64_column", "type": "interval64"},
-            {"name": "string_column", "type": "string"},
-            {"name": "utf8_column", "type": "utf8"},
-        ]
-
-        create("table", "//tmp/t", attributes={"schema": schema, "optimize_for": "scan"})
-        create("table", "//tmp/t0", attributes={"schema": schema, "optimize_for": "lookup"})
-
-        short_schema = [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]
-        create("table", "//tmp/rle_encoded", attributes={"schema": short_schema, "optimize_for": "scan"})
-        create("table", "//tmp/dict_encoded", attributes={"schema": short_schema, "optimize_for": "scan"})
-        create("table", "//tmp/t1", attributes={"schema": short_schema})
-        create("table", "//tmp/t2", attributes={"schema": short_schema})
-        create("table", "//tmp/different_cardinality", attributes={"schema": short_schema})
-        create("table", "//tmp/t3", attributes={"schema": short_schema})
-
-        def get_row(value):
-            str_value = str(value)
-            return {
-                "uint8_column": value,
-                "uint16_column": value,
-                "uint32_column": value,
-                "uint64_column": value,
-                "int8_column": value,
-                "int16_column": value,
-                "int32_column": value,
-                "int64_column": value,
-                "interval_column": value,
-                "interval64_column": value,
-                "string_column": str_value,
-                "utf8_column": str_value,
-            }
-
-        data = []
-        for i in range(3):
-            data.append(get_row(i))
-        data.append(get_row(None))
-        write_table("//tmp/t", data)
-
-        with Clique(1) as clique:
-            settings = {
-                "chyt.composite.low_cardinality_mode": "all",
-                "allow_suspicious_low_cardinality_types": 1,
-            }
-
-            def make_query_and_check_low_cardinality(clique, query, settings, expected_result):
-                result = clique.make_query(query, settings=settings, full_response=True)
-                assert result.json()["data"] == expected_result
-                for col in result.json()["meta"]:
-                    assert col["type"].startswith("LowCardinality")
-
-            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t"', settings, data)
-            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t" prewhere uint8_column = 1', settings, [get_row(1)])
-
-            clique.make_query("insert into `//tmp/t0` select * from `//tmp/t`", settings=settings)
-            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t0"', settings, data)
-
-            clique.make_query("create table `//tmp/t_ch` engine=YtTable() as select * from `//tmp/t`", settings=settings)
-            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t_ch"', settings, data)
-
-            arr = []
-            for _ in range(1000):
-                arr.append({"a": "a", "b": "b"})
-
-            for _ in range(1000):
-                arr.append({"a": "b", "b": "a"})
-
-            for _ in range(1000):
-                arr.append({"a": None, "b": None})
-
-            write_table("//tmp/rle_encoded", arr)
-            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/rle_encoded"', settings, arr)
-            result = clique.make_query('select uniq(*) from "//tmp/rle_encoded"', settings=settings)
-            assert result == [{"uniq(a, b)": 2}]
-
-            arr = []
-            for _ in range(1000):
-                arr.append({"a": "a", "b": "b"})
-                arr.append({"a": "b", "b": "a"})
-                arr.append({"a": None, "b": None})
-
-            write_table("//tmp/dict_encoded", arr)
-            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', settings, arr)
-
-            result = clique.make_query('select uniq(*) from "//tmp/dict_encoded"', settings=settings)
-            assert result == [{"uniq(a, b)": 2}]
-
-            result = clique.make_query('select uniq(*) from concatYtTables("//tmp/rle_encoded", "//tmp/dict_encoded")', settings=settings)
-            assert result == [{"uniq(a, b)": 2}]
-
-            arr = []
-            for _ in range(1000):
-                arr.append({"a": None, "b": None})
-
-            settings["chyt.execution.enable_distinct_read_optimization"] = 1
-            write_table("//tmp/dict_encoded", arr)
-            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', settings, arr)
-
-            result = clique.make_query('select distinct a from "//tmp/dict_encoded"', settings=settings)
-            assert result == [{"a": None}]
-            settings["chyt.execution.enable_distinct_read_optimization"] = 0
-
-            write_table("//tmp/t1", [{"a": "a", "b": "b"}])
-            write_table("//tmp/t2", [{"a": "b", "b": "a"}])
-
-            make_query_and_check_low_cardinality(
-                clique,
-                'select * from "//tmp/t1" as t1 inner join (select * from "//tmp/t2") as t2 on t1.a != t2.a',
-                settings,
-                [{"a": "a", "b": "b", "t2.a": "b", "t2.b": "a"}],
-            )
-
-            result = clique.make_query('describe table "//tmp/t"', settings=settings)
-            assert all(t["type"].startswith("LowCardinality") for t in result)
-
-            result = clique.make_query('describe table "//tmp/t0"', settings=settings)
-            assert all(t["type"].startswith("LowCardinality") for t in result)
-
-            result = clique.make_query('describe table "//tmp/t1"', settings=settings)
-            assert all(t["type"].startswith("LowCardinality") for t in result)
-
-            result = clique.make_query('describe table "//tmp/rle_encoded"', settings=settings)
-            assert all(t["type"].startswith("LowCardinality") for t in result)
-
-            result = clique.make_query('describe table "//tmp/dict_encoded"', settings=settings)
-            assert all(t["type"].startswith("LowCardinality") for t in result)
-
-            settings["chyt.composite.low_cardinality_mode"] = "from_statistics"
-            settings["chyt.composite.low_cardinality_threshold"] = 10
-            arr = []
-            for i in range(20):
-                arr.append({"a": "a", "b": str(i)})
-            write_table("//tmp/different_cardinality", arr)
-            result = clique.make_query('describe table "//tmp/different_cardinality"', settings=settings)
-            assert result[0]["type"].startswith("LowCardinality")
-            assert not result[1]["type"].startswith("LowCardinality")
-
-            clique.make_query("insert into `//tmp/t3` select * from `//tmp/different_cardinality`", settings=settings)
-            result = clique.make_query('select * from "//tmp/t3"', settings=settings)
-            assert result == arr
-
-            clique.make_query("create table `//tmp/t_ch1` engine=YtTable() as select * from `//tmp/different_cardinality`", settings=settings)
-            result = clique.make_query('select * from "//tmp/t_ch1"', settings=settings)
-            assert result == arr
-
-            settings["chyt.composite.low_cardinality_mode"] = "string_only"
-            result = clique.make_query('describe table "//tmp/t"', settings=settings)
-            for t in result:
-                if t["name"] == "string_column" or t["name"] == "utf8_column":
-                    assert t["type"].startswith("LowCardinality")
-                else:
-                    assert not t["type"].startswith("LowCardinality")
-
-            settings["chyt.composite.low_cardinality_mode"] = "none"
-            result = clique.make_query('describe table "//tmp/t"', settings=settings)
-            assert all(not t["type"].startswith("LowCardinality") for t in result)
-
-            settings["chyt.composite.low_cardinality_regexp"] = "uint8_column"
-            result = clique.make_query('describe table "//tmp/t"', settings=settings)
-            for t in result:
-                if t["name"] == "uint8_column":
-                    assert t["type"].startswith("LowCardinality")
-                else:
-                    assert not t["type"].startswith("LowCardinality")
-
 
 class TestClickHouseWithMasterCache(ClickHouseTestBase):
     USE_MASTER_CACHE = True
@@ -2991,24 +3051,20 @@ class TestClickHouseWithMasterCache(ClickHouseTestBase):
 
 
 @enable_sequoia
-@enable_sequoia_acls
 class TestClickHouseCommonSequoia(TestClickHouseCommon):
     pass
 
 
 @enable_sequoia
-@enable_sequoia_acls
 class TestClickHouseNoCacheSequoia(TestClickHouseNoCache):
     pass
 
 
 @enable_sequoia
-@enable_sequoia_acls
 class TestCustomSettingsSequoia(TestCustomSettings):
     pass
 
 
 @enable_sequoia
-@enable_sequoia_acls
 class TestClickHouseWithMasterCacheSequoia(TestClickHouseWithMasterCache):
     pass

@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/config.h>
+
 #include <yt/yt/ytlib/event_log/config.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -106,6 +108,9 @@ void TStrategyOperationControllerConfig::Register(TRegistrar registrar)
         .Alias("schedule_job_fail_backoff_time")
         .Default(TDuration::MilliSeconds(100));
 
+    registrar.Parameter("enable_per_node_shard_schedule_allocation_backoff", &TThis::EnablePerNodeShardScheduleAllocationBackoff)
+        .Default(false);
+
     registrar.Parameter("controller_throttling", &TThis::ControllerThrottling)
         .DefaultNew();
 
@@ -205,15 +210,7 @@ void TStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
             ValidateGpuSchedulingModuleName(schedulingSegmentModule);
         }
 
-        double previousModuleShare = 0.0;
-        for (const auto& entry : config->ModuleShareToNetworkPriority) {
-            if (entry.ModuleShare <= previousModuleShare && entry.ModuleShare > 0) {
-                THROW_ERROR_EXCEPTION("Module shares must be in strictly ascending order")
-                    << TErrorAttribute("module", entry.ModuleShare)
-                    << TErrorAttribute("previous_module", previousModuleShare);
-            }
-            previousModuleShare = entry.ModuleShare;
-        }
+        ValidateModuleShareToNetworkPriority(config->ModuleShareToNetworkPriority);
     });
 
     registrar.Postprocessor([&] (TStrategySchedulingSegmentsConfig* config) {
@@ -269,6 +266,14 @@ const THashSet<std::string>& TStrategySchedulingSegmentsConfig::GetModules() con
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGpuSchedulingPolicyTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("delay_inside_process_allocation_updates", &TThis::DelayInsideProcessAllocationUpdates)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("mode", &TThis::Mode)
@@ -299,10 +304,18 @@ void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
     registrar.Parameter("initialization_timeout", &TThis::InitializationTimeout)
         .Default(TDuration::Minutes(5));
 
+    registrar.Parameter("module_share_to_network_priority", &TThis::ModuleShareToNetworkPriority)
+        .Default();
+
+    registrar.Parameter("testing_options", &TThis::TestingOptions)
+        .DefaultNew();
+
     registrar.Postprocessor([&] (TGpuSchedulingPolicyConfig* config) {
         for (const auto& module : config->Modules) {
             ValidateGpuSchedulingModuleName(module);
         }
+
+        ValidateModuleShareToNetworkPriority(config->ModuleShareToNetworkPriority);
     });
 }
 
@@ -360,6 +373,9 @@ void TTreeTestingOptions::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("delay_inside_pool_permissions_validation", &TThis::DelayInsidePoolPermissionsValidation)
+        .Default();
+
+    registrar.Parameter("sync_delay_inside_process_allocation_updates", &TThis::SyncDelayInsideProcessAllocationUpdates)
         .Default();
 
     registrar.Parameter("resource_tree_initialize_resource_usage_delay", &TThis::ResourceTreeInitializeResourceUsageDelay)
@@ -643,13 +659,15 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default({0.01, 0.05, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.95, 0.99});
 
     registrar.Parameter("enable_guarantee_priority_scheduling", &TThis::EnableGuaranteePriorityScheduling)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_step_function_for_gang_operations", &TThis::EnableStepFunctionForGangOperations)
         .Default(false);
     registrar.Parameter("enable_improved_fair_share_by_fit_factor_computation", &TThis::EnableImprovedFairShareByFitFactorComputation)
         .Default(false);
     registrar.Parameter("enable_improved_fair_share_by_fit_factor_computation_distribution_gap", &TThis::EnableImprovedFairShareByFitFactorComputationDistributionGap)
+        .Default(false);
+    registrar.Parameter("enable_fast_fifo_fair_share_by_fit_factor_computation", &TThis::EnableFastFifoFairShareByFitFactorComputation)
         .Default(false);
 
     registrar.Parameter("min_job_resource_limits", &TThis::MinJobResourceLimits)
@@ -690,6 +708,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("gpu_scheduling_policy", &TThis::GpuSchedulingPolicy)
         .DefaultNew();
+
+    registrar.Parameter("policy_kind", &TThis::PolicyKind)
+        .Default(EPolicyKind::Classic);
 
     registrar.Parameter("enable_absolute_fair_share_starvation_tolerance", &TThis::EnableAbsoluteFairShareStarvationTolerance)
         .Default(false);
@@ -785,7 +806,8 @@ void TStrategyConfig::Register(TRegistrar registrar)
         .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
         .Default(TDuration::MilliSeconds(1000));
 
-    registrar.Parameter("accumulated_usage_log_period", &TThis::AccumulatedUsageLogPeriod)
+    registrar.Parameter("accumulated_resource_distribution_log_period", &TThis::AccumulatedResourceDistributionLogPeriod)
+        .Alias("accumulated_usage_log_period")
         .Default(TDuration::Minutes(1));
 
     registrar.Parameter("min_needed_resources_update_period", &TThis::MinNeededResourcesUpdatePeriod)
@@ -911,6 +933,8 @@ void TTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("finish_operation_transition_delay", &TThis::FinishOperationTransitionDelay)
         .Default();
     registrar.Parameter("node_heartbeat_processing_delay", &TThis::NodeHeartbeatProcessingDelay)
+        .Default();
+    registrar.Parameter("handle_nodes_attributes_delay", &TThis::HandleNodesAttributesDelay)
         .Default();
     registrar.Parameter("operation_node_creation_delay", &TThis::OperationNodeCreationDelay)
         .Default();
@@ -1351,9 +1375,12 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(66);
+        .Default(67);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
+        .DefaultNew();
+
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
         .DefaultNew();
 
     registrar.Parameter("operation_spec_tree_size_limit", &TThis::OperationSpecTreeSizeLimit)
@@ -1367,6 +1394,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("operation_actions_allowed_for_pool_managers", &TThis::OperationActionsAllowedForPoolManagers)
         .Default();
+
+    registrar.Parameter("unutilized_resources_sensors_update_period", &TThis::UnutilizedResourcesSensorsUpdatePeriod)
+        .Default(TDuration::Seconds(1));
 
     registrar.Preprocessor([&] (TThis* config) {
         config->OperationServiceResponseKeeper->EnableWarmup = false;

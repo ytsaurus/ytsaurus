@@ -35,7 +35,6 @@ import random
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     ENABLE_UNIQUE_COUNT_CHECK = True
@@ -111,9 +110,6 @@ class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
             "map_reduce_operation_options": {
                 "data_balancer": {
                     "tolerance": 1.0,
-                },
-                "spec_template": {
-                    "use_new_sorted_pool": False,
                 },
                 "sorted_merge_job_size_adjuster": {},
             },
@@ -192,10 +188,6 @@ for line in sys.stdin:
     for word in line.lstrip("line=").split():
         print("word=%s\\tcount=1" % word)
 """
-
-    def skip_if_legacy_sorted_pool(self):
-        if not isinstance(self, TestSchedulerMapReduceCommandsNewSortedPool):
-            pytest.skip("This test requires new sorted pool")
 
     def skip_if_compat(self):
         is_compat = "25_3" in getattr(self, "ARTIFACT_COMPONENTS", {})
@@ -1132,7 +1124,7 @@ print("x={0}\ty={1}".format(x, y))
         write_table("//tmp/t1", {"foo": "bar"})
         create("table", "//tmp/t2")
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* control attribute is not supported by .* jobs in map-reduce operation"):
             map_reduce(
                 mapper_command="cat",
                 reducer_command="cat",
@@ -1173,7 +1165,7 @@ print("x={0}\ty={1}".format(x, y))
 
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             map_reduce(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -1249,7 +1241,6 @@ print("x={0}\ty={1}".format(x, y))
     @authors("coteeq")
     @pytest.mark.timeout(300)
     def test_map_reduce_job_size_adjuster_sorted_merge(self):
-        self.skip_if_legacy_sorted_pool()
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(15)]
         for row in original_data:
@@ -1644,7 +1635,7 @@ print("x={0}\ty={1}".format(x, y))
         shuffle(rows)
         write_table("//tmp/t1", rows)
 
-        with raises_yt_error("should form a strictly increasing sequence"):
+        with raises_yt_error("Pivot keys should form a strictly increasing sequence"):
             map_reduce(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1726,9 +1717,6 @@ print("x={0}\ty={1}".format(x, y))
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_intermediate_schema(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         schema = [
             {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
@@ -1943,9 +1931,6 @@ for l in sys.stdin:
     @pytest.mark.parametrize("with_intermediate_sort", [True, False])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_several_intermediate_schemas_trivial_mapper(self, sort_order, with_intermediate_sort):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         first_schema = [
             {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
@@ -2039,9 +2024,6 @@ for l in sys.stdin:
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_several_intermediate_schemas_trivial_mapper_type_casting(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         input_schemas = [
             [
                 {"name": "a", "type_v3": "int64"},
@@ -2154,9 +2136,6 @@ for l in sys.stdin:
         ],
     )
     def test_several_intermediate_schemas_passing(self, sort_order, method):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         first_schema = [
             {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
@@ -2453,9 +2432,6 @@ for l in sys.stdin:
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_identical_intermediate_schemas(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         schema = [
             {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
@@ -2535,9 +2511,6 @@ for l in sys.stdin:
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_identical_intermediate_schemas_trivial_mapper(self, sort_order):
-        if sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         input_schema = [
             {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
@@ -2933,7 +2906,7 @@ for l in sys.stdin:
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Key columns of mapper output streams should have the same names and types"):
             # Key column types must not differ.
             run(
                 ["a", "b"],
@@ -2964,7 +2937,7 @@ for l in sys.stdin:
             ],
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Schemas of mapper output streams should have exactly the same"):
             # Key columns must correspond to sort_by.
             run(
                 ["a"],
@@ -3005,7 +2978,7 @@ for l in sys.stdin:
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Type of .* field is modified in non backward compatible manner"):
             # Key column types must be castable.
             run(
                 ["a", "b"],
@@ -3025,7 +2998,7 @@ for l in sys.stdin:
                 ],
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Type of .* field is modified in non backward compatible manner"):
             # Key column types must be castable.
             run(
                 ["a", "b"],
@@ -3150,7 +3123,7 @@ for l in sys.stdin:
 
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("At least one of the \"sort_by\" or \"reduce_by\" fields should be specified"):
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -3642,7 +3615,7 @@ while True:
         ]
         write_table("//tmp/t_in", gen_data(wrong_values))
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -3857,9 +3830,6 @@ for key, count in counts.items():
         "with_intermediate_sort", [True, False],
     )
     def test_sort_by_table_index(self, sort_by_index_first, sort_order, with_intermediate_sort):
-        if with_intermediate_sort and sort_order == "descending":
-            self.skip_if_legacy_sorted_pool()
-
         reducer = b"""
 import json
 import sys
@@ -4048,36 +4018,6 @@ class TestSchedulerMapReduceCommandsSequoia(TestSchedulerMapReduceCommandsSysOpe
 ##################################################################
 
 
-class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands):
-    ENABLE_MULTIDAEMON = False  # There are component restarts.
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operation_options": {
-                "min_uncompressed_block_size": 1,
-                "spec_template": {
-                    "enable_table_index_if_has_trivial_mapper": True,
-                },
-            },
-            "map_reduce_operation_options": {
-                "data_balancer": {
-                    "tolerance": 1.0,
-                },
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                },
-                "sorted_merge_job_size_adjuster": {},
-            },
-            "enable_partition_map_job_size_adjustment": True,
-            "enable_ordered_partition_map_job_size_adjustment": True,
-            "enable_sorted_merge_in_sort_job_size_adjustment": True,
-        }
-    }
-
-
-##################################################################
-
-
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceDeterminism(TestSchedulerMapReduceBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -4330,7 +4270,7 @@ fi
         self._ban_nodes_with_intermediate_chunks()
         events_on_fs().notify_event("continue_reducer")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Intermediate chunk is unavailable"):
             op.track()
 
         tasks = get(op.get_path() + "/@progress/tasks")
@@ -4697,7 +4637,6 @@ fi
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMaxPartitionCount(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -4721,7 +4660,7 @@ class TestMaxPartitionCount(YTEnvSetup):
         rows = [{"key": "%02d" % key} for key in range(50)]
         write_table("//tmp/t1", rows)
 
-        with raises_yt_error("Pivot keys count 5 exceeds maximum number of pivot keys 4"):
+        with raises_yt_error("Pivot keys count .* exceeds maximum number of pivot keys .*"):
             sort(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -4735,7 +4674,6 @@ class TestMaxPartitionCount(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestPartitionsMerging(TestSchedulerMapReduceBase):
     NUM_TEST_PARTITIONS = 10
     NUM_MASTERS = 1
@@ -4792,7 +4730,7 @@ for line in sys.stdin:
 
     @authors("apollo1321")
     def test_final_partitions_merging_invalid_spec(self):
-        with raises_yt_error("cannot be specified when"):
+        with raises_yt_error("Option .* cannot be specified when \"enable_final_partitions_merging\" is enabled"):
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -4805,7 +4743,20 @@ for line in sys.stdin:
                 },
             )
 
-        with raises_yt_error("cannot be greater than"):
+        with raises_yt_error("Option .* cannot be specified when \"enable_final_partitions_merging\" is enabled"):
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                reduce_by=["x"],
+                sort_by=["x", "y"],
+                reducer_command="cat",
+                spec={
+                    "enable_final_partitions_merging": True,
+                    "pivot_keys": [["01"], ["43"]],
+                },
+            )
+
+        with raises_yt_error("Option .* cannot be greater than .*"):
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -4819,7 +4770,7 @@ for line in sys.stdin:
                 },
             )
 
-        with raises_yt_error("cannot be specified when"):
+        with raises_yt_error("Option .* cannot be specified when \"enable_final_partitions_merging\" is not enabled"):
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",

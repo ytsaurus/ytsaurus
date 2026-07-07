@@ -58,6 +58,14 @@ bool TAllocatorOverChunkProvider<T>::operator!=(const TAllocatorOverChunkProvide
     return false;
 }
 
+template <class T>
+template <class U>
+TAllocatorOverChunkProvider<T>::TAllocatorOverChunkProvider(const TAllocatorOverChunkProvider<U>& other)
+{
+    Provider_ = other.Provider_;
+    Cookie_ = other.Cookie_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

@@ -106,13 +106,13 @@ public:
     TChunkFileReaderWithCache(
         IIOEnginePtr ioEngine,
         NChunkClient::TChunkId chunkId,
-        TString fileName,
+        std::string fileName,
         bool validateBlocksChecksums = true)
         : TChunkFileReader(ioEngine, chunkId, fileName, validateBlocksChecksums, this)
     { }
 };
 
-IChunkReaderAllowingRepairPtr CreateChunkReader(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
+IChunkReaderAllowingRepairPtr CreateChunkReader(const IIOEnginePtr& ioEngine, const std::string& chunkFileName)
 {
     auto chunkId = TChunkId::FromString(NFS::GetFileName(chunkFileName));
     return CreateChunkFileReaderAdapter(New<TChunkFileReaderWithCache>(
@@ -142,7 +142,7 @@ public:
                     .ThrowOnError();
             }
         }
-        writer->Close().Get().ThrowOnError();
+        WaitFor(writer->Close()).ThrowOnError();
     }
 
     void SweepRows()
@@ -184,7 +184,7 @@ TTableSchemaPtr GetSchemaFromChunkMeta(const TChunkMeta& meta)
 
 TUnversionedUniversalReader CreateUnversionedUniversalReader(
     const IIOEnginePtr& ioEngine,
-    TString chunkFileName,
+    std::string chunkFileName,
     IBlockCachePtr blockCache,
     TTableSchemaPtr schema,
     TLegacyOwningKey lowerKey,
@@ -196,8 +196,7 @@ TUnversionedUniversalReader CreateUnversionedUniversalReader(
     blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
     auto chunkReader = CreateChunkReader(ioEngine, chunkFileName);
-    auto chunkMeta = chunkReader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = blockReadOptions })
-        .Get()
+    auto chunkMeta = WaitFor(chunkReader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = blockReadOptions }))
         .ValueOrThrow();
 
     TChunkSpec chunkSpec;
@@ -241,8 +240,8 @@ TUnversionedUniversalReader CreateUnversionedUniversalReader(
 void GuardedMain(int argc, char** argv)
 {
     TOpts opts;
-    TString formatStr = "yson";
-    TString formatFileStr;
+    std::string formatStr = "yson";
+    std::string formatFileStr;
     opts.AddLongOption("format", "Yson output format").StoreResult(&formatStr);
     opts.AddLongOption("format-file", "File with yson output format").StoreResult(&formatFileStr);
     opts.SetFreeArgsNum(1);
@@ -250,14 +249,15 @@ void GuardedMain(int argc, char** argv)
 
     NFormats::TFormat format;
     if (!formatFileStr.empty()) {
-        auto formatYsonStr = TFileInput(formatFileStr).ReadAll();
+        // TODO(babenko): drop cast once TFileInput accepts std::string
+        auto formatYsonStr = TFileInput(TString(formatFileStr)).ReadAll();
         format =  NYTree::ConvertTo<NFormats::TFormat>(TYsonString(formatYsonStr));
     } else {
         format = NYTree::ConvertTo<NFormats::TFormat>(TYsonString(formatStr));
     }
     argc -= results.GetFreeArgsPos();
     argv += results.GetFreeArgsPos();
-    TString chunkFileName = argv[0];
+    std::string chunkFileName = argv[0];
 
     TTableSchemaPtr schema;
 

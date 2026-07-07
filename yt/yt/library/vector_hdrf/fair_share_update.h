@@ -132,7 +132,7 @@ public:
     TPool* AsPool();
     TOperationElement* AsOperation();
 
-    virtual TString GetId() const = 0;
+    virtual std::string GetId() const = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
     virtual bool AreDetailedLogsEnabled() const = 0;
@@ -271,6 +271,7 @@ private:
     TChildSuggestionShares GetChildSuggestionSharesNormal(double fitFactor);
 
     void ComputeImprovedFairShareByFitFactor(const std::vector<TVectorPiecewiseLinearFunction>& childrenFunctions);
+    void ComputeFastFifoFairShareByFitFactor();
 
     friend class TPool;
     friend class TRootElement;
@@ -373,6 +374,7 @@ struct TFairShareUpdateOptions
     bool EnableStepFunctionForGangOperations = false;
     bool EnableImprovedFairShareByFitFactorComputation = false;
     bool EnableImprovedFairShareByFitFactorComputationDistributionGap = false;
+    bool EnableFastFifoFairShareByFitFactorComputation = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

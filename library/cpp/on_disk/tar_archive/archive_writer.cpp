@@ -5,6 +5,7 @@
 
 #include "archive_windows.h"
 
+#include <util/generic/hash.h>
 #include <util/string/cast.h>
 #include <util/memory/blob.h>
 
@@ -23,6 +24,9 @@ public:
     void WriteFileFrom(const TString& path, ui64 size, IInputStream& stream);
     void WriteSymlink(const TFsPath& path, const TFsPath& target);
     void WriteHardlink(const TFsPath& path, const TFsPath& target);
+
+    void MakeArchiveFromDirectory(const TFsPath& rootDir, const TFsPath& inArchiveDir, THashMap<ui64, TFsPath>& inodeToFirstPath);
+
     IOutputStream& GetStream(ui64 size);
 private:
     void WriteEntry(const TString& path, int type, const TMaybe<ui64>& fileSize = {},
@@ -140,6 +144,44 @@ void TArchiveWriter::TImpl::WriteHardlink(const TFsPath &path, const TFsPath &ta
     archive_entry_free(entry);
 }
 
+void TArchiveWriter::TImpl::MakeArchiveFromDirectory(
+    const TFsPath& rootDir,
+    const TFsPath& inArchiveDir,
+    THashMap<ui64, TFsPath>& inodeToFirstPath)
+{
+    TVector<TString> childrenNames;
+    TFsPath childPath;
+    TFsPath childInArchivePath;
+    (rootDir / inArchiveDir).ListNames(childrenNames);
+
+    for (const auto& childName : childrenNames) {
+        childInArchivePath = inArchiveDir / childName;
+        childPath = rootDir / childInArchivePath;
+        if (childPath.IsSymlink()) {
+            WriteSymlink(childInArchivePath.GetPath(), childPath.ReadLink());
+        } else if (childPath.IsDirectory()) {
+            WriteDir(childInArchivePath.GetPath());
+            MakeArchiveFromDirectory(rootDir, childInArchivePath, inodeToFirstPath);
+        } else if (childPath.IsFile()) {
+            TFileStat stat(childPath);
+            if (stat.NLinks > 1) {
+                if (const auto* path = inodeToFirstPath.FindPtr(stat.INode)) {
+                    WriteHardlink(childInArchivePath.GetPath(), path->GetPath());
+                } else {
+                    inodeToFirstPath[stat.INode] = childInArchivePath;
+                    TBlob blob = TBlob::FromFile(childPath.GetPath());
+                    WriteFile(childInArchivePath.GetPath(), blob);
+                }
+            } else {
+                TBlob blob = TBlob::FromFile(childPath.GetPath());
+                WriteFile(childInArchivePath.GetPath(), blob);
+            }
+        } else {
+            ythrow yexception() << "Unknown type of child with path " << childPath.GetPath();
+        }
+    }
+}
+
 IOutputStream& TArchiveWriter::TImpl::GetStream(ui64 size) {
     if (!IsWriting()) {
         CurStream = TOutputFileStream(this, size);
@@ -165,7 +207,6 @@ void TArchiveWriter::TImpl::CheckErrno() {
             error += ". Probably no space left on device";
         }
         ythrow yexception() << error;
-
     }
 }
 
@@ -211,4 +252,9 @@ void TArchiveWriter::WriteSymlink(const TFsPath& path, const TFsPath& target) {
 
 void TArchiveWriter::WriteHardlink(const TFsPath& path, const TFsPath& target) {
     PImpl->WriteHardlink(path, target);
+}
+
+void TArchiveWriter::MakeArchiveFromDirectory(const TFsPath& directoryPath) {
+    THashMap<ui64, TFsPath> inodeToFirstPath;
+    PImpl->MakeArchiveFromDirectory(directoryPath, {}, inodeToFirstPath);
 }

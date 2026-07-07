@@ -75,6 +75,7 @@ schema_columns = [
     ("schema_mode",                             "string",       False,      True),
     ("security_tags",                           "any",          False,      True),
     ("sorted",                                  "any",          False,      True),
+    ("table_backup_enabled",                    "boolean",      False,      True),
     ("tablet_cell_bundle",                      "string",       False,      True),
     ("tablet_state",                            "string",       False,      True),
     ("target_path",                             "string",       False,      True),

@@ -172,10 +172,10 @@ class TRawYsonToStringConverter
     : public TYsonExtractingConverterBase
 {
 public:
-    TRawYsonToStringConverter(const TComplexTypeFieldDescriptor& /*descriptor*/, const TCompositeSettingsPtr& settings)
+    TRawYsonToStringConverter(const TComplexTypeFieldDescriptor& /*descriptor*/, const TConversionSettingsPtr& settings)
         : Settings_(settings)
         , YsonOutput_(YsonBuffer_)
-        , YsonWriter_(&YsonOutput_, settings->DefaultYsonFormat)
+        , YsonWriter_(&YsonOutput_, settings->Composite->DefaultYsonFormat)
     { }
 
     void InitColumn() override
@@ -228,7 +228,7 @@ public:
         DB::MutableColumnPtr intermediateColumn;
         switch (v1Type) {
             case ESimpleLogicalValueType::Any:
-                if (Settings_->DefaultYsonFormat == EExtendedYsonFormat::Binary) {
+                if (Settings_->Composite->DefaultYsonFormat == EExtendedYsonFormat::Binary) {
                     ReplaceColumnTypeChecked(Column_, ConvertStringLikeYTColumnToCHColumn(column, filterHint));
                 } else {
                     TYsonExtractingConverterBase::ConsumeYtColumn(column, filterHint);
@@ -277,12 +277,12 @@ public:
         ReplaceColumnTypeChecked(Column_, ConvertCHColumnToAny(
             *intermediateColumn,
             v1Type,
-            Settings_->DefaultYsonFormat));
+            Settings_->Composite->DefaultYsonFormat));
     }
 
 private:
     DB::ColumnString::MutablePtr Column_;
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
     TString YsonBuffer_;
     TStringOutput YsonOutput_;
     TExtendedYsonWriter YsonWriter_;
@@ -599,7 +599,7 @@ public:
                     NullColumn_->insertValue(value.Type == EValueType::Null ? 1 : 0);
                 }
             } else if constexpr (!EnableComplexNullConverison) {
-                auto isNull = [](const auto& value) { return value.Type == EValueType::Null; };
+                auto isNull = [] (const auto& value) { return value.Type == EValueType::Null; };
                 if (std::any_of(values.begin(), values.end(), isNull)) {
                     ThrowComplexNullConversion();
                 }
@@ -632,7 +632,7 @@ public:
             if (NullColumn_) {
                 ReplaceColumnTypeChecked(NullColumn_, std::move(bytemap));
             } else if constexpr (!EnableComplexNullConverison) {
-                auto isNull = [](const auto& value) { return value == 0; };
+                auto isNull = [] (const auto& value) { return value == 0; };
                 if (std::any_of(bytemap->getData().begin(), bytemap->getData().end(), isNull)) {
                     ThrowComplexNullConversion();
                 }
@@ -674,7 +674,7 @@ private:
 
     void ThrowComplexNullConversion() const
     {
-        THROW_ERROR_EXCEPTION("ClickHouse doesn't support nullable arrays and complex structures, conversion is disabled");
+        THROW_ERROR_EXCEPTION("ClickHouse does not support nullable arrays and complex structures, conversion is disabled");
     }
 };
 
@@ -1329,11 +1329,11 @@ private:
 class TYTToCHColumnConverter::TImpl
 {
 public:
-    TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings, bool isLowCardinality, bool isReadConversions)
+    TImpl(TComplexTypeFieldDescriptor descriptor, TConversionSettingsPtr settings, bool isReadConversions)
         : Descriptor_(std::move(descriptor))
         , Settings_(std::move(settings))
         , IsReadConversions_(isReadConversions)
-        , RootConverter_(CreateConverter(Descriptor_, isLowCardinality, /*isOutermost*/ true))
+        , RootConverter_(CreateConverter(Descriptor_, /*isOutermost*/ true))
     { }
 
     void InitColumn()
@@ -1379,7 +1379,7 @@ public:
 
 private:
     TComplexTypeFieldDescriptor Descriptor_;
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
     bool IsReadConversions_;
 
     IConverterPtr RootConverter_;
@@ -1482,6 +1482,9 @@ private:
     {
         IConverterPtr converter;
         if (descriptor.GetType()->GetMetatype() == ELogicalMetatype::Optional) {
+            if (insideOptional) {
+                return nullptr;
+            }
             return CreateLowCardinalityConverter(descriptor.OptionalElement(), true);
         } else if (descriptor.GetType()->GetMetatype() == ELogicalMetatype::Simple) {
             auto valueType = descriptor.GetType()->AsSimpleTypeRef().GetElement();
@@ -1597,13 +1600,13 @@ private:
         }
 
         if (isV1Optional) {
-            if (Settings_->EnableComplexNullConverison) {
+            if (Settings_->Composite->EnableComplexNullConverison) {
                 return std::make_unique<TOptionalConverter<true, true>>(std::move(underlyingConverter), nestingLevel);
             } else {
                 return std::make_unique<TOptionalConverter<true, false>>(std::move(underlyingConverter), nestingLevel);
             }
         } else {
-            if (Settings_->EnableComplexNullConverison) {
+            if (Settings_->Composite->EnableComplexNullConverison) {
                 return std::make_unique<TOptionalConverter<false, true>>(std::move(underlyingConverter), nestingLevel);
             } else {
                 return std::make_unique<TOptionalConverter<false, false>>(std::move(underlyingConverter), nestingLevel);
@@ -1682,13 +1685,8 @@ private:
         return std::make_unique<TNothingConverter>();
     }
 
-    IConverterPtr CreateConverter(const TComplexTypeFieldDescriptor& descriptor, bool isLowCardinality = false, bool isOutermost = false)
+    IConverterPtr CreateConverter(const TComplexTypeFieldDescriptor& descriptor, bool isOutermost = false)
     {
-        if (isLowCardinality) {
-            if (auto converter = CreateLowCardinalityConverter(descriptor)) {
-                return converter;
-            }
-        }
         const auto& type = descriptor.GetType();
         if (type->GetMetatype() == ELogicalMetatype::Simple) {
             const auto& simpleType = type->AsSimpleTypeRef();
@@ -1716,6 +1714,12 @@ private:
             return CreateStructConverter(descriptor);
         } else if (type->GetMetatype() == ELogicalMetatype::Decimal) {
             return CreateDecimalConverter(descriptor);
+        } else if (type->GetMetatype() == ELogicalMetatype::Tagged && type->AsTaggedTypeRef().GetTag() == LowCardinalityTag) {
+            auto innerDescriptor = descriptor.Detag();
+            if (auto converter = CreateLowCardinalityConverter(innerDescriptor)) {
+                return converter;
+            }
+            return CreateConverter(innerDescriptor, isOutermost);
         } else {
             ValidateReadOnly(descriptor);
             // Perform fallback to raw yson.
@@ -1728,10 +1732,9 @@ private:
 
 TYTToCHColumnConverter::TYTToCHColumnConverter(
     TComplexTypeFieldDescriptor descriptor,
-    TCompositeSettingsPtr settings,
-    bool isLowCardinality,
+    TConversionSettingsPtr settings,
     bool isReadConversions)
-    : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), isLowCardinality, isReadConversions))
+    : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), isReadConversions))
 { }
 
 void TYTToCHColumnConverter::InitColumn()

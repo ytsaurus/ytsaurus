@@ -571,7 +571,7 @@ func (ds *Datastore) withRetry(fn func() error) error {
 	b.MaxInterval = 5 * time.Second
 	b.MaxElapsedTime = 5 * time.Minute
 
-	return backoff.RetryNotify(func() error {
+	err := backoff.RetryNotify(func() error {
 		err := fn()
 		if err == nil {
 			return nil
@@ -581,10 +581,16 @@ func (ds *Datastore) withRetry(fn func() error) error {
 		}
 		return backoff.Permanent(err)
 	}, b, ds.notifyRetryableError)
+
+	if err != nil && isDatabaseLocked(err) {
+		ds.logger.Warn("Datastore error, retries exhausted",
+			"error", err, "error_struct", fmt.Sprintf("%#v", err))
+	}
+	return err
 }
 
 func (ds *Datastore) notifyRetryableError(err error, nextWait time.Duration) {
-	ds.logger.Warn("Datastore error, will retry",
+	ds.logger.Info("Datastore error, will retry",
 		"error", err, "error_struct", fmt.Sprintf("%#v", err), "backoff", nextWait.String())
 }
 

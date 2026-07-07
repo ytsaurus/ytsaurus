@@ -8,7 +8,6 @@
 #include "chyt_engine.h"
 #include "mock_engine.h"
 #include "spyt_engine.h"
-#include "spyt_connect_engine.h"
 #include "search_index.h"
 #include "helpers.h"
 
@@ -104,7 +103,6 @@ public:
         Engines_[EQueryEngine::Yql] = CreateYqlEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Spyt] = CreateSpytEngine(StateClient_, StateRoot_);
-        Engines_[EQueryEngine::SpytConnect] = CreateSpytConnectEngine(StateClient_, StateRoot_);
         // This is a correct call, despite being virtual call in constructor.
         TQueryTracker::Reconfigure(config);
     }
@@ -126,13 +124,24 @@ public:
         Engines_[EQueryEngine::Yql]->Reconfigure(config->YqlEngine, Config_->NotIndexedQueriesTTL);
         Engines_[EQueryEngine::Chyt]->Reconfigure(config->ChytEngine, Config_->NotIndexedQueriesTTL);
         Engines_[EQueryEngine::Spyt]->Reconfigure(config->SpytEngine, Config_->NotIndexedQueriesTTL);
-        Engines_[EQueryEngine::SpytConnect]->Reconfigure(config->SpytConnectEngine, Config_->NotIndexedQueriesTTL);
     }
 
     IYPathServicePtr GetOrchidService() const override
     {
         auto producer = BIND(&TQueryTracker::DoBuildOrchid, MakeStrong(this));
         return IYPathService::FromProducer(producer);
+    }
+
+    std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> GetEngineProviders() override
+    {
+        std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders;
+        for (const auto& engine : Engines_) {
+            auto maybeEngineProvider = engine.second->GetProxyEngineProvider();
+            if (maybeEngineProvider) {
+                engineProviders[engine.first] = *maybeEngineProvider;
+            }
+        }
+        return engineProviders;
     }
 
 private:
@@ -414,17 +423,6 @@ private:
         if (!IsFinishingState(optionalRecord->State)) {
             try {
                 auto engine = queryRecord.Engine;
-                // Temporary workaround for resolving spyt and spyt connect engines. At some point spyt engine
-                // should be completely replaced by spyt connect engine.
-                if (engine == EQueryEngine::Spyt) {
-                    auto settings = ConvertToNode(queryRecord.Settings);
-                    auto useSpytConnectNode = settings->AsMap()->FindChild("use_spyt_connect");
-                    bool useSpytConnect = useSpytConnectNode ? useSpytConnectNode->AsBoolean()->GetValue() : Config_->UseSpytConnectEngine;
-                    if (useSpytConnect) {
-                        YT_LOG_DEBUG("Using SpytConnectEngine instead of SpytEngine");
-                        engine = EQueryEngine::SpytConnect;
-                    }
-                }
                 handler = Engines_[engine]->StartOrAttachQuery(queryRecord);
                 handler->Start();
             } catch (const std::exception& ex) {

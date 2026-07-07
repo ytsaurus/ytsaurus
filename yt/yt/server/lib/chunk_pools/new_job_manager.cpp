@@ -27,9 +27,7 @@ void TNewJobStub::AddDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolI
         return;
     }
 
-    int streamIndex = dataSlice->GetInputStreamIndex();
-    int rangeIndex = dataSlice->GetRangeIndex();
-    auto& stripe = GetStripe(streamIndex, rangeIndex, isPrimary);
+    auto& stripe = GetStripe(dataSlice->GetInputStreamIndex(), isPrimary);
     stripe->DataSlices().push_back(dataSlice);
     if (cookie != IChunkPoolInput::NullCookie) {
         InputCookies_.emplace_back(cookie);
@@ -59,24 +57,22 @@ void TNewJobStub::Finalize()
 {
     std::vector<TChunkStripePtr> stripes;
     stripes.reserve(StripeMap_.size());
-    for (auto& [tableAndRangeIndex, stripe] : StripeMap_) {
+    for (auto& [streamIndex, stripe] : StripeMap_) {
         for (const auto& dataSlice : stripe->DataSlices()) {
             YT_VERIFY(!dataSlice->IsLegacy);
         }
+        YT_VERIFY(!stripe->DataSlices().empty());
         stripes.push_back(std::move(stripe));
     }
     StripeMap_.clear();
 
     // This order is crucial for ordered map.
+    // NB(coteeq): Key is unique (see |GetStripe|), so sort stability should not matter.
     std::sort(stripes.begin(), stripes.end(), [] (const TChunkStripePtr& lhs, const TChunkStripePtr& rhs) {
         auto& lhsSlice = lhs->DataSlices().front();
         auto& rhsSlice = rhs->DataSlices().front();
 
-        if (lhsSlice->GetTableIndex() != rhsSlice->GetTableIndex()) {
-            return lhsSlice->GetTableIndex() < rhsSlice->GetTableIndex();
-        }
-
-        return lhsSlice->GetRangeIndex() < rhsSlice->GetRangeIndex();
+        return lhsSlice->GetInputStreamIndex() < rhsSlice->GetInputStreamIndex();
     });
 
     for (auto& stripe : stripes) {
@@ -119,13 +115,13 @@ int TNewJobStub::GetPreliminarySliceCount() const
     return PrimarySliceCount_ + PreliminaryForeignSliceCount_;
 }
 
-TString TNewJobStub::GetDebugString() const
+std::string TNewJobStub::GetDebugString() const
 {
     TStringBuilder builder;
     builder.AppendString("{");
     bool isFirst = true;
-    for (const auto& [key, stripe] : StripeMap_) {
-        builder.AppendFormat("(%v, %v): ", key.first, key.second);
+    for (const auto& [streamIndex, stripe] : StripeMap_) {
+        builder.AppendFormat("(%v): ", streamIndex);
         for (const auto& dataSlice : stripe->DataSlices()) {
             if (isFirst) {
                 isFirst = false;
@@ -151,12 +147,14 @@ TString TNewJobStub::GetDebugString() const
     return builder.Flush();
 }
 
-const TChunkStripePtr& TNewJobStub::GetStripe(int streamIndex, int rangeIndex, bool isStripePrimary)
+const TChunkStripePtr& TNewJobStub::GetStripe(int streamIndex, bool isStripePrimary)
 {
-    auto& stripe = StripeMap_[std::pair(streamIndex, rangeIndex)];
+    auto& stripe = StripeMap_[streamIndex];
     if (!stripe) {
-        stripe = New<TChunkStripe>(!isStripePrimary /*foreign*/);
+        stripe = New<TChunkStripe>(/*foreign*/ !isStripePrimary);
     }
+
+    YT_VERIFY(isStripePrimary == !stripe->IsForeign());
     return stripe;
 }
 
@@ -346,11 +344,11 @@ void TNewJobManager::TJob::ResumeSelf()
 }
 
 template <class... TArgs>
-void TNewJobManager::TJob::CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), TArgs... args)
+void TNewJobManager::TJob::CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), const TArgs&... args)
 {
-    (DataWeightProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
-    (RowProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
-    (JobProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
+    (DataWeightProgressCounterGuard_.*Method)(args...);
+    (RowProgressCounterGuard_.*Method)(args...);
+    (JobProgressCounterGuard_.*Method)(args...);
 }
 
 PHOENIX_DEFINE_TYPE(TNewJobManager::TJob);
@@ -552,7 +550,7 @@ IChunkPoolOutput::TCookie TNewJobManager::AddJob(std::unique_ptr<TNewJobStub> jo
     }
 
     YT_LOG_DEBUG(
-        "Job added to job manager (Index: %v, PrimaryDataWeight: %v, PrimaryCompressedDataSize: %v, "
+        "Job added to job manager (OutputCookie: %v, PrimaryDataWeight: %v, PrimaryCompressedDataSize: %v, "
         "PrimaryRowCount: %v, PrimarySliceCount: %v, ForeignDataWeight: %v, ForeignCompressedDataSize: %v, "
         "ForeignRowCount: %v, ForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
         outputCookie,

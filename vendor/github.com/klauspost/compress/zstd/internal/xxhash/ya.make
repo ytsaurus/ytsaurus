@@ -6,7 +6,7 @@ LICENSE(
     MIT
 )
 
-VERSION(v1.18.2)
+VERSION(v1.18.4)
 
 SRCS(
     xxhash.go
@@ -30,6 +30,12 @@ IF (ARCH_ARM64)
 ENDIF()
 
 IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
+    SRCS(
+        xxhash_other.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
     SRCS(
         xxhash_other.go
     )

@@ -12,19 +12,20 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(library-gpu-unittest)
+add_executable(unittester-library-gpu)
 
 
-target_compile_options(library-gpu-unittest PRIVATE
+target_compile_options(unittester-library-gpu PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
-target_link_libraries(library-gpu-unittest PUBLIC
+target_link_libraries(unittester-library-gpu PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
@@ -34,11 +35,11 @@ target_link_libraries(library-gpu-unittest PUBLIC
   yt-core-test_framework
 )
 
-target_allocator(library-gpu-unittest
+target_allocator(unittester-library-gpu
   system_allocator
 )
 
-target_link_options(library-gpu-unittest PRIVATE
+target_link_options(unittester-library-gpu PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -46,21 +47,21 @@ target_link_options(library-gpu-unittest PRIVATE
   CoreFoundation
 )
 
-target_sources(library-gpu-unittest PRIVATE
+target_sources(unittester-library-gpu PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/unittests/gpu_agent_gpu_info_provider_ut.cpp
 )
 
 
 add_test(
   NAME
-  library-gpu-unittest
+  unittester-library-gpu
   COMMAND
-  library-gpu-unittest
+  unittester-library-gpu
 )
 
 set_property(
   TEST
-  library-gpu-unittest
+  unittester-library-gpu
   PROPERTY
   LABELS
   SMALL
@@ -68,16 +69,16 @@ set_property(
 
 set_property(
   TEST
-  library-gpu-unittest
+  unittester-library-gpu
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(library-gpu-unittest)
+vcs_info(unittester-library-gpu)
 
 set_property(
   TEST
-  library-gpu-unittest
+  unittester-library-gpu
   PROPERTY
   PROCESSORS
   1

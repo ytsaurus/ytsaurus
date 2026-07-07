@@ -17,15 +17,21 @@ TSpareInstanceAllocator<TSpareInstance>::TSpareInstanceAllocator(
 template <class TSpareInstances>
 bool TSpareInstanceAllocator<TSpareInstances>::HasInstances(const std::string& zoneName, const std::string& dataCenterName) const
 {
+    return GetFreeInstanceCount(zoneName, dataCenterName) > 0;
+}
+
+template <class TSpareInstances>
+int TSpareInstanceAllocator<TSpareInstances>::GetFreeInstanceCount(const std::string& zoneName, const std::string& dataCenterName) const
+{
     if (!SpareInstances.contains(zoneName)) {
-        return false;
+        return 0;
     }
     auto& dcToInfo = GetOrCrash(SpareInstances, zoneName);
     if (!dcToInfo.contains(dataCenterName)) {
-        return false;
+        return 0;
     }
     auto& info = GetOrCrash(dcToInfo, dataCenterName);
-    return !info.FreeInstances().empty();
+    return std::ssize(info.FreeInstances());
 }
 
 template <class TSpareInstances>

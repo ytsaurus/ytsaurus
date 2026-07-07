@@ -10,6 +10,7 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -37,11 +38,11 @@ static int ColumnCount = 40;
 static int ValueLength = 1000;
 static int RowCount = 10000;
 
-TString GenerateString(int len)
+std::string GenerateString(int len)
 {
-    TString result;
+    std::string result;
     for (int j = 0; j < len; j++) {
-        result.append('a' + std::rand() % 26);
+        result.push_back('a' + std::rand() % 26);
     }
     return result;
 }
@@ -126,7 +127,7 @@ void BenchmarkSchemalessWrite(ISchemalessFormatWriterPtr writer)
 
     for (int i = 0; i < RowCount; ++i) {
         for (int j = 0; j < ColumnCount; ++j) {
-            TString value = GenerateString(ValueLength);
+            std::string value = GenerateString(ValueLength);
             builder.AddValue(MakeUnversionedStringValue(value, j));
         }
         owningRows[i] = builder.FinishRow();
@@ -138,8 +139,7 @@ void BenchmarkSchemalessWrite(ISchemalessFormatWriterPtr writer)
     {
         YT_VERIFY(writer->Write(rows));
     }
-    writer->Close()
-        .Get()
+    WaitFor(writer->Close())
         .ThrowOnError();
     Cerr << timer.GetElapsedTime().MicroSeconds() / 1e6 << Endl;
 }
@@ -164,7 +164,7 @@ void BenchmarkWrite(IUnversionedRowsetWriterPtr writer)
     NProfiling::TWallTimer timer;
     {
         YT_VERIFY(writer->Write(rows));
-        YT_VERIFY(writer->Close().Get().IsOK());
+        YT_VERIFY(WaitFor(writer->Close()).IsOK());
     }
     Cerr << timer.GetElapsedTime().MicroSeconds() / 1e6 << Endl;
 }

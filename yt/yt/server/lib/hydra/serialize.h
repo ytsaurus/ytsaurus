@@ -19,6 +19,21 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int MinMasterReign = 0;
+constexpr int MaxMasterReign = 90000;
+
+constexpr int MinTabletReign = 100000;
+constexpr int MaxTabletReign = 190000;
+
+constexpr int MinChaosReign = 300000;
+constexpr int MaxChaosReign = 390000;
+
+constexpr bool IsMasterReign(TReign reign);
+constexpr bool IsTabletReign(TReign reign);
+constexpr bool IsChaosReign(TReign reign);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSaveContext
     : public TEntityStreamSaveContext
 {
@@ -100,3 +115,6 @@ void Deserialize(
 
 } // namespace NYT::NHydra
 
+#define SERIALIZE_INL_H_
+#include "serialize-inl.h"
+#undef SERIALIZE_INL_H_

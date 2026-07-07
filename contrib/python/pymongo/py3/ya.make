@@ -4,7 +4,7 @@ PY3_LIBRARY()
 
 PROVIDES(pymongo)
 
-VERSION(4.16.0)
+VERSION(4.17.0)
 
 LICENSE(Apache-2.0)
 
@@ -89,6 +89,7 @@ PY_SRCS(
     pymongo/asynchronous/collection.py
     pymongo/asynchronous/command_cursor.py
     pymongo/asynchronous/cursor.py
+    pymongo/asynchronous/cursor_base.py
     pymongo/asynchronous/database.py
     pymongo/asynchronous/encryption.py
     pymongo/asynchronous/helpers.py
@@ -165,6 +166,7 @@ PY_SRCS(
     pymongo/synchronous/collection.py
     pymongo/synchronous/command_cursor.py
     pymongo/synchronous/cursor.py
+    pymongo/synchronous/cursor_base.py
     pymongo/synchronous/database.py
     pymongo/synchronous/encryption.py
     pymongo/synchronous/helpers.py

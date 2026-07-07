@@ -5,12 +5,12 @@ from yt.environment.helpers import assert_items_equal, are_items_equal
 from yt_commands import (
     authors, create, wait, get, set, exists,
     sync_create_cells, sync_mount_table, sync_unmount_table, raises_yt_error,
-    sync_reshard_table, insert_rows, ls,
+    sync_reshard_table, insert_rows, lookup_rows, ls,
     build_snapshot, select_rows, update_nodes_dynamic_config,
     create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
     get_singular_chunk_id, disable_tablet_cells_on_node, enable_tablet_cells_on_node,
-    create_table_replica, alter_table_replica, unmount_table,
-    set_node_banned, trim_rows, generate_timestamp
+    create_table_replica, alter_table_replica, mount_table, unmount_table,
+    set_node_banned, trim_rows, generate_timestamp, exit_read_only,
 )
 
 from yt.common import YtError
@@ -18,6 +18,7 @@ import yt.yson as yson
 
 import random
 import time
+import builtins
 
 import pytest
 
@@ -92,25 +93,13 @@ class SmoothMovementBase(DynamicTablesBase):
         except YtError:
             return None
 
-    def _restart_cell(self, cell_id, sync=True, with_snapshot=False):
-        def _get_peer_address():
-            for peer in get(f"#{cell_id}/@peers"):
-                if address := peer.get("address"):
-                    return address
-
-        node_address = _get_peer_address()
-        if with_snapshot:
-            build_snapshot(cell_id)
-        disable_tablet_cells_on_node(node_address)
-        wait(lambda: _get_peer_address() != node_address)
-        enable_tablet_cells_on_node(node_address)
-        if sync:
-            wait(lambda: get(f"#{cell_id}/@health") == "good")
 
 ##################################################################
 
 
 class TestSmoothMovement(SmoothMovementBase):
+    NUM_TEST_PARTITIONS = 3
+
     @authors("ifsmirnov")
     @pytest.mark.parametrize("sorted", [True, False])
     def test_empty_store_rotation_recovery(self, sorted):
@@ -239,12 +228,6 @@ class TestSmoothMovement(SmoothMovementBase):
         custom_area_id = create_area(
             "custom",
             cell_bundle_id=get("//sys/tablet_cell_bundles/default/@id"))
-
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "slots": 1,
-            }
-        })
 
         cell_ids = sync_create_cells(3)
 
@@ -809,6 +792,274 @@ class TestSmoothMovement(SmoothMovementBase):
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("read_only", [True, False])
+    @pytest.mark.parametrize("peer_count", [1, 2])
+    def test_abort_movement_on_reign_change_at_source(self, read_only, peer_count):
+        set("//sys/tablet_cell_bundles/default/@options/peer_count", peer_count)
+
+        nodes = ls("//sys/tablet_nodes")
+        for node in nodes[2 * peer_count:]:
+            disable_tablet_cells_on_node(node)
+        cell_ids = sync_create_cells(2)
+
+        src_cell_id = cell_ids[0]
+        src_nodes = [peer["address"] for peer in get(f"#{src_cell_id}/@peers")]
+
+        current_reign = get(f"#{src_cell_id}/orchid/reign")
+        next_reign = current_reign + 1
+
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t", cell_id=src_cell_id)
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        h = SmoothMovementHelper(tablet_id)
+        h.start_forwarding_mutations()
+
+        def _check_smooth_movement_in_progress(expected):
+            for node in src_nodes:
+                tablet_orchid = get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/tablets/{tablet_id}")
+                if ("smooth_movement" in tablet_orchid) != expected:
+                    return False
+            return True
+
+        assert _check_smooth_movement_in_progress(True)
+
+        if read_only:
+            build_snapshot(src_cell_id, set_read_only=True)
+
+        # Restart nodes with reign change.
+        for node in src_nodes:
+            disable_tablet_cells_on_node(node)
+        wait(lambda: get(f"#{src_cell_id}/@health") == "failed")
+
+        self._update_specific_nodes_dynamic_config(src_nodes, {
+            "tablet_node": {
+                "testing": {
+                    "reign_override": next_reign,
+                }
+            }
+        })
+
+        for node in src_nodes:
+            enable_tablet_cells_on_node(node)
+        wait(lambda: get(f"#{src_cell_id}/@health") == "good")
+        for node in src_nodes:
+            assert get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/reign") == next_reign
+
+        if read_only:
+            assert _check_smooth_movement_in_progress(True)
+
+            # Command may start before cell is reconfigured at the client, thus stale invalid channel
+            # for the cell will be used and the command will fail.
+            for i in range(3):
+                try:
+                    exit_read_only(src_cell_id, timeout=5000)
+                    break
+                except YtError:
+                    if i == 2:
+                        raise
+
+            def _is_cell_alive():
+                try:
+                    for node in src_nodes:
+                        orchid = get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/hydra")
+                        if orchid["read_only"] or not orchid["active"]:
+                            return False
+                except YtError:
+                    return False
+                return True
+            wait(_is_cell_alive)
+
+        # Follower does not restart when leader restarts after building final recovery action snapshot.
+        # Follower treats itself is active but stays in the previous epoch until stops receiving
+        # pings from leader and restarts, so we check not only active state but also the epoch.
+        def _check_peers_ready():
+            try:
+                epoch_ids = builtins.set()
+                for node in src_nodes:
+                    orchid = get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/hydra")
+                    if "epoch_id" not in orchid:
+                        return False
+                    if not orchid["active"]:
+                        return False
+                    epoch_ids.add(orchid["epoch_id"])
+                return len(epoch_ids) == 1
+            except YtError:
+                return False
+        wait(_check_peers_ready)
+
+        assert _check_smooth_movement_in_progress(False)
+
+        assert h.get_action_state() == "failed"
+        assert h.get_action_error().contains_text("Smooth movement rejected on tablet reign change")
+
+        # Restart nodes again to check that reported reign change is detected during recovery.
+        for node in src_nodes:
+            disable_tablet_cells_on_node(node)
+        wait(lambda: get(f"#{src_cell_id}/@health") == "failed")
+        for node in src_nodes:
+            enable_tablet_cells_on_node(node)
+        wait(lambda: get(f"#{src_cell_id}/@health") == "good")
+        for node in src_nodes:
+            assert get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/reign") == next_reign
+
+        assert _check_smooth_movement_in_progress(False)
+
+    @authors("ifsmirnov")
+    def test_reject_movement_if_target_reign_differs(self):
+        nodes = ls("//sys/tablet_nodes")
+        for node in nodes[2:]:
+            disable_tablet_cells_on_node(node)
+        src_cell_id, dst_cell_id = sync_create_cells(2)
+        dst_node = get(f"#{dst_cell_id}/@peers/0/address")
+
+        # Will be fully moved before reign change.
+        self._create_sorted_table("//tmp/t1")
+        sync_mount_table("//tmp/t1", cell_id=src_cell_id)
+        tablet1 = get("//tmp/t1/@tablets/0/tablet_id")
+
+        # Target servant allocated before reign change, replicated content sent after reign change.
+        self._create_sorted_table("//tmp/t2")
+        sync_mount_table("//tmp/t2", cell_id=src_cell_id)
+        tablet2 = get("//tmp/t2/@tablets/0/tablet_id")
+
+        # Servant switch message sent when target was offline and updating to the new reign.
+        # No rejection possible.
+        self._create_sorted_table("//tmp/t3")
+        sync_mount_table("//tmp/t3", cell_id=src_cell_id)
+        tablet3 = get("//tmp/t3/@tablets/0/tablet_id")
+
+        # Movement started after reign change.
+        self._create_sorted_table("//tmp/t4")
+        sync_mount_table("//tmp/t4", cell_id=src_cell_id)
+
+        h1 = SmoothMovementHelper("//tmp/t1")
+        h1.start()
+        h1.wait_for_action()
+
+        h2 = SmoothMovementHelper("//tmp/t2")
+        h2.start(stage="target_allocated")
+
+        h3 = SmoothMovementHelper("//tmp/t3")
+        h3.start(stage="waiting_for_locks_before_switch")
+
+        # Advance reign at target node.
+        current_reign = get(f"#{src_cell_id}/orchid/reign")
+        next_reign = current_reign + 1
+
+        disable_tablet_cells_on_node(dst_node)
+        wait(lambda: get(f"#{dst_cell_id}/@health") == "failed")
+
+        self._update_specific_nodes_dynamic_config([dst_node], {
+            "tablet_node": {
+                "testing": {
+                    "reign_override": next_reign,
+                }
+            }
+        })
+
+        h3.remove_breakpoint()
+        wait(lambda: get(h3.source_orchid + "/smooth_movement/stage") == "servant_switched")
+
+        enable_tablet_cells_on_node(dst_node)
+        wait(lambda: get(f"#{dst_cell_id}/@health") == "good")
+        assert get(f"#{src_cell_id}/orchid/reign") == current_reign
+        assert get(f"#{dst_cell_id}/orchid/reign") == next_reign
+
+        # tablet1 was fully moved when dst was with the old reign.
+        # Recovery with the new reign should not abort the action.
+        assert exists(f"#{dst_cell_id}/orchid/tablets/{tablet1}")
+        lookup_rows("//tmp/t1", [{"key": 1}])
+
+        # tablet2 movement was aborted by target when target reign changed.
+        h2.remove_breakpoint()
+        with raises_yt_error("Smooth movement rejected on tablet reign change"):
+            h2.wait_for_action()
+
+        # Abort for tablet3 was requested when source had already initiated the switch.
+        # Action cannot not be aborted, target must accept the switch.
+        h3.wait_for_action()
+        assert exists(f"#{dst_cell_id}/orchid/tablets/{tablet3}")
+        assert not exists(f"#{dst_cell_id}/orchid/tablets/{tablet3}/smooth_movement")
+        lookup_rows("//tmp/t3", [{"key": 1}])
+
+        # tablet4 has different reign from the start and should not be moved.
+        h4 = SmoothMovementHelper("//tmp/t4")
+        h4.start()
+        with raises_yt_error("Replicated content reign .* differs from current reign .*"):
+            h4.wait_for_action()
+
+        assert exists(f"#{src_cell_id}/orchid/tablets/{tablet2}")
+        assert not exists(f"#{src_cell_id}/orchid/tablets/{tablet2}/smooth_movement")
+        wait(lambda: not exists(f"#{dst_cell_id}/orchid/tablets/{tablet2}"))
+
+    @authors("ifsmirnov")
+    def test_reject_replicated_content(self):
+        sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", mount_config={
+            "testing": {
+                "reject_replicated_content_receiving": True,
+            },
+        })
+        sync_mount_table("//tmp/t")
+
+        h = SmoothMovementHelper("//tmp/t")
+        h.start()
+        with raises_yt_error("Smooth movement rejected by target for testing purposes"):
+            h.wait_for_action()
+
+        # NB: Unlike other options, this one is checked at the target servant BEFORE
+        # replicated content with options-known-at-source arrives.
+        set("//tmp/t/@mount_config/testing/reject_replicated_content_receiving", False)
+        h = SmoothMovementHelper("//tmp/t")
+        h.start()
+        h.wait_for_action()
+
+    @authors("ifsmirnov")
+    def test_movement_aborted_and_restarted(self):
+        sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t", enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        h = SmoothMovementHelper(tablet_id)
+        h.start("waiting_for_locks_before_activation")
+        # Abort action.
+        mount_table("//tmp/t")
+
+        assert h.get_action_state() == "failed"
+        with raises_yt_error():
+            h.finish()
+
+        wait(lambda: len(get(f"#{tablet_id}/@servants")) == 1)
+
+        h = SmoothMovementHelper("//tmp/t")
+        h.start()
+        h.finish()
+
+    @authors("alexelexa")
+    def test_logical_mount_revision(self):
+        cell_ids = sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", atomicity="none")
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+        tablet = get("//tmp/t/@tablets/0")
+        tablet_id = tablet["tablet_id"]
+        old_mount_revision = tablet["mount_revision"]
+        old_logical_mount_revision = tablet["logical_mount_revision"]
+
+        self._sync_move_tablet(tablet_id)
+
+        tablet = get("//tmp/t/@tablets/0")
+        new_mount_revision = tablet["mount_revision"]
+        new_logical_mount_revision = tablet["logical_mount_revision"]
+
+        assert old_mount_revision < new_mount_revision
+        assert old_mount_revision == old_logical_mount_revision
+        assert old_logical_mount_revision == new_logical_mount_revision
+
 
 ##################################################################
 
@@ -818,9 +1069,6 @@ class TestSmoothMovementLargeCommitDelay(SmoothMovementBase):
         "tablet_node": {
             "transaction_supervisor": {
                 "rpc_timeout": 20000,
-            },
-            "resource_limits": {
-                "slots": 1,
             },
         }
     }
@@ -962,3 +1210,90 @@ class TestSmoothMovementMulticell(TestSmoothMovement):
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
     }
+
+
+##################################################################
+
+
+class TestSmoothMovementWithMountCacheDelay(SmoothMovementBase):
+    NUM_NODES = 4
+
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "tablet_manager": {
+                "sleep_before_post_to_master": 0,
+            },
+        },
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "table_mount_cache": {
+            "expire_after_successful_update_time": 60000,
+            "refresh_time": 60000,
+            "expiration_period": 60000,
+            "expire_after_failed_update_time": 1000,
+            "expire_after_access_time": 300000,
+            "on_error_retry_count": 1,
+        },
+    }
+
+    TABLET_COUNT = 10
+
+    def _prepare(self):
+        sync_create_cells(4)
+
+        pivot_keys = [[]] + [[i * 10] for i in range(1, self.TABLET_COUNT)]
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", pivot_keys)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i * 10, "value": str(i)} for i in range(self.TABLET_COUNT)]
+        insert_rows("//tmp/t", rows)
+
+        # Warm up the mount cache so subsequent requests use the (soon-to-be-stale) cached info.
+        keys = [{"key": row["key"]} for row in rows]
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        self._move_all_tablets()
+
+        set("//sys/@config/table_manager/testing/get_mount_info_delay", 30000)
+
+        return rows
+
+    def _move_all_tablets(self):
+        tablet_ids = [get(f"//tmp/t/@tablets/{i}/tablet_id") for i in range(self.TABLET_COUNT)]
+        helpers = []
+        for tablet_id in tablet_ids:
+            h = SmoothMovementHelper(tablet_id)
+            h.start()
+            helpers.append(h)
+
+        for h in helpers:
+            h.wait_for_action()
+
+    @authors("ifsmirnov")
+    def test_lookup_retries(self):
+        rows = self._prepare()
+        keys = [{"key": row["key"]} for row in rows]
+
+        # lookup_rows must succeed and return correct data despite the stale mount cache.
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+    @authors("ifsmirnov")
+    def test_select_retries(self):
+        rows = self._prepare()
+
+        # select_rows must succeed and return correct data despite the stale mount cache.
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+    @authors("ifsmirnov")
+    def DISABLED_test_select_parallel_unordered_group_by_retries(self):
+        # This test uses different execution pipeline (CoordinateAndExecuteWithShuffle)
+        # for which appropriate retries are not implemented.
+        self._prepare()
+
+        # select_rows must succeed and return correct data despite the stale mount cache.
+        assert_items_equal(
+            select_rows("sum(1) as s from [//tmp/t] group by 0", enable_parallelize_unordered_group_by=True),
+            [{"s": 10}])

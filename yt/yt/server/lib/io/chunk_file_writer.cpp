@@ -36,23 +36,6 @@ constinit const auto Logger = IOLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize)
-{
-    YT_LOG_FATAL_IF(
-        truncateBlockCount > blocksExt.blocks_size() || truncateBlockCount < 0,
-        "Invalid truncate block count (TruncateBlockCount: %v, BlockCount: %v)",
-        truncateBlockCount,
-        blocksExt.blocks_size());
-
-    i64 truncateDataSize = 0;
-    for (int index = truncateBlockCount; index < blocksExt.blocks_size(); ++index) {
-        truncateDataSize += blocksExt.blocks(index).size();
-    }
-    blocksExt.mutable_blocks()->Truncate(truncateBlockCount);
-    YT_VERIFY(truncateDataSize <= oldDataSize);
-    return oldDataSize - truncateDataSize;
-}
-
 TSerializedBlocksRequest SerializeBlocks(i64 startOffset, const std::vector<TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt)
 {
     TSerializedBlocksRequest request;
@@ -120,7 +103,7 @@ TSharedMutableRef SerializeChunkMeta(TChunkId chunkId, const TRefCountedChunkMet
 TChunkFileWriter::TChunkFileWriter(
     IIOEnginePtr ioEngine,
     TChunkId chunkId,
-    TString fileName,
+    std::string fileName,
     bool syncOnClose,
     bool useDirectIO)
     : IOEngine_(std::move(ioEngine))
@@ -196,7 +179,7 @@ TFuture<void> TChunkFileWriter::Open()
 
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
-    return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, GetFileMode()})
+    return IOEngine_->Open({FileName_ + std::string(NFS::TempFileSuffix), GetFileMode()})
         .Apply(BIND([
             this,
             this_ = MakeStrong(this)
@@ -326,25 +309,19 @@ TFuture<void> TChunkFileWriter::GetReadyEvent()
 TFuture<void> TChunkFileWriter::Close(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
-    const TDeferredChunkMetaPtr& chunkMeta,
-    std::optional<int> truncateBlockCount)
+    const TDeferredChunkMetaPtr& chunkMeta)
 {
-    return Close(options, workloadDescriptor, chunkMeta, {}, truncateBlockCount);
+    return Close(options, workloadDescriptor, chunkMeta, {});
 }
 
 TFuture<void> TChunkFileWriter::Close(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
     const TDeferredChunkMetaPtr& chunkMeta,
-    TFairShareSlotId fairShareSlotId,
-    std::optional<int> truncateBlockCount)
+    TFairShareSlotId fairShareSlotId)
 {
     if (auto error = TryChangeState(EState::Ready, EState::Closing); !error.IsOK()) {
         return MakeFuture<void>(std::move(error));
-    }
-
-    if (truncateBlockCount.has_value()) {
-        DataSize_ = TruncateBlocks(BlocksExt_, *truncateBlockCount, DataSize_);
     }
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
@@ -362,7 +339,7 @@ TFuture<void> TChunkFileWriter::Close(
 
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
-            return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, GetFileMode()});
+            return IOEngine_->Open({metaFileName + std::string(NFS::TempFileSuffix), GetFileMode()});
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
         .Apply(BIND([
             this,
@@ -416,8 +393,8 @@ TFuture<void> TChunkFileWriter::Close(
         ] () mutable {
             YT_VERIFY(State_.load() == EState::Closing);
 
-            NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
-            NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
+            NFS::Rename(metaFileName + std::string(NFS::TempFileSuffix), metaFileName);
+            NFS::Rename(FileName_ + std::string(NFS::TempFileSuffix), FileName_);
 
             if (!SyncOnClose_) {
                 return OKFuture;
@@ -453,7 +430,7 @@ i64 TChunkFileWriter::GetDataSize() const
     return DataSize_;
 }
 
-const TString& TChunkFileWriter::GetFileName() const
+const std::string& TChunkFileWriter::GetFileName() const
 {
     return FileName_;
 }
@@ -472,13 +449,13 @@ TFuture<void> TChunkFileWriter::Cancel()
 
             DataFile_.Reset();
 
-            auto removeIfExists = [] (const TString& path) {
+            auto removeIfExists = [] (const std::string& path) {
                 if (NFS::Exists(path)) {
                     NFS::Remove(path);
                 }
             };
-            removeIfExists(FileName_ + NFS::TempFileSuffix);
-            removeIfExists(FileName_ + ChunkMetaSuffix + NFS::TempFileSuffix);
+            removeIfExists(FileName_ + std::string(NFS::TempFileSuffix));
+            removeIfExists(FileName_ + ChunkMetaSuffix + std::string(NFS::TempFileSuffix));
 
             State_.store(EState::Aborted);
         })
@@ -530,4 +507,3 @@ bool TChunkFileWriter::IsCloseDemanded() const
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO
-

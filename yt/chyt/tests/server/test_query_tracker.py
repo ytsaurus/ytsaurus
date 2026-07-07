@@ -45,6 +45,17 @@ class TestQueriesChyt(ClickHouseTestBase):
             assert query_info["result_count"] == 1
             assert_items_equal(query.read_result(0), [{"1": 1}])
 
+    @authors("mpereskokova")
+    def test_simple_query_not_indexed(self, query_tracker):
+        with Clique(1, alias="*ch_alias"):
+            settings = {"clique": "ch_alias", "cluster": "primary", "is_indexed": False}
+            query = start_query("chyt", "select 1", settings=settings)
+            query.track()
+
+            query_info = query.get()
+            assert query_info["result_count"] == 1
+            assert_items_equal(query.read_result(0), [{"1": 1}])
+
     @authors("gudqeit")
     def test_read_table(self, query_tracker):
         table_schema = [{"name": "value", "type": "int64"}]
@@ -225,7 +236,7 @@ class TestQueriesChyt(ClickHouseTestBase):
                 authenticated_user="u1",
             )
 
-            with raises_yt_error(AuthorizationErrorCode):
+            with raises_yt_error(code=AuthorizationErrorCode):
                 query.track()
 
     @authors("mpereskokova")
@@ -477,9 +488,7 @@ class TestChytEngineProgress(ClickHouseTestBase):
         return self.QUERY_QUEUE.get()
 
     @authors("buyval01")
-    # TODO(buyval01): CHYT-1369
-    # @pytest.mark.parametrize("wait_progress_finish", [True, False])
-    @pytest.mark.parametrize("wait_progress_finish", [False])
+    @pytest.mark.parametrize("wait_progress_finish", [True, False])
     @pytest.mark.parametrize("enable_pull_mode", [False, True])
     def test_simple(self, query_tracker, wait_progress_finish, enable_pull_mode):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})

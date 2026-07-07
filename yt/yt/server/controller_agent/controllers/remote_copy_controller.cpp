@@ -352,7 +352,7 @@ protected:
             : TRemoteCopyTaskBase(controller)
         { }
 
-        TString GetTitle() const override
+        std::string GetTitle() const override
         {
             return "HunkRemoteCopy";
         }
@@ -370,6 +370,16 @@ protected:
             Controller_->ValidateHunkChunksConsistency();
         }
 
+        const TChunkListPoolPtr& GetOutputChunkListPool() const override
+        {
+            return TaskHost_->GetOutputHunkChunkListPool();
+        }
+
+        NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override
+        {
+            return TaskHost_->ExtractOutputHunkChunkList(cellTag);
+        }
+
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyHunkTask, 0xaba78386);
     };
 
@@ -385,7 +395,7 @@ protected:
             : TRemoteCopyTaskBase(controller)
         { }
 
-        TString GetTitle() const override
+        std::string GetTitle() const override
         {
             return "CompressionDictionaryRemoteCopy";
         }
@@ -401,6 +411,16 @@ protected:
         void ValidateAllDataHaveBeenCopied() override
         {
             Controller_->ValidateCompressionDictionariesConsistency();
+        }
+
+        const TChunkListPoolPtr& GetOutputChunkListPool() const override
+        {
+            return TaskHost_->GetOutputHunkChunkListPool();
+        }
+
+        NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override
+        {
+            return TaskHost_->ExtractOutputHunkChunkList(cellTag);
         }
 
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyCompressionDictionaryTask, 0xaba78387);
@@ -603,7 +623,7 @@ private:
 
         static const auto allowedAttributes = [] {
             const auto& wellKnown = GetWellKnownRichYPathAttributes();
-            return THashSet<TString>(wellKnown.begin(), wellKnown.end());
+            return THashSet<std::string>(wellKnown.begin(), wellKnown.end());
         }();
 
         for (const auto& attributeName : Spec_->OutputTablePath.Attributes().ListKeys()) {
@@ -620,13 +640,13 @@ private:
         return EPermission::FullRead;
     }
 
-    std::vector<TString> BuildSystemAttributeKeys() const
+    std::vector<std::string> BuildSystemAttributeKeys() const
     {
         if (!Spec_->ForceCopySystemAttributes) {
             return {};
         }
 
-        std::vector<TString> keys{
+        std::vector<std::string> keys{
             "compression_codec",
             "erasure_codec",
         };
@@ -770,6 +790,12 @@ private:
             CollectHunkChunkIdsByType(table, GetPtr(HunkChunkIds_), GetPtr(CompressionDictionaryIds_));
         }
 
+        for (auto chunkId : Concatenate(HunkChunkIds_, CompressionDictionaryIds_)) {
+            if (IsJournalChunkId(chunkId)) {
+                THROW_ERROR_EXCEPTION("Cannot run remote copy of a table that contains journal hunk chunks");
+            }
+        }
+
         MainTask_ = CreateTask<TRemoteCopyTask>();
         if (!HunkChunkIds_.empty() || !CompressionDictionaryIds_.empty()) {
             HunkTask_ = CreateTask<TRemoteCopyHunkTask>();
@@ -909,7 +935,7 @@ private:
         return HunkTask_ != nullptr;
     }
 
-    std::vector<TString> BuildOutputTableAttributeKeys() const
+    std::vector<std::string> BuildOutputTableAttributeKeys() const
     {
         YT_VERIFY(Spec_->CopyAttributes || Spec_->ForceCopySystemAttributes);
 
@@ -917,7 +943,7 @@ private:
         auto attributeKeys = systemAttributeKeys;
         if (Spec_->CopyAttributes) {
             // Filter out unneeded attributes.
-            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
+            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<std::string>>("user_attribute_keys");
             auto specAttributeKeys = Spec_->AttributeKeys.value_or(userAttributeKeys);
             attributeKeys.reserve(attributeKeys.size() + specAttributeKeys.size());
             for (const auto& key : specAttributeKeys) {
@@ -1127,14 +1153,16 @@ private:
     void ValidateConsistency(const THashMap<TChunkId, TChunkId>& mapping, const THashSet<TChunkId>& chunkIds, const TStringBuf& chunkName) const
     {
         if (mapping.size() != chunkIds.size()) {
-            for (const auto& compressionDictionaryId : CompressionDictionaryIds_) {
-                YT_LOG_FATAL_IF(!CompressionDictionaryIdMapping_.contains(compressionDictionaryId),
+            for (const auto& chunkId : chunkIds) {
+                YT_LOG_FATAL_IF(
+                    !mapping.contains(chunkId),
                     "Validate %v consistency failed. Chunk %v was not copied",
                     chunkName,
-                    compressionDictionaryId);
+                    chunkId);
             }
             for (const auto& [oldId, newId] : mapping) {
-                YT_LOG_FATAL_IF(!chunkIds.contains(oldId),
+                YT_LOG_FATAL_IF(
+                    !chunkIds.contains(oldId),
                     "Validate %v consistency failed. Chunk %v should not have been copied as %v",
                     chunkName,
                     oldId,

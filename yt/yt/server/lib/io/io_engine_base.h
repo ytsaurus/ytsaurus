@@ -73,7 +73,7 @@ public:
     void Increment();
     void Decrement();
 
-    static TInflightCounter Create(NProfiling::TProfiler& profiler, const TString& name);
+    static TInflightCounter Create(NProfiling::TProfiler& profiler, const std::string& name);
 
 private:
     struct TState
@@ -207,7 +207,7 @@ protected:
     using TConfig = TIOEngineConfigBase;
     using TConfigPtr = TIntrusivePtr<TConfig>;
 
-    const TString LocationId_;
+    const std::string LocationId_;
     const IHugePageManagerPtr HugePageManager_;
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
@@ -215,7 +215,7 @@ protected:
 
     TIOEngineBase(
         TConfigPtr config,
-        TString locationId,
+        std::string locationId,
         IHugePageManagerPtr hugePageManager,
         NProfiling::TProfiler profiler,
         NLogging::TLogger logger);
@@ -279,11 +279,11 @@ public:
     TRequestCounterGuard();
     TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, EIOEngineRequestType requestType);
     TRequestCounterGuard(const TRequestCounterGuard& other) = delete;
-    TRequestCounterGuard(TRequestCounterGuard&& other);
+    TRequestCounterGuard(TRequestCounterGuard&& other) noexcept;
     ~TRequestCounterGuard();
 
     TRequestCounterGuard& operator=(const TRequestCounterGuard& other) = delete;
-    TRequestCounterGuard& operator=(TRequestCounterGuard&& other);
+    TRequestCounterGuard& operator=(TRequestCounterGuard&& other) noexcept;
 
     void Release();
 

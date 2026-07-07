@@ -21,12 +21,13 @@ const (
 
 	ContentTypeAny ContentType = "*/*"
 
-	TypeApplicationJSON          ContentType = "application/json"
-	TypeApplicationXML           ContentType = "application/xml"
-	TypeApplicationOctetStream   ContentType = "application/octet-stream"
-	TypeApplicationProtobuf      ContentType = "application/protobuf"
-	TypeApplicationMsgpack       ContentType = "application/msgpack"
-	TypeApplicationXSolomonSpack ContentType = "application/x-solomon-spack"
+	TypeApplicationJSON               ContentType = "application/json"
+	TypeApplicationXML                ContentType = "application/xml"
+	TypeApplicationOctetStream        ContentType = "application/octet-stream"
+	TypeApplicationProtobuf           ContentType = "application/protobuf"
+	TypeApplicationMsgpack            ContentType = "application/msgpack"
+	TypeApplicationXSolomonSpack      ContentType = "application/x-solomon-spack"
+	TypeApplicationXWwwFromUrlencoded ContentType = "application/x-www-form-urlencoded"
 
 	EncodingAny     ContentEncoding = "*"
 	EncodingZSTD    ContentEncoding = "zstd"
@@ -49,6 +50,7 @@ const (
 	TypeImageSVG  ContentType = "image/svg+xml"
 	TypeImageTIFF ContentType = "image/tiff"
 	TypeImageWebP ContentType = "image/webp"
+	TypeImageAVIF ContentType = "image/avif"
 
 	TypeVideoMPEG ContentType = "video/mpeg"
 	TypeVideoMP4  ContentType = "video/mp4"

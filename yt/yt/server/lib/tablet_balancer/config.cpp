@@ -6,6 +6,18 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TFeatureFlagConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
+        .Default();
+    registrar.Parameter("enable_inplace_split", &TThis::EnableInplaceSplit)
+        .Default();
+    registrar.Parameter("enable_inplace_merge", &TThis::EnableInplaceMerge)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TComponentFactorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cell_factor", &TThis::Cell)
@@ -100,7 +112,7 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
             config->Factors = New<TComponentFactorConfig>();
         }
 
-        auto replicaClustersUnique = THashSet<TString>(config->ReplicaClusters.begin(), config->ReplicaClusters.end());
+        auto replicaClustersUnique = THashSet<TClusterName>(config->ReplicaClusters.begin(), config->ReplicaClusters.end());
         if (std::ssize(replicaClustersUnique) != std::ssize(config->ReplicaClusters)) {
             THROW_ERROR_EXCEPTION("\"replica_clusters\" must contain unique cluster names");
         }
@@ -120,8 +132,6 @@ void TTabletBalancingGroupConfig::Register(TRegistrar registrar)
     registrar.Parameter("parameterized", &TThis::Parameterized)
         .DefaultNew();
     registrar.Parameter("schedule", &TThis::Schedule)
-        .Default();
-    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
         .Default();
 }
 
@@ -220,8 +230,6 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
     registrar.Parameter("safe_used_tablet_static_ratio", &TThis::SafeUsedTabletStaticRatio)
         .Default(1.)
         .InRange(0., 1.);
-    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
-        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         auto [it, inserted] = config->Groups.emplace(DefaultGroupName, New<TTabletBalancingGroupConfig>());
@@ -332,9 +340,10 @@ void TTableTabletBalancerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("group", &TThis::Group)
         .Default();
+    registrar.Parameter("desired_tablet_metric", &TThis::DesiredTabletMetric)
+        .Default()
+        .GreaterThan(0);
     registrar.Parameter("replica_path_overrides", &TThis::ReplicaPathOverrides)
-        .Default();
-    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
@@ -347,6 +356,21 @@ void TTableTabletBalancerConfig::Register(TRegistrar registrar)
             }
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TEffectiveTableConfig& config, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("min_tablet_size").Value(config.MinTabletSize)
+            .Item("max_tablet_size").Value(config.MaxTabletSize)
+            .Item("desired_tablet_size").Value(config.DesiredTabletSize)
+            .Item("schedule").Value(config.Schedule)
+            .Item("group_name").Value(config.GroupName)
+            .Item("group_config").Value(config.GroupConfig)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,6 +30,7 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/cell_master_client/helpers.h>
 #include <yt/yt/ytlib/cell_master_client/protobuf_helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
@@ -101,6 +102,7 @@ public:
         : TMasterHeartbeatReporterBase(
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ false,
+            ENodeHeartbeatType::Cluster,
             ClusterNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Cluster))
         , Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->MasterConnector)
@@ -125,7 +127,7 @@ public:
         MasterCellTags_.insert(secondaryMasterCellTags.begin(), secondaryMasterCellTags.end());
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
         Bootstrap_->SubscribeSecondaryMasterCellListChanged(
             BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this)));
 
@@ -316,6 +318,16 @@ public:
         return MasterCellTags_;
     }
 
+    virtual TFuture<std::vector<TError>> GetExecutedEvents(const THashSet<NObjectClient::TCellTag>& masterCellTags) override
+    {
+        return TMasterHeartbeatReporterBase::GetExecutedEvents(masterCellTags);
+    }
+
+    void ScheduleMasterHeartbeats(const THashSet<NObjectClient::TCellTag>& masterCellTags) override
+    {
+        return TMasterHeartbeatReporterBase::ScheduleOutOfBandMasterHeartbeats(masterCellTags);
+    }
+
 protected:
     TFuture<void> DoReportHeartbeat(TCellTag cellTag) override
     {
@@ -365,9 +377,7 @@ protected:
         auto futureIt = GetIteratorOrCrash(CellTagToHeartbeatRspFuture_, cellTag);
         auto future = std::move(futureIt->second);
         CellTagToHeartbeatRspFuture_.erase(futureIt);
-        YT_VERIFY(future.IsSet());
-
-        return future.Get();
+        return future.GetOrCrash();
     }
 private:
     IBootstrap* const Bootstrap_;
@@ -425,13 +435,13 @@ private:
 
         const auto& masterCellDirectory = Bootstrap_->GetConnection()->GetMasterCellDirectory();
         auto oldSecondaryMastersConnectionConfigs = masterCellDirectory->GetSecondaryMasterConnectionConfigs();
-        if (!masterCellDirectory->ClusterMasterCompositionChanged(masterCellDirectory->GetSecondaryMasterConnectionConfigs(), newSecondaryMastersConnectionConfigs)) {
+        if (!ClusterMasterCompositionChanged(oldSecondaryMastersConnectionConfigs, newSecondaryMastersConnectionConfigs)) {
             return;
         }
 
         YT_LOG_INFO("Master cell membership configuration has changed, starting reconfiguration "
             "(SecondaryMasterCellTags: %v, ReceivedSecondaryMasterCellTags: %v)",
-            GetMasterCellTags(),
+            NCellMasterClient::GetMasterCellTags(oldSecondaryMastersConnectionConfigs),
             NCellMasterClient::GetMasterCellTags(newSecondaryMastersConnectionConfigs));
 
         masterCellDirectory->ReconfigureMasterCellDirectory(newSecondaryMastersConnectionConfigs);
@@ -696,11 +706,8 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        // COMPAT(pogorelov): Remove when all masters will be 24.1.
-        if (rsp->tags_size() > 0) {
-            auto tags = FromProto<std::vector<std::string>>(rsp->tags());
-            UpdateTags(std::move(tags));
-        }
+        auto tags = FromProto<std::vector<std::string>>(rsp->tags());
+        UpdateTags(std::move(tags));
 
         auto newSecondaryMastersConnectionConfigs = ParseSecondaryMasterConnectionConfigsFromResponse(rsp->secondary_masters_configs());
         MaybeUpdateSecondaryMasterConnectionConfigs(newSecondaryMastersConnectionConfigs);

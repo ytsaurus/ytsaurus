@@ -51,8 +51,8 @@ struct IBlockDevice
 {
     virtual i64 GetTotalSize() const = 0;
     virtual bool IsReadOnly() const = 0;
-    virtual TString DebugString() const = 0;
-    virtual TString GetProfileSensorTag() const = 0;
+    virtual std::string DebugString() const = 0;
+    virtual std::string GetProfileSensorTag() const = 0;
 
     virtual TFuture<void> Initialize() = 0;
     virtual TFuture<void> Finalize() = 0;
@@ -80,26 +80,6 @@ struct IBlockDevice
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockDevice)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TBaseBlockDevice
-    : public IBlockDevice
-{
-public:
-    const TError& GetError() const final;
-    void SetError(TError error) final;
-
-    bool SubscribeForErrors(TGuid id, const TCallback<void()>& callback) final;
-    bool UnsubscribeFromErrors(TGuid id) final;
-
-private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
-    THashMap<TGuid, TCallback<void()>> SubscriberCallbacks_;
-    TError Error_;
-
-    void CallSubscribers() const;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

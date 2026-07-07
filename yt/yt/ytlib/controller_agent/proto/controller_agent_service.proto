@@ -94,6 +94,7 @@ message TOperationDescriptor
     optional string aco_name = 13;
     required bytes experiment_assignments = 11; // YSON
     required int32 controller_epoch = 12 [default = -1];
+    required bytes provided_spec = 14; // YSON
 
     reserved 7;
 }
@@ -200,6 +201,7 @@ message TReviveOperationResult
         required string tree_id = 4;
         required uint32 node_id = 5;
         required string node_address = 6;
+        required string allocation_group_name = 9;
     }
 
     required bytes attributes = 1; // YSON
@@ -216,6 +218,7 @@ message TReqReviveOperation
 {
     required NYT.NProto.TGuid incarnation_id = 1;
     required NYT.NProto.TGuid operation_id = 2;
+    optional bool suspended = 3;
 }
 
 message TRspReviveOperation

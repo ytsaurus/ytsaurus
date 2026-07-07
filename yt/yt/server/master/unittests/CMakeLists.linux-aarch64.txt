@@ -24,6 +24,7 @@ target_compile_options(unittester-master PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(unittester-master PUBLIC
@@ -66,6 +67,7 @@ target_sources(unittester-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/incumbent_scheduler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/interned_pool_attributes_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/leader_smoothing_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/table_schema_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/tablet_cell_balancer_ut.cpp
 )

@@ -39,10 +39,17 @@ DEFINE_ENUM(EAllowAlterWithoutFullRead,
 struct TDynamicSecurityManagerConfig
     : public NYTree::TYsonStruct
 {
+    static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(1000);
+
     TDuration AccountStatisticsGossipPeriod;
     TDuration AccountsProfilingPeriod;
     TDuration RequestRateSmoothingPeriod;
     TDuration AccountMasterMemoryUsageUpdatePeriod;
+
+    bool SendOnlyUpdatesInAccountGossip;
+    int PrimaryCellAccountGossipBatchSize;
+    int SecondaryCellAccountGossipBatchSize;
+    TDuration AccountStatisticsGossipProfilingPeriod;
 
     // COMPAT(h0pless): This is a panic button, in case account profiling breaks.
     bool EnableAccountsProfiling;
@@ -72,13 +79,15 @@ struct TDynamicSecurityManagerConfig
     //! Period between user statistics commits.
     TDuration UserStatisticsFlushPeriod;
 
-    // This is a panic button.
-    bool EnableSubjectTagFilters;
-
     // COMPAT(coteeq)
     //! Defines what to do when a user is altering table but lacks
     //! full_read permission on that table.
     EAllowAlterWithoutFullRead AllowAlterWithoutFullRead;
+
+    // COMPAT(danilalexeev): YT-28249.
+    bool CheckAllAceColumnsFullRead;
+
+    bool AllowChangeRequestLimitsForRoot;
 
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 

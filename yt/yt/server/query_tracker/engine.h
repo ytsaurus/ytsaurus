@@ -42,6 +42,8 @@ struct IQueryEngine
     virtual IQueryHandlerPtr StartOrAttachQuery(NQueryTrackerClient::NRecords::TActiveQuery activeQuery) = 0;
 
     virtual void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) = 0;
+
+    virtual std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueryEngine)

@@ -33,11 +33,13 @@ class TTabletProfilerManager
 public:
     TTabletProfilerManager();
 
+    static TTabletProfilerManager* Get();
+
     TTableProfilerPtr CreateTableProfiler(
         EDynamicTableProfilingMode profilingMode,
         const std::string& tabletCellBundle,
         const NYPath::TYPath& tablePath,
-        const TString& tableTag,
+        const std::string& tableTag,
         const std::string& account,
         const std::string& medium,
         NObjectClient::TObjectId schemaId,
@@ -49,19 +51,23 @@ public:
         NTabletClient::TTabletId tabletId);
 
 private:
-    NThreading::TSpinLock Lock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
-    THashSet<TString> AllTables_;
+    THashSet<NYPath::TYPath> AllTables_;
     NProfiling::TGauge ConsumedTableTags_;
 
-    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, std::string, NYPath::TYPath, std::string, std::string, TObjectId>;
+    using TProfilerKey = std::tuple<
+        EDynamicTableProfilingMode, // profiling mode
+        std::string,                // bundle
+        std::string,                // table path or tag
+        std::string,                // account
+        std::string,                // medium
+        TObjectId>;                 // schema id
     THashMap<TProfilerKey, TWeakPtr<TTableProfiler>> Tables_;
 
     using THunkTabletProfilerKey = std::tuple<std::string, NYPath::TYPath, TObjectId>;
     THashMap<THunkTabletProfilerKey, TWeakPtr<THunkTabletProfiler>> HunkTabletProfilers_;
 };
-
-TTabletProfilerManager* GetTabletProfilerManager();
 
 ////////////////////////////////////////////////////////////////////////////////
 

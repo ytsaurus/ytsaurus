@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/master/sequoia_server/proto/ground_update_queue_manager.pb.h>
 
+#include <yt/yt/server/lib/hydra/mutation_context.h>
+
 #include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 
@@ -27,6 +29,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/library/profiling/producer.h>
+
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
 namespace NYT::NSequoiaServer {
 
@@ -40,6 +44,7 @@ using namespace NSequoiaClient;
 using namespace NTableClient;
 using namespace NProfiling;
 using namespace NYson;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,7 +182,7 @@ public:
         TTableUpdateQueueRecord record{
             .Table = table,
             .Row = std::move(row),
-            .SequenceNumber = queueState.NextRecordSequenceNumber++,
+            .SequenceNumber = queueState.NextRecordSequenceNumber,
             .Action = action,
         };
 
@@ -189,23 +194,63 @@ public:
             record.Row);
 
         queueState.Records.push_back(std::move(record));
+
+        auto* mutationContext = GetCurrentMutationContext();
+        mutationContext->SetGroundUpdateQueueSequenceNumber(queueState.NextRecordSequenceNumber);
+        queueState.NextRecordSequenceNumber++;
     }
 
     i64 GetLastRecordSequenceNumber(EGroundUpdateQueue queue) const override
     {
+        VerifyPersistentStateRead();
+
         const auto& queueState = QueueStates_[queue];
         // Turns into -1 if no records were ever enqueued, seems OK.
         return queueState.NextRecordSequenceNumber - 1;
     }
 
-    TFuture<void> Sync(EGroundUpdateQueue queue) override
+    i64 GetLastFlushedSequenceNumber(EGroundUpdateQueue queue) const override
     {
+        VerifyPersistentStateRead();
+
+        const auto& queueState = QueueStates_[queue];
+        return queueState.LastFlushedSequenceNumber;
+    }
+
+    TFuture<void> Sync(
+        EGroundUpdateQueue queue,
+        std::optional<i64> recordSequenceNumber) override
+    {
+        VerifyPersistentStateRead();
+
+        YT_LOG_DEBUG("Ground update queue sync requested (RecordSequenceNumberToSync: %v)",
+            recordSequenceNumber);
+
         auto& queueState = QueueStates_[queue];
         if (queueState.Records.empty()) {
             return OKFuture;
         }
 
-        auto& syncPromise = queueState.Records.back().SyncPromise;
+        if (recordSequenceNumber && queueState.Records.front().SequenceNumber > *recordSequenceNumber) {
+            return OKFuture;
+        }
+
+        auto it = recordSequenceNumber
+            ? BinarySearch(
+                queueState.Records.begin(),
+                queueState.Records.end(),
+                [recordSequenceNumber] (const auto& record) {
+                    return record->SequenceNumber <= recordSequenceNumber;
+                })
+            : queueState.Records.end();
+        it = std::prev(it);
+
+        YT_LOG_DEBUG("Actually syncing ground update queue (AskedSequenceNumber: %v, RecordSequenceNumberToSync: %v, LastSequenceNumber: %v)",
+            recordSequenceNumber,
+            it->SequenceNumber,
+            queueState.Records.back().SequenceNumber);
+
+        auto& syncPromise = it->SyncPromise;
         if (!syncPromise) {
             syncPromise = NewPromise<void>();
         }
@@ -236,20 +281,21 @@ private:
 
         if (queueRecords.empty()) {
             auto error = TError("There are no updates to flush");
-            YT_LOG_ALERT(error);
+            YT_LOG_DEBUG(error);
             THROW_ERROR_EXCEPTION(error);
         }
         if (queueRecords.front().SequenceNumber != request->start_sequence_number()) {
             auto error = TError("First record sequence number %v is different from requested sequence number %v",
                 queueRecords.front().SequenceNumber,
                 request->start_sequence_number());
-            YT_LOG_ALERT(error);
+            YT_LOG_DEBUG(error);
             THROW_ERROR_EXCEPTION(error);
         }
         if (queueRecords.back().SequenceNumber < request->end_sequence_number()) {
             auto error = TError("Last queue sequence number %v is less than requested sequence number %v",
                 queueRecords.back().SequenceNumber,
                 request->end_sequence_number());
+            // This is still alert, looks weird.
             YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);
         }
@@ -286,6 +332,7 @@ private:
             lastSequenceNumber = queueRecords.front().SequenceNumber;
             ++recordCount;
             if (const auto& syncPromise = queueRecords.front().SyncPromise) {
+                YT_LOG_DEBUG("Ground update queue sync completed (SequenceNumber: %v)", lastSequenceNumber);
                 syncPromise.Set();
             }
             queueRecords.pop_front();
@@ -395,7 +442,6 @@ private:
                 // If there are several records from one mutation this might not actually be
                 // the last record to flush.
                 const auto& lastRecordToFlush = queueState.Records[recordsToFlush - 1];
-
                 auto endSequenceNumber = lastRecordToFlush.SequenceNumber;
 
                 TReqFlushGroundUpdateQueue request;
@@ -442,12 +488,13 @@ private:
                     Bootstrap_->GetCellTag(),
                     NTransactionClient::MakeTransactionActionData(request));
 
+                transaction->AddBarrierTags({NApi::NNative::SequoiaCypressOrderingTag});
+                transaction->AddStrongOrderingTags({NApi::NNative::SequoiaCypressOrderingTag});
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
-                    .StronglyOrdered = true,
                 };
-                return transaction->Commit(commitOptions);
+                return transaction->Commit(std::move(commitOptions));
             }).AsyncVia(EpochAutomatonInvoker_))));
     }
 

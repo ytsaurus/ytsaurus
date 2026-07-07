@@ -95,7 +95,7 @@ void TExperimentConfig::Register(TRegistrar registrar)
         double totalFraction = 0.0;
         for (const auto& [groupName, group] : config->Groups) {
             // Dot is used in explicit experiment override specification delimiting name and group.
-            if (groupName.find('.') != TString::npos) {
+            if (groupName.find('.') != std::string::npos) {
                 THROW_ERROR_EXCEPTION("Dots are not allowed in group name");
             }
 
@@ -144,10 +144,10 @@ void TExperimentAssignment::Register(TRegistrar registrar)
 }
 
 void TExperimentAssignment::SetFields(
-    TString experiment,
-    TString group,
-    TString ticket,
-    TString dimension,
+    std::string experiment,
+    std::string group,
+    std::string ticket,
+    std::string dimension,
     double experimentUniformSample,
     double groupUniformSample,
     TExperimentEffectConfigPtr effect)
@@ -161,14 +161,14 @@ void TExperimentAssignment::SetFields(
     Effect = std::move(effect);
 }
 
-TString TExperimentAssignment::GetName() const
+std::string TExperimentAssignment::GetName() const
 {
     return Format("%v.%v", Experiment, Group);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExperimentAssigner::TExperimentAssigner(THashMap<TString, TExperimentConfigPtr> experiments)
+TExperimentAssigner::TExperimentAssigner(THashMap<std::string, TExperimentConfigPtr> experiments)
 {
     UpdateExperimentConfigs(std::move(experiments));
 }
@@ -186,7 +186,7 @@ TErrorOr<bool> TExperimentAssigner::MatchExperiment(
     return experiment->FilterMatcher->Match(attributes.GetAttributesAsYson());
 }
 
-void TExperimentAssigner::UpdateExperimentConfigs(const THashMap<TString, TExperimentConfigPtr>& experiments)
+void TExperimentAssigner::UpdateExperimentConfigs(const THashMap<std::string, TExperimentConfigPtr>& experiments)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -287,13 +287,13 @@ std::vector<TExperimentAssigner::TSelectedExperimentGroup> TExperimentAssigner::
 {
     std::vector<TExperimentAssigner::TSelectedExperimentGroup> result;
 
-    auto experimentOverrides = ConvertTo<std::vector<TString>>(experimentOverridesNode);
+    auto experimentOverrides = ConvertTo<std::vector<std::string>>(experimentOverridesNode);
     // Experiments are explicitly specified via spec option, use them.
     // If some experiment is unrecognized or is not viable due to filter, fail whole operation.
     for (const auto& experimentNameAndMaybeGroupName : experimentOverrides) {
-        TString experimentName;
-        TString groupName;
-        if (auto dotPosition = experimentNameAndMaybeGroupName.find('.'); dotPosition != TString::npos) {
+        std::string experimentName;
+        std::string groupName;
+        if (auto dotPosition = experimentNameAndMaybeGroupName.find('.'); dotPosition != std::string::npos) {
             experimentName = experimentNameAndMaybeGroupName.substr(0, dotPosition);
             groupName = experimentNameAndMaybeGroupName.substr(dotPosition + 1);
         } else {
@@ -331,7 +331,7 @@ std::vector<TExperimentAssigner::TSelectedExperimentGroup> TExperimentAssigner::
     // one group in each chosen experiment.
 
     // dimension -> name -> experiment.
-    THashMap<TString, THashMap<TString, TPreparedExperimentPtr>> dimensionToExperiments;
+    THashMap<std::string, THashMap<std::string, TPreparedExperimentPtr>> dimensionToExperiments;
     for (const auto& [name, experiment] : preparedExperiments.Experiments) {
         EmplaceOrCrash(dimensionToExperiments[experiment->Config->Dimension], name, experiment);
     }
@@ -429,13 +429,13 @@ const TYsonString& TExperimentAssigner::TAssignmentContext::GetAttributesAsYson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateExperiments(const THashMap<TString, TExperimentConfigPtr>& experiments)
+void ValidateExperiments(const THashMap<std::string, TExperimentConfigPtr>& experiments)
 {
     // Validate total fractions over each experiment dimension.
-    THashMap<TString, double> dimensionToFraction;
+    THashMap<std::string, double> dimensionToFraction;
     for (const auto& [experimentName, experiment] : experiments) {
         // Dot is used in explicit experiment override specification delimiting name and group.
-        if (experimentName.find('.') != TString::npos) {
+        if (experimentName.find('.') != std::string::npos) {
             THROW_ERROR_EXCEPTION("Dots are not allowed in experiment name");
         }
 
@@ -456,8 +456,8 @@ void ValidateExperiments(const THashMap<TString, TExperimentConfigPtr>& experime
     // at least one of two conditions hold:
     // - there is at most one dimension with experiments assigning controller agent tags;
     // - all experiments assigning controller agent tags assign the same tag.
-    THashSet<TString> controllerAgentTags;
-    THashSet<TString> tagAssigningDimensions;
+    THashSet<std::string> controllerAgentTags;
+    THashSet<std::string> tagAssigningDimensions;
     for (const auto& experiment : GetValues(experiments)) {
         for (const auto& group : GetValues(experiment->Groups)) {
             if (group->ControllerAgentTag) {

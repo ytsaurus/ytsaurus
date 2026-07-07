@@ -1,3 +1,6 @@
+// Copyright (c) The M1CPU Authors
+// SPDX-License-Identifier: MPL-2.0
+
 package m1cpu
 
 import (

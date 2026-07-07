@@ -8,8 +8,6 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>

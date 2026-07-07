@@ -22,22 +22,19 @@ def get_hostname():
     return socket.gethostname()
 
 
-class MyCellTagFromConfig(object):
-    def _read_config(self):
+class MasterConfig(object):
+    def __init__(self, master_config):
+        self.master_config = master_config
         if not os.path.exists(self.master_config):
             raise RuntimeError(f"Master config '{self.master_config}' not found")
 
-        config = None
         with open(self.master_config, "rb") as fh:
-            config = yson.load(fh)
-        if config is None:
+            self.config = yson.load(fh)
+        if self.config is None:
             raise RuntimeError(f"Can't load master config '{self.master_config}'")
 
-        return config
-
     def _get_cluster_connection(self):
-        config = self._read_config()
-        cluster_connection = config.get("cluster_connection", None)
+        cluster_connection = self.config.get("cluster_connection", None)
         if cluster_connection is None:
             raise RuntimeError(f"Can't get cluster_connection from master config '{self.master_config}'")
         return cluster_connection
@@ -58,9 +55,6 @@ class MyCellTagFromConfig(object):
         cell_tag = int(part[:len(part) - 4] , 16)
         return f"{cell_tag}"
 
-    def __init__(self, master_config):
-        self.master_config = master_config
-
     def get_cell_tag(self):
         my_hostname = socket.gethostname()
         cell_tag = None
@@ -74,6 +68,16 @@ class MyCellTagFromConfig(object):
 
         if cell_tag is None:
             raise RuntimeError(f"Can't find cell tag for hostname '{my_hostname}' in master config '{self.master_config}'")
+
+    def get_snapshots_path(self):
+        if "snapshots" in self.config:
+            return self.config["snapshots"]["path"]
+        return None
+
+    def get_changelogs_path(self):
+        if "changelogs" in self.config:
+            return self.config["changelogs"]["path"]
+        return None
 
 
 class Setup(object):
@@ -111,8 +115,18 @@ class Setup(object):
 
 
 def get_setup(master_config):
-    cell_tag = MyCellTagFromConfig(master_config).get_cell_tag()
-    return Setup(cell_tag)
+    config = MasterConfig(master_config)
+    setup = Setup(config.get_cell_tag())
+
+    snapshots_path = config.get_snapshots_path()
+    if snapshots_path:
+        setup.snapshots_path = snapshots_path
+
+    changelogs_path = config.get_changelogs_path()
+    if changelogs_path:
+        setup.changelogs_path = changelogs_path
+
+    return setup
 
 
 def get_yt_client(proxy, token_path):

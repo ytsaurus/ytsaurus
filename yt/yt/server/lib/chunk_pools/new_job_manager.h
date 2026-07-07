@@ -1,13 +1,13 @@
 #pragma once
 
 #include "chunk_pool.h"
-#include "private.h"
 #include "job_manager.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/key_bound.h>
 
 #include <yt/yt/core/logging/serializable_logger.h>
 
@@ -69,16 +69,16 @@ public:
     i64 GetPreliminaryRowCount() const;
     int GetPreliminarySliceCount() const;
 
-    TString GetDebugString() const;
+    std::string GetDebugString() const;
 
 private:
     //! All the input cookies that provided data that forms this job.
     std::vector<IChunkPoolInput::TCookie> InputCookies_;
 
-    //! Maps pair of <stream_index, range_index> into corresponding stripe.
-    THashMap<std::pair<int, int>, TChunkStripePtr> StripeMap_;
+    //! Maps stream index into corresponding stripe.
+    THashMap<int, TChunkStripePtr> StripeMap_;
 
-    const TChunkStripePtr& GetStripe(int streamIndex, int rangeIndex, bool isStripePrimary);
+    const TChunkStripePtr& GetStripe(int streamIndex, bool isStripePrimary);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,7 +222,7 @@ private:
         void Remove();
 
         template <class... TArgs>
-        void CallProgressCounterGuards(void (NControllerAgent::TProgressCounterGuard::*Method)(TArgs...), TArgs... args);
+        void CallProgressCounterGuards(void (NControllerAgent::TProgressCounterGuard::*Method)(TArgs...), const TArgs&... args);
 
         void UpdateSelf();
 

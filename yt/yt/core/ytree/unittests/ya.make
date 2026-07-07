@@ -10,6 +10,7 @@ SRCS(
     complex_key_map.cpp
     lazy_ypath_service_ut.cpp
     options_ut.cpp
+    precise_time_ut.cpp
     resolver_ut.cpp
     serialize_ut.cpp
     service_combiner_ut.cpp
@@ -32,7 +33,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 PEERDIR(
     yt/yt/core
     yt/yt/core/test_framework
-    yt/yt/client
 )
 
 REQUIREMENTS(

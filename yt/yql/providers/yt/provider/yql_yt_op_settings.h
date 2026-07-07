@@ -45,11 +45,7 @@ struct TSampleParams {
     double Percentage;
     ui64 Repeat;
 
-    friend bool operator==(const TSampleParams& l, const TSampleParams& r) {
-        return l.Mode == r.Mode
-            && l.Percentage == r.Percentage
-            && l.Repeat == r.Repeat;
-    }
+    friend bool operator==(const TSampleParams& lhs, const TSampleParams& rhs) = default;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +99,7 @@ enum class EYtSettingType: ui64 {
     WeakFields               /* "weakFields" */,
     Sharded                  /* "sharded" */,
     CombineChunks            /* "combineChunks" */,
+    ReplaceParentCache       /* "replaceParentCache" */,
     JobCount                 /* "jobCount" */,                 // hybrid supported
     JoinReduce               /* "joinReduce" */,               // hybrid supported
     FirstAsPrimary           /* "firstAsPrimary" */,           // hybrid supported
@@ -113,7 +110,6 @@ enum class EYtSettingType: ui64 {
     BlockInputApplied        /* "blockInputApplied" */,        // hybrid supported
     BlockOutputReady         /* "blockOutputReady" */,         // hybrid supported
     BlockOutputApplied       /* "blockOutputApplied" */,       // hybrid supported
-    QLFilter                 /* "qlFilter" */,
     // Out tables
     UniqueBy                 /* "uniqueBy" */,
     OpHash                   /* "opHash" */,

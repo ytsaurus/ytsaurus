@@ -32,8 +32,8 @@ public:
     }
 
 private:
-    TString InputFile_;
-    TString OutputFile_;
+    std::string InputFile_;
+    std::string OutputFile_;
 
 
     void DoRun() override

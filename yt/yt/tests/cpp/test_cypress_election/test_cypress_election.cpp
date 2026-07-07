@@ -2,10 +2,12 @@
 
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 
-#include <yt/yt/server/lib/cypress_election/election_manager.h>
-#include <yt/yt/server/lib/cypress_election/config.h>
+#include <yt/yt/library/cypress_election/election_manager.h>
+#include <yt/yt/library/cypress_election/config.h>
 
 #include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/client/api/rpc_proxy/transaction_impl.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -61,7 +63,7 @@ protected:
     }
 
     ICypressElectionManagerPtr CreateElectionManager(
-        const TString& name,
+        const std::string& name,
         TActionQueuePtr actionQueue = nullptr,
         TCypressElectionManagerConfigPtr config = nullptr,
         IAttributeDictionaryPtr transactionAttributes = nullptr)
@@ -99,7 +101,7 @@ protected:
         WaitForPredicate(tryRemove, /*iterationCount*/ 100, /*period*/ TDuration::MilliSeconds(200));
     }
 
-    static TString GetLockPath()
+    static NYPath::TYPath GetLockPath()
     {
         return "//lock";
     }
@@ -107,7 +109,8 @@ protected:
     static bool IsActive(TTransactionId transactionId)
     {
         auto isActive = WaitFor(Client_->GetNode("#" + ToString(transactionId) + "/@state"));
-        return isActive.IsOK() && ConvertTo<TString>(isActive.Value()) == "active";
+        return isActive.IsOK() &&
+            ConvertTo<NApi::NRpcProxy::ETransactionState>(isActive.Value()) == NApi::NRpcProxy::ETransactionState::Active;
     }
 };
 

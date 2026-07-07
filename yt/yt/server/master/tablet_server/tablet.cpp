@@ -135,7 +135,6 @@ void FromProto(
 
 TTablet::TTablet(TTabletId id)
     : TTabletBase(id)
-    , RetainedTimestamp_(MinTimestamp)
 { }
 
 std::string TTablet::GetLowercaseObjectName() const
@@ -183,13 +182,7 @@ void TTablet::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, PivotKey_);
     Load(context, NodeStatistics_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics ||
-        context.GetVersion() < EMasterReign::Start_25_2)
-    {
-        Load(context, AuxiliaryNodeStatistics_);
-    }
+    Load(context, AuxiliaryNodeStatistics_);
 
     // COMPAT(atalmenev)
     if (context.GetVersion() >= EMasterReign::SaveOriginatorTabletsAfterReshard) {
@@ -298,29 +291,53 @@ TTabletStatistics TTablet::GetTabletStatistics(bool fromAuxiliaryCell) const
     tabletStatistics.PreloadFailedStoreCount = nodeStatistics.preload_failed_store_count();
     tabletStatistics.OverlappingStoreCount = nodeStatistics.overlapping_store_count();
     tabletStatistics.DynamicMemoryPoolSize = nodeStatistics.dynamic_memory_pool_size();
-    tabletStatistics.HunkUncompressedDataSize = GetHunkUncompressedDataSize();
-    tabletStatistics.HunkCompressedDataSize = GetHunkCompressedDataSize();
+    // TODO(akozhikhov): Get rid of HunkCompressedDataSize?
+    tabletStatistics.HunkUncompressedDataSize = GetHunkDataSize();
+    tabletStatistics.HunkCompressedDataSize = GetHunkDataSize();
     tabletStatistics.MemorySize = GetTabletStaticMemorySize();
     tabletStatistics.TabletCount = 1;
     tabletStatistics.TabletCountPerMemoryMode[GetInMemoryMode()] = 1;
 
-    for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-        if (const auto* chunkList = GetChunkList(contentType)) {
-            const auto& treeStatistics = chunkList->Statistics();
+    auto& chunkTreeStatistics = GetChunkList()->Statistics();
 
-            tabletStatistics.UnmergedRowCount += treeStatistics.RowCount;
-            tabletStatistics.UncompressedDataSize += treeStatistics.UncompressedDataSize;
-            tabletStatistics.CompressedDataSize += treeStatistics.CompressedDataSize;
+    tabletStatistics.UnmergedRowCount += chunkTreeStatistics.RowCount;
+    tabletStatistics.UncompressedDataSize += chunkTreeStatistics.UncompressedDataSize;
+    tabletStatistics.UncompressedDataSize += chunkTreeStatistics.HunkDataSize;
+    tabletStatistics.CompressedDataSize += chunkTreeStatistics.CompressedDataSize;
+    tabletStatistics.CompressedDataSize += chunkTreeStatistics.HunkDataSize;
+    tabletStatistics.ChunkCount += chunkTreeStatistics.ChunkCount;
 
-            for (const auto& entry : table->Replication()) {
-                tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] += CalculateDiskSpaceUsage(
-                    entry.Policy().GetReplicationFactor(),
-                    treeStatistics.RegularDiskSpace,
-                    treeStatistics.ErasureDiskSpace);
-            }
-            tabletStatistics.ChunkCount += treeStatistics.ChunkCount;
+    auto accumulateDiskSpaceStatistics = [&] (const auto& replication, auto regularDiskSpace, auto erasureDiskSpace) {
+        for (const auto& entry : replication) {
+            tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] += CalculateDiskSpaceUsage(
+                entry.Policy().GetReplicationFactor(),
+                regularDiskSpace,
+                erasureDiskSpace);
+        }
+    };
+
+    accumulateDiskSpaceStatistics(
+        table->Replication(),
+        chunkTreeStatistics.RegularDiskSpace,
+        chunkTreeStatistics.ErasureDiskSpace);
+
+    if (chunkTreeStatistics.HunkRegularDiskSpace != 0 || chunkTreeStatistics.HunkErasureDiskSpace > 0) {
+        if (table->HunkReplication().GetSize() == 0) {
+            accumulateDiskSpaceStatistics(
+                table->Replication(),
+                chunkTreeStatistics.HunkRegularDiskSpace,
+                chunkTreeStatistics.HunkErasureDiskSpace);
+        } else {
+            accumulateDiskSpaceStatistics(
+                table->HunkReplication(),
+                chunkTreeStatistics.HunkRegularDiskSpace,
+                chunkTreeStatistics.HunkErasureDiskSpace);
         }
     }
+
+    // NB: Hunk chunks are not unique to a tablet so when accumulating over tablets this field will account duplicates.
+    auto& hunkChunkTreeStatistics = GetHunkChunkList()->HunkStatistics();
+    tabletStatistics.ChunkCount += hunkChunkTreeStatistics.ChunkCount;
 
     return tabletStatistics;
 }
@@ -330,14 +347,14 @@ i64 TTablet::GetTabletMasterMemoryUsage() const
     return sizeof(TTablet) + GetDataWeight(GetPivotKey()) + EdenStoreIds_.size() * sizeof(TStoreId);
 }
 
-i64 TTablet::GetHunkUncompressedDataSize() const
+i64 TTablet::GetHunkDataWeight() const
 {
-    return GetHunkChunkList()->Statistics().UncompressedDataSize;
+    return GetChunkList()->Statistics().HunkDataWeight;
 }
 
-i64 TTablet::GetHunkCompressedDataSize() const
+i64 TTablet::GetHunkDataSize() const
 {
-    return GetHunkChunkList()->Statistics().CompressedDataSize;
+    return GetChunkList()->Statistics().HunkDataSize;
 }
 
 ETabletBackupState TTablet::GetBackupState() const

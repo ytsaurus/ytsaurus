@@ -10,13 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type tlsOption int
@@ -573,7 +572,8 @@ func TestNetAttributesFromHTTPRequest(t *testing.T) {
 			if diff := cmp.Diff(
 				tc.expected,
 				got,
-				cmp.AllowUnexported(attribute.Value{})); diff != "" {
+				cmp.AllowUnexported(attribute.Value{}),
+			); diff != "" {
 				t.Fatalf("attributes differ: diff %+v,", diff)
 			}
 		})
@@ -898,7 +898,7 @@ func TestHTTPAttributesFromHTTPStatusCode(t *testing.T) {
 }
 
 func TestSpanStatusFromHTTPStatusCode(t *testing.T) {
-	for code := 0; code < 1000; code++ {
+	for code := range 1000 {
 		expected := getExpectedCodeForHTTPCode(code, trace.SpanKindClient)
 		got, msg := SpanStatusFromHTTPStatusCode(code)
 		assert.Equalf(t, expected, got, "%s vs %s", expected, got)
@@ -913,7 +913,7 @@ func TestSpanStatusFromHTTPStatusCode(t *testing.T) {
 }
 
 func TestSpanStatusFromHTTPStatusCodeAndSpanKind(t *testing.T) {
-	for code := 0; code < 1000; code++ {
+	for code := range 1000 {
 		expected := getExpectedCodeForHTTPCode(code, trace.SpanKindClient)
 		got, msg := SpanStatusFromHTTPStatusCodeAndSpanKind(code, trace.SpanKindClient)
 		assert.Equalf(t, expected, got, "%s vs %s", expected, got)
@@ -954,7 +954,7 @@ func getExpectedCodeForHTTPCode(code int, spanKind trace.SpanKind) codes.Code {
 	return codes.Error
 }
 
-func assertElementsMatch(t *testing.T, expected, got []attribute.KeyValue, format string, args ...interface{}) {
+func assertElementsMatch(t *testing.T, expected, got []attribute.KeyValue, format string, args ...any) {
 	if !assert.ElementsMatchf(t, expected, got, format, args...) {
 		t.Log("expected:", kvStr(expected))
 		t.Log("got:", kvStr(got))
@@ -1008,9 +1008,9 @@ func kvStr(kvs []attribute.KeyValue) string {
 		if idx > 0 {
 			_, _ = sb.WriteString(", ")
 		}
-		_, _ = sb.WriteString((string)(attr.Key))
+		_, _ = sb.WriteString(string(attr.Key))
 		_, _ = sb.WriteString(": ")
-		_, _ = sb.WriteString(attr.Value.Emit())
+		_, _ = sb.WriteString(attr.Value.String())
 	}
 	_, _ = sb.WriteRune(']')
 	return sb.String()

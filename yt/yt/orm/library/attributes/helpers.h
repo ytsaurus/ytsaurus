@@ -6,8 +6,9 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <yt/yt/core/yson/public.h>
-#include <yt/yt/core/yson/protobuf_interop_options.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
+
+#include <google/protobuf/port.h>
 
 namespace NYT::NOrm::NAttributes {
 
@@ -19,19 +20,26 @@ std::string RandomString(int length, TStringBuf charset);
 
 const NYson::TProtobufMessageType* GetMessageTypeByYPath(
     const NYson::TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     bool allowAttributeDictionary);
 
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TWireString& wireStringPayload,
     const NYson::TProtobufParserOptions& options = {});
 
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
-    const TString& payload,
+    NYPath::TYPathBuf path,
+    TStringBuf payload,
+    const NYson::TProtobufParserOptions& options = {});
+
+// Like ConvertProtobufToNode but works with any TProtobufElement, not just message/attribute dictionary elements.
+// Repeated, map, and any elements are not supported.
+NYTree::INodePtr ConvertProtobufElementToNode(
+    const NYson::TProtobufElement& element,
+    const TWireString& wireStringPayload,
     const NYson::TProtobufParserOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,7 +49,7 @@ TErrorOr<std::pair<int, NYson::TYsonString>> LookupUnknownYsonFieldsItem(
     TStringBuf key,
     int unknownFieldNumber);
 
-TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value);
+TProtoStringType SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,13 +104,13 @@ TErrorOr<int> LocateMapEntry(
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     const NProtoBuf::Message* keyMessage);
 
-TErrorOr<TString> MapKeyFieldToString(
+TErrorOr<TProtoStringType> MapKeyFieldToString(
     const NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* keyFieldDescriptor);
 
 TErrorOr<std::unique_ptr<NProtoBuf::Message>> MakeMapKeyMessage(
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    TString key);
+    TStringBuf key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,7 +146,7 @@ TError AddScalarRepeatedFieldEntry(
 std::pair<int, TError> FindAttributeDictionaryEntry(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    const TString& key);
+    TStringBuf key);
 
 TErrorOr<NYson::TYsonString> GetAttributeDictionaryEntryValue(const NProtoBuf::Message* entry);
 
@@ -149,7 +157,7 @@ TError SetAttributeDictionaryEntryValue(
 TErrorOr<NProtoBuf::Message*> AddAttributeDictionaryEntry(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    const TString& key);
+    TStringBuf key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,11 +186,15 @@ TError SetScalarField(
 TError SetScalarField(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    TString value);
+    TProtoStringType value);
+TError SetScalarField(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const std::string& value);
 TError SetScalarFieldFromString(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    TString value);
+    TProtoStringType value);
 TError SetDefaultScalarFieldValue(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor);
@@ -211,12 +223,17 @@ TError SetScalarRepeatedFieldEntry(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     int index,
-    TString value);
+    TProtoStringType value);
+TError SetScalarRepeatedFieldEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    int index,
+    const std::string& value);
 TError SetScalarRepeatedFieldEntryFromString(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     int index,
-    TString value);
+    TProtoStringType value);
 TError SetDefaultScalarRepeatedFieldEntryValue(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
@@ -241,11 +258,15 @@ TError AddScalarRepeatedFieldEntry(
 TError AddScalarRepeatedFieldEntry(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    TString value);
+    TProtoStringType value);
+TError AddScalarRepeatedFieldEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const std::string& value);
 TError AddScalarRepeatedFieldEntryFromString(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
-    TString value);
+    TProtoStringType value);
 TError AddDefaultScalarFieldEntryValue(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor);

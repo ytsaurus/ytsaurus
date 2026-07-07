@@ -31,8 +31,8 @@ struct THeapSizeLimitConfig
     //! Filenames are as follows:
     //! $(MemoryProfileDumpPath)/$(Name)_$(MemoryProfileDumpFilenameSuffix)_$(Timestamp).$(Ext) or
     //! $(MemoryProfileDumpPath)/$(Name)_$(Timestamp).$(Ext) (if MemoryProfileDumpFilenameSuffix is missing)
-    std::optional<TString> MemoryProfileDumpPath;
-    std::optional<TString> MemoryProfileDumpFilenameSuffix;
+    std::optional<std::string> MemoryProfileDumpPath;
+    std::optional<std::string> MemoryProfileDumpFilenameSuffix;
 
     void ApplyDynamicInplace(const TDynamicHeapSizeLimitConfigPtr& dynamicConfig);
     THeapSizeLimitConfigPtr ApplyDynamic(const TDynamicHeapSizeLimitConfigPtr& dynamicConfig) const;
@@ -58,8 +58,8 @@ struct TDynamicHeapSizeLimitConfig
 
     std::optional<TDuration> MemoryProfileDumpTimeout;
 
-    std::optional<TString> MemoryProfileDumpPath;
-    std::optional<TString> MemoryProfileDumpFilenameSuffix;
+    std::optional<std::string> MemoryProfileDumpPath;
+    std::optional<std::string> MemoryProfileDumpFilenameSuffix;
 
     REGISTER_YSON_STRUCT(TDynamicHeapSizeLimitConfig);
 

@@ -38,6 +38,7 @@ target_compile_options(server-lib-sequoia PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(server-lib-sequoia PUBLIC

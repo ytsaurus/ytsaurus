@@ -6,8 +6,9 @@
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_service_proxy.h>
 
-#include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
+
+#include <yt/yt/client/api/config.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -15,14 +16,19 @@
 
 namespace NYT::NDistributedChunkSessionServer {
 
+using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
+using namespace NYTree;
+using namespace NYson;
 
 using NTableClient::NProto::TDataBlockMeta;
 using NApi::NNative::IConnectionPtr;
+
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +37,6 @@ class TDistributedChunkSessionService
 {
 public:
     TDistributedChunkSessionService(
-        TDistributedChunkSessionServiceConfigPtr config,
         IInvokerPtr invoker,
         IConnectionPtr connection)
         : TServiceBase(
@@ -40,13 +45,12 @@ public:
             DistributedChunkSessionServiceLogger())
         , DistributedChunkSessionManager_(
             CreateDistributedChunkSessionManager(
-                std::move(config),
                 std::move(invoker),
                 std::move(connection)))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteRecord)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishSession));
     }
@@ -57,63 +61,56 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, StartSession)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
-        auto targets = FromProto<std::vector<TNodeDescriptor>>(request->chunk_replicas());
+        auto targets = FromProto<TChunkReplicaWithMediumList>(request->chunk_replicas());
+
+        auto options = ConvertTo<TJournalChunkWriterOptionsPtr>(TYsonStringBuf(request->journal_chunk_writer_options()));
+        auto config = ConvertTo<TJournalChunkWriterConfigPtr>(TYsonStringBuf(request->journal_chunk_writer_config()));
+
+        auto sessionTimeout = FromProto<TDuration>(request->session_timeout());
 
         context->SetRequestInfo(
-            "SessionId: %v, Targets: %v",
+            "SessionId: %v, Targets: %v, SessionTimeout: %v",
             sessionId,
-            targets);
+            targets,
+            sessionTimeout);
 
-        DistributedChunkSessionManager_->StartSession(sessionId, std::move(targets));
+        auto asyncResult = DistributedChunkSessionManager_->StartSession(
+            sessionId,
+            sessionTimeout,
+            std::move(targets),
+            std::move(options),
+            std::move(config));
 
-        context->Reply();
+        context->ReplyFrom(std::move(asyncResult));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, PingSession)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo(
-            "SessionId: %v, AcknowledgedBlockCount: %v",
-            sessionId,
-            request->acknowledged_block_count());
+        context->SetRequestInfo("SessionId: %v", sessionId);
 
         DistributedChunkSessionManager_->RenewSessionLease(sessionId);
-        auto sequencer = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
 
-        auto status = WaitFor(sequencer->UpdateStatus(request->acknowledged_block_count()))
-            .ValueOrThrow();
-
-        ToProto(response, status);
-
-        context->SetResponseInfo(
-            "CloseDemanded: %v, "
-            "WrittenBlockCount: %v",
-            status.CloseDemanded,
-            status.WrittenBlockCount);
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, SendBlocks)
+    DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, WriteRecord)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
+
+        THROW_ERROR_EXCEPTION_IF(
+            request->Attachments().size() != 1,
+            "Invalid attachments size: expected 1, got %v",
+            request->Attachments().size());
 
         context->SetRequestInfo(
             "SessionId: %v",
             sessionId);
 
-        std::vector<TBlock> blocks;
-        blocks.reserve(request->Attachments().size());
-        for (int index = 0; index < std::ssize(request->Attachments()); ++index) {
-            blocks.emplace_back(request->Attachments()[index]);
-        }
+        auto sequencer = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
 
-        auto session = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
-
-        context->ReplyFrom(session->SendBlocks(
-            std::move(blocks),
-            FromProto<std::vector<TDataBlockMeta>>(request->data_block_metas()),
-            request->blocks_misc_meta()));
+        context->ReplyFrom(sequencer->WriteRecord(request->Attachments()[0]));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, FinishSession)
@@ -124,21 +121,21 @@ private:
             "SessionId: %v",
             sessionId);
 
-        auto session = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
+        auto sequencer = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
 
-        context->ReplyFrom(session->Close(/*force*/ true));
+        context->ReplyFrom(sequencer->Close().ToUncancelable());
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
+
 IServicePtr CreateDistributedChunkSessionService(
-    TDistributedChunkSessionServiceConfigPtr config,
     IInvokerPtr invoker,
     IConnectionPtr connection)
 {
     return New<TDistributedChunkSessionService>(
-        std::move(config),
         std::move(invoker),
         std::move(connection));
 }

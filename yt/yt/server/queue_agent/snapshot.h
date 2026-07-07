@@ -14,7 +14,7 @@ struct TObjectSnapshotBase
 {
     TError Error;
     // True if object is banned, and signifies that object controller should skip all leading logic.
-    bool Banned;
+    bool Banned = false;
     // Present if Banned is true, and equal to the first pass instant when the object became banned.
     std::optional<TInstant> BannedSince;
 
@@ -30,10 +30,12 @@ DEFINE_REFCOUNTED_TYPE(TObjectSnapshotBase)
 struct TQueueSnapshot
     : public TObjectSnapshotBase
 {
+    explicit TQueueSnapshot(NQueueClient::TQueueTableRow row);
+
     NQueueClient::TQueueTableRow Row;
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
-    EQueueFamily Family;
+    EQueueFamily Family = EQueueFamily::OrderedDynamicTable;
     int PartitionCount = 0;
 
     //! Total write counters over all partitions.
@@ -86,12 +88,16 @@ DEFINE_REFCOUNTED_TYPE(TQueuePartitionSnapshot)
 struct TConsumerSnapshot
     : public TObjectSnapshotBase
 {
+    TConsumerSnapshot(NQueueClient::TConsumerReference ref, NQueueClient::TConsumerTableRowConstPtr row);
+
+    NQueueClient::TConsumerReference Ref;
+
     // This field is always set.
-    NQueueClient::TConsumerTableRow Row;
+    NQueueClient::TConsumerTableRowConstPtr Row;
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
     std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
-    THashMap<NQueueClient::TCrossClusterReference, TSubConsumerSnapshotPtr> SubSnapshots;
+    THashMap<NQueueClient::TTablePath, TSubConsumerSnapshotPtr> SubSnapshots;
 };
 
 DEFINE_REFCOUNTED_TYPE(TConsumerSnapshot)
@@ -116,6 +122,21 @@ struct TSubConsumerSnapshot
 };
 
 DEFINE_REFCOUNTED_TYPE(TSubConsumerSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Snapshot of a multi consumer.
+struct TMultiConsumerSnapshot
+    : public TObjectSnapshotBase
+{
+    // This field is always set, we are using intrusive pointer to avoid copying the row.
+    NQueueClient::TConsumerTableRowConstPtr Row;
+    std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
+
+    THashSet<std::string> QueueConsumerNames;
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiConsumerSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 

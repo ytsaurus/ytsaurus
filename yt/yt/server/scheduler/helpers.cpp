@@ -189,9 +189,9 @@ namespace {
 
 struct TStatisticsDescription
 {
-    TString Name;
-    TString Description;
-    TString Unit;
+    std::string Name;
+    std::string Description;
+    std::string Unit;
 };
 
 const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
@@ -204,7 +204,10 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"time/artifacts_download", "Job's artifact files downloading to the chunk cache duration", "ms"},
         {"time/prepare_root_fs", "Root Porto volume preparation duration", "ms"},
         {"time/validate_root_fs", "Root FS validation duration", "ms"},
+        // COMPAT(krasovav): Remove this statistic after it's no longer used
         {"time/prepare_tmpfs", "Tmpfs porto volumes preparation duration", "ms"},
+        {"time/prepare_non_root_volumes", "Non-root porto volumes preparation duration", "ms"},
+        {"time/link_volumes", "Porto volumes linking duration", "ms"},
         {"time/gpu_check", "GPU liveness check duration", "ms"},
         {"time/exec", "Time from the start to the end of job_proxy process", "ms"},
         {"time/artifacts_caching", "Job's artifact files downloading to the chunk cache duration", "ms"},
@@ -262,7 +265,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"job/cpu/user", "User mode CPU time by the job", "ms"},
         {"job/cpu/system", "Kernel mode CPU time by the job", "ms"},
 
-        // Job Proxy Disk I/O.
+        // Job Block I/O.
         {"job/block_io/bytes_written", "Bytes written to local disks by the job", "bytes"},
         {"job/block_io/bytes_read", "Bytes read from local disks by the job", "bytes"},
         {"job/block_io/io_read", "Number of reads from local disks by the job", "pieces"},
@@ -496,17 +499,6 @@ std::vector<std::pair<TInstant, TInstant>> SplitTimeIntervalByHours(TInstant sta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<int> GetDiskQuotaMedia(const TDiskQuota& diskQuota)
-{
-    THashSet<int> media;
-    for (const auto& [index, _] : diskQuota.DiskSpacePerMedium) {
-        media.insert(index);
-    }
-    return media;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TYsonMapFragmentBatcher::TYsonMapFragmentBatcher(
     std::vector<NYson::TYsonString>* batchOutput,
     int maxBatchSize,
@@ -520,13 +512,13 @@ void TYsonMapFragmentBatcher::Flush()
 {
     BatchWriter_->Flush();
 
-    if (BatchStream_.empty()) {
+    if (BatchStream_.Empty()) {
         return;
     }
 
     BatchOutput_->push_back(TYsonString(BatchStream_.Str(), EYsonType::MapFragment));
     BatchSize_ = 0;
-    BatchStream_.clear();
+    BatchStream_.Clear();
 }
 
 void TYsonMapFragmentBatcher::OnMyKeyedItem(TStringBuf key)

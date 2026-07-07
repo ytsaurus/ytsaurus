@@ -44,6 +44,10 @@ spec:
               - {{ .Values.cluster.proxy | quote }}
               - "--snapshot-id"
               - "latest"
+              {{- if .Values.microservices.resourceUsage.preprocessing.pool }}
+              - "--pool"
+              - {{ .Values.microservices.resourceUsage.preprocessing.pool | quote }}
+              {{- end }}
             env:
               - name: YT_PROXY
                 value: {{ .Values.cluster.proxy | quote }}

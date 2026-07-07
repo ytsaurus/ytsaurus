@@ -18,27 +18,33 @@ TLockedChunkGuard::TLockedChunkGuard(TChunkLocationBasePtr location, TChunkId ch
     , ChunkId_(chunkId)
 { }
 
-TLockedChunkGuard::TLockedChunkGuard(TLockedChunkGuard&& other)
+TLockedChunkGuard::TLockedChunkGuard(TLockedChunkGuard&& other) noexcept
 {
     MoveFrom(std::move(other));
 }
 
 TLockedChunkGuard::~TLockedChunkGuard()
 {
-    if (Location_) {
-        Location_->UnlockChunk(ChunkId_);
-    }
+    Unlock();
 }
 
-TLockedChunkGuard& TLockedChunkGuard::operator=(TLockedChunkGuard&& other)
+TLockedChunkGuard& TLockedChunkGuard::operator=(TLockedChunkGuard&& other) noexcept
 {
     if (this != &other) {
+        Unlock();
         MoveFrom(std::move(other));
     }
     return *this;
 }
 
-void TLockedChunkGuard::Release()
+void TLockedChunkGuard::Unlock()
+{
+    if (Location_) {
+        Location_->UnlockChunk(ChunkId_);
+    }
+}
+
+void TLockedChunkGuard::Release() &&
 {
     Location_.Reset();
     ChunkId_ = {};

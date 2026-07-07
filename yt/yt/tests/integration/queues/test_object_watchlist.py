@@ -7,8 +7,6 @@ from yt_commands import (authors, get, create, remove, start_transaction, commit
 
 from yt.yson import YsonEntity
 
-import pytest
-
 import builtins
 
 
@@ -39,7 +37,6 @@ class QueueAgentHelpers:
             assert producers[path] == get(path + "/@attribute_revision")
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     ENABLE_MULTIDAEMON = True
@@ -348,10 +345,10 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         QueueAgentHelpers.assert_registered_producers_are()
 
         # Impossible to alter chaos consumer to queue via changing schema.
-        with raises_yt_error("Chaos replicated table object cannot be both a queue and a consumer."):
+        with raises_yt_error("Chaos replicated table object cannot be both a queue and a consumer"):
             alter_table("//tmp/chaos_rep_c1", schema=[{"name": "data", "type": "string"}])
         # Impossible to alter chaos consumer with empty schema.
-        with raises_yt_error("Chaos replicated table object cannot be both a queue and a consumer."):
+        with raises_yt_error("Chaos replicated table object cannot be both a queue and a consumer"):
             alter_table("//tmp/chaos_rep_c1", schema=[])
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are("//tmp/chaos_rep_c1")
@@ -383,10 +380,10 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         QueueAgentHelpers.assert_registered_producers_are("//tmp/chaos_rep_p1")
 
         # Impossible to alter chaos producer to queue via changing schema.
-        with raises_yt_error("Chaos replicated table object cannot be both a queue and a producer."):
+        with raises_yt_error("Chaos replicated table object cannot be both a queue and a producer"):
             alter_table("//tmp/chaos_rep_p1", schema=[{"name": "data", "type": "string"}])
         # Impossible to alter chaos consumer with empty schema.
-        with raises_yt_error("Chaos replicated table object cannot be both a queue and a producer."):
+        with raises_yt_error("Chaos replicated table object cannot be both a queue and a producer"):
             alter_table("//tmp/chaos_rep_p1", schema=[])
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
@@ -591,7 +588,6 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                 set(f"//tmp/{producer_name}/@treat_as_queue_producer", True, tx=tx)
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueueAgentObjectsRevisionsPortal(TestQueueAgentObjectRevisions):
     NUM_SECONDARY_MASTER_CELLS = 2
     ENABLE_TMP_PORTAL = True

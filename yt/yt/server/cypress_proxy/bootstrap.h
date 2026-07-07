@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/cypress_proxy/public.h>
+
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -40,6 +42,8 @@ struct IBootstrap
     virtual const ISequoiaResponseKeeperPtr& GetResponseKeeper() const = 0;
 
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
+
+    virtual const IBanServicePtr& GetBanService() const = 0;
 
     virtual IInvokerPtr GetInvoker(const NConcurrency::TFairShareThreadPoolTag& tag) const = 0;
 

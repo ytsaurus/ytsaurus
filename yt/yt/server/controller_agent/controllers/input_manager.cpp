@@ -20,8 +20,8 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
+#include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
@@ -36,6 +36,7 @@
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
+#include <yt/yt/core/misc/expiration_verifier.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/iterator/concatenate.h>
@@ -95,14 +96,15 @@ bool AreAllElementsEqual(const auto& container, auto compare)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TInputManager::TStripeDescriptor::Persist(const TPersistenceContext& context)
+void TInputManager::TStripeDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Stripe);
-    Persist(context, Cookie);
-    Persist(context, Task);
-    Persist(context, WaitingChunkCount);
+    PHOENIX_REGISTER_FIELD(1, Stripe);
+    PHOENIX_REGISTER_FIELD(2, Cookie);
+    PHOENIX_REGISTER_FIELD(3, Task);
+    PHOENIX_REGISTER_FIELD(4, WaitingChunkCount);
 }
+
+PHOENIX_DEFINE_TYPE(TInputManager::TStripeDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,13 +114,14 @@ int TInputManager::TInputChunkDescriptor::GetTableIndex() const
     return InputChunks[0]->GetTableIndex();
 }
 
-void TInputManager::TInputChunkDescriptor::Persist(const TPersistenceContext& context)
+void TInputManager::TInputChunkDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, InputStripes);
-    Persist(context, InputChunks);
-    Persist(context, State);
+    PHOENIX_REGISTER_FIELD(1, InputStripes);
+    PHOENIX_REGISTER_FIELD(2, InputChunks);
+    PHOENIX_REGISTER_FIELD(3, State);
 }
+
+PHOENIX_DEFINE_TYPE(TInputManager::TInputChunkDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,17 +242,16 @@ void TInputCluster::ReportIfHasUnavailableChunks() const
     }
 }
 
-void TInputCluster::Persist(const TPersistenceContext& context)
+void TInputCluster::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Name_);
-    Persist(context, Logger);
-    Persist(context, NodeDirectory_);
-    Persist(context, InputTables_);
-    Persist(context, UnavailableInputChunkIds_);
-    Persist(context, PathToInputTables_);
+    PHOENIX_REGISTER_FIELD(1, Name_);
+    PHOENIX_REGISTER_FIELD(2, Logger);
+    PHOENIX_REGISTER_FIELD(3, NodeDirectory_);
+    PHOENIX_REGISTER_FIELD(4, InputTables_);
+    PHOENIX_REGISTER_FIELD(5, UnavailableInputChunkIds_);
+    PHOENIX_REGISTER_FIELD(6, PathToInputTables_);
 }
+PHOENIX_DEFINE_TYPE(TInputCluster);
 
 TLogger TInputCluster::GetLogger() const
 {
@@ -692,7 +694,6 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
                 clusterName,
                 fetcher->GetChunkCount());
             Host_->MaybeCancel(ECancelationStage::ColumnarStatisticsFetch);
-            fetcher->SetCancelableContext(Host_->GetCancelableContext());
 
             auto applySelectivityFactors =
                 BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->GetLogger()] {
@@ -711,7 +712,6 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             YT_LOG_INFO("Fetching input chunk slice statistics for input tables (Cluster: %v, ChunkCount: %v)",
                 clusterName,
                 fetcher->GetChunkCount());
-            fetcher->SetCancelableContext(Host_->GetCancelableContext());
 
             auto applySelectivityFactors =
                 BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->GetLogger()] {
@@ -727,6 +727,13 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
     WaitFor(AllSucceeded(statisticsFutures))
         .ThrowOnError();
+
+    for (auto& [_, fetcher] : columnarStatisticsFetchers) {
+        VerifyEventualExpiration(std::move(fetcher), Logger);
+    }
+    for (auto& [_, fetcher] : chunkSliceSizeFetchers) {
+        VerifyEventualExpiration(std::move(fetcher), Logger);
+    }
 
     YT_LOG_INFO("All statistics fetched from nodes");
 
@@ -858,6 +865,7 @@ void TInputManager::FetchInputTablesAttributes()
                 "schema_id",
                 "unflushed_timestamp",
                 "content_revision",
+                "primary_medium",
                 "enable_dynamic_store_read",
                 "tablet_state",
                 "account",
@@ -888,6 +896,20 @@ void TInputManager::FetchInputTablesAttributes()
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
             auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
             tableAttributes.emplace(std::move(table), std::move(attributes));
+        }
+    }
+
+    if (Host_->GetConfig()->ForbidOperationsOnOffshoreMedia) {
+        const auto& mediumDirectory = Host_->GetMediumDirectory();
+        for (const auto& [table, attributes] : tableAttributes) {
+            auto mediumName = attributes->Get<std::string>("primary_medium", "default");
+            auto mediumDescriptor = mediumDirectory->FindByName(mediumName);
+            if (mediumDescriptor && mediumDescriptor->IsOffshore()) {
+                THROW_ERROR_EXCEPTION(
+                    "Operations on tables with offshore medium are forbidden by controller agent config")
+                    << TErrorAttribute("table_path", table->GetPath())
+                    << TErrorAttribute("primary_medium", mediumName);
+            }
         }
     }
 
@@ -1096,9 +1118,14 @@ void TInputManager::InitInputChunkScrapers()
 
 bool TInputManager::CanInterruptJobs() const
 {
-    // TODO(galtsev): hot fix for YT-23460, see also YT-17003
     for (auto& table : InputTables_) {
+        // TODO(galtsev): Hot fix for YT-23460, see also YT-17003.
         if (table->Path.GetForeign() && table->Path.GetNewRanges(table->Comparator).size() > 1) {
+            return false;
+        }
+
+        // TODO(dave11ar): Hot fix for YT-26795.
+        if (table->Path.GetVersionedReadOptions().ReadMode != EVersionedIOMode::Default) {
             return false;
         }
     }
@@ -1461,8 +1488,6 @@ std::pair<NTableClient::IChunkSliceFetcherPtr, TUnavailableChunksWatcherPtr> TIn
                 cluster->Client(),
                 Host_->GetRowBuffer(),
                 Logger.WithTag("Cluster: %v", clusterName)));
-
-        chunkSliceFetchers.back()->SetCancelableContext(Host_->GetCancelableContext());
     }
 
     std::vector<int> tableIndexToFetcherIndex;
@@ -1504,18 +1529,17 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
             cluster->Client(),
             Logger);
 
-        for (const auto& chunk : CollectPrimaryChunks(/*versioned=*/ false, clusterName)) {
+        for (const auto& chunk : CollectPrimaryChunks(/*versioned*/ false, clusterName)) {
             if (!chunk->IsDynamicStore()) {
                 samplesFetcher->AddChunk(chunk);
             }
         }
-        for (const auto& chunk : CollectPrimaryChunks(/*versioned=*/ true, clusterName)) {
+        for (const auto& chunk : CollectPrimaryChunks(/*versioned*/ true, clusterName)) {
             if (!chunk->IsDynamicStore()) {
                 samplesFetcher->AddChunk(chunk);
             }
         }
 
-        samplesFetcher->SetCancelableContext(Host_->GetCancelableContext());
         samplesFetchers.push_back(std::move(samplesFetcher));
     }
     return std::pair(
@@ -1526,7 +1550,7 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<NYTree::IAttributeDictionaryPtr> TInputManager::FetchSingleInputTableAttributes(
-    const std::optional<std::vector<TString>>& attributeKeys) const
+    const std::optional<std::vector<std::string>>& attributeKeys) const
 {
     YT_VERIFY(InputTables_.size() == 1 && Clusters_.size() == 1);
     const auto& table = InputTables_[0];
@@ -1562,18 +1586,18 @@ IClientPtr TInputManager::GetClient(const TClusterName& clusterName) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TInputManager::Persist(const TPersistenceContext& context)
+void TInputManager::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Host_);
-    Persist(context, Logger);
-    Persist(context, InputTables_);
-    Persist(context, InputChunkMap_);
-    Persist(context, InputHasStaticTableWithHunks_);
-    Persist(context, InputHasOrderedDynamicStores_);
-    Persist(context, Clusters_);
-    Persist(context, ClusterResolver_);
+    PHOENIX_REGISTER_FIELD(1, Host_);
+    PHOENIX_REGISTER_FIELD(2, Logger);
+    PHOENIX_REGISTER_FIELD(3, InputTables_);
+    PHOENIX_REGISTER_FIELD(4, InputChunkMap_);
+    PHOENIX_REGISTER_FIELD(5, InputHasStaticTableWithHunks_);
+    PHOENIX_REGISTER_FIELD(6, InputHasOrderedDynamicStores_);
+    PHOENIX_REGISTER_FIELD(7, Clusters_);
+    PHOENIX_REGISTER_FIELD(8, ClusterResolver_);
 }
+PHOENIX_DEFINE_TYPE(TInputManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

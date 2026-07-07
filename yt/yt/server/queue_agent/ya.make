@@ -9,6 +9,8 @@ SRCS(
     cypress_synchronizer.cpp
     dynamic_config_manager.cpp
     helpers.cpp
+    multi_consumer_controller.cpp
+    multi_consumer_profile_manager.cpp
     object.cpp
     pass_profiler.cpp
     performance_counters.cpp
@@ -17,6 +19,7 @@ SRCS(
     queue_agent.cpp
     queue_agent_sharding_manager.cpp
     queue_controller.cpp
+    snapshot.cpp
     snapshot_representation.cpp
     queue_exporter.cpp
     queue_exporter_old.cpp
@@ -27,7 +30,6 @@ SRCS(
 PEERDIR(
     yt/yt/server/lib/admin
     yt/yt/server/lib/alert_manager
-    yt/yt/server/lib/cypress_election
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/misc
 
@@ -36,6 +38,7 @@ PEERDIR(
     yt/yt/client
     yt/yt/client/federated
 
+    yt/yt/library/cypress_election
     yt/yt/library/dynamic_config
     yt/yt/library/monitoring
     yt/yt/library/orchid

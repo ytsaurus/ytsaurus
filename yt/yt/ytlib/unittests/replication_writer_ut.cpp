@@ -549,7 +549,7 @@ TEST_P(TReplicationWriterTest, WriteTest)
             *deferredMeta->mutable_extensions() = {};
             return Writer->Close({}, {}, deferredMeta);
         }))
-        .Wait(TDuration::Seconds(120));
+        .BlockingWait(TDuration::Seconds(120));
 
     auto blockChecksums = BlocksToChecksums(GeneratedBlocks);
 
@@ -587,7 +587,7 @@ TEST_P(TReplicationWriterTest, CancelTest)
         .Apply(BIND([&] {
             return Writer->Cancel();
         }))
-        .Wait(TDuration::Seconds(60));
+        .BlockingWait(TDuration::Seconds(60));
 
     EXPECT_TRUE(std::all_of(Services.begin(), Services.end(), [] (auto service) { return service->GetSessionCanceled(); }));
 }

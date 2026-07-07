@@ -25,13 +25,15 @@ namespace NYT::NTabletNode {
     XX(compaction_data_weight,                      CompactionDataWeight) \
     XX(partitioning_data_weight,                    PartitioningDataWeight) \
     XX(lookup_error,                                LookupError) \
-    XX(write_error,                                 WriteError)
+    XX(write_error,                                 WriteError) \
 
 #define ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX) \
     XX(lookup_cpu_time,                             LookupCpuTime) \
     XX(select_cpu_time,                             SelectCpuTime) \
     XX(static_hunk_chunk_row_read_data_weight,      StaticHunkChunkRowReadDataWeight) \
-    XX(static_hunk_chunk_row_lookup_data_weight,    StaticHunkChunkRowLookupDataWeight)
+    XX(static_hunk_chunk_row_lookup_data_weight,    StaticHunkChunkRowLookupDataWeight) \
+    XX(user_data_bytes_transmitted,                 UserDataBytesTransmitted) \
+    XX(system_data_bytes_transmitted,               SystemDataBytesTransmitted) \
 
 struct TTabletPerformanceCounters
 {

@@ -250,7 +250,7 @@ BEGIN.
 
 * **Using SQLAlchemy to emit BEGIN in lieu of SQLite's transaction control** (all Python versions, sqlite3 and aiosqlite)
 
-  For older versions of ``sqlite3`` or for cross-compatiblity with older and
+  For older versions of ``sqlite3`` or for cross-compatibility with older and
   newer versions, SQLAlchemy can also take over the job of transaction control.
   This is achieved by using the :meth:`.ConnectionEvents.begin` hook
   to emit the "BEGIN" command directly, while also disabling SQLite's control
@@ -847,13 +847,11 @@ The bug, entirely outside of SQLAlchemy, can be illustrated thusly::
     cursor.execute("select x.a, x.b from x")
     assert [c[0] for c in cursor.description] == ["a", "b"]
 
-    cursor.execute(
-        """
+    cursor.execute("""
         select x.a, x.b from x where a=1
         union
         select x.a, x.b from x where a=2
-        """
-    )
+        """)
     assert [c[0] for c in cursor.description] == ["a", "b"], [
         c[0] for c in cursor.description
     ]
@@ -888,13 +886,11 @@ to filter these out::
     result = conn.exec_driver_sql("select x.a, x.b from x")
     assert result.keys() == ["a", "b"]
 
-    result = conn.exec_driver_sql(
-        """
+    result = conn.exec_driver_sql("""
         select x.a, x.b from x where a=1
         union
         select x.a, x.b from x where a=2
-        """
-    )
+        """)
     assert result.keys() == ["a", "b"]
 
 Note that above, even though SQLAlchemy filters out the dots, *both
@@ -987,6 +983,7 @@ passed to methods such as :meth:`_schema.MetaData.reflect` or
     documentation.
 
 '''  # noqa
+
 from __future__ import annotations
 
 import datetime
@@ -1592,11 +1589,15 @@ class SQLiteCompiler(compiler.SQLCompiler):
                 for c in clause.inferred_target_elements
             )
             if clause.inferred_target_whereclause is not None:
-                target_text += " WHERE %s" % self.process(
-                    clause.inferred_target_whereclause,
+                whereclause_kw = dict(kw)
+                whereclause_kw.update(
                     include_table=False,
                     use_schema=False,
                     literal_execute=True,
+                )
+                target_text += " WHERE %s" % self.process(
+                    clause.inferred_target_whereclause,
+                    **whereclause_kw,
                 )
 
         else:
@@ -1624,6 +1625,8 @@ class SQLiteCompiler(compiler.SQLCompiler):
 
         insert_statement = self.stack[-1]["selectable"]
         cols = insert_statement.table.c
+        set_kw = dict(kw)
+        set_kw.update(use_schema=False)
         for c in cols:
             col_key = c.key
 
@@ -1644,7 +1647,9 @@ class SQLiteCompiler(compiler.SQLCompiler):
                 ):
                     value = value._clone()
                     value.type = c.type
-            value_text = self.process(value.self_group(), use_schema=False)
+            value_text = self.process(
+                value.self_group(), is_upsert_set=True, **set_kw
+            )
 
             key_text = self.preparer.quote(c.name)
             action_set_ops.append("%s = %s" % (key_text, value_text))
@@ -1663,18 +1668,21 @@ class SQLiteCompiler(compiler.SQLCompiler):
                 key_text = (
                     self.preparer.quote(k)
                     if isinstance(k, str)
-                    else self.process(k, use_schema=False)
+                    else self.process(k, **set_kw)
                 )
                 value_text = self.process(
                     coercions.expect(roles.ExpressionElementRole, v),
-                    use_schema=False,
+                    is_upsert_set=True,
+                    **set_kw,
                 )
                 action_set_ops.append("%s = %s" % (key_text, value_text))
 
         action_text = ", ".join(action_set_ops)
         if clause.update_whereclause is not None:
+            where_kw = dict(kw)
+            where_kw.update(include_table=True, use_schema=False)
             action_text += " WHERE %s" % self.process(
-                clause.update_whereclause, include_table=True, use_schema=False
+                clause.update_whereclause, **where_kw
             )
 
         return "ON CONFLICT %s DO UPDATE SET %s" % (target_text, action_text)
@@ -2201,7 +2209,7 @@ class SQLiteDialect(default.DefaultDialect):
                 14,
             )
 
-            if self.dbapi.sqlite_version_info < (3, 35) or util.pypy:
+            if self.dbapi.sqlite_version_info < (3, 35):
                 self.update_returning = self.delete_returning = (
                     self.insert_returning
                 ) = False
@@ -2571,7 +2579,7 @@ class SQLiteDialect(default.DefaultDialect):
         fks = {}
 
         for row in pragma_fks:
-            (numerical_id, rtbl, lcol, rcol) = (row[0], row[2], row[3], row[4])
+            numerical_id, rtbl, lcol, rcol = (row[0], row[2], row[3], row[4])
 
             if not rcol:
                 # no referred column, which means it was not named in the

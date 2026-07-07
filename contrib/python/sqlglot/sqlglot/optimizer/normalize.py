@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
 import logging
 
 from sqlglot import exp
@@ -11,7 +12,7 @@ from sqlglot.optimizer.simplify import Simplifier, flatten
 logger = logging.getLogger("sqlglot")
 
 
-def normalize(expression: exp.Expression, dnf: bool = False, max_distance: int = 128):
+def normalize(expression: exp.Expr, dnf: bool = False, max_distance: int = 128) -> exp.Expr:
     """
     Rewrite sqlglot AST into conjunctive normal form or disjunctive normal form.
 
@@ -26,7 +27,7 @@ def normalize(expression: exp.Expression, dnf: bool = False, max_distance: int =
         dnf: rewrite in disjunctive normal form instead.
         max_distance (int): the maximal estimated distance from cnf/dnf to attempt conversion
     Returns:
-        sqlglot.Expression: normalized expression
+        sqlglot.Expr: normalized expression
     """
     simplifier = Simplifier(annotate_new_expressions=False)
 
@@ -66,7 +67,7 @@ def normalize(expression: exp.Expression, dnf: bool = False, max_distance: int =
     return expression
 
 
-def normalized(expression: exp.Expression, dnf: bool = False) -> bool:
+def normalized(expression: exp.Expr, dnf: bool = False) -> bool:
     """
     Checks whether a given expression is in a normal form of interest.
 
@@ -91,7 +92,7 @@ def normalized(expression: exp.Expression, dnf: bool = False) -> bool:
 
 
 def normalization_distance(
-    expression: exp.Expression, dnf: bool = False, max_: float = float("inf")
+    expression: exp.Expr, dnf: bool = False, max_: float = float("inf")
 ) -> int:
     """
     The difference in the number of predicates between a given expression and its normalized form.
@@ -123,7 +124,9 @@ def normalization_distance(
     return total
 
 
-def _predicate_lengths(expression, dnf, max_=float("inf"), depth=0):
+def _predicate_lengths(
+    expression: exp.Expr, dnf: bool, max_: float = float("inf"), depth: int = 0
+) -> Iterator[int]:
     """
     Returns a list of predicate lengths when expanded to normalized form.
 
@@ -140,7 +143,7 @@ def _predicate_lengths(expression, dnf, max_=float("inf"), depth=0):
         return
 
     depth += 1
-    left, right = expression.args.values()
+    left, right = expression.left, expression.right
 
     if isinstance(expression, exp.And if dnf else exp.Or):
         for a in _predicate_lengths(left, dnf, max_, depth):
@@ -151,7 +154,9 @@ def _predicate_lengths(expression, dnf, max_=float("inf"), depth=0):
         yield from _predicate_lengths(right, dnf, max_, depth)
 
 
-def distributive_law(expression, dnf, max_distance, simplifier=None):
+def distributive_law(
+    expression: exp.Expr, dnf: bool, max_distance: float, simplifier: Simplifier | None = None
+):
     """
     x OR (y AND z) -> (x OR y) AND (x OR z)
     (x AND y) OR (y AND z) -> (x OR y) AND (x OR z) AND (y OR y) AND (y OR z)
@@ -187,8 +192,17 @@ def distributive_law(expression, dnf, max_distance, simplifier=None):
     return expression
 
 
-def _distribute(a, b, from_func, to_func, simplifier):
-    if isinstance(a, exp.Connector):
+def _distribute(
+    a,
+    b,
+    from_func: Callable[..., exp.Condition],
+    to_func: Callable[..., exp.Condition],
+    simplifier: Simplifier,
+):
+    # When `a` and `b` are connectors of the SAME polarity (e.g. both AND in
+    # CNF mode), `b` is distributed across `a`'s children so the existing
+    # cross-product handling can simplify them.
+    if isinstance(a, exp.Connector) and isinstance(a, type(b)):
         exp.replace_children(
             a,
             lambda c: to_func(
@@ -197,11 +211,18 @@ def _distribute(a, b, from_func, to_func, simplifier):
                 copy=False,
             ),
         )
-    else:
-        a = to_func(
-            simplifier.uniq_sort(flatten(from_func(a, b.left))),
-            simplifier.uniq_sort(flatten(from_func(a, b.right))),
-            copy=False,
-        )
+        return a
 
-    return a
+    # Otherwise apply the textbook rule
+    # ``a OR (b.left AND b.right) -> (a OR b.left) AND (a OR b.right)`` (or
+    # the AND/OR dual). When `a` is a connector of the OPPOSITE polarity to
+    # `b` (e.g. `Or(...) ∨ And(...)` in CNF mode) the previous behaviour was
+    # to push `b` into each child of `a`, leaving an intermediate
+    # ``Or(And, And)`` that `while_changing` would later cross-product into
+    # redundant superset and duplicate clauses. Returning the direct rewrite
+    # avoids that detour.
+    return to_func(
+        simplifier.uniq_sort(flatten(from_func(a, b.left))),
+        simplifier.uniq_sort(flatten(from_func(a, b.right))),
+        copy=False,
+    )

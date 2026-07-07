@@ -75,12 +75,12 @@ public:
     }
 
 private:
-    TString InputFile_;
-    TString OutputFile_;
+    std::string InputFile_;
+    std::string OutputFile_;
 
-    TString CompressionCodec_;
-    TString WriterOptions_;
-    TString WriterConfig_;
+    std::string CompressionCodec_;
+    std::string WriterOptions_;
+    std::string WriterConfig_;
 
     TRefCountedChunkMetaPtr InputChunkMeta_;
     TChunkStatePtr InputChunkState_;
@@ -137,11 +137,11 @@ private:
             ChunkReader_->GetChunkId(),
             OutputFile_);
 
-        TableWriterOptions_ = WriterOptions_
+        TableWriterOptions_ = !WriterOptions_.empty()
             ? ConvertTo<TChunkWriterOptionsPtr>(TYsonString(WriterOptions_))
             : New<TChunkWriterOptions>();
 
-        TableWriterConfig_ = WriterConfig_
+        TableWriterConfig_ = !WriterConfig_.empty()
             ? ConvertTo<TChunkWriterConfigPtr>(TYsonString(WriterConfig_))
             : New<TChunkWriterConfig>();
 
@@ -169,10 +169,12 @@ private:
         IVersionedReaderPtr tableReader;
 
         if (cachedVersionedChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-            auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
+            auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                TChunkReaderConfig::GetDefault(),
+                ChunkReader_,
                 InputChunkState_->BlockCache,
-                InputChunkState_->ChunkMeta,
-                ChunkReader_->GetChunkId());
+                /*chunkReadOptions*/ {},
+                cachedVersionedChunkMeta);
 
             tableReader = NColumnarChunkFormat::CreateVersionedChunkReader(
                 MakeSingletonRowRange(MinKey(), MaxKey()),

@@ -112,6 +112,13 @@ message TRspResetStateHash
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqReportReignChange
+{
+    required int32 previous_reign = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqExitReadOnly
 {
 }
@@ -127,6 +134,28 @@ message TReqDiscombobulateNonvotingPeers
 }
 
 message TRspDiscombobulateNonvotingPeers
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFreeze
+{
+    required int32 term = 1;
+}
+
+message TRspFreeze
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqTruncateChangelog
+{
+    required int64 last_sequence_number = 1;
+}
+
+message TRspTruncateChangelog
 {
 }
 

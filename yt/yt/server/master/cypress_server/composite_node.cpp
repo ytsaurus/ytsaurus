@@ -40,7 +40,21 @@ void TCompositeCypressNode::TAttributes<Transient>::Persist(const NCellMaster::T
     Persist(context, Atomicity);
     Persist(context, CommitOrdering);
     Persist(context, InMemoryMode);
-    Persist(context, OptimizeFor);
+    // COMPAT(cherepashka)
+    if (context.IsLoad() && context.GetVersion() < NCellMaster::EMasterReign::ReduceSchemaModeAndOptimizeFor) {
+        auto compatOptimizeFor = Load<TVersionedBuiltinAttribute<NTableClient::ECompatOptimizeFor>>(context);
+        if (compatOptimizeFor.IsNull()) {
+            OptimizeFor.Reset();
+        } else if (compatOptimizeFor.IsTombstoned()) {
+            OptimizeFor.Remove();
+        } else if (compatOptimizeFor.IsSet()) {
+            auto optimizeFor = compatOptimizeFor.ToOptional();
+            YT_VERIFY(optimizeFor);
+            OptimizeFor.Set(CheckedEnumCast<NTableClient::EOptimizeFor>(*optimizeFor));
+        }
+    } else {
+        Persist(context, OptimizeFor);
+    }
     Persist(context, ProfilingMode);
     Persist(context, ProfilingTag);
     Persist(context, ChunkMergerMode);

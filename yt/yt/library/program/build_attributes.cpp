@@ -38,7 +38,7 @@ void TBuildInfo::Register(TRegistrar registrar)
 
 std::optional<TInstant> TBuildInfo::ParseBuildTime()
 {
-    TString rawBuildTime(GetBuildTime());
+    std::string rawBuildTime(GetBuildTime());
 
     // Build time may be empty if code is building
     // without -DBUILD_DATE (for example, in opensource build).

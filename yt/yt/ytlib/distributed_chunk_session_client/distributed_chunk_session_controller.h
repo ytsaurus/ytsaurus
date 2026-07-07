@@ -6,21 +6,32 @@
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
+#include <yt/yt/client/chunk_client/public.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
 namespace NYT::NDistributedChunkSessionClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TStartedSessionInfo
+{
+    NChunkClient::TSessionId SessionId;
+    NNodeTrackerClient::TNodeDescriptor SequencerNode;
+    NChunkClient::TChunkReplicaWithMediumList Replicas;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IDistributedChunkSessionController
     : virtual public TRefCounted
 {
-    // Starts session and returns the address of distributed write coordinator.
-    virtual TFuture<NNodeTrackerClient::TNodeDescriptor> StartSession() = 0;
+    // Starts session and returns write-session metadata.
+    virtual TFuture<TStartedSessionInfo> StartSession() = 0;
 
-    virtual bool IsActive() const = 0;
-
-    // Must be the last call.
-    // Finishes and confirms chunk.
     virtual TFuture<void> Close() = 0;
+
+    virtual TFuture<void> GetClosedFuture() = 0;
 
     virtual NChunkClient::TSessionId GetSessionId() const = 0;
 };
@@ -33,7 +44,8 @@ IDistributedChunkSessionControllerPtr CreateDistributedChunkSessionController(
     NApi::NNative::IClientPtr client,
     TDistributedChunkSessionControllerConfigPtr config,
     NObjectClient::TTransactionId transactionId,
-    NTableClient::TNameTablePtr chunkNameTable,
+    NApi::TJournalChunkWriterOptionsPtr writerOptions,
+    NApi::TJournalChunkWriterConfigPtr writerConfig,
     IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////

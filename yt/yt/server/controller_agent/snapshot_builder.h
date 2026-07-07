@@ -1,7 +1,7 @@
 #pragma once
 
-#include "private.h"
 #include "operation_controller.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/misc/fork_executor.h>
 
@@ -63,7 +63,7 @@ private:
     void RunParent() override;
     void RunChild() override;
 
-    TFuture<std::vector<TError>> UploadSnapshots();
+    TFuture<std::vector<std::pair<TOperationId, TError>>> UploadSnapshots();
     void UploadSnapshot(const TSnapshotJobPtr& job);
 
     bool ControllersSuspended_ = false;

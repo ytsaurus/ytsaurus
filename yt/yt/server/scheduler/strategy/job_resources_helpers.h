@@ -21,18 +21,18 @@ void ProfileResourceVector(
     NProfiling::ISensorWriter* writer,
     const THashSet<EJobResourceType>& resourceTypes,
     const TResourceVector& resourceVector,
-    const TString& prefix);
+    const std::string& prefix);
 
 void ProfileResourceVolume(
     NProfiling::ISensorWriter* writer,
     const TResourceVolume& volume,
-    const TString& prefix,
+    const std::string& prefix,
     NProfiling::EMetricType metricType = NProfiling::EMetricType::Gauge);
 
 void ProfileResourcesConfig(
     NProfiling::ISensorWriter* writer,
     const NVectorHdrf::TJobResourcesConfig* resourcesConfig,
-    const TString& prefix);
+    const std::string& prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 

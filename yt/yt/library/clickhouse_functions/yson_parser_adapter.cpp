@@ -11,7 +11,7 @@ using namespace NYTree;
 
 bool TYsonParserAdapter::Object::find(const std::string_view& key, Element& result) const
 {
-    auto child = MapNode_->FindChild(TString(key));
+    auto child = MapNode_->FindChild(key);
     if (!child) {
         return false;
     }
@@ -45,7 +45,7 @@ bool TYsonParserAdapter::parse(const std::string_view& yson, Element& result)
         Root_ = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data(), yson.size())));
         result = Element(Root_);
         return true;
-    } catch (const std::exception& /* ex */) {
+    } catch (const std::exception&) {
         return false;
     }
 }

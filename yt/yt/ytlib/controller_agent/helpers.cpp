@@ -357,11 +357,11 @@ void SanitizeJobSpec(NProto::TJobSpec* jobSpec)
     }
 
     auto* userJobSpec = jobSpecExt->mutable_user_job_spec();
-    auto environment = FromProto<std::vector<TString>>(userJobSpec->environment());
+    auto environment = FromProto<std::vector<std::string>>(userJobSpec->environment());
 
     userJobSpec->clear_environment();
     for (const auto& variable : environment) {
-        if (!variable.StartsWith(SecureVaultEnvPrefix)) {
+        if (!variable.starts_with(SecureVaultEnvPrefix)) {
             userJobSpec->add_environment(variable);
         }
     }
@@ -420,8 +420,8 @@ void FormatValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::pair<ELayerAccessMethod, ELayerFilesystem> GetAccessMethodAndFilesystemFromStrings(
-    const TString& accessMethod,
-    const TString& filesystem)
+    const std::string& accessMethod,
+    const std::string& filesystem)
 {
     std::pair<ELayerAccessMethod, ELayerFilesystem> res;
     try {

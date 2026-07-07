@@ -2,7 +2,10 @@
 
 #include "competitive_job_manager.h"
 
+#include <util/generic/hash.h>
 #include <util/generic/vector.h>
+
+#include <optional>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -68,12 +71,15 @@ private:
         TJobId MasterJobId;
         TCompactVector<TSlave, 3> Slaves;
         int Pending = 0;
+        // true if master job completed.
         bool Finished = false;
 
         bool HasRunningSlaves() const;
 
         PHOENIX_DECLARE_TYPE(TCollective, 0x9f237b97);
     };
+
+    using TCollectiveIterator = THashMap<NChunkPools::IChunkPoolOutput::TCookie, TCollective>::iterator;
 
     THashMap<NChunkPools::IChunkPoolOutput::TCookie, TCollective> CookieToCollective_;
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> PendingCookies_;
@@ -86,6 +92,9 @@ private:
     bool IsRelevant() const;
 
     bool OnUnsuccessfulJobFinish(const TJobletPtr& joblet, EAbortReason abortReason = EAbortReason::None);
+
+    //! Resolves collective for this joblet's scheduling epoch; nullopt if unknown cookie or stale epoch.
+    std::optional<TCollectiveIterator> FindCollective(const TJobletPtr& joblet);
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TJobCollectiveManager, 0xccfb1994);

@@ -5,6 +5,8 @@
 
 #include <yt/yt/library/query/misc/objects_holder.h>
 
+#include <util/generic/noncopyable.h>
+
 #include <variant>
 
 namespace NYT::NQueryClient::NAst {
@@ -28,6 +30,7 @@ XX(TTransformExpression)
 XX(TCaseExpression)
 XX(TLikeExpression)
 XX(TQueryExpression)
+XX(TQueryAstHead)
 
 #undef XX
 
@@ -561,15 +564,11 @@ struct TAstHead
 };
 
 struct TQueryAstHead
-    : public TObjectsHolder
-    , public TRefCounted
 {
     TQuery Ast;
     TAliasMap AliasMap;
     std::optional<std::string> Alias;
 };
-
-DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
 
 ////////////////////////////////////////////////////////////////////////////////
 

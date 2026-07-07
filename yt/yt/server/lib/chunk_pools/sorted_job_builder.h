@@ -1,10 +1,9 @@
 #pragma once
 
-#include "private.h"
-
 #include "chunk_pool.h"
-#include "new_job_manager.h"
 #include "job_size_tracker.h"
+#include "new_job_manager.h"
+#include "private.h"
 
 #include <yt/yt/client/table_client/comparator.h>
 

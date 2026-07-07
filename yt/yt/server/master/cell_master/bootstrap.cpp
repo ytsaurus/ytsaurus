@@ -152,6 +152,8 @@
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
 #include <yt/yt/ytlib/discovery_client/config.h>
@@ -213,6 +215,7 @@ namespace NYT::NCellMaster {
 using namespace NAdmin;
 using namespace NApi;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NCellarClient;
 using namespace NCellServer;
 using namespace NChaosServer;
@@ -327,7 +330,7 @@ TCellTag TBootstrap::GetPrimaryCellTag() const
     return PrimaryCellTag_;
 }
 
-const std::set<TCellTag>& TBootstrap::GetSecondaryCellTags() const
+const TCellTagSet& TBootstrap::GetSecondaryCellTags() const
 {
     return SecondaryCellTags_;
 }
@@ -355,6 +358,11 @@ const IMulticellManagerPtr& TBootstrap::GetMulticellManager() const
 const IMulticellStatisticsCollectorPtr& TBootstrap::GetMulticellStatisticsCollector() const
 {
     return MulticellStatisticsCollector_;
+}
+
+const ISequoiaActionsExecutorPtr& TBootstrap::GetSequoiaActionsExecutor() const
+{
+    return SequoiaActionsExecutor_;
 }
 
 const IIncumbentManagerPtr& TBootstrap::GetIncumbentManager() const
@@ -653,7 +661,7 @@ void TBootstrap::Initialize()
     BIND(&TBootstrap::DoInitialize, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -665,7 +673,7 @@ TFuture<void> TBootstrap::Run()
 }
 
 void TBootstrap::LoadSnapshot(
-    const TString& fileName,
+    const std::string& fileName,
     ESerializationDumpMode dumpMode,
     TSerializationDumpScopeFilter dumpScopeFilter,
     bool checkInvariants)
@@ -673,16 +681,16 @@ void TBootstrap::LoadSnapshot(
     BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dumpMode, std::move(dumpScopeFilter), checkInvariants)
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
-void TBootstrap::ReplayChangelogs(std::vector<TString> changelogFileNames)
+void TBootstrap::ReplayChangelogs(std::vector<std::string> changelogFileNames)
 {
     BIND(&TBootstrap::DoReplayChangelogs, MakeStrong(this), Passed(std::move(changelogFileNames)))
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -691,7 +699,7 @@ void TBootstrap::FinishRecoveryDryRun()
     BIND(&TBootstrap::DoFinishRecoveryDryRun, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -700,7 +708,7 @@ void TBootstrap::BuildSnapshot()
     BIND(&TBootstrap::DoBuildSnapshot, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -709,7 +717,7 @@ void TBootstrap::FinishDryRun()
     BIND(&TBootstrap::DoFinishDryRun, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -1029,6 +1037,7 @@ void TBootstrap::DoInitialize()
     TabletManager_->Initialize();
     BackupManager_->Initialize();
     ChaosManager_->Initialize();
+    SequoiaManager_->Initialize();
     SchedulerPoolManager_->Initialize();
     CypressProxyTracker_->Initialize();
     GroundUpdateQueueManager_->Initialize();
@@ -1170,10 +1179,14 @@ void TBootstrap::DoStart()
 
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+    if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+        HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+    }
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
+        HttpsServer_,
         ServiceLocator_->GetServiceOrThrow<TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
@@ -1231,11 +1244,19 @@ void TBootstrap::DoStart()
         orchidRoot,
         "/sequoia_reign",
         ConvertToNode(GetCurrentSequoiaReign()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/ground_reign",
+        ConvertToNode(GetCurrentGroundReign()));
     SetBuildAttributes(
         orchidRoot,
         "master");
 
     HttpServer_->Start();
+    if (HttpsServer_) {
+        YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+        HttpsServer_->Start();
+    }
 
     YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
     RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker(), NativeAuthenticator_));
@@ -1243,7 +1264,7 @@ void TBootstrap::DoStart()
 }
 
 void TBootstrap::DoLoadSnapshot(
-    const TString& fileName,
+    const std::string& fileName,
     ESerializationDumpMode dumpMode,
     TSerializationDumpScopeFilter dumpScopeFilter,
     bool checkInvariants)
@@ -1275,7 +1296,7 @@ void TBootstrap::DoLoadSnapshot(
     }
 }
 
-void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNames)
+void TBootstrap::DoReplayChangelogs(const std::vector<std::string>& changelogFileNames)
 {
     const auto& hydraManager = HydraFacade_->GetHydraManager();
     auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
@@ -1289,7 +1310,7 @@ void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNam
 
     auto dispatcher = CreateFileChangelogDispatcher(
         std::move(ioEngine),
-        /*memoryUsageTracker*/ nullptr,
+        /*indexMemoryUsageTracker*/ nullptr,
         changelogsConfig,
         "DryRunChangelogDispatcher",
         /*profiler*/ {});

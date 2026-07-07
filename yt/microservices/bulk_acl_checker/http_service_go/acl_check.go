@@ -142,6 +142,12 @@ func BulkCheckACL(ctx context.Context, req bac_lib.CheckACLRequest, actor string
 			}
 			return
 		}
+		if _, isSuperuser := groups["superusers"]; isSuperuser {
+			for range req.Paths {
+				result = append(result, yt.ActionAllow)
+			}
+			return
+		}
 	}
 	for _, path := range req.Paths {
 		var compressedACL CompressedACL

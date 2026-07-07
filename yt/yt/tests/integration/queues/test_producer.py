@@ -14,14 +14,11 @@ from yt.wrapper.common import generate_uuid
 
 import yt_error_codes
 
-import pytest
-
 import builtins
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCreateQueueProducer(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -43,7 +40,6 @@ class TestCreateQueueProducer(TestQueueAgentBase):
         wait_for_tablet_state("//tmp/p", "mounted")
 
 
-@pytest.mark.enabled_multidaemon
 class TestCreateRemoveForQueueProducerSessions(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -219,7 +215,6 @@ class TestCreateRemoveForQueueProducerSessions(TestQueueAgentBase):
         assert session["epoch"] == 2
 
 
-@pytest.mark.enabled_multidaemon
 class TestProducerApi(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -481,7 +476,6 @@ class TestProducerApi(TestQueueAgentBase):
         assert session["user_meta"] == user_meta
 
 
-@pytest.mark.enabled_multidaemon
 class TestProducerApiReplicatedTable(TestQueueAgentBase, ReplicatedObjectBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 1
@@ -541,7 +535,7 @@ class TestProducerApiReplicatedTable(TestQueueAgentBase, ReplicatedObjectBase):
         with raises_yt_error(code=yt_error_codes.InvalidRowSequenceNumbers):
             push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=0)
 
-        with raises_yt_error("has no synchronous replicas"):
+        with raises_yt_error("Table .* has no synchronous replicas and \"require_sync_replica\" option is set"):
             push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0)
 
         push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0, require_sync_replica=False)

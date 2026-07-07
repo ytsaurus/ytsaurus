@@ -11,9 +11,6 @@
 2. Изучите вкладку Detailed Usage на странице аккаунта (но имейте в виду, что информация там обновляется со значительной задержкой);
 {% endif %}
 3. Поищите с помощью `yt find <path> --name "*" --account <account_name>` таблицы под вашим аккаунтом в `//tmp` и связных с вами проектных директориях. Обратите внимание, что `yt find` не заходит в директории, в которые у вас нет доступа;
-{% if audience == "internal" %}
-4. Данные могут быть удалены из Кипариса, но использоваться выполняющимися операциями. Такие операции можно поискать с помощью скрипта [find_top_operations](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/scripts/find_top_operations), например так: `./find_top_operations --proxy hahn --in-account dev`
-{% endif %}
 
 ------
 #### **Q: Как изменить аккаунт таблицы?** {#change-table-account}
@@ -107,7 +104,7 @@ yt merge --src '_path/to/src/table[#100:#500]' --dst _path/to/dst/table --mode o
 ------
 #### **Q: Как восстановить удалённые данные?** {#restore-deleted-data}
 
-**A:** Если удаление было через UI и там не была выбрана опция `Delete permanently`, то можно поискать таблицы в мусорке в папке соответствующего аккаунта.
+**A:** Если удаление было через UI и там не была выбрана опция `Delete permanently`, то можно поискать таблицы в {% if audience == "internal" %}[мусорке](https://yt.yandex-team.ru/kolmogorov/navigation?path=//trash/by-account/){% else %}мусорке{% endif %} в папке соответствующего аккаунта.
 Если удаление было через `yt remove` или аналогичные вызовы API, то восстановление **невозможно**.
 
 ------

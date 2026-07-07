@@ -1,5 +1,6 @@
 #include "helpers.h"
 
+#include "object.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
@@ -90,6 +91,16 @@ std::variant<TObjectId, TStringBuf, TError> ParseObjectNameOrId(TStringBuf name)
         return id;
     }
     return name;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsNativeSequoiaNode(const TObject* object)
+{
+    return
+        object->IsNative() &&
+        object->IsSequoia() &&
+        IsVersionedType(object->GetType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

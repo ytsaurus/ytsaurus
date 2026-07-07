@@ -80,7 +80,9 @@ namespace DB::Setting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const SettingsBool allow_push_predicate_ast_for_distributed_subqueries;
 extern const SettingsBool extremes;
+
 extern const SettingsUInt64 limit;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -414,8 +416,8 @@ class TCheckInFunctionExistsVisitor
     : public DB::InDepthQueryTreeVisitor<TCheckInFunctionExistsVisitor>
 {
 public:
-    TCheckInFunctionExistsVisitor(const DB::QueryTreeNodePtr& joinTree)
-        : JoinTree_(joinTree)
+    explicit TCheckInFunctionExistsVisitor(DB::QueryTreeNodePtr joinTree)
+        : JoinTree_(std::move(joinTree))
     { }
 
     void visitImpl(const DB::QueryTreeNodePtr& node)
@@ -429,9 +431,9 @@ public:
             return;
         }
         if (functionNode->getArguments().getNodes().size() != 2) {
-            THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function (FunctionName: %v, NumberOfArguments: %v)",
-                functionNode->getFunctionName(),
-                functionNode->getArguments().getNodes().size());
+            THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function %v",
+                functionNode->getFunctionName())
+                << TErrorAttribute("number_of_arguments", functionNode->getArguments().getNodes().size());
         }
 
         auto rhs = functionNode->getArguments().getNodes()[1];
@@ -465,7 +467,7 @@ public:
     }
 
 private:
-    const DB::QueryTreeNodePtr& JoinTree_;
+    const DB::QueryTreeNodePtr JoinTree_;
     bool HasInOperator_ = false;
 };
 
@@ -473,20 +475,9 @@ class TCheckSimpleDistinctVisitor
     : public DB::InDepthQueryTreeVisitor<TCheckSimpleDistinctVisitor>
 {
 public:
-    TCheckSimpleDistinctVisitor(bool isDistinct)
+    explicit TCheckSimpleDistinctVisitor(bool isDistinct)
         : IsDistinct_(isDistinct)
     { }
-
-    static bool IsAllowedAggregationFunction(const DB::FunctionNode& node)
-    {
-        return (
-            node.getFunctionName() == "min" ||
-            node.getFunctionName() == "max" ||
-            node.getFunctionName() == "uniq" ||
-            node.getFunctionName() == "uniqExact" ||
-            node.getFunctionName() == "uniqCombined"
-        );
-    }
 
     void visitImpl(const DB::QueryTreeNodePtr& node)
     {
@@ -517,6 +508,16 @@ public:
     }
 
 private:
+    static bool IsAllowedAggregationFunction(const DB::FunctionNode& node)
+    {
+        return
+            node.getFunctionName() == "min" ||
+            node.getFunctionName() == "max" ||
+            node.getFunctionName() == "uniq" ||
+            node.getFunctionName() == "uniqExact" ||
+            node.getFunctionName() == "uniqCombined";
+    }
+
     const bool IsDistinct_;
 
     bool IsAggregated_ = false;
@@ -529,8 +530,6 @@ class TCheckMinMaxOptimizationVisitor
     : public DB::InDepthQueryTreeVisitor<TCheckMinMaxOptimizationVisitor>
 {
 public:
-    TCheckMinMaxOptimizationVisitor() = default;
-
     void visitImpl(const DB::QueryTreeNodePtr& node)
     {
         if (auto* functionNode = node->as<DB::FunctionNode>()) {
@@ -1127,11 +1126,6 @@ void TQueryAnalyzer::ParseQuery()
         CrossJoin_);
 }
 
-DB::QueryTreeNodePtr TQueryAnalyzer::GetParsedQueryTree() const
-{
-    return QueryInfo_.query_tree->clone();
-}
-
 DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage() const
 {
     if (!Prepared_) {
@@ -1382,7 +1376,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         std::optional<DB::KeyCondition> keyCondition;
         if (schema->IsSorted()) {
             auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
-                ToNamesAndTypesList(*schema, storage->GetColumnAttributes(), settings->Composite)));
+                ToNamesAndTypesList(*schema, settings->Conversion)));
 
             std::shared_ptr<const DB::ActionsDAG> filterActionsDAG;
 
@@ -1442,7 +1436,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
             }
 
             if (suitableForReadRangeInferring) {
-                result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema());
+                result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema(), getContext()->getSettingsRef());
                 YT_LOG_DEBUG("Inferred read range for table (Table: %v, KeyReadRange: %v)", storage->GetTables(), result.KeyReadRanges);
             }
         }
@@ -1468,6 +1462,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     }
 
     result.EnableMinMaxOptimization = EnableMinMaxOptimization_;
+    result.QueryTree = QueryInfo_.query_tree->clone();
 
     return result;
 }
@@ -1493,7 +1488,6 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
         auto& spec = tableSpecs.emplace_back(specTemplate);
         spec.TableIndex = index;
         spec.ReadSchema = Storages_[index]->GetSchema();
-        spec.ColumnAttributes = Storages_[index]->GetColumnAttributes();
 
         std::string scalarName = Format("yt_table_%v", index);
 

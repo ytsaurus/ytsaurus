@@ -121,7 +121,10 @@ private:
     {
         using NYT::Load;
 
-        ResponseKeeper_->Load(context);
+        auto version = context.GetVersion();
+        auto loadGroundUpdateSequenceNumbers = version >= EMasterReign::KulenovClockPart2_26_2
+            || (version >= EMasterReign::KulenovClockPart2 && version < EMasterReign::Start_26_2);
+        ResponseKeeper_->Load(context, loadGroundUpdateSequenceNumbers);
     }
 };
 

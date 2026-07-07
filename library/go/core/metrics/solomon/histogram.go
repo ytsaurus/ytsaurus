@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"math"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -22,17 +23,29 @@ var (
 )
 
 type Histogram struct {
-	name         string
-	metricType   metricType
-	tags         map[string]string
+	baseMetric
+
 	bucketBounds []float64
 	bucketValues []int64
 	infValue     atomic.Int64
 	mutex        sync.Mutex
-	timestamp    *time.Time
+}
 
-	useNameTag bool
-	memOnly    bool
+func NewHistogram(name string, bucketBounds []float64, bucketValues []int64, infValue int64, opts ...MetricOpt) Histogram {
+	mOpts := MetricsOpts{}
+	for _, op := range opts {
+		op(&mOpts)
+	}
+	mType := typeHistogram
+	if mOpts.rated {
+		mType = typeRatedHistogram
+	}
+	return Histogram{
+		baseMetric:   newBaseMetric(name, mType, opts...),
+		bucketBounds: bucketBounds,
+		bucketValues: bucketValues,
+		infValue:     *atomic.NewInt64(infValue),
+	}
 }
 
 type histogram struct {
@@ -41,37 +54,34 @@ type histogram struct {
 	Inf     int64     `json:"inf,omitempty"`
 }
 
-func (h *histogram) writeHistogram(w io.Writer) error {
+func (h *Histogram) writeSpackValue(w io.Writer) error {
+	const wordSize = 8
+
 	// add 1 to buckets length for inf bucket
-	err := writeULEB128(w, uint32(len(h.Buckets)+1))
-	if err != nil {
+	if err := writeULEB128(w, uint32(len(h.bucketValues)+1)); err != nil {
 		return xerrors.Errorf("writeULEB128 size histogram buckets failed: %w", err)
 	}
 
-	for _, upperBound := range h.Bounds {
-		err = binary.Write(w, binary.LittleEndian, float64(upperBound))
-		if err != nil {
-			return xerrors.Errorf("binary.Write upper bound failed: %w", err)
-		}
+	// Pack bounds (+ inf bound) and buckets (+ inf bucket) into a single buffer,
+	// then write with one underlying call.
+	payloadSize := wordSize * (len(h.bucketBounds) + 1 + len(h.bucketValues) + 1)
+	buf := make([]byte, payloadSize)
+	off := 0
+	for _, upperBound := range h.bucketBounds {
+		binary.LittleEndian.PutUint64(buf[off:], math.Float64bits(upperBound))
+		off += wordSize
 	}
-	// write inf bound
-	err = binary.Write(w, binary.LittleEndian, math.MaxFloat64)
-	if err != nil {
-		return xerrors.Errorf("binary.Write inf bound failed: %w", err)
+	binary.LittleEndian.PutUint64(buf[off:], math.Float64bits(math.MaxFloat64))
+	off += wordSize
+	for _, bucketValue := range h.bucketValues {
+		binary.LittleEndian.PutUint64(buf[off:], uint64(bucketValue))
+		off += wordSize
 	}
+	binary.LittleEndian.PutUint64(buf[off:], uint64(h.infValue.Load()))
 
-	for _, bucketValue := range h.Buckets {
-		err = binary.Write(w, binary.LittleEndian, uint64(bucketValue))
-		if err != nil {
-			return xerrors.Errorf("binary.Write histogram buckets failed: %w", err)
-		}
+	if _, err := w.Write(buf); err != nil {
+		return xerrors.Errorf("write histogram payload failed: %w", err)
 	}
-	// write inf bucket value
-	err = binary.Write(w, binary.LittleEndian, uint64(h.Inf))
-	if err != nil {
-		return xerrors.Errorf("binary.Write inf bucket failed: %w", err)
-	}
-
 	return nil
 }
 
@@ -99,51 +109,12 @@ func (h *Histogram) Reset() {
 	h.infValue.Store(0)
 }
 
-func (h *Histogram) getID() string {
-	if h.timestamp != nil {
-		return h.name + "(" + h.timestamp.Format(time.RFC3339) + ")"
-	}
-	return h.name
-}
-
-func (h *Histogram) Name() string {
-	return h.name
-}
-
-func (h *Histogram) getType() metricType {
-	return h.metricType
-}
-
-func (h *Histogram) Labels() map[string]string {
-	return h.tags
-}
-
-func (h *Histogram) Value() interface{} {
+func (h *Histogram) Value() any {
 	return histogram{
 		Bounds:  h.bucketBounds,
 		Buckets: h.bucketValues,
 		Inf:     h.infValue.Load(),
 	}
-}
-
-func (h *Histogram) getTimestamp() *time.Time {
-	return h.timestamp
-}
-
-func (h *Histogram) getNameTag() string {
-	if h.useNameTag {
-		return "name"
-	} else {
-		return "sensor"
-	}
-}
-
-func (h *Histogram) isMemOnly() bool {
-	return h.memOnly
-}
-
-func (h *Histogram) setMemOnly() {
-	h.memOnly = true
 }
 
 // MarshalJSON implements json.Marshaler.
@@ -165,14 +136,7 @@ func (h *Histogram) MarshalJSON() ([]byte, error) {
 			Buckets: valuesCopy,
 			Inf:     h.infValue.Load(),
 		},
-		Labels: func() map[string]string {
-			labels := make(map[string]string, len(h.tags)+1)
-			labels[h.getNameTag()] = h.name
-			for k, v := range h.tags {
-				labels[k] = v
-			}
-			return labels
-		}(),
+		Labels:    h.labelsWithName(),
 		Timestamp: tsAsRef(h.timestamp),
 		MemOnly:   h.memOnly,
 	})
@@ -180,24 +144,15 @@ func (h *Histogram) MarshalJSON() ([]byte, error) {
 
 // Snapshot returns independent copy on metric.
 func (h *Histogram) Snapshot() Metric {
-	bucketBounds := make([]float64, len(h.bucketBounds))
-	bucketValues := make([]int64, len(h.bucketValues))
-
-	copy(bucketBounds, h.bucketBounds)
 	h.mutex.Lock()
-	copy(bucketValues, h.bucketValues)
+	bucketValues := slices.Clone(h.bucketValues)
 	h.mutex.Unlock()
 
 	return &Histogram{
-		name:         h.name,
-		metricType:   h.metricType,
-		tags:         h.tags,
-		bucketBounds: bucketBounds,
+		baseMetric:   h.copy(),
+		bucketBounds: slices.Clone(h.bucketBounds),
 		bucketValues: bucketValues,
 		infValue:     *atomic.NewInt64(h.infValue.Load()),
-
-		useNameTag: h.useNameTag,
-		memOnly:    h.memOnly,
 	}
 }
 

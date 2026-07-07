@@ -50,6 +50,7 @@ PEERDIR(
     yql/essentials/providers/common/schema/expr
     yql/essentials/providers/common/transform
     yql/essentials/providers/common/activation
+    yql/essentials/providers/common/config/transformer
     yql/essentials/providers/common/proto
     contrib/ydb/library/yql/providers/dq/api/grpc
     contrib/ydb/library/yql/providers/dq/api/protos

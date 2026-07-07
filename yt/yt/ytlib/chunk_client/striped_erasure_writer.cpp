@@ -119,11 +119,9 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& /*workloadDescriptor*/,
-        const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlockCount) override
+        const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(Opened_ && !Closed_);
-        YT_VERIFY(!truncateBlockCount.has_value());
 
         return BIND(&TStripedErasureWriter::DoClose, MakeStrong(this), options, chunkMeta)
             .AsyncVia(WriterInvoker_)
@@ -272,7 +270,7 @@ private:
             // set it here to avoid writer freeze in case of some bugs.
             ReadyEvent_.TrySet();
 
-            if (ReadyEvent_.Get().IsOK()) {
+            if (ReadyEvent_.GetOrCrash().IsOK()) {
                 ReadyEvent_ = NewPromise<void>();
             }
         }
@@ -356,6 +354,7 @@ private:
                     }
                 }
                 FlushSegment(options, std::move(segment));
+                segment.clear();
                 segmentSize = 0;
             }
         }
@@ -385,7 +384,7 @@ private:
 
         for (int index = 0; index < std::ssize(Writers_); ++index) {
             auto readyEvent = WriterReadyEvents_[index];
-            if (!readyEvent.IsSet() || !readyEvent.Get().IsOK()) {
+            if (!readyEvent.IsSet() || !readyEvent.GetOrCrash().IsOK()) {
                 WaitFor(readyEvent)
                     .ThrowOnError();
             }
@@ -425,7 +424,7 @@ private:
         auto partSize = dataSize / dataPartCount;
 
         struct TErasureWriterTag { };
-        auto data = TSharedMutableRef::Allocate<TErasureWriterTag>(dataSize);
+        auto data = TSharedMutableRef::Allocate<TErasureWriterTag>(dataSize, {.InitializeStorage = false});
 
         i64 dataOffset = 0;
         for (const auto& block : segment) {
@@ -468,8 +467,7 @@ private:
 
         FillChunkMeta(chunkMeta);
 
-        YT_VERIFY(ReadyEvent_.IsSet());
-        ReadyEvent_.Get().ThrowOnError();
+        ReadyEvent_.GetOrCrash().ThrowOnError();
 
         std::vector<TFuture<void>> futures;
         futures.reserve(Writers_.size());

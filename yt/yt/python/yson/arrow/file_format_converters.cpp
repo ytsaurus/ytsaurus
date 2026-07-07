@@ -51,10 +51,10 @@ int GetFileNameWidth(int fileCount)
     return std::max(MinFileNameWidth, static_cast<int>(log10(static_cast<double>(fileCount))) + 1);
 }
 
-TString GenerateFileName(int index, int fileNameWidth, EFileFormat format)
+std::string GenerateFileName(int index, int fileNameWidth, EFileFormat format)
 {
     auto stringIndex = ToString(index);
-    TString zeroPrefix(fileNameWidth - stringIndex.size(), '0');
+    std::string zeroPrefix(fileNameWidth - stringIndex.size(), '0');
 
     switch (format) {
         case EFileFormat::Parquet:
@@ -114,7 +114,7 @@ orc::CompressionKind GetOrcFileCompression(const std::string& compressionCodec)
 
 struct TAsyncDumpFileInputArguments
 {
-    TString OutputPath;
+    std::string OutputPath;
     bool IsDirectory;
     int ThreadCount;
     i64 DataSizePerJob;
@@ -129,7 +129,7 @@ struct TWorkerBlock
     TSharedMutableRef Block;
 };
 
-TString GetFileName(const TAsyncDumpFileInputArguments& inputArquments, int fileIndex, int totalFileCount, EFileFormat format)
+std::string GetFileName(const TAsyncDumpFileInputArguments& inputArquments, int fileIndex, int totalFileCount, EFileFormat format)
 {
     if (inputArquments.IsDirectory) {
         return inputArquments.OutputPath + "/" + GenerateFileName(fileIndex, GetFileNameWidth(totalFileCount), format);
@@ -577,7 +577,7 @@ std::shared_ptr<arrow20::RecordBatch> GetNextBatch(
 
 void DoDumpFile(
     const std::shared_ptr<arrow20::io::InputStream>& pipe,
-    TString outputFilePath,
+    std::string outputFilePath,
     const TFormatConfig& config,
     const TArrowStatusCallback& arrowStatusCallback)
 {
@@ -652,7 +652,7 @@ Py::Object DoAsyncDumpFile(TAsyncDumpFileInputArguments&& inputArquments, const 
     }
 
     std::atomic<bool> isError = false;
-    TString errorMessage;
+    std::string errorMessage;
 
     auto onArrowStatusCallback = [&] (const arrow20::Status& status) {
         if (!status.ok()) {

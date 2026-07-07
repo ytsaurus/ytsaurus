@@ -3,7 +3,6 @@
 // For the sake of sane code completion.
 #include "prepared_meta.h"
 #endif
-#undef PREPARED_META_INL_H_
 
 namespace NYT::NColumnarChunkFormat {
 

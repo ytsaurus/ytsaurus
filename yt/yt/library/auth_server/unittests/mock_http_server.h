@@ -12,9 +12,9 @@ namespace NYT::NTests {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString HttpResponse(int code, TStringBuf body);
+std::string HttpResponse(int code, TStringBuf body);
 
-TString CollectMessages(const TError& error);
+std::string CollectMessages(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,7 @@ public:
 
     bool IsStarted() const;
 
-    TString GetHost() const;
+    std::string GetHost() const;
     int GetPort() const;
 
 private:

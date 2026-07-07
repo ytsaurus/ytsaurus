@@ -4,8 +4,15 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+
+#include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
 
 #include <yt/yt/server/lib/sequoia/cypress_transaction.h>
+
+#include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
+
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
@@ -18,6 +25,7 @@
 namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
+using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSequoiaServer;
 
@@ -28,12 +36,20 @@ namespace {
 const auto CreateStartTransactionResponse = BIND_NO_PROPAGATE([] (TTransactionId transactionId) {
     NProto::TRspStartCypressTransaction rsp;
     ToProto(rsp.mutable_id(), transactionId);
-    return CreateResponseMessage(rsp);
+    return std::pair(
+        CreateResponseMessage(rsp),
+        std::string(Format("TransactionId: %v", transactionId)));
 });
 
 const auto CreateAbortTransactionResponse = BIND_NO_PROPAGATE([] () {
     return CreateResponseMessage(NCypressTransactionClient::NProto::TRspAbortTransaction{});
 });
+
+NSequoiaClient::TSequoiaTransactionFeatures GetSequoiaTransactionFeatures(TBootstrap* bootstrap)
+{
+    const auto& sequoiaManager = bootstrap->GetSequoiaManager();
+    return sequoiaManager->GetSequoiaTransactionFeatures();
+}
 
 } // namespace
 
@@ -43,14 +59,17 @@ void StartCypressTransactionInSequoiaAndReply(
     TBootstrap* bootstrap,
     const ITransactionManager::TCtxStartCypressTransactionPtr& context)
 {
-    context->ReplyFrom(StartCypressTransaction(
-        bootstrap
-            ->GetSequoiaConnection()
-            ->CreateClient(context->GetAuthenticationIdentity()),
-        bootstrap->GetCellId(),
-        &context->Request(),
-        TDispatcher::Get()->GetHeavyInvoker(),
-        TransactionServerLogger())
+    context->ReplyAndLogFrom(
+        /*incremental*/ false,
+        StartCypressTransaction(
+            bootstrap
+                ->GetSequoiaConnection()
+                ->CreateClient(context->GetAuthenticationIdentity()),
+            bootstrap->GetCellId(),
+            &context->Request(),
+            GetSequoiaTransactionFeatures(bootstrap),
+            TDispatcher::Get()->GetHeavyInvoker(),
+            TransactionServerLogger())
         .Apply(CreateStartTransactionResponse));
 }
 
@@ -67,6 +86,7 @@ TFuture<void> DoomCypressTransactionInSequoia(
         bootstrap->GetCellId(),
         transactionId,
         request,
+        GetSequoiaTransactionFeatures(bootstrap),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger());
 }
@@ -88,6 +108,7 @@ TFuture<TSharedRefArray> AbortCypressTransactionInSequoia(
         force,
         mutationId,
         retry,
+        GetSequoiaTransactionFeatures(bootstrap),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger());
 }
@@ -102,6 +123,7 @@ TFuture<TSharedRefArray> AbortExpiredCypressTransactionInSequoia(
             ->CreateClient(GetRootAuthenticationIdentity()),
         bootstrap->GetCellId(),
         transactionId,
+        GetSequoiaTransactionFeatures(bootstrap),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger());
 }
@@ -126,6 +148,7 @@ TFuture<TSharedRefArray> CommitCypressTransactionInSequoia(
         commitTimestamp,
         mutationId,
         retry,
+        GetSequoiaTransactionFeatures(bootstrap),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger());
 }
@@ -148,18 +171,40 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransactionInSequoia(
 
 TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
     NCellMaster::TBootstrap* bootstrap,
-    std::vector<TTransactionId> transactionIds)
+    std::vector<TTransactionId> transactionIds,
+    std::unique_ptr<NProto::TReqReturnBoomerang> boomerang,
+    NCypressClient::TNodeId sequoiaNodeIdToLock)
 {
-    return ReplicateCypressTransactions(
-        bootstrap
-            ->GetSequoiaConnection()
-            ->CreateClient(GetRootAuthenticationIdentity()),
-        std::move(transactionIds),
-        {bootstrap->GetCellTag()},
-        bootstrap->GetCellId(),
-        TDispatcher::Get()->GetHeavyInvoker(),
-        TransactionServerLogger())
-        .Apply(BIND([hydraManager = bootstrap->GetHydraFacade()->GetHydraManager()] {
+    auto features = GetSequoiaTransactionFeatures(bootstrap);
+
+    TCellId cypressTransactionCoordinatorCellId = {};
+    if (!transactionIds.empty()) {
+        const auto& multicellManager = bootstrap->GetMulticellManager();
+        cypressTransactionCoordinatorCellId = multicellManager->GetCellId(CellTagFromId(transactionIds.front()));
+    }
+
+    auto replicationFuture = OKFuture;
+    if (!transactionIds.empty() || boomerang) {
+        replicationFuture = ReplicateCypressTransactionsToCell(
+            bootstrap
+                ->GetSequoiaConnection()
+                ->CreateClient(GetRootAuthenticationIdentity()),
+            std::move(transactionIds),
+            bootstrap->GetCellId(),
+            std::move(boomerang),
+            sequoiaNodeIdToLock,
+            cypressTransactionCoordinatorCellId,
+            features,
+            TDispatcher::Get()->GetHeavyInvoker(),
+            TransactionServerLogger());
+    }
+
+    return replicationFuture
+        .Apply(BIND([
+            hydraManager = bootstrap->GetHydraFacade()->GetHydraManager(),
+            latePrepare = cypressTransactionCoordinatorCellId == bootstrap->GetCellId(),
+            transactionManager = bootstrap->GetTransactionManager()
+        ] {
             // NB: |sequoiaTransaction->Commit()| is set when Sequoia tx is
             // prepared on leader (and probably some of followers). Since we
             // want to know when replicated tx is actually available on _this_
@@ -169,7 +214,15 @@ TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
             // thanks to late prepare mode after transaction is prepared on
             // coordinator its effects can be immediately observed on
             // coordinator.
-            return hydraManager->SyncWithLeader();
+            auto future = hydraManager->SyncWithLeader();
+
+            if (!latePrepare) {
+                future = future.Apply(BIND([transactionManager] {
+                    return transactionManager->WaitUntilPreparedTransactionsFinished({NApi::NNative::SequoiaCypressOrderingTag});
+                }));
+            }
+
+            return future;
         }));
 }
 

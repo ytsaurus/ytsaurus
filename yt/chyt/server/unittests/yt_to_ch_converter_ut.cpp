@@ -121,17 +121,17 @@ class TYTToCHConversionTest
 public:
     void SetUp() override
     {
-        Settings_ = New<TCompositeSettings>();
+        Settings_ = New<TConversionSettings>();
     }
 
 protected:
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
     template <class TExpectedColumnType = void>
-    void ExpectDataConversion(TComplexTypeFieldDescriptor descriptor, const auto& input, const std::vector<DB::Field>& expectedFields, bool isLowCardinality = false) const
+    void ExpectDataConversion(TComplexTypeFieldDescriptor descriptor, const auto& input, const std::vector<DB::Field>& expectedFields) const
     {
-        TYTToCHColumnConverter converter(descriptor, Settings_, isLowCardinality);
+        TYTToCHColumnConverter converter(descriptor, Settings_);
         converter.InitColumn();
         DoConsume(converter, input);
         auto column = converter.FlushColumn();
@@ -143,9 +143,9 @@ protected:
         ExpectFields(*column, expectedFields);
     }
 
-    void ExpectThrowOnDataConversion(TComplexTypeFieldDescriptor descriptor, const auto& input, bool isLowCardinality = false) const
+    void ExpectThrowOnDataConversion(const TComplexTypeFieldDescriptor& descriptor, const auto& input) const
     {
-        TYTToCHColumnConverter converter(descriptor, Settings_, isLowCardinality);
+        TYTToCHColumnConverter converter(descriptor, Settings_);
         converter.InitColumn();
         EXPECT_THROW(DoConsume(converter, input), std::exception);
     }
@@ -154,10 +154,9 @@ protected:
         TComplexTypeFieldDescriptor descriptor,
         const TYTColumn& ytColumn,
         TRange<DB::UInt8> filterHint,
-        const std::vector<DB::Field>& expectedFields,
-        bool isLowCardinality = false) const
+        const std::vector<DB::Field>& expectedFields) const
     {
-        TYTToCHColumnConverter converter(descriptor, Settings_, isLowCardinality);
+        TYTToCHColumnConverter converter(descriptor, Settings_);
         converter.InitColumn();
         converter.ConsumeYtColumn(*ytColumn, filterHint);
         auto chColumn = converter.FlushColumn();
@@ -165,9 +164,9 @@ protected:
         ExpectFields(*chColumn, expectedFields);
     }
 
-    void ExpectTypeConversion(TComplexTypeFieldDescriptor descriptor, const DB::DataTypePtr& expectedDataType, bool isLowCardinality = false) const
+    void ExpectTypeConversion(TComplexTypeFieldDescriptor descriptor, const DB::DataTypePtr& expectedDataType) const
     {
-        TYTToCHColumnConverter converter(descriptor, Settings_, isLowCardinality);
+        TYTToCHColumnConverter converter(descriptor, Settings_);
         ValidateTypeEquality(converter.GetDataType(), expectedDataType);
     }
 };
@@ -309,7 +308,7 @@ TEST_F(TYTToCHConversionTest, AnyPassthrough)
 
 
     for (const auto& ysonFormat : TEnumTraits<EExtendedYsonFormat>::GetDomainValues()) {
-        Settings_->DefaultYsonFormat = ysonFormat;
+        Settings_->Composite->DefaultYsonFormat = ysonFormat;
 
         ExpectTypeConversion(descriptor, std::make_shared<DB::DataTypeString>());
 
@@ -416,10 +415,6 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
     {
         YT_LOG_TRACE("Running tests (Type: %v)", simpleLogicalValueType);
 
-        if (isLowCardinality) {
-            expectedDataType = std::make_shared<DB::DataTypeLowCardinality>(expectedDataType);
-        }
-
         using TYtType = decltype(ytTypeDummy);
         using TChType = decltype(chTypeDummy);
 
@@ -430,6 +425,11 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
 
         auto logicalType = SimpleLogicalType(simpleLogicalValueType);
 
+        if (isLowCardinality) {
+            logicalType = TaggedLogicalType(LowCardinalityTag, std::move(logicalType));
+            expectedDataType = std::make_shared<DB::DataTypeLowCardinality>(expectedDataType);
+        }
+
         auto [unversionedValues, unversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
         TColumnSchema columnSchemaRequired(/*name*/ "", logicalType);
         TColumnSchema columnSchemaOptional(/*name*/ "", OptionalLogicalType(logicalType));
@@ -437,11 +437,11 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
         auto [ytColumnRequired, ytColumnRequiredOwner] = UnversionedValuesToYtColumn(unversionedValues, columnSchemaRequired);
 
         TComplexTypeFieldDescriptor descriptor(logicalType);
-        ExpectTypeConversion(descriptor, expectedDataType, isLowCardinality);
-        ExpectDataConversion(descriptor, ysons, expectedFields, isLowCardinality);
-        ExpectDataConversion(descriptor, unversionedValues, expectedFields, isLowCardinality);
-        ExpectDataConversion(descriptor, ytColumnOptional, expectedFields, isLowCardinality);
-        ExpectDataConversion(descriptor, ytColumnRequired, expectedFields, isLowCardinality);
+        ExpectTypeConversion(descriptor, expectedDataType);
+        ExpectDataConversion(descriptor, ysons, expectedFields);
+        ExpectDataConversion(descriptor, unversionedValues, expectedFields);
+        ExpectDataConversion(descriptor, ytColumnOptional, expectedFields);
+        ExpectDataConversion(descriptor, ytColumnRequired, expectedFields);
     };
 
     testAsType(ysonsFloat, ESimpleLogicalValueType::Float, std::make_shared<DB::DataTypeNumber<float>>(), double(), float(), false);
@@ -544,7 +544,7 @@ TEST_F(TYTToCHConversionTest, DateTime64Types)
             /*name*/ "",
             SimpleLogicalType(ESimpleLogicalValueType::Timestamp));
         TComplexTypeFieldDescriptor descriptor(columnSchema);
-        auto converter = TYTToCHColumnConverter(descriptor, Settings_, /*isLowCardinality*/ false, /*isReadConversions*/ false);
+        auto converter = TYTToCHColumnConverter(descriptor, Settings_, /*isReadConversions*/ false);
         auto dataType = converter.GetDataType();
         ASSERT_EQ("YtTimestamp", dataType->getName());
     }
@@ -557,7 +557,7 @@ TEST_F(TYTToCHConversionTest, OptionalSimpleTypeAsUnversionedValue)
 
     auto logicalType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64));
     TComplexTypeFieldDescriptor descriptor(logicalType);
-    TYTToCHColumnConverter converter(descriptor, Settings_, /*isLowCardinality*/ false);
+    TYTToCHColumnConverter converter(descriptor, Settings_);
     converter.InitColumn();
 
     std::vector<TUnversionedValue> values = {intValue, nullValue};
@@ -755,7 +755,7 @@ TEST_F(TYTToCHConversionTest, ListAny)
     auto logicalType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
     auto expectedDataType = std::make_shared<DB::DataTypeArray>(std::make_shared<DB::DataTypeString>());
 
-    Settings_->DefaultYsonFormat = EExtendedYsonFormat::Text;
+    Settings_->Composite->DefaultYsonFormat = EExtendedYsonFormat::Text;
 
     TComplexTypeFieldDescriptor descriptor(logicalType);
     ExpectTypeConversion(descriptor, expectedDataType);
@@ -806,7 +806,7 @@ TEST_F(TYTToCHConversionTest, OptionalListOptionalInt32)
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 
-    Settings_->EnableComplexNullConverison = false;
+    Settings_->Composite->EnableComplexNullConverison = false;
     ExpectThrowOnDataConversion(descriptor, ysonsOptionalListOptionalInt32);
     ExpectThrowOnDataConversion(descriptor, anyUnversionedValues);
     ExpectThrowOnDataConversion(descriptor, ytColumn);
@@ -907,7 +907,7 @@ TEST_F(TYTToCHConversionTest, OptionalTupleInt32String)
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 
-    Settings_->EnableComplexNullConverison = false;
+    Settings_->Composite->EnableComplexNullConverison = false;
     ExpectThrowOnDataConversion(descriptor, ysonsOptionalTupleInt32String);
     ExpectThrowOnDataConversion(descriptor, anyUnversionedValues);
     ExpectThrowOnDataConversion(descriptor, ytColumn);
@@ -965,7 +965,7 @@ TEST_F(TYTToCHConversionTest, OptionalStructInt32String)
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 
-    Settings_->EnableComplexNullConverison = false;
+    Settings_->Composite->EnableComplexNullConverison = false;
     ExpectThrowOnDataConversion(descriptor, ysonsOptionalStructInt32String);
     ExpectThrowOnDataConversion(descriptor, anyUnversionedValues);
     ExpectThrowOnDataConversion(descriptor, ytColumn);
@@ -1215,7 +1215,7 @@ TEST_F(TYTToCHConversionTest, AnyUpcast)
     std::vector<TUnversionedValue> booleanValues = {MakeUnversionedBooleanValue(false), MakeUnversionedBooleanValue(true)};
     std::vector<TUnversionedValue> anyValues = {MakeUnversionedAnyValue("{a=1}"), MakeUnversionedAnyValue("[]")};
 
-    Settings_->DefaultYsonFormat = EExtendedYsonFormat::Text;
+    Settings_->Composite->DefaultYsonFormat = EExtendedYsonFormat::Text;
     TColumnSchema int64ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int64));
     TColumnSchema int16ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int16));
     TColumnSchema stringColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::String));
@@ -1247,7 +1247,7 @@ TEST_F(TYTToCHConversionTest, IntegerUpcast)
     // Similar as previous for integers, e.g. int16 -> int32.
     std::vector<TUnversionedValue> intValues = {MakeUnversionedInt64Value(42), MakeUnversionedInt64Value(-17)};
 
-    Settings_->DefaultYsonFormat = EExtendedYsonFormat::Text;
+    Settings_->Composite->DefaultYsonFormat = EExtendedYsonFormat::Text;
     TColumnSchema int32ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int32));
     TColumnSchema int16ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int16));
 
@@ -1278,7 +1278,7 @@ TEST_F(TYTToCHConversionTest, ReadOnlyConversions)
     };
     for (const auto& columnSchema : readOnlyColumnSchemas) {
         TComplexTypeFieldDescriptor descriptor(columnSchema);
-        EXPECT_THROW(TYTToCHColumnConverter(descriptor, Settings_, /*isLowCardinality*/ false, /*isReadConversions*/ false), std::exception)
+        EXPECT_THROW(TYTToCHColumnConverter(descriptor, Settings_, /*isReadConversions*/ false), std::exception)
             << Format("Conversion of %v did not throw", *columnSchema.LogicalType());
     }
 }
@@ -1363,10 +1363,10 @@ public:
         if (GetEnv("SKIP_CHYT_CONVERSION_BENCHMARK_TESTS") != "") {
             GTEST_SKIP();
         }
-        Settings_ = New<TCompositeSettings>();
+        Settings_ = New<TConversionSettings>();
     }
 protected:
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
 };
 
 TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedSmall)
@@ -1383,7 +1383,7 @@ TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedSmall)
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(anyYsons);
     auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
 
-    TYTToCHColumnConverter converter(descriptor, Settings_, /*isLowCardinality*/ false);
+    TYTToCHColumnConverter converter(descriptor, Settings_);
     for (int i = 0; i < 10000; i++) {
         converter.InitColumn();
         converter.ConsumeYtColumn(*ytColumn);
@@ -1405,7 +1405,7 @@ TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedMedium)
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(anyYsons);
     auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
 
-    TYTToCHColumnConverter converter(descriptor, Settings_, /*isLowCardinality*/ false);
+    TYTToCHColumnConverter converter(descriptor, Settings_);
     for (int i = 0; i < 10000; i++) {
         converter.InitColumn();
         converter.ConsumeYtColumn(*ytColumn);
@@ -1427,7 +1427,7 @@ TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedBig)
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(anyYsons);
     auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, columnSchema);
 
-    TYTToCHColumnConverter converter(descriptor, Settings_, /*isLowCardinality*/ false);
+    TYTToCHColumnConverter converter(descriptor, Settings_);
     for (int i = 0; i < 10000; i++) {
         converter.InitColumn();
         converter.ConsumeYtColumn(*ytColumn);
@@ -1611,6 +1611,58 @@ TEST(TTestKeyConversion, TestNulls)
             std::numeric_limits<DB::Int64>::min(),
             21u}));
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TTestKeyConversion, TestLowCardinality)
+{
+    TTableSchema schema;
+
+    {
+        std::vector<TColumnSchema> columnSchemas;
+        columnSchemas.reserve(2);
+
+        auto& column1 = columnSchemas.emplace_back("dummy_name", ESimpleLogicalValueType::Int64);
+        column1.SetRequired(true);
+        auto& column2 = columnSchemas.emplace_back(column1);
+        column2.SetLogicalType(TaggedLogicalType(LowCardinalityTag, column2.LogicalType()));
+
+        schema = TTableSchema(std::move(columnSchemas));
+    }
+
+    DB::DataTypes dataTypes = {
+        std::make_shared<DB::DataTypeInt64>(),
+        std::make_shared<DB::DataTypeLowCardinality>(std::make_shared<DB::DataTypeInt64>()),
+    };
+
+    auto lowerBound = MakeBound(
+        {MakeUnversionedInt64Value(5)},
+        /*isInclusive=*/false,
+        /*isUpper=*/false);
+    auto upperBound = MakeUpperBound({MakeUnversionedInt64Value(10)});
+
+    auto chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 2, false);
+    YT_LOG_DEBUG("MinKey %v %v", chKeys.MinKey[0], chKeys.MinKey[1]);
+    YT_LOG_DEBUG("MaxKey %v %v", chKeys.MaxKey[0], chKeys.MaxKey[1]);
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({DB::Field(5L), DB::Field(std::numeric_limits<DB::Int64>::max())}));
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({DB::Field(10L), DB::Field(std::numeric_limits<DB::Int64>::min())}));
+
+    upperBound = MakeBound(
+        {MakeUnversionedInt64Value(10), MakeUnversionedInt64Value(5),},
+        /*isInclusive=*/false,
+        /*isUpper=*/true);
+
+    lowerBound = MakeBound(
+        {MakeUnversionedInt64Value(5), MakeUnversionedInt64Value(10),},
+        /*isInclusive=*/false,
+        /*isUpper=*/false);
+
+    chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 2, true);
+    YT_LOG_DEBUG("MinKey %v %v", chKeys.MinKey[0], chKeys.MinKey[1]);
+    YT_LOG_DEBUG("MaxKey %v %v", chKeys.MaxKey[0], chKeys.MaxKey[1]);
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({DB::Field(10L), DB::Field(4L)}));
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({DB::Field(5L), DB::Field(11L)}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

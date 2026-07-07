@@ -78,7 +78,7 @@ public:
         , Host_(host)
         , User_(user)
         , InitialQueryId_(queryId)
-        , CompositeSettings_(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true))
+        , ConversionSettings_()
     { }
 
     TErrorOr<std::vector<TRowset>> Execute()
@@ -121,7 +121,7 @@ private:
     TQueryId InitialQueryId_;
     DB::ContextMutablePtr QueryContext_;
     DB::BlockIO BlockIO_;
-    TCompositeSettingsPtr CompositeSettings_;
+    TConversionSettingsPtr ConversionSettings_;
     std::vector<TRowset> Result_;
 
     void Run()
@@ -151,6 +151,8 @@ private:
             BuildPipeline(TString(queries[i]));
             ProcessPipeline();
         }
+
+        GetQueryContext(QueryContext_)->Finish();
     }
 
     void SetNextQueryId(TQueryId queryId)
@@ -161,11 +163,7 @@ private:
 
     void PrepareContext()
     {
-        RegisterNewUser(
-            Host_->GetContext()->getAccessControl(),
-            User_,
-            Host_->GetUserDefinedDatabaseNames(),
-            Host_->HasUserDefinedSqlObjectStorage());
+        Host_->PrepareClickHouseUser(User_);
 
         // Query context is inherited from session context like it was made in ClickHouse gRPC server.
         DB::Session session(Host_->GetContext(), DB::ClientInfo::Interface::GRPC);
@@ -186,6 +184,13 @@ private:
         }
         QueryContext_->checkSettingsConstraints(settingsChanges, DB::SettingSource::QUERY);
         QueryContext_->applySettingsChanges(settingsChanges);
+
+        auto querySettings = ParseCustomSettings(
+            Host_->GetConfig()->QuerySettings,
+            QueryContext_->getSettingsRef().changes(),
+            Logger);
+        ConversionSettings_ = querySettings->Conversion;
+        ConversionSettings_->Composite->ConvertUnsupportedTypesToString = true;
     }
 
     void BuildPipeline(const TString& query)
@@ -228,7 +233,7 @@ private:
             if (!block) {
                 continue;
             }
-            auto rowRange = ToRowRange(block, dataTypes, columnIndexToId, CompositeSettings_);
+            auto rowRange = ToRowRange(block, dataTypes, columnIndexToId, ConversionSettings_);
             auto capturedRows = rowBuffer->CaptureRows(rowRange);
             rowset.insert(rowset.end(), capturedRows.begin(), capturedRows.end());
         }
@@ -268,7 +273,7 @@ private:
         std::vector<TColumnSchema> columnSchemas;
         columnSchemas.reserve(block.columns());
         for (auto& column : block) {
-            columnSchemas.emplace_back(column.name, ToLogicalType(column.type, CompositeSettings_));
+            columnSchemas.emplace_back(column.name, ToLogicalType(column.type, ConversionSettings_));
         }
         return TTableSchema(columnSchemas);
     }

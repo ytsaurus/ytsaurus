@@ -4,6 +4,15 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicTableManagerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("get_mount_info_delay", &TThis::GetMountInfoDelay)
+        .Default()
+        .DontSerializeDefault();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicTableManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_schema_memory_usage_to_log", &TThis::MaxSchemaMemoryUsageToLog)
@@ -22,6 +31,12 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("cache_heavy_schema_on_creation", &TThis::CacheHeavySchemaOnCreation)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("validate_no_descending_sort_order", &TThis::ValidateNoDescendingSortOrder)
+        .Default(false);
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .Default();
 
     registrar.Preprocessor([] (TThis* config) {
         config->TableSchemaCache->ExpirationPeriod = TDuration::Seconds(10);

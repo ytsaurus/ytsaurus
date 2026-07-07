@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-VERSION(v0.31.0)
+VERSION(v0.32.0)
 
 SRCS(
     all.go
@@ -51,6 +51,12 @@ IF (OS_WINDOWS)
 ENDIF()
 
 IF (OS_ANDROID)
+    SRCS(
+        errors.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
     SRCS(
         errors.go
     )

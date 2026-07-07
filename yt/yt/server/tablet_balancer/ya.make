@@ -16,6 +16,7 @@ SRCS(
     table_registry.cpp
     tablet_action.cpp
     tablet_balancer.cpp
+    tablet_balancer_service.cpp
 )
 
 PEERDIR(
@@ -23,6 +24,7 @@ PEERDIR(
 
     library/cpp/getopt
 
+    yt/yt/library/cypress_election
     yt/yt/library/dynamic_config
     yt/yt/library/orchid
     yt/yt/library/server_program
@@ -32,7 +34,6 @@ PEERDIR(
     yt/yt/core
 
     yt/yt/server/lib/admin
-    yt/yt/server/lib/cypress_election
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/misc
     yt/yt/server/lib/tablet_balancer

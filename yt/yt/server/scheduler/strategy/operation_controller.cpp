@@ -213,9 +213,16 @@ bool TOperationController::IsMaxConcurrentScheduleAllocationExecDurationPerNodeS
     return limitViolated;
 }
 
-bool TOperationController::HasRecentScheduleAllocationFailure(TCpuInstant now) const
+bool TOperationController::HasRecentScheduleAllocationFailure(
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    bool backoffCheckEnabled) const
 {
-    return ScheduleAllocationBackoffDeadline_ > now;
+    auto now = schedulingHeartbeatContext->GetNow();
+    if (EnablePerNodeShardScheduleAllocationBackoff_.load(std::memory_order::relaxed)) {
+        auto nodeShardId = schedulingHeartbeatContext->GetNodeShardId();
+        return StateShards_[nodeShardId].ScheduleAllocationBackoffDeadline > now;
+    }
+    return backoffCheckEnabled && ScheduleAllocationBackoffDeadline_ > now;
 }
 
 bool TOperationController::ScheduleAllocationBackoffObserved() const
@@ -234,8 +241,9 @@ TControllerScheduleAllocationResultPtr TOperationController::ScheduleAllocation(
     const TDiskResources& availableDiskResources,
     TDuration timeLimit,
     const std::string& treeId,
-    const TString& poolPath,
-    std::optional<TDuration> waitingForResourcesOnNodeTimeout)
+    const NYPath::TYPath& poolPath,
+    std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+    std::optional<std::string> allocationGroupName)
 {
     auto scheduleAllocationResultFuture = Controller_->ScheduleAllocation(
         context,
@@ -243,7 +251,8 @@ TControllerScheduleAllocationResultPtr TOperationController::ScheduleAllocation(
         availableDiskResources,
         treeId,
         poolPath,
-        waitingForResourcesOnNodeTimeout);
+        waitingForResourcesOnNodeTimeout,
+        std::move(allocationGroupName));
 
     auto scheduleAllocationResultFutureWithTimeout = scheduleAllocationResultFuture
         .ToUncancelable()
@@ -316,11 +325,13 @@ TControllerScheduleAllocationResultPtr TOperationController::ScheduleAllocation(
 }
 
 void TOperationController::OnScheduleAllocationFailed(
-    TCpuInstant now,
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const std::string& treeId,
     const TControllerScheduleAllocationResultPtr& scheduleAllocationResult)
 {
     auto config = GetConfig();
+    auto now = schedulingHeartbeatContext->GetNow();
+    auto nodeShardId = schedulingHeartbeatContext->GetNodeShardId();
 
     TCpuInstant backoffDeadline = 0;
     if (scheduleAllocationResult->Failed[EScheduleFailReason::ControllerThrottling] > 0) {
@@ -347,7 +358,19 @@ void TOperationController::OnScheduleAllocationFailed(
     if (backoffDeadline > 0) {
         YT_LOG_DEBUG("Failed to schedule allocation, backing off (Duration: %v, Reasons: %v)",
             backoffDeadline - now,
-            scheduleAllocationResult->Failed);
+            MakeFormatterWrapper([&] (auto* builder) {
+                // NB(bystrovserg): Log only non-zero fail reasons.
+                builder->AppendChar('{');
+                TDelimitedStringBuilderWrapper delimitedBuilder(builder);
+                for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
+                    if (auto count = scheduleAllocationResult->Failed[reason]; count > 0) {
+                        delimitedBuilder->AppendFormat("%v: %v", reason, count);
+                    }
+                }
+                builder->AppendChar('}');
+            }));
+        StateShards_[nodeShardId].ScheduleAllocationBackoffDeadline = backoffDeadline;
+        // TODO(bystrovserg): Remove once per-shard backoff is applied.
         ScheduleAllocationBackoffDeadline_.store(backoffDeadline);
         ScheduleAllocationBackoffObserved_.store(true);
     }
@@ -380,6 +403,9 @@ void TOperationController::UpdateConfig(const TStrategyOperationControllerConfig
     EnableConcurrentScheduleAllocationExecDurationThrottling_.store(
         config->EnableConcurrentScheduleAllocationExecDurationThrottling,
         std::memory_order::release);
+    EnablePerNodeShardScheduleAllocationBackoff_.store(
+        config->EnablePerNodeShardScheduleAllocationBackoff,
+        std::memory_order::relaxed);
     UpdateConcurrentScheduleAllocationThrottlingLimits(config);
 }
 

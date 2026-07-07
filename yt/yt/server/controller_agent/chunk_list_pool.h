@@ -23,7 +23,8 @@ public:
         NApi::NNative::IClientPtr clientPtr,
         IInvokerPoolPtr controllerInvokerPool,
         TOperationId operationId,
-        NTransactionClient::TTransactionId transactionId);
+        NTransactionClient::TTransactionId transactionId,
+        bool isHunk = false);
 
     bool HasEnough(NObjectClient::TCellTag cellTag, int requestedCount);
     NChunkClient::TChunkListId Extract(NObjectClient::TCellTag cellTag);
@@ -36,6 +37,7 @@ private:
     const IInvokerPoolPtr ControllerInvokerPool_;
     const TOperationId OperationId_;
     const NTransactionClient::TTransactionId TransactionId_;
+    const bool IsHunk_;
 
     const NLogging::TLogger Logger;
 

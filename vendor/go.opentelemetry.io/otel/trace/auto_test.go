@@ -18,7 +18,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace/internal/telemetry"
 )
 
@@ -50,18 +50,21 @@ var (
 			telemetry.BoolValue(false),
 			telemetry.BoolValue(true),
 		),
-		telemetry.Slice("int slice",
+		telemetry.Slice(
+			"int slice",
 			telemetry.IntValue(-1),
 			telemetry.IntValue(-30),
 			telemetry.IntValue(328),
 		),
-		telemetry.Slice("int64 slice",
+		telemetry.Slice(
+			"int64 slice",
 			telemetry.Int64Value(1030),
 			telemetry.Int64Value(0),
 			telemetry.Int64Value(0),
 		),
 		telemetry.Slice("float64 slice", telemetry.Float64Value(1e9)),
-		telemetry.Slice("string slice",
+		telemetry.Slice(
+			"string slice",
 			telemetry.StringValue("one"),
 			telemetry.StringValue("two"),
 		),
@@ -125,7 +128,7 @@ func TestTracerProviderConcurrentSafe(t *testing.T) {
 			defer close(done)
 
 			var wg sync.WaitGroup
-			for i := 0; i < goroutines; i++ {
+			for i := range goroutines {
 				wg.Add(1)
 				go func(name, version string) {
 					defer wg.Done()
@@ -164,6 +167,82 @@ func TestSpanKindTransform(t *testing.T) {
 	}
 }
 
+func TestConvAttrValueBytes(t *testing.T) {
+	v := []byte("bytes")
+	tests := []struct {
+		name  string
+		want  []byte
+		limit int
+	}{
+		{
+			name:  "Unlimited",
+			want:  []byte("bytes"),
+			limit: -1,
+		},
+		{
+			name:  "Zero",
+			want:  []byte(""),
+			limit: 0,
+		},
+		{
+			name:  "Truncate",
+			want:  []byte("by"),
+			limit: 2,
+		},
+		{
+			name:  "NoTruncation",
+			want:  []byte("bytes"),
+			limit: 10,
+		},
+	}
+	orig := maxSpan.AttrValueLen
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Cleanup(func() { maxSpan.AttrValueLen = orig })
+			maxSpan.AttrValueLen = test.limit
+
+			val := convAttrValue(attribute.ByteSliceValue(v))
+
+			assert.Equal(t, telemetry.ValueKindBytes, val.Kind())
+			assert.Equal(t, test.want, val.AsBytes())
+		})
+	}
+}
+
+func TestConvAttrValueSlice(t *testing.T) {
+	t.Parallel()
+
+	val := convAttrValue(attribute.SliceValue(
+		attribute.BoolValue(true),
+		attribute.IntValue(2),
+		attribute.SliceValue(
+			attribute.StringValue("nested"),
+			attribute.ByteSliceValue([]byte("bytes")),
+		),
+	))
+
+	assert.Equal(t, telemetry.ValueKindSlice, val.Kind())
+
+	slice := val.AsSlice()
+	if assert.Len(t, slice, 3) {
+		assert.Equal(t, telemetry.ValueKindBool, slice[0].Kind())
+		assert.True(t, slice[0].AsBool())
+
+		assert.Equal(t, telemetry.ValueKindInt64, slice[1].Kind())
+		assert.EqualValues(t, 2, slice[1].AsInt64())
+
+		assert.Equal(t, telemetry.ValueKindSlice, slice[2].Kind())
+		nested := slice[2].AsSlice()
+		if assert.Len(t, nested, 2) {
+			assert.Equal(t, telemetry.ValueKindString, nested[0].Kind())
+			assert.Equal(t, "nested", nested[0].AsString())
+
+			assert.Equal(t, telemetry.ValueKindBytes, nested[1].Kind())
+			assert.Equal(t, []byte("bytes"), nested[1].AsBytes())
+		}
+	}
+}
+
 func TestTracerStartPropagatesOrigCtx(t *testing.T) {
 	t.Parallel()
 
@@ -171,7 +250,7 @@ func TestTracerStartPropagatesOrigCtx(t *testing.T) {
 	var key ctxKey
 	val := "value"
 
-	ctx := context.WithValue(context.Background(), key, val)
+	ctx := context.WithValue(t.Context(), key, val)
 	ctx, _ = newAutoTracerProvider().Tracer(tName).Start(ctx, "span.name")
 
 	assert.Equal(t, val, ctx.Value(key))
@@ -181,7 +260,7 @@ func TestTracerStartReturnsNonNilSpan(t *testing.T) {
 	t.Parallel()
 
 	tr := newAutoTracerProvider().Tracer(tName)
-	_, s := tr.Start(context.Background(), "span.name")
+	_, s := tr.Start(t.Context(), "span.name")
 	assert.NotNil(t, s)
 }
 
@@ -189,7 +268,7 @@ func TestTracerStartAddsSpanToCtx(t *testing.T) {
 	t.Parallel()
 
 	tr := newAutoTracerProvider().Tracer(tName)
-	ctx, s := tr.Start(context.Background(), "span.name")
+	ctx, s := tr.Start(t.Context(), "span.name")
 
 	assert.Same(t, s, SpanFromContext(ctx))
 }
@@ -199,7 +278,7 @@ func TestTracerConcurrentSafe(t *testing.T) {
 
 	const goroutines = 10
 
-	ctx := context.Background()
+	ctx := t.Context()
 	run := func(tracer Tracer) <-chan struct{} {
 		done := make(chan struct{})
 
@@ -207,7 +286,7 @@ func TestTracerConcurrentSafe(t *testing.T) {
 			defer close(done)
 
 			var wg sync.WaitGroup
-			for i := 0; i < goroutines; i++ {
+			for i := range goroutines {
 				wg.Add(1)
 				go func(name string) {
 					defer wg.Done()
@@ -377,7 +456,7 @@ func TestSpanCreation(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, tc := range testcases {
 		t.Run(tc.TestName, func(t *testing.T) {
 			if tc.Setup != nil {
@@ -1041,7 +1120,7 @@ func TestSpanConcurrentSafe(t *testing.T) {
 			defer close(done)
 
 			var wg sync.WaitGroup
-			for i := 0; i < nGoroutine; i++ {
+			for i := range nGoroutine {
 				wg.Add(1)
 				go func(n int) {
 					defer wg.Done()
@@ -1071,10 +1150,10 @@ func TestSpanConcurrentSafe(t *testing.T) {
 		go func(tracer Tracer) {
 			defer close(done)
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			var wg sync.WaitGroup
-			for i := 0; i < nSpans; i++ {
+			for i := range nSpans {
 				wg.Add(1)
 				go func(n int) {
 					defer wg.Done()
@@ -1094,7 +1173,7 @@ func TestSpanConcurrentSafe(t *testing.T) {
 			defer close(done)
 
 			var wg sync.WaitGroup
-			for i := 0; i < nTracers; i++ {
+			for i := range nTracers {
 				wg.Add(1)
 				go func(n int) {
 					defer wg.Done()

@@ -46,7 +46,6 @@ def _apply_constraints(schema, constraints):
             try_apply_constraint(column, "stable_name")
 
 
-@pytest.mark.enabled_multidaemon
 class TestConstraintsRestrictions(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -58,9 +57,6 @@ class TestConstraintsRestrictions(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
-        "chaos_residency_cache": {
-            "enable_client_mode" : True,
-        },
     }
 
     MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
@@ -148,7 +144,7 @@ class TestConstraintsRestrictions(ChaosTestBase):
 
         if deduplicate_schema_on_create:
             schema_id = _ensure_schema_object_created(schema)
-            with raises_yt_error("is not supported for chaos replicated tables"):
+            with raises_yt_error("Attribute .* is not supported for chaos replicated tables"):
                 create(
                     "chaos_replicated_table",
                     "//tmp/crt",
@@ -161,7 +157,7 @@ class TestConstraintsRestrictions(ChaosTestBase):
 
         else:
             _apply_constraints(schema, constraints)
-            with raises_yt_error("is not supported for chaos replicated tables"):
+            with raises_yt_error("Attribute .* is not supported for chaos replicated tables"):
                 create(
                     "chaos_replicated_table",
                     "//tmp/crt",
@@ -201,7 +197,6 @@ class TestConstraintsRestrictions(ChaosTestBase):
                 alter_table("//tmp/crt", constrained_schema=schema)
 
 
-@pytest.mark.enabled_multidaemon
 class TestConstraints(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 10
@@ -454,7 +449,7 @@ class TestConstraints(YTEnvSetup):
             if table_is_empty:
                 alter_table("//tmp/table", schema_id=schema_id, constraints=constraints)
             else:
-                with raises_yt_error("cannot be changed"):
+                with raises_yt_error("Constraint for column .* cannot be changed"):
                     alter_table("//tmp/table", schema_id=schema_id, constraints=constraints)
             _apply_constraints(schema, constraints)
         else:
@@ -463,7 +458,7 @@ class TestConstraints(YTEnvSetup):
             if table_is_empty:
                 alter_table("//tmp/table", constrained_schema=schema)
             else:
-                with raises_yt_error("cannot be changed"):
+                with raises_yt_error("Constraint for column .* cannot be changed"):
                     alter_table("//tmp/table", constrained_schema=schema)
 
         if table_is_empty:
@@ -622,14 +617,14 @@ class TestConstraints(YTEnvSetup):
         if deduplicate_schema_on_alter:
             schema_id = _ensure_schema_object_created(new_schema)
             alter_table("//tmp/table", schema_id=schema_id, constraints=constraints1, tx=tx1)
-            with raises_yt_error("Cannot take \"exclusive\" lock for node"):
+            with raises_yt_error("Cannot take \"exclusive\" lock"):
                 alter_table("//tmp/table", schema_id=schema_id, constraints=constraints2, tx=tx2)
         else:
             _apply_constraints(new_schema, constraints1)
             alter_table("//tmp/table", constrained_schema=new_schema, tx=tx1)
 
             _apply_constraints(new_schema, constraints2)
-            with raises_yt_error("Cannot take \"exclusive\" lock for node"):
+            with raises_yt_error("Cannot take \"exclusive\" lock"):
                 alter_table("//tmp/table", constrained_schema=new_schema, tx=tx2)
         commit_transaction(tx1)
         commit_transaction(tx2)
@@ -643,7 +638,7 @@ class TestConstraints(YTEnvSetup):
             {"constraint": "BETWEEN 10 AND 15", "name": "num1", "type": "int64", "required": False, "type_v3": {"type_name": "optional", "item": "int64"}},
             {"constraint": "BETWEEN 1 AND 2", "name": "num2", "type": "int64", "required": False, "type_v3": {"type_name": "optional", "item": "int64"}},
         ]
-        with raises_yt_error("Cannot specify constraints in \"schema\" option, use \"constrained_schema\" instead"):
+        with raises_yt_error("Cannot specify constraints"):
             create("table", "//tmp/table", attributes={"schema": constrained_schema})
         with raises_yt_error("Cannot create table with constraints and without schema"):
             create("table", "//tmp/table", attributes={"constraints": {"num": "BETWEEN 1 AND 2"}})
@@ -702,7 +697,7 @@ class TestConstraints(YTEnvSetup):
         simple_schema_id = get("//tmp/table/@schema_id")
         with raises_yt_error("Both \"schema\" and \"constrained_schema\" specified and the schemas do not match"):
             alter_table("//tmp/table", schema=simple_schema, constrained_schema=constrained_schema)
-        with raises_yt_error("the schemas do not match"):
+        with raises_yt_error("Mix of .* attributes are specified and the schemas do not match"):
             alter_table("//tmp/table", schema_id=simple_schema_id, constrained_schema=constrained_schema)
 
         simple_schema = [
@@ -723,7 +718,6 @@ class TestConstraints(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestConstraintsMulticell(TestConstraints):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -737,7 +731,6 @@ class TestConstraintsMulticell(TestConstraints):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestConstraintsPortal(TestConstraintsMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -751,7 +744,6 @@ class TestConstraintsPortal(TestConstraintsMulticell):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestConstraintsRpcProxy(TestConstraints):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

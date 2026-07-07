@@ -6,6 +6,8 @@
 
 #include <yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/library/min_hash_digest/min_hash_digest.h>
@@ -13,6 +15,7 @@
 namespace NYT::NTableClient {
 
 using namespace NChunkClient;
+using namespace NTransactionClient;
 
 using namespace NProto;
 
@@ -27,38 +30,24 @@ class TMinHashDigestBuilder
 public:
     TMinHashDigestBuilder(TMinHashDigestConfigPtr config)
         : Config_(std::move(config))
+        , WriteMinHashAccumulator_(Config_->WriteTimestampCount)
+        , DeleteMinHashAccumulator_(Config_->DeleteTimestampCount)
     { }
 
+    // We take earliest write and latest delete.
     void OnRow(TVersionedRow row) override
     {
         TFingerprint hash = ComputeHash(row.Keys());
 
-        auto processRow = [hash] <class TComparator> (
-            std::map<TFingerprint, TTimestamp>* minHashes,
-            TTimestamp timestamp,
-            int maxCount,
-            TComparator comparator)
-        {
-            if (ssize(*minHashes) < maxCount) {
-                minHashes->emplace(hash, timestamp);
-                return;
-            }
-
-            if (auto it = minHashes->find(hash); it != minHashes->end()) {
-                if (comparator(it->second, timestamp)) {
-                    it->second = timestamp;
-                }
-            } else if (auto lastIt = --minHashes->end(); lastIt->first > hash) {
-                minHashes->erase(lastIt);
-                minHashes->emplace(hash, timestamp);
-            }
-        };
-
         if (!row.WriteTimestamps().Empty()) {
-            processRow(&WriteMinHashes_, row.WriteTimestamps().Back(), Config_->WriteCount, std::greater<ui64>());
+            WriteMinHashAccumulator_.Add(
+                hash,
+                UnixTimeFromTimestamp(row.WriteTimestamps().Back()));
         }
         if (!row.DeleteTimestamps().empty()) {
-            processRow(&DeleteTombstoneMinHashes_, row.DeleteTimestamps().Back(), Config_->DeleteTombstoneCount, std::less<ui64>());
+            DeleteMinHashAccumulator_.Add(
+                hash,
+                UnixTimeFromTimestamp(row.DeleteTimestamps().Front()));
         }
     }
 
@@ -70,7 +59,10 @@ public:
         auto* blockMeta = systemBlockMetaExt->add_system_blocks();
         blockMeta->Swap(&protoMeta);
 
-        return TMinHashDigest::Build(WriteMinHashes_, DeleteTombstoneMinHashes_);
+        auto digest = New<TMinHashDigest>(/*memoryTracker*/ nullptr);
+        digest->Initialize(WriteMinHashAccumulator_.Finish(), DeleteMinHashAccumulator_.Finish());
+
+        return digest->BuildSerialized();
     }
 
     EBlockType GetBlockType() const override
@@ -81,9 +73,8 @@ public:
 private:
     const TMinHashDigestConfigPtr Config_;
 
-    // TODO(dave11ar): Use more efficient data structure.
-    std::map<TFingerprint, TTimestamp> WriteMinHashes_;
-    std::map<TFingerprint, TTimestamp> DeleteTombstoneMinHashes_;
+    TWriteMinHashAccumulator WriteMinHashAccumulator_;
+    TDeleteMinHashAccumulator DeleteMinHashAccumulator_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

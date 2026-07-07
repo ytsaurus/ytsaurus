@@ -69,10 +69,10 @@ public:
         TDuration delayBeforeDestruct = TDuration::Zero(),
         IInvokerPtr destructCallbackInvoker = nullptr);
     TTestAllocationGuard(const TTestAllocationGuard& other) = delete;
-    TTestAllocationGuard(TTestAllocationGuard&& other);
+    TTestAllocationGuard(TTestAllocationGuard&& other) noexcept;
 
     TTestAllocationGuard& operator=(const TTestAllocationGuard& other) = delete;
-    TTestAllocationGuard& operator=(TTestAllocationGuard&& other);
+    TTestAllocationGuard& operator=(TTestAllocationGuard&& other) noexcept;
 
     ~TTestAllocationGuard();
 

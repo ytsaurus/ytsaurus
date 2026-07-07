@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/cypress_election/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -13,6 +11,8 @@
 #include <yt/yt/core/http/config.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <yt/yt/library/cypress_election/config.h>
 
 #include <yt/yt/library/dynamic_config/config.h>
 
@@ -62,7 +62,7 @@ DEFINE_REFCOUNTED_TYPE(TYqlEngineConfig)
 struct TChytEngineConfig
     : public TEngineConfigBase
 {
-    TString DefaultClique;
+    std::string DefaultClique;
     std::string DefaultCluster;
     TDuration ProgressPollPeriod;
 
@@ -93,28 +93,6 @@ struct TSpytEngineConfig
     : public TEngineConfigBase
 {
     std::string DefaultCluster;
-    NYPath::TYPath DefaultDiscoveryPath;
-    NYPath::TYPath DefaultDiscoveryGroup;
-    NYPath::TYPath SpytHome;
-    NHttp::TClientConfigPtr HttpClient;
-    TDuration StatusPollPeriod;
-
-    TDuration TokenExpirationTimeout;
-    TDuration RefreshTokenPeriod;
-
-    REGISTER_YSON_STRUCT(TSpytEngineConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TSpytEngineConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSpytConnectEngineConfig
-    : public TEngineConfigBase
-{
-    std::string DefaultCluster;
     bool UseSquashfs;
     bool PreferIpv6;
     std::string SparkVersion;
@@ -126,15 +104,31 @@ struct TSpytConnectEngineConfig
     NHttp::TClientConfigPtr HttpClient;
 
     TDuration TokenExpirationTimeout;
-    TDuration RefreshTokenPeriod;
     TDuration StatusPollPeriod;
 
-    REGISTER_YSON_STRUCT(TSpytConnectEngineConfig);
+    TSpytProxyConfigPtr ProxyConfig;
+
+    REGISTER_YSON_STRUCT(TSpytEngineConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSpytConnectEngineConfig)
+DEFINE_REFCOUNTED_TYPE(TSpytEngineConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSpytProxyConfig
+    : public NYTree::TYsonStruct
+{
+    std::vector<std::string> Clusters;
+    NYTree::IMapNodePtr DefaultSettings;
+
+    REGISTER_YSON_STRUCT(TSpytProxyConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSpytProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,9 +164,6 @@ struct TQueryTrackerDynamicConfig
     TYqlEngineConfigPtr YqlEngine;
     TChytEngineConfigPtr ChytEngine;
     TSpytEngineConfigPtr SpytEngine;
-    TSpytConnectEngineConfigPtr SpytConnectEngine;
-
-    bool UseSpytConnectEngine;
 
     TQueryTrackerProxyConfigPtr ProxyConfig;
 
@@ -200,9 +191,9 @@ struct TQueryTrackerBootstrapConfig
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
 
-    TString Root;
+    NYPath::TYPath Root;
 
     REGISTER_YSON_STRUCT(TQueryTrackerBootstrapConfig);
 

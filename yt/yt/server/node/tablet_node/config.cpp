@@ -23,6 +23,7 @@ namespace NYT::NTabletNode {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NDistributedThrottler;
+using namespace NTransactionSupervisor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +31,17 @@ void TTabletHydraManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
+
+    registrar.Preprocessor([] (auto* config) {
+        config->EnableStateHashChecker = false;
+        config->LeaderLeaseCheckPeriod = TDuration::Seconds(5);
+        config->LeaderLeaseGraceDelay = TDuration::Seconds(31);
+        config->LeaderLeaseTimeout = TDuration::Seconds(30);
+        config->MaxChangelogRecordCount = 10'000'000;
+        config->SnapshotBuildPeriod = TDuration::Minutes(20);
+        config->AlertOnSnapshotFailure = false;
+        config->MaxChangelogsForRecovery = 5;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,14 +124,24 @@ void TTabletManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("extended_snapshot_eviction_timeout", &TThis::ExtendedSnapshotEvictionTimeout)
         .Default(TDuration::Minutes(3));
+
+    registrar.Parameter("yield_before_building_lsm_actions", &TThis::YieldBeforeBuildingLsmActions)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTabletCellWriteManagerDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("write_failure_probability", &TThis::WriteFailureProbability)
+    registrar.Parameter("failure_probability_before_write", &TThis::FailureProbabilityBeforeWrite)
+        .InRange(0.0, 1.0)
         .Default();
+    registrar.Parameter("failure_probability_after_write", &TThis::FailureProbabilityAfterWrite)
+        .InRange(0.0, 1.0)
+        .Default();
+
+    registrar.Parameter("detect_transient_transactions_per_tablet", &TThis::DetectTransientTransactionsPerTablet)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,10 +183,10 @@ void TStoreFlusherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .GreaterThan(0)
-        .Default(1);
+        .Default(2);
     registrar.Parameter("max_concurrent_flushes", &TThis::MaxConcurrentFlushes)
         .GreaterThan(0)
-        .Default(16);
+        .Default(128);
     registrar.Parameter("min_forced_flush_data_size", &TThis::MinForcedFlushDataSize)
         .GreaterThan(0)
         .Default(1_MB);
@@ -198,13 +220,13 @@ void TStoreCompactorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .GreaterThan(0)
-        .Default(1);
+        .Default(4);
     registrar.Parameter("max_concurrent_compactions", &TThis::MaxConcurrentCompactions)
         .GreaterThan(0)
-        .Default(1);
+        .Default(64);
     registrar.Parameter("max_concurrent_partitionings", &TThis::MaxConcurrentPartitionings)
         .GreaterThan(0)
-        .Default(1);
+        .Default(16);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -302,7 +324,7 @@ void TInMemoryManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_concurrent_preloads", &TThis::MaxConcurrentPreloads)
         .GreaterThan(0)
-        .Default(1);
+        .Default(8);
     registrar.Parameter("intercepted_data_retention_time", &TThis::InterceptedDataRetentionTime)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("ping_period", &TThis::PingPeriod)
@@ -475,10 +497,30 @@ void TStatisticsReporterConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
     registrar.Parameter("report_backoff_time", &TThis::ReportBackoffTime)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("write_timeout", &TThis::WriteTimeout)
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("table_path", &TThis::TablePath)
         .Default("//sys/tablet_balancer/performance_counters");
 
     registrar.Parameter("periodic_options",&TThis::PeriodicOptions)
+        .Default({
+            .Period = TDuration::Seconds(10),
+            .Splay = TDuration::Seconds(5),
+            .Jitter = 0.2,
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TOverloadReporterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("max_evaluator_cache_size", &TThis::MaxEvaluatorCacheSize)
+        .Default(100);
+
+    registrar.Parameter("periodic_executor", &TThis::PeriodicExecutor)
         .Default({
             .Period = TDuration::Seconds(10),
             .Splay = TDuration::Seconds(5),
@@ -552,6 +594,27 @@ void TSmoothMovementTrackerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRowCacheControllerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+    registrar.Parameter("period", &TThis::Period)
+        .Default(TDuration::Minutes(2));
+    registrar.Parameter("memory_limit_gap_in_bytes", &TThis::MemoryLimitGapInBytes)
+        .Default(0)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("memory_limit_gap_fraction", &TThis::MemoryLimitGapFraction)
+        .Default(0)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
+    registrar.Parameter("rotation_memory_threshold", &TThis::RotationMemoryThreshold)
+        .Default(0.95)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TErrorManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("deduplication_cache_timeout", &TThis::DeduplicationCacheTimeout)
@@ -574,6 +637,14 @@ void TUserBanDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("allowed_users", &TThis::AllowedUsers)
         .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTestingTabletNodeDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("reign_override", &TThis::ReignOverride)
+        .Default(NHydra::InvalidReign);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -650,7 +721,13 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("statistics_reporter", &TThis::StatisticsReporter)
         .DefaultNew();
 
+    registrar.Parameter("overload_reporter", &TThis::OverloadReporter)
+        .DefaultNew();
+
     registrar.Parameter("error_manager", &TThis::ErrorManager)
+        .DefaultNew();
+
+    registrar.Parameter("row_cache_controller", &TThis::RowCacheController)
         .DefaultNew();
 
     registrar.Parameter("enable_chunk_fragment_reader_throttling", &TThis::EnableChunkFragmentReaderThrottling)
@@ -673,6 +750,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("replication_card_updates_batcher", &TThis::ChaosReplicationCardUpdatesBatcher)
         .DefaultNew();
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         // Instantiate default distributed throttler configs.
@@ -720,7 +800,11 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("transaction_manager", &TThis::TransactionManager)
         .DefaultNew();
     registrar.Parameter("transaction_supervisor", &TThis::TransactionSupervisor)
-        .DefaultNew();
+        .DefaultCtor([] {
+            auto transactionSupervisor = New<TTransactionSupervisorConfig>();
+            transactionSupervisor->RpcTimeout = TDuration::Seconds(10);
+            return transactionSupervisor;
+        });
     registrar.Parameter("tablet_manager", &TThis::TabletManager)
         .DefaultNew();
     registrar.Parameter("store_flusher", &TThis::StoreFlusher)

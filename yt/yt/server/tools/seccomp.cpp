@@ -77,7 +77,13 @@ void SetupSeccomp()
         return;
     }
 
+#ifdef _x86_64_
     SeccompInit(AUDIT_ARCH_X86_64, EPERM);
+#elif __aarch64__
+    SeccompInit(AUDIT_ARCH_AARCH64, EPERM);
+#else
+    #error "Unknown architecture"
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

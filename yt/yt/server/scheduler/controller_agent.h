@@ -52,6 +52,7 @@ struct TScheduleAllocationRequest
     TJobResources NodeResourceLimits;
     TDiskResources NodeDiskResources;
     TScheduleAllocationSpec Spec;
+    std::optional<std::string> AllocationGroupName;
 };
 
 using TScheduleAllocationRequestPtr = std::unique_ptr<TScheduleAllocationRequest>;
@@ -94,7 +95,7 @@ public:
     TControllerAgent(
         const TAgentId& id,
         const NNodeTrackerClient::TAddressMap& agentAddresses,
-        THashSet<TString> tags,
+        THashSet<std::string> tags,
         NRpc::IChannelPtr channel,
         const IInvokerPtr& invoker,
         const IInvokerPtr& heartbeatInvoker,
@@ -118,7 +119,7 @@ public:
     /*
      * \note Thread affinity: any
      */
-    const THashSet<TString>& GetTags() const;
+    const THashSet<std::string>& GetTags() const;
     /*
      * \note Thread affinity: any
      */
@@ -180,7 +181,7 @@ public:
 private:
     const TAgentId Id_;
     const NNodeTrackerClient::TAddressMap AgentAddresses_;
-    const THashSet<TString> Tags_;
+    const THashSet<std::string> Tags_;
     const NRpc::IChannelPtr Channel_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

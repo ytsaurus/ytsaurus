@@ -1,8 +1,64 @@
 # YT pragmas {#yt}
 
-YT pragmas may be defined as static or dynamic based on their lifetimes. Static pragmas are initialized one time at the earliest query processing step. If a static pragma is specified multiple times in a query, it accepts the latest value set for it. Dynamic pragma values are initialized at the query execution step after its optimization and execution plan preparation. The specified value is valid until the next identical pragma is found or until the query is completed. For dynamic pragmas only, you can reset their values to the default by assigning a `default`.
+YT pragmas are a namespace for pragmas that configure {{product-name}}‑specific parameters of YQL queries.
 
-All pragmas that affect query optimizers are static because dynamic pragma values are not yet calculated at this step.
+## Syntax
+
+YT pragma names include the `yt` prefix:
+
+```yql
+PRAGMA yt.<pragma_name> = <value>;
+```
+
+## Scope and features
+
+Based on their scope, YT pragmas can be divided into static and dynamic.
+
+**Static pragmas**:
+
+- Are initialized once at the earliest stage of query processing.
+- Apply to all expressions in the current module where they are declared.
+- If a static pragma is specified multiple times in a query with different values, only its last assigned value is applied.
+
+**Dynamic pragmas**:
+
+- Are initialized at the query execution stage, after optimization and execution plan generation.
+- Remain in effect until the next occurrence of the same pragma or until the end of the query.
+- Allow you to reset their value to the default using the `default` assignment.
+
+{% note info %}
+
+All pragmas that affect query optimizers are static, since dynamic pragma values have not yet been computed at this stage.
+
+{% endnote %}
+
+## Per‑cluster support {#settings}
+
+Some pragmas support a special operating mode — _per‑cluster_. This mode lets you specify different pragma values for different clusters within a single query. For example, you can specify: “Run the query with settings X on cluster A and with settings Y on cluster B”. This is useful for distributed queries where different clusters require different execution conditions.
+
+The _per‑cluster_ mode is available for all dynamic pragmas and for some static ones — such pragmas are explicitly marked with the “per‑cluster” label in the documentation below.
+
+### How to use
+
+By default, YT pragmas use the `yt` prefix, meaning the setting applies to the current cluster where the query is executed. To apply the same pragma with a different value to another cluster, replace `yt` with the cluster’s name. For example, let’s specify different temporary directories for two clusters in a query:
+
+
+```yql
+PRAGMA yt.TmpFolder = "//tmp/my_folder";            -- current cluster
+PRAGMA cluster_2.TmpFolder = "//tmp/other_folder";  -- cluster_2
+
+... -- query body
+```
+
+As a result, when the query runs, temporary files will be saved to `//tmp/my_folder` on the current cluster and to `//tmp/other_folder` on the `cluster_2` cluster.
+
+{% note warning %}
+
+You cannot use the `yt` prefix and a cluster name simultaneously.
+
+Entries like `PRAGMA cluster_2.yt.TmpFolder` or `PRAGMA yt.cluster_2.TmpFolder` are invalid and will cause an error.
+
+{% endnote %}
 
 ## yt.InferSchema / yt.ForceInferSchema {#inferschema}
 
@@ -52,21 +108,61 @@ Ignore `_format=yamred_dsv` if it is specified in the input table's metadata.
 
  When reading tables with type_v3 schema, all fields containing complex types will be displayed as Yson fields in the query. Complex types include all non-data types and data types with more than one level of optionality.
 
-## yt.StaticPool
+## yt.StaticPool {#static-pool}
 
-| Value type | Default value | Static/<br/>dynamic |
+Overrides the computational pool that by default corresponds to the login of the current user.
+
+Only one value can be assigned to `yt.StaticPool` at a time. If you set this static pragma multiple times, the last value is applied. To override the value for the next query, use the `yt.Pool` dynamic pragma.
+
+| Value type | Default value | Binding time |
 | --- | --- | --- |
-| String | Current user login | Static |
+| String | Login of the current user | Static, [per-cluster](#settings) |
 
-Selecting a computing pool in the scheduler for operations performed at the optimization step.
 
-## yt.Pool
+**Signature**
 
-| Value type | Default value | Static/<br/>dynamic |
+```yql
+PRAGMA yt.StaticPool = '<pool_1>';
+```
+
+**Result**
+
+Queries specified after this pragma are executed in `<pool_1>`.
+
+**Features and limitations**
+
+- Specifying a non-existent pool will result in a query execution error.
+
+- Setting `yt.StaticPool` multiple times results in the last pragma value being used for all queries. For example, in this case, `pool_2` will be used to execute queries specified after both the pragma with the value `pool_1` and the one with `pool_2`:
+
+   ```yql
+   PRAGMA yt.StaticPool = '<pool_1>';
+   PRAGMA yt.StaticPool = '<pool_2>';
+   ```
+
+
+## yt.Pool {#pool}
+
+Overrides the computational pool that corresponds to the login of the current user (default) or was set using the `yt.StaticPool` pragma.
+
+| Value type | Default value | Binding time |
 | --- | --- | --- |
-| String | `yt.StaticPool` if set, or the current user login | Dynamic |
+| String | Value of the `yt.StaticPool` pragma if it was set earlier, or the login of the current user if `yt.StaticPool` isn't set | Dynamic |
 
-Selecting a computing pool in the scheduler for regular query operations.
+**Signature**
+
+```yql
+PRAGMA yt.StaticPool = '<pool_1>';
+PRAGMA yt.Pool = '<pool_2>';
+```
+
+**Result**
+
+Queries specified after the `yt.StaticPool` pragma are executed in `<pool_1>`, while those after the `yt.Pool` pragma are executed in `<pool_2>`.
+
+**Features and limitations**
+
+Specifying a non-existent pool will result in a query execution error.
 
 ## yt.Owners
 
@@ -1066,6 +1162,14 @@ Sets the [primary medium in {{product-name}}]({{yt-docs-root}}/user-guide/storag
 
 Includes hybrid query execution via DQ
 
+## yt.StaticNetworkProject
+
+| Value type | Default | Static /<br/>Dynamic |
+| --- | --- | --- |
+| String | - | Static, [per‑cluster](#settings) |
+
+Specifies the use of the specified network project in jobs for all map‑reduce operations in the query (including the evaluation stage).
+
 ## yt.NetworkProject
 
 | Value type | Default value | Static/<br/>dynamic |
@@ -1113,4 +1217,43 @@ Sets the maximum number of columnar groups per intermediate query table. If the 
 | Flag | true | Dynamic |
 
 Sets the `"force_job_size_adjuster"` option in the operation settings.
+
+## yt.DontForceTransformForInputTables
+
+| Value type | Default | Static /<br/>Dynamic |
+| --- | --- | --- |
+| Flag | false | Static |
+
+Disables forced data transformation for user tables with storage settings (`erasure_codec`, `compression_codec`, `primary_medium`, `media`, column‑based groups) that differ from the default settings.
+
+Forced transformation is applied to input tables if they are used to write to output tables only via the YtMerge operation.
+
+## yt.OmitInaccessibleRows {#yt.OmitInaccessibleRows}
+
+Controls the behavior when reading tables with [row‑level ACL]({{yt-docs-root}}/user-guide/storage/row-level-security) (RLS).
+
+By default, reading a table with row‑level ACL enabled results in an authorization error if the user does not have the `full_read` permission. The `yt.OmitInaccessibleRows` pragma changes this behavior: when enabled, rows without access are skipped and the query completes successfully. Only rows allowed by the RLS predicate are included in the result.
+
+| Value type | Default | Static /<br/>Dynamic |
+| --- | --- | --- |
+| Flag | false | Static |
+
+#### Example {#yt.OmitInaccessibleRows-example}
+
+```yql
+PRAGMA yt.OmitInaccessibleRows = "true";
+SELECT *
+FROM `//path/to/table_with_rls`;
+```
+
+#### Result {#yt.OmitInaccessibleRows-result}
+
+The query returns only rows accessible to the current user according to row‑level ACL. Rows without access are skipped without an error.
+
+#### Restrictions {#yt.OmitInaccessibleRows-restrictions}
+
+- You cannot specify `row_index` in `ranges` when reading a table with row‑level ACL — the query will fail. Row indices in `ranges` are counted relative to physical rows on disk, not to rows accessible to the user. For example, `//path/to/table[:#100]` will return up to 100 rows from disk, some of which may be inaccessible and will be filtered out.
+- RLS is not supported for dynamic tables — any read operation will return an error.
+
+[*eph-pool]: A pool that is present in the specification but doesn't have an explicit node in Cypress.
 

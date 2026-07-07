@@ -29,6 +29,7 @@ DEFINE_ENUM(EReadInOrderMode,
 
 struct TQueryAnalysisResult
 {
+    DB::QueryTreeNodePtr QueryTree;
     std::vector<NTableClient::TTableSchemaPtr> TableSchemas;
     std::vector<std::vector<TTablePtr>> Tables;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions;
@@ -118,10 +119,6 @@ public:
     //! Prepare method should be called before Analyze.
     TQueryAnalysisResult Analyze() const;
 
-    //! TQueryAnalyzer materializes global joins when parsing query tree from SelectQueryInfo.
-    //! For further processing, it may be useful to get the resulting query tree.
-    DB::QueryTreeNodePtr GetParsedQueryTree() const;
-
     bool HasJoinWithTwoTables() const;
     bool HasRightOrFullJoin() const;
     bool HasGlobalJoin() const;
@@ -157,6 +154,7 @@ private:
     bool NeedOnlyDistinct_ = false;
     //! If the query can be done using only min/max column statistics.
     bool EnableMinMaxOptimization_ = false;
+
 
     bool Prepared_ = false;
 
