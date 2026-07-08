@@ -1044,6 +1044,10 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
         throttled = false;
     }
 
+    if (!throttled && ShouldAlwaysThrottle()) {
+        error = TError("Location is forced to always throttle (testing option)");
+    }
+
     return TDiskThrottlingResult{
         .Enabled = throttled || ShouldAlwaysThrottle(),
         .MemoryOvercommit = memoryOvercommit,
@@ -2087,12 +2091,17 @@ TError TStoreLocation::CheckWritable() const
         return TError("Location is sick");
     }
 
-    auto memoryUsage = GetMaxUsedMemory(true, EIODirection::Write) + GetMaxUsedMemory(false, EIODirection::Write);
-    auto memoryLimit = GetWriteThrottlingLimit();
-    if (memoryUsage > memoryLimit) {
-        return TError("Location is throttling due to IO writer queue memory limit violation")
-            << TErrorAttribute("memory_usage", memoryUsage)
-            << TErrorAttribute("memory_limit", memoryLimit);
+    if (DynamicConfigManager_->GetConfig()->DataNode->EnableWriteThrottlingWritableCheck.value_or(false)) {
+        auto throttlingResult = CheckWriteThrottling(TWorkloadDescriptor{}, /*blocksWindowShifted*/ true, /*withProbing*/ false);
+        if (throttlingResult.Enabled) {
+            return throttlingResult.Error;
+        }
+    } else {
+        auto memoryUsage = GetMaxUsedMemory(true, EIODirection::Write) + GetMaxUsedMemory(false, EIODirection::Write);
+        auto memoryLimit = GetWriteThrottlingLimit();
+        if (memoryUsage > memoryLimit) {
+            return TError("Location is throttling due to IO writer queue memory limit violation");
+        }
     }
 
     return TError();

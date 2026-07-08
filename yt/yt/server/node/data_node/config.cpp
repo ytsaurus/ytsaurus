@@ -1212,6 +1212,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("skip_write_throttling_locations", &TThis::SkipWriteThrottlingLocations)
         .Default();
 
+    registrar.Parameter("enable_write_throttling_writable_check", &TThis::EnableWriteThrottlingWritableCheck)
+        .Default();
+
     registrar.Parameter("enable_sequential_io_requests", &TThis::EnableSequentialIORequests)
         .Optional();
 
