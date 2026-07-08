@@ -394,6 +394,10 @@ COPY ./dq_vanilla_job /usr/bin/dq_vanilla_job
 COPY ./dq_vanilla_job.lite /usr/bin/dq_vanilla_job.lite
 COPY ./yql /usr/lib/yql
 
+RUN ln -s /usr/lib/yql/liblibidn-dynamic.so /usr/bin/liblibidn-dynamic.so
+RUN ln -s /usr/lib/yql/libiconv.so /usr/bin/libiconv.so
+RUN ln -s /usr/lib/yql/liblibaio-dynamic.so /usr/bin/liblibaio-dynamic.so
+
 # Scripts for init jobs.
 COPY ./init_query_tracker_state /usr/bin/init_query_tracker_state
 
