@@ -68,12 +68,14 @@ struct TProfilingCounters
     explicit TProfilingCounters(const TProfiler& profiler)
         : CopyChunkListIfSharedActionCount(profiler.Counter("/copy_chunk_list_if_shared/action_count"))
         , UpdateTabletStoresStoreCount(profiler.Counter("/update_tablet_stores/store_count"))
+        , UpdateTabletStoresHunkChunkCount(profiler.Counter("/update_tablet_stores/hunk_chunk_count"))
         , UpdateTabletStoresTime(profiler.TimeCounter("/update_tablet_stores/cumulative_time"))
         , CopyChunkListTime(profiler.TimeCounter("/copy_chunk_list_if_shared/cumulative_time"))
     { }
 
     const TCounter CopyChunkListIfSharedActionCount{};
     const TCounter UpdateTabletStoresStoreCount{};
+    const TCounter UpdateTabletStoresHunkChunkCount{};
     const TTimeCounter UpdateTabletStoresTime{};
     const TTimeCounter CopyChunkListTime{};
 };
@@ -1006,16 +1008,18 @@ public:
         }
 
         counters->UpdateTabletStoresStoreCount.Increment(chunksToAttach.size() + chunksOrViewsToDetach.size());
+        counters->UpdateTabletStoresHunkChunkCount.Increment(hunkChunksToAttach.size() + hunkChunksToDetach.size());
 
         return Format("AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, "
             "AttachedHunkChunkIds: %v, DetachedHunkChunkIds: %v, "
-            "AttachedRowCount: %v, DetachedRowCount: %v",
+            "AttachedRowCount: %v, DetachedRowCount: %v, UpdateReason: %v",
             MakeFormattableView(chunksToAttach, TObjectIdFormatter()),
             MakeFormattableView(chunksOrViewsToDetach, TObjectIdFormatter()),
             MakeFormattableView(hunkChunksToAttach, TObjectIdFormatter()),
             MakeFormattableView(hunkChunksToDetach, TObjectIdFormatter()),
             attachedRowCount,
-            detachedRowCount);
+            detachedRowCount,
+            updateReason);
     }
 
     std::string CommitUpdateHunkTabletStores(
