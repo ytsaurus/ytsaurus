@@ -3,7 +3,7 @@ from ...helpers import break_long_lines_in_multiline_cell, pretty_print_fixed_in
 from ...postprocessors import DollarTemplateTagPostprocessor
 from ...sensor import Sensor, MultiSensor, Text, Title
 from ...serializer import SerializerBase
-from ...specific_sensors.monitoring import MonitoringExpr
+from ...specific_sensors.monitoring import MonitoringExpr, PlainMonitoringExpr
 from ...specific_tags.tags import BackendTag, Regex
 from ...taggable import SystemFields, NotEquals, SensorTemplate
 
@@ -160,6 +160,16 @@ class ExprFuncSerializer:
         return f"(avg_over_time(({query_parts})[{expression.args[2]}:]))", other_tags
 
     @staticmethod
+    def derivative(serializer, expression):
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
+        return f"(deriv(({query_parts})[$__rate_interval:]))", other_tags
+
+    @staticmethod
+    def sign(serializer, expression):
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
+        return f"(sgn({query_parts}))", other_tags
+
+    @staticmethod
     def series_avg(serializer, expression):
         return ExprFuncSerializer._series_func(serializer, expression, "avg")
 
@@ -218,11 +228,14 @@ class GrafanaSerializerBase(SerializerBase):
     def _prepare_func_expr_query(self, expression):
         builders = {
             "alias": lambda expression: ExprFuncSerializer.alias_expr_builder(self, expression),
+            "constant_line": lambda expression: (str(expression.args[1]), {}),
             "top_avg": lambda expression: ExprFuncSerializer.topk_expr_builder(self, expression),
             "top_max": lambda expression: ExprFuncSerializer.topk_expr_builder(self, expression),
             "top_min": lambda expression: ExprFuncSerializer.topk_expr_builder(self, expression),
             "bottom_min": lambda expression: ExprFuncSerializer.bottomk_expr_builder(self, expression),
             "moving_avg": lambda expression: ExprFuncSerializer.moving_avg(self, expression),
+            "derivative": lambda expression: ExprFuncSerializer.derivative(self, expression),
+            "sign": lambda expression: ExprFuncSerializer.sign(self, expression),
             "series_avg": lambda expression: ExprFuncSerializer.series_avg(self, expression),
             "series_max": lambda expression: ExprFuncSerializer.series_max(self, expression),
             "series_min": lambda expression: ExprFuncSerializer.series_min(self, expression),
@@ -251,6 +264,11 @@ class GrafanaSerializerBase(SerializerBase):
         assert issubclass(
             type(expression), MonitoringExpr
         ), f"Expression can be either Sensor or MonitoringExpression. Expression: {expression}, expression type: {type(expression)}"
+        if issubclass(type(expression), PlainMonitoringExpr):
+            raise NotImplementedError(
+                f"Plain monitoring expression {expression.serialize()!r} cannot be "
+                "translated to a Grafana/Prometheus query"
+            )
         if expression.node_type == MonitoringExpr.NodeType.BinaryOp:
             return self._prepare_bin_op_expr_query(expression)
         if expression.node_type == MonitoringExpr.NodeType.Terminal:

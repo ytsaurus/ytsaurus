@@ -70,7 +70,7 @@ def add_partitions_by_current_job_status_cell(row):
         return (FlowController(f"yt.flow.controller.job_status.{status}")
             .aggr("computation_id")
             .aggr("previous_job_finish_reason")
-            .query_transformation(f'alias({{query}}, "{alias}")'))
+            .legend_format(alias))
 
     description = dedent("""\
         Statuses of jobs of not finished partitions.
@@ -124,7 +124,18 @@ def build_flow_layout_mutations():
     ).owner
 
 
-def add_controller_failed_iterations_cell(row):
+# Controller components running regular iterations; must match the activity
+# names registered in yt/yt/flow/library/cpp/controller/controller.cpp.
+CONTROLLER_REGULAR_ACTIVITIES = [
+    "schedule",
+    "build_cache",
+    "collect_feedback",
+    "update_metrics",
+    "write_own_retryable_errors",
+]
+
+
+def add_controller_failed_iterations_cell(row, backend: str = "monitoring"):
     description = dedent("""\
         **Expect to see zero values on this panel if the pipeline is stable.**
 
@@ -134,11 +145,22 @@ def add_controller_failed_iterations_cell(row):
         **build_cache** - the component that updates cached flow view (flow view is large, and its serialization is time-consuming).
     """)
 
+    if backend == "monitoring":
+        content = (FlowController("yt.flow.controller.*.iterations_failed.rate")
+            .unit("UNIT_COUNTS_PER_SECOND"))
+    else:
+        # PromQL rate() drops the metric name, so the "*" glob would collapse
+        # all components into indistinguishable series; enumerate them instead.
+        content = MultiSensor(*(
+            MonitoringExpr(FlowController(f"yt.flow.controller.{activity}.iterations_failed.rate"))
+                .alias(activity)
+            for activity in CONTROLLER_REGULAR_ACTIVITIES
+        )).unit("UNIT_COUNTS_PER_SECOND")
+
     return (row
             .cell(
                 "Controller failed iterations",
-                FlowController("yt.flow.controller.*.iterations_failed.rate")
-                    .unit("UNIT_COUNTS_PER_SECOND"),
+                content,
                 description=description)
     )
 

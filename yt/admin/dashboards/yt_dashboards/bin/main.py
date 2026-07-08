@@ -284,8 +284,12 @@ dashboards = {
     },
     "flow-general": {
         "func": flow.build_flow_general,
-        "monitoring": {},
-        "grafana": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-diagnostics": {
         "func": flow.build_flow_diagnostics,
