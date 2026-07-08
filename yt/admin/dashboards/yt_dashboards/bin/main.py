@@ -30,7 +30,7 @@ from yt_dashboards.bundle_ui import (
     build_bundle_ui_disk, build_bundle_ui_resource_overview, build_bundle_ui_efficiency, build_bundle_capacity_planning,
     build_bundle_ui_key_filter, build_bundle_ui_cache_and_filtration)
 
-from yt_dashboards import lsm
+from yt_dashboards import compaction
 
 from yt_dashboards import flow
 
@@ -129,7 +129,7 @@ dashboards = {
         },
     },
     "per-table-compaction": {
-        "func": lsm.build_per_table_compaction,
+        "func": compaction.build_per_table_compaction,
         "monitoring": {},
     },
     "bundle-ui-user-load": {
