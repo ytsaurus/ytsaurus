@@ -316,14 +316,16 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanFullHostModuleBoundOperatio
             PlanAllocationGroup(
                 operation,
                 allocationGroupName,
-                &moduleState.AvailableNodes());
+                &moduleState.AvailableNodes(),
+                EGpuAssignmentPlanningStage::FullHostModuleBound);
 
             // Then we try to schedule allocations using regular preemption.
             if (operation->IsStarving()) {
                 PlanAllocationGroupWithPreemption(
                     operation,
                     allocationGroupName,
-                    &moduleState.AvailableNodes());
+                    &moduleState.AvailableNodes(),
+                    EGpuAssignmentPlanningStage::FullHostModuleBound);
             }
 
             // Finally, we try to schedule allocations using full-host aggressive preemption.
@@ -332,6 +334,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanFullHostModuleBoundOperatio
                     operation,
                     allocationGroupName,
                     &moduleState.AvailableNodes(),
+                    EGpuAssignmentPlanningStage::FullHostModuleBound,
                     /*useFullHostAggressivePreemption*/ true);
             }
         }
@@ -678,13 +681,15 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessRegularOperations()
             PlanAllocationGroup(
                 operation,
                 allocationGroupName,
-                &SchedulableNodes_);
+                &SchedulableNodes_,
+                EGpuAssignmentPlanningStage::Normal);
 
             if (operation->IsStarving()) {
                 PlanAllocationGroupWithPreemption(
                     operation,
                     allocationGroupName,
-                    &SchedulableNodes_);
+                    &SchedulableNodes_,
+                    EGpuAssignmentPlanningStage::Normal);
             }
         }
     }
@@ -741,7 +746,8 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessRegularOperationsWithExt
             PlanPreemptibleAllocationGroup(
                 operation,
                 allocationGroupName,
-                &SchedulableNodes_);
+                &SchedulableNodes_,
+                EGpuAssignmentPlanningStage::WithExtraResources);
         }
     }
 }
@@ -776,7 +782,8 @@ NDetail::TPreemptionPenalty TGpuAllocationAssignmentPlanUpdateExecutor::GetAssig
 void TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllocationGroup(
     const TOperationPtr& operation,
     const std::string& allocationGroupName,
-    std::vector<TNode*>* availableNodes)
+    std::vector<TNode*>* availableNodes,
+    EGpuAssignmentPlanningStage stage)
 {
     auto allocationGroupResources = GetOrCrash(operation->ReadyToAssignGroupedNeededResources(), allocationGroupName);
     if (allocationGroupResources.AllocationCount == 0) {
@@ -796,7 +803,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllocationGroup(
         this);
     planner.Run();
 
-    Context_->GetStatistics()->PlannedAssignments += planner.GetPlannedAssignmentCount();
+    Context_->GetStatistics()->PlannedAssignmentsByStage[stage] += planner.GetPlannedAssignmentCount();
 
     YT_LOG_DEBUG("Finished planning allocation group for operation (PlannedAssignmentCount: %v, AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
         planner.GetPlannedAssignmentCount(),
@@ -809,6 +816,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllocationGroupWithPreempti
     const TOperationPtr& operation,
     const std::string& allocationGroupName,
     std::vector<TNode*>* availableNodes,
+    EGpuAssignmentPlanningStage stage,
     bool useFullHostAggressivePreemption)
 {
     auto allocationGroupResources = GetOrCrash(operation->ReadyToAssignGroupedNeededResources(), allocationGroupName);
@@ -833,8 +841,8 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllocationGroupWithPreempti
         this);
     planner.Run();
 
-    Context_->GetStatistics()->PlannedAssignments += planner.GetPlannedAssignmentCount();
-    Context_->GetStatistics()->PreemptedAssignments += planner.GetPreemptedAssignmentCount();
+    Context_->GetStatistics()->PlannedAssignmentsByStage[stage] += planner.GetPlannedAssignmentCount();
+    Context_->GetStatistics()->PreemptedAssignmentsByStage[stage] += planner.GetPreemptedAssignmentCount();
 
     YT_LOG_DEBUG(
         "Finished planning allocation group for operation with preemption "
@@ -881,7 +889,8 @@ int TGpuAllocationAssignmentPlanUpdateExecutor::GetLimitedAllocationCount(
 void TGpuAllocationAssignmentPlanUpdateExecutor::PlanPreemptibleAllocationGroup(
     const TOperationPtr& operation,
     const std::string& allocationGroupName,
-    std::vector<TNode*>* availableNodes)
+    std::vector<TNode*>* availableNodes,
+    EGpuAssignmentPlanningStage stage)
 {
     auto allocationGroupResources = GetOrCrash(operation->ExtraGroupedNeededResources(), allocationGroupName);
     allocationGroupResources.AllocationCount = GetLimitedAllocationCount(operation, allocationGroupName, allocationGroupResources);
@@ -904,7 +913,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanPreemptibleAllocationGroup(
         /*preemptible*/ true);
     planner.Run();
 
-    Context_->GetStatistics()->PlannedAssignments += planner.GetPlannedAssignmentCount();
+    Context_->GetStatistics()->PlannedAssignmentsByStage[stage] += planner.GetPlannedAssignmentCount();
 
     YT_LOG_DEBUG("Finished planning preemptible allocation group for operation (PlannedAssignmentCount: %v, AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
         planner.GetPlannedAssignmentCount(),
@@ -954,13 +963,30 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ca
     TNode* node,
     const TJobResources& discount) const
 {
+    const bool isDetailedLoggingEnabled = Host_->Context_->IsDetailedLoggingEnabled(Operation_);
+    const auto& Logger = Host_->Logger
+        .WithTag("Node: %v", node->Address())
+        .WithTag("OperationId: %v", Operation_->GetId())
+        .WithTag("AllocationGroup: %v", AllocationGroupName_);
+
     const auto& nodeTags = node->Descriptor()->Tags;
     if (!Operation_->SchedulingTagFilter().CanSchedule(nodeTags)) {
+        YT_LOG_DEBUG_IF(isDetailedLoggingEnabled, "Cannot add assignment to node: scheduling tag filter mismatch");
         return false;
     }
 
     // NB(eshcherbin): Check disk request lazily only if resources request can be satisfied.
-    return CanSatisfyResourceRequest(node, discount) && CanSatisfyDiskRequest(node);
+    if (!CanSatisfyResourceRequest(node, discount)) {
+        YT_LOG_DEBUG_IF(isDetailedLoggingEnabled, "Cannot add assignment to node: insufficient resources");
+        return false;
+    }
+
+    if (!CanSatisfyDiskRequest(node)) {
+        YT_LOG_DEBUG_IF(isDetailedLoggingEnabled, "Cannot add assignment to node: insufficient disk");
+        return false;
+    }
+
+    return true;
 }
 
 bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::CanSatisfyResourceRequest(

@@ -1,8 +1,18 @@
 #pragma once
 
 #include <library/cpp/yt/memory/ref_counted.h>
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EGpuAssignmentPlanningStage,
+    (FullHostModuleBound)
+    (Normal)
+    (WithExtraResources)
+    (LimitsCheck)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

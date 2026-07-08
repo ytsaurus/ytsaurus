@@ -170,6 +170,11 @@ public:
         return GetOrDefault(*PriorityModuleBindingEnabled_, operation->GetId(), false);
     }
 
+    bool IsDetailedLoggingEnabled(const TOperationPtr& /*operation*/) const override
+    {
+        return false;
+    }
+
     void SetAvailableLimitForOperation(const TOperationPtr& operation, const TJobResources& limit)
     {
         EmplaceOrCrash(OperationIdToLimit_, operation->GetId(), limit);
