@@ -72,6 +72,7 @@ private:
     NRpc::IServerPtr TvmOnlyRpcServer_;
     NRpc::IServerPtr GrpcServer_;
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
 
     NApi::NNative::IConnectionPtr Connection_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;

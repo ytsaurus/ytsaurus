@@ -106,6 +106,7 @@ private:
 
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr MonitoringServer_;
+    NHttp::IServerPtr MonitoringHttpsServer_;
 
     NApi::NNative::IConnectionPtr Connection_;
     NApi::IClientPtr RootClient_;

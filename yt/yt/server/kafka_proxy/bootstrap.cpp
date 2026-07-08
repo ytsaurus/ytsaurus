@@ -47,6 +47,8 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/https/server.h>
+
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/rpc/caching_channel_factory.h>
@@ -172,6 +174,7 @@ private:
     NRpc::IServerPtr RpcServer_;
 
     NHttp::IServerPtr HttpServer_;
+    NHttp::IServerPtr HttpsServer_;
 
     IMapNodePtr OrchidRoot_;
     IMonitoringManagerPtr MonitoringManager_;
@@ -188,6 +191,9 @@ private:
     void DoInitialize()
     {
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+        if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
+            HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
+        }
 
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.CreateQueueConsumerRegistrationManager = true;
@@ -224,6 +230,7 @@ private:
 
         NMonitoring::Initialize(
             HttpServer_,
+            HttpsServer_,
             ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
@@ -285,6 +292,10 @@ private:
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
+        if (HttpsServer_) {
+            YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+            HttpsServer_->Start();
+        }
 
         YT_LOG_INFO("Listening for Kafka requests (Port: %v)", Config_->Port);
         Server_->Start();

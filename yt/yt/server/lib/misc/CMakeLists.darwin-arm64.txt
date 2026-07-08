@@ -29,6 +29,7 @@ target_link_libraries(server-lib-misc PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
+  yt-core-https
   yt-yt-ytlib
   yt-ytlib-distributed_throttler
   yt-library-coredumper
@@ -77,6 +78,7 @@ target_link_libraries(server-lib-misc.global PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
+  yt-core-https
   yt-yt-ytlib
   yt-ytlib-distributed_throttler
   yt-library-coredumper
