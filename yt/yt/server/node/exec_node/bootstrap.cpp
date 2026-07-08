@@ -480,7 +480,7 @@ private:
 
     TSignatureComponentsPtr SignatureComponents_;
 
-    IPollerPtr AuxPoller_;
+    IThreadPoolPollerPtr AuxPoller_;
 
     void BuildJobProxyConfigTemplate(const std::optional<TSecondaryMasterConnectionConfigs>& optionalNewSecondaryMasterConfigs)
     {
@@ -637,6 +637,8 @@ private:
         if (NbdThreadPool_ && newConfig->ExecNode->Nbd) {
             NbdThreadPool_->SetThreadCount(newConfig->ExecNode->Nbd->Server->ThreadCount);
         }
+        AuxPoller_->SetThreadCount(
+            newConfig->AuxPollerThreadCount.value_or(GetConfig()->AuxPollerThreadCount));
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
