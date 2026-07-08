@@ -660,7 +660,10 @@ void TContext::LogStructuredRequest()
         .Item("out_bytes").Value(Response_->GetWriteByteCount())
         .DoIf(userTicketHeader && !serviceTicketHeader, [&] (auto fluent) {
             fluent
-                .Item("debug_info").Value(TYsonString(TString("{\"user_ticket_and_no_service_ticket\"=true}")));
+                .Item("debug_info").Value(BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("user_ticket_and_no_service_ticket").Value(true)
+                    .EndMap());
         });
 }
 
