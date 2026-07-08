@@ -37,6 +37,7 @@ ADDINCL(
     contrib/python/scipy/py3/scipy/optimize/_trlib
     contrib/python/scipy/py3/scipy/optimize/cython_optimize
     contrib/python/scipy/py3/scipy/optimize/tnc
+    contrib/python/scipy/py3/scipy/optimize/Zeros
     contrib/python/scipy/py3/scipy/spatial
     contrib/python/scipy/py3/scipy/spatial/ckdtree/src
     contrib/python/scipy/py3/scipy/special
