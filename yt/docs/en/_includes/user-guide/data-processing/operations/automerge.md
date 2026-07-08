@@ -35,8 +35,8 @@ Under ideal circumstances, the chunk quota usage in the `economy` mode can be ev
 The mode in which you can manually set up the automated merge behavior using the following parameters in the `auto_merge` section:
 
 * `max_intermediate_chunk_count`: The scheduler will try to maintain the specified constraint on the intermediate chunk quota. However, you could never maintain this limit exactly because of the internal mechanisms of chunk generation.
-* `chunk_count_per_merge_job`: Defines the size of chunk portions that the scheduler will try to merge per job (without exceeding the limit of `desired_chunk_size` in `job_io` for Merge jobs; the default value is 2 GiB).
-* `chunk_size_threshold` is the limit that allows you to avoid merging the chunks whose size exceeds the given percentage of `desired_chunk_size`. That is, only the chunks whose size is smaller than this percentage (10% by default) will be merged.
+* `chunk_count_per_merge_job`: Defines the maximum number of chunks that the scheduler will try to merge per job (without exceeding the limit of `desired_chunk_size` in `job_io` for Merge jobs; the default value is 2 GiB).
+* `chunk_size_threshold`: The chunk size in bytes starting from which a chunk is considered large enough to skip merging and go to the output table as is. That is, only the chunks smaller than `chunk_size_threshold` (128 MiB by default) will be merged.
 
 ### Disabled { #disabled }
 
@@ -81,7 +81,7 @@ Sample specification with the `manual` mode:
     mode = "manual";
     max_intermediate_chunk_count = 1000;
     chunk_count_per_merge_job = 10;
-    chunk_size_threshold = 5;
+    chunk_size_threshold = 100000000;
   }
 }
 ```
