@@ -2,6 +2,7 @@
 
 #include "web_assembly_data_transfer.h"
 
+#include <yt/yt/library/numeric/util.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/library/query/engine_api/evaluation_helpers.h>
@@ -15,8 +16,6 @@
 #include <yt/yt/core/misc/finally.h>
 
 #include <library/cpp/yt/memory/range.h>
-
-#include <util/generic/cast.h>
 
 namespace NYT::NQueryClient {
 

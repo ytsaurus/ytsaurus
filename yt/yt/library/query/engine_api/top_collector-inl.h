@@ -4,9 +4,8 @@
 #include "top_collector.h"
 #endif
 
+#include <yt/yt/library/numeric/util.h>
 #include <yt/yt/core/misc/heap.h>
-
-#include <util/generic/cast.h>
 
 namespace NYT::NQueryClient {
 

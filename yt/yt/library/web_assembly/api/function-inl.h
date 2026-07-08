@@ -4,9 +4,10 @@
 #include "function.h"
 #endif
 
+#include <yt/yt/library/numeric/util.h>
+
 #include <array>
 
-#include <util/generic/cast.h>
 namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,8 +1,7 @@
 #include "web_assembly_data_transfer.h"
 
+#include <yt/yt/library/numeric/util.h>
 #include <yt/yt/library/web_assembly/api/pointer.h>
-
-#include <util/generic/cast.h>
 
 namespace NYT::NWebAssembly {
 

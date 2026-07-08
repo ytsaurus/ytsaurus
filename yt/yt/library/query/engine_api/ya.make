@@ -30,6 +30,7 @@ ADDINCL(
 )
 
 PEERDIR(
+    yt/yt/library/numeric
     yt/yt/core
     yt/yt/library/codegen_api
     yt/yt/library/web_assembly/api
