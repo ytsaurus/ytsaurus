@@ -1843,6 +1843,27 @@
             "uri": "https://{canondata_backend}/1777230/d749406d61a0f7d7dd2324a8ae0852c515dee79b/resource.tar.gz#test.test_select-table_content_from_sort_desc-default.txt-Results_/results.txt"
         }
     ],
+    "test.test[select_yql-evaluate_atom_cluster-default.txt-Debug]": [
+        {
+            "checksum": "2ceaa85a19a4c561dccef68820f7da69",
+            "size": 1530,
+            "uri": "https://{canondata_backend}/1600758/0d847ab2f76e5d992508595ee8b6265576e528cd/resource.tar.gz#test.test_select_yql-evaluate_atom_cluster-default.txt-Debug_/opt.yql"
+        }
+    ],
+    "test.test[select_yql-evaluate_atom_cluster-default.txt-Plan]": [
+        {
+            "checksum": "be877366eac2cac2b4adf14b233f2c28",
+            "size": 4797,
+            "uri": "https://{canondata_backend}/1600758/0d847ab2f76e5d992508595ee8b6265576e528cd/resource.tar.gz#test.test_select_yql-evaluate_atom_cluster-default.txt-Plan_/plan.txt"
+        }
+    ],
+    "test.test[select_yql-evaluate_atom_cluster-default.txt-Results]": [
+        {
+            "checksum": "5ddd43c36a263ea7b077ee7580372ba2",
+            "size": 4958,
+            "uri": "https://{canondata_backend}/1600758/0d847ab2f76e5d992508595ee8b6265576e528cd/resource.tar.gz#test.test_select_yql-evaluate_atom_cluster-default.txt-Results_/results.txt"
+        }
+    ],
     "test.test[select_yql-from_table_tmp-default.txt-Debug]": [
         {
             "checksum": "cb6327b6b54c8a2994b67eb4e439fec9",
