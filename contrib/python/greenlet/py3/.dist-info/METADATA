@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: greenlet
-Version: 3.5.1
+Version: 3.5.2
 Summary: Lightweight in-process concurrent programming
 Author-email: Alexey Borzenkov <snaury@gmail.com>
 Maintainer-email: Jason Madden <jason@seecoresoftware.com>
