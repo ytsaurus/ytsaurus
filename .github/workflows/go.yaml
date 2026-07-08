@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - members/ilyaibraev/mount-ytsaurus-repo-to-go-sdk-ci-instead-of-copying-to-docker-image
 
 jobs:
   check:
@@ -23,7 +24,6 @@ jobs:
           echo "WORKDIR /home/ytsaurus " >> Dockerfile
           echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
           echo "RUN wget https://go.dev/dl/go1.23.8.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.23.8.linux-amd64.tar.gz" >> Dockerfile
-          echo "COPY . /home/ytsaurus/ " >> Dockerfile
           echo "ENTRYPOINT [\"tail\", \"-f\", \"/dev/null\"]" >> Dockerfile
 
       - name: Build Docker image
@@ -35,7 +35,7 @@ jobs:
         working-directory: ${{ matrix.module }}
         shell: bash
         run: |
-          docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
+          docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" -v "${{ github.workspace }}":"/home/ytsaurus" --network host -d --name test-container test-image
 
       - name: Build
         working-directory: ${{ matrix.module }}
