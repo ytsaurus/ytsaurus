@@ -2,7 +2,7 @@
 
 #include <yt/yt/library/web_assembly/api/function.h>
 
-#include <util/generic/cast.h>
+#include <yt/yt/library/numeric/util.h>
 
 namespace NYT::NWebAssembly {
 

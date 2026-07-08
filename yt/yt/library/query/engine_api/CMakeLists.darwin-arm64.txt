@@ -36,6 +36,7 @@ target_include_directories(library-query-engine_api PRIVATE
 target_link_libraries(library-query-engine_api PUBLIC
   contrib-libs-cxxsupp
   yutil
+  yt-library-numeric
   yt-yt-core
   yt-library-codegen_api
   library-web_assembly-api
@@ -93,6 +94,7 @@ target_include_directories(library-query-engine_api.global PRIVATE
 target_link_libraries(library-query-engine_api.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  yt-library-numeric
   yt-yt-core
   yt-library-codegen_api
   library-web_assembly-api

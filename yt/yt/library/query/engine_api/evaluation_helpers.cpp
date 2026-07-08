@@ -1,11 +1,10 @@
 #include "evaluation_helpers.h"
 
+#include <yt/yt/library/numeric/util.h>
 #include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
-
-#include <util/generic/cast.h>
 
 namespace NYT::NQueryClient {
 

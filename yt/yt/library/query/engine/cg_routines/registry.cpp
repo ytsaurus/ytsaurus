@@ -1,5 +1,6 @@
 #include "registry.h"
 
+#include <yt/yt/library/numeric/util.h>
 #include <yt/yt/library/query/engine/cg_types.h>
 #include <yt/yt/library/query/engine/web_assembly_data_transfer.h>
 
@@ -71,7 +72,6 @@
 
 #include <library/cpp/xdelta3/state/merge.h>
 
-#include <util/generic/cast.h>
 #include <util/charset/utf8.h>
 #include <util/digest/multi.h>
 

@@ -3,7 +3,7 @@
 #include "compartment.h"
 #include "pointer.h"
 
-#include <util/generic/cast.h>
+#include <yt/yt/library/numeric/util.h>
 #include <util/system/align.h>
 
 namespace NYT::NWebAssembly {

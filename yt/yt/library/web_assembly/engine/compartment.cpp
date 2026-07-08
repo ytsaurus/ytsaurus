@@ -10,13 +10,14 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/library/numeric/util.h>
+
 #include <library/cpp/resource/resource.h>
 
 #include <library/cpp/yt/misc/enum.h>
 
 #include <contrib/restricted/wavm/Lib/Runtime/RuntimePrivate.h>
 
-#include <util/generic/cast.h>
 #include <util/generic/hash_set.h>
 #include <util/system/type_name.h>
 

@@ -37,6 +37,7 @@ target_link_libraries(library-web_assembly-engine PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-library-numeric
   yt-yt-core
   restricted-wavm-Lib
 )
@@ -71,6 +72,7 @@ target_link_libraries(library-web_assembly-engine.global PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-library-numeric
   yt-yt-core
   restricted-wavm-Lib
 )

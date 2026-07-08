@@ -7,7 +7,7 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/finally.h>
 
-#include <util/generic/cast.h>
+#include <yt/yt/library/numeric/util.h>
 
 namespace NYT::NWebAssembly {
 

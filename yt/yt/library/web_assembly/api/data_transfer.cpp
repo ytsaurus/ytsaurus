@@ -2,7 +2,7 @@
 
 #include "pointer.h"
 
-#include <util/generic/cast.h>
+#include <yt/yt/library/numeric/util.h>
 
 namespace NYT::NWebAssembly {
 

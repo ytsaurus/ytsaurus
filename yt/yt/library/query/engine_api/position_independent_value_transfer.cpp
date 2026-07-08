@@ -1,10 +1,9 @@
 #include "position_independent_value_transfer.h"
 
+#include <yt/yt/library/numeric/util.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 
 #include <library/cpp/yt/memory/range.h>
-
-#include <util/generic/cast.h>
 
 namespace NYT::NQueryClient {
 

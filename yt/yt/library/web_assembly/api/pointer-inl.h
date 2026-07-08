@@ -4,9 +4,9 @@
 #include "pointer.h"
 #endif
 
-#include <library/cpp/yt/assert/assert.h>
+#include <yt/yt/library/numeric/util.h>
 
-#include <util/generic/cast.h>
+#include <library/cpp/yt/assert/assert.h>
 
 namespace NYT::NWebAssembly {
 
