@@ -1153,6 +1153,9 @@ struct TDataNodeDynamicConfig
 
     std::optional<bool> SkipWriteThrottlingLocations;
 
+    //! if |true|, write throttling is reflected in CheckWritable / GetIOWeight.
+    std::optional<bool> EnableWriteThrottlingWritableCheck;
+
     std::optional<bool> EnableSequentialIORequests;
 
     std::optional<bool> ReturnBlocksIfSessionFails;

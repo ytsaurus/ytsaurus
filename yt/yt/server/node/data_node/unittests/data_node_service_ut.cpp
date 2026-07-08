@@ -458,6 +458,7 @@ public:
         bool UseProbePutBlocks = false;
         bool SkipWriteThrottlingLocations = false;
         bool AlwaysThrottleLocation = false;
+        bool EnableWriteThrottlingWritableCheck = false;
         bool PreallocateDiskSpace = false;
         bool UseDirectIO = false;
         bool WaitPrecedingBlocksReceived = true;
@@ -628,6 +629,7 @@ public:
         DataNodeService_ = CreateDataNodeService(DataNodeBootstrap_->GetConfig()->DataNode, DataNodeBootstrap_.Get());
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = TestParams_.UseProbePutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation = TestParams_.AlwaysThrottleLocation;
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->EnableWriteThrottlingWritableCheck = TestParams_.EnableWriteThrottlingWritableCheck;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks = TestParams_.DelayBeforePerformPutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->PreallocateDiskSpace = TestParams_.PreallocateDiskSpace;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseDirectIO = TestParams_.UseDirectIO;
@@ -1427,6 +1429,88 @@ INSTANTIATE_TEST_SUITE_P(
         }
     )
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TWriteThrottlingWritableCheckTestCase
+{
+    std::vector<double> IOWeights = {1., 1.};
+    std::vector<int> SessionCountLimits = {128, 128};
+    bool AlwaysThrottleLocation = false;
+    bool EnableWriteThrottlingWritableCheck = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TWriteThrottlingWritableCheckTest
+    : public TDataNodeTest
+    , public ::testing::WithParamInterface<TWriteThrottlingWritableCheckTestCase>
+{
+public:
+    TWriteThrottlingWritableCheckTest()
+        : TDataNodeTest(
+            TDataNodeTest::TDataNodeTestParams {
+                .ReadThreadCount = 4,
+                .WriteThreadCount = 4,
+                .ChooseLocationBasedOnIOWeight = true,
+                .IOWeights = GetParam().IOWeights,
+                .SessionCountLimits = GetParam().SessionCountLimits,
+                .AlwaysThrottleLocation = GetParam().AlwaysThrottleLocation,
+                .EnableWriteThrottlingWritableCheck = GetParam().EnableWriteThrottlingWritableCheck,
+            })
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TWriteThrottlingWritableCheckTest, IOWeightZeroWhenThrottlingCheckEnabled)
+{
+    const auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
+    auto alwaysThrottle = GetParam().AlwaysThrottleLocation;
+    auto enableCheck = GetParam().EnableWriteThrottlingWritableCheck;
+
+    for (const auto& location : locations) {
+        double ioWeight = location->GetIOWeight();
+        if (alwaysThrottle && enableCheck) {
+            EXPECT_EQ(ioWeight, 0.0);
+        } else {
+            EXPECT_GT(ioWeight, 0.0);
+        }
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TWriteThrottlingWritableCheckTest,
+    TWriteThrottlingWritableCheckTest,
+    ::testing::Values(
+        TWriteThrottlingWritableCheckTestCase{
+            .IOWeights = {1, 1, 1, 1, 1},
+            .SessionCountLimits = {128, 128, 128, 128, 128},
+            .AlwaysThrottleLocation = true,
+            .EnableWriteThrottlingWritableCheck = true,
+        },
+        TWriteThrottlingWritableCheckTestCase{
+            .IOWeights = {1, 1, 1, 1, 1},
+            .SessionCountLimits = {128, 128, 128, 128, 128},
+            .AlwaysThrottleLocation = true,
+            .EnableWriteThrottlingWritableCheck = false,
+        },
+        TWriteThrottlingWritableCheckTestCase{
+            .IOWeights = {1, 1, 1, 1, 1},
+            .SessionCountLimits = {128, 128, 128, 128, 128},
+            .AlwaysThrottleLocation = false,
+            .EnableWriteThrottlingWritableCheck = true,
+        },
+        TWriteThrottlingWritableCheckTestCase{
+            .IOWeights = {1, 1, 1, 1, 1},
+            .SessionCountLimits = {128, 128, 128, 128, 128},
+            .AlwaysThrottleLocation = false,
+            .EnableWriteThrottlingWritableCheck = false,
+        }
+    )
+);
+
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_P(TIOWeightTest, IoBasedOnIoWeight)
 {
