@@ -808,7 +808,7 @@ PyTypeObject PyGreenlet_Type = {
     .tp_alloc=PyType_GenericAlloc,                  /* tp_alloc */
     .tp_new=(newfunc)green_new,                          /* tp_new */
     .tp_free=PyObject_GC_Del,                   /* tp_free */
-#ifndef Py_GIL_DISABLED
+#if !GREENLET_PY315 && !(GREENLET_PY314 && defined(Py_GIL_DISABLED))
 /*
   We may have been handling this wrong all along.
 

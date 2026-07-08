@@ -42,6 +42,14 @@ using greenlet::refs::BorrowedGreenlet;
 #endif
 #endif
 
+
+#if GREENLET_PY315
+#include "internal/pycore_gc.h"
+#if !defined(_MSC_VER) && !defined(__MINGW64__)
+#include "internal/pycore_stackref.h"
+#endif
+#endif
+
 // XXX: TODO: Work to remove all virtual functions
 // for speed of calling and size of objects (no vtable).
 // One pattern is the Curiously Recurring Template

@@ -607,6 +607,10 @@ Greenlet::tp_clear()
     bool own_top_frame = this->was_running_in_dead_thread();
     this->exception_state.tp_clear();
     this->python_state.tp_clear(own_top_frame);
+    if (own_top_frame) {
+        // Throw away any saved stack state since the owned frame is cleared.
+        this->stack_state.set_inactive();
+    }
     return 0;
 }
 
