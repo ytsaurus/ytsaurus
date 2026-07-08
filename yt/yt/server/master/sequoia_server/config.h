@@ -98,6 +98,8 @@ struct TDynamicSequoiaManagerConfig
 
     bool CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator;
 
+    bool EnablePrelockTracker;
+
     bool WrapObjectServiceExecuteIntoSequoiaTransaction;
 
     // NB: don't use it directly. Use ShouldUseSequoiaRevisions() instead.

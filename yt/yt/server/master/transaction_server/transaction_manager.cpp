@@ -4691,6 +4691,9 @@ private:
                 PreparedTransactionsBarrierDelay_ = newDelay;
             }
         }
+
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        transactionSupervisor->SetArtificialParticipantCommitDelay(newConfig->Testing->ArtificialParticipantCommitDelay);
     }
 
     void ThrowTransactionSuccessorHasLeases(TTransaction* transaction)

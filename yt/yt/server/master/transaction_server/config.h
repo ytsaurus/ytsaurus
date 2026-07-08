@@ -68,6 +68,8 @@ struct TDynamicTransactionManagerTestingConfig
 
     THashSet<TTransactionId> PrerequisiteCheckFailureDuringCommitOfTransactions;
 
+    TDuration ArtificialParticipantCommitDelay;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerTestingConfig);
 
     static void Register(TRegistrar registrar);

@@ -70,6 +70,7 @@
 #include <yt/yt/server/master/security_server/user.h>
 
 #include <yt/yt/server/master/sequoia_server/context.h>
+#include <yt/yt/server/master/sequoia_server/prelock_tracker.h>
 
 #include <yt/yt/server/master/table_server/cypress_integration.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
@@ -1728,6 +1729,21 @@ public:
         return CheckLock(trunkNode, transaction, lockRequest, /*recursive*/ false);
     }
 
+    TError AcquirePrelock(
+        TTransaction* owningTransaction,
+        TTransaction* lockingTransaction,
+        TCypressNode* trunkNode,
+        const TLockRequest& request) override
+    {
+        auto error = CheckLock(trunkNode, lockingTransaction, request);
+        if (error.IsOK()) {
+            const auto& prelockTracker = Bootstrap_->GetPrelockTracker();
+            prelockTracker->AcquirePrelockUnchecked(owningTransaction, lockingTransaction, trunkNode->GetId(), request);
+        }
+
+        return error;
+    }
+
     TCypressNode* LockNode(
         TCypressNode* trunkNode,
         TTransaction* transaction,
@@ -2173,7 +2189,7 @@ public:
         }
 
         // Should we wait?
-        if (!waitable) {
+        if (!waitable || error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
             THROW_ERROR error;
         }
 
@@ -3586,7 +3602,18 @@ private:
         return CheckSubtreeTrunkNodes(trunkNode, transaction, recursive, doCheck);
     }
 
-    TError DoCheckLock(
+    TError DoCheckLock(TCypressNode* trunkNode, TTransaction* transaction, const TLockRequest& request)
+    {
+        auto error = DoCheckLockWithoutPrelocks(trunkNode, transaction, request);
+        if (!error.IsOK()) {
+            return error;
+        }
+
+        const auto& prelockTracker = Bootstrap_->GetPrelockTracker();
+        return prelockTracker->CheckLock(transaction, trunkNode->GetId(), request);
+    }
+
+    TError DoCheckLockWithoutPrelocks(
         TCypressNode* trunkNode,
         TTransaction* transaction,
         const TLockRequest& request)

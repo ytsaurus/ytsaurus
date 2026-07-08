@@ -59,6 +59,8 @@ void TDynamicTransactionManagerTestingConfig::Register(TRegistrar registrar)
         .DontSerializeDefault();
     registrar.Parameter("prerequisite_check_failure_during_commit_of_transactions", &TThis::PrerequisiteCheckFailureDuringCommitOfTransactions)
         .Default();
+    registrar.Parameter("artificial_participant_commit_delay", &TThis::ArtificialParticipantCommitDelay)
+        .Default(TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

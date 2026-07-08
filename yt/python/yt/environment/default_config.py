@@ -218,6 +218,7 @@ def get_dynamic_master_config():
             "coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator": True,
             "wrap_object_service_execute_into_sequoia_transaction": True,
             "enable_sequoia_revisions": True,
+            "enable_prelock_tracker": True,
         },
 
         "cell_master": {

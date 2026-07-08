@@ -95,6 +95,9 @@ void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("enable_prelock_tracker", &TThis::EnablePrelockTracker)
+        .Default(false);
+
     registrar.Parameter(
         "wrap_object_service_execute_into_sequoia_transaction",
         &TThis::WrapObjectServiceExecuteIntoSequoiaTransaction)
