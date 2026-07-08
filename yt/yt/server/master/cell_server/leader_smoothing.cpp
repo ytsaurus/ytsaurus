@@ -173,8 +173,6 @@ std::vector<TLeaderReassignment> ComputeLeaderSmoothing(
 
                 nodeLeaderCount[fromNodeId]--;
                 nodeLeaderCount[toNodeId]++;
-
-                results.push_back({cellIndex, newPeerId});
             }
 
             found = true;
@@ -183,6 +181,18 @@ std::vector<TLeaderReassignment> ComputeLeaderSmoothing(
 
         if (!found) {
             break;
+        }
+    }
+
+    for (int cellIndex = 0; cellIndex < std::ssize(cells); ++cellIndex) {
+        if (currentLeaderNodeId[cellIndex] == cells[cellIndex].LeaderNodeId) {
+            continue;
+        }
+        for (const auto& [peerId, nodeId] : cells[cellIndex].FollowerPeers) {
+            if (nodeId == currentLeaderNodeId[cellIndex]) {
+                results.push_back({cellIndex, peerId});
+                break;
+            }
         }
     }
 
