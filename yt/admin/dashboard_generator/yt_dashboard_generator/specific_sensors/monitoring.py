@@ -72,6 +72,10 @@ class MonitoringExpr(Taggable):
     def binary_op(cls, op, lhs, rhs):
         return MonitoringExpr(cls.NodeType.BinaryOp, op, lhs, rhs)
 
+    @classmethod
+    def constant_line(cls, value):
+        return cls.func("constant_line", value)
+
     def alias(self, param):
         return self.func("alias", self, f'"{param}"')
 
@@ -130,6 +134,12 @@ class MonitoringExpr(Taggable):
 
     def diff(self):
         return self.func("diff", self)
+
+    def derivative(self):
+        return self.func("derivative", self)
+
+    def sign(self):
+        return self.func("sign", self)
 
     def downsampling_aggregation(self, value):
         return self.value(MonitoringSystemFields.DownsamplingAggregation, value)

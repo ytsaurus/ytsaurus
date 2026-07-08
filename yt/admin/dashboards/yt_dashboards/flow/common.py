@@ -7,6 +7,7 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
+from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter
 from yt_dashboard_generator.backends.monitoring import (
     MonitoringProjectDashboardParameter,
     MonitoringLabelDashboardParameter,
@@ -123,9 +124,7 @@ def build_dashboard_links(dashboard_short_name: str):
     ]
 
 
-def build_versions(worker_host_aggr: bool = True):
-    spec_version_change_query_transformation = "sign(derivative({query}))"
-
+def build_versions(worker_host_aggr: bool = True, backend: str = "monitoring"):
     def make_url(name):
         return (f"https://monitoring.yandex-team.ru/projects/yt/dashboards/{name}"
             "?p[project]={{project}}&p[cluster]={{cluster}}"
@@ -160,13 +159,16 @@ def build_versions(worker_host_aggr: bool = True):
                 "Specs version change",
                 MultiSensor(
                     MonitoringExpr(FlowController("yt.flow.controller.spec_version"))
-                        .query_transformation(spec_version_change_query_transformation)
+                        .derivative()
+                        .sign()
                         .alias("Spec change"),
                     MonitoringExpr(FlowController("yt.flow.controller.dynamic_spec_version"))
-                        .query_transformation(spec_version_change_query_transformation)
+                        .derivative()
+                        .sign()
                         .alias("Dynamic spec change")),
                 description="Spikes mean that [dynamic] spec has been changed")
-            .cell("", Text(description_text))
+            # The links target internal Monitoring dashboards; hide them in Grafana.
+            .cell("", Text(description_text) if backend == "monitoring" else EmptyCell())
     ).owner
 
 
@@ -268,7 +270,7 @@ def build_yt_rpc(component: str):
             .aggr("host")
             .all("method")
             .all("yt_service")
-            .query_transformation('series_sum(["method", "yt_service"], {query})')
+            .series_sum("method", "yt_service")
             .alias("{{yt_service}}.{{method}}")
             .stack(True)
             .unit("UNIT_BYTES_SI_PER_SECOND")
@@ -317,7 +319,12 @@ def build_text_row(text: str):
 
 
 def add_common_dashboard_parameters(dashboard):
-    dashboard.add_parameter("project", "Pipeline project", MonitoringProjectDashboardParameter())
+    dashboard.add_parameter(
+        "project",
+        "Pipeline project",
+        MonitoringProjectDashboardParameter(),
+        backends=["monitoring"],
+    )
     dashboard.add_parameter(
         "cluster",
         "Cluster",
@@ -327,6 +334,7 @@ def add_common_dashboard_parameters(dashboard):
             default_value="-",
             selectors='{sensor="yt.build.version"}',
         ),
+        backends=["monitoring"],
     )
 
     dashboard.add_parameter(
@@ -338,6 +346,7 @@ def add_common_dashboard_parameters(dashboard):
             default_value="-",
             selectors='{sensor="yt.build.version"}',
         ),
+        backends=["monitoring"],
     )
 
     dashboard.add_parameter(
@@ -349,16 +358,30 @@ def add_common_dashboard_parameters(dashboard):
             default_value="-",
             selectors='{sensor="yt.build.version"}',
         ),
+        backends=["monitoring"],
     )
 
+    for name, title in (
+        ("project", "Pipeline project"),
+        ("cluster", "Cluster"),
+        ("pipeline_cluster", "Pipeline cluster"),
+        ("pipeline_path", "Pipeline path"),
+    ):
+        dashboard.add_parameter(
+            name,
+            title,
+            GrafanaTextboxDashboardParameter(".*"),
+            backends=["grafana"],
+        )
 
-def create_dashboard(short_name: str, filler: Callable[Dashboard, None], worker_host_aggr: bool = True):
+
+def create_dashboard(short_name: str, filler: Callable[Dashboard, None], worker_host_aggr: bool = True, backend: str = "monitoring"):
     d = Dashboard()
     d.set_title(f"[YT Flow] {DASHBOARDS_META[short_name].title}")
     d.set_monitoring_links(build_dashboard_links(short_name))
     add_common_dashboard_parameters(d)
 
-    d.add(build_versions(worker_host_aggr=worker_host_aggr))
+    d.add(build_versions(worker_host_aggr=worker_host_aggr, backend=backend))
 
     filler(d)
 

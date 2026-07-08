@@ -2,7 +2,7 @@
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.sensor import MultiSensor
 from yt_dashboard_generator.backends.monitoring import MonitoringTag
-from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, PlainMonitoringExpr
+from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 
 from ..common.sensors import *
 
@@ -59,7 +59,7 @@ def build_bundle_controller():
                     (MonitoringExpr(TabNodeYtcfgen("yt.error_watcher.ooms"))
                         .diff()
                         .drop_below(0)
-                        + PlainMonitoringExpr("constant_line(0)"))
+                        + MonitoringExpr.constant_line(0))
                         .top_max(10)
                         .alias("memory limit kills {{container}}")
                 ))

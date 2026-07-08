@@ -10,7 +10,7 @@ from ..common.sensors import FlowController, FlowWorker
 from .common import create_dashboard
 
 from yt_dashboard_generator.dashboard import Rowset
-from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, PlainMonitoringExpr
+from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter
 from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 
@@ -208,11 +208,17 @@ class ComputationCellGenerator:
                         .unit("UNIT_BYTES_SI_PER_SECOND"))
         )
 
-    def build_partition_aggregates_rowset(self):
+    def build_partition_aggregates_rowset(self, backend="monitoring"):
         stream_alias = "{{{{computation_id}}}} - {{{{stream_id}}}}" if not self._has_computation_id_tag else "{{{{stream_id}}}}"
 
-        def transformation(alias):
-            return "let non_empty_computation_id = (\"{{{{computation_id}}}}\" == '-' ? '*' : \"{{{{computation_id}}}}\"); alias({query}" + f", \"{alias}\")"
+        def transformed(expr, alias):
+            # The let/alias wrapper is Solomon-specific; on Grafana show the
+            # raw series (legend falls back to the series labels).
+            if backend == "monitoring":
+                return expr.query_transformation(
+                    "let non_empty_computation_id = (\"{{{{computation_id}}}}\" == '-' ? '*' : \"{{{{computation_id}}}}\"); alias({query}" + f", \"{alias}\")")
+            else:
+                return expr
 
         def add_cpu_cell(row, title_prefix, metric_suffix):
             description = (
@@ -223,11 +229,12 @@ class ComputationCellGenerator:
             return row.cell(
                 f"{title_prefix} partition cpu usage",
                 MultiSensor(
-                    MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_cpu_usage.{metric_suffix}"))
-                        .query_transformation(transformation("{{{{computation_id}}}}")),
-                    PlainMonitoringExpr("constant_line(1)")
+                    transformed(
+                        MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_cpu_usage.{metric_suffix}")),
+                        "{{{{computation_id}}}}"),
+                    MonitoringExpr.constant_line(1)
                         .alias("One core - hard limit"),
-                    PlainMonitoringExpr("constant_line(0.5)")
+                    MonitoringExpr.constant_line(0.5)
                         .alias("Warning level"))
                     .min(0),
                 colors={
@@ -255,14 +262,23 @@ class ComputationCellGenerator:
                         'let non_empty_computation_id = ("{{{{computation_id}}}}" == \'-\' ? \'*\' : "{{{{computation_id}}}}"); '
                         f'alias(drop_if(constant_line(ramp({activate_at} - max(series_max({{query}})))), constant_line({level})), "{label}")'))
 
+            sensors = [
+                transformed(
+                    MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_*messages_per_second.{metric_suffix}"))
+                        .all("stream_id"),
+                    stream_alias),
+            ]
+            if backend == "monitoring":
+                # Solomon-only reference lines (drop_if/ramp/constant_line);
+                # rendered for monitoring only.
+                sensors += [
+                    threshold(5000, 10000, "Alert level"),
+                    threshold(500, 1000, "Warning level"),
+                ]
+
             return row.cell(
                 f"{title_prefix} partition messages per second",
-                MultiSensor(
-                    MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_*messages_per_second.{metric_suffix}"))
-                        .all("stream_id")
-                        .query_transformation(transformation(stream_alias)),
-                    threshold(5000, 10000, "Alert level"),
-                    threshold(500, 1000, "Warning level"))
+                MultiSensor(*sensors)
                     .unit("UNIT_COUNTS_PER_SECOND"),
                 colors={
                     "Alert level": "#f4cccc",
@@ -277,9 +293,10 @@ class ComputationCellGenerator:
             )
             return row.cell(
                 f"{title_prefix} partition bytes per second",
-                MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_*bytes_per_second.{metric_suffix}"))
-                    .all("stream_id")
-                    .query_transformation(transformation(stream_alias))
+                transformed(
+                    MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_*bytes_per_second.{metric_suffix}"))
+                        .all("stream_id"),
+                    stream_alias)
                     .unit("UNIT_BYTES_SI_PER_SECOND"),
                 description=description)
 
@@ -292,9 +309,10 @@ class ComputationCellGenerator:
             )
             return row.cell(
                 f"Partition {kind} watermark difference (max - min)",
-                MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_{kind}_watermark_min_max_difference"))
-                    .all("stream_id")
-                    .query_transformation(transformation(stream_alias))
+                transformed(
+                    MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_{kind}_watermark_min_max_difference"))
+                        .all("stream_id"),
+                    stream_alias)
                     .unit("UNIT_SECONDS"),
                 description=description)
 

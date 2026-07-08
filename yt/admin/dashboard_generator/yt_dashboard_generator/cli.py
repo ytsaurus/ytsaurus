@@ -207,7 +207,7 @@ class Cli():
                 headers="firstrow"))
             return
 
-        if args.command in ["diff", "show", "submit"]:
+        if args.command in ["diff", "show", "submit", "json"]:
             if args.backend is not None:
                 for backend_name in args.backend:
                     self.backend_classes[backend_name].on_args_parsed(args)

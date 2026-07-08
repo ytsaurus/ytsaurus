@@ -1,7 +1,7 @@
 # flake8: noqa
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.sensor import EmptyCell, MultiSensor
-from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, PlainMonitoringExpr
+from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 
 from .common import action_queue_utilization
@@ -144,7 +144,7 @@ def build_rpc_proxy_maintenance(has_porto):
                             .top_max(10)
                             .host_container_legend_format("porto oom kills"),
                         (MonitoringExpr(RpcProxyYtcfgen("yt.error_watcher.ooms"))
-                            + PlainMonitoringExpr("constant_line(0)"))
+                            + MonitoringExpr.constant_line(0))
                             .diff()
                             .drop_below(0)
                             .top_max(10)
