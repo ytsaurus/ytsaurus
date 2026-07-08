@@ -627,7 +627,7 @@ private:
     }
 
     void HydraPrepareDetachChild(
-        TTransaction* /*sequoiaTransaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqDetachChild* request,
         const TTransactionPrepareOptions& /*options*/)
     {
@@ -660,10 +660,8 @@ private:
                 key);
         }
 
-        cypressManager->CheckLock(
-            trunkNode,
-            cypressTransaction,
-            TLockRequest::MakeSharedChild(key))
+        cypressManager
+            ->AcquirePrelock(sequoiaTransaction, cypressTransaction, trunkNode, TLockRequest::MakeSharedChild(key))
             .ThrowOnError();
 
         // NB: Nobody can acquire the shared child lock for this node between
@@ -745,7 +743,7 @@ private:
     }
 
     void HydraPrepareRemoveNode(
-        TTransaction* /*sequoiaTransaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqRemoveNode* request,
         const TTransactionPrepareOptions& options)
     {
@@ -785,7 +783,7 @@ private:
         }
 
         cypressManager
-            ->CheckLock(trunkNode, cypressTransaction, ELockMode::Exclusive)
+            ->AcquirePrelock(sequoiaTransaction, cypressTransaction, trunkNode, ELockMode::Exclusive)
             .ThrowOnError();
 
         DoLog(*request, ELogStage::Prepared);
@@ -1268,7 +1266,7 @@ private:
 
 
     void HydraPrepareImplicitlyLockNode(
-        TTransaction* /*sequoiaTransaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqImplicitlyLockNode* request,
         const TTransactionPrepareOptions& /*options*/)
     {
@@ -1296,7 +1294,10 @@ private:
             childKey,
             attributeKey,
             /*timestamp*/ 0);
-        cypressManager->CheckLock(trunkNode, cypressTransaction, lockRequest).ThrowOnError();
+
+        cypressManager
+            ->AcquirePrelock(sequoiaTransaction, cypressTransaction, trunkNode, lockRequest)
+            .ThrowOnError();
 
         DoLog(*request, ELogStage::Prepared);
     }

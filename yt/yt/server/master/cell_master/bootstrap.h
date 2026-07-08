@@ -155,6 +155,7 @@ public:
     const NTabletServer::IBackupManagerPtr& GetBackupManager() const;
     const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
     const NSequoiaServer::ISequoiaManagerPtr& GetSequoiaManager() const;
+    const NSequoiaServer::IPrelockTrackerPtr& GetPrelockTracker() const;
     const NSequoiaServer::ICypressProxyTrackerPtr& GetCypressProxyTracker() const;
     const NSequoiaServer::IGroundUpdateQueueManagerPtr& GetGroundUpdateQueueManager() const;
     const NHiveServer::IHiveManagerPtr& GetHiveManager() const;
@@ -263,6 +264,7 @@ protected:
     NTabletServer::IReplicatedTableTrackerStateProviderPtr ReplicatedTableTrackerStateProvider_;
     NChaosServer::IChaosManagerPtr ChaosManager_;
     NSequoiaServer::ISequoiaManagerPtr SequoiaManager_;
+    NSequoiaServer::IPrelockTrackerPtr PrelockTracker_;
     NSequoiaServer::ICypressProxyTrackerPtr CypressProxyTracker_;
     NSequoiaServer::IGroundUpdateQueueManagerPtr GroundUpdateQueueManager_;
     NHiveServer::IHiveManagerPtr HiveManager_;

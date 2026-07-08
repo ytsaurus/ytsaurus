@@ -34,9 +34,16 @@ void TMultiPhaseCellSyncSession::ScheduleSyncWithUpstream()
 
 void TMultiPhaseCellSyncSession::ScheduleSyncWithSequoiaTransactions()
 {
-    if (SyncWithSequoiaTransactions_ == ESyncRequest::DontNeed) {
+    if (!SuppressSyncWithSequoiaTransactions_ &&
+        SyncWithSequoiaTransactions_ == ESyncRequest::DontNeed)
+    {
         SyncWithSequoiaTransactions_ = ESyncRequest::Need;
     }
+}
+
+void TMultiPhaseCellSyncSession::SuppressSyncWithSequoiaTransactions()
+{
+    SuppressSyncWithSequoiaTransactions_ = true;
 }
 
 TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, TFuture<void> additionalFuture)

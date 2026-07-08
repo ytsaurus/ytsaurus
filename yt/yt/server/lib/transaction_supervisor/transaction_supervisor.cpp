@@ -248,6 +248,16 @@ public:
         StrongOrderingManager_.OnProfiling(buffer);
     }
 
+    void SetArtificialParticipantCommitDelay(TDuration delay) override
+    {
+        auto oldDelay = ArtificialParticipantCommitDelay_.exchange(delay, std::memory_order::relaxed);
+        YT_LOG_DEBUG_IF(
+            delay != oldDelay,
+            "Artificial participant commit delay changed (OldDelay: %v, NewDelay: %v)",
+            oldDelay,
+            delay);
+    }
+
     TFuture<void> GetReadyToEnterReadOnlyMode() override
     {
         return StrongOrderingManager_.WaitUntilPreparedCommitsFinish();
@@ -265,6 +275,9 @@ private:
     const IAuthenticatorPtr Authenticator_;
 
     const NLogging::TLogger Logger;
+
+    // For testing purposes.
+    std::atomic<TDuration> ArtificialParticipantCommitDelay_ = TDuration::Zero();
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1205,6 +1218,15 @@ private:
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
 
             auto owner = GetOwnerOrThrow();
+
+            auto commitDelay = owner->ArtificialParticipantCommitDelay_.load(std::memory_order::relaxed);
+            if (commitDelay != TDuration::Zero()) {
+                YT_LOG_DEBUG("Waiting for artificial delay before transaction commit on participant (TransactionId: %v, Delay: %v)",
+                    transactionId,
+                    commitDelay);
+                TDelayedExecutor::WaitForDuration(commitDelay);
+            }
+
             auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
             mutation->SetCurrentTraceContext();
             YT_UNUSED_FUTURE(mutation->CommitAndReply(context));

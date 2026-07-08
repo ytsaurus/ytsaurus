@@ -64,6 +64,16 @@ bool TLockRequest::operator==(const TLockRequest& other) const
     return Mode == other.Mode && Key == other.Key;
 }
 
+std::strong_ordering TLockRequest::operator<=>(const TLockRequest& other) const
+{
+    return std::tie(Mode, Key) <=> std::tie(other.Mode, other.Key);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TLockRequest& lockRequest, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{Mode: %v, Key: %v}", lockRequest.Mode, lockRequest.Key);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TCypressNodeLockingState::TTransactionLockPairComparator::operator()(
@@ -354,4 +364,3 @@ void TLock::Load(NCellMaster::TLoadContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
-
