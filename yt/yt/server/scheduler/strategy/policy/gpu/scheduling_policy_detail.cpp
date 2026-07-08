@@ -85,8 +85,6 @@ TGpuSchedulingProfilingCounters::TGpuSchedulingProfilingCounters(const NProfilin
     : NPolicy::TCommonSchedulingProfilingCounters(profiler.WithTag("scheduling_stage", GpuSchedulingStageName))
     , PlanUpdateProfiler(profiler.WithPrefix("/gpu_policy"))
     , SchedulingHeartbeatProfiler(profiler.WithTag("scheduling_stage", GpuSchedulingStageName))
-    , PlannedAssignments(PlanUpdateProfiler.Counter("/planned_assignments_count"))
-    , PreemptedAssignments(PlanUpdateProfiler.Counter("/preempted_assignments_count"))
     , Assignments(PlanUpdateProfiler.Gauge("/assignments_count"))
     , TotalPlanningTime(PlanUpdateProfiler.Timer("/total_planning_time"))
     , OperationResourcesUpdateTime(PlanUpdateProfiler.Timer("/operation_resources_update_time"))
@@ -98,7 +96,14 @@ TGpuSchedulingProfilingCounters::TGpuSchedulingProfilingCounters(const NProfilin
     , AssignedGpu(PlanUpdateProfiler.Gauge("/assigned_gpu_count"))
     , ScheduledAllocationCount(SchedulingHeartbeatProfiler.Counter("/scheduled_allocation_count"))
     , PreemptedAllocationCount(SchedulingHeartbeatProfiler.Counter("/preempted_allocation_count"))
-{ }
+{
+    for (auto stage : TEnumTraits<EGpuAssignmentPlanningStage>::GetDomainValues()) {
+        PlannedAssignmentsByStage[stage] =
+            PlanUpdateProfiler.WithTag("stage", FormatEnum(stage)).Counter("/planned_assignments_count");
+        PreemptedAssignmentsByStage[stage] =
+            PlanUpdateProfiler.WithTag("stage", FormatEnum(stage)).Counter("/preempted_assignments_count");
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1118,8 +1123,12 @@ void TSchedulingPolicy::LogSnapshotEvent(const TGpuPlanUpdateStatisticsPtr& stat
 
 void TSchedulingPolicy::ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatisticsPtr& statistics)
 {
-    ProfilingCounters_.PlannedAssignments.Increment(statistics->PlannedAssignments);
-    ProfilingCounters_.PreemptedAssignments.Increment(statistics->PreemptedAssignments);
+    for (auto stage : TEnumTraits<EGpuAssignmentPlanningStage>::GetDomainValues()) {
+        ProfilingCounters_.PlannedAssignmentsByStage[stage].Increment(
+            statistics->PlannedAssignmentsByStage[stage]);
+        ProfilingCounters_.PreemptedAssignmentsByStage[stage].Increment(
+            statistics->PreemptedAssignmentsByStage[stage]);
+    }
 
     ProfilingCounters_.TotalPlanningTime.Record(statistics->Timer.GetElapsedTime());
     ProfilingCounters_.OperationResourcesUpdateTime.Record(statistics->UpdatingOperationResourcesDuration);

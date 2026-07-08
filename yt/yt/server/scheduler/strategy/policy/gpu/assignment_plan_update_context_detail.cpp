@@ -182,6 +182,12 @@ void TAssignmentPlanUpdateContext::PreemptAssignment(
         preemptedForOperationId);
 }
 
+bool TAssignmentPlanUpdateContext::IsDetailedLoggingEnabled(const TOperationPtr& operation) const
+{
+    const auto* element = FindOperationElement(operation);
+    return element && element->AreDetailedLogsEnabled();
+}
+
 TJobResources TAssignmentPlanUpdateContext::GetAvailableOperationLimits(const TOperationPtr& operation) const
 {
     const TPoolTreeElement* treeElement = FindOperationElement(operation);
@@ -270,7 +276,7 @@ void TAssignmentPlanUpdateContext::PreemptLimitViolatingOperations()
                 preemptionDescription = Format("Preempted due to violation of limits on pool %Qv", violatedId);
             }
 
-            Statistics_->PreemptedAssignments++;
+            Statistics_->PreemptedAssignmentsByStage[EGpuAssignmentPlanningStage::LimitsCheck]++;
             PreemptAssignment(assignment, EAllocationPreemptionReason::ResourceLimitsViolated, preemptionDescription);
         }
     }

@@ -3,6 +3,8 @@
 #include "public.h"
 #include "pool_tree_snapshot_state.h"
 
+#include <library/cpp/yt/containers/enum_indexed_array.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/public.h>
@@ -325,8 +327,8 @@ struct TGpuPlanUpdateStatistics final
     TDuration RegularPlanningDuration;
     TDuration ExtraPlanningDuration;
 
-    int PlannedAssignments = 0;
-    int PreemptedAssignments = 0;
+    TEnumIndexedArray<EGpuAssignmentPlanningStage, int> PlannedAssignmentsByStage;
+    TEnumIndexedArray<EGpuAssignmentPlanningStage, int> PreemptedAssignmentsByStage;
 
     THashMap<std::string, TGpuModuleStatistics> ModuleStatistics;
 };

@@ -85,6 +85,7 @@ struct IAssignmentPlanUpdateContext
     virtual TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const = 0;
 
     virtual bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const = 0;
+    virtual bool IsDetailedLoggingEnabled(const TOperationPtr& operation) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,16 +167,19 @@ private:
     void PlanAllocationGroup(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
-        std::vector<TNode*>* availableNodes);
+        std::vector<TNode*>* availableNodes,
+        EGpuAssignmentPlanningStage stage);
     void PlanAllocationGroupWithPreemption(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
         std::vector<TNode*>* availableNodes,
+        EGpuAssignmentPlanningStage stage,
         bool useFullHostAggressivePreemption = false);
     void PlanPreemptibleAllocationGroup(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
-        std::vector<TNode*>* availableNodes);
+        std::vector<TNode*>* availableNodes,
+        EGpuAssignmentPlanningStage stage);
 
     void DumpModuleStatistics() const;
 
