@@ -1,34 +1,37 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: tzlocal
-Version: 5.3.1
+Version: 5.4.3
 Summary: tzinfo object for the local timezone
 Author-email: Lennart Regebro <regebro@gmail.com>
-License: MIT
+License-Expression: MIT
 Project-URL: Source code, https://github.com/regebro/tzlocal
 Project-URL: Changelog, https://github.com/regebro/tzlocal/blob/master/CHANGES.txt
 Project-URL: Issue tracker, https://github.com/regebro/tzlocal/issues
 Keywords: timezone
-Classifier: Development Status :: 5 - Production/Stable
-Classifier: License :: OSI Approved :: MIT License
+Classifier: Development Status :: 6 - Mature
 Classifier: Operating System :: Microsoft :: Windows
 Classifier: Operating System :: Unix
 Classifier: Operating System :: MacOS :: MacOS X
 Classifier: Typing :: Typed
-Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
-Requires-Python: >=3.9
+Classifier: Programming Language :: Python :: 3.14
+Requires-Python: >=3.10
 Description-Content-Type: text/x-rst
 License-File: LICENSE.txt
-Requires-Dist: tzdata ; platform_system == "Windows"
+Requires-Dist: tzdata; platform_system == "Windows"
+Provides-Extra: testing
+Requires-Dist: pytest>=4.3; extra == "testing"
+Requires-Dist: pytest-mock>=3.3; extra == "testing"
+Requires-Dist: pytest-cov; extra == "testing"
+Requires-Dist: check_manifest; extra == "testing"
+Requires-Dist: pyroma; extra == "testing"
+Requires-Dist: ruff; extra == "testing"
 Provides-Extra: devenv
-Requires-Dist: pytest (>=4.3) ; extra == 'devenv'
-Requires-Dist: pytest-mock (>=3.3) ; extra == 'devenv'
-Requires-Dist: pytest-cov ; extra == 'devenv'
-Requires-Dist: check-manifest ; extra == 'devenv'
-Requires-Dist: zest.releaser ; extra == 'devenv'
+Requires-Dist: zest.releaser; extra == "devenv"
+Dynamic: license-file
 
 tzlocal
 =======
