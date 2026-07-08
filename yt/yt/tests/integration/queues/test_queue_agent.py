@@ -9,7 +9,7 @@ from yt.environment.init_queue_agent_state import (
 )
 
 from yt_commands import (alter_table_replica, authors, commit_transaction, generate_timestamp, get, get_batch_output,
-                         get_driver, set, ls, wait, assert_yt_error, create, create_table_replica, sync_mount_table, insert_rows,
+                         get_driver, set, ls, wait, assert_yt_error, create, create_table_replica, sync_mount_table, sync_reshard_table, insert_rows,
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
@@ -2964,6 +2964,40 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
         self._wait_for_component_passes()
 
         assert "Chaos cell directory synchronizer is stopped" not in str(get(f"{chaos_queue}/@queue_status")["alerts"])
+
+    @authors("apachee")
+    def test_trim_chaos_replica_with_partition_count_mismatch(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        queue_agent_orchid = QueueAgentOrchid()
+
+        queue_path = "//tmp/crt-queue"
+        replicas = self._create_chaos_replicated_queue(queue_path)
+
+        primary_replica = replicas[0]
+        assert primary_replica["cluster_name"] == "primary"
+        primary_replica_path = primary_replica["replica_path"]
+        sync_unmount_table(primary_replica_path)
+        sync_reshard_table(primary_replica_path, 3)
+        sync_mount_table(primary_replica_path)
+
+        self._wait_for_component_passes()
+
+        queue_orchid = queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}")
+        primary_replica_orchid = queue_agent_orchid.get_queue_orchid(f"primary:{primary_replica_path}")
+        queue_orchid.wait_fresh_pass()
+        primary_replica_orchid.wait_fresh_pass()
+
+        wait(lambda: len(primary_replica_orchid.get_partitions()) == 3)
+        assert len(queue_orchid.get_partitions()) == 1
+
+        set(f"{queue_path}/@auto_trim_config", {"enable": True})
+
+        self._wait_for_global_sync()
+
+        alerts = queue_orchid.get_alerts()
+        alerts.assert_matching("queue_agent_queue_controller_trim_failed", text="Trimming iteration skipped due to mismatch between partition count of the queue and its replica")
 
 
 @pytest.mark.enabled_multidaemon
