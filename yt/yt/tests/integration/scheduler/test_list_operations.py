@@ -125,6 +125,9 @@ class ListOperationsSetup(YTEnvSetup):
                 "scheduling_options_per_pool_tree": {
                     "other": {"pool": "some_pool"},
                 },
+                "annotations": {
+                    "anno": "tation",
+                }
             },
         )
 
@@ -955,6 +958,17 @@ class _TestListOperationsBase(ListOperationsSetup):
                 access=access,
                 read_from=read_from,
             )
+
+    @authors("coteeq")
+    def test_filter_by_annotations(self, read_from):
+        res = list_operations(
+            include_archive=self.include_archive,
+            from_time=self.op1.before_start_time,
+            to_time=self.op5.after_start_time,
+            read_from=read_from,
+            filter="\"anno\"=\"tation\"",
+        )
+        assert [op["id"] for op in res["operations"]] == [self.op4.id]
 
 
 class TestListOperationsCypressOnly(_TestListOperationsBase):
