@@ -345,8 +345,10 @@ private:
             if (GetState() == ETransactionParticipantState::Unregistered) {
                 return true;
             }
-            if (LastTouched_ + ParticipantTtl < NProfiling::GetInstant() && PendingSenders_.empty()) {
-                return true;
+
+            if (LastTouched_ + ParticipantTtl < NProfiling::GetInstant()) {
+                auto guard = Guard(SpinLock_);
+                return PendingSenders_.empty();
             }
             return false;
         }
