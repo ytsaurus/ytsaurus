@@ -1,0 +1,691 @@
+{
+    "panels": [
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 6,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "min by() ({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_memory_tcmalloc_desired_usage_limit_bytes\", proxy_role=~\"$proxy_role\", pod=~\"$pod\"})",
+                    "legendFormat": "\"OOM tracker threshold\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Memory Total",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_memory_heap_usage_rpc\", proxy_role=~\"$proxy_role\", pod=~\"$pod\", rpc=~\".+\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Memory usage per method",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_memory_heap_usage_user\", user=~\".+\", proxy_role=~\"$proxy_role\", pod=~\"$pod\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Memory usage per user",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_resource_tracker_thread_count\", proxy_role=~\"$proxy_role\", pod=~\"$pod\", thread=~\"Worker\"}",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_resource_tracker_total_cpu\", proxy_role=~\"$proxy_role\", pod=~\"$pod\", thread=~\"Worker\"}) / (100)",
+                    "refId": "B"
+                }
+            ],
+            "title": "Worker thread pool CPU usage",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_resource_tracker_thread_count\", proxy_role=~\"$proxy_role\", pod=~\"$pod\", thread=~\"BusXferFS\"}",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_resource_tracker_total_cpu\", proxy_role=~\"$proxy_role\", pod=~\"$pod\", thread=~\"BusXferFS\"}) / (100)",
+                    "refId": "B"
+                }
+            ],
+            "title": "BusXfer thread pool CPU usage",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_resource_tracker_cpu_wait\", proxy_role=~\"$proxy_role\", pod=~\"$pod\", thread=~\"\"}) / (100)",
+                    "refId": "A"
+                }
+            ],
+            "title": "CPU wait (all threads)",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 18
+            },
+            "options": {
+                "content": "",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_resource_tracker_utilization\", proxy_role=~\"$proxy_role\", pod=~\"$pod\", thread=~\".*\"}",
+                    "legendFormat": "\"{{thread}} {{container}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Threads utilization",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, (rate({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_action_queue_time_cumulative\", proxy_role=~\"$proxy_role\", pod=~\"$pod\", thread=~\".+\"}[$__rate_interval])) / ({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_resource_tracker_thread_count\", proxy_role=~\"$proxy_role\", pod=~\"$pod\", thread=~\".+\"})))",
+                    "legendFormat": "\"{{thread}} {{container}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Action queue utilization",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_tx_limit\", proxy_role=~\"$proxy_role\", container_category=~\"pod\", pod=~\"$pod\"}",
+                    "legendFormat": "\"Container Net Tx Guarantee {{container}}\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_tx_bytes\", proxy_role=~\"$proxy_role\", container_category=~\"pod\", pod=~\"$pod\"}",
+                    "legendFormat": "\"Container Net Tx Bytes Rate {{container}}\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_bus_out_bytes\", proxy_role=~\"$proxy_role\", band=~\"\", encrypted=~\"\", network=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "legendFormat": "\"Rpc Proxy TX Bytes Rate {{container}}\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Net TX total",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_rx_limit\", proxy_role=~\"$proxy_role\", container_category=~\"pod\", pod=~\"$pod\"}",
+                    "legendFormat": "\"Container Net Rx Guarantee {{container}}\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_rx_bytes\", proxy_role=~\"$proxy_role\", container_category=~\"pod\", pod=~\"$pod\"}",
+                    "legendFormat": "\"Container Net Rx Bytes Rate {{container}}\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_bus_in_bytes\", proxy_role=~\"$proxy_role\", band=~\"\", encrypted=~\"\", network=~\"\", pod=~\"$pod\"}[$__rate_interval])",
+                    "legendFormat": "\"Rpc Proxy RX Bytes Rate {{container}}\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Net RX Total",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": true
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_bus_pending_out_bytes\", proxy_role=~\"$proxy_role\", band=~\".+\", encrypted=~\"\", network=~\".+\", pod=~\"$pod\"}",
+                    "legendFormat": "\"band: {{band}}, net: {{network}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Pending out bytes",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_bus_retransmits\", proxy_role=~\"$proxy_role\", band=~\"\", encrypted=~\"\", network=~\".+\", pod=~\"$pod\"}[$__rate_interval])",
+                    "legendFormat": "\"net: {{network}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "TCP retransmits rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 42
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_rpc_server_request_count\", user=~\"\", yt_service=~\".+\", method=~\".+\", proxy_role=~\"$proxy_role\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC request rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 42
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_rpc_server_concurrency\", user=~\"\", yt_service=~\".+\", method=~\".+\", proxy_role=~\"$proxy_role\", pod=~\"$pod\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC inflight",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 48
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_rpc_server_failed_request_count\", user=~\"\", yt_service=~\".+\", method=~\".+\", proxy_role=~\"$proxy_role\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC failed request rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 48
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_rpc_server_timed_out_request_count\", user=~\"\", yt_service=~\".+\", method=~\".+\", proxy_role=~\"$proxy_role\", pod=~\"$pod\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC timed out request rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 54
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_rpc_server_request_time_local_wait_max\", user=~\"\", yt_service=~\".+\", method=~\".+\", proxy_role=~\"$proxy_role\", pod=~\"$pod\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC local wait max",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 54
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_rpc_server_request_time_remote_wait_max\", user=~\"\", yt_service=~\".+\", method=~\".+\", proxy_role=~\"$proxy_role\", pod=~\"$pod\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC remote wait max",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": true
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 24,
+                "x": 0,
+                "y": 60
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_server_restarted\", proxy_role=~\"$proxy_role\", pod=~\"$pod\", window=~\"5min\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Rpc Proxy restarts",
+            "type": "timeseries"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Cluster",
+                "name": "cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "default",
+                    "value": "default"
+                },
+                "hide": 0,
+                "label": "Proxy role",
+                "name": "proxy_role",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "default",
+                        "value": "default"
+                    }
+                ],
+                "query": "default",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "default_for_ui": ".*",
+                "hide": 0,
+                "label": "Pod",
+                "name": "pod",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ]
+    },
+    "title": "Bundle RPC proxy [Autogenerated]"
+}

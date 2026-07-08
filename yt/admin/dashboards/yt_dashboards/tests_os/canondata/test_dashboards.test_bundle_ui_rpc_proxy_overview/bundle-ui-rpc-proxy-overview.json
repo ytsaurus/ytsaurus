@@ -1,0 +1,458 @@
+{
+    "panels": [
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "normal"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_vcpu_guarantee\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}) / (100)",
+                    "legendFormat": "\"Container CPU Guarantee\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_vcpu_total\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}) / (100)",
+                    "legendFormat": "\"Container CPU Usage\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_resource_tracker_total_cpu\", proxy_role=~\"$proxy_role\", thread=~\".+\"}) / (100)",
+                    "legendFormat": "\"{{thread}}\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "CPU Total",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_vcpu_guarantee\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}) / (100)",
+                    "legendFormat": "\"Guarantee {{container}}\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "((topk(5, {cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_vcpu_total\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}))) / (100)",
+                    "legendFormat": "\"Usage {{container}}\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "((bottomk(5, {cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_vcpu_total\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}))) / (100)",
+                    "legendFormat": "\"Usage {{container}}\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "CPU per container",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_memory_memory_limit\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Container Memory Guarantee\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_memory_anon_limit\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Anon Memory Limit\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_memory_anon_usage\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Anon Memory Usage\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Memory Total",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 6
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "min by() ({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_memory_memory_limit\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"})",
+                    "legendFormat": "\"Container Memory Guarantee\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "min by() ({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_memory_anon_limit\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"})",
+                    "legendFormat": "\"Anon Memory Limit\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "min by() ({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_memory_tcmalloc_desired_usage_limit_bytes\", proxy_role=~\"$proxy_role\"})",
+                    "legendFormat": "\"OOM tracker threshold\"",
+                    "refId": "C"
+                },
+                {
+                    "datasource": null,
+                    "expr": "(topk(5, {cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_memory_anon_usage\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}))",
+                    "legendFormat": "\"Usage {{container}}\"",
+                    "refId": "D"
+                },
+                {
+                    "datasource": null,
+                    "expr": "(bottomk(5, {cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_memory_anon_usage\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}))",
+                    "legendFormat": "\"Usage {{container}}\"",
+                    "refId": "E"
+                }
+            ],
+            "title": "Memory per container",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_tx_limit\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Container Net Tx Guarantee\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_tx_bytes\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Container Net Tx Bytes Rate\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_bus_out_bytes\", proxy_role=~\"$proxy_role\", band=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval])",
+                    "legendFormat": "\"Rpc Proxy TX Bytes Rate\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Net TX total",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 12
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_tx_limit\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Guarantee {{container}}\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "(topk(5, {cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_tx_bytes\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}))",
+                    "legendFormat": "\"Usage {{container}}\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "(bottomk(5, {cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_tx_bytes\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}))",
+                    "legendFormat": "\"Usage {{container}}\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Net TX per container",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_rx_limit\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Container Net Rx Guarantee\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_rx_bytes\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Container Net Rx Bytes Rate\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_bus_in_bytes\", proxy_role=~\"$proxy_role\", band=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval])",
+                    "legendFormat": "\"Rpc Proxy RX Bytes Rate\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Net RX Total",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_rx_limit\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Guarantee {{container}}\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "(topk(5, {cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_rx_bytes\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}))",
+                    "legendFormat": "\"Usage {{container}}\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "(bottomk(5, {cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_porto_network_rx_bytes\", proxy_role=~\"$proxy_role\", container_category=~\"pod\"}))",
+                    "legendFormat": "\"Usage {{container}}\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Net RX per container",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 24
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_.*heap_usage_user\", user=~\".+\", proxy_role=~\"$proxy_role\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Memory per user",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 24
+            },
+            "options": {
+                "content": "",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Cluster",
+                "name": "cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "default",
+                    "value": "default"
+                },
+                "hide": 0,
+                "label": "Proxy role",
+                "name": "proxy_role",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "default",
+                        "value": "default"
+                    }
+                ],
+                "query": "default",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ]
+    },
+    "title": "Bundle RPC proxy resource overview [Autogenerated]"
+}
