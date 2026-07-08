@@ -355,8 +355,7 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("expected_data_node_heartbeat_duration", &TThis::ExpectedDataNodeHeartbeatDuration)
-        .Default(TDuration::Seconds(5))
-        .DontSerializeDefault();
+        .Default(TDuration::Seconds(5));
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->EnableValidationFullHeartbeats && !config->EnablePerLocationFullHeartbeats) {
