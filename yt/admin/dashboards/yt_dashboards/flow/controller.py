@@ -113,13 +113,22 @@ def add_partitions_by_current_job_status_cell(row):
     )
 
 
-def build_flow_layout_mutations():
+def build_flow_layout_mutations(backend: str = "monitoring"):
+    if backend == "monitoring":
+        layout_mutations = FlowController("yt.flow.controller.mutations.*.rate")
+        job_manage_mutations = FlowController("yt.flow.controller.job_manager.*.rate")
+    else:
+        layout_mutations = enumerated_rates(
+            "yt.flow.controller.mutations.{name}.rate", CONTROLLER_MUTATIONS)
+        job_manage_mutations = enumerated_rates(
+            "yt.flow.controller.job_manager.{name}.rate", JOB_MANAGER_COUNTERS)
+
     return (Rowset()
         .stack(False)
         .row()
             .apply_func(add_partitions_by_current_job_status_cell)
-            .cell("Layout mutations", FlowController("yt.flow.controller.mutations.*.rate").unit("UNIT_COUNTS_PER_SECOND"))
-            .cell("Job manage mutations", FlowController("yt.flow.controller.job_manager.*.rate").unit("UNIT_COUNTS_PER_SECOND"))
+            .cell("Layout mutations", layout_mutations.unit("UNIT_COUNTS_PER_SECOND"))
+            .cell("Job manage mutations", job_manage_mutations.unit("UNIT_COUNTS_PER_SECOND"))
             .cell("", EmptyCell())
     ).owner
 
@@ -133,6 +142,36 @@ CONTROLLER_REGULAR_ACTIVITIES = [
     "update_metrics",
     "write_own_retryable_errors",
 ]
+
+# Mutation counters registered in TMutationMetrics
+# (yt/yt/flow/library/cpp/controller/controller.cpp).
+CONTROLLER_MUTATIONS = [
+    "create_partition",
+    "update_partition_state",
+    "remove_partition",
+    "create_job",
+    "remove_job",
+    "update_job_lease",
+]
+
+# Counters registered in TJobManager (yt/yt/flow/library/cpp/controller/job_manager.cpp).
+JOB_MANAGER_COUNTERS = [
+    "failed_jobs",
+    "succeeded_jobs",
+    "lost_jobs",
+    "partitioning_mutations",
+    "distributing_mutations",
+]
+
+
+def enumerated_rates(name_template, names):
+    # PromQL rate() drops the metric name, so a "*" glob would collapse all
+    # sensors into indistinguishable series; enumerate them instead.
+    return MultiSensor(*(
+        MonitoringExpr(FlowController(name_template.format(name=name)))
+            .alias(name)
+        for name in names
+    ))
 
 
 def add_controller_failed_iterations_cell(row, backend: str = "monitoring"):
@@ -149,13 +188,10 @@ def add_controller_failed_iterations_cell(row, backend: str = "monitoring"):
         content = (FlowController("yt.flow.controller.*.iterations_failed.rate")
             .unit("UNIT_COUNTS_PER_SECOND"))
     else:
-        # PromQL rate() drops the metric name, so the "*" glob would collapse
-        # all components into indistinguishable series; enumerate them instead.
-        content = MultiSensor(*(
-            MonitoringExpr(FlowController(f"yt.flow.controller.{activity}.iterations_failed.rate"))
-                .alias(activity)
-            for activity in CONTROLLER_REGULAR_ACTIVITIES
-        )).unit("UNIT_COUNTS_PER_SECOND")
+        content = enumerated_rates(
+            "yt.flow.controller.{name}.iterations_failed.rate",
+            CONTROLLER_REGULAR_ACTIVITIES,
+        ).unit("UNIT_COUNTS_PER_SECOND")
 
     return (row
             .cell(
@@ -165,15 +201,21 @@ def add_controller_failed_iterations_cell(row, backend: str = "monitoring"):
     )
 
 
-def build_controller_iterations():
+def build_controller_iterations(backend: str = "monitoring"):
+    if backend == "monitoring":
+        total_iterations = FlowController("yt.flow.controller.*.iterations_total.rate")
+    else:
+        total_iterations = enumerated_rates(
+            "yt.flow.controller.{name}.iterations_total.rate", CONTROLLER_REGULAR_ACTIVITIES)
+
     return (Rowset()
         .stack(False)
         .row()
             .cell(
                 "Controller total iterations",
-                FlowController("yt.flow.controller.*.iterations_total.rate")
+                total_iterations
                     .unit("UNIT_COUNTS_PER_SECOND"))
-            .apply_func(add_controller_failed_iterations_cell)
+            .apply_func(lambda row: add_controller_failed_iterations_cell(row, backend=backend))
             .cell(
                 "Controller iteration duration",
                 MonitoringExpr(FlowController("yt.flow.controller.*iteration_time.max"))
@@ -295,17 +337,17 @@ def build_alignment_timestamp():
     )
 
 
-def build_flow_controller():
+def build_flow_controller(backend="monitoring"):
     def fill(d):
         d.add(build_pipeline_state())
         d.add(build_resource_usage("controller", add_component_to_title=False))
         d.add(build_flow_layout())
-        d.add(build_flow_layout_mutations())
-        d.add(build_controller_iterations())
+        d.add(build_flow_layout_mutations(backend))
+        d.add(build_controller_iterations(backend))
         d.add(build_heartbeats())
         d.add(build_watermark_heuristics())
         d.add(build_alignment_timestamp())
         d.add(build_extra_cpu("controller"))
         d.add(build_yt_rpc("controller"))
 
-    return create_dashboard("controller", fill)
+    return create_dashboard("controller", fill, backend=backend)
