@@ -544,6 +544,15 @@ class TestNodesThrottling(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_NODES = 3
 
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "master_connector": {
+                "heartbeat_period": 1000,
+                "heartbeat_period_splay": 100,
+            },
+        },
+    }
+
     @classmethod
     def get_node_count(self, state="online"):
         node_count = 0
@@ -560,6 +569,7 @@ class TestNodesThrottling(YTEnvSetup):
         # Now each node has approximately 20 chunks, so after registration they will send full heartbeats and will be throttled.
 
         self.Env.kill_nodes()
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_chunk_replicas_throttling_in_heartbeats", True)
         set("//sys/@config/chunk_manager/data_node_tracker/max_concurrent_chunk_replicas_during_full_heartbeat", 1)
         # Disabling `minimize_commit_latency` and make delay between mutations flush, this will help throttling to be visible.
         set("//sys/@config/hydra_manager/minimize_commit_latency", False)
@@ -578,6 +588,22 @@ class TestNodesThrottling(YTEnvSetup):
 
         time.sleep(2)
         assert TestNodesThrottling.get_node_count() == 3
+
+    @authors("aleksandra-zh")
+    def test_full_heartbeats_forbidden_with_zero_limit(self):
+        set("//sys/@config/chunk_manager/data_node_tracker/max_concurrent_full_heartbeats", 0)
+        set("//sys/@config/chunk_manager/data_node_tracker/max_concurrent_location_full_heartbeats", 0)
+
+        self.Env.kill_nodes()
+        self.Env.start_nodes(sync=False)
+
+        wait(lambda: TestNodesThrottling.get_node_count(state="registered") == 3)
+        time.sleep(3)
+        assert TestNodesThrottling.get_node_count() == 0
+
+        set("//sys/@config/chunk_manager/data_node_tracker/max_concurrent_full_heartbeats", 3)
+        set("//sys/@config/chunk_manager/data_node_tracker/max_concurrent_location_full_heartbeats", 3)
+        wait(lambda: TestNodesThrottling.get_node_count() == 3)
 
     @authors("cherepashka")
     def test_registration_lease_reuse(self):

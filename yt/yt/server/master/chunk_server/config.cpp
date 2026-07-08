@@ -319,6 +319,12 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_concurrent_chunk_replicas_during_incremental_heartbeat", &TThis::MaxConcurrentChunkReplicasDuringIncrementalHeartbeat)
         .Default(5'000)
         .GreaterThan(0);
+    registrar.Parameter("max_concurrent_full_heartbeats", &TThis::MaxConcurrentFullHeartbeats)
+        .Default(1);
+    registrar.Parameter("max_concurrent_location_full_heartbeats", &TThis::MaxConcurrentLocationFullHeartbeats)
+        .Default(20);
+    registrar.Parameter("max_concurrent_incremental_heartbeats", &TThis::MaxConcurrentIncrementalHeartbeats)
+        .Default(10);
     registrar.Parameter("dangling_location_cleaner", &TThis::DanglingLocationCleaner)
         .DefaultNew();
     registrar.Parameter("enable_per_location_full_heartbeats", &TThis::EnablePerLocationFullHeartbeats)
@@ -334,6 +340,8 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .DontSerializeDefault();
     registrar.Parameter("ignore_replicas_with_changed_state_during_validation", &TThis::IgnoreReplicasWithChangedStateDuringValidation)
         .Default(true);
+    registrar.Parameter("enable_chunk_replicas_throttling_in_heartbeats", &TThis::EnableChunkReplicasThrottlingInHeartbeats)
+        .Default(false);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
     registrar.Parameter("use_location_indexes_in_sequoia_chunk_confirmation", &TThis::UseLocationIndexesInSequoiaChunkConfirmation)
@@ -345,6 +353,10 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("verify_all_locations_are_reported_in_full_heartbeats", &TThis::VerifyAllLocationsAreReportedInFullHeartbeats)
         .Default(false);
+
+    registrar.Parameter("expected_data_node_heartbeat_duration", &TThis::ExpectedDataNodeHeartbeatDuration)
+        .Default(TDuration::Seconds(5))
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->EnableValidationFullHeartbeats && !config->EnablePerLocationFullHeartbeats) {
