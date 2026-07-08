@@ -301,7 +301,12 @@ dashboards = {
     },
     "flow-controller": {
         "func": flow.build_flow_controller,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-worker": {
         "func": flow.build_flow_worker,
