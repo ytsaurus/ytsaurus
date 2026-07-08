@@ -271,9 +271,73 @@ You can manage bundles by clicking `Edit bundle` on the necessary bundle page in
 
 To manage a bundle, you need the `manage` permission for it.
 
-## Disabling the Bundle controller
+## Bundle drills { #drills }
 
-To switch the Bundle controller to read-only mode, set the `//sys/@disable_bundle_controller` attribute to `%true`. The Bundle controller will stop performing any actions on the cluster; however, you can still monitor the state of bundles from the user interface.
+The bundle has a drills mode to simulate a bundle outage in a single cluster (for example, during disaster recovery drills). 
+
+Enable this mode by setting the `enable_drills_mode` attribute in `bundle_controller_target_config` for the cluster which you want to "shut down".
+
+Enable drills mode:
+
+```bash
+yt --proxy <cluster> set //sys/tablet_cell_bundles/<bundle_name>/@bundle_controller_target_config/enable_drills_mode %true
+```
+
+Disable drills mode:
+
+```bash
+yt --proxy <cluster> set //sys/tablet_cell_bundles/<bundle_name>/@bundle_controller_target_config/enable_drills_mode %false
+```
+
+Set the flag on the bundle in the cluster which you want to cover. For example, if you waht to run drills for a bundle on `seneca-sas`, you should set `enable_drills_mode = %true` for this bundle on `seneca-sas`.
+
+### How it works { #drills-how }
+
+When drills mode is enabled, Bundle controller:
+
+- Removes the `node_tag_filter` from the bundle nodes, which drives tablet cells off the nodes, and switches the bundle to a separate drills filter like `<zone>/<bundle_name>_drills_mode_on`.
+- Disables tablet cell liveness checks (`mute_tablet_cells_check` and `mute_tablet_cell_snapshots_check`) to avoid raising alerts during drills.
+
+When (`enable_drills_mode = %false`) is disabled, these actions are rolled back in the reverse order: the regular `node_tag_filter` is restored, and after a grace period finished, liveness checks are re-enabled.
+
+While drills mode is active, the bundle shows the `bundle_has_drills_mode_enabled` alert.
+
+### Limitations and precautions { #drills-caveats }
+
+Using drills mode can be dangerous when working with asynchronous replicas. If a replica suddenly disappears during drills, async replication transactions may "stick" and prevent tablets from unmounting. In this state, tablets go into `freezing` for a long time.
+
+The risk persists even if you do not unmount tables manually: background tablet balancing may unmount them on its own and trigger the same problem.
+
+As a workaround during drills, we recommend disabling tablet balancing. The absence of balancing for several hours generally does not affect bundle performance.
+
+## Forbidden data centers { #forbidden-data-centers }
+
+To prevent a bundle from running in specific data centers (for example, to simulate a DC failure during drills or to evacuate a bundle from a DC with network issues), use the `forbidden_data_centers` attribute in `bundle_controller_target_config`. This attribute saves a list of DC names where the bundle nodes and RPC proxies must not be placed.
+
+Set the list (one or multiple DCs):
+
+```bash
+yt --proxy <cluster> set //sys/tablet_cell_bundles/<bundle_name>/@bundle_controller_target_config/forbidden_data_centers '["sas"]'
+```
+
+Remove the restriction (return to normal placement across all DCs):
+
+```bash
+yt --proxy <cluster> set //sys/tablet_cell_bundles/<bundle_name>/@bundle_controller_target_config/forbidden_data_centers '[]'
+```
+
+### How it works { #forbidden-dc-how }
+
+The forbidden DCs are placed at the end of the bundle's preferred DC order. As long as the bundle has enough allowed DCs for placement, Bundle controller:
+
+- Stops assigning a new tablet nodes and RPC proxies in the forbidden DCs.
+- Releases already allocated nodes and proxies in the forbidden DCs and moves them to allowed DCs.
+
+While the `forbidden_data_centers` list is not empty, the bundle shows the `bundle_has_forbidden_dc` alert. It is informational and only confirms that the config has been applied.
+
+## Disabling Bundle controller
+
+To switch Bundle controller to read-only mode, set the `//sys/@disable_bundle_controller` attribute to `%true`. Bundle controller will stop performing any actions on the cluster, but you can still see the bundle states in the UI.
 
 ## Troubleshooting { #faq }
 
