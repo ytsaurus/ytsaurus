@@ -20,6 +20,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/concurrency/coroutine.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
@@ -34,6 +35,7 @@
 #include <library/cpp/yt/logging/backends/arcadia/backend.h>
 
 #include <util/generic/hash_set.h>
+#include <util/generic/yexception.h>
 #include <util/string/builder.h>
 
 #include <string>
@@ -65,12 +67,8 @@ public:
 
     TActiveQueriesGuard(
         int maxSimultaneousQueries,
-        std::atomic<int>* activeQueries,
-        IYqlPlugin* yqlPlugin,
-        TQueryId queryId)
+        std::atomic<int>* activeQueries)
         : ActiveQueries_(activeQueries)
-        , YqlPlugin_(yqlPlugin)
-        , QueryId_(std::move(queryId))
     {
         IsTaken_ = true;
         auto queries = ActiveQueries_->load();
@@ -81,20 +79,12 @@ public:
             }
         } while (!ActiveQueries_->compare_exchange_weak(queries, queries + 1));
 
-        if (IsTaken_) {
-            YqlPlugin_->RegisterQuery(QueryId_);
-        }
     }
 
     ~TActiveQueriesGuard()
     {
         if (IsTaken_) {
             ActiveQueries_->fetch_add(-1);
-            try {
-                YqlPlugin_->UnregisterQuery(QueryId_);
-            } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to unregister query (QueryId: %v)", QueryId_);
-            }
         }
     }
 
@@ -105,34 +95,24 @@ public:
 
 private:
     std::atomic<int>* const ActiveQueries_;
-    IYqlPlugin* YqlPlugin_;
-    TQueryId QueryId_;
-
     bool IsTaken_;
 };
 
 class TActiveQueriesGuardFactory
 {
 public:
-    explicit TActiveQueriesGuardFactory(int maxSimultaneousQueries, IYqlPlugin* yqlPlugin)
+    explicit TActiveQueriesGuardFactory(int maxSimultaneousQueries)
         : MaxSimultaneousQueries_(maxSimultaneousQueries)
-        , YqlPlugin_(yqlPlugin)
-    {
-        YT_VERIFY(YqlPlugin_);
-    }
+    { }
 
     void Update(int maxSimultaneousQueries)
     {
         MaxSimultaneousQueries_ = maxSimultaneousQueries;
     }
 
-    TActiveQueriesGuard CreateGuard(TQueryId queryId)
+    TActiveQueriesGuard CreateGuard()
     {
-        return TActiveQueriesGuard(
-            MaxSimultaneousQueries_,
-            &ActiveQueries_,
-            YqlPlugin_,
-            std::move(queryId));
+        return TActiveQueriesGuard(MaxSimultaneousQueries_, &ActiveQueries_);
     }
 
     int GetGuardedValue() const
@@ -142,9 +122,18 @@ public:
 
 private:
     int MaxSimultaneousQueries_;
-    IYqlPlugin* YqlPlugin_;
-
     std::atomic<int> ActiveQueries_;
+};
+
+struct TQueryState
+{
+    TQueryId QueryId;
+    bool Registered = false;
+
+    TError Error;
+    TError CleanupError;
+
+    TPeriodicExecutorPtr RefreshTokenExecutor;
 };
 
 struct TDiscoveredSecret
@@ -364,8 +353,7 @@ public:
         YT_VERIFY(coroutine.IsCompleted());
 
         ActiveQueriesGuardFactory_ = std::make_unique<TActiveQueriesGuardFactory>(
-            DynamicConfig_->MaxSimultaneousQueries,
-            YqlPlugin_.get());
+            DynamicConfig_->MaxSimultaneousQueries);
 
         YqlAgentProfiler().AddFuncGauge("/active_queries", MakeStrong(this), [this] {
             return ActiveQueriesGuardFactory_->GetGuardedValue();
@@ -526,9 +514,45 @@ private:
     IThreadPoolPtr ThreadPool_;
     std::unique_ptr<TActiveQueriesGuardFactory> ActiveQueriesGuardFactory_;
 
+    void Cleanup(TQueryState& queryState, TStringBuf cleanupErrorSuffix)
+    {
+        TCurrentCancelableContextGuard uncancelableGuard(nullptr);
+
+        if (queryState.RefreshTokenExecutor) {
+            WaitUntilSet(queryState.RefreshTokenExecutor->Stop());
+            queryState.RefreshTokenExecutor.Reset();
+        }
+
+        auto makeCommonCleanupError = [&] {
+            return TError("Failed to unregister query during cleanup")
+                << TErrorAttribute("query_id", queryState.QueryId);
+        };
+
+        if (queryState.Registered) {
+            try {
+                YqlPlugin_->UnregisterQuery(queryState.QueryId);
+                queryState.Registered = false;
+            } catch (const std::exception& ex) {
+                queryState.CleanupError = makeCommonCleanupError()
+                    << TError(ex);
+            } catch (...) {
+                queryState.CleanupError = makeCommonCleanupError()
+                    << TErrorAttribute("message", CurrentExceptionMessage());
+            }
+        }
+
+        if (!queryState.CleanupError.IsOK()) {
+            YT_LOG_DEBUG(
+                queryState.CleanupError,
+                "Failed to cleanup query state after %v (QueryId: %v)",
+                cleanupErrorSuffix,
+                queryState.QueryId);
+        }
+    }
+
     std::pair<TRspStartQuery, std::vector<TSharedRef>> DoStartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request)
     {
-        auto guard = ActiveQueriesGuardFactory_->CreateGuard(queryId);
+        auto guard = ActiveQueriesGuardFactory_->CreateGuard();
 
         if (!guard.IsTaken()) {
             YT_LOG_INFO(
@@ -550,11 +574,13 @@ private:
 
         std::vector<TSharedRef> wireRowsets;
 
-        TPeriodicExecutorPtr refreshTokenExecutor;
-        auto stopTokenRefresh = [&] {
-            if (refreshTokenExecutor) {
-                WaitUntilSet(refreshTokenExecutor->Stop());
-            }
+        auto queryState = TQueryState{
+            .QueryId = queryId,
+        };
+
+        auto makeCommonQueryError = [&] {
+            return TError("Failed to run query")
+                << TErrorAttribute("query_id", queryId);
         };
 
         try {
@@ -571,6 +597,9 @@ private:
                 });
             }
 
+            YqlPlugin_->RegisterQuery(queryId);
+            queryState.Registered = true;
+
             auto clustersResult = YqlPlugin_->GetUsedClusters(queryId, query, settings, files);
             if (clustersResult.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
@@ -586,8 +615,8 @@ private:
 
             auto token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
 
-            refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
-            refreshTokenExecutor->Start();
+            queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
+            queryState.RefreshTokenExecutor->Start();
 
             const auto defaultCluster = clustersResult.Clusters.front().first;
             // TODO(ngc224): revise after proper auth support in UI
@@ -652,17 +681,30 @@ private:
                 }
             }
 
-            stopTokenRefresh();
             response.mutable_yql_response()->Swap(&yqlResponse);
-            return {response, wireRowsets};
+        } catch (const TFiberCanceledException&) {
+            Cleanup(queryState, "fiber cancellation");
+            throw;
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to run query")
-                << TErrorAttribute("query_id", queryId)
+            queryState.Error = makeCommonQueryError()
                 << TError(ex);
-            YT_LOG_INFO(error, "YQL plugin call failed");
-            stopTokenRefresh();
-            THROW_ERROR error;
+        } catch (...) {
+            queryState.Error = makeCommonQueryError()
+                << TErrorAttribute("message", CurrentExceptionMessage());
         }
+
+        Cleanup(
+            queryState,
+            queryState.Error.IsOK()
+                ? "successful run"
+                : "exception");
+
+        if (!queryState.Error.IsOK()) {
+            YT_LOG_INFO(queryState.Error, "YQL plugin call failed");
+            THROW_ERROR queryState.Error;
+        }
+
+        return {response, wireRowsets};
     }
 
     TRspGetDeclaredParametersInfo DoGetDeclaredParametersInfo(const TString& user, const TString& query, const TYsonString& settings)
@@ -673,9 +715,20 @@ private:
 
         YT_LOG_INFO("Getting declared parameters via YQL plugin");
 
+        auto queryState = TQueryState{
+            .QueryId = TQueryId::Create(),
+        };
+
+        auto makeCommonQueryError = [&] {
+            return TError("Failed to get declared parameters for query")
+                << TErrorAttribute("query_id", queryState.QueryId);
+        };
+
         try {
-            TQueryId fictionalQueryId = TQueryId::Create();
-            auto clustersResult = YqlPlugin_->GetUsedClusters(fictionalQueryId, query, settings, {});
+            YqlPlugin_->RegisterQuery(queryState.QueryId);
+            queryState.Registered = true;
+
+            auto clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, query, settings, {});
             if (clustersResult.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
                 THROW_ERROR error;
@@ -690,8 +743,8 @@ private:
 
             auto token = IssueToken(TGuid::Create(), user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
 
-            auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
-            refreshTokenExecutor->Start();
+            queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
+            queryState.RefreshTokenExecutor->Start();
 
             const auto defaultCluster = clustersResult.Clusters.front();
             // TODO(ngc224): revise after proper auth support in UI
@@ -700,20 +753,34 @@ private:
                 {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
             };
 
-            const auto result = YqlPlugin_->GetDeclaredParametersInfo(fictionalQueryId, user, query, settings, ConvertToYsonString(credentials));
-            WaitFor(refreshTokenExecutor->Stop()).ThrowOnError();
+            const auto result = YqlPlugin_->GetDeclaredParametersInfo(queryState.QueryId, user, query, settings, ConvertToYsonString(credentials));
 
             ToProto(response.mutable_declared_parameters_info(), result.YsonParameters.value_or("{}"));
 
             YT_LOG_INFO("Successfully got declared parameters via YQL plugin");
-
-            return response;
+        } catch (const TFiberCanceledException&) {
+            Cleanup(queryState, "fiber cancellation");
+            throw;
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to get declared parameters for query")
+            queryState.Error = makeCommonQueryError()
                 << TError(ex);
-            YT_LOG_INFO(error, "YQL plugin call failed");
-            THROW_ERROR error;
+        } catch (...) {
+            queryState.Error = makeCommonQueryError()
+                << TErrorAttribute("message", CurrentExceptionMessage());
         }
+
+        Cleanup(
+            queryState,
+            queryState.Error.IsOK()
+                ? "successful run"
+                : "exception");
+
+        if (!queryState.Error.IsOK()) {
+            YT_LOG_INFO(queryState.Error, "YQL plugin call failed");
+            THROW_ERROR queryState.Error;
+        }
+
+        return response;
     }
 
     void DoAbortQuery(TQueryId queryId)

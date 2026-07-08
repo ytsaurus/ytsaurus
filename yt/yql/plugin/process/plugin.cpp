@@ -33,6 +33,8 @@
 #include <library/cpp/yson/writer.h>
 #include <library/cpp/yt/logging/backends/arcadia/backend.h>
 
+#include <util/generic/yexception.h>
+
 namespace NYT::NYqlPlugin::NProcess {
 
 using namespace NApi::NNative;
@@ -186,16 +188,36 @@ public:
         }
 
         auto pluginProcess = pluginProcessOrError.Value();
+        TGetDeclaredParametersInfoResult result;
+        TError error;
 
-        auto finishQueryGuard = Finally(BIND(&TProcessYqlPlugin::OnQueryFinish, this, queryId, pluginProcess)
-            .Via(Invoker_));
+        auto makeCommonError = [&] {
+            return TError("Failed to get declared parameters in process plugin")
+                << TErrorAttribute("query_id", queryId)
+                << TErrorAttribute("slot_index", pluginProcess->SlotIndex());
+        };
 
-        return pluginProcess->GetDeclaredParametersInfo(
-            queryId,
-            user,
-            queryText,
-            settings,
-            credentials);
+        try {
+            result = pluginProcess->GetDeclaredParametersInfo(
+                queryId,
+                user,
+                queryText,
+                settings,
+                credentials);
+        } catch (const std::exception& ex) {
+            error = makeCommonError()
+                << TError(ex);
+        } catch (...) {
+            error = makeCommonError()
+                << TErrorAttribute("message", CurrentExceptionMessage());
+        }
+
+        if (!error.IsOK()) {
+            YT_LOG_INFO(error, "GetDeclaredParametersInfo call failed");
+            THROW_ERROR error;
+        }
+
+        return result;
     }
 
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override
@@ -265,11 +287,56 @@ public:
         }
 
         auto pluginProcess = pluginProcessOrError.Value();
+        TError error;
 
-        auto finishQueryGuard = Finally(BIND(&TProcessYqlPlugin::OnQueryFinish, this, queryId, pluginProcess)
-            .Via(Invoker_));
+        auto makeQueryCleanupError = [&](TStringBuf message) {
+            return TError(std::string(message), TError::DisableFormat)
+                << TErrorAttribute("query_id", queryId)
+                << TErrorAttribute("slot_index", pluginProcess->SlotIndex());
+        };
 
-        return pluginProcess->UnregisterQuery(queryId);
+        auto makeCommonUnregisterError = [&] {
+            return makeQueryCleanupError(
+                "Failed to unregister query in process plugin");
+        };
+
+        auto makeCommonFinishError = [&] {
+            return makeQueryCleanupError(
+                "Failed to finish query cleanup in process plugin");
+        };
+
+        auto appendError = [&](auto&& extraError) {
+            if (error.IsOK()) {
+                error = std::move(extraError);
+            } else {
+                error <<= std::move(extraError);
+            }
+        };
+
+        try {
+            pluginProcess->UnregisterQuery(queryId);
+        } catch (const std::exception& ex) {
+            error = makeCommonUnregisterError()
+                << TError(ex);
+        } catch (...) {
+            error = makeCommonUnregisterError()
+                << TErrorAttribute("message", CurrentExceptionMessage());
+        }
+
+        try {
+            OnQueryFinish(queryId, pluginProcess);
+        } catch (const std::exception& ex) {
+            appendError(makeCommonFinishError()
+                << TError(ex));
+        } catch (...) {
+            appendError(makeCommonFinishError()
+                << TErrorAttribute("message", CurrentExceptionMessage()));
+        }
+
+        if (!error.IsOK()) {
+            YT_LOG_INFO(error, "UnregisterQuery call failed");
+            THROW_ERROR error;
+        }
     }
 
 private:
@@ -297,7 +364,6 @@ private:
     TGauge StandbyProcessesGauge_;
     TGauge ActiveProcessesGauge_;
     TGauge ProcessesLimitGauge_;
-
 
     TYqlExecutorProcessPtr AcquireSlotForQuery(TQueryId queryId) noexcept
     {
