@@ -34,6 +34,7 @@ def main():
             "yt.local",
             "yt.environment",
             "yt.environment.api",
+            "yt.environment.arcadia_interop",
             "yt.environment.components.query_tracker",
             "yt.environment.components.yql_agent",
             "yt.environment.migrationlib",

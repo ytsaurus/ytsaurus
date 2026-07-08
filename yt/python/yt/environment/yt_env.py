@@ -2351,7 +2351,14 @@ class YTInstance(object):
         self._run_builtin_yt_component("http-proxy", name="http_proxy")
 
         client = self._create_cluster_client()
-        expected_endpoints = set(self.get_http_proxy_addresses())
+
+        def _get_registered_endpoint(config):
+            public_fqdn = get_value(config.get("coordinator"), {}).get("public_fqdn")
+            if public_fqdn:
+                return public_fqdn
+            return "{0}:{1}".format(self.yt_config.fqdn, config["port"])
+
+        expected_endpoints = {_get_registered_endpoint(config) for config in self.configs["http_proxy"]}
 
         def proxy_ready():
             self._validate_processes_are_running("http_proxy")

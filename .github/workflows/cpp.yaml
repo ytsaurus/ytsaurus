@@ -14,6 +14,7 @@ on:
       - stable/[0-9]+\.[0-9]+
       - query-tracker/[0-9]+\.[0-9]+
       - chyt/[0-9]+\.[0-9]+
+      - members/ilyaibraev/check-local-yt
 
 
 env:
@@ -103,7 +104,7 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
           else
-            echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
+            echo 'BUILD_TYPES=["release"]' >> "$GITHUB_OUTPUT"
           fi
 
           # Compute VERSION_PATCH as YYMMDDnnn (date of last commit + commit index within that day).
@@ -128,45 +129,45 @@ jobs:
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
-  build-cmake:
-    name: Build with cmake
-    needs:
-      - start-vm
-      - checkout
-      - build-strawberry
-      - tag
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      build-ytsaurus: true
-      build-chyt: ${{ github.ref_name == 'main' }}
-      build-python: true
-      update-remote-cache: true
-      build-types: ${{ needs.tag.outputs.build-types }}
-      version-patch: ${{ needs.tag.outputs.version-patch }}
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
+  # build-cmake:
+  #   name: Build with cmake
+  #   needs:
+  #     - start-vm
+  #     - checkout
+  #     - build-strawberry
+  #     - tag
+  #   with:
+  #     runs-on-value: ${{ needs.start-vm.outputs.label }}
+  #     cpp-build-system: cmake
+  #     build-ytsaurus: true
+  #     build-chyt: ${{ github.ref_name == 'main' }}
+  #     build-python: true
+  #     update-remote-cache: true
+  #     build-types: ${{ needs.tag.outputs.build-types }}
+  #     version-patch: ${{ needs.tag.outputs.version-patch }}
+  #   secrets:
+  #     BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+  #     BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+  #   uses: ./.github/workflows/build-jobs.yaml
 
-  docker-cmake:
-    name: Docker images with cmake
-    needs:
-      - start-vm
-      - tag
-      - build-cmake
-      - build-strawberry
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      publish-strawberry: ${{ github.ref_name == 'main' }}
-      image-tag: ${{ needs.tag.outputs.image-tag }}
-      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
-      build-types: ${{ needs.tag.outputs.build-types }}
-    secrets:
-      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      GH_USERNAME: ${{ secrets.GH_USERNAME }}
-    uses: ./.github/workflows/docker-jobs.yaml
+  # docker-cmake:
+  #   name: Docker images with cmake
+  #   needs:
+  #     - start-vm
+  #     - tag
+  #     - build-cmake
+  #     - build-strawberry
+  #   with:
+  #     runs-on-value: ${{ needs.start-vm.outputs.label }}
+  #     cpp-build-system: cmake
+  #     publish-strawberry: ${{ github.ref_name == 'main' }}
+  #     image-tag: ${{ needs.tag.outputs.image-tag }}
+  #     nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+  #     build-types: ${{ needs.tag.outputs.build-types }}
+  #   secrets:
+  #     GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+  #     GH_USERNAME: ${{ secrets.GH_USERNAME }}
+  #   uses: ./.github/workflows/docker-jobs.yaml
 
   build-ya-make:
     name: Build with ya-make
@@ -202,7 +203,7 @@ jobs:
       cpp-build-system: ya-make
       publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') }}
       publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
-      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
+      publish-local: true
       publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
@@ -232,7 +233,7 @@ jobs:
     name: Check
     needs:
       - start-vm
-      - build-cmake
+      # - build-cmake
       - build-ya-make
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
@@ -243,7 +244,7 @@ jobs:
     needs:
       - start-vm
       - check
-      - docker-cmake
+      # - docker-cmake
       - docker-ya-make
     runs-on: trampoline
     if: ${{ always() }}
@@ -260,10 +261,10 @@ jobs:
   send-alert:
     needs:
       - check
-      - build-cmake
+      # - build-cmake
       - build-ya-make
       - docker-ya-make
-      - docker-cmake
+      # - docker-cmake
       - build-strawberry
     if: always()
     uses: ./.github/workflows/check-status-and-send-alert.yaml
