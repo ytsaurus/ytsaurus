@@ -964,6 +964,13 @@ private:
             if (!replicaSnapshot) {
                 THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing replica snapshot %v", replicaPath);
             }
+            if (replicaSnapshot->PartitionCount != queueSnapshot->PartitionCount) {
+                THROW_ERROR_EXCEPTION(
+                    "Trimming iteration skipped due to mismatch between partition count of the queue and its replica %v",
+                    replicaPath)
+                    << TErrorAttribute("queue_partition_count", queueSnapshot->PartitionCount)
+                    << TErrorAttribute("queue_replica_partition_count", replicaSnapshot->PartitionCount);
+            }
             replicaContexts.emplace_back(replicaPath, replicaSnapshot);
         }
 
