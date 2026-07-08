@@ -222,7 +222,12 @@ private:
             auto invoker = slot->GetAutomatonInvoker();
             // NB: Cannot capture structured binding element in lambda.
             invoker->Invoke(BIND([slot = slot, stores = stores] {
+                // The slot may have been finalized between scheduling and running this callback
+                // (the automaton invoker is not epoch-guarded), leaving the tablet manager reset.
                 const auto& tabletManager = slot->GetTabletManager();
+                if (!tabletManager) {
+                    return;
+                }
                 for (const auto& store : stores) {
                     tabletManager->ReleaseBackingStore(store);
                 }
