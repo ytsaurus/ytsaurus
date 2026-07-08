@@ -597,12 +597,24 @@ private:
         return result;
     }
 
+    bool ShouldUseSendBlocks() const
+    {
+        if (!Config_->UseSendBlocks) {
+            return false;
+        }
+        if (InitialTargets_.size() <= 1 && (UploadReplicationFactor_ == 1 || !Options_->AllowAllocatingNewTargetNodes)) {
+            return false;
+        }
+        return true;
+    }
+
     void DoOpen()
     {
         try {
             auto targets = InitialTargets_;
             int uploadReplicationFactor = UploadReplicationFactor_;
 
+            bool isOffshoreSession = false;
             if (targets.empty()) {
                 const auto& connection = Client_->GetNativeConnection();
                 auto mediumDescriptor = connection->GetMediumDirectory()->FindByIndex(SessionId_.MediumIndex);
@@ -619,14 +631,15 @@ private:
                         GenericChunkReplicaIndex,
                         SessionId_.MediumIndex)};
                     uploadReplicationFactor = 1;
+                    isOffshoreSession = true;
                 }
             }
 
-            bool disableSendBlocks = targets.size() <= 1 && (uploadReplicationFactor == 1 || !Options_->AllowAllocatingNewTargetNodes);
-            StartSessions(targets, disableSendBlocks);
+            bool useSendBlocks = !isOffshoreSession && ShouldUseSendBlocks();
+            StartSessions(targets, !useSendBlocks);
 
             while (std::ssize(Nodes_) < uploadReplicationFactor) {
-                StartSessions(AllocateTargets(), disableSendBlocks);
+                StartSessions(AllocateTargets(), !useSendBlocks);
             }
 
             YT_LOG_INFO("Writer opened (Addresses: %v, PopulateCache: %v, Workload: %v, Networks: %v)",
@@ -1505,6 +1518,7 @@ void TGroup::SendGroup(
     const std::vector<TNodePtr>& srcNodes)
 {
     YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
+    YT_VERIFY(writer->ShouldUseSendBlocks());
 
     std::vector<TNodePtr> dstNodes;
     for (int index = 0; index < std::ssize(SentTo_); ++index) {
@@ -1693,7 +1707,7 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
         }
         TDelayedExecutor::Submit(BIND(&TGroup::ScheduleProcess, MakeWeak(this), options),
             writer->Config_->NodePingPeriod);
-    } else if (nodesWithPossibleToSendBlocks.empty()) {
+    } else if (nodesWithPossibleToSendBlocks.empty() || !writer->ShouldUseSendBlocks()) {
         PutGroup(writer, options);
     } else {
         SendGroup(writer, options, nodesWithPossibleToSendBlocks);
