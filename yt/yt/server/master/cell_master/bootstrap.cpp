@@ -89,6 +89,7 @@
 #include <yt/yt/server/master/sequoia_server/cypress_proxy_tracker.h>
 #include <yt/yt/server/master/sequoia_server/cypress_proxy_tracker_service.h>
 #include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
+#include <yt/yt/server/master/sequoia_server/prelock_tracker.h>
 #include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
 #include <yt/yt/server/master/sequoia_server/sequoia_transaction_service.h>
 
@@ -590,6 +591,11 @@ const ISequoiaManagerPtr& TBootstrap::GetSequoiaManager() const
     return SequoiaManager_;
 }
 
+const IPrelockTrackerPtr& TBootstrap::GetPrelockTracker() const
+{
+    return PrelockTracker_;
+}
+
 const ICypressProxyTrackerPtr& TBootstrap::GetCypressProxyTracker() const
 {
     return CypressProxyTracker_;
@@ -977,6 +983,8 @@ void TBootstrap::DoInitialize()
 
     SequoiaManager_ = CreateSequoiaManager(this);
 
+    PrelockTracker_ = CreatePrelockTracker(this);
+
     CypressProxyTracker_ = CreateCypressProxyTracker(this, ChannelFactory_);
 
     ReplicatedTableTracker_ = CreateMasterReplicatedTableTracker(Config_->ReplicatedTableTracker, this);
@@ -1028,6 +1036,7 @@ void TBootstrap::DoInitialize()
     ExecNodeTracker_->Initialize();
     CellarNodeTracker_->Initialize();
     TabletNodeTracker_->Initialize();
+    PrelockTracker_->Initialize();
     CypressManager_->Initialize();
     PortalManager_->Initialize();
     ChunkManager_->Initialize();

@@ -892,6 +892,10 @@ private:
         }
         SuppressTransactionCoordinatorSync_ = suppressTransactionCoordinatorSync;
         SuppressStronglyOrderedTransactionBarrier_ = suppressStronglyOrderedTransactionBarrier;
+
+        if (SuppressStronglyOrderedTransactionBarrier_) {
+            CellSyncSession_->SuppressSyncWithSequoiaTransactions();
+        }
     }
 
     void LookupCachedSubrequests()

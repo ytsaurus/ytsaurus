@@ -1094,13 +1094,20 @@ private:
 
         auto cellTag = CellTagFromId(transactionId);
         auto cellId = multicellManager->GetCellId(cellTag);
-        auto syncFuture = hiveManager->SyncWith(cellId, /*enableBatching*/ true);
+        std::vector<TFuture<void>> syncFutures;
+        syncFutures.reserve(2);
+        syncFutures.push_back(hiveManager->SyncWith(cellId, /*enableBatching*/ true));
 
         YT_LOG_DEBUG("Request will synchronize with another cell (RequestId: %v, CellTag: %v)",
             context->GetRequestId(),
             cellTag);
 
-        WaitFor(syncFuture)
+        if (IsCypressTransactionMirroredToSequoia(transactionId) && AreCypressTransactionsInSequoiaEnabled()) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            syncFutures.push_back(transactionManager->WaitUntilAllPreparedTransactionsFinished());
+        }
+
+        WaitFor(AllSucceeded(syncFutures))
             .ThrowOnError();
     }
 };

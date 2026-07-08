@@ -3,7 +3,10 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -13,6 +16,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/sequoia_client/public.h>
+
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -34,7 +39,7 @@ const auto Logger = CppTestsLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSequoiaTest
+class TSequoiaTestBase
     : public TApiTestBase
 {
 public:
@@ -77,6 +82,12 @@ private:
             .ThrowOnError();
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSequoiaTest
+    : public TSequoiaTestBase
+{ };
 
 std::string Prettify(const TYsonString& yson)
 {
@@ -962,7 +973,7 @@ TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
 {
     constexpr auto IterationCount = 20;
 
-    auto threadPool = CreateThreadPool(2, "ConcurrentNodereplacement");
+    auto threadPool = CreateThreadPool(2, "ConcurrentNodeReplacement");
     auto invoker = threadPool->GetInvoker();
 
     for (int iteration : std::views::iota(0, IterationCount)) {
@@ -1026,9 +1037,9 @@ TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
 
 TEST_F(TSequoiaTest, TestLatency)
 {
-    WaitFor(Client_->CreateNode("//latency", EObjectType::MapNode)).ThrowOnError();
+    WaitFor(Client_->CreateNode("//sequoia/latency", EObjectType::MapNode)).ThrowOnError();
     auto finally = Finally([] {
-        Y_UNUSED(WaitFor(Client_->RemoveNode("//latency", {.Recursive = true, .Force = true})));
+        Y_UNUSED(WaitFor(Client_->RemoveNode("//sequoia/latency", {.Recursive = true, .Force = true})));
     });
 
     constexpr auto AttemptCount = 40;
@@ -1047,7 +1058,7 @@ TEST_F(TSequoiaTest, TestLatency)
                     .ValueOrThrow();
            }
 
-            auto path = Format("//latency/%v", attempt);
+            auto path = Format("//sequoia/latency/%v", attempt);
             {
                 NTracing::TTraceContextGuard guard(NTracing::TTraceContext::NewRoot(""));
                 WaitFor(tx->CreateNode(path, EObjectType::MapNode))
@@ -1080,6 +1091,350 @@ TEST_F(TSequoiaTest, TestLatency)
 
     YT_LOG_DEBUG("Mean time per test: %vms", total.MilliSeconds() / AttemptCount);
 }
+
+TEST_F(TSequoiaTest, TestSequoiaPrelockDisable)
+{
+    using namespace NCypressClient;
+
+    auto parentNodeId = WaitFor(Client_->CreateNode("//sequoia/prelock_disable", EObjectType::MapNode))
+        .ValueOrThrow();
+    TNodeId targetNodeId = {};
+    do {
+        WaitFor(Client_->RemoveNode("//sequoia/prelock_disable/*")).ThrowOnError();
+        targetNodeId = WaitFor(Client_->CreateNode("//sequoia/prelock_disable/m", EObjectType::MapNode))
+            .ValueOrThrow();
+    } while (CellTagFromId(parentNodeId) == CellTagFromId(targetNodeId));
+
+    auto startTx = [&] (TStringBuf title, TTransactionId parentId = {}) {
+        TTransactionStartOptions options;
+        options.ReplicateToMasterCellTags = {CellTagFromId(parentNodeId), CellTagFromId(targetNodeId)};
+        options.Attributes = CreateEphemeralAttributes();
+        options.Attributes->Set("title", title);
+        options.ParentId = parentId;
+        return WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
+            .ValueOrThrow();
+    };
+
+    auto tx1 = startTx("Parent");
+    auto tx2 = startTx("Nested", tx1->GetId());
+
+    auto setArtificialCommitDelay = [&] (TDuration delay) {
+        TSetNodeOptions options;
+        options.SuppressStronglyOrderedTransactionBarrier = true;
+        options.SuppressTransactionCoordinatorSync = true;
+        return Client_->SetNode(
+            "//sys/@config/transaction_manager/testing/artificial_participant_commit_delay",
+            ConvertToYsonString(delay),
+            options)
+            .AsVoid();
+    };
+
+    auto restore = Finally([&] {
+        YT_UNUSED_FUTURE(setArtificialCommitDelay(TDuration::Zero()));
+
+        YT_UNUSED_FUTURE(Client_->SetNode("//sys/@config/sequoia_manager/enable_prelock_tracker", ConvertToYsonString(true)));
+    });
+
+    auto tryLock = [&] () ->TError {
+        auto nativeConnection = DynamicPointerCast<NNative::IConnection>(Connection_);
+        auto channel = nativeConnection
+            ->GetMasterCellDirectory()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(targetNodeId));
+
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
+        auto req = TCypressYPathProxy::Lock(FromObjectId(targetNodeId));
+        SetTransactionId(req, tx1->GetId());
+        req->set_mode(ToProto(ELockMode::Exclusive));
+
+        auto timestamp = WaitFor(nativeConnection->GetTimestampProvider()->GenerateTimestamps())
+            .ValueOrThrow();
+        req->set_timestamp(timestamp);
+        SetAllowResolveFromSequoiaObject(&req->Header(), true);
+
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->AddRequest(req);
+        batchReq->SetSuppressStronglyOrderedTransactionBarrier(true);
+        batchReq->SetSuppressTransactionCoordinatorSync(true);
+        batchReq->SetSuppressUpstreamSync(true);
+
+        return WaitFor(batchReq->Invoke())
+            .ValueOrThrow()
+            ->GetResponse<TCypressYPathProxy::TRspLock>(0);
+    };
+
+    // NB: TDelayedExecutor::WaitForDuration can be used in fibers only.
+    auto threadPool = CreateThreadPool(1, "TestSequoiaPrelockDisable");
+    WaitFor(BIND([&] {
+        WaitFor(setArtificialCommitDelay(TDuration::MilliSeconds(2000))).ThrowOnError();
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(250));
+
+        TRemoveNodeOptions options;
+        options.TransactionId = tx2->GetId();
+        TFuture<void> removalFuture;
+        {
+            NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("Remove"));
+            removalFuture = Client_->RemoveNode(FromObjectId(targetNodeId), options);
+        }
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(250));
+
+        {
+            NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("Lock1"));
+            auto lockError1 = tryLock();
+            // NB: actually, it's OK to acquire lock under parent transaction.
+            // But current implementation is a bit suboptimal here and has
+            // false-positive conflict detection.
+            EXPECT_EQ(lockError1.GetCode(), NSequoiaClient::EErrorCode::SequoiaRetriableError);
+        }
+
+        {
+            TSetNodeOptions options;
+            options.SuppressStronglyOrderedTransactionBarrier = true;
+            options.SuppressTransactionCoordinatorSync = true;
+            WaitFor(
+                Client_->SetNode(
+                    "//sys/@config/sequoia_manager/enable_prelock_tracker",
+                    ConvertToYsonString(false),
+                    options))
+                .ThrowOnError();
+        }
+
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(250));
+
+        {
+            NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("Lock2"));
+            tryLock().ThrowOnError();
+        }
+
+        WaitFor(removalFuture).ThrowOnError();
+    })
+        .AsyncVia(threadPool->GetInvoker())
+        .Run())
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETestSequoiaPrelocksTransaction,
+    (Self)
+    (Parent)
+    (Ancestor)
+    (Nested)
+    (Concurrent)
+);
+
+struct TSequoiaTestPrelocksParams
+{
+    ETestSequoiaPrelocksTransaction Transaction;
+    std::optional<std::string> ExpectedErrorMessage;
+    NCypressClient::ELockMode Mode;
+    std::optional<std::string> Attribute;
+    std::optional<std::string> Child;
+};
+
+class TSequoiaTestPrelocks
+    : public TSequoiaTestBase
+    , public testing::WithParamInterface<TSequoiaTestPrelocksParams>
+{ };
+
+std::vector<TSequoiaTestPrelocksParams> GenerateTestSequoiaPrelocksParams()
+{
+    using namespace NCypressClient;
+
+    std::vector<TSequoiaTestPrelocksParams> cases;
+
+    const std::tuple<ELockMode, std::optional<std::string>, std::optional<std::string>> LockKinds[] = {
+        {ELockMode::Exclusive, std::nullopt, std::nullopt},
+        {ELockMode::Shared, std::nullopt, std::nullopt},
+        {ELockMode::Shared, "some_atr", std::nullopt},
+        {ELockMode::Shared, std::nullopt, "some_child"},
+    };
+
+    for (auto tx : TEnumTraits<ETestSequoiaPrelocksTransaction>::GetDomainValues()) {
+        for (auto [mode, attribute, child] : LockKinds) {
+            std::optional<std::string> expectedErrorMessage;
+            if (tx != ETestSequoiaPrelocksTransaction::Self) {
+                if (attribute) {
+                    expectedErrorMessage = "since this attribute is being locked by transaction";
+                } else if (child) {
+                    expectedErrorMessage = "since this child is being locked by transaction";
+                } else {
+                    expectedErrorMessage = "\"exclusive\" lock is being taken";
+                }
+            }
+
+            cases.push_back({
+                .Transaction = tx,
+                .ExpectedErrorMessage = expectedErrorMessage,
+                .Mode = mode,
+                .Attribute = attribute,
+                .Child = child,
+            });
+        }
+    }
+
+    // Snapshot locks are validated differently.
+    cases.push_back({ETestSequoiaPrelocksTransaction::Self, "or its descendant", ELockMode::Snapshot});
+    cases.push_back({ETestSequoiaPrelocksTransaction::Parent, "or its descendant", ELockMode::Snapshot});
+    cases.push_back({ETestSequoiaPrelocksTransaction::Ancestor, "or its descendant", ELockMode::Snapshot});
+    cases.push_back({ETestSequoiaPrelocksTransaction::Nested, std::nullopt, ELockMode::Snapshot});
+    cases.push_back({ETestSequoiaPrelocksTransaction::Concurrent, std::nullopt, ELockMode::Snapshot});
+
+    return cases;
+}
+
+TEST_P(TSequoiaTestPrelocks, Test)
+{
+    using namespace NCypressClient;
+
+    auto parentNodeId = WaitFor(Client_->CreateNode("//sequoia/race_2pc_execute", EObjectType::MapNode))
+        .ValueOrThrow();
+
+    TNodeId targetNodeId = {};
+    do {
+        WaitFor(Client_->RemoveNode("//sequoia/race_2pc_execute/*")).ThrowOnError();
+        targetNodeId = WaitFor(Client_->CreateNode("//sequoia/race_2pc_execute/m", EObjectType::MapNode)).ValueOrThrow();
+    } while (CellTagFromId(targetNodeId) == CellTagFromId(parentNodeId));
+
+    YT_LOG_DEBUG("Test nodes created (ParentId: %v, NodeId: %v)", parentNodeId, targetNodeId);
+
+    TEnumIndexedArray<ETestSequoiaPrelocksTransaction, ITransactionPtr> tx;
+    auto startTx = [&] (ETestSequoiaPrelocksTransaction thisTx, const ITransactionPtr& parent) {
+        TTransactionStartOptions options;
+        options.ReplicateToMasterCellTags = {CellTagFromId(parentNodeId), CellTagFromId(targetNodeId)};
+        options.Attributes = CreateEphemeralAttributes();
+        options.Attributes->Set("title", ToString(thisTx));
+        if (parent) {
+            options.ParentId = parent->GetId();
+        }
+        tx[thisTx] = WaitFor(Client_->StartTransaction(ETransactionType::Master, options)).ValueOrThrow();
+    };
+
+    startTx(ETestSequoiaPrelocksTransaction::Concurrent, nullptr);
+    startTx(ETestSequoiaPrelocksTransaction::Ancestor, nullptr);
+    startTx(ETestSequoiaPrelocksTransaction::Parent, tx[ETestSequoiaPrelocksTransaction::Ancestor]);
+    startTx(ETestSequoiaPrelocksTransaction::Self, tx[ETestSequoiaPrelocksTransaction::Parent]);
+    startTx(ETestSequoiaPrelocksTransaction::Nested, tx[ETestSequoiaPrelocksTransaction::Self]);
+
+    auto resetArtificialCommitDelay = [&] {
+        TSetNodeOptions options;
+        options.SuppressTransactionCoordinatorSync = true;
+        options.SuppressStronglyOrderedTransactionBarrier = true;
+        YT_UNUSED_FUTURE(Client_->SetNode(
+            "//sys/@config/transaction_manager/testing/artificial_participant_commit_delay",
+            ConvertToYsonString(0),
+            options));
+    };
+
+    auto finally = Finally(resetArtificialCommitDelay);
+
+    auto removalStarted = NewPromise<void>();
+
+    auto threadPool = CreateThreadPool(2, "TestPrelocks");
+
+    auto removalFinished = BIND([&] {
+        NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("LockNode"));
+
+        YT_LOG_DEBUG("Planning removal");
+
+        WaitFor(Client_->SetNode(
+            "//sys/@config/transaction_manager/testing/artificial_participant_commit_delay",
+            ConvertToYsonString(1000)))
+            .ThrowOnError();
+
+        // Wait for config to be applied to all cells.
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(250));
+
+        TRemoveNodeOptions options;
+        options.TransactionId = tx[ETestSequoiaPrelocksTransaction::Self]->GetId();
+        auto future = Client_->RemoveNode(FromObjectId(targetNodeId), options);
+        removalStarted.Set();
+        return future;
+    })
+        .AsyncVia(threadPool->GetInvoker())
+        .Run();
+
+    auto lockAttemptFinished = BIND([&] {
+        NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("LockNode"));
+
+        YT_LOG_DEBUG("Planning locking");
+
+        auto nativeConnection = DynamicPointerCast<NNative::IConnection>(Connection_);
+        auto channel = nativeConnection
+            ->GetMasterCellDirectory()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(targetNodeId));
+
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
+        auto req = TCypressYPathProxy::Lock(FromObjectId(targetNodeId));
+        SetTransactionId(req, tx[GetParam().Transaction]->GetId());
+        req->set_mode(ToProto(GetParam().Mode));
+
+        // Waitable flag doesn't matter here since any conflict with prelock has to
+        // be retried.
+        req->set_waitable(true);
+
+        if (GetParam().Child) {
+            req->set_child_key(*GetParam().Child);
+        }
+        if (GetParam().Attribute) {
+            req->set_attribute_key(*GetParam().Attribute);
+        }
+
+        auto timestamp = WaitFor(nativeConnection->GetTimestampProvider()->GenerateTimestamps())
+            .ValueOrThrow();
+        req->set_timestamp(timestamp);
+        SetAllowResolveFromSequoiaObject(&req->Header(), true);
+
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->AddRequest(req);
+        batchReq->SetSuppressStronglyOrderedTransactionBarrier(true);
+        batchReq->SetSuppressTransactionCoordinatorSync(true);
+        batchReq->SetSuppressUpstreamSync(true);
+
+        WaitFor(removalStarted.ToFuture())
+            .ThrowOnError();
+
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(200));
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+
+        resetArtificialCommitDelay();
+
+        auto batchRsp = batchRspOrError.ValueOrThrow();
+        batchRsp->GetResponse<TCypressYPathProxy::TRspLock>(0)
+            .ThrowOnError();
+    })
+        .AsyncVia(threadPool->GetInvoker())
+        .Run();
+
+    WaitFor(removalFinished).ThrowOnError();
+
+
+    auto error = WaitFor(lockAttemptFinished);
+    if (!GetParam().ExpectedErrorMessage) {
+        error.ThrowOnError();
+    } else {
+        EXPECT_EQ(error.GetCode(), NSequoiaClient::EErrorCode::SequoiaRetriableError);
+        EXPECT_TRUE(error.GetMessage().contains(*GetParam().ExpectedErrorMessage));
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ,
+    TSequoiaTestPrelocks,
+    ::testing::ValuesIn(GenerateTestSequoiaPrelocksParams()),
+    [] (const ::testing::TestParamInfo<TSequoiaTestPrelocks::ParamType>& info) {
+        TStringBuilder builder;
+        builder.AppendFormat("%v_%v", info.param.Transaction, info.param.Mode);
+        if (info.param.Mode == NCypressClient::ELockMode::Shared) {
+            if (info.param.Child) {
+                builder.AppendString("_child");
+            }
+            if (info.param.Attribute) {
+                builder.AppendString("_attribute");
+            }
+        }
+        return std::string(builder.Flush());
+    });
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -40,6 +40,8 @@ struct ITransactionSupervisor
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     virtual void OnProfiling(NProfiling::TSensorBuffer* buffer) = 0;
+
+    virtual void SetArtificialParticipantCommitDelay(TDuration delay) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionSupervisor)

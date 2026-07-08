@@ -25,6 +25,7 @@ struct TLockKey
     ELockKeyKind Kind = ELockKeyKind::None;
     std::string Name;
 
+    bool operator==(const TLockKey&) const = default;
     std::strong_ordering operator<=>(const TLockKey& rhs) const = default;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
@@ -45,11 +46,33 @@ struct TLockRequest
     void Persist(const NCellMaster::TPersistenceContext& context);
 
     bool operator==(const TLockRequest& other) const;
+    std::strong_ordering operator<=>(const TLockRequest& other) const;
 
     ELockMode Mode;
     TLockKey Key;
+
+    // This field does not participate in comparison and hashing.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 };
+
+void FormatValue(TStringBuilderBase* builder, const TLockRequest& lockRequest, TStringBuf /*spec*/);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCypressServer
+
+template<>
+struct THash<NYT::NCypressServer::TLockRequest>
+{
+    size_t operator()(const NYT::NCypressServer::TLockRequest& request) const
+    {
+        using namespace NYT::NCypressServer;
+        return ::THash<std::tuple<ELockMode, ELockKeyKind, std::string>>{}(
+            std::tie(request.Mode, request.Key.Kind, request.Key.Name));
+    }
+};
+
+namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 

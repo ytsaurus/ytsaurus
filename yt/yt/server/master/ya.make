@@ -345,6 +345,7 @@ SRCS(
     sequoia_server/helpers.cpp
     sequoia_server/ground_update_queue_manager.cpp
     sequoia_server/revision.cpp
+    sequoia_server/prelock_tracker.cpp
     sequoia_server/sequoia_manager.cpp
     sequoia_server/sequoia_transaction_service.cpp
 
