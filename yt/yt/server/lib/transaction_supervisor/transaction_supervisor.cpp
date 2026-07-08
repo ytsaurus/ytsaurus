@@ -317,7 +317,8 @@ private:
 
         ~TWrappedParticipant()
         {
-            // ProbationExecutor_ owns this instance via MakeWeak
+            // ProbationExecutor_ has weak reference to this instance,
+            // so stop it to prevent callback being fired after this instance destruction.
             YT_UNUSED_FUTURE(ProbationExecutor_->Stop());
         }
 
@@ -695,7 +696,7 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Checking participant availablitity");
+            YT_LOG_DEBUG("Checking participant availability");
             underlying->CheckAvailability().Subscribe(
                 BIND(&TWrappedParticipant::OnAvailabilityCheckResult, MakeWeak(this)));
         }
@@ -934,7 +935,7 @@ private:
             // order strongly ordered transactions are updated at the same time or before the master is.
             if (stronglyOrdered) {
                 YT_LOG_ALERT_IF(strongOrderingTags.empty(),
-                    "Transaction strong ordering mismatch detacted (TransactionId: %v, StronglyOrdered: %v, StrongOrderingTags: %v)",
+                    "Transaction strong ordering mismatch detected (TransactionId: %v, StronglyOrdered: %v, StrongOrderingTags: %v)",
                     transactionId,
                     stronglyOrdered,
                     strongOrderingTags);
@@ -1516,7 +1517,7 @@ private:
         // 1) only active Sequoia transactions leads to stuck requests in
         //    read-only mode;
         // 2) read-only mode for tablet cell Hydra is unlikely to be used;
-        // 3) transaction supervisor knows only aboud a part of 2PC: it knows
+        // 3) transaction supervisor knows only about a part of 2PC: it knows
         //    nothing about foreign transactions. Therefore, to properly wait
         //    all 2PC in tablet cells would require some changes in tablet node
         //    transaction manager and it is not what we want to touch.
@@ -1591,7 +1592,7 @@ private:
                 }
 
                 // Best effort to reduce duration of transient locks for
-                // trasnsaction which will be unlikely to be committed.
+                // transaction which will be unlikely to be committed.
                 SetCommitFailed(commit, errorOrResponse);
                 RemoveTransientCommit(commit);
             }).Via(EpochAutomatonInvoker_));
@@ -2298,7 +2299,7 @@ private:
                 StrongOrderingManager_.GetClockSourceClusterTag());
 
             YT_LOG_DEBUG("Committing strongly ordered transaction at participant (TransactionId: %v)",
-                    transactionId);
+                transactionId);
 
             auto transactionsToCommit = StrongOrderingManager_.OnCommitCommit(
                 transactionId,
