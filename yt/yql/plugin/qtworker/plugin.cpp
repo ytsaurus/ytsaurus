@@ -40,7 +40,7 @@ public:
         TGuard guard(Lock_);
         UpdateTaskResultData(TaskResult_, result);
         if (result.HasProgress()) {
-            ProgressMerger_.MergeWith(result.GetProgress());
+            ProgressMerger_.MergeWith(result.GetProgress(), result.GetRevision());
         }
 
         if (IsTaskTerminal(result.GetStatus()) && !IsFinished_) {
