@@ -503,6 +503,8 @@ struct TClusterNodeDynamicConfig
 
     TNodeMemoryTrackerConfigPtr NodeMemoryTracker;
 
+    std::optional<int> AuxPollerThreadCount;
+
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);

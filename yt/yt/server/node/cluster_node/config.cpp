@@ -546,6 +546,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(1.1);
     registrar.Parameter("node_memory_tracker", &TThis::NodeMemoryTracker)
         .DefaultNew();
+    registrar.Parameter("aux_poller_thread_count", &TThis::AuxPollerThreadCount)
+        .Default();
 
     registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
         .DefaultNew();
