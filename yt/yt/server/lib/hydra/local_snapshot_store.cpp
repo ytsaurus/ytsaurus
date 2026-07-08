@@ -134,8 +134,8 @@ private:
                 THROW_ERROR_EXCEPTION(
                     "Invalid compressed length in header of %v: expected %v, got %v",
                     FileName_,
-                    File_->GetLength(),
-                    Header_.CompressedLength);
+                    Header_.CompressedLength,
+                    File_->GetLength());
             }
 
             auto serializedMeta = TSharedMutableRef::Allocate<TLocalSnapshotReaderTag>(

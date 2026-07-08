@@ -276,7 +276,7 @@ public:
                 break;
             }
 
-            if (counter > maxResponseCountPerEvictionPass) {
+            if (counter >= maxResponseCountPerEvictionPass) {
                 YT_LOG_WARNING("Response keeper eviction pass interrupted (ResponseCount: %v, ResponsesLeft: %v, OccupiedSpace: %v)",
                     counter,
                     FinishedResponseCount_.load(std::memory_order::acquire),
