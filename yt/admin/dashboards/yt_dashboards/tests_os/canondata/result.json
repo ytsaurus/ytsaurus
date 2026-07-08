@@ -1,0 +1,65 @@
+{
+    "test_dashboards.test_bundle_ui_cpu": {
+        "uri": "file://test_dashboards.test_bundle_ui_cpu/bundle-ui-cpu.json"
+    },
+    "test_dashboards.test_bundle_ui_disk": {
+        "uri": "file://test_dashboards.test_bundle_ui_disk/bundle-ui-disk.json"
+    },
+    "test_dashboards.test_bundle_ui_efficiency": {
+        "uri": "file://test_dashboards.test_bundle_ui_efficiency/bundle-ui-efficiency.json"
+    },
+    "test_dashboards.test_bundle_ui_lsm": {
+        "uri": "file://test_dashboards.test_bundle_ui_lsm/bundle-ui-lsm.json"
+    },
+    "test_dashboards.test_bundle_ui_memory": {
+        "uri": "file://test_dashboards.test_bundle_ui_memory/bundle-ui-memory.json"
+    },
+    "test_dashboards.test_bundle_ui_network": {
+        "uri": "file://test_dashboards.test_bundle_ui_network/bundle-ui-network.json"
+    },
+    "test_dashboards.test_bundle_ui_resource": {
+        "uri": "file://test_dashboards.test_bundle_ui_resource/bundle-ui-resource.json"
+    },
+    "test_dashboards.test_bundle_ui_rpc_proxy": {
+        "uri": "file://test_dashboards.test_bundle_ui_rpc_proxy/bundle-ui-rpc-proxy.json"
+    },
+    "test_dashboards.test_bundle_ui_rpc_proxy_overview": {
+        "uri": "file://test_dashboards.test_bundle_ui_rpc_proxy_overview/bundle-ui-rpc-proxy-overview.json"
+    },
+    "test_dashboards.test_bundle_ui_user_load": {
+        "uri": "file://test_dashboards.test_bundle_ui_user_load/bundle-ui-user-load.json"
+    },
+    "test_dashboards.test_cluster_resources": {
+        "uri": "file://test_dashboards.test_cluster_resources/cluster-resources.json"
+    },
+    "test_dashboards.test_http_proxies": {
+        "uri": "file://test_dashboards.test_http_proxies/http-proxies.json"
+    },
+    "test_dashboards.test_master_accounts": {
+        "uri": "file://test_dashboards.test_master_accounts/master-accounts.json"
+    },
+    "test_dashboards.test_master_global": {
+        "uri": "file://test_dashboards.test_master_global/master-global.json"
+    },
+    "test_dashboards.test_master_local": {
+        "uri": "file://test_dashboards.test_master_local/master-local.json"
+    },
+    "test_dashboards.test_queue_consumer_metrics": {
+        "uri": "file://test_dashboards.test_queue_consumer_metrics/queue-consumer-metrics.json"
+    },
+    "test_dashboards.test_queue_metrics": {
+        "uri": "file://test_dashboards.test_queue_metrics/queue-metrics.json"
+    },
+    "test_dashboards.test_scheduler_gpu": {
+        "uri": "file://test_dashboards.test_scheduler_gpu/scheduler-gpu.json"
+    },
+    "test_dashboards.test_scheduler_internal": {
+        "uri": "file://test_dashboards.test_scheduler_internal/scheduler-internal.json"
+    },
+    "test_dashboards.test_scheduler_operation": {
+        "uri": "file://test_dashboards.test_scheduler_operation/scheduler-operation.json"
+    },
+    "test_dashboards.test_scheduler_pool": {
+        "uri": "file://test_dashboards.test_scheduler_pool/scheduler-pool.json"
+    }
+}

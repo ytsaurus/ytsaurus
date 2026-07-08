@@ -92,3 +92,7 @@ IF (NOT OPENSOURCE)
         yt_dashboards/flow/tests
     )
 ENDIF()
+
+RECURSE_FOR_TESTS(
+    yt_dashboards/tests_os
+)

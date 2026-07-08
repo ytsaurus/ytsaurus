@@ -1,0 +1,666 @@
+{
+    "panels": [
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 0
+            },
+            "options": {
+                "content": "<h2>Memory</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 0,
+                "y": 2
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, {cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_memory_usage_pool_used\", host=~\"$host\", proxy_role=~\"$proxy_role\", category=~\"\", pool=~\".+\"}))",
+                    "refId": "A"
+                }
+            ],
+            "title": "Memory By User (tracker)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 12,
+                "y": 2
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, {cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_memory_heap_usage_user\", host=~\"$host\", user=~\".+\", proxy_role=~\"$proxy_role\"}))",
+                    "refId": "A"
+                }
+            ],
+            "title": "Memory By User (allocator)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 0,
+                "y": 14
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_memory_usage_used\", host=~\"$host\", proxy_role=~\"$proxy_role\", category=~\".+\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Memory By Category",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 12,
+                "y": 14
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_memory_heap_usage_command\", host=~\"$host\", proxy_role=~\"$proxy_role\", command=~\".+\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Memory By Command (allocator)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 6,
+                "y": 26
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_memory_usage_used\", host=~\"$host\", proxy_role=~\"$proxy_role\", category=~\"\"}",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_memory_usage_limit\", host=~\"$host\", proxy_role=~\"$proxy_role\", category=~\"heavy_request\"}",
+                    "refId": "B"
+                }
+            ],
+            "title": "Memory Total (tracker)",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 38
+            },
+            "options": {
+                "content": "<h2>CPU</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 0,
+                "y": 40
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_resource_tracker_user_cpu\", host=~\"$host\", proxy_role=~\"$proxy_role\", thread=~\"\"}",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_resource_tracker_system_cpu\", host=~\"$host\", proxy_role=~\"$proxy_role\", thread=~\"\"}",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_resource_tracker_total_cpu\", host=~\"$host\", proxy_role=~\"$proxy_role\", thread=~\"\"}",
+                    "refId": "C"
+                }
+            ],
+            "title": "CPU Resource Tracker",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 12,
+                "y": 40
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, {cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_resource_tracker_user_cpu|yt_resource_tracker_system_cpu\", host=~\"$host\", proxy_role=~\"$proxy_role\", thread=~\".+\"}))",
+                    "refId": "A"
+                }
+            ],
+            "title": "CPU By Threads",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 52
+            },
+            "options": {
+                "content": "<h2>Requests</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 0,
+                "y": 54
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_request_count\", host=~\"$host\", user=~\".+\", proxy_role=~\"$proxy_role\", command=~\"\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "Top Users By Request Rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 12,
+                "y": 54
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_request_count\", host=~\"$host\", user=~\"\", proxy_role=~\"$proxy_role\", command=~\".+\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "Top Commands By Request Rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 0,
+                "y": 66
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_api_error_count\", host=~\"$host\", user=~\".+\", proxy_role=~\"$proxy_role\", command=~\"\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "Top Users By Error Count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 12,
+                "y": 66
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_api_error_count\", host=~\"$host\", user=~\"\", proxy_role=~\"$proxy_role\", command=~\".+\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "Top Commands By Error Count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 0,
+                "y": 78
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_concurrency_semaphore\", host=~\"$host\", user=~\".+\", proxy_role=~\"$proxy_role\", command=~\"\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Top Users By Concurrency Semaphore",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 12,
+                "y": 78
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_cumulative_request_cpu_time\", host=~\"$host\", user=~\".+\", proxy_role=~\"$proxy_role\", command=~\"\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "Top Users By Request Cpu Time",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 0,
+                "y": 90
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_bytes_in\", host=~\"$host\", user=~\".+\", proxy_role=~\"$proxy_role\", command=~\"\", network=~\"\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "Top Users By Bytes In Rate",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 12,
+                "y": 90
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_http_proxy_bytes_out\", host=~\"$host\", user=~\".+\", proxy_role=~\"$proxy_role\", command=~\"\", network=~\"\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "Top Users By Bytes Out Rate",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 102
+            },
+            "options": {
+                "content": "<h2>RPC client</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 0,
+                "y": 104
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_rpc_client_request_count\", host=~\"$host\", method=~\".+\", proxy_role=~\"$proxy_role\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC Client Request Count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 12,
+                "y": 104
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_rpc_client_failed_request_count\", host=~\"$host\", method=~\".+\", proxy_role=~\"$proxy_role\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC Client Failed Request Count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 6,
+                "y": 116
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-http-proxy.*\", __name__=~\"yt_rpc_client_timed_out_request_count\", host=~\"$host\", method=~\".+\", proxy_role=~\"$proxy_role\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "RPC Client Timed Out Request Count",
+            "type": "timeseries"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Cluster",
+                "name": "cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "default",
+                    "value": "default"
+                },
+                "hide": 0,
+                "label": "Proxy Role",
+                "name": "proxy_role",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "default",
+                        "value": "default"
+                    }
+                ],
+                "query": "default",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Host",
+                "name": "host",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ]
+    },
+    "title": "HTTP proxies [Autogenerated]"
+}

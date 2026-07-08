@@ -1,0 +1,748 @@
+{
+    "panels": [
+        {
+            "gridPos": {
+                "h": 5,
+                "w": 12,
+                "x": 6,
+                "y": 0
+            },
+            "options": {
+                "content": "About the difference between CPU and vCPU:\n- CPU: actual physical cores of the instances. Thread pool sizes are measured     in terms of the CPU. Instances may have different CPU limits due to different hardware.\n- vCPU: virtual cores of the instances scaled in order that all instances have     similar actual performance. CPU quotas correspond to vCPU.\n\nCurrently vCPU is not available in this dashboard.",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "normal"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 6,
+                "y": 5
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", tablet_cell_bundle=~\"$tablet_cell_bundle\", thread=~\".+\"}) / (100)",
+                    "legendFormat": "\"{{thread}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "CPU Total",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            },
+                            {
+                                "id": "custom.stacking",
+                                "value": {
+                                    "mode": "normal"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 6,
+                "y": 17
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\".+\"}",
+                    "legendFormat": "\"{{category}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Memory Total",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 6,
+                "y": 23
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_porto_network_tx_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Container Net Tx Guarantee\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_porto_network_tx_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Container Net Tx Bytes Rate\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_bus_out_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", band=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval])",
+                    "legendFormat": "\"Node TX Bytes Rate\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Net TX total",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "B"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "C"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 6,
+                "y": 29
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_porto_network_rx_limit\", tablet_cell_bundle=~\"$tablet_cell_bundle\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Container Net Rx Guarantee\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_porto_network_rx_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", container_category=~\"pod\"}",
+                    "legendFormat": "\"Container Net Rx Bytes Rate\"",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_bus_out_bytes\", tablet_cell_bundle=~\"$tablet_cell_bundle\", band=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval])",
+                    "legendFormat": "\"Node RX Bytes Rate\"",
+                    "refId": "C"
+                }
+            ],
+            "title": "Net RX total",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 35
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Disk write total",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 35
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Disk write per container",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 41
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Disk read total",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 41
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, sum by(container) (rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"\", method=~\"\"}[$__rate_interval]))))",
+                    "legendFormat": "\"{{container}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Disk read per container",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 47
+            },
+            "options": {
+                "content": "<h2>Disk statistics per medium</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 49
+            },
+            "options": {
+                "content": "<h2>Medium: default</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 51
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium write total",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 51
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium write per container",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 57
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium read total",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 57
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, sum by(container) (rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"default\", method=~\"\"}[$__rate_interval]))))",
+                    "legendFormat": "\"{{container}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Medium read per container",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 63
+            },
+            "options": {
+                "content": "<h2>Medium: ssd_blobs</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 65
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium write total",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 65
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium write per container",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 71
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium read total",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 71
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, sum by(container) (rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"ssd_blobs\", method=~\"\"}[$__rate_interval]))))",
+                    "legendFormat": "\"{{container}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Medium read per container",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 77
+            },
+            "options": {
+                "content": "<h2>Medium: ssd_journals</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 79
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium write total",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 79
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium write per container",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 85
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium read total",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 85
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, sum by(container) (rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"ssd_journals\", method=~\"\"}[$__rate_interval]))))",
+                    "legendFormat": "\"{{container}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Medium read per container",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 91
+            },
+            "options": {
+                "content": "<h2>Medium: nvme_blobs</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 93
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium write total",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 93
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium write per container",
+            "type": "text"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 99
+            },
+            "options": {
+                "content": "<h2>Not Supported</h2>",
+                "mode": "markdown"
+            },
+            "title": "Medium read total",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 99
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, sum by(container) (rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"nvme_blobs\", method=~\"\"}[$__rate_interval]))))",
+                    "legendFormat": "\"{{container}}\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Medium read per container",
+            "type": "timeseries"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": ".*",
+                    "value": ".*"
+                },
+                "hide": 0,
+                "label": "Cluster",
+                "name": "cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": ".*",
+                        "value": ".*"
+                    }
+                ],
+                "query": ".*",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "sys",
+                    "value": "sys"
+                },
+                "hide": 0,
+                "label": "Tablet cell bundle",
+                "name": "tablet_cell_bundle",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "sys",
+                        "value": "sys"
+                    }
+                ],
+                "query": "sys",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ]
+    },
+    "title": "Bundle resource overview [Autogenerated]"
+}
