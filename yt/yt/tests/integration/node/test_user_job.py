@@ -1416,14 +1416,11 @@ class TestSpliceArtifact(TestIOTrackingBase):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
-    _PIPE_SIZE = 65536
-
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
                 "slot_manager": {
                     "enable_async_artifact_copy": True,
-                    "artifact_pipe_size": _PIPE_SIZE,
                 },
             },
         },
@@ -1504,7 +1501,7 @@ assert hashlib.sha256(data.encode()).hexdigest() == '{hash_}'
         )
 
         # One pipe's worth of data was transferred.
-        assert all(event['bytes'] == self._PIPE_SIZE for event in raw_events)
+        assert all(event['bytes'] == 65536 for event in raw_events)
 
 
 class TestUserJobIsolation(YTEnvSetup):

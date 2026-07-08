@@ -641,14 +641,6 @@ void TJob::PrepareArtifact(
                     << TError::FromSystem();
             }
 
-            if (auto pipeSize = Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager->ArtifactPipeSize) {
-                fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETPIPE_SZ, *pipeSize);
-                if (fcntlResult < 0) {
-                    THROW_ERROR_EXCEPTION("Failed to increase artifact pipe size")
-                        << TError::FromSystem();
-                }
-            }
-
             ValidateJobPhase(EJobPhase::PreparingArtifacts);
 
             const auto& artifact = FSSecretary_->GetUserArtifact(artifactName);
