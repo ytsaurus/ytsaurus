@@ -311,6 +311,12 @@ func (cluster *Cluster) GetResourceUsage(ctx context.Context, input ResourceUsag
 		return
 	}
 
+	output.VersionedFields, err = resourceUsageTable.GetVersionedFields(ctx)
+	if err != nil {
+		ctxlog.Error(ctx, cluster.l.Logger(), "error getting versioned fields", log.Error(err))
+		return
+	}
+
 	output.Mediums, err = resourceUsageTable.GetMediums(ctx)
 	if err != nil {
 		ctxlog.Error(ctx, cluster.l.Logger(), "error getting mediums", log.Error(err))
@@ -347,6 +353,12 @@ func (cluster *Cluster) GetResourceUsageDiff(ctx context.Context, input Resource
 		ctxlog.Error(ctx, cluster.l.Logger(), "error getting fields diffs", log.Error(err))
 		return
 	}
+	output.VersionedFields, err = newerResourceUsageTable.GetVersionedFields(ctx)
+	if err != nil {
+		ctxlog.Error(ctx, cluster.l.Logger(), "error getting versioned fields", log.Error(err))
+		return
+	}
+
 	for field := range intersections {
 		output.Fields = append(output.Fields, field)
 		if strings.HasPrefix(field, "medium:") {
