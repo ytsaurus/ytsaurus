@@ -338,7 +338,12 @@ dashboards = {
     },
     "flow-message-transfering": {
         "func": flow.build_flow_message_transfering,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-one-worker": {
         "func": flow.build_flow_one_worker,
