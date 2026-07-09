@@ -351,7 +351,12 @@ dashboards = {
     },
     "flow-state-cache": {
         "func": flow.build_flow_state_cache,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-companion-manager": {
         "func": flow.build_flow_companion_manager,
