@@ -443,6 +443,12 @@
                 },
                 "snapshot_timestamps": {
                     "$ref": "#/definitions/app.DiffSnapshotSelectorResponse"
+                },
+                "versioned_fields": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -510,6 +516,12 @@
                 },
                 "snapshot_timestamp": {
                     "type": "integer"
+                },
+                "versioned_fields": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 }
             }
         },

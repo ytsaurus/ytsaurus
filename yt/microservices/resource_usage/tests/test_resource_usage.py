@@ -231,6 +231,22 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
         logging.info("Handler %s, payload %s, response %s", handler, payload, response)
         return response
 
+    def _assert_versioned_fields(self, response: dict[str, Any]):
+        assert "versioned_fields" in response
+        versioned_fields = response["versioned_fields"]
+        assert isinstance(versioned_fields, dict)
+        fields = response["fields"]
+        for key, value in versioned_fields.items():
+            assert value == f"versioned:{key}"
+            # every versioned_fields entry must have a corresponding non-versioned field
+            assert key in fields, f"{key} not found in fields, but present in versioned_fields"
+        # check that every medium has a versioned counterpart
+        for medium in response.get("mediums", []):
+            medium_field = f"medium:{medium}"
+            versioned_medium_field = f"versioned:medium:{medium}"
+            assert medium_field in versioned_fields, f"medium {medium} not found in versioned_fields"
+            assert versioned_fields[medium_field] == versioned_medium_field
+
     @authors("ilyaibraev")
     def test_get_resource_usage(self, yt_client: YtClient, home_ypath: str):
         yt_client.set(home_ypath + "/@account", "test_account")
@@ -265,6 +281,8 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
         paths = [item["path"] for item in response["items"]]
         assert len(paths) == 10
         assert sorted(created_tables) == sorted(paths)
+
+        self._assert_versioned_fields(response)
 
         # check if all tables and nodes are present
         response = self._run_request(
@@ -456,6 +474,8 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
         paths = [item["path"] for item in response["items"]]
         assert len(paths) == 10
         assert sorted(created_tables) == sorted(paths)
+
+        self._assert_versioned_fields(response)
 
         # check if all tables and nodes are present
         response = self._run_request(
@@ -716,6 +736,8 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
 
         # Assertions
         for response in [response_without_children, response_with_children_inside_test_dir]:
+            self._assert_versioned_fields(response)
+
             # Recreated
             item = _find_item_by_path(response, table_recreated)
             assert item["recreation_status"] == "recreated"
@@ -1081,6 +1103,7 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
                     "row_filter": {"base_path": home_ypath},
                 },
             )
+            self._assert_versioned_fields(children_response)
             items = [item for item in children_response["items"] if item["path"] == resolved_path]
             assert len(items) == 1, str(children_response)
             return versioned_response, items[0]
