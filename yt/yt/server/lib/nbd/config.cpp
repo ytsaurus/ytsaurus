@@ -20,6 +20,9 @@ void TPageCacheConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
     registrar.Parameter("flush_period", &TThis::FlushPeriod)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("flush_batch_size", &TThis::FlushBatchSize)
+        .Default(50)
+        .GreaterThan(0);
 
     registrar.Postprocessor([] (TThis* config) {
         // PageSize must be a positive multiple of 4096.

@@ -46,6 +46,11 @@ struct TPageCacheConfig
     //! When not set (nullopt), periodic flush is disabled.
     std::optional<TDuration> FlushPeriod;
 
+    //! Maximum number of concurrent Write RPCs issued during a single flush.
+    //! Dirty pages are flushed in batches of this size to avoid overwhelming
+    //! the data node's request queue.
+    int FlushBatchSize;
+
     REGISTER_YSON_STRUCT(TPageCacheConfig);
 
     static void Register(TRegistrar registrar);
