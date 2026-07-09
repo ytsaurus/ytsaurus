@@ -14,8 +14,13 @@ from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import Text, EmptyCell, MultiSensor
 
 
-def add_single_core_diagnostic(row):
-    transformation = "sign(ramp(moving_avg({query}, 5m) - 0.8))"
+def add_single_core_diagnostic(row, backend="monitoring"):
+    if backend == "monitoring":
+        transformation = "sign(ramp(moving_avg({query}, 5m) - 0.8))"
+    else:
+        # PromQL equivalent: sign -> sgn, ramp -> clamp_min(.., 0),
+        # moving_avg -> avg_over_time over a subquery.
+        transformation = "sgn(clamp_min(avg_over_time(({query})[5m:]) - 0.8, 0))"
 
     description_text = (
         "**Single core overflow &rarr;**\n"
@@ -36,8 +41,13 @@ def add_single_core_diagnostic(row):
     )
 
 
-def add_slow_input_messages_lookup_diagnostic(row):
-    transformation = "ramp(moving_percentile(series_max({query}), 5m, 0.5) - 0.5)"
+def add_slow_input_messages_lookup_diagnostic(row, backend="monitoring"):
+    if backend == "monitoring":
+        transformation = "ramp(moving_percentile(series_max({query}), 5m, 0.5) - 0.5)"
+    else:
+        # PromQL equivalent: series_max -> max, moving_percentile ->
+        # quantile_over_time over a subquery, ramp -> clamp_min(.., 0).
+        transformation = "clamp_min(quantile_over_time(0.5, (max({query}))[5m:]) - 0.5, 0)"
 
     description_text = (
         "**Slow input messages lookup &rarr;**\n"
@@ -67,7 +77,7 @@ def add_slow_input_messages_lookup_diagnostic(row):
     )
 
 
-def add_empty_diagnostic(row):
+def add_empty_diagnostic(row, backend="monitoring"):
     description_text = (
         "**Empty diagnostic &rarr;**\n"
         "It waits to be created :)"
@@ -75,28 +85,28 @@ def add_empty_diagnostic(row):
 
     return (row
         .cell("", Text(description_text))
-        .cell("", MonitoringExpr(FlowWorker("")))
+        .cell("", MonitoringExpr(FlowWorker("")) if backend == "monitoring" else EmptyCell())
     )
 
 
-def build_diagnostics():
+def build_diagnostics(backend="monitoring"):
     return (Rowset().set_cell_per_row(4)
         .row()
-            .apply_func(add_single_core_diagnostic)
-            .apply_func(add_slow_input_messages_lookup_diagnostic)
+            .apply_func(lambda row: add_single_core_diagnostic(row, backend))
+            .apply_func(lambda row: add_slow_input_messages_lookup_diagnostic(row, backend))
         .row()
-            .apply_func(add_empty_diagnostic)
-            .apply_func(add_empty_diagnostic)
+            .apply_func(lambda row: add_empty_diagnostic(row, backend))
+            .apply_func(lambda row: add_empty_diagnostic(row, backend))
     ).owner
 
 
-def build_flow_diagnostics():
+def build_flow_diagnostics(backend="monitoring"):
     def fill(d):
         d.add(build_text_row(
             "# If you see values &ge; 0, something is wrong\n"
             "Values on graphs have no physical meaning. Consider anything &ge; 0 as lit warning.\n\n"
             "[Diagnostic documentation](https://yt.yandex-team.ru/docs/flow/release/problems)"
         ))
-        d.add(build_diagnostics())
+        d.add(build_diagnostics(backend))
 
-    return create_dashboard("diagnostics", fill)
+    return create_dashboard("diagnostics", fill, backend=backend)

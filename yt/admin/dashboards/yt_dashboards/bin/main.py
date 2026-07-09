@@ -293,7 +293,12 @@ dashboards = {
     },
     "flow-diagnostics": {
         "func": flow.build_flow_diagnostics,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-event-time": {
         "func": flow.build_flow_event_time,
