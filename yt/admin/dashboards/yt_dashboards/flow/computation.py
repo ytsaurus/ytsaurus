@@ -10,9 +10,11 @@ from ..common.sensors import FlowController, FlowWorker
 from .common import create_dashboard
 
 from yt_dashboard_generator.dashboard import Rowset
+from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter, PrometheusDiscoverValues
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter
 from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
+from yt_dashboard_generator.specific_tags.tags import TemplateTag
 
 from textwrap import dedent
 
@@ -54,7 +56,7 @@ class ComputationCellGenerator:
             "Epoch parts time" + (" (Computation: {{computation_id}})" if self._has_computation_id_tag else ""),
         MonitoringExpr(
                 FlowWorker("yt.flow.worker.computation.epoch_parts_time.rate")
-                    .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "-")
+                    .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "-")
                     .value("part", "!-"))
                     .query_transformation("{query} * 0.001")
                 .aggr("host")
@@ -85,7 +87,7 @@ class ComputationCellGenerator:
             "Epoch parts max time" + (" (Computation: {{computation_id}})" if self._has_computation_id_tag else ""),
             MonitoringExpr(
                 FlowWorker("yt.flow.worker.computation.epoch_parts_time_distribution.max")
-                    .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "-")
+                    .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "-")
                     .value("part", "!-"))
                 .aggr("host")
                 .unit("UNIT_SECONDS")
@@ -98,7 +100,7 @@ class ComputationCellGenerator:
             "Epoch duration max time",
             MonitoringExpr(FlowWorker("yt.flow.worker.computation.epoch_time.max"))
                 .all("host")
-                .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+                .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "!-")
                 .alias(("{{computation_id}} - " if not self._has_computation_id_tag else "") + "{{host}}")
                 .top(50)
                 .unit("UNIT_SECONDS")
@@ -109,7 +111,7 @@ class ComputationCellGenerator:
             "Epoch count total",
             MonitoringExpr(FlowWorker("yt.flow.worker.computation.epoch.rate"))
                 .aggr("host")
-                .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+                .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "!-")
                 .unit("UNIT_COUNT")
                 .stack(False))
 
@@ -117,7 +119,7 @@ class ComputationCellGenerator:
         stream_alias = "{{computation_id}} / {{stream_id}}" if not self._has_computation_id_tag else "{{stream_id}}"
         return (Rowset()
             .stack(True)
-            .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+            .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "!-")
             .aggr("host")
             .row()
                 .cell(
@@ -151,7 +153,7 @@ class ComputationCellGenerator:
         return (Rowset()
             .stack(True)
             .aggr("host")
-            .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+            .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "!-")
             .all("stream_id")
             .row()
                 .cell(
@@ -316,9 +318,16 @@ class ComputationCellGenerator:
                     .unit("UNIT_SECONDS"),
                 description=description)
 
+        if self._has_computation_id_tag:
+            # non_empty_computation_id is bound by the Solomon-only let in
+            # transformed(); grafana selects the template variable directly.
+            computation_id = "{{non_empty_computation_id}}" if backend == "monitoring" else TemplateTag("computation_id")
+        else:
+            computation_id = "*"
+
         return (Rowset()
             .stack(False)
-            .value("computation_id", "{{non_empty_computation_id}}" if self._has_computation_id_tag else "*")
+            .value("computation_id", computation_id)
             .row()
                 .apply_func(lambda row: add_cpu_cell(row, "Max", "max"))
                 .apply_func(lambda row: add_cpu_cell(row, "Average", "avg"))
@@ -335,7 +344,7 @@ class ComputationCellGenerator:
         host_alias = "{{computation_id}} - {{host}}" if not self._has_computation_id_tag else "{{host}}"
         return (Rowset()
             .stack(False)
-            .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+            .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "!-")
             .row()
                 .cell(
                     "Transaction manager commit rate",
@@ -385,7 +394,7 @@ class ComputationCellGenerator:
         tag_alias = "{{computation_id}} - {{tag}}" if not self._has_computation_id_tag else "{{tag}}"
         return (Rowset()
             .stack(True)
-            .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+            .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "!-")
             .aggr("host")
             .row()
                 .cell(
@@ -432,7 +441,7 @@ class ComputationCellGenerator:
         def lag_p90(metric, alias, *extra):
             sensor = (MonitoringExpr(FlowWorker(metric))
                 .aggr("host")
-                .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+                .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "!-")
                 .all("stream_id")
                 .all("bin"))
             for label in extra:
@@ -466,7 +475,7 @@ class ComputationCellGenerator:
     def build_processed_message_rate_rowset(self):
         return (Rowset()
             .stack(False)
-            .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+            .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "!-")
             .row()
                 .cell(
                     "Processed messages rate",
@@ -495,17 +504,28 @@ def build_epoch_timings():
     )
 
 
-def build_flow_computation():
+def build_flow_computation(backend="monitoring"):
     def fill(d):
-        d.add_parameter("computation_id", "Computation (only for some graphs)", MonitoringLabelDashboardParameter("", "computation_id", "-"))
+        d.add_parameter(
+            "computation_id",
+            "Computation (only for some graphs)",
+            MonitoringLabelDashboardParameter("", "computation_id", "-"),
+            backends=["monitoring"])
+        d.add_parameter(
+            "computation_id",
+            "Computation (only for some graphs)",
+            GrafanaTextboxDashboardParameter(
+                ".*",
+                discover_values=PrometheusDiscoverValues("computation_id", "{cluster=~\"$cluster\", service=~\"worker\"}")),
+            backends=["grafana"])
 
         d.add(build_epoch_timings())
         d.add(GENERATOR.build_message_rate_rowset())
         d.add(GENERATOR.build_event_lag_rowset())
         d.add(GENERATOR.build_resources_rowset())
-        d.add(GENERATOR.build_partition_aggregates_rowset())
+        d.add(GENERATOR.build_partition_aggregates_rowset(backend))
         d.add(GENERATOR.build_partition_store_operations_rowset())
         d.add(GENERATOR.build_table_metrics_rowset())
         d.add(GENERATOR.build_processed_message_rate_rowset())
 
-    return create_dashboard("computation", fill)
+    return create_dashboard("computation", fill, backend=backend)
