@@ -4465,6 +4465,45 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         print_debug(f"{config_value=}, {is_config_value_old=}, {use_old_queue_exporter_impl=}")
         assert is_config_value_old == use_old_queue_exporter_impl
 
+    @authors("apachee")
+    def test_export_table_name_uniqueness_invariant_violated(self):
+        if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
+
+        orchid = QueueAgentOrchid()
+
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
+
+        _, queue_id = self._create_queue(queue_path)
+
+        self._create_export_destination(export_dir, queue_id)
+
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1000,
+                "output_table_name_pattern": "test",
+            },
+        })
+
+        insert_rows(queue_path, [{"data": "kano"}])
+        self._flush_table(queue_path)
+        wait(lambda: len(ls(export_dir)) == 1)
+        insert_rows(queue_path, [{"data": "kari"}])
+        self._flush_table(queue_path)
+
+        wait(lambda: orchid.get_queue_orchid(f"primary:{queue_path}").get_alerts().check_matching(
+            "queue_agent_queue_controller_static_export_failed",
+            text="Generated output table name uniqueness invariant violated",
+            attributes={
+                "export_name": "default",
+            },
+        ), timeout=15, ignore_exceptions=True)
+        assert len(orchid.get_queue_orchid(f"primary:{queue_path}").get_alerts()) == 1
+
+        self.remove_export_destination(export_dir)
+
 
 # COMPAT(apachee): Same tests, but use old implementation.
 @pytest.mark.enabled_multidaemon
