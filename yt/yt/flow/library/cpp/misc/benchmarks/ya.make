@@ -7,6 +7,7 @@ ALLOCATOR(TCMALLOC)
 SRCS(
     compact_unversioned_owning_row_bench.cpp
     cow_tree_bench.cpp
+    indexed_yson_string_bench.cpp
     identifier_bench.cpp
     keyed_heap_bench.cpp
 )

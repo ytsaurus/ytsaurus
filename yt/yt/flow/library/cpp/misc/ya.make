@@ -11,6 +11,7 @@ SRCS(
     cow_tree.cpp
     crash_recorder.cpp
     GLOBAL error_backtrace_enricher.cpp
+    indexed_yson_string.cpp
     lexicographically_serialize.cpp
     linear_system.cpp
     load_throughput_throttler.cpp
