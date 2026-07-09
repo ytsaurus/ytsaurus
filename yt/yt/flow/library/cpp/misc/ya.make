@@ -48,8 +48,13 @@ RECURSE(
 
 RECURSE_FOR_TESTS(
     unittests
-    benchmarks
 )
+
+IF (NOT SANITIZER_TYPE)
+    RECURSE_FOR_TESTS(
+        benchmarks
+    )
+ENDIF()
 
 IF (OPENSOURCE_PROJECT != "yt-cpp-sdk")
     RECURSE_FOR_TESTS(
