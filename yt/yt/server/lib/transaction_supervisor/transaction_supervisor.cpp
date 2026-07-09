@@ -1372,7 +1372,7 @@ private:
         }
 
     private:
-        TWeakPtr<TTransactionSupervisor> Owner_;
+        const TWeakPtr<TTransactionSupervisor> Owner_;
     };
 
     const IYPathServicePtr OrchidService_;
@@ -1848,7 +1848,7 @@ private:
             THROW_ERROR WrapHydraError(ex);
         }
 
-        if (commit && commit->GetPersistentState() != ECommitState::Start) {
+        if (commit->GetPersistentState() != ECommitState::Start) {
             YT_LOG_DEBUG(
                 "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
