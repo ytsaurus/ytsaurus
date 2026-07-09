@@ -12,6 +12,7 @@ SRCS(
     bipartite_map_ut.cpp
     ema_ut.cpp
     error_backtrace_enricher_ut.cpp
+    indexed_yson_string_ut.cpp
     keyed_heap_ut.cpp
     lexicographically_serialize_ut.cpp
     mutable_unversioned_row_ut.cpp

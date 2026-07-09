@@ -55,6 +55,7 @@ target_sources(library-cpp-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/identifier.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/cow_tree.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/crash_recorder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/indexed_yson_string.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/lexicographically_serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/linear_system.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/load_throughput_throttler.cpp

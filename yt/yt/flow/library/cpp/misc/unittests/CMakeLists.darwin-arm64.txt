@@ -62,6 +62,7 @@ target_sources(yt-flow-library-cpp-misc-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/bipartite_map_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/ema_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/error_backtrace_enricher_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/indexed_yson_string_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/keyed_heap_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/lexicographically_serialize_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/mutable_unversioned_row_ut.cpp

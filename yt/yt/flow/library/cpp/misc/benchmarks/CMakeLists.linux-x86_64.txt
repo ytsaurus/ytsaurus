@@ -62,6 +62,7 @@ target_link_options(yt-flow-library-cpp-misc-benchmarks PRIVATE
 target_sources(yt-flow-library-cpp-misc-benchmarks PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/benchmarks/compact_unversioned_owning_row_bench.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/benchmarks/cow_tree_bench.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/benchmarks/indexed_yson_string_bench.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/benchmarks/identifier_bench.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/benchmarks/keyed_heap_bench.cpp
 )
