@@ -7,14 +7,14 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from .common import create_dashboard
+from .common import build_event_lag_percentile, create_dashboard
 
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter
 from yt_dashboard_generator.backends.monitoring import MonitoringTextDashboardParameter
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import EmptyCell
-from yt_dashboard_generator.taggable import NotEquals
+from yt_dashboard_generator.taggable import NotEquals, SystemFields
 
 
 def build_lags():
@@ -75,29 +75,8 @@ def build_event_lag_per_computation(backend="monitoring"):
     # registration for sync sinks, on per-message ack for async sinks).
     # The percentile is the dashboard's "percentile" parameter.
     def lag_percentile(metric, alias, *extra):
-        if backend == "monitoring":
-            sensor = (MonitoringExpr(FlowWorker(metric))
-                .aggr("host")
-                .all("computation_id")
-                .all("stream_id")
-                .all("bin"))
-            for label in extra:
-                sensor = sensor.all(label)
-            labels_vector = "as_vector(" + ", ".join(f'"{l}"' for l in ["computation_id", "stream_id"] + list(extra)) + ")"
-            expr = MonitoringExpr.func("group_by_labels", sensor, labels_vector, "v -> histogram_percentile({{percentile}}, v)")
-        else:
-            # The exporter publishes these sensors as native Prometheus
-            # histograms; compute the percentile from the "le" buckets.
-            # Raw per-host series are summed here, so no aggregation layer
-            # is required ("all" excludes the aggregated host="Aggr" series).
-            group_labels = ", ".join(["le", "computation_id", "stream_id"] + list(extra))
-            expr = (MonitoringExpr(FlowWorker(f"{metric}.bucket.rate"))
-                .all("host")
-                .all("computation_id")
-                .all("stream_id")
-                .query_transformation(
-                    f"histogram_quantile($percentile / 100, sum by ({group_labels}) ({{query}}))"))
-        return (expr
+        group_labels = ["computation_id", "stream_id"] + list(extra)
+        return (build_event_lag_percentile(metric, "{{percentile}}", SystemFields.All, group_labels, backend)
             .alias(alias)
             .unit("UNIT_SECONDS")
             .stack(False))
