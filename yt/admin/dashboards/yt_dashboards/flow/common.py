@@ -172,6 +172,40 @@ def build_versions(worker_host_aggr: bool = True, backend: str = "monitoring"):
     ).owner
 
 
+def build_event_lag_percentile(metric: str, percentile: str, computation_id, group_labels: list, backend: str):
+    """Percentile of an event lag histogram sensor, one line per group_labels combination.
+
+    percentile is in Solomon percent form: "90" or a "{{percentile}}" parameter reference.
+    """
+    extra_labels = [label for label in group_labels if label not in ("computation_id", "stream_id")]
+
+    if backend == "monitoring":
+        sensor = (MonitoringExpr(FlowWorker(metric))
+            .aggr("host")
+            .value("computation_id", computation_id)
+            .all("stream_id")
+            .all("bin"))
+        for label in extra_labels:
+            sensor = sensor.all(label)
+        labels_vector = "as_vector(" + ", ".join(f'"{label}"' for label in group_labels) + ")"
+        return MonitoringExpr.func(
+            "group_by_labels", sensor, labels_vector,
+            f"v -> histogram_percentile({percentile}, v)")
+
+    # The exporter publishes these sensors as native Prometheus histograms;
+    # compute the percentile from the "le" buckets. Raw per-host series are
+    # summed here, so no aggregation layer is required ("all" excludes the
+    # aggregated host="Aggr" series).
+    grouping = ", ".join(["le"] + group_labels)
+    grafana_percentile = percentile.replace("{{percentile}}", "$percentile")
+    return (MonitoringExpr(FlowWorker(f"{metric}.bucket.rate"))
+        .all("host")
+        .value("computation_id", computation_id)
+        .all("stream_id")
+        .query_transformation(
+            f"histogram_quantile(({grafana_percentile}) / 100, sum by ({grouping}) ({{query}}))"))
+
+
 def build_resource_usage(component: str, add_component_to_title: bool):
     sensor = {
         "controller": FlowController,
