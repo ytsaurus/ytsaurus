@@ -78,12 +78,31 @@ DEFINE_REFCOUNTED_TYPE(TCypressSynchronizerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueueExportManagerConfig
+    : public NYTree::TYsonStruct
+{
+    //! Overrides the user used for exporting queues.
+    //! By default (or if null) queue agent user is used.
+    //! NB(apachee): Used to separate master request limits for queue agent and exports.
+    std::optional<std::string> User;
+
+    REGISTER_YSON_STRUCT(TQueueExportManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueExportManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TQueueAgentConfig
     : public NYTree::TYsonStruct
 {
     //! Identifies a family of queue agents.
     //! Each queue agent only handles queues and consumers with the corresponding attribute set to its own stage.
     std::string Stage;
+
+    TQueueExportManagerConfigPtr QueueExportManager;
 
     REGISTER_YSON_STRUCT(TQueueAgentConfig);
 

@@ -11,7 +11,9 @@ from yt_commands import (alter_table_replica, authors, commit_transaction, gener
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
                          sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, lock,
-                         execute_batch, make_batch_request, abort_transaction, read_table)
+                         execute_batch, make_batch_request, abort_transaction, read_table, create_user)
+
+from yt.environment.helpers import write_config
 
 from yt_helpers import calculate_object_diff, profiler_factory
 
@@ -3426,6 +3428,111 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
 
         time.sleep(5)
         assert len(ls(export_dir)) == 2
+
+        self.remove_export_destination(export_dir)
+
+
+class TestQueueStaticExportUser(TestQueueStaticExportBase):
+    ENABLE_MULTIDAEMON = False
+
+    NUM_SECONDARY_MASTER_CELLS = 0
+    MASTER_CELL_DESCRIPTORS = {}
+
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "election_manager": {
+            "transaction_timeout": 5000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+            "leader_cache_update_period": 100,
+        },
+    }
+
+    QUEUE_AGENT_CUSTOM_USER = "queue_agent_custom"
+    EXPORT_USER = "queue_export_custom"
+
+    def _restart_queue_agents_with_config(self, patch):
+        with Restarter(self.Env, QUEUE_AGENTS_SERVICE):
+            for index, config in enumerate(self.Env.configs["queue_agent"]):
+                update_inplace(config, patch)
+                write_config(config, self.Env.config_paths["queue_agent"][index])
+
+        instances = self._wait_for_instances()
+        self._wait_for_global_sync(instances)
+
+    @authors("apachee")
+    def test_export_user(self):
+        if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
+
+        create_user(self.QUEUE_AGENT_CUSTOM_USER)
+        # Non-superuser queue agent user needs explicit write access to //sys/queue_agents.
+        set("//sys/queue_agents/@acl/end", {
+            "action": "allow",
+            "subjects": [self.QUEUE_AGENT_CUSTOM_USER],
+            "permissions": ["read", "write", "remove", "administer", "mount"],
+        })
+        create_user(self.EXPORT_USER)
+
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
+
+        _, queue_id = self._create_queue(queue_path, partition_count=1)
+        self._create_export_destination(export_dir, queue_id)
+
+        # The export user is a non-superuser, so it needs explicit access to write the exported tables.
+        export_account = get(f"{export_dir}/@account")
+        set(f"//sys/accounts/{export_account}/@acl/end",
+            {"action": "allow", "subjects": [self.EXPORT_USER], "permissions": ["use"]})
+        set(f"{export_dir}/@acl", [{
+            "action": "allow",
+            "subjects": [self.EXPORT_USER],
+            "permissions": ["read", "write", "remove", "mount"],
+        }])
+        set(f"{export_dir}/@inherit_acl", False)
+
+        # By default the export user is the queue agent user, which the destination ACL forbids.
+        self._restart_queue_agents_with_config({"user": self.QUEUE_AGENT_CUSTOM_USER})
+
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1000,
+            }
+        })
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 2)
+        self._flush_table(queue_path)
+
+        queue_orchid = QueueAgentOrchid().get_queue_orchid(f"primary:{queue_path}")
+        wait(lambda: queue_orchid.get_alerts().check_matching(
+            "queue_agent_queue_controller_static_export_failed",
+            text="Access denied",
+            attributes={"export_name": "default"},
+        ), ignore_exceptions=True)
+        assert queue_orchid.get_alerts().check_matching(
+            "queue_agent_queue_controller_static_export_failed",
+            text=self.QUEUE_AGENT_CUSTOM_USER,
+            attributes={"export_name": "default"},
+        )
+        assert len(ls(export_dir)) == 0
+
+        # Overriding the export user with one allowed by the ACL unblocks exports.
+        self._restart_queue_agents_with_config({
+            "queue_agent": {
+                "queue_export_manager": {
+                    "user": self.EXPORT_USER,
+                },
+            },
+        })
+
+        queue_orchid = QueueAgentOrchid().get_queue_orchid(f"primary:{queue_path}")
+        wait(lambda: len(ls(export_dir)) == 1)
+        self._check_export(export_dir, [["foo"] * 2])
+
+        exported_table = ls(export_dir)[0]
+        assert get(f"{export_dir}/{exported_table}/@owner") == self.EXPORT_USER
+
+        wait(lambda: len(queue_orchid.get_alerts()) == 0)
 
         self.remove_export_destination(export_dir)
 

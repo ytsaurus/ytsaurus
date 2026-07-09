@@ -661,7 +661,6 @@ private:
                         QueuePath_,
                         std::move(exportConfig),
                         queueExporterConfig,
-                        ClientDirectory_->GetUnderlyingClientDirectory(),
                         Invoker_,
                         QueueExportManager_,
                         CreateAlertCollector(AlertManager_.Acquire()),

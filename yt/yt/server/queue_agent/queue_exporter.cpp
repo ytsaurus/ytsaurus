@@ -1178,7 +1178,6 @@ public:
         TTablePath queue,
         TQueueStaticExportConfigPtr exportConfig,
         TQueueExporterDynamicConfig dynamicConfig,
-        TClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker,
         IQueueExportManagerPtr queueExportManager,
         IAlertCollectorPtr alertCollector,
@@ -1190,7 +1189,6 @@ public:
         , RetryBackoff_(DynamicConfig_.RetryBackoff)
         , ExportName_(std::move(exportName))
         , Queue_(std::move(queue))
-        , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
         , QueueExportManager_(std::move(queueExportManager))
         , AlertCollector_(std::move(alertCollector))
@@ -1301,7 +1299,6 @@ private:
 
     const TString ExportName_;
     const TTablePath Queue_;
-    const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
     const IQueueExportManagerPtr QueueExportManager_;
     const IAlertCollectorPtr AlertCollector_;
@@ -1403,7 +1400,7 @@ private:
         }
 
         TQueueExportTaskPtr exportTask = New<TQueueExportTask>(
-            ClientDirectory_->GetClientOrThrow(Queue_.GetCluster().value()),
+            QueueExportManager_->GetQueueExportClientDirectory()->GetClientOrThrow(Queue_.GetCluster().value()),
             Invoker_,
             Queue_.GetPath(),
             exportConfig,
@@ -1487,7 +1484,6 @@ IQueueExporterPtr CreateQueueExporter(
     TTablePath queue,
     TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,
-    TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
     IQueueExportManagerPtr queueExportManager,
     IAlertCollectorPtr alertCollector,
@@ -1499,7 +1495,6 @@ IQueueExporterPtr CreateQueueExporter(
         std::move(queue),
         std::move(exportConfig),
         std::move(dynamicConfig),
-        std::move(clientDirectory),
         std::move(invoker),
         std::move(queueExportManager),
         std::move(alertCollector),
