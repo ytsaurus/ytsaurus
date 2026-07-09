@@ -48,6 +48,8 @@ public:
 
     TLamportClock* GetClock();
 
+    void Clear();
+
     std::pair<TLogicalTime, TConsistentState> GetConsistentState(std::optional<TLogicalTime> logicalTime);
 
 private:

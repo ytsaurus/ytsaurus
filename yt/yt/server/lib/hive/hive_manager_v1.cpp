@@ -2297,6 +2297,7 @@ private:
         }
 
         UnregisteredCellIds_.clear();
+        LogicalTimeRegistry_->Clear();
     }
 
     void SaveKeys(TSaveContext& context) const

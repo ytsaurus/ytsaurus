@@ -2499,6 +2499,7 @@ private:
         CellMailboxMap_.Clear();
         AvenueMailboxMap_.Clear();
         UnregisteredCellIds_.clear();
+        LogicalTimeRegistry_->Clear();
 
         RuntimeData_.Store(THiveRuntimeData{});
     }

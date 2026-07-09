@@ -62,6 +62,12 @@ TLogicalTimeRegistry::TLamportClock* TLogicalTimeRegistry::GetClock()
     return &Clock_;
 }
 
+void TLogicalTimeRegistry::Clear()
+{
+    TimeInfoMap_.clear();
+    TimeInfoMapSize_ = 0;
+}
+
 std::pair<TLogicalTime, TConsistentState> TLogicalTimeRegistry::GetConsistentState(std::optional<TLogicalTime> logicalTime)
 {
     if (TimeInfoMap_.empty()) {
