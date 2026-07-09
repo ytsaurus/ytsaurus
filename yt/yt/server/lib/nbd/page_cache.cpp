@@ -29,6 +29,7 @@ TPageCache::TPageCache(
     , Invoker_(std::move(invoker))
     , PageSize_(Config_->PageSize)
     , MaxPages_(Config_->Size / PageSize_)
+    , FlushBatchSize_(Config_->FlushBatchSize)
     , Logger(logger.WithTag("CacheSize: %v, PageSize: %v, MaxPages: %v", Config_->Size, PageSize_, MaxPages_))
 {
     YT_VERIFY(ChunkHandler_);
@@ -79,9 +80,14 @@ TFuture<void> TPageCache::Finalize()
 
 TFuture<void> TPageCache::Flush()
 {
-    YT_LOG_DEBUG("Flushing page cache");
+    return FlushBatch(std::numeric_limits<int>::max());
+}
 
-    return BIND([this, this_ = MakeStrong(this)] {
+TFuture<void> TPageCache::FlushBatch(int maxPages)
+{
+    YT_LOG_DEBUG("Flushing page cache (MaxPages: %v)", maxPages);
+
+    return BIND([this, this_ = MakeStrong(this), maxPages] {
         // Acquire the writer lock and HOLD it (via RAII on this scope) for the entire
         // flush — through the Write-RPCs and until they complete. While the writer lock
         // is held, no Read()/Write()/Flush() can run, so page data cannot be modified,
@@ -100,6 +106,9 @@ TFuture<void> TPageCache::Flush()
                 if (page.Dirty) {
                     page.Dirty = false;
                     dirtyPages.emplace_back(pageIndex, TSharedRef(page.Data));
+                    if (std::ssize(dirtyPages) >= maxPages) {
+                        break;
+                    }
                 }
             }
         }
@@ -109,36 +118,43 @@ TFuture<void> TPageCache::Flush()
             return;
         }
 
-        YT_LOG_DEBUG("Flushing dirty pages (Count: %v)", dirtyPages.size());
+        YT_LOG_DEBUG("Flushing dirty pages (Count: %v, BatchSize: %v)", dirtyPages.size(), FlushBatchSize_);
 
-        // Write all dirty pages to the data node in parallel.
-        // NB. Flushing would benefit from added support for a batch write.
-        std::vector<TFuture<void>> writeFutures;
-        writeFutures.reserve(dirtyPages.size());
-
-        for (const auto& [pageIndex, data] : dirtyPages) {
-            i64 pageOffset = pageIndex * PageSize_;
-            writeFutures.push_back(
-                ChunkHandler_->Write(pageOffset, data, {})
-                    .AsVoid());
-        }
-
-        auto results = WaitFor(AllSet(writeFutures))
-            .ValueOrThrow();
-
-        // On partial failure, re-mark only the pages whose writes failed as dirty so
-        // the next flush retries just those. results[i] corresponds to dirtyPages[i].
+        // Write dirty pages to the data node in batches of FlushBatchSize_ to avoid
+        // overwhelming the data node's request queue (which has a per-method limit).
+        // Within each batch, pages are written in parallel; batches are sequential.
         std::vector<TError> errors;
-        {
-            auto guard = Guard(Lock_);
-            for (int i = 0; i < std::ssize(results); ++i) {
-                if (!results[i].IsOK()) {
-                    // The writer lock is held for the whole flush, so no eviction could
-                    // have run and the page must still exist.
-                    auto it = Pages_.find(dirtyPages[i].first);
-                    YT_VERIFY(it != Pages_.end());
-                    it->second.Dirty = true;
-                    errors.push_back(results[i]);
+
+        for (i64 batchStart = 0; batchStart < std::ssize(dirtyPages); batchStart += FlushBatchSize_) {
+            i64 batchEnd = std::min(batchStart + FlushBatchSize_, std::ssize(dirtyPages));
+
+            std::vector<TFuture<void>> writeFutures;
+            writeFutures.reserve(batchEnd - batchStart);
+
+            for (i64 i = batchStart; i < batchEnd; ++i) {
+                const auto& [pageIndex, data] = dirtyPages[i];
+                i64 pageOffset = pageIndex * PageSize_;
+                writeFutures.push_back(
+                    ChunkHandler_->Write(pageOffset, data, {})
+                        .AsVoid());
+            }
+
+            auto results = WaitFor(AllSet(writeFutures))
+                .ValueOrThrow();
+
+            // On partial failure, re-mark only the pages whose writes failed as dirty so
+            // the next flush retries just those. results[j] corresponds to dirtyPages[batchStart + j].
+            {
+                auto guard = Guard(Lock_);
+                for (i64 j = 0; j < std::ssize(results); ++j) {
+                    if (!results[j].IsOK()) {
+                        // The writer lock is held for the whole flush, so no eviction could
+                        // have run and the page must still exist.
+                        auto it = Pages_.find(dirtyPages[batchStart + j].first);
+                        YT_VERIFY(it != Pages_.end());
+                        it->second.Dirty = true;
+                        errors.push_back(results[j]);
+                    }
                 }
             }
         }
@@ -594,7 +610,10 @@ std::optional<TError> TPageCache::CheckHardLimit()
 
 void TPageCache::TriggerBackgroundFlush(TStringBuf failureLogMessage)
 {
-    Flush().Subscribe(BIND([Logger = Logger, failureLogMessage = TString(failureLogMessage)] (const TError& error) {
+    // Use FlushBatch instead of the full Flush() to limit the time the writer lock is held.
+    // Full Flush() can block all reads/writes for many seconds when the cache is full;
+    // FlushBatch(FlushBatchSize_) only holds the lock for one small batch (~10 ms).
+    FlushBatch(FlushBatchSize_).Subscribe(BIND([Logger = Logger, failureLogMessage = TString(failureLogMessage)] (const TError& error) {
         if (!error.IsOK()) {
             YT_LOG_WARNING(error, "%v", failureLogMessage);
         }
@@ -605,7 +624,9 @@ void TPageCache::OnPeriodicFlush()
 {
     YT_LOG_DEBUG("Periodic flush triggered");
 
-    auto future = Flush();
+    // Only flush a single batch of dirty pages per periodic tick to avoid holding
+    // the writer lock for too long and blocking reads/writes.
+    auto future = FlushBatch(FlushBatchSize_);
     auto result = WaitFor(future);
     if (!result.IsOK()) {
         YT_LOG_ERROR(result, "Periodic flush failed");

@@ -50,6 +50,10 @@ public:
     //! Flush dirty pages to data node.
     TFuture<void> Flush() override;
 
+    //! Flush up to |maxPages| dirty pages to the data node.
+    //! Used by the periodic flush to avoid holding the writer lock for too long.
+    TFuture<void> FlushBatch(int maxPages);
+
     //! Read data from the cache or data node.
     //! On cache miss, reads the full page from data node and caches it.
     TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) override;
@@ -79,6 +83,7 @@ private:
     const IInvokerPtr Invoker_;
     const i64 PageSize_;
     const i64 MaxPages_;
+    const int FlushBatchSize_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
