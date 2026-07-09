@@ -319,7 +319,12 @@ dashboards = {
     },
     "flow-computation": {
         "func": flow.build_flow_computation,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-message-transfering": {
         "func": flow.build_flow_message_transfering,
