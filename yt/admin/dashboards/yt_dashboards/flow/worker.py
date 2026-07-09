@@ -19,10 +19,10 @@ from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 
 
-def build_flow_worker():
+def build_flow_worker(backend="monitoring"):
     def fill(d):
         d.add(build_resource_usage("worker", add_component_to_title=False))
         d.add(build_extra_cpu("worker"))
         d.add(build_yt_rpc("worker"))
 
-    return create_dashboard("worker", fill)
+    return create_dashboard("worker", fill, backend=backend)
