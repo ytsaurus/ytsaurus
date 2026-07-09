@@ -297,7 +297,12 @@ dashboards = {
     },
     "flow-event-time": {
         "func": flow.build_flow_event_time,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-controller": {
         "func": flow.build_flow_controller,
