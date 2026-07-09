@@ -1,0 +1,15 @@
+#pragma once
+
+#include "config.h"
+
+#include <yt/yt/flow/library/cpp/common/public.h>
+
+namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNodeInfoPtr GetNodeInfo(const TFlowNodeConfigPtr& config, const NLogging::TLogger& logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow

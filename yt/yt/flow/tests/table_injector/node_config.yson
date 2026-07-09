@@ -1,0 +1,82 @@
+{
+    "force_ipv6_as_node_address" = %true;
+    "controller" = {
+        "scheduler_period" = 200;
+    };
+    "logging" = {
+        "suppressed_messages" = [
+            "WorkerTrackerService.Heartbeat";
+            "Worker heartbeat received";
+            "Heartbeat succeeded";
+        ];
+        "rules" = [
+            {
+                "exclude_categories" = [
+                    "Bus";
+                    "Dns";
+                    "Concurrency";
+                    "QueryClient";
+                    "Profiling";
+                    "RpcClient";
+                    "Monitoring";
+                    "Net";
+                    "Solomon";
+                    "Jaeger";
+                    "RpcProxyClient";
+                    "RpcServer";
+                    "Dns";
+                    "LocalYtTestSpecial";
+                    "BufferMetrics";
+                ];
+                "min_level" = "debug";
+                "writers" = [
+                    "Stderr";
+                ];
+            };
+            {
+                "include_categories" = [
+                    "LocalYtTestSpecial";
+                ];
+                "min_level" = "debug";
+                "writers" = [
+                    "LocalYtTestSpecialWriter";
+                ];
+            };
+            {
+                "include_categories" = [
+                    "BufferMetrics";
+                ];
+                "min_level" = "info";
+                "writers" = [
+                    "BufferMetricsWriter";
+                ];
+            };
+            {
+                "include_categories" = [
+                    "PublicFlowController";
+                ];
+                "min_level" = "info";
+                "writers" = [
+                    "ControllerLogWriter";
+                ];
+            };
+        ];
+        "writers" = {
+            "Stderr" = {
+                "type" = "stderr";
+            };
+            "LocalYtTestSpecialWriter" = {
+                "type" = "file";
+                "file_name" = "/dev/null";
+            };
+            "BufferMetricsWriter" = {
+                "accepted_message_format" = "structured";
+                "type" = "file";
+            };
+        };
+        "watch_period" = 5000;
+    };
+    "error_backtrace_enricher" = {
+        "level" = "enabled_for_all";
+    };
+}

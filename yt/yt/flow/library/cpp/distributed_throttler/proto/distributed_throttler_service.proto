@@ -1,0 +1,18 @@
+package NYT.NFlow.NDistributedThrottler.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRequestQuota
+{
+    required string throttler_id = 1;
+    required string client_id = 2;
+    required int64 amount = 3;
+    required uint64 timestamp = 4;
+}
+
+message TRspRequestQuota
+{
+    // Empty: the fact of response means quota is granted in full.
+}
+
+////////////////////////////////////////////////////////////////////////////////

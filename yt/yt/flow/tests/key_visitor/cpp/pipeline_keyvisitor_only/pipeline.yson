@@ -1,0 +1,57 @@
+{
+    "spec" = {
+        "computations" = {
+            "reviser_like" = {
+                "computation_class_name" = "TKeyVisitorOnlyComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["visits"];
+                "external_state_managers" = {
+                    "/user-state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {
+                            "path" = "//path/to/user_state";
+                        };
+                    };
+                };
+                "key_visitor_streams" = {
+                    "visit_iter" = {
+                        "external_names" = ["/user-state"];
+                    };
+                };
+                "streams_dependency" = {
+                    "visits" = ["visit_iter"];
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["visits"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reviser_like" = {
+                "parameters" = {
+                    "desired_partition_count" = 4;
+                };
+                "key_visitor_streams" = {
+                    "visit_iter" = {
+                        "period" = "1s";
+                    };
+                };
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

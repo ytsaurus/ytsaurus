@@ -1,0 +1,90 @@
+{
+    "spec" = {
+        "computations" = {
+            "url_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["urls"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "url_downloader" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(host)"; "type" = "uint64"; required = %true;};
+                    {"name" = "host"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["urls"];
+                "output_stream_ids" = ["processed_urls"];
+                "timer_streams" = {
+                    "timer" = {
+                        "time_type" = "current_time";
+                    };
+                };
+                "streams_dependency" = {
+                    "timer" = ["timer"; "urls"];
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["processed_urls"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+                "parameters" = {
+                    "internal_states" = ["host-state"];
+                };
+                "allow_timer_self_dependency" = %true;
+            };
+        };
+        "streams" = {
+            "urls" = {
+                "schema" = [
+                    {"name" = "host"; "type" = "string";};
+                    {"name" = "url"; "type" = "string";};
+                ];
+            };
+            "processed_urls" = {
+                "schema" = [
+                    {"name" = "host"; "type" = "string";};
+                    {"name" = "url"; "type" = "string";};
+                    {"name" = "data"; "type" = "string";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {
+                    "run_process" = %false;
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "url_reader" = {
+            };
+            "url_downloader" = {
+                "parameters" = {};
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

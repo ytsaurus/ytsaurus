@@ -13,3 +13,8 @@
 # changes in this file.
 
 add_subdirectory(lib)
+add_subdirectory(bin)
+add_subdirectory(library)
+add_subdirectory(tests)
+add_subdirectory(tools)
+add_subdirectory(examples)

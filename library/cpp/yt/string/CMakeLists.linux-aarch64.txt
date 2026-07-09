@@ -14,6 +14,8 @@
 
 find_package(linux-headers-generic REQUIRED)
 
+add_subdirectory(enable_enum_suggestions_on_enum_parse_error)
+
 add_library(cpp-yt-string)
 
 

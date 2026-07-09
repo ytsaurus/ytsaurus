@@ -1,0 +1,178 @@
+package NYT.NFlow.NProto.NCompanion;
+
+option java_package = "tech.ytsaurus.flow.rpc";
+option java_multiple_files = true;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt/flow/library/cpp/common/proto/message.proto";
+import "yt/flow/library/cpp/common/proto/timer.proto";
+import "yt/flow/library/cpp/common/proto/visit.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+service CompanionService {
+    rpc ProcessBatch(TReqProcessBatch) returns (TRspProcessBatch);
+    rpc CompanionInfo(TReqCompanionInfo) returns (TRspCompanionInfo);
+    rpc PutJob(TReqPutJob) returns (TRspPutJob);
+    rpc GetJfr(TReqGetJfr) returns (TRspGetJfr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EResponseStatus
+{
+    RS_OK = 0;
+    RS_ERROR = 1;
+    RS_JOB_NOT_FOUND = 2;
+}
+
+message TStateItem
+{
+    // Unversioned row with Key, binary equal to message.key().
+ 	required bytes key = 1; // UnversionedRow
+    // Flag indicating state reset/erase.
+    required bool reset = 2 [default = false];
+    // Serialized binary state. Might be empty for reset=true
+   	optional bytes state = 3;
+}
+
+message TState
+{
+    // Name of the state.
+    required string name = 1;
+    // Payload schema. Might be empty for reset=true or internal state.
+    optional bytes schema = 2;
+    repeated TStateItem stateItems = 3;
+}
+
+message TStream
+{
+    required string stream_id = 1;
+    required int64 stream_spec_id = 2;
+    required bytes schema = 3; // YSON
+}
+
+message TJobInfo {
+    required bytes spec = 1; // YSON
+    required bytes dynamic_spec = 2; // YSON
+    // Input and output streams of the computation.
+    // Might be overwritten at source computation DoProcess request.
+    repeated TStream streams = 3;
+}
+
+message TWatermark
+{
+    required string stream_id = 1;
+    required uint64 watermark = 2;
+}
+
+message TNewTimer
+{
+    required uint64 trigger_timestamp = 1;
+    optional uint64 event_timestamp = 2;
+    optional bytes stream_id = 3;
+}
+
+message TReqProcessBatch
+{
+    message TExtendedMessage
+    {
+        required NYT.NFlow.NProto.TMessage message = 1;
+        // Unversioned row with Key.
+        required bytes key = 2; // UnversionedRow
+    };
+    required NYT.NProto.TGuid request_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+    required string computation_id = 3;
+    optional TJobInfo job_info = 4;
+    // Streams override of job_info.streams.
+    // Used at source computation DoProcess request.
+    repeated TStream streams = 5;
+    repeated TExtendedMessage messages = 6;
+    repeated NYT.NFlow.NProto.TTimer timers = 7;
+    repeated TState internal_states = 8;
+    repeated TState external_states = 9;
+    repeated TWatermark watermarks = 10;
+    repeated NYT.NFlow.NProto.TVisit visits = 11;
+    // Read-only external state joined from another computation's state table.
+    // Never written back, so no counterpart field exists in TResponseData.
+    repeated TState joined_external_states = 12;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TResponseMetrics
+{
+    required int64 allocated_bytes = 1;
+    required int64 cpu_time_ns = 2;
+}
+
+message TResponseData
+{
+    message TGroup
+	{
+	  	repeated NYT.NFlow.NProto.TMessage messages = 1;
+	  	repeated TNewTimer timers = 2;
+        // List of parent message & timer ids.
+	  	repeated bytes parent_ids = 3; // String
+        // Per-message distribute flag, aligned with messages. Empty means "distribute all".
+	  	repeated bool distribute = 4;
+	};
+    repeated TGroup output = 1;
+    // Modified states.
+    repeated TState internal_states = 2;
+    // Modified external states.
+    repeated TState external_states = 3;
+}
+
+message TRspProcessBatch
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+    optional TResponseData data = 3;
+    required TResponseMetrics metrics = 4;
+    required EResponseStatus status = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCompanionInfo
+{ }
+
+message TRspCompanionInfo
+{
+    required bytes payload = 1; // YSON
+    required EResponseStatus status = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPutJob
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+    required string computation_id = 3;
+    required TJobInfo job_info = 4;
+}
+
+message TRspPutJob
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+    required TResponseMetrics metrics = 3;
+    required EResponseStatus status = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetJfr
+{ }
+
+message TRspGetJfr
+{
+    required EResponseStatus status = 1;
+    optional bytes jfr_data = 2;
+    optional string error_message = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

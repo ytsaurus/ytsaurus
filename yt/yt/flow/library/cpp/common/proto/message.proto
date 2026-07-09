@@ -1,0 +1,19 @@
+package NYT.NFlow.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+message TMessage
+{
+    required string message_id = 1;
+    required uint64 system_timestamp = 2;
+    optional uint64 alignment_timestamp = 7; // Empty alignment_timestamp means that it is equal to system_timestamp.
+    optional uint64 event_timestamp = 6;
+    reserved 3;
+    required bytes payload = 4;
+    required int64 stream_spec_id = 5;
+}
+
+message TMessageBatch
+{
+    repeated TMessage messages = 1;
+}

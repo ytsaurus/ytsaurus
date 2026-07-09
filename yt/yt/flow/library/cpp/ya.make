@@ -1,0 +1,17 @@
+RECURSE(
+    client
+    common
+    common/worker
+    companion
+    computation
+    connectors
+    controller
+    controller/describe
+    multiplexer
+    misc
+    parsers
+    process_function
+    tables
+    vanilla
+    worker
+)

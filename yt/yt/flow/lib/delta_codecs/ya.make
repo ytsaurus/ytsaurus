@@ -1,6 +1,6 @@
 LIBRARY()
 
-INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     codec.cpp

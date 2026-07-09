@@ -1,0 +1,71 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["events"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+            "enricher" = {
+                "computation_class_name" = "TEnricher";
+                "group_by_schema" = [
+                    {name = "Hash"; expression = "farm_hash(UserId)"; type = "uint64"; required = %true;};
+                    {name = "UserId"; type = "string"; required = %true;};
+                ];
+                "input_stream_ids" = ["events"];
+                "output_stream_ids" = ["enriched"];
+                "external_state_joiners" = {
+                    "/bank" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "join_on" = {
+                            "key_schema_override" = [
+                                {name = "Hash"; expression = "farm_hash(BankId)"; type = "uint64"; required = %true;};
+                                {name = "BankId"; type = "uint64"; required = %true;};
+                            ];
+                        };
+                        "parameters" = {};
+                    };
+                    "/user_metadata" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "parameters" = {};
+                    };
+                };
+                "sinks" = {
+                    "out" = {
+                        "sink_class_name" = "NYT::NFlow::NSortedDynamicTable::TSyncSink";
+                        "input_stream_ids" = ["enriched"];
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "events" = {
+                "schema" = [
+                    {name = "UserId"; type = "string"; required = %true;};
+                    {name = "BankId"; type = "uint64"; required = %true;};
+                ];
+            };
+            "enriched" = {
+                "schema" = [
+                    {name = "UserId"; type = "string"; required = %true;};
+                    {name = "BankName"; type = "string"; required = %true;};
+                    {name = "UserNickname"; type = "string"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {"parameters" = {};};
+            "enricher" = {"parameters" = {};};
+        };
+    };
+}

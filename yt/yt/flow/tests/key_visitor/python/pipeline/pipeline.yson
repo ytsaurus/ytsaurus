@@ -1,0 +1,88 @@
+{
+    "spec" = {
+        "computations" = {
+            "key_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["keys"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+            "tester" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["keys"];
+                "output_stream_ids" = ["visits"];
+                "key_visitor_streams" = {
+                    "visit_iter" = {};
+                };
+                "streams_dependency" = {
+                    "visits" = ["keys"; "visit_iter"];
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["visits"];
+                        "parameters" = {};
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {
+                    "internal_states" = ["user-state"];
+                };
+            };
+        };
+        "streams" = {
+            "keys" = {
+                "schema" = [
+                    {name = "key"; type = "string";};
+                    {name = "payload"; type = "string";};
+                ];
+            };
+            "visits" = {
+                "schema" = [
+                    {name = "key"; type = "string";};
+                    {name = "payload"; type = "string";};
+                    {name = "visit_index"; type = "int64";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {
+                    "run_process" = %false;
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "key_reader" = {};
+            "tester" = {
+                "key_visitor_streams" = {
+                    "visit_iter" = {
+                        "period" = "20s";
+                    };
+                };
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

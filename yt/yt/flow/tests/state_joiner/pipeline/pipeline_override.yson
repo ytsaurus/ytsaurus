@@ -1,0 +1,84 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["events"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+            "accumulator" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NStateJoinerTest::TAccumulatorFunction";
+                "group_by_schema" = [
+                    {name = "Hash"; expression = "farm_hash(UserId)"; type = "uint64"; required = %true;};
+                    {name = "UserId"; type = "string"; required = %true;};
+                ];
+                "input_stream_ids" = ["events"];
+                "output_stream_ids" = ["users"];
+                "parameters" = {};
+            };
+            "joiner" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NStateJoinerTest::TJoinerFunction";
+                "group_by_schema" = [
+                    {name = "Bucket"; type = "uint64"; required = %true;};
+                ];
+                "input_stream_ids" = ["users"];
+                "output_stream_ids" = ["results"];
+                "state_joiners" = {
+                    "/user_total" = {
+                        "computation_id" = "accumulator";
+                        "state_name" = "/total";
+                        "join_on" = {
+                            "key_schema_override" = [
+                                {name = "Hash"; expression = "farm_hash(UserId)"; type = "uint64"; required = %true;};
+                                {name = "UserId"; type = "string"; required = %true;};
+                            ];
+                        };
+                    };
+                };
+                "sinks" = {
+                    "out" = {
+                        "sink_class_name" = "NYT::NFlow::NSortedDynamicTable::TSyncSink";
+                        "input_stream_ids" = ["results"];
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "events" = {
+                "schema" = [
+                    {name = "UserId"; type = "string"; required = %true;};
+                    {name = "Amount"; type = "int64"; required = %true;};
+                ];
+            };
+            "users" = {
+                "schema" = [
+                    {name = "UserId"; type = "string"; required = %true;};
+                    {name = "Bucket"; type = "uint64"; required = %true;};
+                ];
+            };
+            "results" = {
+                "schema" = [
+                    {name = "UserId"; type = "string"; required = %true;};
+                    {name = "Total"; type = "int64"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {"parameters" = {};};
+            "accumulator" = {"parameters" = {};};
+            "joiner" = {"parameters" = {};};
+        };
+    };
+}

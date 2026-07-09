@@ -4,6 +4,7 @@ RECURSE(
     client
     core
     experiments
+    flow
     gpuagent
     library
     python
@@ -14,7 +15,6 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
-        flow
         fuzz
         orm
         packages/tests_package

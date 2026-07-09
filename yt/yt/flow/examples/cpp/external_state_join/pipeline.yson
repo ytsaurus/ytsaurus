@@ -1,0 +1,55 @@
+{
+    "spec" = {
+        "computations" = {
+            "event_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["event"];
+                "source_streams" = {
+                    "event_queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "lookup_join" = {
+                "computation_class_name" = "TLookupJoin";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event"];
+                "output_stream_ids" = ["enriched"];
+                "external_state_joiners" = {
+                    "/reference" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["enriched"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "event_reader" = {
+                "parameters" = {};
+            };
+            "lookup_join" = {
+                "parameters" = {};
+            };
+        };
+    };
+}
