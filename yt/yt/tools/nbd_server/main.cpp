@@ -15,6 +15,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -183,8 +184,14 @@ IBlockDevicePtr CreateCypressChunkDevice(
         channel = client->GetChannelFactory()->CreateChannel(config->DataNodeNbdServiceAddress);
 
         // Resolve medium name to index via the cluster's medium directory.
+        // The medium directory is populated asynchronously by a synchronizer,
+        // so we must wait for the first sync to complete before looking up
+        // the medium name.
         if (config->Medium) {
-            const auto& mediumDirectory = client->GetNativeConnection()->GetMediumDirectory();
+            const auto& nativeConnection = client->GetNativeConnection();
+            WaitFor(nativeConnection->GetMediumDirectorySynchronizer()->NextSync())
+                .ThrowOnError();
+            const auto& mediumDirectory = nativeConnection->GetMediumDirectory();
             auto descriptor = mediumDirectory->GetByNameOrThrow(*config->Medium);
             config->MediumIndex = descriptor->GetIndex();
         }
