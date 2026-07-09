@@ -368,7 +368,7 @@ void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
 
     if (localRecordCount > adjustedRemoteRecordCount) {
         if (firstRemoteSequenceNumber) {
-            auto lastRemoteSequenceNumber = *firstRemoteSequenceNumber + adjustedRemoteRecordCount;
+            auto lastRemoteSequenceNumber = *firstRemoteSequenceNumber + adjustedRemoteRecordCount - 1;
             auto automatonSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
             if (lastRemoteSequenceNumber < automatonSequenceNumber) {
                 auto reliablyAppliedSequenceNumber = DecoratedAutomaton_->GetReliablyAppliedSequenceNumber();

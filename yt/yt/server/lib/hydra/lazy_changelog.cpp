@@ -72,6 +72,7 @@ public:
             return UnderlyingChangelog_->Append(records);
         } else {
             for (const auto& record : records) {
+                BacklogDataSize_ += record.Size();
                 BacklogRecords_.push_back(record);
             }
             return BacklogAppendPromise_;
