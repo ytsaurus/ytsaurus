@@ -7,7 +7,7 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from .common import create_dashboard
+from .common import build_event_lag_percentile, create_dashboard
 
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter, PrometheusDiscoverValues
@@ -427,7 +427,7 @@ class ComputationCellGenerator:
                         .unit("UNIT_BYTES_SI_PER_SECOND"))
         )
 
-    def build_event_lag_rowset(self):
+    def build_event_lag_rowset(self, backend="monitoring"):
         # event_lag = now() - EventTimestamp. See event_time.py for the full
         # multi-stream view; this rowset shows the same metrics scoped to
         # one computation so you can spot bottlenecks during a deep dive.
@@ -439,18 +439,11 @@ class ComputationCellGenerator:
         )
 
         def lag_p90(metric, alias, *extra):
-            sensor = (MonitoringExpr(FlowWorker(metric))
-                .aggr("host")
-                .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "!-")
-                .all("stream_id")
-                .all("bin"))
-            for label in extra:
-                sensor = sensor.all(label)
             group_labels = ["stream_id"] + list(extra)
             if not self._has_computation_id_tag:
                 group_labels.insert(0, "computation_id")
-            labels_vector = "as_vector(" + ", ".join(f'"{l}"' for l in group_labels) + ")"
-            return (MonitoringExpr.func("group_by_labels", sensor, labels_vector, "v -> histogram_percentile(90, v)")
+            computation_id = TemplateTag("computation_id") if self._has_computation_id_tag else "!-"
+            return (build_event_lag_percentile(metric, "90", computation_id, group_labels, backend)
                 .alias(alias)
                 .unit("UNIT_SECONDS")
                 .stack(False))
@@ -521,7 +514,7 @@ def build_flow_computation(backend="monitoring"):
 
         d.add(build_epoch_timings())
         d.add(GENERATOR.build_message_rate_rowset())
-        d.add(GENERATOR.build_event_lag_rowset())
+        d.add(GENERATOR.build_event_lag_rowset(backend))
         d.add(GENERATOR.build_resources_rowset())
         d.add(GENERATOR.build_partition_aggregates_rowset(backend))
         d.add(GENERATOR.build_partition_store_operations_rowset())
