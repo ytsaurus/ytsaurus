@@ -21,6 +21,7 @@ struct IChunkHandler
 {
     virtual TFuture<void> Initialize() = 0;
     virtual TFuture<void> Finalize() = 0;
+    virtual TFuture<void> Flush() = 0;
     virtual TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) = 0;
     virtual TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) = 0;
 };
