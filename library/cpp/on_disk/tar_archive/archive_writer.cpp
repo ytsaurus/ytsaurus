@@ -5,6 +5,7 @@
 
 #include "archive_windows.h"
 
+#include <util/generic/array_ref.h>
 #include <util/generic/hash.h>
 #include <util/string/cast.h>
 #include <util/memory/blob.h>
@@ -218,11 +219,12 @@ void TArchiveWriter::TImpl::CheckResult(int res) {
 void TArchiveWriter::TImpl::TOutputFileStream::DoWrite(const void* buf, size_t len) {
     Y_ENSURE(BytesLeft >= len);
     BytesLeft -= len;
-    while (len > 0) {
-        la_ssize_t written = archive_write_data(Master->Archive, buf, len);
+    TArrayRef<const char> rest(static_cast<const char*>(buf), len);
+    while (!rest.empty()) {
+        const la_ssize_t written = archive_write_data(Master->Archive, rest.data(), rest.size());
         Master->CheckErrno();
         Y_ENSURE(written > 0);
-        len -= written;
+        rest = rest.Slice(written);
     }
 }
 
