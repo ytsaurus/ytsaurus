@@ -261,6 +261,7 @@ private:
             Config_->QueueAgent,
             NativeConnection_,
             ClientDirectory_,
+            /*queueAgentUser*/ Config_->User,
             ControlInvoker_,
             DynamicState_,
             ElectionManager_,

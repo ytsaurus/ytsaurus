@@ -51,6 +51,7 @@ public:
         TQueueAgentConfigPtr config,
         NApi::NNative::IConnectionPtr nativeConnection,
         NHiveClient::TClientDirectoryPtr clientDirectory,
+        std::string queueAgentUser,
         IInvokerPtr controlInvoker,
         NQueueClient::TDynamicStatePtr dynamicState,
         NCypressElection::ICypressElectionManagerPtr electionManager,
