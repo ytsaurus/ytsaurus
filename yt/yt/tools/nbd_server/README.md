@@ -11,11 +11,24 @@ chosen backend type. Each device is described with a polymorphic YSON struct —
 | `memory`        | process memory            | RW   | no             |
 | `dynamic_table` | a mounted dynamic table   | RW   | yes            |
 | `file`          | a Cypress file (its bytes)| RO   | yes (native)   |
+| `chunk`         | a data node chunk         | RW   | yes (native)   |
 
 The `file` backend serves the raw bytes of a Cypress file read-only — point it at
 a filesystem image and mount the device directly, no `mkfs`. It reads the file's
 chunks, so it needs a native client, and requires the file's `@filesystem`
 attribute to be `ext4` or `squashfs`.
+
+The `chunk` backend creates a read-write chunk on a data node via the NBD service.
+It connects to the data node at `data_node_nbd_service_address` using the cluster
+client's authenticated channel factory (which injects TVM service tickets), so
+it requires `YT_PROXY` and `native_authentication_manager` in the config. It
+creates a chunk-backed block device with an optional write-back page cache. The
+data node must have the NBD service enabled.
+
+The chunk's medium is set with `medium` (a medium name, e.g. `"default"` or
+`"ssd_nbd"`) — resolved to an index via the cluster's medium directory. The
+numeric `medium_index` is still accepted as a fallback when no cluster client is
+available, but `medium` is preferred.
 
 ## Client
 
@@ -37,6 +50,7 @@ Example configs live in [configs/](configs/):
 - [configs/memory.yson](configs/memory.yson) — memory-only, no cluster; runs out of the box.
 - [configs/dynamic_table.yson](configs/dynamic_table.yson) — a dynamic-table device; needs a cluster + TVM.
 - [configs/file.yson](configs/file.yson) — a read-only device over a Cypress file; needs a cluster + TVM.
+- [configs/chunk.yson](configs/chunk.yson) — a read-write chunk device on a data node; needs a cluster + TVM.
 
 For the `dynamic_table` device, first create and mount the table:
 
@@ -89,7 +103,7 @@ ya make yt/yt/tools/nbd_server -r
 # Memory device (no cluster):
 ./yt/yt/tools/nbd_server/nbd_server --config .../configs/memory.yson
 
-# Cluster-backed device (dynamic_table / file) — cluster via YT_PROXY, TVM secret from a file:
+# Cluster-backed device (dynamic_table / file / chunk) — cluster via YT_PROXY, TVM secret from a file:
 YT_PROXY=hume YT_USER="$USER" YT_TOKEN="$(cat ~/.yt/token)" TVM_CLIENT_SECRET="$(cat ~/.tvm/client_secret)" \
     ./yt/yt/tools/nbd_server/nbd_server --config .../configs/dynamic_table.yson
 ```

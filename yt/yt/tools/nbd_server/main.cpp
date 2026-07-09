@@ -1,3 +1,4 @@
+#include <yt/yt/server/lib/nbd/chunk_block_device.h>
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/dynamic_table_block_device.h>
 #include <yt/yt/server/lib/nbd/file_system_block_device.h>
@@ -13,6 +14,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -20,6 +22,7 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -39,6 +42,12 @@
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+
+#include <yt/yt/core/bus/tcp/client.h>
+#include <yt/yt/core/bus/tcp/config.h>
+
+#include <yt/yt/core/rpc/bus/channel.h>
 
 #include <yt/yt/core/misc/configurable_singleton_def.h>
 
@@ -124,6 +133,82 @@ struct TCypressFileDeviceConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressFileDeviceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! The library's chunk block device config carries no data node address (its callers
+//! already have a channel); add one for this server.
+DECLARE_REFCOUNTED_STRUCT(TCypressChunkDeviceConfig)
+
+struct TCypressChunkDeviceConfig
+    : public TChunkBlockDeviceConfig
+{
+    //! Address of the data node NBD service (e.g. "host:port").
+    std::string DataNodeNbdServiceAddress;
+
+    //! Optional medium name (e.g. "ssd_nbd"). When set, overrides medium_index
+    //! by resolving the name to an index via the cluster's medium directory.
+    std::optional<std::string> Medium;
+
+    REGISTER_YSON_STRUCT(TCypressChunkDeviceConfig);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("data_node_nbd_service_address", &TThis::DataNodeNbdServiceAddress);
+        registrar.Parameter("medium", &TThis::Medium)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressChunkDeviceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Builds a read-write device backed by a chunk on a data node.
+//! Creates a TCP channel to the data node's NBD service and wraps it in a
+//! chunk block device (optionally with a write-back page cache).
+IBlockDevicePtr CreateCypressChunkDevice(
+    const std::string& exportId,
+    const TCypressChunkDeviceConfigPtr& config,
+    const NApi::NNative::IClientPtr& client,
+    const IInvokerPtr& invoker,
+    const NLogging::TLogger& logger)
+{
+    // Use the cluster client's authenticated channel factory when available
+    // (requires YT_PROXY + native_authentication_manager with TVM), so that
+    // the data node's DataNodeNbdService accepts our OpenSession RPC.
+    // Fall back to a raw bus channel for environments without authentication.
+    NRpc::IChannelPtr channel;
+    if (client) {
+        channel = client->GetChannelFactory()->CreateChannel(config->DataNodeNbdServiceAddress);
+
+        // Resolve medium name to index via the cluster's medium directory.
+        if (config->Medium) {
+            const auto& mediumDirectory = client->GetNativeConnection()->GetMediumDirectory();
+            auto descriptor = mediumDirectory->GetByNameOrThrow(*config->Medium);
+            config->MediumIndex = descriptor->GetIndex();
+        }
+    } else {
+        auto busClient = NBus::NTcp::CreateBusClient(
+            NBus::NTcp::TBusClientConfig::CreateTcp(config->DataNodeNbdServiceAddress));
+        channel = NRpc::NBus::CreateBusChannel(std::move(busClient));
+
+        if (config->Medium) {
+            THROW_ERROR_EXCEPTION("Medium name %Qv requires a cluster client (set YT_PROXY)",
+                *config->Medium);
+        }
+    }
+
+    return CreateChunkBlockDevice(
+        exportId,
+        config,
+        NConcurrency::GetUnlimitedThrottler(),
+        NConcurrency::GetUnlimitedThrottler(),
+        invoker,
+        std::move(channel),
+        /*sessionId*/ NChunkClient::TSessionId(),
+        logger);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,6 +308,7 @@ DEFINE_POLYMORPHIC_YSON_STRUCT(BlockDeviceConfig, TBlockDeviceConfigBase,
     ((Memory)       (TMemoryBlockDeviceConfig))
     ((DynamicTable) (TDynamicTableBlockDeviceConfig))
     ((File)         (TCypressFileDeviceConfig))
+    ((Chunk)        (TCypressChunkDeviceConfig))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,6 +343,13 @@ IBlockDevicePtr CreateDevice(
                 deviceId,
                 config.TryGetConcrete<TCypressFileDeviceConfig>(),
                 getClientOrThrow(),
+                invoker,
+                logger);
+        case EBlockDeviceConfigType::Chunk:
+            return CreateCypressChunkDevice(
+                deviceId,
+                config.TryGetConcrete<TCypressChunkDeviceConfig>(),
+                client,
                 invoker,
                 logger);
     }

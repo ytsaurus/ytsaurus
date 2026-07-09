@@ -11,6 +11,37 @@ void TBlockDeviceConfigBase::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPageCacheConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("page_size", &TThis::PageSize)
+        .Default(4_KB)
+        .GreaterThan(0);
+    registrar.Parameter("size", &TThis::Size)
+        .GreaterThan(0);
+    registrar.Parameter("flush_period", &TThis::FlushPeriod)
+        .Default(TDuration::Seconds(10));
+
+    registrar.Postprocessor([] (TThis* config) {
+        // PageSize must be a positive multiple of 4096.
+        static constexpr i64 MinPageSize = 4_KB;
+        if (config->PageSize % MinPageSize != 0) {
+            THROW_ERROR_EXCEPTION(
+                "\"page_size\" must be a positive multiple of %v, got %v",
+                MinPageSize,
+                config->PageSize);
+        }
+        // Size must be a positive multiple of PageSize.
+        if (config->Size % config->PageSize != 0) {
+            THROW_ERROR_EXCEPTION(
+                "\"size\" must be a positive multiple of \"page_size\" (%v), got %v",
+                config->PageSize,
+                config->Size);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TChunkBlockDeviceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("size", &TThis::Size)
@@ -28,6 +59,19 @@ void TChunkBlockDeviceConfig::Register(TRegistrar registrar)
     registrar.Parameter("multiplexing_parallelism", &TThis::MultiplexingParallelism)
         .GreaterThanOrEqual(1)
         .Default(NExecNode::DefaultNbdMultiplexingParallelism);
+    registrar.Parameter("page_cache", &TThis::PageCache)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        // When page cache is enabled, TChunkBlockDevice::Size must be a multiple
+        // of the page size so every block-device offset maps to a whole page.
+        if (config->PageCache && config->Size % config->PageCache->PageSize != 0) {
+            THROW_ERROR_EXCEPTION(
+                "\"size\" (%v) must be a multiple of the page cache \"page_size\" (%v)",
+                config->Size,
+                config->PageCache->PageSize);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

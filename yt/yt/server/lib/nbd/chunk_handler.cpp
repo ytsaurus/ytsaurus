@@ -61,10 +61,10 @@ public:
 
         InitializeFuture_ = DoInitialize();
         InitializeFuture_.Subscribe(BIND([this, this_ = MakeStrong(this)](const TError& error) {
-            if (!error.IsOK()) {
-                YT_LOG_ERROR(error, "Failed to initialize chunk handler");
-            } else {
+            if (error.IsOK()) {
                 YT_LOG_DEBUG("Initialized chunk handler");
+            } else {
+                YT_LOG_ERROR(error, "Failed to initialize chunk handler");
             }
         }));
         return InitializeFuture_;
@@ -81,13 +81,18 @@ public:
 
         FinalizeFuture_ = DoFinalize();
         FinalizeFuture_.Subscribe(BIND([this, this_ = MakeStrong(this)](const TError& error) {
-            if (!error.IsOK()) {
-                YT_LOG_ERROR(error, "Failed to finalize chunk handler");
-            } else {
+            if (error.IsOK()) {
                 YT_LOG_DEBUG("Finalized chunk handler");
+            } else {
+                YT_LOG_ERROR(error, "Failed to finalize chunk handler");
             }
         }));
         return FinalizeFuture_;
+    }
+
+    TFuture<void> Flush() override
+    {
+        return OKFuture;
     }
 
     TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) override
@@ -188,8 +193,8 @@ private:
     enum EState
     {
         Uninitialized,
-        Initialized,
         Initializing,
+        Initialized,
         Finalizing,
     };
     std::atomic<EState> State_ = EState::Uninitialized;
@@ -198,7 +203,7 @@ private:
     {
         auto expected = EState::Uninitialized;
         if (!State_.compare_exchange_strong(expected, EState::Initializing)) {
-            auto error = TError("Can not initialize already initialized chunk handler")
+            auto error = TError("Can not initialize chunk handler in non-uninitialized state")
                 << TErrorAttribute("chunk_id", SessionId_.ChunkId)
                 << TErrorAttribute("medium_index", SessionId_.MediumIndex)
                 << TErrorAttribute("size", Config_->Size)
@@ -216,9 +221,13 @@ private:
         req->set_fs_type(ToProto(Config_->FsType));
 
         return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TDataNodeNbdServiceProxy::TRspOpenSessionPtr>& rspOrError) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to open session");
+            if (!rspOrError.IsOK()) {
+                // Reset state back to Uninitialized.
+                State_ = EState::Uninitialized;
+                THROW_ERROR_EXCEPTION("Failed to open session") << rspOrError;
+            }
 
-            // Set State_ to EState::Initialized prior to starting KeepSessionAliveExecutor_.
+            // Set state to Initialized prior to starting KeepSessionAliveExecutor_.
             State_ = EState::Initialized;
 
             KeepSessionAliveExecutor_ = New<TPeriodicExecutor>(
@@ -235,7 +244,7 @@ private:
     {
         auto expected = EState::Initialized;
         if (!State_.compare_exchange_strong(expected, EState::Finalizing)) {
-            auto error = TError("Can not finalize uninitialized chunk handler")
+            auto error = TError("Can not finalize chunk handler in non-initialized state")
                 << TErrorAttribute("chunk_id", SessionId_.ChunkId)
                 << TErrorAttribute("medium_index", SessionId_.MediumIndex)
                 << TErrorAttribute("size", Config_->Size)
@@ -252,8 +261,12 @@ private:
             req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
             ToProto(req->mutable_session_id(), SessionId_);
             return req->Invoke().AsVoid();
-        }))
-        .Apply(BIND([this, this_ = MakeStrong(this)] () {
+        })
+        .AsyncVia(Invoker_))
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to close session") << error;
+            }
             State_ = EState::Uninitialized;
         })
         .AsyncVia(Invoker_));
@@ -272,18 +285,25 @@ private:
         auto rspOrError = WaitFor(req->Invoke());
 
         if (!rspOrError.IsOK()) {
+            // Only log error since it might be caused by intermittent problems.
             YT_LOG_ERROR(rspOrError, "Keep alive request failed");
         } else {
             YT_LOG_DEBUG("Received keep alive response (ShouldCloseSession: %v)",
                 rspOrError.Value()->should_close_session());
 
             if (rspOrError.Value()->should_close_session()) {
-                if (BlockDevice_) {
-                    BlockDevice_->SetError(TError("Stop using device"));
-                }
+                BlockDevice_->SetError(TError("Stop using device"));
 
-                Invoker_->Invoke(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
-                    YT_UNUSED_FUTURE(Finalize());
+                // Call BlockDevice_->Finalize() (not this->Finalize()) so that the full
+                // TChunkBlockDevice::Finalize() chain runs.
+                // Capture a strong reference (IBlockDevicePtr) rather than the raw
+                // BlockDevice_ pointer: the lambda is queued on the invoker and will
+                // execute asynchronously, so the block device must be kept alive until
+                // then — otherwise the caller could drop its IBlockDevicePtr and destroy
+                // TChunkBlockDevice before the queued callback runs, producing a
+                // use-after-free when blockDevice->Finalize() is called.
+                Invoker_->Invoke(BIND_NO_PROPAGATE([blockDevice = IBlockDevicePtr(BlockDevice_)] {
+                    YT_UNUSED_FUTURE(blockDevice->Finalize());
                 }));
             }
         }
@@ -301,7 +321,7 @@ IChunkHandlerPtr CreateChunkHandler(
     NLogging::TLogger logger)
 {
     return New<TChunkHandler>(
-        std::move(blockDevice),
+        blockDevice,
         std::move(config),
         std::move(invoker),
         std::move(channel),

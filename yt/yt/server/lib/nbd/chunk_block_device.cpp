@@ -3,6 +3,7 @@
 #include "block_device_detail.h"
 #include "chunk_handler.h"
 #include "config.h"
+#include "page_cache.h"
 #include "profiler.h"
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
@@ -48,6 +49,14 @@ public:
             std::move(channel),
             sessionId,
             Logger))
+        , PageCache_(Config_->PageCache
+            ? New<TPageCache>(
+                Config_->PageCache,
+                ChunkHandler_,
+                Invoker_,
+                Logger)
+            : nullptr)
+        , RequestHandler_(PageCache_ ? PageCache_ : ChunkHandler_)
     {
         TNbdProfilerCounters::Get()->GetCounter(
             TNbdProfilerCounters::MakeTagSet(SensorTag_), "/device/created")
@@ -105,10 +114,7 @@ public:
             return MakeFuture<TReadResponse>({});
         }
 
-        // Acquire reader lock to prevent concurrent Initialize/Finalize, then chain
-        // the request through conflict-wait → throttle → RPC stages. The stages are
-        // flat (not nested): pipeline state (guard, reader lock, timings) is threaded
-        // between them via TRequestPipeline and .AsUnique().
+        // Acquire reader lock to prevent concurrent Initialize/Finalize.
         return TAsyncLockReaderGuard::Acquire(&InitLock_)
             .AsUnique()
             .Apply(BIND(
@@ -163,6 +169,7 @@ public:
                                         throttleWaitDuration,
                                         options.Cookie);
 
+                                    pipeline.Guard.SetError(throttleError);
                                     THROW_ERROR throttleError;
                                 }
 
@@ -180,7 +187,7 @@ public:
                     auto throttleWaitDuration = pipeline.ThrottleWaitDuration;
 
                     TWallTimer rpcTimer;
-                    return ChunkHandler_->Read(offset, length, options)
+                    return RequestHandler_->Read(offset, length, options)
                         .Apply(BIND(
                             [=,
                                 pipeline = std::move(pipeline),
@@ -199,6 +206,7 @@ public:
                                         rpcWaitDuration,
                                         options.Cookie);
 
+                                    pipeline.Guard.SetError(TError(rspOrError));
                                     THROW_ERROR rspOrError;
                                 }
 
@@ -215,8 +223,7 @@ public:
                                     options.Cookie);
 
                                 return response;
-                                // pipeline (guard + reader lock) is destroyed here:
-                                // unregisters the request, signals Done, releases the reader lock.
+                                // pipeline (guard + reader lock) is destroyed here.
                             }));
                 }));
     }
@@ -237,10 +244,7 @@ public:
             return MakeFuture<TWriteResponse>({});
         }
 
-        // Acquire reader lock to prevent concurrent Initialize/Finalize, then chain
-        // the request through conflict-wait → throttle → RPC stages. The stages are
-        // flat (not nested): pipeline state (guard, reader lock, timings) is threaded
-        // between them via TRequestPipeline and .AsUnique().
+        // Acquire reader lock to prevent concurrent Initialize/Finalize.
         return TAsyncLockReaderGuard::Acquire(&InitLock_)
             .AsUnique()
             .Apply(BIND(
@@ -296,6 +300,7 @@ public:
                                         throttleWaitDuration,
                                         options.Cookie);
 
+                                    pipeline.Guard.SetError(throttleError);
                                     THROW_ERROR throttleError;
                                 }
 
@@ -313,7 +318,7 @@ public:
                     auto throttleWaitDuration = pipeline.ThrottleWaitDuration;
 
                     TWallTimer rpcTimer;
-                    return ChunkHandler_->Write(offset, data, options)
+                    return RequestHandler_->Write(offset, data, options)
                         .Apply(BIND(
                             [=,
                                 pipeline = std::move(pipeline),
@@ -332,6 +337,7 @@ public:
                                         rpcWaitDuration,
                                         options.Cookie);
 
+                                    pipeline.Guard.SetError(TError(rspOrError));
                                     THROW_ERROR rspOrError;
                                 }
 
@@ -347,29 +353,36 @@ public:
                                     options.Cookie);
 
                                 return response;
-                                // pipeline (guard + reader lock) is destroyed here:
-                                // unregisters the request, signals Done, releases the reader lock.
                             }));
                 }));
     }
 
     TFuture<void> Flush() override
     {
-        // Wait for all requests that were in-flight at the moment of the call to finish.
-        // NB: Unlike Initialize/Finalize, Flush does not take the writer lock and thus
-        // does not block new Read/Write requests. This matches the NBD_CMD_FLUSH barrier
-        // semantics: only requests submitted before the flush are guaranteed to be durable.
-        //
-        // We use AllSet (not AllSucceeded): Flush is a pure ordering barrier — it must wait
-        // for all preceding requests to complete, regardless of whether they succeeded.
-        // Individual request errors are already reported to their own callers; propagating
-        // them through Flush would confuse the flush caller with someone else's error.
-        return AllSet(CollectAllInflightFutures()).AsVoid();
+        // Acquire reader lock so that Finalize() (which acquires the writer lock) cannot
+        // tear down the chunk handler while an in-flight Flush() is still issuing RPCs.
+        return TAsyncLockReaderGuard::Acquire(&InitLock_)
+            .AsUnique()
+            .Apply(BIND(
+                [this, this_ = MakeStrong(this)] (TReaderGuardPtr&& readerGuard) mutable -> TFuture<void> {
+                    return RequestHandler_->Flush()
+                        .Apply(BIND(
+                            [this, this_ = MakeStrong(this), readerGuard = std::move(readerGuard)] (const TError& flushError) mutable -> TFuture<void> {
+                                // Wait for in-flight requests regardless of flush outcome:
+                                // the barrier must hold even if the handler flush failed.
+                                return AllSet(CollectAllInflightFutures()).AsVoid()
+                                    .Apply(BIND([flushError] () {
+                                        if (!flushError.IsOK()) {
+                                            THROW_ERROR flushError;
+                                        }
+                                    }));
+                            }));
+                }));
     }
 
     TFuture<void> Initialize() override
     {
-        // Acquire writer lock: waits for all in-flight Read/Write operations to release
+        // Acquire writer lock: waits for all in-flight Read/Write/Flush operations to release
         // their reader locks, then blocks new ones until Initialize completes.
         return TAsyncLockWriterGuard::Acquire(&InitLock_)
             .Apply(BIND(
@@ -378,7 +391,7 @@ public:
                     this_ = MakeStrong(this)
                 ] (TIntrusivePtr<TAsyncLockWriterGuard> writerGuard) -> TFuture<void>
             {
-                return ChunkHandler_->Initialize()
+                return RequestHandler_->Initialize()
                     .Apply(BIND(
                         [writerGuard = std::move(writerGuard)] () {
                             // writerGuard is destroyed here, releasing the writer lock.
@@ -388,7 +401,7 @@ public:
 
     TFuture<void> Finalize() override
     {
-        // Acquire writer lock: waits for all in-flight Read/Write operations to release
+        // Acquire writer lock: waits for all in-flight Read/Write/Flush operations to release
         // their reader locks, then blocks new ones until Finalize completes.
         return TAsyncLockWriterGuard::Acquire(&InitLock_)
             .Apply(BIND(
@@ -397,7 +410,7 @@ public:
                     this_ = MakeStrong(this)
                 ] (TIntrusivePtr<TAsyncLockWriterGuard> writerGuard) -> TFuture<void>
             {
-                return ChunkHandler_->Finalize()
+                return RequestHandler_->Finalize()
                     .Apply(BIND(
                         [writerGuard = std::move(writerGuard)] () {
                             // writerGuard is destroyed here, releasing the writer lock.
@@ -414,6 +427,8 @@ private:
     static constexpr const char* SensorTag_ = "rw";
     const TLogger Logger;
     const IChunkHandlerPtr ChunkHandler_;
+    const TPageCachePtr PageCache_;
+    const IChunkHandlerPtr RequestHandler_;
 
     //! Async RW lock protecting Initialize/Finalize from concurrent Read/Write:
     //! Read and Write acquire reader locks; Initialize and Finalize acquire the writer lock.
@@ -447,6 +462,7 @@ private:
             : List_(other.List_)
             , Lock_(other.Lock_)
             , It_(other.It_)
+            , Error_(std::move(other.Error_))
         {
             other.Moved_ = true;
         }
@@ -457,12 +473,20 @@ private:
                 return;
             }
 
-            // Signal Done with success.
-            It_->Done.TrySet();
+            // Signal Done with the request outcome so that conflict waiters
+            // can distinguish a failed request from a successful one.
+            It_->Done.TrySet(Error_);
 
             // Unregister from the inflight list.
             auto guard = Guard(*Lock_);
             List_->erase(It_);
+        }
+
+        //! Record the request error so the destructor can propagate it to
+        //! conflict waiters via the Done promise.
+        void SetError(TError error)
+        {
+            Error_ = std::move(error);
         }
 
         // Non-copyable.
@@ -475,6 +499,7 @@ private:
         TSpinLock* const Lock_;
         const TInflightList::iterator It_;
         bool Moved_ = false;
+        TError Error_;
     };
 
     using TReaderGuardPtr = TIntrusivePtr<TAsyncLockReaderGuard>;

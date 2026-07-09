@@ -11,6 +11,7 @@ SRCS(
     file_system_block_device.cpp
     image_reader.cpp
     memory_block_device.cpp
+    page_cache.cpp
     profiler.cpp
     random_access_file_reader.cpp
     server.cpp
