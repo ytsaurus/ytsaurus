@@ -84,6 +84,8 @@ namespace NYql {
         TMaybe<TString> KeepFilter;
 
         TMaybe<TString> AnnounceClusterName;
+
+        TDuration TickInterval = TDuration::Seconds(5);
     };
 
     NActors::IActor* CreateResourceManager(const TResourceManagerOptions& options, const TIntrusivePtr<ICoordinationHelper>& coordinator);

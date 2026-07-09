@@ -592,6 +592,7 @@ private:
         auto [hasExeFile, err]  = MaybeUpload(ev->Get()->Record.GetIsForwarded(), TVector<TFileResource>(ev->Get()->Record.GetFiles().begin(), ev->Get()->Record.GetFiles().end()));
         if (!err.empty()) {
             Send(ev->Sender, new TEvAllocateWorkersResponse(err, NYql::NDqProto::StatusIds::EXTERNAL_ERROR));
+            return;
         }
 
         if (!hasExeFile && LeaderRevision != Revision) {
@@ -627,12 +628,39 @@ private:
         UploadProcesses.erase(it);
     }
 
+    void EnterTerminatingMode() {
+        if (TerminatingMode) {
+            return;
+        }
+        TerminatingMode = true;
+        LocalCriticalFiles->Clear();
+        YQL_CLOG(INFO, ProviderDq) << "Graceful shutdown: release lock and stop leader election";
+        if (LockId) {
+            Send(LockId, new TEvBecomeFollower());
+        }
+    }
+
+    void TransitionToFollowerOfRemoteLeader() {
+        WaitListSize = nullptr;
+        Workers.Clear();
+        for (const auto& [key, value] : AllocatedResources) {
+            Send(value.ActorId, new TEvents::TEvPoison());
+        }
+        for (const auto sender : Scheduler->Cleanup()) {
+            Send(sender, new TEvAllocateWorkersResponse("Worker reallocation is required because of DQ leader change", NYql::NDqProto::StatusIds::UNAVAILABLE));
+        }
+        AllocatedResources.clear();
+        for (auto& [k, v] : LiteralQueries) {
+            *v -= *v;
+        }
+        Become(&TGlobalWorkerManager::Follower);
+    }
+
     void StartLeader(TEvBecomeLeader::TPtr& ev, const TActorContext& ctx)
     {
         Y_UNUSED(ctx);
-        if (FollowingMode) {
-            YQL_CLOG(INFO, ProviderDq) << "Skip Leader request in following mode";
-            Send(SelfId(), new TEvBecomeFollower(), /*flag=*/0, /*cookie=*/1);
+        if (TerminatingMode) {
+            YQL_CLOG(INFO, ProviderDq) << "Skip Leader request in terminating mode";
             return;
         }
         LeaderEpoch = CurrentResourceId.Epoch = ev->Get()->LeaderEpoch;
@@ -656,57 +684,44 @@ private:
 
     void StartFollower(TEvBecomeFollower::TPtr& ev, const TActorContext& ctx) {
         Y_UNUSED(ctx);
-        if (ev->Cookie == 1 && LockId) {
-            // kill from main
-            YQL_CLOG(INFO, ProviderDq) << "Kill from main";
-            ctx.Send(ev->Forward(LockId));
-            FollowingMode = true;
-            LocalCriticalFiles->Clear(); // disable wormup for old dq process
+        if (ev->Cookie == 1) {
+            EnterTerminatingMode();
             return;
         }
         auto attributes = NYT::NodeFromYsonString(ev->Get()->Attributes).AsMap();
-        if (ev->Cookie == 1 && LockId) {
-            // kill from main
-            YQL_CLOG(INFO, ProviderDq) << "Kill from main";
-            Send(LockId, new NActors::TEvents::TEvPoison);
-            LockId = TActorId();
+        UpdateRemoteLeaderInfo(attributes);
+        if (TerminatingMode && LeaderId == SelfId().NodeId()) {
+            YQL_CLOG(INFO, ProviderDq) << "Terminating mode: lock still points to us, keep local workers";
+            return;
         }
-        LeaderId = attributes.at(NCommonAttrs::ACTOR_NODEID_ATTR).AsUint64();
-        LeaderResolver->SetLeaderHostPort(
-                attributes.at(NCommonAttrs::HOSTNAME_ATTR).AsString() + ":" + attributes.at(NCommonAttrs::GRPCPORT_ATTR).AsString());
         if (!LeaderPinger) {
             TResourceManagerOptions rmOptions;
             rmOptions.FileCache = LocalCriticalFiles;
             LeaderPinger = RegisterChild(Coordinator->CreateServiceNodePinger(LeaderResolver, rmOptions));
         }
-        if (attributes.contains(NCommonAttrs::REVISION_ATTR)) {
-            LeaderRevision = attributes.at(NCommonAttrs::REVISION_ATTR).AsString();
-        }
-
-        UpdateLeaderInfo(attributes);
 
         YQL_CLOG(TRACE, ProviderDq) << " Following leader: " << LeaderId;
         YQL_CLOG(INFO, ProviderDq) << "Leader resolver=" << LeaderHost << ":" << LeaderPort;
 
-        WaitListSize = nullptr;
-        Workers.Clear();
-        for (const auto& [key, value] : AllocatedResources) {
-            Send(value.ActorId, new TEvents::TEvPoison());
-        }
-        for (const auto sender : Scheduler->Cleanup()) {
-            Send(sender, new TEvAllocateWorkersResponse("Worker reallocation is required because of DQ leader change", NYql::NDqProto::StatusIds::UNAVAILABLE));
-        }
-        AllocatedResources.clear();
-        for (auto& [k, v] : LiteralQueries) {
-            *v -= *v;
-        }
-
-        Become(&TGlobalWorkerManager::Follower);
+        TransitionToFollowerOfRemoteLeader();
     }
 
-    void UpdateLeaderInfo(THashMap<TString, NYT::TNode>& attributes) {
+    void UpdateLeaderInfo(const THashMap<TString, NYT::TNode>& attributes) {
         LeaderHost = attributes.at(NCommonAttrs::HOSTNAME_ATTR).AsString();
         LeaderPort = std::stoi(attributes.at(NCommonAttrs::GRPCPORT_ATTR).AsString().data());
+    }
+
+    void UpdateRemoteLeaderInfo(const THashMap<TString, NYT::TNode>& attributes) {
+        LeaderId = attributes.at(NCommonAttrs::ACTOR_NODEID_ATTR).AsUint64();
+        LeaderResolver->SetLeaderHostPort(
+            attributes.at(NCommonAttrs::HOSTNAME_ATTR).AsString() + ":" +
+            attributes.at(NCommonAttrs::GRPCPORT_ATTR).AsString());
+        if (attributes.contains(NCommonAttrs::REVISION_ATTR)) {
+            LeaderRevision = attributes.at(NCommonAttrs::REVISION_ATTR).AsString();
+        }
+        UpdateLeaderInfo(attributes);
+        YQL_CLOG(INFO, ProviderDq) << "Remote leader update: "
+            << LeaderHost << ":" << LeaderPort << " nodeId=" << LeaderId;
     }
 
     void Bootstrap(const TActorContext& ctx) {
@@ -867,6 +882,7 @@ private:
         }
 
         MarkDirty(count);
+        TryResume();
     }
 
     void DecrLiteralQueries(const TString& clusterName) {
@@ -1189,7 +1205,7 @@ private:
     }
 
     void FillCriticalFiles(TEvIsReady::TPtr& ev) {
-        if (FollowingMode) {
+        if (TerminatingMode) {
             return;
         }
         if (ev->Get()->Record.GetIsForwarded()) {
@@ -1224,7 +1240,7 @@ private:
             YQL_CLOG(WARN, ProviderDq) << "TEvIsReady error on upload: " << error;
         }
 
-        if (FollowingMode) {
+        if (TerminatingMode) {
             auto response = MakeHolder<TEvIsReadyResponse>();
             response->Record.SetIsReady(true);
             Send(ev->Sender, response.Release());
@@ -1348,11 +1364,11 @@ private:
     THashSet<ui64> DeadOperations;
 
     ui32 LeaderId = static_cast<ui32>(-1);
-    TString LeaderRevision = "";
-    TString LeaderHost = "";
+    TString LeaderRevision;
+    TString LeaderHost;
     ui32 LeaderPort = 0u;
 
-    ui32 LeaderEpoch;
+    ui32 LeaderEpoch = 0;
     TDqResourceId CurrentResourceId;
 
     const NDq::IScheduler::TPtr Scheduler;
@@ -1387,7 +1403,7 @@ private:
     size_t ScheduleWaitCount = std::numeric_limits<size_t>::max(); // max - no, 0 - any, > 0 count
     TInstant LastCleanTime;
     TDuration CleanInterval = TDuration::Seconds(2);
-    bool FollowingMode = false;
+    bool TerminatingMode = false;
     const TString Address = HostName();
     const ui32 Pid = GetPID();
 };

@@ -1,7 +1,10 @@
 #include "yt_wrapper.h"
+#include "node_id_allocator.h"
 
 #include <util/thread/pool.h>
 #include <util/generic/size_literals.h>
+#include <util/string/builder.h>
+#include <util/string/join.h>
 #include <util/string/strip.h>
 #include <util/system/env.h>
 
@@ -139,45 +142,6 @@ namespace NYql {
         THashMap<TString, i64> Status;
     };
 
-    class TNodeIdAllocator {
-    public:
-        TNodeIdAllocator(ui32 minNodeId, ui32 maxNodeId)
-            : MinNodeId(minNodeId)
-            , MaxNodeId(maxNodeId)
-        { }
-
-        void Allocate(const TVector<ui32>& res) {
-            // TODO: check duplicates?
-            for (ui32 id : res) {
-                Allocated.insert(id);
-            }
-        }
-
-        void Allocate(TVector<ui32>* res, int count) {
-            res->reserve(count);
-            for (ui32 id = MinNodeId; id < MaxNodeId && static_cast<int>(res->size()) < count; id = id + 1) {
-                if (!Allocated.contains(id)) {
-                    res->push_back(id);
-                    Allocated.insert(id);
-                }
-            }
-        }
-
-        void Deallocate(const TVector<ui32>& nodes) {
-            for (auto id : nodes) {
-                Allocated.erase(id);
-            }
-        }
-
-        void Clear() {
-            Allocated.clear();
-        }
-
-    private:
-        THashSet<ui32> Allocated;
-        ui32 MinNodeId;
-        ui32 MaxNodeId;
-    };
 
     class TYtResourceManager: public TRichActor<TYtResourceManager> {
     public:
@@ -190,6 +154,7 @@ namespace NYql {
             , Options(options)
             , Counters(Options.Counters)
             , ClusterName(Options.YtBackend.GetClusterName())
+            , ClusterOperationsPath(Options.YtBackend.GetPrefix() + "/operations/" + Options.YtBackend.GetClusterName())
             , Coordinator(coordinator)
             , CoordinatorConfig(Coordinator->GetConfig())
             , CoordinatorWrapper(Coordinator->GetWrapper())
@@ -206,18 +171,32 @@ namespace NYql {
             auto leaderAttributes = NYT::NodeFromYsonString(ev->Get()->Attributes).AsMap();
             LeaderTransactionId = NYT::NObjectClient::TTransactionId();
 
-            RM_LOG(TRACE) << " Following leader: " << leaderAttributes.at(NCommonAttrs::ACTOR_NODEID_ATTR).AsUint64();
+            RM_LOG(INFO) << "Become follower, leader=" << leaderAttributes.at(NCommonAttrs::ACTOR_NODEID_ATTR).AsUint64()
+                         << " RunningOperations=" << RunningOperations.size()
+                         << " MutationsCache=" << MutationsCache.size()
+                         << " PendingNodeReleases=" << PendingNodeReleases.size();
+            if (!MutationsCache.empty()) {
+                for (const auto& [mid, nodes] : MutationsCache) {
+                    RM_LOG(WARN) << "Dropping stale MutationsCache entry on follower transition: mutation=" << mid << " nodes=[" << JoinSeq(",", nodes) << "]";
+                }
+                MutationsCache.clear();
+            }
             for (const auto& [k, v] : RunningOperations) {
                 UnregisterChild(v.ActorId);
             }
             RunningOperations.clear();
             NodeIdAllocator.Clear();
+            PendingNodeReleases.clear();
             Become(&TYtResourceManager::Follower);
         }
 
         void StartLeader(TEvBecomeLeader::TPtr& ev, const TActorContext& ctx) {
             Y_UNUSED(ctx);
-            RM_LOG(INFO) << "Become leader, epoch=" << ev->Get()->LeaderEpoch;
+            RM_LOG(INFO) << "Become leader, epoch=" << ev->Get()->LeaderEpoch
+                         << " MutationsCache=" << MutationsCache.size();
+            for (const auto& [mid, nodes] : MutationsCache) {
+                RM_LOG(DEBUG) << "  MutationsCache entry: mutation=" << mid << " nodes=[" << JoinSeq(",", nodes) << "]";
+            }
 
             LeaderTransactionId = NYT::NObjectClient::TTransactionId::FromString(ev->Get()->LeaderTransaction);
 
@@ -236,6 +215,7 @@ namespace NYql {
             IgnoreFunc(TEvStartOperationResponse)
             IgnoreFunc(TEvCreateNodeResponse)
             IgnoreFunc(TEvSetNodeResponse)
+            IgnoreFunc(TEvRemoveNodeResponse)
         })
 
         STRICT_STFUNC(ListOperationsState, {
@@ -243,6 +223,7 @@ namespace NYql {
             HFunc(TEvDropOperation, OnDropOperation)
             HFunc(TEvListNodeResponse, OnListOperations)
             HFunc(TEvStartOperationResponse, OnStartOperationResponse)
+            HFunc(TEvRemoveNodeResponse, OnRemoveNodeResponse)
             cFunc(TEvTick::EventType, ListOperations)
             cFunc(TEvents::TEvPoison::EventType, PassAway)
             IgnoreFunc(TEvCreateNodeResponse)
@@ -260,7 +241,7 @@ namespace NYql {
                 Tick();
             })
             HFunc(TEvCreateNodeResponse, OnCreateNode)
-            IgnoreFunc(TEvRemoveNodeResponse)
+            HFunc(TEvRemoveNodeResponse, OnRemoveNodeResponse)
             IgnoreFunc(TEvSetNodeResponse)
         })
 
@@ -279,7 +260,7 @@ namespace NYql {
 
         void Tick() {
             TimerCookieHolder.Reset(NActors::ISchedulerCookie::Make2Way());
-            Schedule(TDuration::Seconds(5), new TEvTick(), TimerCookieHolder.Get());
+            Schedule(Options.TickInterval, new TEvTick(), TimerCookieHolder.Get());
         }
 
         void CreateCoreTable(ui32 tableNumber)
@@ -342,22 +323,67 @@ namespace NYql {
         }
 
         void DropRunningOperation(const TString& mutationId, const TVector<ui32>& preserve = {}) {
-            if (RunningOperations.contains(mutationId)) {
-                NodeIdAllocator.Deallocate(RunningOperations[mutationId].Nodes);
+            TVector<ui32> currentNodes;
+            const auto it = RunningOperations.find(mutationId);
+            if (it != RunningOperations.end()) {
+                currentNodes = it->second.Nodes;
+                RM_LOG(DEBUG) << "DropRunningOperation mutation=" << mutationId
+                              << " operationId=" << it->second.OperationId
+                              << " node_ids=[" << JoinSeq(",", currentNodes) << "]"
+                              << (preserve.empty() ? " action=remove_coordinator_node" : " action=preserve_in_cache");
+                RunningOperations.erase(it);
+            } else {
+                RM_LOG(DEBUG) << "DropRunningOperation mutation=" << mutationId << " (not in RunningOperations)"
+                              << (preserve.empty() ? " action=remove_coordinator_node" : " action=preserve_in_cache");
             }
 
-            RunningOperations.erase(mutationId);
-
             if (!preserve.empty()) {
-                RM_LOG(DEBUG) << "Operation in unknown state, preserve mutation " << mutationId;
+                // Freeing current nodes then re-allocating preserve nodes (may be same set).
+                NodeIdAllocator.Deallocate(currentNodes);
                 MutationsCache[mutationId] = preserve;
                 NodeIdAllocator.Allocate(preserve);
+                RM_LOG(WARN) << "Operation in unknown state, preserve mutation=" << mutationId
+                             << " node_ids=[" << JoinSeq(",", preserve) << "] MutationsCache.size=" << MutationsCache.size();
             } else {
-                auto removePath = Options.YtBackend.GetPrefix() + "/operations/" + ClusterName + "/" + mutationId;
-                RM_LOG(DEBUG) << "Removing node " << removePath;
+                // Do NOT free node_ids yet — they stay allocated until the operation node
+                // is confirmed removed from Cypress. This prevents a new operation from reusing
+                // the same node_ids while the old operation node is still in Cypress
+                // (which would happen if TEvRemoveNode fails silently).
+                auto removePath = ClusterOperationsPath + "/" + mutationId;
+                RM_LOG(DEBUG) << "Removing operation node " << removePath
+                              << " LeaderTxn=" << ToString(LeaderTransactionId)
+                              << " deferring release of node_ids=[" << JoinSeq(",", currentNodes) << "]";
                 NYT::NApi::TRemoveNodeOptions removeNodeOptions;
                 removeNodeOptions.PrerequisiteTransactionIds.push_back(LeaderTransactionId);
-                Send(YtWrapper, new TEvRemoveNode(removePath, removeNodeOptions));
+                PendingNodeReleases[YtRequestId] = {mutationId, currentNodes};
+                Send(YtWrapper, new TEvRemoveNode(YtRequestId++, removePath, removeNodeOptions));
+            }
+        }
+
+        void OnRemoveNodeResponse(TEvRemoveNodeResponse::TPtr& ev, const NActors::TActorContext&) {
+            auto requestId = ev->Get()->RequestId;
+            auto result = std::get<0>(*ev->Get());
+
+            auto it = PendingNodeReleases.find(requestId);
+            if (it == PendingNodeReleases.end()) {
+                return;
+            }
+
+            auto [mutationId, nodeIds] = it->second;
+            PendingNodeReleases.erase(it);
+
+            if (result.IsOK()) {
+                RM_LOG(DEBUG) << "Operation node removed: mutation=" << mutationId
+                              << " freeing node_ids=[" << JoinSeq(",", nodeIds) << "]";
+                NodeIdAllocator.Deallocate(nodeIds);
+            } else {
+                RM_LOG(ERROR) << "OPERATION NODE REMOVE FAILED: mutation=" << mutationId
+                              << " node_ids=[" << JoinSeq(",", nodeIds) << "] remain blocked until next epoch"
+                              << " LeaderTxn=" << ToString(LeaderTransactionId)
+                              << " error=" << ToString(result);
+                // node_ids intentionally left allocated — the operation node may still exist in
+                // Cypress with these IDs. They will be freed by NodeIdAllocator.Clear() when
+                // leadership is lost, and the new leader will re-evaluate via OnListOperations.
             }
         }
 
@@ -400,49 +426,100 @@ namespace NYql {
                 return;
             }
 
-            RM_LOG(DEBUG) << "OnListOperations ";
-            auto nodes = NYT::NodeFromYsonString(result.Value()).AsList();
+            const auto operationsList = NYT::NodeFromYsonString(result.Value()).AsList();
+            RM_LOG(DEBUG) << "OnListOperations: " << operationsList.size() << " operation nodes";
 
-            for (auto node : nodes)
-            {
-                const auto& attributes = node.GetAttributes().AsMap();
+            // Pass 1: attach to operations that are already running in YT (have OPERATIONID_ATTR).
+            // Running operations claim their node_ids first so that pass 2 can detect conflicts.
+            for (const auto& opNode : operationsList) {
+                const auto& attributes = opNode.GetAttributes().AsMap();
 
-                RM_LOG(DEBUG) << "Check " << node.AsString();
+                if (attributes.find(NCommonAttrs::OPERATIONID_ATTR) == attributes.end()) {
+                    continue; // handled in pass 2
+                }
 
-                auto mutationId = NYT::TGuid::FromString(attributes.find("yql_mutation_id")->second.AsString());
-                auto command = attributes.find("yql_command")->second.AsString();
-                auto file_paths = attributes.find("yql_file_paths")->second;
-                auto maybeNodes = attributes.find(NCommonAttrs::ACTOR_NODEID_ATTR);
+                auto mutationIdStr = attributes.find("yql_mutation_id")->second.AsString();
+                auto nodeIdsIt = attributes.find(NCommonAttrs::ACTOR_NODEID_ATTR);
 
-                if (maybeNodes == attributes.end()) {
-                    // unsupported
-                    DropRunningOperation(ToString(mutationId));
+                if (nodeIdsIt == attributes.end()) {
+                    DropRunningOperation(mutationIdStr);
                     continue;
                 }
 
-                TVector<ui32> nodes;
-
-                for (auto node : maybeNodes->second.AsList()) {
-                    nodes.push_back(node.AsUint64());
+                const auto& nodeList = nodeIdsIt->second.AsList();
+                TVector<ui32> nodeIds;
+                nodeIds.reserve(nodeList.size());
+                for (const auto& n : nodeList) {
+                    nodeIds.push_back(n.AsUint64());
                 }
 
-                NodeIdAllocator.Allocate(nodes);
+                auto operationId = attributes.find(NCommonAttrs::OPERATIONID_ATTR)->second.AsString();
+                RM_LOG(DEBUG) << "Attach to " << operationId << "|" << mutationIdStr
+                              << " node_ids=[" << JoinSeq(",", nodeIds) << "]";
 
-                auto maybeOperationId = attributes.find(NCommonAttrs::OPERATIONID_ATTR);
-                if (maybeOperationId == attributes.end()) {
-                    RM_LOG(DEBUG) << "Start or attach to " << ToString(mutationId);
-                    StartOrAttachOperation(mutationId, nodes, command, file_paths);
-                } else {
-                    auto operationId = maybeOperationId->second.AsString();
-                    RM_LOG(DEBUG) << "Attach to " << operationId << "|" << ToString(mutationId);
-
-                    auto& status = RunningOperations[ToString(mutationId)];
-                    status.MutationId = ToString(mutationId);
-                    status.OperationId = operationId;
-                    status.Nodes = nodes;
-
-                    StartOperationWatcher(operationId, ToString(mutationId), ctx);
+                auto dups = NodeIdAllocator.Allocate(nodeIds);
+                if (!dups.empty()) {
+                    RM_LOG(ERROR) << "NODE_ID CONFLICT among running operations: mutation=" << mutationIdStr
+                                  << " conflicting ids=[" << JoinSeq(",", dups) << "]";
                 }
+
+                auto& status = RunningOperations[mutationIdStr];
+                status.MutationId = mutationIdStr;
+                status.OperationId = operationId;
+                status.Nodes = nodeIds;
+
+                StartOperationWatcher(operationId, mutationIdStr, ctx);
+            }
+
+            // Pass 2: start pending operations (no OPERATIONID_ATTR).
+            // If their node_ids conflict with a running operation from pass 1, the operation node
+            // is stale (TEvRemoveNode failed previously) — remove it from Cypress and skip.
+            for (const auto& opNode : operationsList) {
+                const auto& attributes = opNode.GetAttributes().AsMap();
+
+                if (attributes.find(NCommonAttrs::OPERATIONID_ATTR) != attributes.end()) {
+                    continue; // already handled in pass 1
+                }
+
+                auto mutationIdStr = attributes.find("yql_mutation_id")->second.AsString();
+                auto mutationId = NYT::TGuid::FromString(mutationIdStr);
+                auto command = attributes.find("yql_command")->second.AsString();
+                auto filePaths = attributes.find("yql_file_paths")->second;
+                auto nodeIdsIt = attributes.find(NCommonAttrs::ACTOR_NODEID_ATTR);
+
+                if (nodeIdsIt == attributes.end()) {
+                    DropRunningOperation(mutationIdStr);
+                    continue;
+                }
+
+                const auto& nodeList = nodeIdsIt->second.AsList();
+                TVector<ui32> nodeIds;
+                nodeIds.reserve(nodeList.size());
+                for (const auto& n : nodeList) {
+                    nodeIds.push_back(n.AsUint64());
+                }
+
+                RM_LOG(DEBUG) << "Pending mutation " << mutationIdStr
+                              << " node_ids=[" << JoinSeq(",", nodeIds) << "]";
+
+                if (!NodeIdAllocator.TryAllocate(nodeIds)) {
+                    // node_ids are already claimed by a running operation from pass 1.
+                    // This operation node is stale: TEvRemoveNode must have failed previously,
+                    // leaving it in Cypress while its node_ids were reused.
+                    RM_LOG(ERROR) << "STALE OPERATION NODE: mutation=" << mutationIdStr
+                                  << " node_ids=[" << JoinSeq(",", nodeIds) << "] conflict with running operation"
+                                  << " => removing stale operation node";
+                    // The stale mutation was never added to RunningOperations in this pass,
+                    // so DropRunningOperation will not touch any node_ids — they remain owned
+                    // by the running operation that claimed them in pass 1.
+                    Y_ABORT_UNLESS(!RunningOperations.contains(mutationIdStr),
+                        "Stale mutation unexpectedly found in RunningOperations");
+                    DropRunningOperation(mutationIdStr);
+                    continue;
+                }
+
+                RM_LOG(DEBUG) << "Start or attach to " << mutationIdStr;
+                StartOrAttachOperation(mutationId, nodeIds, command, filePaths);
             }
 
             if (PendingStartOperationRequests.empty() && CurrentStateFunc() != &TYtResourceManager::Leader) {
@@ -475,7 +552,7 @@ namespace NYql {
                 setNodeOptions.PrerequisiteTransactionIds.push_back(LeaderTransactionId);
 
                 Send(YtWrapper, new TEvSetNode(
-                    Options.YtBackend.GetPrefix() + "/operations/" + ClusterName + "/" + mutationId + "/@" + NCommonAttrs::OPERATIONID_ATTR,
+                    ClusterOperationsPath + "/" + mutationId + "/@" + NCommonAttrs::OPERATIONID_ATTR,
                     NYT::NYson::TYsonString(NYT::NodeToYsonString(NYT::TNode(operationId))),
                     setNodeOptions));
                 StartOperationWatcher(operationId, mutationId, ctx);
@@ -500,8 +577,8 @@ namespace NYql {
                 "yql_command",
                 "yql_file_paths"
             };
-            auto command = new TEvListNode(Options.YtBackend.GetPrefix() + "/operations/" + ClusterName, options);
-            RM_LOG(DEBUG) << "List " << Options.YtBackend.GetPrefix() + "/operations/" + ClusterName;
+            auto command = new TEvListNode(ClusterOperationsPath, options);
+            RM_LOG(DEBUG) << "List " << ClusterOperationsPath;
             Send(YtWrapper, command);
         }
 
@@ -537,13 +614,11 @@ namespace NYql {
 
         TString GetOperationSpec(const TVector<ui32>& nodes, const TString& command, const TMaybe<NYT::TNode>& filePaths) const
         {
-            int actorPort = Options.YtBackend.HasActorStartPort()
+            const int actorPort = Options.YtBackend.HasActorStartPort()
                 ? Options.YtBackend.GetActorStartPort()
                 : 31002;
 
-            bool samePorts = Options.YtBackend.HasSameActorPorts()
-                ? Options.YtBackend.GetSameActorPorts()
-                : true;
+            const bool samePorts = !Options.YtBackend.HasSameActorPorts() || Options.YtBackend.GetSameActorPorts();
 
             auto minNodeId = Options.YtBackend.GetMinNodeId();
 
@@ -556,20 +631,21 @@ namespace NYql {
             TString backendStr;
             TStringOutput output2(backendStr);
             SerializeToTextFormat(Options.YtBackend, output2);
-            ui32 tableNumber = *nodes.begin();
-            TString fileCache = "file_cache2";
+            const ui32 tableNumber = *nodes.begin();
+            const TString coreTablePath = TStringBuilder() << Options.UploadPrefix << "/CoreTable-" << tableNumber;
+            const TString stderrTablePath = TStringBuilder() << Options.UploadPrefix << "/StderrTable-" << tableNumber;
+            const TString fileCache = "file_cache2";
 
             TVector<std::pair<TString, TString>> initialFileList;
+            initialFileList.reserve(Options.Files.size() + Options.YtBackend.GetPortoLayer().size());
             for (const auto& fname : Options.Files) {
                 initialFileList.push_back(std::make_pair(Options.UploadPrefix, fname.GetRemoteFileName()));
             }
-            if (Options.YtBackend.HasEnablePorto()) {
-                for (const auto& layer : Options.YtBackend.GetPortoLayer()) {
-                    auto pos = layer.rfind('/');
-                    auto baseName = layer.substr(0, pos);
-                    auto name = layer.substr(pos+1);
-                    initialFileList.push_back(std::make_pair(baseName, name));
-                }
+            for (const auto& layer : Options.YtBackend.GetPortoLayer()) {
+                auto pos = layer.rfind('/');
+                auto baseName = layer.substr(0, pos);
+                auto name = layer.substr(pos + 1);
+                initialFileList.push_back(std::make_pair(baseName, name));
             }
 
             TVector<TString> operationLayersList;
@@ -613,8 +689,8 @@ namespace NYql {
                                 fluent.Item(envVar.GetName()).Value(tokenValue);
                             })
                         .EndMap()
-                    .Item("core_table_path").Value(Options.UploadPrefix + "/CoreTable-"+ToString(tableNumber))
-                    .Item("stderr_table_path").Value(Options.UploadPrefix + "/StderrTable-"+ToString(tableNumber))
+                    .Item("core_table_path").Value(coreTablePath)
+                    .Item("stderr_table_path").Value(stderrTablePath)
                     .Item("try_avoid_duplicating_jobs").Value(true)
                     .DoIf(!Options.YtBackend.GetPool().empty(), [&] (NYT::TFluentMap fluent) {
                         fluent.Item("pool").Value(Options.YtBackend.GetPool());
@@ -725,8 +801,8 @@ namespace NYql {
             const TString& command,
             const NYT::TNode& filePaths)
         {
-            int jobs = static_cast<int>(nodes.size());
-            RM_LOG(INFO) << "Creating " << jobs << " workers " << ToString(mutationId);
+            auto mutationIdStr = ToString(mutationId);
+            RM_LOG(INFO) << "Creating " << nodes.size() << " workers " << mutationIdStr;
 
             auto operationSpec = GetOperationSpec(nodes, command, TMaybe<NYT::TNode>(filePaths));
 
@@ -734,12 +810,13 @@ namespace NYql {
             startOperationOptions.MutationId = mutationId;
             startOperationOptions.Retry = true;
 
-            auto& state = RunningOperations[ToString(mutationId)];
-            state.MutationId = ToString(mutationId);
+            auto& state = RunningOperations[mutationIdStr];
+            state.MutationId = mutationIdStr;
             state.Nodes = nodes;
 
-            RM_LOG(DEBUG) << "Attaching to operation with mutationId " << ToString(mutationId);
+            RM_LOG(DEBUG) << "Attaching to operation with mutationId " << mutationIdStr;
 
+            Y_ENSURE(!nodes.empty());
             CreateCoreTable(*nodes.begin());
 
             Send(YtWrapper, MakeHolder<TEvStartOperation>(
@@ -749,7 +826,7 @@ namespace NYql {
                 startOperationOptions).Release());
 
             PendingStartOperationRequests[YtRequestId++] = {nodes,
-                ToString(mutationId), THolder<TEvStartOperation>()};
+                mutationIdStr, THolder<TEvStartOperation>()};
         }
 
         void StartOperation(int jobs, const NActors::TActorContext& ctx) {
@@ -773,13 +850,22 @@ namespace NYql {
 
             if (MutationsCache.empty()) {
                 startOperationOptions.MutationId = startOperationOptions.GetOrGenerateMutationId();
-                NodeIdAllocator.Allocate(&nodes, jobs);
+                NodeIdAllocator.Allocate(nodes, jobs);
             } else {
-                startOperationOptions.MutationId = NYT::TGuid::FromString(MutationsCache.begin()->first);
-                nodes = MutationsCache.begin()->second;
-                NodeIdAllocator.Allocate(nodes);
-                RM_LOG(INFO) << "Get mutation from cache " << ToString(startOperationOptions.MutationId) << "," << nodes.size();
-                MutationsCache.erase(MutationsCache.begin());
+                const auto cachedMutationIt = MutationsCache.begin();
+                const auto& cachedMutationIdStr = cachedMutationIt->first;
+                startOperationOptions.MutationId = NYT::TGuid::FromString(cachedMutationIdStr);
+                nodes = cachedMutationIt->second;
+                {
+                    auto dups = NodeIdAllocator.Allocate(nodes);
+                    RM_LOG(INFO) << "Get mutation from cache mutation=" << cachedMutationIdStr
+                                 << " nodes=" << nodes.size() << " node_ids=[" << JoinSeq(",", nodes) << "]";
+                    if (!dups.empty()) {
+                        RM_LOG(ERROR) << "NODE_ID CONFLICT restoring from MutationsCache: mutation=" << cachedMutationIdStr
+                                      << " conflicting ids=[" << JoinSeq(",", dups) << "]";
+                    }
+                }
+                MutationsCache.erase(cachedMutationIt);
             }
 
             if (nodes.empty()) {
@@ -792,18 +878,20 @@ namespace NYql {
             auto operationSpec = GetOperationSpec(nodes, command, TMaybe<NYT::TNode>());
 
             auto mutationId = startOperationOptions.MutationId;
+            auto mutationIdStr = ToString(mutationId);
 
-            RM_LOG(DEBUG) << "Start operation with mutationId " << ToString(mutationId) ;
+            RM_LOG(DEBUG) << "Start operation with mutationId " << mutationIdStr;
 
-            auto& state = RunningOperations[ToString(mutationId)];
-            state.MutationId = ToString(mutationId);
+            auto& state = RunningOperations[mutationIdStr];
+            state.MutationId = mutationIdStr;
             state.Nodes = nodes;
 
             NYT::NApi::TCreateNodeOptions createOptions;
             createOptions.IgnoreExisting = true;
             createOptions.Recursive = true;
 
-            RM_LOG(DEBUG) << "Creating operation with mutationId " << ToString(mutationId);
+            RM_LOG(DEBUG) << "Creating operation with mutationId " << mutationIdStr
+                          << " node_ids=[" << JoinSeq(",", nodes) << "]";
 
             auto filesAttribute = Options.Files;
             if (Options.YtBackend.GetClusterName().find("localhost") == 0) {
@@ -812,7 +900,7 @@ namespace NYql {
 
             auto attributes = NYT::BuildYsonNodeFluently()
                 .BeginMap()
-                    .Item("yql_mutation_id").Value(ToString(mutationId))
+                    .Item("yql_mutation_id").Value(mutationIdStr)
                     .Item(NCommonAttrs::OPERATIONSIZE_ATTR).Value(jobs)
                     .Item("yql_command").Value(command)
                     .Item("yql_file_paths")
@@ -841,19 +929,20 @@ namespace NYql {
 
             createOptions.PrerequisiteTransactionIds.push_back(LeaderTransactionId);
 
+            Y_ENSURE(!nodes.empty());
             CreateCoreTable(*nodes.begin());
 
             Send(YtWrapper, new TEvCreateNode(
                 YtRequestId,
-                Options.YtBackend.GetPrefix() + "/operations/" + ClusterName + "/" + ToString(mutationId),
+                ClusterOperationsPath + "/" + mutationIdStr,
                 NYT::NObjectClient::EObjectType::StringNode,
                 createOptions));
 
             PendingStartOperationRequests[YtRequestId] = {
                 nodes,
-                ToString(mutationId),
+                mutationIdStr,
                 MakeHolder<TEvStartOperation>(
-                    YtRequestId+1,
+                    YtRequestId + 1,
                     NYT::NScheduler::EOperationType::Vanilla,
                     operationSpec,
                     startOperationOptions)
@@ -872,13 +961,15 @@ namespace NYql {
                 }
                 return;
             }
-            if (!PendingStartOperationRequests.contains(requestId)) {
+            const auto it = PendingStartOperationRequests.find(requestId);
+            if (it == PendingStartOperationRequests.end()) {
                 return;
             }
-            auto& op = PendingStartOperationRequests[requestId];
+            auto& op = it->second;
             if (result.IsOK()) {
-                Y_ABORT_UNLESS(!PendingStartOperationRequests.contains(requestId+1));
-                PendingStartOperationRequests[requestId+1] = {
+                const auto startOperationRequestId = requestId + 1;
+                Y_ABORT_UNLESS(!PendingStartOperationRequests.contains(startOperationRequestId));
+                PendingStartOperationRequests[startOperationRequestId] = {
                     op.Nodes,
                     op.MutationId,
                     THolder<TEvStartOperation>()
@@ -888,13 +979,15 @@ namespace NYql {
                 YQL_CLOG(DEBUG, ProviderDq) << "Error on create node " << ToString(result);
                 DropRunningOperation(op.MutationId);
             }
-            PendingStartOperationRequests.erase(requestId);
+            PendingStartOperationRequests.erase(it);
             // retry in ListOperations
         }
 
+private:
         const TResourceManagerOptions Options;
         TIntrusivePtr<NMonitoring::TDynamicCounters> Counters;
         const TString ClusterName;
+        const TString ClusterOperationsPath;
 
         const ICoordinationHelper::TPtr Coordinator;
 
@@ -926,6 +1019,15 @@ namespace NYql {
             THolder<TEvStartOperation> Ev;
         };
         THashMap<ui64, TPendingStartOperation> PendingStartOperationRequests;
+
+        // RequestId -> (mutationId, nodeIds): tracks in-flight TEvRemoveNode for operation nodes in Cypress.
+        // node_ids are freed only after the removal is confirmed, preventing reuse of stale IDs.
+        struct TPendingNodeRelease {
+            TString MutationId;
+            TVector<ui32> Nodes;
+        };
+        THashMap<ui64, TPendingNodeRelease> PendingNodeReleases;
+
         ui64 YtRequestId = 1;
         NActors::TSchedulerCookieHolder TimerCookieHolder;
     };
