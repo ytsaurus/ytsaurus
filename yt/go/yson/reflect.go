@@ -362,8 +362,8 @@ func decodeReflectMap(r *Reader, v reflect.Value, attrs bool, opts *DecoderOptio
 		return decodeReflectYPAPIMap(r, v, opts)
 	default:
 		switch {
-		case reflect.PtrTo(kt).Implements(textUnmarshalerType),
-			reflect.PtrTo(kt).Implements(binaryUnmarshalerType):
+		case reflect.PointerTo(kt).Implements(textUnmarshalerType),
+			reflect.PointerTo(kt).Implements(binaryUnmarshalerType):
 		default:
 			return &UnsupportedTypeError{v.Type().Elem()}
 		}
@@ -405,14 +405,14 @@ func decodeReflectMap(r *Reader, v reflect.Value, attrs bool, opts *DecoderOptio
 		switch {
 		case kt.Kind() == reflect.String:
 			kv = reflect.ValueOf(r.String()).Convert(kt)
-		case reflect.PtrTo(kt).Implements(textUnmarshalerType):
+		case reflect.PointerTo(kt).Implements(textUnmarshalerType):
 			kv = reflect.New(kt)
 			err := kv.Interface().(encoding.TextUnmarshaler).UnmarshalText(r.currentString)
 			if err != nil {
 				return err
 			}
 			kv = kv.Elem()
-		case reflect.PtrTo(kt).Implements(binaryUnmarshalerType):
+		case reflect.PointerTo(kt).Implements(binaryUnmarshalerType):
 			kv = reflect.New(kt)
 			err := kv.Interface().(encoding.BinaryUnmarshaler).UnmarshalBinary(r.currentString)
 			if err != nil {
