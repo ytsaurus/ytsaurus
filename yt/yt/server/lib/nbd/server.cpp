@@ -727,18 +727,36 @@ private:
                 cookie,
                 flags);
 
+            TEventTimerGuard flushTimeGuard(
+                TNbdProfilerCounters::Get()->GetTimer(
+                    TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                    "/device/flush_time"));
+
+            TNbdProfilerCounters::Get()->GetCounter(
+                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                "/device/flush_count")
+                .Increment(1);
+
             Device_->Flush()
                 .Subscribe(
-                    BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                    BIND([=, flushTimeGuard = std::move(flushTimeGuard), this, this_ = MakeStrong(this)] (const TError& error) mutable {
+                        auto duration = flushTimeGuard.GetElapsedTime().SecondsFloat();
+                        {
+                            // Destroy flushTimeGuard to finalize flush time.
+                            auto guard = std::move(flushTimeGuard);
+                        }
+
                         if (!error.IsOK()) {
-                            YT_LOG_WARNING(error, "NBD_CMD_FLUSH request failed (Cookie: %x)",
-                                cookie);
+                            YT_LOG_WARNING(error, "NBD_CMD_FLUSH request failed (Cookie: %x, Duration: %v)",
+                                cookie,
+                                duration);
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_FLUSH request (Cookie: %x)",
-                            cookie);
+                        YT_LOG_DEBUG("Finished serving NBD_CMD_FLUSH request (Cookie: %x, Duration: %v)",
+                            cookie,
+                            duration);
 
                         WriteServerResponse(EServerError::NBD_OK, cookie);
                     }));
