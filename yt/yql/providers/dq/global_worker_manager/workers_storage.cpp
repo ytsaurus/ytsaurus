@@ -107,9 +107,10 @@ void TWorkersStorage::CheckZombie(ui32 nodeId, TGUID workerId, Yql::DqsProto::Re
 
         if (prevStartTime < curStartTime) {
             // Ping from new node: replace old node, mark old node as dead
-            YQL_CLOG(DEBUG, ProviderDq) << "Zombie worker " << GetGuidAsString(NodeIds[nodeId].first) << " " << nodeId;
+            const auto oldWorkerId = NodeIds[nodeId].first;
+            YQL_CLOG(DEBUG, ProviderDq) << "Zombie worker " << GetGuidAsString(oldWorkerId) << " " << nodeId;
             NodeIds[nodeId] = std::make_pair(workerId, request.GetStartTime());
-            auto maybeWorker = Workers.find(NodeIds[nodeId].first);
+            auto maybeWorker = Workers.find(oldWorkerId);
             if (maybeWorker != Workers.end()) {
                 maybeWorker->second->OnDead();
             }
