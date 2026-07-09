@@ -447,7 +447,7 @@ public:
                 }
                 replicas.push_back(replica);
             }
-            EmplaceOrCrash(result, chunk->GetId(), replicas);
+            result.try_emplace(chunk->GetId(), std::move(replicas));
         }
 
         auto sequoiaChunkIds = FilterSequoiaChunkIds(chunks);
