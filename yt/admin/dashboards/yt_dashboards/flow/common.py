@@ -206,6 +206,15 @@ def build_event_lag_percentile(metric: str, percentile: str, computation_id, gro
             f"histogram_quantile(({grafana_percentile}) / 100, sum by ({grouping}) ({{query}}))"))
 
 
+def build_median_over_hosts(metric: str, group_labels: list, backend: str):
+    """Median across hosts of a sensor, one line per group_labels combination."""
+    expr = MonitoringExpr(FlowWorker(metric)).all("host")
+    if backend == "monitoring":
+        labels = ", ".join(f'"{label}"' for label in group_labels)
+        return expr.query_transformation(f'group_lines("median", [{labels}], {{query}})')
+    return expr.query_transformation(f'quantile by ({", ".join(group_labels)}) (0.5, {{query}})')
+
+
 def build_resource_usage(component: str, add_component_to_title: bool):
     sensor = {
         "controller": FlowController,
